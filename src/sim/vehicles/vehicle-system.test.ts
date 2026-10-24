@@ -28,6 +28,9 @@ function track(
     crashable?: boolean;
     crestCrashSpeedQ8?: number;
     dropCrashSpeedQ8?: number;
+    invertedSegments?: number[];
+    bankSinQ8?: number[];
+    bankCosQ8?: number[];
   } = {},
 ) {
   return createVehicleTrack({
@@ -45,6 +48,11 @@ function track(
     crashable: options.crashable,
     crestCrashSpeedQ8: options.crestCrashSpeedQ8,
     dropCrashSpeedQ8: options.dropCrashSpeedQ8,
+    invertedSegments: options.invertedSegments
+      ? Uint8Array.from(options.invertedSegments)
+      : undefined,
+    bankSinQ8: options.bankSinQ8 ? Int16Array.from(options.bankSinQ8) : undefined,
+    bankCosQ8: options.bankCosQ8 ? Int16Array.from(options.bankCosQ8) : undefined,
   });
 }
 
@@ -100,8 +108,8 @@ describe('vehicle simulation', () => {
     });
     stepVehicles(heavyWorld, flat);
     stepVehicles(lightWorld, flat);
-    expect(heavyWorld.vehicles.cols.speed[heavy]).toBeGreaterThan(
-      lightWorld.vehicles.cols.speed[light],
+    expect(getTrainState(heavyWorld, heavy).speed).toBeGreaterThan(
+      getTrainState(lightWorld, light).speed,
     );
   });
 
@@ -120,7 +128,7 @@ describe('vehicle simulation', () => {
     });
     stepVehicles(launchWorld, launchTrack);
 
-    expect(getTrainState(liftWorld, liftTrain).speed).toBeGreaterThan(0);
+    expect(getTrainState(liftWorld, liftTrain).speed).toBe(1280);
     expect(getTrainState(launchWorld, launchTrain).speed).toBeGreaterThan(512);
   });
 
@@ -219,6 +227,34 @@ describe('vehicle simulation', () => {
     expect(getTrainState(clearWorld, clearTrain).trackPos).toBeGreaterThan(1 << 8);
   });
 
+  it('keeps a contiguous multi-segment block reserved while a train occupies it', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(
+        0,
+        [0, 0, 0, 1, 0, 0, 10, 0, 0, 20, 0, 0, 30, 0, 0],
+        [0, VehicleSegmentFlag.Block, VehicleSegmentFlag.Block, 0],
+        { blockOpen: [1, 1, 1, 1] },
+      ),
+    );
+    spawnTrain(simWorld, {
+      rideId: 0,
+      trackPos: 15,
+      speed: 0,
+      state: VehicleState.Running,
+    });
+    const approaching = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 512,
+      state: VehicleState.Running,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, approaching).trackPos).toBe(1 << 8);
+    expect(getTrainState(simWorld, approaching).speed).toBe(0);
+  });
+
   it('reserves a block section when a train enters it during the current tick', () => {
     const simWorld = world();
     const simTrack = registry(
@@ -245,7 +281,7 @@ describe('vehicle simulation', () => {
   it('dispatches from the station when maximum wait expires', () => {
     const stationWorld = world();
     const stationTrack = registry(
-      track(0, [0, 0, 0, 256, 0, 0], [VehicleSegmentFlag.Station], { loop: true }),
+      track(0, [0, 0, 0, 256, 0, 0, 0, 0, 0], [VehicleSegmentFlag.Station, 0], { loop: true }),
     );
     const waiting = spawnTrain(stationWorld, {
       rideId: 0,
@@ -265,7 +301,7 @@ describe('vehicle simulation', () => {
   it('respects minimum station wait even when the train is full', () => {
     const stationWorld = world();
     stationWorld.vehicleTracks = registry(
-      track(0, [0, 0, 0, 256, 0, 0], [VehicleSegmentFlag.Station], { loop: true }),
+      track(0, [0, 0, 0, 256, 0, 0, 0, 0, 0], [VehicleSegmentFlag.Station, 0], { loop: true }),
     );
     const waiting = spawnTrain(stationWorld, {
       rideId: 0,
@@ -292,7 +328,7 @@ describe('vehicle simulation', () => {
     expect(getTrainState(stalledWorld, train).state).toBe(VehicleState.Stalled);
   });
 
-  it('records ride-test metrics and derives ratings from forces and track events', () => {
+  it('records ride-test metrics and writes ratings by stable ride ID after slot compaction', () => {
     const simWorld = world();
     simWorld.rides.spawn();
     const rideId = simWorld.rides.spawn();
@@ -514,6 +550,28 @@ describe('vehicle simulation', () => {
     expect(getTrainState(simWorld, behind).state).toBe(VehicleState.Crashed);
   });
 
+  it('does not crash a faster train that is pulling away ahead of a slower train', () => {
+    const simWorld = world();
+    const simTrack = registry(track(0, [0, 0, 0, 1000, 0, 0], [], { crashable: true }));
+    const leader = spawnTrain(simWorld, {
+      rideId: 0,
+      trackPos: 102,
+      speed: 7000,
+      state: VehicleState.Running,
+    });
+    const follower = spawnTrain(simWorld, {
+      rideId: 0,
+      trackPos: 100,
+      speed: 6000,
+      state: VehicleState.Running,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, leader).state).toBe(VehicleState.Running);
+    expect(getTrainState(simWorld, follower).state).toBe(VehicleState.Running);
+  });
+
   it('records drop and inversion events crossed within one tick', () => {
     const simWorld = world();
     const simTrack = registry(
@@ -535,8 +593,233 @@ describe('vehicle simulation', () => {
     expect(getTrainState(simWorld, train).inversionCount).toBe(1);
   });
 
-  it('lets ride length, airtime, and top speed contribute to tracked ratings', async () => {
-    const baseline = calculateTrackedRideRatings({
+  it('reports the full height of a drop spanning multiple descending segments', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(
+        0,
+        [0, 0, 10, 1, 0, 8, 2, 0, 5, 3, 0, 6, 10, 0, 6],
+        [VehicleSegmentFlag.DropStart, 0, 0, 0],
+      ),
+    );
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 4096,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, train).highestDrop).toBe(5);
+  });
+
+  it('normalizes curvature acceleration into Q8 G force units', () => {
+    const simWorld = world();
+    const simTrack = registry(track(0, [0, 0, 0, 100, 0, 0], [], { lateralCurvatureQ8: [256] }));
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 256,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, train).maxLateralGQ8).toBeGreaterThanOrEqual(1900);
+    expect(getTrainState(simWorld, train).maxLateralGQ8).toBeLessThanOrEqual(1950);
+  });
+
+  it('requires loop tracks to return to their starting point', () => {
+    expect(() => track(0, [0, 0, 0, 10, 0, 0], [], { loop: true })).toThrow();
+  });
+
+  it('detects collisions across the seam of a closed loop', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(0, [0, 0, 0, 50, 0, 0, 100, 0, 0, 0, 0, 0], [0, 0, 0], { crashable: true, loop: true }),
+    );
+    const leader = spawnTrain(simWorld, {
+      rideId: 0,
+      trackPos: 1,
+      speed: 6000,
+      state: VehicleState.Running,
+    });
+    const follower = spawnTrain(simWorld, {
+      rideId: 0,
+      trackPos: 199,
+      speed: 7000,
+      state: VehicleState.Running,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, leader).state).toBe(VehicleState.Crashed);
+    expect(getTrainState(simWorld, follower).state).toBe(VehicleState.Crashed);
+  });
+
+  it('detects a loop catch along the forward gap when the reverse gap is shorter', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(0, [0, 0, 0, 10, 0, 0, 0, 0, 0], [0, 0], { crashable: true, loop: true }),
+    );
+    const leader = spawnTrain(simWorld, {
+      rideId: 0,
+      trackPos: 1 * 256,
+      speed: 4000,
+      state: VehicleState.Running,
+    });
+    const follower = spawnTrain(simWorld, {
+      rideId: 0,
+      trackPos: 2 * 256,
+      speed: 15000,
+      state: VehicleState.Running,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, leader).state).toBe(VehicleState.Crashed);
+    expect(getTrainState(simWorld, follower).state).toBe(VehicleState.Crashed);
+  });
+
+  it('samples force extrema on short intermediate segments crossed within a tick', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(0, [0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0, 20, 0, 0], [0, 0, 0, 0], {
+        lateralCurvatureQ8: [0, 256, 0, 0],
+      }),
+    );
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 8 * 256,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, train).maxLateralGQ8).toBeGreaterThan(0);
+  });
+
+  it('measures each drop from its local preceding crest', () => {
+    const simTrack = track(
+      0,
+      [0, 0, 20, 10, 0, 0, 20, 0, 0, 30, 0, 5, 40, 0, 2, 50, 0, 2],
+      [0, VehicleSegmentFlag.DropStart, 0, VehicleSegmentFlag.DropStart, 0],
+    );
+
+    expect(simTrack.dropHeights[1]).toBe(20);
+    expect(simTrack.dropHeights[3]).toBe(3);
+  });
+
+  it('records negative vertical G on a straight inverted segment', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(0, [0, 0, 0, 100, 0, 0], [VehicleSegmentFlag.Inversion], {
+        invertedSegments: [1],
+      }),
+    );
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 256,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, train).minVerticalGQ8).toBe(-256);
+    expect(getTrainState(simWorld, train).airtimeTicks).toBe(1);
+  });
+
+  it('keeps inversion event counts separate from sustained inverted orientation', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(0, [0, 0, 0, 1, 0, 0, 2, 0, 0, 100, 0, 0], [VehicleSegmentFlag.Inversion, 0, 0], {
+        invertedSegments: [0, 1, 0],
+      }),
+    );
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 8 * 256,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, train).inversionCount).toBe(1);
+    expect(getTrainState(simWorld, train).minVerticalGQ8).toBe(-256);
+  });
+
+  it('keeps intermediate segment speed peaks in ride-test maximum speed', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(
+        0,
+        [0, 0, 0, 1, 0, 0, 101, 0, 0],
+        [VehicleSegmentFlag.Launch, VehicleSegmentFlag.Brake],
+      ),
+    );
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 4000,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    const state = getTrainState(simWorld, train);
+    expect(state.maxSpeed).toBeGreaterThan(4000);
+    expect(state.maxSpeed).toBeGreaterThan(state.speed);
+  });
+
+  it('reduces lateral G when bank angle matches the centripetal load', () => {
+    const unbankedWorld = world();
+    const bankedWorld = world();
+    const points = [0, 0, 0, 100, 0, 0];
+    const unbankedTrack = registry(track(0, points, [], { lateralCurvatureQ8: [32] }));
+    const bankedTrack = registry(
+      track(0, points, [], {
+        lateralCurvatureQ8: [32],
+        bankSinQ8: [170],
+        bankCosQ8: [181],
+      }),
+    );
+    const unbanked = spawnTrain(unbankedWorld, {
+      rideId: 0,
+      speed: 256,
+      state: VehicleState.Testing,
+    });
+    const banked = spawnTrain(bankedWorld, {
+      rideId: 0,
+      speed: 256,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(unbankedWorld, unbankedTrack);
+    stepVehicles(bankedWorld, bankedTrack);
+
+    expect(getTrainState(bankedWorld, banked).maxLateralGQ8).toBeLessThan(
+      getTrainState(unbankedWorld, unbanked).maxLateralGQ8,
+    );
+  });
+
+  it('applies slope gravity when the train crosses into a slope during the tick', () => {
+    const run = (points: number[]) => {
+      const simWorld = world();
+      const simTrack = registry(track(0, points));
+      const train = spawnTrain(simWorld, {
+        rideId: 0,
+        speed: 3 * 256,
+        state: VehicleState.Running,
+      });
+      stepVehicles(simWorld, simTrack);
+      return getTrainState(simWorld, train).speed;
+    };
+
+    const flatSpeed = run([0, 0, 0, 1, 0, 0, 2, 0, 0, 20, 0, 0]);
+    const downhillSpeed = run([0, 0, 0, 1, 0, 0, 2, 0, -1, 20, 0, -1]);
+    expect(downhillSpeed).toBeGreaterThan(flatSpeed);
+  });
+
+  it('lets ride length, airtime, and top speed contribute to tracked ratings', () => {
+    const baseMetrics = {
       maxSpeed: 0,
       averageSpeed: 0,
       dropCount: 0,
@@ -547,20 +830,18 @@ describe('vehicle simulation', () => {
       maxLateralGQ8: 0,
       rideLength: 0,
       airtimeTicks: 0,
-    });
-    const fasterLonger = calculateTrackedRideRatings({
+    };
+    const baseline = calculateTrackedRideRatings(baseMetrics);
+    const faster = calculateTrackedRideRatings({
+      ...baseMetrics,
       maxSpeed: 1024,
       averageSpeed: 512,
-      dropCount: 0,
-      highestDrop: 0,
-      inversionCount: 0,
-      maxVerticalGQ8: 256,
-      minVerticalGQ8: 256,
-      maxLateralGQ8: 0,
-      rideLength: 100_000,
-      airtimeTicks: 20,
     });
-    expect(fasterLonger.excitement).toBeGreaterThan(baseline.excitement);
+    const longer = calculateTrackedRideRatings({ ...baseMetrics, rideLength: 100_000 });
+    const airtime = calculateTrackedRideRatings({ ...baseMetrics, airtimeTicks: 20 });
+    expect(faster.excitement).toBeGreaterThan(baseline.excitement);
+    expect(longer.excitement).toBeGreaterThan(baseline.excitement);
+    expect(airtime.excitement).toBeGreaterThan(baseline.excitement);
   });
 
   it('produces identical vehicle state for the same train and track inputs', () => {
@@ -569,9 +850,13 @@ describe('vehicle simulation', () => {
       const simTrack = registry(
         track(
           0,
-          [0, 0, 0, 256, 0, -32, 512, 0, -32, 768, 0, 0],
-          [0, VehicleSegmentFlag.Launch, 0],
-          { loop: true },
+          [0, 0, 0, 256, 0, -32, 512, 0, -32, 768, 0, 0, 0, 0, 0],
+          [0, VehicleSegmentFlag.Launch, 0, 0],
+          {
+            lateralCurvatureQ8: [128, 0, 0, 0],
+            verticalCurvatureQ8: [128, -512, 0, 0],
+            loop: true,
+          },
         ),
       );
       spawnTrain(simWorld, { rideId: 0, speed: 1024, state: VehicleState.Testing });

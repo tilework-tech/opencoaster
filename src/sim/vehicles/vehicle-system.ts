@@ -49,27 +49,6 @@ function segmentAt(track: VehicleTrack, positionQ8: number): number {
   return segment;
 }
 
-function pointAt(
-  track: VehicleTrack,
-  positionQ8: number,
-  segment: number,
-): [number, number, number] {
-  const start = segment * 3;
-  const segmentStart = track.cumulativeLengthsQ8[segment];
-  const segmentLengthQ8 = track.segmentLengths[segment] << 8;
-  const localQ8 = Math.max(0, Math.min(segmentLengthQ8, positionQ8 - segmentStart));
-  const x =
-    track.points[start] +
-    Math.trunc(((track.points[start + 3] - track.points[start]) * localQ8) / segmentLengthQ8);
-  const y =
-    track.points[start + 1] +
-    Math.trunc(((track.points[start + 4] - track.points[start + 1]) * localQ8) / segmentLengthQ8);
-  const z =
-    track.points[start + 2] +
-    Math.trunc(((track.points[start + 5] - track.points[start + 2]) * localQ8) / segmentLengthQ8);
-  return [x, y, z];
-}
-
 function slopeAcceleration(track: VehicleTrack, segment: number): number {
   const point = segment * 3;
   const dz = track.points[point + 5] - track.points[point + 2];
@@ -77,7 +56,7 @@ function slopeAcceleration(track: VehicleTrack, segment: number): number {
 }
 
 function curveGQ8(speedQ8: number, curvatureQ8: number): number {
-  return Math.trunc((speedQ8 * speedQ8 * curvatureQ8) / (Q8 * Q8 * Q8));
+  return Math.trunc((speedQ8 * speedQ8 * curvatureQ8 * Q8 * Q8) / (Q8 * Q8 * Q8 * GRAVITY_Q8));
 }
 
 function verticalGravityGQ8(track: VehicleTrack, segment: number): number {
@@ -88,15 +67,74 @@ function verticalGravityGQ8(track: VehicleTrack, segment: number): number {
   return Math.trunc((horizontalLength * Q8) / track.segmentLengths[segment]);
 }
 
-function controlSpeed(track: VehicleTrack, segment: number, speed: number): number {
+function sampleForces(
+  world: World,
+  track: VehicleTrack,
+  slot: number,
+  segment: number,
+  speed: number,
+): boolean {
+  const cols = world.vehicles.cols;
+  const inverted = track.invertedSegments[segment];
+  const gravityG = verticalGravityGQ8(track, segment) * (inverted ? -1 : 1);
+  const verticalG = gravityG + curveGQ8(speed, track.verticalCurvatureQ8[segment]);
+  const lateralG = Math.abs(
+    Math.trunc(
+      (curveGQ8(speed, track.lateralCurvatureQ8[segment]) * track.bankCosQ8[segment]) / Q8,
+    ) - track.bankSinQ8[segment],
+  );
+  const boundedVerticalG = Math.max(-0x8000, Math.min(0x7fff, verticalG));
+  const boundedLateralG = Math.min(0xffff, lateralG);
+  cols.maxVerticalGQ8[slot] = Math.max(cols.maxVerticalGQ8[slot], boundedVerticalG);
+  cols.minVerticalGQ8[slot] = Math.min(cols.minVerticalGQ8[slot], boundedVerticalG);
+  cols.maxLateralGQ8[slot] = Math.max(cols.maxLateralGQ8[slot], boundedLateralG);
+  return verticalG <= 0;
+}
+
+function controlSpeed(track: VehicleTrack, segment: number, speed: number, timeQ8 = Q8): number {
   const flags = track.segmentFlags[segment];
   if (flags & VehicleSegmentFlag.ChainLift) return Math.max(speed, LIFT_SPEED_Q8);
-  if (flags & VehicleSegmentFlag.Launch) return Math.min(LAUNCH_SPEED_Q8, speed + LAUNCH_ACCEL_Q8);
+  if (flags & VehicleSegmentFlag.Launch) {
+    return Math.min(LAUNCH_SPEED_Q8, speed + Math.trunc((LAUNCH_ACCEL_Q8 * timeQ8) / Q8));
+  }
   if (flags & VehicleSegmentFlag.Brake) {
-    return Math.min(speed, Math.max(BRAKE_SPEED_Q8, speed - BRAKE_DECEL_Q8));
+    return Math.min(
+      speed,
+      Math.max(BRAKE_SPEED_Q8, speed - Math.trunc((BRAKE_DECEL_Q8 * timeQ8) / Q8)),
+    );
   }
   if (flags & VehicleSegmentFlag.Block) return Math.min(speed, OPEN_BLOCK_SPEED_Q8);
   return speed;
+}
+
+function trainContactWithinTick(
+  track: VehicleTrack,
+  posA: number,
+  speedA: number,
+  posB: number,
+  speedB: number,
+): boolean {
+  if (posA === posB) return true;
+  let gap: number;
+  let closingSpeed: number;
+  if (track.loop) {
+    const aToB = (posB - posA + track.totalLengthQ8) % track.totalLengthQ8;
+    const bToA = track.totalLengthQ8 - aToB;
+    if (speedA > speedB) {
+      gap = aToB;
+      closingSpeed = speedA - speedB;
+    } else {
+      gap = bToA;
+      closingSpeed = speedB - speedA;
+    }
+  } else if (posA > posB) {
+    gap = posA - posB;
+    closingSpeed = speedB - speedA;
+  } else {
+    gap = posB - posA;
+    closingSpeed = speedA - speedB;
+  }
+  return closingSpeed > 0 && gap <= closingSpeed;
 }
 
 function enterSegment(
@@ -184,85 +222,101 @@ function advanceTrain(world: World, track: VehicleTrack, slot: number): void {
   const position = Math.max(0, cols.trackPos[slot]);
   let segment = segmentAt(track, position);
   const speed = cols.speed[slot];
+  cols.maxSpeed[slot] = Math.max(cols.maxSpeed[slot], speed);
   if (cols.lastSegment[slot] !== segment && !enterSegment(world, track, slot, segment, speed))
     return;
 
   const mass = Math.max(64, cols.mass[slot]);
   const rollingFriction = Math.max(1, Math.trunc((ROLLING_FRICTION_Q8 * 1024) / mass));
-  const speedDrag = Math.trunc((speed * speed) / DRAG_DIVISOR);
-  let nextSpeed = Math.max(
-    0,
-    speed + slopeAcceleration(track, segment) - rollingFriction - speedDrag,
-  );
-  nextSpeed = controlSpeed(track, segment, nextSpeed);
+  let currentSpeed = speed;
   let nextPosition = position;
-  let remainingDistance = nextSpeed;
+  let timeRemaining = Q8;
   let guard = 0;
+  let airtime = false;
   while (
-    remainingDistance > 0 &&
+    timeRemaining > 0 &&
     nextPosition < track.totalLengthQ8 &&
     guard++ < track.segmentLengths.length
   ) {
+    const speedDrag = Math.trunc((currentSpeed * currentSpeed) / DRAG_DIVISOR);
+    const acceleration = slopeAcceleration(track, segment) - rollingFriction - speedDrag;
+    let segmentEndSpeed = Math.max(
+      0,
+      currentSpeed + Math.trunc((acceleration * timeRemaining) / Q8),
+    );
+    segmentEndSpeed = controlSpeed(track, segment, segmentEndSpeed, timeRemaining);
+    const averageSpeed = Math.trunc((currentSpeed + segmentEndSpeed) / 2);
+    const availableDistance = Math.trunc((averageSpeed * timeRemaining) / Q8);
     const boundary = track.cumulativeLengthsQ8[segment + 1];
     const distanceToBoundary = boundary - nextPosition;
-    if (remainingDistance < distanceToBoundary) {
-      nextPosition += remainingDistance;
+    if (availableDistance < distanceToBoundary) {
+      nextPosition += availableDistance;
+      currentSpeed = segmentEndSpeed;
       break;
     }
+    const timeToBoundary = Math.min(
+      timeRemaining,
+      Math.max(1, Math.ceil((distanceToBoundary * Q8) / Math.max(averageSpeed, 1))),
+    );
+    currentSpeed = Math.max(0, currentSpeed + Math.trunc((acceleration * timeToBoundary) / Q8));
+    currentSpeed = controlSpeed(track, segment, currentSpeed, timeToBoundary);
+    cols.maxSpeed[slot] = Math.min(0xffff, Math.max(cols.maxSpeed[slot], currentSpeed));
     nextPosition = boundary;
-    remainingDistance -= distanceToBoundary;
+    timeRemaining -= timeToBoundary;
+    if (testing) airtime ||= sampleForces(world, track, slot, segment, currentSpeed);
     if (nextPosition >= track.totalLengthQ8) break;
 
     const enteredSegment = segment + 1;
     const flags = track.segmentFlags[enteredSegment];
-    const occupant = track.blockOccupiedBy[enteredSegment];
+    const section = track.blockSectionStart[enteredSegment];
+    const occupant = track.blockOccupiedBy[section];
     if (
       flags & VehicleSegmentFlag.Block &&
       (track.blockOpen[enteredSegment] === 0 || (occupant !== -1 && occupant !== slot))
     ) {
-      nextSpeed = 0;
+      currentSpeed = 0;
       break;
     }
     segment = enteredSegment;
-    if (flags & VehicleSegmentFlag.Block) track.blockOccupiedBy[segment] = slot;
-    if (!enterSegment(world, track, slot, segment, nextSpeed)) return;
-    const controlledSpeed = controlSpeed(track, segment, nextSpeed);
-    remainingDistance = Math.max(0, remainingDistance + controlledSpeed - nextSpeed);
-    nextSpeed = controlledSpeed;
+    if (flags & VehicleSegmentFlag.Block) track.blockOccupiedBy[section] = slot;
+    if (!enterSegment(world, track, slot, segment, currentSpeed)) return;
   }
   nextPosition = Math.min(nextPosition, track.totalLengthQ8);
+  let nextSpeed = currentSpeed;
+  cols.maxSpeed[slot] = Math.min(0xffff, Math.max(cols.maxSpeed[slot], nextSpeed));
 
   const finalSegment = segmentAt(track, Math.min(nextPosition, track.totalLengthQ8 - 1));
   if (
     track.segmentFlags[finalSegment] & VehicleSegmentFlag.Block &&
     track.blockOpen[finalSegment] === 0
   ) {
-    nextPosition = track.cumulativeLengthsQ8[finalSegment];
+    nextPosition = Math.max(nextPosition, track.cumulativeLengthsQ8[finalSegment]);
     nextSpeed = 0;
   }
 
-  const [x, y, z] = pointAt(track, nextPosition, finalSegment);
-  cols.x[slot] = x;
-  cols.y[slot] = y;
-  cols.z[slot] = z;
+  const point = finalSegment * 3;
+  const segmentStart = track.cumulativeLengthsQ8[finalSegment];
+  const segmentLengthQ8 = track.segmentLengths[finalSegment] << 8;
+  const localQ8 = Math.max(0, Math.min(segmentLengthQ8, nextPosition - segmentStart));
+  cols.x[slot] =
+    track.points[point] +
+    Math.trunc(((track.points[point + 3] - track.points[point]) * localQ8) / segmentLengthQ8);
+  cols.y[slot] =
+    track.points[point + 1] +
+    Math.trunc(((track.points[point + 4] - track.points[point + 1]) * localQ8) / segmentLengthQ8);
+  cols.z[slot] =
+    track.points[point + 2] +
+    Math.trunc(((track.points[point + 5] - track.points[point + 2]) * localQ8) / segmentLengthQ8);
   cols.trackPos[slot] = nextPosition;
   cols.speed[slot] = nextSpeed;
-  cols.maxSpeed[slot] = Math.min(0xffff, Math.max(cols.maxSpeed[slot], nextSpeed));
 
   if (testing) {
-    const sampleSegment = finalSegment;
-    const verticalG =
-      verticalGravityGQ8(track, sampleSegment) +
-      curveGQ8(nextSpeed, track.verticalCurvatureQ8[sampleSegment]);
-    const lateralG = Math.abs(curveGQ8(nextSpeed, track.lateralCurvatureQ8[sampleSegment]));
-    cols.maxVerticalGQ8[slot] = Math.max(cols.maxVerticalGQ8[slot], verticalG);
-    cols.minVerticalGQ8[slot] = Math.min(cols.minVerticalGQ8[slot], verticalG);
-    cols.maxLateralGQ8[slot] = Math.max(cols.maxLateralGQ8[slot], lateralG);
-    if (verticalG <= 0) cols.airtimeTicks[slot]++;
+    airtime ||= sampleForces(world, track, slot, finalSegment, nextSpeed);
+    if (airtime) cols.airtimeTicks[slot]++;
     cols.elapsedTicks[slot]++;
     cols.speedTotal[slot] += nextSpeed;
     cols.distanceTravelled[slot] += Math.max(0, nextPosition - position);
-    if (nextSpeed === 0 && slopeAcceleration(track, sampleSegment) < 0) {
+    if (nextSpeed === 0 && slopeAcceleration(track, finalSegment) < 0) {
       if (cols.dispatchTicks[slot] < 0xffff) cols.dispatchTicks[slot]++;
       if (cols.dispatchTicks[slot] >= STALL_TICKS) cols.state[slot] = VehicleState.Stalled;
     } else {
@@ -298,10 +352,10 @@ export function stepVehicles(world: World, tracks: VehicleTrackRegistry): void {
     const segment = segmentAt(track, Math.max(0, cols.trackPos[slot]));
     if (
       track.segmentFlags[segment] & VehicleSegmentFlag.Block &&
-      cols.trackPos[slot] > track.cumulativeLengthsQ8[segment] &&
+      cols.trackPos[slot] >= track.cumulativeLengthsQ8[segment] &&
       cols.trackPos[slot] < track.cumulativeLengthsQ8[segment + 1]
     ) {
-      track.blockOccupiedBy[segment] = slot;
+      track.blockOccupiedBy[track.blockSectionStart[segment]] = slot;
     }
     if (!moving || !track.crashable) continue;
     for (let other = 0; other < slot; other++) {
@@ -314,8 +368,13 @@ export function stepVehicles(world: World, tracks: VehicleTrackRegistry): void {
       if (
         cols.rideId[other] === cols.rideId[slot] &&
         cols.speed[other] + cols.speed[slot] >= COLLISION_SPEED_Q8 &&
-        Math.abs(cols.trackPos[other] - cols.trackPos[slot]) <=
-          Math.abs(cols.speed[other] - cols.speed[slot])
+        trainContactWithinTick(
+          track,
+          cols.trackPos[other],
+          cols.speed[other],
+          cols.trackPos[slot],
+          cols.speed[slot],
+        )
       ) {
         cols.state[other] = VehicleState.Crashed;
         cols.state[slot] = VehicleState.Crashed;

@@ -17,6 +17,11 @@ export interface VehicleTrackInput {
   /** Signed Q8 curvature (1 / world unit) for force estimation. */
   lateralCurvatureQ8?: Int16Array;
   verticalCurvatureQ8?: Int16Array;
+  /** Q8 sine/cosine of track bank angle; defaults to level track. */
+  bankSinQ8?: Int16Array;
+  bankCosQ8?: Int16Array;
+  /** Nonzero while the track's up direction is inverted, independent of event markers. */
+  invertedSegments?: Uint8Array;
   /** A zero marks a block section that currently cannot accept a train. */
   blockOpen?: Uint8Array;
   loop?: boolean;
@@ -33,6 +38,8 @@ export interface VehicleTrack extends Required<VehicleTrackInput> {
   dropHeights: Uint16Array;
   /** Train occupying each block segment, or -1 when the section is empty. */
   blockOccupiedBy: Int32Array;
+  /** Start index shared by adjacent segments that make up the same block section. */
+  blockSectionStart: Uint32Array;
 }
 
 function integerSqrt(value: number): number {
@@ -54,6 +61,16 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
   if (input.segmentFlags.length !== segmentCount) {
     throw new Error('Track segment flags must match the number of line segments');
   }
+  if (input.loop) {
+    const last = input.points.length - 3;
+    if (
+      input.points[0] !== input.points[last] ||
+      input.points[1] !== input.points[last + 1] ||
+      input.points[2] !== input.points[last + 2]
+    ) {
+      throw new Error('Loop tracks must return to their starting point');
+    }
+  }
   const normalize = <T extends Int16Array | Uint8Array>(
     values: T | undefined,
     Ctor: { new (length: number): T },
@@ -67,10 +84,16 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
   if (blockOpen.length !== segmentCount) {
     throw new Error('Track segment metadata must match the number of line segments');
   }
+  const bankSinQ8 = normalize(input.bankSinQ8, Int16Array);
+  const bankCosQ8 = input.bankCosQ8 ?? new Int16Array(segmentCount).fill(256);
+  const invertedSegments = input.invertedSegments ?? new Uint8Array(segmentCount);
+  if (bankCosQ8.length !== segmentCount || invertedSegments.length !== segmentCount) {
+    throw new Error('Track segment metadata must match the number of line segments');
+  }
   const segmentLengths = new Uint32Array(segmentCount);
   const cumulativeLengthsQ8 = new Uint32Array(segmentCount + 1);
   const dropHeights = new Uint16Array(segmentCount);
-  let highestZ = input.points[2];
+  const blockSectionStart = new Uint32Array(segmentCount);
   for (let segment = 0; segment < segmentCount; segment++) {
     const a = segment * 3;
     const dx = input.points[a + 3] - input.points[a];
@@ -80,11 +103,32 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     if (length === 0) throw new Error('Track segments must have non-zero length');
     segmentLengths[segment] = length;
     cumulativeLengthsQ8[segment + 1] = cumulativeLengthsQ8[segment] + (length << 8);
-    if (dz > 0) highestZ = Math.max(highestZ, input.points[a + 5]);
-    if (dz < 0) {
-      dropHeights[segment] = Math.min(0xffff, Math.max(0, highestZ - input.points[a + 5]));
+    blockSectionStart[segment] =
+      input.segmentFlags[segment] & VehicleSegmentFlag.Block &&
+      segment > 0 &&
+      input.segmentFlags[segment - 1] & VehicleSegmentFlag.Block
+        ? blockSectionStart[segment - 1]
+        : segment;
+  }
+  for (let segment = 0; segment < segmentCount; segment++) {
+    if (!(input.segmentFlags[segment] & VehicleSegmentFlag.DropStart)) continue;
+    const start = segment * 3;
+    let peakZ = input.points[start + 2];
+    let crestPoint = segment;
+    while (crestPoint > 0) {
+      const previousZ = input.points[(crestPoint - 1) * 3 + 2];
+      if (previousZ <= peakZ) break;
+      peakZ = previousZ;
+      crestPoint--;
     }
-    if (input.points[a + 5] > highestZ) highestZ = input.points[a + 5];
+    let lowZ = input.points[start + 2];
+    for (let descent = segment; descent < segmentCount; descent++) {
+      const point = descent * 3;
+      const endZ = input.points[point + 5];
+      if (endZ >= input.points[point + 2]) break;
+      lowZ = Math.min(lowZ, endZ);
+    }
+    dropHeights[segment] = Math.min(0xffff, Math.max(0, peakZ - lowZ));
   }
   return {
     rideId: input.rideId,
@@ -92,6 +136,9 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     segmentFlags: input.segmentFlags,
     lateralCurvatureQ8: normalize(input.lateralCurvatureQ8, Int16Array),
     verticalCurvatureQ8: normalize(input.verticalCurvatureQ8, Int16Array),
+    bankSinQ8,
+    bankCosQ8,
+    invertedSegments,
     blockOpen,
     loop: input.loop ?? false,
     crashable: input.crashable ?? false,
@@ -102,6 +149,7 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     totalLengthQ8: cumulativeLengthsQ8[segmentCount],
     dropHeights,
     blockOccupiedBy: new Int32Array(segmentCount).fill(-1),
+    blockSectionStart,
   };
 }
 
