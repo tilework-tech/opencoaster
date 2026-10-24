@@ -29,16 +29,19 @@ Responsibility: scenario definitions (starting finances, price mode, loan terms,
   "pricing": { "mode": "admission", "admissionPrice": 300 },
   "research": {
     "availableItemIds": [1, 5],
-    "inventions": [{ "itemId": 2, "category": 0, "costCents": 40000 }]
+    "inventions": [{ "itemId": 2, "category": 0, "workUnits": 180 }]
   },
   "entrance": { "side": "south", "length": 4 },
-  "objective": { "kind": "guestsAndRating", "target": 10, "rating": 600, "byYear": 1 }
+  "objective": { "kind": "guestsAndRating", "target": 10, "rating": 600, "byYear": 1 },
+  "difficultRating": true
 }
 ```
 
 - Money is integer cents, capped at 10^12 so sums stay exact. `pricing.mode` is `free`, `admission` or `perRide`. The starting loan may not exceed the loan limit, and objective targets are never negative.
 - The ids `sandbox` and `imported` are reserved: they name non-scenario saves (`SANDBOX_ID`, `IMPORTED_ID` in `scenario.ts`).
 - `objective.kind` is one of `guests`, `parkValue`, `guestsAndRating`, `repayLoanAndParkValue`, `monthlyIncome` (needs `categories`, ledger category names such as `admission`), `qualifyingRides`.
+- `difficultRating` is optional (default `false`). When `true`, the park rating starts from 1,050 instead of 1,150.
+- Each invention has `workUnits`: the research work needed to finish it. A scenario-wide scale is in `research/research.ts` (`FUNDING_WORK_PER_WEEK`).
 - The deadline is `byYear` (whole years; year N ends at the start of year N+1) or a raw `byTick`.
 - `entrance` is optional. Without it the park has no path.
 
@@ -49,9 +52,9 @@ Responsibility: scenario definitions (starting finances, price mode, loan terms,
 - `MonthlyIncome` sums the masked categories for the most recently completed month. The economy rolls the month before scenarios evaluate, so a deadline on a month boundary judges the month that just ended.
 - The park entrance is laid on the owned-land edge on the requested side, with a straight path inward. The search runs outward from the edge midpoint and takes the first run of `length` tiles that is buildable, flat, dry and empty. It only depends on the terrain, so the same seed gives the same entrance. If no run qualifies, no path is placed.
 - The objective record and status are saved; the research catalogue is saved as part of research state. The scenario definition itself is not stored, and nothing about the scenario file is in the save format. A loaded game keeps its objective and outcome.
-- Starter objective: 100 live guests and park rating 730 by the end of year one. The target is calibrated with `pnpm balance`; see [docs/BALANCE.md](../../../docs/BALANCE.md#starter-objective).
+- Starter objective: 100 live guests and park rating 650 by the end of year one. The target is calibrated with `pnpm balance`; see [docs/BALANCE.md](../../../docs/BALANCE.md#starter-objective).
 - The scenario entrance registers the outermost path tile as the park gate. Guest arrivals and departures use this gate and its connected footpath network.
 
 ## Starter Objective Calibration
 
-The target is calibrated with the headless balance harness (`pnpm balance`, [bench/docs.md](../../../bench/docs.md)) on flattened terrain. Over twelve seeds, minimal, modest and ambitious scripted parks end year one at 156 - 309, 668 - 752 and 728 - 858 rating (winning 0, 3 and 11 times), so rating 730 separates a thin park from one that keeps adding attractions. Player terrain edits and layouts can change the outcome; the harness does not measure the scenario's original rolling terrain.
+The target is calibrated with the headless balance harness (`pnpm balance`, [bench/docs.md](../../../bench/docs.md)) on flattened terrain. After the economy fidelity pass the happiness term narrows the band. Over twelve seeds, minimal, modest and ambitious scripted parks end year one at 0 - 364, 598 - 762 and 662 - 759 rating; rating 650 wins 0, 10 and 12 times, and rating 730 wins only 2 and 3 times for modest and ambitious. The scenario's own seed (2026) ends the modest build at 653, a three-point margin; see [BALANCE.md](../../../docs/BALANCE.md#starter-objective).

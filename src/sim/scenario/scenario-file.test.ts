@@ -18,7 +18,7 @@ const valid = {
   pricing: { mode: 'admission', admissionPrice: 300 },
   research: {
     availableItemIds: [1, 2],
-    inventions: [{ itemId: 3, category: 0, costCents: 9_000 }],
+    inventions: [{ itemId: 3, category: 0, workUnits: 9_000 }],
   },
   entrance: { side: 'south', length: 4 },
   objective: { kind: 'guestsAndRating', target: 150, rating: 600, byYear: 1 },
@@ -44,8 +44,9 @@ describe('parseScenarioFile', () => {
       annualInterestBps: 1000,
       priceMode: 1,
       admissionPrice: 300,
+      difficultRating: false,
       availableItemIds: [1, 2],
-      inventions: [{ itemId: 3, category: 0, costCents: 9_000 }],
+      inventions: [{ itemId: 3, category: 0, workUnits: 9_000 }],
       entrance: { side: 'south', length: 4 },
       objective: {
         kind: ObjectiveKind.GuestsAndRating,
@@ -55,6 +56,14 @@ describe('parseScenarioFile', () => {
         byTick: TICKS_PER_YEAR,
       },
     });
+  });
+
+  it('defaults difficultRating to off and accepts it as a boolean', () => {
+    expect(parseScenarioFile(valid).difficultRating).toBe(false);
+    expect(parseScenarioFile({ ...valid, difficultRating: true }).difficultRating).toBe(true);
+    expect(() => parseScenarioFile({ ...valid, difficultRating: 'yes' })).toThrow(
+      /difficultRating/,
+    );
   });
 
   it('accepts a raw byTick deadline instead of byYear', () => {

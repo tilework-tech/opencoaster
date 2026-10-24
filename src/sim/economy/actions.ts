@@ -8,7 +8,7 @@ export type EconomyAction =
   | { type: 'repay'; cents: number }
   | { type: 'setPriceMode'; mode: PriceMode }
   | { type: 'setAdmissionPrice'; cents: number }
-  | { type: 'startCampaign'; campaignId: number; weeks: number };
+  | { type: 'startCampaign'; campaignId: number; weeks: number; targetId?: number };
 
 /** Returns false when the action is rejected; rejected actions leave state untouched. */
 export function applyEconomyAction(l: Ledger, action: EconomyAction): boolean {
@@ -26,6 +26,6 @@ export function applyEconomyAction(l: Ledger, action: EconomyAction): boolean {
       l.admissionPrice = action.cents;
       return true;
     case 'startCampaign':
-      return startCampaign(l, action.campaignId, action.weeks);
+      return startCampaign(l, action.campaignId, action.weeks, action.targetId);
   }
 }

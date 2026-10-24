@@ -10,7 +10,7 @@ import {
 import { LedgerCategory, post, rollMonth } from './ledger';
 import { weeklyInterestCents } from './finance';
 import { chargeCampaignWeek } from './marketing';
-import { computeParkRating, parkValueOf } from './park-rating';
+import { DIFFICULT_RATING_BASE, RATING_BASE, computeParkRating, parkValueOf } from './park-rating';
 
 /**
  * Order at a shared boundary: weekly charges, then fortnightly upkeep, then the monthly
@@ -36,7 +36,8 @@ export const economySystem: System = {
     if (isBoundary(t, RATING_REFRESH_TICKS)) {
       const guests = world.guests.count;
       l.parkValue = parkValueOf(guests, l.inputs);
-      l.parkRating = computeParkRating(guests, l.inputs);
+      const base = l.difficultRating ? DIFFICULT_RATING_BASE : RATING_BASE;
+      l.parkRating = computeParkRating(guests, l.inputs, base);
     }
   },
 };

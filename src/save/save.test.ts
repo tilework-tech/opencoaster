@@ -81,10 +81,11 @@ describe('save: economy, research and scenario state', () => {
       startingLoan: 0,
       maxLoan: 10_000_000,
       annualInterestBps: 1_000,
+      difficultRating: false,
       priceMode: 1,
       admissionPrice: 200,
       availableItemIds: [7],
-      inventions: [{ itemId: 8, category: 0, costCents: 10_000 }],
+      inventions: [{ itemId: 8, category: 0, workUnits: 10_000 }],
       objective: { kind: 0, target: 100, rating: 0, categoryMask: 0, byTick: 40_000 },
     });
     sim.enqueue({ type: 'research', action: { type: 'setCategories', mask: 1 } });
@@ -111,6 +112,7 @@ describe('save: map and economy together', () => {
         startingLoan: 1_000_000,
         maxLoan: 10_000_000,
         annualInterestBps: 1_000,
+        difficultRating: false,
         priceMode: 1,
         admissionPrice: 300,
         availableItemIds: [],
@@ -175,7 +177,8 @@ describe('save: map and economy together', () => {
     const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
     const headerLen = new DataView(bytes.buffer).getUint32(4, true);
     const header = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-    const old = header.replace(`"version":${SAVE_VERSION}`, `"version":2`);
+    // The trailing space keeps the header the same length as the current version's, so the length prefix stays valid.
+    const old = header.replace(`"version":${SAVE_VERSION}`, '"version":2 ');
     expect(old).not.toBe(header);
     const patched = new Uint8Array(bytes);
     patched.set(new TextEncoder().encode(old), 8);
@@ -366,5 +369,34 @@ describe('save: version 4 migration', () => {
 
     expect(loaded.rides.cols.price[rideSlot]).toBe(275);
     expect(loaded.rides.cols.incomeCents[rideSlot]).toBe(0);
+  });
+});
+
+describe('save: version 8 research migration', () => {
+  /** Rewrites a current save's header as version 8: invention costs and progress in cents. */
+  function versionEightSave(world: ReturnType<typeof flatWorld>, costCents: number): Uint8Array {
+    const current = serialize(world);
+    const dv = new DataView(current.buffer, current.byteOffset, current.byteLength);
+    const headerEnd = 8 + dv.getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+    header.version = 8;
+    header.research.inventions = header.research.inventions.map(
+      (inv: { itemId: number; category: number }) => ({ ...inv, costCents }),
+    );
+    delete header.research.inventions[0].workUnits;
+    const headerBytes = new TextEncoder().encode(JSON.stringify(header));
+    const out = new Uint8Array(8 + headerBytes.length + current.length - headerEnd);
+    out.set(current.subarray(0, 8), 0);
+    new DataView(out.buffer).setUint32(4, headerBytes.length, true);
+    out.set(headerBytes, 8);
+    out.set(current.subarray(headerEnd), 8 + headerBytes.length);
+    return out;
+  }
+
+  it('keeps each invention at its minimum-funding duration when an old save loads', () => {
+    const world = flatWorld();
+    world.research.inventions = [{ itemId: 8, category: 0, workUnits: 21 }];
+    const loaded = deserialize(versionEightSave(world, 2_500));
+    expect(loaded.research.inventions).toEqual([{ itemId: 8, category: 0, workUnits: 21 }]);
   });
 });

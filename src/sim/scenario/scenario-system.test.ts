@@ -16,6 +16,7 @@ function def(objective: ScenarioObjective): ScenarioDef {
     startingLoan: 0,
     maxLoan: 0,
     annualInterestBps: 0,
+    difficultRating: false,
     priceMode: 0,
     admissionPrice: 0,
     availableItemIds: [],

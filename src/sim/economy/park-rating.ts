@@ -1,7 +1,13 @@
 import type { EconomyInputs } from './ledger';
 
 export const MAX_RATING = 999;
-const RATING_BASE = 1150;
+/** Starting rating before penalties; a difficult-rating scenario starts lower. */
+export const RATING_BASE = 1150;
+export const DIFFICULT_RATING_BASE = 1050;
+/** Happiness penalty when no guest is happy; each happiness point removed lowers it by 2. */
+const HAPPINESS_PENALTY_START = 500;
+/** Happy share, in 300ths of the guest count, beyond which the happiness penalty is fully removed. */
+const HAPPINESS_OFFSET_CAP = 250;
 /** $7 per guest, expressed in cents. */
 export const PARK_VALUE_PER_GUEST_CENTS = 700;
 
@@ -36,9 +42,15 @@ function varietyPenalty(total: number): number {
  * add up to too little excitement or intensity overall. Constants are tunable (docs/BALANCE.md)
  * and unverified against the original game.
  */
-export function computeParkRating(guests: number, inputs: EconomyInputs): number {
+export function computeParkRating(
+  guests: number,
+  inputs: EconomyInputs,
+  base: number = RATING_BASE,
+): number {
   const guestTerm = Math.floor(Math.min(guests, 2000) / 13) - 150;
-  const happinessPenalty = Math.min(500, Math.max(0, inputs.unhappyPercent - 50) * 10);
+  const happyThirds = 3 * (100 - inputs.unhappyPercent);
+  const happinessPenalty =
+    HAPPINESS_PENALTY_START - 2 * Math.min(HAPPINESS_OFFSET_CAP, happyThirds);
   const lostPenalty = Math.max(0, inputs.lostGuests - 25) * 7;
   const uptimePenalty = Math.min(200, inputs.rideDowntimePercent * 2);
   const litterPenalty = Math.min(600, inputs.litter * 4);
@@ -50,7 +62,7 @@ export function computeParkRating(guests: number, inputs: EconomyInputs): number
     varietyPenalty(inputs.excitementTotal) +
     varietyPenalty(inputs.intensityTotal);
   const raw =
-    RATING_BASE +
+    base +
     guestTerm -
     happinessPenalty -
     lostPenalty -

@@ -5,13 +5,15 @@ import { GUEST_SCHEMA, GuestState, HEADING_NONE } from '../sim/guests/guest-stor
 import type { ParkState } from '../sim/guests/park';
 import { restoreLedger, saveLedger } from '../sim/economy/ledger';
 import type { LedgerSave } from '../sim/economy/ledger';
-import { restoreResearch, saveResearch } from '../sim/research/research';
-import type { ResearchSave } from '../sim/research/research';
+import { restoreResearch, saveResearch, upgradeLegacyResearchSave } from '../sim/research/research';
+import type { LegacyResearchSave, ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 import { calculateStaffWageBill } from '../sim/staff/staff-store';
 
-export const SAVE_VERSION = 9;
-const PREVIOUS_SAVE_VERSION = 8;
+export const SAVE_VERSION = 10;
+const PREVIOUS_SAVE_VERSION = 9;
+/** First version whose research stores invention work units rather than cents. */
+const RESEARCH_UNITS_SAVE_VERSION = 10;
 const PRE_TRAIN_LAYOUT_SAVE_VERSION = 8;
 const PRE_APPROACH_SAVE_VERSION = 8;
 const PRE_INCOME_SAVE_VERSION = 7;
@@ -227,6 +229,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_STAFF_CARE_SAVE_VERSION,
     6,
     PRE_INCOME_SAVE_VERSION,
+    PRE_APPROACH_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];
@@ -287,7 +290,11 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
   if (legacyGuests) migrateLegacyGuests(world, legacyGuests, header.stores.guests.count);
   Object.assign(world.weather, header.weather);
-  restoreResearch(world.research, header.research);
+  const research =
+    header.version < RESEARCH_UNITS_SAVE_VERSION
+      ? upgradeLegacyResearchSave(header.research as unknown as LegacyResearchSave)
+      : header.research;
+  restoreResearch(world.research, research);
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
   if (header.version < SAVE_VERSION) {

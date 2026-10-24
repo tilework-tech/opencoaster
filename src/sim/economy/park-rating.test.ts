@@ -4,6 +4,7 @@ import {
   IDEAL_INTENSITY,
   MAX_RATING,
   VARIETY_TOTAL,
+  DIFFICULT_RATING_BASE,
   computeParkRating,
   parkValueOf,
 } from './park-rating';
@@ -84,5 +85,36 @@ describe('park rating ride terms', () => {
     };
     expect(computeParkRating(60, starter)).toBeLessThan(MAX_RATING);
     expect(computeParkRating(60, starter)).toBeGreaterThan(500);
+  });
+});
+
+describe('park rating happiness', () => {
+  /** Litter keeps this park under the 999 cap, so penalties show in the score. */
+  const below = { ...quiet, litter: 50 };
+  const withHappiness = (unhappyPercent: number) => ({ ...below, unhappyPercent });
+
+  it('charges the full 500 when no guest is happy', () => {
+    expect(computeParkRating(0, below)).toBe(800);
+    expect(computeParkRating(0, withHappiness(100))).toBe(300);
+  });
+
+  it('charges 200 when half the guests are happy', () => {
+    expect(computeParkRating(0, withHappiness(50))).toBe(600);
+  });
+
+  it('charges nothing once about 83% of guests are happy', () => {
+    expect(computeParkRating(0, withHappiness(16))).toBe(800);
+    expect(computeParkRating(0, withHappiness(17))).toBe(798);
+  });
+
+  it('charges nothing for a park with no guests', () => {
+    expect(computeParkRating(0, withHappiness(0))).toBe(800);
+  });
+});
+
+describe('park rating difficulty', () => {
+  it('starts from 1,050 instead of 1,150 when difficult rating is on', () => {
+    const below = { ...quiet, litter: 50 };
+    expect(computeParkRating(0, below, DIFFICULT_RATING_BASE)).toBe(700);
   });
 });
