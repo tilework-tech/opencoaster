@@ -472,7 +472,7 @@ describe('mechanic service', () => {
     expect(getRideReliabilityRaw(w, id)).toBeLessThanOrEqual(RELIABILITY_MAX);
   });
 
-  it('resets the inspection timer after a completed inspection but not after a repair', () => {
+  it('resets the inspection timer after a completed inspection', () => {
     const w = world();
     const id = preparedRide(w, RideType.Twist);
     const slot = slotOf(w, id);
@@ -596,21 +596,32 @@ describe('determinism and saves', () => {
     const w = world();
     const id = createRide(w, RideType.FerrisWheel, 4, 4);
     w.rides.cols.reliability[slotOf(w, id)] = 64;
-    const loaded = deserialize(downgradeToVersion8(w));
+    w.research.progress = 21;
+    w.research.inventions = [{ itemId: 8, category: 0, workUnits: 21 }];
+    const loaded = deserialize(downgradeToVersion9(w));
     const slot = loaded.rides.idToSlot[id];
     expect(loaded.rides.cols.reliabilityRaw[slot]).toBe(64 * 256);
     expect(loaded.rides.cols.mode[slot]).toBe(RideMode.ForwardRotation);
     expect(loaded.rides.cols.reliability[slot]).toBe(64);
+    expect(loaded.research.progress).toBe(21);
+    expect(loaded.research.inventions.every((invention) => invention.workUnits === 21)).toBe(true);
   });
 });
 
 /** Rewrites a current save as version 9: no columns beyond `incomeCents`. */
-function downgradeToVersion8(w: World): Uint8Array {
+function downgradeToVersion9(w: World): Uint8Array {
   const current = serialize(w);
   const view = new DataView(current.buffer, current.byteOffset, current.byteLength);
   const headerEnd = 8 + view.getUint32(4, true);
   const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
   header.version = 9;
+  header.research.progress = 2_500;
+  header.research.inventions = header.research.inventions.map(
+    (invention: { itemId: number; category: number }) => ({
+      ...invention,
+      costCents: 2_500,
+    }),
+  );
   const headerBytes = new TextEncoder().encode(JSON.stringify(header));
   const added = ['reliabilityRaw', 'mode', 'breakdownReason', 'serviceTicks', 'serviceLastTick'];
   const rideArrays = w.rides.arrays();
