@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/core/simulation';
 import { World } from '../sim/core/world';
 import { OWNED, RIGHTS_OWNED, SALE_RIGHTS } from '../sim/map/tile-map';
-import { createSnapshot, snapshotBuffers, writeSnapshot } from './snapshot';
+import { createCoaster, buildCircuit, flatOwnedSim } from '../sim/rides/coaster-fixtures';
+import { FeedbackDomain } from '../sim/core/feedback';
+import { RideState } from '../sim/rides/ride-store';
+import { RideType } from '../sim/rides/ride-types';
+import {
+  RideInfo,
+  RIDE_INFO_STRIDE,
+  createSnapshot,
+  decodeCursor,
+  snapshotBuffers,
+  writeSnapshot,
+} from './snapshot';
 
 describe('render snapshot', () => {
   it('publishes finance values to the render snapshot', () => {
@@ -88,5 +99,41 @@ describe('render snapshot', () => {
     };
 
     expect(capture()).toEqual(capture());
+  });
+
+  it('publishes per-ride status, ratings and the track construction cursor', () => {
+    const sim = flatOwnedSim();
+    const rideId = createCoaster(sim, RideType.SteelLoopingCoaster);
+    buildCircuit(sim, rideId, [['station', 0]]);
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(sim.world, snapshot);
+
+    const o = 0 * RIDE_INFO_STRIDE;
+    const info = snapshot.rideInfo;
+    expect(info[o + RideInfo.Id]).toBe(rideId);
+    expect(info[o + RideInfo.Type]).toBe(RideType.SteelLoopingCoaster);
+    expect(info[o + RideInfo.State]).toBe(RideState.Closed);
+    expect(info[o + RideInfo.TrackPieces]).toBe(1);
+    expect(decodeCursor(info[o + RideInfo.Cursor])).toEqual({
+      hasTrack: true,
+      dir: 0,
+      slope: 0,
+      bank: 0,
+    });
+    expect([info[o + RideInfo.CursorX], info[o + RideInfo.CursorY]]).toEqual([21, 20]);
+  });
+
+  it('publishes the latest command feedback', () => {
+    const sim = flatOwnedSim();
+    sim.enqueue({ type: 'setRideStatus', rideId: 99, status: 'open' });
+    sim.step();
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(sim.world, snapshot);
+
+    expect(snapshot.feedback.domain).toBe(FeedbackDomain.Ride);
+    expect(snapshot.feedback.seq).toBe(sim.world.feedback.seq);
+    expect(snapshot.feedback.code).toBe(sim.world.feedback.code);
   });
 });

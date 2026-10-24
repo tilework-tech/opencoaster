@@ -10,6 +10,10 @@ import { staffSystem } from '../staff/staff-system';
 import { vehicleSystem } from '../vehicles/vehicle-system';
 import { litterSystem } from '../guests/litter-system';
 import { rideSystem } from '../rides/ride-system';
+import { FeedbackDomain, reportFeedback } from './feedback';
+import { RideResult } from '../rides/ride-results';
+import { coasterSystem } from '../rides/coaster-system';
+import { applyRideCommand } from '../rides/ride-commands';
 import { createRide } from '../rides/ride-operations';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
 import { trackSystem } from '../track/track-system';
@@ -40,6 +44,7 @@ export const SYSTEM_ORDER: readonly System[] = [
   rideSystem,
   rideQueueSystem,
   vehicleSystem,
+  coasterSystem,
   guestSystem,
   staffSystem,
   litterSystem,
@@ -49,22 +54,25 @@ export const SYSTEM_ORDER: readonly System[] = [
 ];
 
 function applyCreateRide(w: World, type: RideType, x: number, y: number): void {
+  const report = (code: RideResult, rideId = -1): void =>
+    reportFeedback(w.feedback, FeedbackDomain.Ride, code, rideId);
   const definition = RIDE_CATALOG[type];
-  if (!definition || !Number.isInteger(x) || !Number.isInteger(y)) return;
-  if (w.economy.cash < definition.cost) return;
+  if (!definition || !Number.isInteger(x) || !Number.isInteger(y))
+    return report(RideResult.OutOfBounds);
+  if (w.economy.cash < definition.cost) return report(RideResult.InsufficientFunds);
 
   for (const [dx, dy] of definition.footprint) {
     const tx = x + dx;
     const ty = y + dy;
-    if (!w.map.inBounds(tx, ty)) return;
+    if (!w.map.inBounds(tx, ty)) return report(RideResult.OutOfBounds);
     const tile = w.map.index(tx, ty);
-    if (!w.map.canBuild(tile)) return;
+    if (!w.map.canBuild(tile)) return report(RideResult.NotOwned);
     if (
       w.map.surface[tile] === Surface.Path ||
       w.map.surface[tile] === Surface.Queue ||
       w.map.surface[tile] === Surface.Water
     ) {
-      return;
+      return report(RideResult.Blocked);
     }
   }
 
@@ -78,7 +86,7 @@ function applyCreateRide(w: World, type: RideType, x: number, y: number): void {
           x + dx === rides.cols.rideX[existing] + otherDx &&
           y + dy === rides.cols.rideY[existing] + otherDy
         ) {
-          return;
+          return report(RideResult.Blocked);
         }
       }
     }
@@ -94,13 +102,16 @@ function applyCreateRide(w: World, type: RideType, x: number, y: number): void {
           x + dx === trackPieces.cols.x[existing] + otherDx &&
           y + dy === trackPieces.cols.y[existing] + otherDy
         ) {
-          return;
+          return report(RideResult.Blocked);
         }
       }
     }
   }
 
-  if (createRide(w, type, x, y) >= 0) charge(w, LedgerCategory.RideConstruction, definition.cost);
+  const rideId = createRide(w, type, x, y);
+  if (rideId < 0) return report(RideResult.Blocked);
+  charge(w, LedgerCategory.RideConstruction, definition.cost);
+  report(RideResult.Ok, rideId);
 }
 
 export class Simulation {
@@ -142,6 +153,11 @@ export class Simulation {
       case 'createRide':
         applyCreateRide(w, c.rideType, c.x, c.y);
         break;
+      case 'placeRideEntrance':
+      case 'placeRideExit':
+      case 'setRideStatus':
+        applyRideCommand(w, c);
+        break;
       default:
         applyMapCommand(w, c);
         break;
@@ -152,15 +168,6 @@ export class Simulation {
         applyResearchAction(w.research, c.action);
         break;
       case 'placeTrack':
-        {
-          const piece = PIECES[c.pieceType];
-          if (piece && w.economy.cash < piece.cost) break;
-          const countBefore = w.track.pieces.count;
-          applyTrackCommand(w, c);
-          if (piece && w.track.pieces.count > countBefore)
-            charge(w, LedgerCategory.RideConstruction, piece.cost);
-        }
-        break;
       case 'removeTrack':
         applyTrackCommand(w, c);
         break;

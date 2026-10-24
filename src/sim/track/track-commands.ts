@@ -1,23 +1,96 @@
 import type { World } from '../core/world';
 import type { Command } from '../core/commands';
-import { placeTrack, removeTrack } from './construction';
-import type { Direction, PieceMode } from './track-types';
+import { Z_STEP } from '../core/constants';
+import { FeedbackDomain, reportFeedback } from '../core/feedback';
+import { charge } from '../economy/api';
+import { LedgerCategory } from '../economy/ledger';
+import { invalidateRideTest } from '../rides/coaster';
+import { RIDE_CATALOG } from '../rides/ride-types';
+import type { RideType } from '../rides/ride-types';
+import { PIECES } from './catalog';
+import { placeTrack, removeTrack, rotateTile, validatePlacement } from './construction';
+import type { PlaceRequest } from './construction';
+import { MAX_TRACK_RIDES } from './track-store';
+import { PieceFlag, PieceMode, Slope, TrackResult } from './track-types';
+import type { Direction } from './track-types';
 
 export type TrackCommand = Extract<Command, { type: 'placeTrack' | 'removeTrack' }>;
 
-/** Applies a track command; the outcome is recorded in `world.track.lastResult`. */
-export function applyTrackCommand(world: World, c: TrackCommand): void {
-  if (c.type === 'placeTrack') {
-    placeTrack(world, {
-      rideId: c.rideId,
-      pieceType: c.pieceType,
-      x: c.x,
-      y: c.y,
-      z: c.z,
-      dir: c.dir as Direction,
-      mode: c.mode as PieceMode,
-    });
-  } else {
-    removeTrack(world, c.rideId, c.pieceId);
+/** Limits imposed by the ride type (see `RideTypeDef.trackRules`). */
+function checkRideRules(world: World, req: PlaceRequest): TrackResult {
+  const def = PIECES[req.pieceType];
+  if (!def || req.rideId < 0 || req.rideId >= MAX_TRACK_RIDES || !world.rides.isAlive(req.rideId)) {
+    return TrackResult.Ok;
   }
+  const rules =
+    RIDE_CATALOG[world.rides.cols.typeId[world.rides.idToSlot[req.rideId]] as RideType]?.trackRules;
+  if (!rules) return TrackResult.Ok;
+  const steep =
+    Math.abs(def.entrySlope) === Math.abs(Slope.Up60) ||
+    Math.abs(def.exitSlope) === Math.abs(Slope.Up60);
+  if (steep && !rules.steepSlopes) return TrackResult.PieceNotAllowed;
+  if (def.flags & PieceFlag.Inverted && !rules.inversions) return TrackResult.PieceNotAllowed;
+  if (req.mode === PieceMode.Launch && !rules.launch) return TrackResult.PieceNotAllowed;
+  let top = 0;
+  for (const cell of def.footprint) top = Math.max(top, cell.zMax);
+  if (req.z * Z_STEP + top > rules.maxLevel * Z_STEP) return TrackResult.TooHigh;
+  return TrackResult.Ok;
+}
+
+function ownsFootprint(world: World, req: PlaceRequest): boolean {
+  const map = world.map;
+  for (const cell of PIECES[req.pieceType].footprint) {
+    const [rx, ry] = rotateTile(cell.i, cell.j, req.dir);
+    if (!map.canBuild(map.index(req.x + rx, req.y + ry))) return false;
+  }
+  return true;
+}
+
+/**
+ * Everything that decides whether a placement command succeeds: ride-type rules, geometry,
+ * ownership of every tile the piece covers, and the park's cash.
+ */
+export function validatePlaceCommand(world: World, req: PlaceRequest): TrackResult {
+  const rules = checkRideRules(world, req);
+  if (rules !== TrackResult.Ok) return rules;
+  const geometry = validatePlacement(world, req);
+  if (geometry !== TrackResult.Ok) return geometry;
+  if (!ownsFootprint(world, req)) return TrackResult.NotOwned;
+  if (world.economy.cash < PIECES[req.pieceType].cost) return TrackResult.InsufficientFunds;
+  return TrackResult.Ok;
+}
+
+function applyPlace(world: World, c: Extract<TrackCommand, { type: 'placeTrack' }>): TrackResult {
+  const req: PlaceRequest = {
+    rideId: c.rideId,
+    pieceType: c.pieceType,
+    x: c.x,
+    y: c.y,
+    z: c.z,
+    dir: c.dir as Direction,
+    mode: c.mode as PieceMode,
+  };
+  const result = validatePlaceCommand(world, req);
+  if (result !== TrackResult.Ok) {
+    world.track.lastResult = result;
+    world.track.lastPiece = -1;
+    return result;
+  }
+  placeTrack(world, req);
+  charge(world, LedgerCategory.RideConstruction, PIECES[req.pieceType].cost);
+  invalidateRideTest(world, req.rideId);
+  return TrackResult.Ok;
+}
+
+/** Applies a track command; the outcome is recorded in `world.track.lastResult` and feedback. */
+export function applyTrackCommand(world: World, c: TrackCommand): TrackResult {
+  let result: TrackResult;
+  if (c.type === 'placeTrack') {
+    result = applyPlace(world, c);
+  } else {
+    result = removeTrack(world, c.rideId, c.pieceId);
+    if (result === TrackResult.Ok) invalidateRideTest(world, c.rideId);
+  }
+  reportFeedback(world.feedback, FeedbackDomain.Track, result, c.rideId);
+  return result;
 }

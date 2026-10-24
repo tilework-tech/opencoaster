@@ -14,6 +14,8 @@ export const enum VehicleSegmentFlag {
   DropStart = 1 << 5,
   Crest = 1 << 6,
   Inversion = 1 << 7,
+  /** Every segment of a station piece; the drive that moves a dispatched train out. */
+  StationDrive = 1 << 8,
 }
 
 export interface VehicleTrackInput {
@@ -48,6 +50,8 @@ export interface VehicleTrack extends Required<VehicleTrackInput> {
   blockOccupiedBy: Int32Array;
   /** Start index shared by adjacent segments that make up the same block section. */
   blockSectionStart: Uint32Array;
+  /** First segment carrying the `Station` flag, or -1. */
+  stationSegment: number;
 }
 
 function boundedQ8(value: number): number {
@@ -91,6 +95,9 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     if (mode === PieceMode.ChainLift) segmentFlags[segment] |= VehicleSegmentFlag.ChainLift;
     if (mode === PieceMode.Brake) segmentFlags[segment] |= VehicleSegmentFlag.Brake;
     if (mode === PieceMode.BlockBrake) segmentFlags[segment] |= VehicleSegmentFlag.Block;
+    if (mode === PieceMode.Launch) segmentFlags[segment] |= VehicleSegmentFlag.Launch;
+    if (pieceDef.flags & PieceFlag.Station)
+      segmentFlags[segment] |= VehicleSegmentFlag.StationDrive;
     if (firstPieceSegment) {
       if (pieceDef.flags & PieceFlag.Station) segmentFlags[segment] |= VehicleSegmentFlag.Station;
       if (pieceDef.flags & PieceFlag.Crest) segmentFlags[segment] |= VehicleSegmentFlag.Crest;
@@ -246,6 +253,9 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     dropHeights,
     blockOccupiedBy: new Int32Array(segmentCount).fill(-1),
     blockSectionStart,
+    stationSegment: input.segmentFlags.findIndex(
+      (flags) => (flags & VehicleSegmentFlag.Station) !== 0,
+    ),
   };
 }
 

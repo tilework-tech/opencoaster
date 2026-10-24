@@ -85,6 +85,8 @@ function modeAllowed(flags: number, mode: number): boolean {
     case PieceMode.Brake:
     case PieceMode.BlockBrake:
       return (flags & PieceFlag.BrakeOk) !== 0;
+    case PieceMode.Launch:
+      return (flags & PieceFlag.LaunchOk) !== 0;
     default:
       return false;
   }

@@ -1,11 +1,14 @@
 import type { System } from '../core/system';
 import { RidePhase, RideState } from './ride-store';
 import { updateRideAge } from './ride-operations';
+import { RIDE_CATALOG } from './ride-types';
+import type { RideType } from './ride-types';
 
 const RELIABILITY_WEAR_CYCLES = 32;
 const BREAKDOWN_RELIABILITY_THRESHOLD = 10;
 
-function finishCycle(world: Parameters<System['update']>[0], slot: number): void {
+/** Ends a ride cycle: counts served guests, wears reliability and may cause a breakdown. */
+export function finishCycle(world: Parameters<System['update']>[0], slot: number): void {
   const ride = world.rides.cols;
   ride.cyclesCompleted[slot]++;
   if (ride.cyclesCompleted[slot] % RELIABILITY_WEAR_CYCLES === 0 && ride.reliability[slot] > 0) {
@@ -46,6 +49,7 @@ export const rideSystem: System = {
         if (ride.downtimeTicks[slot] < 0xffffffff) ride.downtimeTicks[slot]++;
         continue;
       }
+      if (RIDE_CATALOG[ride.typeId[slot] as RideType]?.usesTrack) continue;
 
       if (ride.phase[slot] === RidePhase.Loading) {
         if (ride.phaseTicks[slot] > 1) {

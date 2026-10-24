@@ -1,6 +1,7 @@
 import type { EconomyAction } from '../economy/actions';
 import type { MapCommand } from '../map/map-commands';
 import type { ResearchAction } from '../research/research';
+import type { RideCommand } from '../rides/ride-commands';
 import type { RideType } from '../rides/ride-types';
 
 /**
@@ -13,6 +14,7 @@ export type Command =
   | { type: 'setParkEntrance'; x: number; y: number }
   | { type: 'createRide'; rideType: RideType; x: number; y: number }
   | MapCommand
+  | RideCommand
   | { type: 'economy'; action: EconomyAction }
   | { type: 'research'; action: ResearchAction }
   | {

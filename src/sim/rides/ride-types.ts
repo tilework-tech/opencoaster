@@ -7,10 +7,21 @@ export enum RideType {
   DrinkStall,
   InformationKiosk,
   Toilets,
+  WoodenCoaster,
+  SteelLoopingCoaster,
 }
 
 export type RideCategory =
   'gentle' | 'thrill' | 'coaster' | 'water' | 'shop' | 'stall' | 'facility';
+
+/** What a track-based ride type may be built from. */
+export interface TrackRules {
+  /** Highest height level any part of the track may reach. */
+  maxLevel: number;
+  steepSlopes: boolean;
+  inversions: boolean;
+  launch: boolean;
+}
 
 /** Static, data-driven ride definition. Values are original OpenCoaster tuning data. */
 export interface RideTypeDef {
@@ -33,6 +44,8 @@ export interface RideTypeDef {
   baseNausea: number;
   baseValueCents: number;
   inspectionIntervalTicks: number;
+  /** Present on ride types that set `usesTrack`. */
+  trackRules?: TrackRules;
 }
 
 const HOUR_TICKS = 40 * 60 * 60;
@@ -174,5 +187,41 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseNausea: 0,
     baseValueCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
+  },
+  [RideType.WoodenCoaster]: {
+    id: RideType.WoodenCoaster,
+    name: 'Wooden Coaster',
+    category: 'coaster',
+    cost: 300_000,
+    footprint: [],
+    usesTrack: true,
+    capacity: 12,
+    loadTicks: 120,
+    runTicks: 1,
+    unloadTicks: 80,
+    baseExcitement: 120,
+    baseIntensity: 60,
+    baseNausea: 30,
+    baseValueCents: 1200,
+    inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
+    trackRules: { maxLevel: 40, steepSlopes: false, inversions: false, launch: false },
+  },
+  [RideType.SteelLoopingCoaster]: {
+    id: RideType.SteelLoopingCoaster,
+    name: 'Steel Looping Coaster',
+    category: 'coaster',
+    cost: 450_000,
+    footprint: [],
+    usesTrack: true,
+    capacity: 16,
+    loadTicks: 120,
+    runTicks: 1,
+    unloadTicks: 80,
+    baseExcitement: 160,
+    baseIntensity: 90,
+    baseNausea: 45,
+    baseValueCents: 1600,
+    inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
+    trackRules: { maxLevel: 80, steepSlopes: true, inversions: true, launch: true },
   },
 };

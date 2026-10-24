@@ -84,7 +84,7 @@ const SPECS: Spec[] = [
     flags: PieceFlag.Station,
     cost: 2000,
   },
-  S('flat', Slope.Flat, Slope.Flat, LIFTABLE | PieceFlag.BrakeOk),
+  S('flat', Slope.Flat, Slope.Flat, LIFTABLE | PieceFlag.BrakeOk | PieceFlag.LaunchOk),
   S('up25', Slope.Up25, Slope.Up25, LIFTABLE),
   S('down25', Slope.Down25, Slope.Down25),
   S('up60', Slope.Up60, Slope.Up60, LIFTABLE, 2400),

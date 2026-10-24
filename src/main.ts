@@ -7,9 +7,8 @@ import { Hud } from './ui/hud';
 import { GameUI } from './ui/game-ui';
 import type { GuestSelection, ToolMode } from './ui/game-ui';
 import { DEFAULT_MAP_SIZE, TILE_UNITS } from './sim/core/constants';
-import { RideType } from './sim/rides/ride-types';
-import { PieceId } from './sim/track/catalog';
-import { PIECES } from './sim/track/catalog';
+import { CoasterPanel } from './ui/coaster-panel';
+import { TrackPreviewOverlay } from './ui/track-preview';
 
 const root = document.getElementById('app') as HTMLElement;
 const selection = createRenderer(document.getElementById('game') as HTMLCanvasElement);
@@ -29,6 +28,14 @@ const hud = new Hud(root);
 let paused = false;
 let selectedTool: ToolMode = 'select';
 let selectedGuest: GuestSelection | null = null;
+const coasterPanel = new CoasterPanel(root, {
+  command: (command) => sim.command(command),
+  selectTool: (tool) => gameUi.selectTool(tool),
+  snapshot: () => sim.latest,
+  map: () => sim.map,
+  status: (text) => gameUi.setToolStatus(text),
+});
+const trackPreview = new TrackPreviewOverlay(root);
 const gameUi = new GameUI(root, {
   setPaused(value) {
     paused = value;
@@ -42,6 +49,7 @@ const gameUi = new GameUI(root, {
   },
   setTool(tool) {
     selectedTool = tool;
+    coasterPanel.setTool(tool);
   },
   spawnGuests() {
     sim.command({ type: 'spawnGuests', count: 1000 });
@@ -62,6 +70,11 @@ window.addEventListener('keydown', (event) => {
   if (key === 'q') camera.rotation = ((camera.rotation + 3) % 4) as Rotation;
   if (key === 'e') camera.rotation = ((camera.rotation + 1) % 4) as Rotation;
   if (key === 'g') sim.command({ type: 'spawnGuests', count: 1000 });
+  if (selectedTool === 'track' && key === 'enter') coasterPanel.placeAtCursor();
+  if (selectedTool === 'track' && key === 'backspace') {
+    event.preventDefault();
+    coasterPanel.removeLast();
+  }
   if (key === ' ') {
     event.preventDefault();
     gameUi.togglePause();
@@ -92,6 +105,15 @@ canvas.addEventListener('pointerdown', (event) => {
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', (event) => {
+  if (selectedTool === 'track' && sim.map) {
+    const rect = canvas.getBoundingClientRect();
+    coasterPanel.setHover(
+      pickTile(event.clientX - rect.left, event.clientY - rect.top, sim.map, camera, {
+        width: rect.width,
+        height: rect.height,
+      }),
+    );
+  }
   if (!pointerDown || pointerDown.id !== event.pointerId) return;
   const dx = event.clientX - pointerDown.x;
   const dy = event.clientY - pointerDown.y;
@@ -131,55 +153,9 @@ function handleCanvasClick(event: PointerEvent): void {
       sim.command({ type: 'placePath', x, y });
       gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
     } else if (selectedTool === 'ride') {
-      sim.command({ type: 'createRide', rideType: RideType.MerryGoRound, x, y });
-      gameUi.setToolStatus(`Merry-Go-Round placement requested at ${x}, ${y}.`);
+      gameUi.setToolStatus(coasterPanel.createRideAt(x, y));
     } else {
-      const rides = sim.latest?.rides;
-      if (!rides || rides.count === 0) {
-        gameUi.setToolStatus('Track geometry prototype: place a ride first.');
-        return;
-      }
-      const rideId = rides.data[3];
-      const trackLayer = sim.latest?.tracks;
-      let hasTrack = false;
-      if (trackLayer) {
-        for (let i = 0; i < trackLayer.count; i++) {
-          if (trackLayer.data[i * 4 + 3] >>> 16 === rideId) {
-            hasTrack = true;
-            break;
-          }
-        }
-      }
-      const pieceType = hasTrack ? PieceId.Flat : PieceId.Station;
-      const buildable = sim.latest?.buildable;
-      for (const cell of PIECES[pieceType].footprint) {
-        const footprintX = x + cell.i;
-        const footprintY = y + cell.j;
-        if (
-          !buildable ||
-          footprintX < 0 ||
-          footprintX >= map.width ||
-          footprintY < 0 ||
-          footprintY >= map.height ||
-          !buildable[footprintY * map.width + footprintX]
-        ) {
-          gameUi.setToolStatus('Track placement needs owned land or construction rights.');
-          return;
-        }
-      }
-      sim.command({
-        type: 'placeTrack',
-        rideId,
-        pieceType,
-        x,
-        y,
-        z: map.heights[y * map.width + x],
-        dir: 0,
-        mode: 0,
-      });
-      gameUi.setToolStatus(
-        `Track geometry prototype: ${hasTrack ? 'track' : 'station'} placement requested at ${x}, ${y}.`,
-      );
+      gameUi.setToolStatus(coasterPanel.handleTileClick(x, y));
     }
     return;
   }
@@ -264,11 +240,22 @@ function frame(now: number): void {
     renderer.backend,
   );
   gameUi.update(sim.latest, sim.stats, selectedGuest);
+  coasterPanel.update();
+  const rect = canvas.getBoundingClientRect();
+  trackPreview.draw(
+    sim.map ? coasterPanel.ghost() : null,
+    sim.map ?? { width: 0, height: 0 },
+    camera,
+    { width: rect.width, height: rect.height },
+    window.devicePixelRatio || 1,
+  );
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
 window.addEventListener('beforeunload', () => {
   gameUi.dispose();
+  coasterPanel.dispose();
+  trackPreview.dispose();
   renderer.dispose();
 });
