@@ -1,14 +1,25 @@
 import type { World } from '../core/world';
 import { Surface } from '../map/tile-map';
-import { StaffKind } from '../staff/staff-store';
 import { MAX_CARS, MAX_TRAINS_PER_RIDE, RIDERS_PER_CAR } from '../vehicles/ride-trains';
-import { RIDE_CATALOG, type RideType } from './ride-types';
+import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
+import type { RideMode } from './ride-modes';
+import { RELIABILITY_MAX } from './ride-maintenance';
+import {
+  INSPECTION_INTERVAL_MINUTES,
+  INSPECTION_MINUTE_TICKS,
+  RIDE_CATALOG,
+  type RideType,
+} from './ride-types';
 import { RidePhase, RideState } from './ride-store';
+import {
+  SAME_TYPE_VALUE_PERCENT,
+  rideAgeAdjustedValue,
+  rideValueUnits,
+  valueUnitsToCents,
+} from './ride-value';
 
 const TICKS_PER_MONTH = 16_384;
 export const QUEUE_GUESTS_PER_TILE = 4;
-const MAX_RIDE_VALUE_AGE_MONTHS = 12;
-const AGE_VALUE_DEPRECIATION_PERCENT = 5;
 
 export interface TilePosition {
   x: number;
@@ -38,6 +49,8 @@ export interface RideOperations {
   maxWaitTicks?: number;
   /** 0 dispatches with any nonempty load; 255 waits for a full load. */
   loadThreshold?: number;
+  /** One of the five documented load targets; takes precedence over `loadThreshold`. */
+  loadTarget?: LoadTarget;
   loadTicks?: number;
   runTicks?: number;
   unloadTicks?: number;
@@ -84,11 +97,11 @@ export function createRide(world: World, type: RideType, x: number, y: number): 
   ride.unloadTicks[slot] = definition.unloadTicks;
   ride.minWaitTicks[slot] = definition.loadTicks;
   ride.maxWaitTicks[slot] = Math.max(definition.loadTicks, definition.loadTicks * 4);
-  ride.loadThreshold[slot] = 128;
-  ride.excitement[slot] = definition.baseExcitement;
-  ride.intensity[slot] = definition.baseIntensity;
-  ride.nausea[slot] = definition.baseNausea;
-  ride.price[slot] = definition.category === 'stall' ? 100 : 0;
+  ride.loadThreshold[slot] = LOAD_TARGET_THRESHOLD[LoadTarget.Half];
+  ride.mode[slot] = definition.modes[0].mode;
+  applyRideModeRatings(world, slot);
+  ride.price[slot] = definition.defaultPriceCents;
+  ride.reliabilityRaw[slot] = RELIABILITY_MAX;
   ride.reliability[slot] = 100;
   ride.inspectionIntervalTicks[slot] = definition.inspectionIntervalTicks;
   ride.lastInspectionTick[slot] = world.tick;
@@ -230,7 +243,13 @@ export function configureRide(world: World, rideId: number, options: RideOperati
   const ride = world.rides.cols;
   const minWait = options.minWaitTicks ?? ride.minWaitTicks[slot];
   const maxWait = options.maxWaitTicks ?? ride.maxWaitTicks[slot];
-  const threshold = options.loadThreshold ?? ride.loadThreshold[slot];
+  if (options.loadTarget !== undefined && !(options.loadTarget in LOAD_TARGET_THRESHOLD)) {
+    return false;
+  }
+  const threshold =
+    options.loadTarget !== undefined
+      ? LOAD_TARGET_THRESHOLD[options.loadTarget]
+      : (options.loadThreshold ?? ride.loadThreshold[slot]);
   const loadTicks = options.loadTicks ?? ride.loadTicks[slot];
   const runTicks = options.runTicks ?? ride.runTicks[slot];
   const unloadTicks = options.unloadTicks ?? ride.unloadTicks[slot];
@@ -339,33 +358,42 @@ export function getRideValueCents(world: World, rideId: number): number {
   if (slot < 0) return 0;
   const ride = world.rides.cols;
   const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
-  if (!definition || definition.category === 'stall' || definition.category === 'facility')
-    return 0;
+  if (!definition || isShopCategory(definition.category)) return 0;
 
-  const ratingPercent = Math.max(
-    50,
-    Math.min(
-      150,
-      100 +
-        Math.floor(ride.excitement[slot] / 10) -
-        Math.floor(ride.intensity[slot] / 20) -
-        Math.floor(ride.nausea[slot] / 40),
-    ),
+  const rating = rideValueUnits(
+    {
+      excitement: ride.excitement[slot],
+      intensity: ride.intensity[slot],
+      nausea: ride.nausea[slot],
+    },
+    definition.valueWeights,
   );
-  const ageMonths = Math.min(ride.ageMonths[slot], MAX_RIDE_VALUE_AGE_MONTHS);
-  const agePercent = 100 - ageMonths * AGE_VALUE_DEPRECIATION_PERCENT;
-  return Math.floor((definition.baseValueCents * ratingPercent * agePercent) / 10_000);
+  let units = rideAgeAdjustedValue(rating, ride.ageMonths[slot]);
+  if (openRidesOfType(world, ride.typeId[slot]) >= 2) {
+    units = Math.floor((units * SAME_TYPE_VALUE_PERCENT) / 100);
+  }
+  return valueUnitsToCents(units);
+}
+
+function openRidesOfType(world: World, typeId: number): number {
+  const ride = world.rides.cols;
+  let open = 0;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    if (ride.typeId[slot] === typeId && ride.state[slot] === RideState.Open) open++;
+  }
+  return open;
 }
 
 export type RidePriceReaction = 'good-value' | 'fair-value' | 'too-expensive';
 
+/** Good value at up to half the ride's value, too expensive beyond twice it. */
 export function getRidePriceReaction(world: World, rideId: number): RidePriceReaction {
   const slot = slotForRide(world, rideId);
   if (slot < 0) return 'too-expensive';
   const price = world.rides.cols.price[slot];
   const value = getRideValueCents(world, rideId);
   if (price * 2 <= value) return 'good-value';
-  if (price <= value) return 'fair-value';
+  if (price <= value * 2) return 'fair-value';
   return 'too-expensive';
 }
 
@@ -457,41 +485,6 @@ export function getRideTestMeasurements(world: World, rideId: number): RideTestM
   };
 }
 
-export function triggerRideBreakdown(world: World, rideId: number): boolean {
-  const slot = slotForRide(world, rideId);
-  if (slot < 0 || world.rides.cols.state[slot] !== RideState.Open) return false;
-  const ride = world.rides.cols;
-  ride.state[slot] = RideState.Broken;
-  ride.reliability[slot] = Math.max(0, ride.reliability[slot] - 20);
-  ride.breakdownCounter[slot]++;
-  if (ride.phase[slot] === RidePhase.Waiting || ride.phase[slot] === RidePhase.Closed) {
-    ride.phase[slot] = RidePhase.Broken;
-    ride.phaseTicks[slot] = 0;
-  }
-  return true;
-}
-
-export function inspectRide(world: World, rideId: number, staffId: number): boolean {
-  const slot = slotForRide(world, rideId);
-  const mechanicSlot = world.staff.idToSlot[staffId] ?? -1;
-  if (
-    slot < 0 ||
-    mechanicSlot < 0 ||
-    world.staff.cols.kind[mechanicSlot] !== StaffKind.Mechanic ||
-    isRideInActiveCycle(world.rides.cols.phase[slot])
-  ) {
-    return false;
-  }
-  const ride = world.rides.cols;
-  ride.reliability[slot] = Math.min(100, ride.reliability[slot] + 25);
-  ride.lastInspectionTick[slot] = world.tick;
-  if (ride.phase[slot] === RidePhase.Broken) {
-    ride.state[slot] = ride.queueConnected[slot] ? RideState.Open : RideState.Closed;
-    ride.phase[slot] = ride.queueConnected[slot] ? RidePhase.Waiting : RidePhase.Closed;
-  }
-  return true;
-}
-
 export function calculateRideThroughputPerHour(
   capacityPerDispatch: number,
   loadTicks: number,
@@ -525,7 +518,11 @@ export function isRideInspectionDue(world: World, rideId: number): boolean {
   const slot = slotForRide(world, rideId);
   if (slot < 0) return false;
   const ride = world.rides.cols;
-  return world.tick - ride.lastInspectionTick[slot] >= ride.inspectionIntervalTicks[slot];
+  const interval = ride.inspectionIntervalTicks[slot];
+  if (interval === 0 || RIDE_CATALOG[ride.typeId[slot] as RideType]?.breakdowns.length === 0) {
+    return false;
+  }
+  return world.tick - ride.lastInspectionTick[slot] >= interval;
 }
 
 export function updateRideAge(world: World): void {
@@ -533,4 +530,52 @@ export function updateRideAge(world: World): void {
   for (let slot = 0; slot < world.rides.count; slot++) {
     rides.ageMonths[slot] = Math.floor((world.tick - rides.createdTick[slot]) / TICKS_PER_MONTH);
   }
+}
+
+/** Recomputes a flat ride's stored ratings from its type's base ratings and its current mode. */
+export function applyRideModeRatings(world: World, slot: number): void {
+  const ride = world.rides.cols;
+  const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  const mode =
+    definition.modes.find((entry) => entry.mode === ride.mode[slot]) ?? definition.modes[0];
+  ride.excitement[slot] = Math.max(0, definition.baseExcitement + mode.excitement);
+  ride.intensity[slot] = Math.max(0, definition.baseIntensity + mode.intensity);
+  ride.nausea[slot] = Math.max(0, definition.baseNausea + mode.nausea);
+}
+
+export function getRideMode(world: World, rideId: number): RideMode | undefined {
+  const slot = slotForRide(world, rideId);
+  return slot < 0 ? undefined : (world.rides.cols.mode[slot] as RideMode);
+}
+
+/**
+ * Selects one of the modes the ride's type offers. Only a closed, idle ride changes mode; a
+ * flat ride's ratings follow the mode, while a track ride keeps the ratings its test measured.
+ */
+export function setRideMode(world: World, rideId: number, mode: RideMode): boolean {
+  const slot = slotForRide(world, rideId);
+  if (slot < 0) return false;
+  const ride = world.rides.cols;
+  const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  if (
+    !definition.modes.some((entry) => entry.mode === mode) ||
+    ride.state[slot] === RideState.Open ||
+    ride.state[slot] === RideState.Testing ||
+    isRideInActiveCycle(ride.phase[slot])
+  ) {
+    return false;
+  }
+  ride.mode[slot] = mode;
+  if (!definition.usesTrack) applyRideModeRatings(world, slot);
+  return true;
+}
+
+/** Sets how often a mechanic inspects the ride: one of the listed minutes, or 0 for never. */
+export function setRideInspectionInterval(world: World, rideId: number, minutes: number): boolean {
+  const slot = slotForRide(world, rideId);
+  const allowed =
+    minutes === 0 || (INSPECTION_INTERVAL_MINUTES as readonly number[]).includes(minutes);
+  if (slot < 0 || !allowed) return false;
+  world.rides.cols.inspectionIntervalTicks[slot] = minutes * INSPECTION_MINUTE_TICKS;
+  return true;
 }

@@ -123,7 +123,7 @@ for (let t = 0; t < ticks; t++) {
 console.log('\nride usage');
 console.log(
   `${pad('ride', 22)} ${pad('state', 6)} ${pad('exc', 5)} ${pad('int', 5)} ${pad('nau', 5)} ` +
-    `${pad('served', 7)} ${pad('queue', 5)} ${pad('cycles', 6)}`,
+    `${pad('served', 7)} ${pad('queue', 5)} ${pad('cycles', 6)} ${pad('rel%', 5)} ${pad('broke', 5)} ${pad('down', 6)}`,
 );
 const r = world.rides.cols;
 for (let slot = 0; slot < world.rides.count; slot++) {
@@ -131,7 +131,8 @@ for (let slot = 0; slot < world.rides.count; slot++) {
   console.log(
     `${pad(name, 22)} ${pad(r.state[slot], 6)} ${pad((r.excitement[slot] / 100).toFixed(2), 5)} ` +
       `${pad((r.intensity[slot] / 100).toFixed(2), 5)} ${pad((r.nausea[slot] / 100).toFixed(2), 5)} ` +
-      `${pad(r.guestsServed[slot], 7)} ${pad(r.queueLength[slot], 5)} ${pad(r.cyclesCompleted[slot], 6)}`,
+      `${pad(r.guestsServed[slot], 7)} ${pad(r.queueLength[slot], 5)} ${pad(r.cyclesCompleted[slot], 6)} ` +
+      `${pad(r.reliability[slot], 5)} ${pad(r.breakdownCounter[slot], 5)} ${pad(r.downtimeTicks[slot], 6)}`,
   );
 }
 

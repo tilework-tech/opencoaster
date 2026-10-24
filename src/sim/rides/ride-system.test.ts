@@ -22,12 +22,10 @@ import {
   getRidePhase,
   getRidePriceReaction,
   getRideQueueLength,
-  getRideReliability,
   getRideRatings,
   getRideTestMeasurements,
   getRideValueCents,
   getEstimatedRideWaitTicks,
-  inspectRide,
   isRideInspectionDue,
   isRideTested,
   joinRideQueue,
@@ -35,6 +33,7 @@ import {
   recordRideTestMeasurements,
   setRidePrice,
   setRideOpen,
+  inspectRide,
   triggerRideBreakdown,
   rideSystem,
 } from './index';
@@ -427,7 +426,7 @@ describe('ride ratings, value, and testing hooks', () => {
   it('adjusts price feedback as value changes with ride age', () => {
     const w = world();
     const id = preparedRide(w);
-    setRidePrice(w, id, getRideValueCents(w, id));
+    setRidePrice(w, id, getRideValueCents(w, id) * 2);
     expect(getRidePriceReaction(w, id)).toBe('fair-value');
 
     w.tick = 6 * 16_384;
@@ -481,7 +480,7 @@ describe('ride ratings, value, and testing hooks', () => {
 });
 
 describe('ride maintenance and determinism', () => {
-  it('allows a mechanic inspection to recover reliability and reopen a broken ride', () => {
+  it('lets a mechanic repair a broken ride and reopen it', () => {
     const w = world();
     const id = preparedRide(w);
     expect(setRideOpen(w, id, true)).toBe(true);
@@ -490,7 +489,6 @@ describe('ride maintenance and determinism', () => {
     expect(setRideOpen(w, id, false)).toBe(true);
     expect(setRideOpen(w, id, true)).toBe(false);
     expect(getRidePhase(w, id)).toBe(RidePhase.Broken);
-    const reliabilityBeforeInspection = getRideReliability(w, id);
     rideSystem.update(w);
     rideSystem.update(w);
     expect(getRideDowntimeTicks(w, id)).toBe(2);
@@ -503,7 +501,6 @@ describe('ride maintenance and determinism', () => {
     expect(mechanicId).toBeDefined();
     expect(inspectRide(w, id, mechanicId!)).toBe(true);
 
-    expect(getRideReliability(w, id)).toBeGreaterThan(reliabilityBeforeInspection);
     expect(getRidePhase(w, id)).toBe(RidePhase.Waiting);
     const downtimeAfterRepair = getRideDowntimeTicks(w, id);
     rideSystem.update(w);

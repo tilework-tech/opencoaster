@@ -1,16 +1,11 @@
 import type { System } from '../core/system';
 import { RidePhase, RideState } from './ride-store';
 import { updateRideAge } from './ride-operations';
+import { updateRideMaintenance } from './ride-maintenance';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 
-const RELIABILITY_WEAR_CYCLES = 32;
-const BREAKDOWN_RELIABILITY_THRESHOLD = 10;
-
-/**
- * Books one finished trip carrying `riders` guests: counts it, wears reliability and may cause a
- * breakdown. Several trips can be out at once on a multi-train coaster.
- */
+/** Books one finished trip carrying `riders` guests. Several trips can be out at once on a multi-train coaster. */
 export function completeCycle(
   world: Parameters<System['update']>[0],
   slot: number,
@@ -18,23 +13,11 @@ export function completeCycle(
 ): void {
   const ride = world.rides.cols;
   ride.cyclesCompleted[slot]++;
-  if (ride.cyclesCompleted[slot] % RELIABILITY_WEAR_CYCLES === 0 && ride.reliability[slot] > 0) {
-    ride.reliability[slot]--;
-  }
   ride.guestsServed[slot] += riders;
   ride.boarded[slot] = Math.max(0, ride.boarded[slot] - riders);
-  if (
-    ride.state[slot] === RideState.Open &&
-    ride.reliability[slot] <= BREAKDOWN_RELIABILITY_THRESHOLD &&
-    world.rng.int(100) < (BREAKDOWN_RELIABILITY_THRESHOLD - ride.reliability[slot] + 1) * 2
-  ) {
-    ride.state[slot] = RideState.Broken;
-    ride.phase[slot] = RidePhase.Broken;
-    ride.breakdownCounter[slot]++;
-  }
 }
 
-/** Ends a ride cycle: counts served guests, wears reliability and may cause a breakdown. */
+/** Ends a ride cycle and counts the guests it served. */
 export function finishCycle(world: Parameters<System['update']>[0], slot: number): void {
   const ride = world.rides.cols;
   completeCycle(world, slot, ride.boarded[slot]);
@@ -54,6 +37,7 @@ export const rideSystem: System = {
   name: 'rides',
   update(world) {
     updateRideAge(world);
+    updateRideMaintenance(world);
     const ride = world.rides.cols;
     for (let slot = 0; slot < world.rides.count; slot++) {
       if (ride.phase[slot] === RidePhase.Broken) {

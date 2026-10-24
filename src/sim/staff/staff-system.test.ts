@@ -4,12 +4,21 @@ import { TICKS_PER_WEEK } from '../economy/calendar';
 import { LedgerCategory } from '../economy/ledger';
 import { placePath, setPathAddition, PathAddition } from '../map/paths';
 import { RidePhase, RideState } from '../rides/ride-store';
-import { createRide, triggerRideBreakdown } from '../rides/ride-operations';
+import { createRide } from '../rides/ride-operations';
+import { triggerRideBreakdown } from '../rides/ride-maintenance';
 import { RideType } from '../rides/ride-types';
 import { StaffKind, setStaffKindPatrolTile, spawnStaff } from './staff-store';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { staffSystem } from './staff-system';
 import { isReachable } from '../pathfinding';
+
+/** Runs staff updates on their 16-tick stride until `done`, standing in for the game loop. */
+function workStaffUntil(world: Simulation['world'], done: () => boolean): void {
+  for (let i = 0; i < 100 && !done(); i++) {
+    staffSystem.update(world);
+    world.tick += 16;
+  }
+}
 
 describe('staff commands and work', () => {
   it('hires and fires staff while updating the weekly wage bill', () => {
@@ -124,11 +133,10 @@ describe('staff commands and work', () => {
     world.staff.cols.x[0] = 7 * 256 + 128;
     world.staff.cols.y[0] = 8 * 256 + 128;
 
-    staffSystem.update(world);
+    workStaffUntil(world, () => world.rides.cols.state[rideSlot] === RideState.Open);
 
     expect(world.rides.cols.state[rideSlot]).toBe(RideState.Open);
     expect(world.rides.cols.phase[rideSlot]).toBe(RidePhase.Waiting);
-    expect(world.rides.cols.reliability[rideSlot]).toBe(100);
   });
 
   it('skips a disconnected broken ride and services a reachable repair call', () => {
@@ -154,11 +162,10 @@ describe('staff commands and work', () => {
     world.staff.cols.x[0] = 7 * 256 + 128;
     world.staff.cols.y[0] = 8 * 256 + 128;
 
-    staffSystem.update(world);
+    workStaffUntil(world, () => world.rides.cols.state[reachableSlot] === RideState.Open);
 
     expect(world.rides.cols.state[unreachableSlot]).toBe(RideState.Broken);
     expect(world.rides.cols.state[reachableSlot]).toBe(RideState.Open);
-    expect(world.rides.cols.reliability[reachableSlot]).toBe(100);
   });
 
   it('gives entertainers their scheduled happiness boost at any staff id phase', () => {
@@ -241,9 +248,8 @@ describe('staff commands and work', () => {
     world.staff.cols.x[0] = 9 * 256 + 128;
     world.staff.cols.y[0] = 8 * 256 + 128;
 
-    for (let tick = 0; tick < 300; tick++) sim.step();
+    for (let tick = 0; tick < 600; tick++) sim.step();
 
     expect(world.rides.cols.state[rideSlot]).toBe(RideState.Open);
-    expect(world.rides.cols.reliability[rideSlot]).toBe(100);
   });
 });

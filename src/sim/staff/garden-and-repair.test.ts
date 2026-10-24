@@ -3,7 +3,8 @@ import { Simulation } from '../core/simulation';
 import { Surface } from '../map/tile-map';
 import { placePath, setPathAddition, PathAddition } from '../map/paths';
 import { RidePhase, RideState } from '../rides/ride-store';
-import { createRide, triggerRideBreakdown, isRideInspectionDue } from '../rides/ride-operations';
+import { createRide, isRideInspectionDue } from '../rides/ride-operations';
+import { triggerRideBreakdown } from '../rides/ride-maintenance';
 import { RideType } from '../rides/ride-types';
 import { FLOWER_BED, FLOWER_BED_THIRSTY, GROUNDS_GROW_INTERVAL, OVERGROWTH_MASK } from './grounds';
 import { StaffKind, spawnStaff } from './staff-store';
@@ -97,7 +98,10 @@ describe('mechanic response', () => {
     w.staff.cols.x[0] = 7 * 256 + 128;
     w.staff.cols.y[0] = 8 * 256 + 128;
 
-    staffSystem.update(w);
+    for (let i = 0; i < 100 && w.rides.cols.state[slot] !== RideState.Open; i++) {
+      staffSystem.update(w);
+      w.tick += 16;
+    }
 
     expect(w.rides.cols.state[slot]).toBe(RideState.Open);
     expect(w.rides.cols.phase[slot]).toBe(RidePhase.Waiting);

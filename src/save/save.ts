@@ -9,14 +9,19 @@ import { restoreResearch, saveResearch, upgradeLegacyResearchSave } from '../sim
 import type { LegacyResearchSave, ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 import { calculateStaffWageBill } from '../sim/staff/staff-store';
+import { RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
+import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 10;
-const PREVIOUS_SAVE_VERSION = 9;
+export const SAVE_VERSION = 11;
+const PREVIOUS_SAVE_VERSION = 10;
 /** First version whose research stores invention work units rather than cents. */
 const RESEARCH_UNITS_SAVE_VERSION = 10;
 const PRE_NAVIGATION_SAVE_VERSION = 9;
 const PRE_TRAIN_LAYOUT_SAVE_VERSION = 8;
 const PRE_APPROACH_SAVE_VERSION = 8;
+const PRE_RELIABILITY_SAVE_VERSION = 10;
 const PRE_INCOME_SAVE_VERSION = 7;
 const PRE_STAFF_CARE_SAVE_VERSION = 5;
 const PRE_RIDES_SAVE_VERSION = 3;
@@ -140,6 +145,15 @@ function migrateLegacyGuests(
   world.rides.cols.queueLength.fill(0);
 }
 
+/** Saves before version 9 stored reliability as a whole percent and had no ride modes. */
+function migratePreReliabilityRides(world: World): void {
+  const rides = world.rides.cols;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    rides.reliabilityRaw[slot] = Math.min(RELIABILITY_MAX, rides.reliability[slot] * 256);
+    rides.mode[slot] = RIDE_CATALOG[rides.typeId[slot] as RideType]?.modes[0].mode ?? 0;
+  }
+}
+
 const MAX_SAVED_MAP_SIDE = 512;
 const MAX_SAVED_CAPACITY = 65536;
 
@@ -215,11 +229,13 @@ function guestColumnsAbsent(version: number): number {
   );
 }
 
-/** Ride columns appended after a save's version: income, then the train layout. */
+/** Ride columns appended after a save's version: income, the train layout, then reliability. */
 function rideColumnsAbsent(version: number): number {
-  if (version <= PRE_INCOME_SAVE_VERSION) return 3;
-  if (version <= PRE_TRAIN_LAYOUT_SAVE_VERSION) return 2;
-  return 0;
+  let absent = 0;
+  if (version <= PRE_INCOME_SAVE_VERSION) absent += 1;
+  if (version <= PRE_TRAIN_LAYOUT_SAVE_VERSION) absent += 2;
+  if (version <= PRE_RELIABILITY_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V10;
+  return absent;
 }
 
 export function deserialize(bytes: Uint8Array): World {
@@ -233,6 +249,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_STAFF_CARE_SAVE_VERSION,
     6,
     PRE_INCOME_SAVE_VERSION,
+    PRE_TRAIN_LAYOUT_SAVE_VERSION,
     PRE_APPROACH_SAVE_VERSION,
     PRE_NAVIGATION_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
@@ -294,6 +311,7 @@ export function deserialize(bytes: Uint8Array): World {
   restoreLedger(world.economy, header.economy);
   if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
   if (legacyGuests) migrateLegacyGuests(world, legacyGuests, header.stores.guests.count);
+  if (header.version <= PRE_RELIABILITY_SAVE_VERSION) migratePreReliabilityRides(world);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION
