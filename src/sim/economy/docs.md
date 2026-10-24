@@ -10,6 +10,8 @@ Responsibility: money in integer cents, the calendar, the monthly ledger and rol
 - `calendar.ts`: `gameDate(tick)`, `isBoundary(tick, period)` and the tick cadences.
 - `economy-system.ts`: the clock. Runs weekly charges, fortnightly upkeep, the monthly rollover, and the 512-tick rating refresh, in that order at shared boundaries.
 
+- `park-inputs.ts`: `parkInputsSystem` (runs before the economy system, every 128 ticks) publishes the economy inputs from the park: `staff * 1,500` weekly wages, fortnightly upkeep of open rides (build cost / 50, stalls / 100), summed value of open rides, qualifying (open, non-shop) ride count, guests off the footpaths as lost guests, the percentage of guests with happiness below 128, the percentage of broken rides, and the litter count. Anything that calls `setEconomyInputs` for these fields is overwritten at the next refresh.
+
 ## Decisions
 
 - Calendar: 16,384 ticks per month, 8 months per year starting in March, so a week is 4,096 ticks and a fortnight is 8,192. Display day labels use 31/30 days and are cosmetic.
@@ -17,7 +19,7 @@ Responsibility: money in integer cents, the calendar, the monthly ledger and rol
 - Wages are a weekly charge of `wageBillPerWeek`, reported in the monthly ledger. Ride upkeep is a fortnightly charge of `rideUpkeepPerFortnight`.
 - Interest is simple and weekly: `floor(loan * bps / (10000 * 32))`. Weeks per year come from the calendar. This is inferred; see economy.md open question 2.
 - Loans move in $1,000 steps. Borrowing is capped at `maxLoan`. Repaying is capped at the balance and cash. Financing moves cash but is not a ledger category.
-- Cash may go negative.
+- Cash may go negative. Construction (land, paths, rides, track) is checked against cash before it is applied and posts through `charge`.
 - Campaigns: one active slot. Each week it charges its cost and consumes a week. The attraction multiplier applies while weeks remain. The table in `marketing.ts` is a tunable placeholder.
 - Park value is `rideValue + 700 * guests` (cents), refreshed every 512 ticks. Company value is `parkValue + cash - loan`.
 - Park rating follows the community formula in `park-rating.ts`. It is clamped to 0..999. The excitement and intensity terms are not implemented. The sign of the guest term is ambiguous in the source; the implementation follows the range it states. Calibrate before relying on it.

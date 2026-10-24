@@ -1,12 +1,19 @@
 import type { World } from '../core/world';
-import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { TILE_UNITS } from '../core/constants';
 
 export const enum GuestState {
   Wandering = 0,
   Queuing = 1,
   Riding = 2,
   Leaving = 3,
+  /** Using a stall or toilets at its entrance tile. */
+  Shopping = 4,
+  /** At the head of a ride queue, counted in the ride's `queueLength`. */
+  Waiting = 5,
 }
+
+/** `heading` value while a guest has not yet moved (or has just been placed). */
+export const HEADING_NONE = 4;
 
 export const enum GuestThought {
   None = 0,
@@ -29,6 +36,8 @@ export const GUEST_SCHEMA = {
   targetY: Int16Array,
   targetRide: Int32Array,
   state: Uint8Array,
+  /** Last walking direction (0..3, see pathfinding/directions) or HEADING_NONE. */
+  heading: Uint8Array,
   tint: Uint8Array,
   happiness: Uint8Array,
   hunger: Uint8Array,
@@ -73,15 +82,20 @@ export function spawnGuest(w: World): boolean {
   const g = w.guests;
   const slot = g.spawn();
   if (slot < 0) return false;
-  const tx = w.rng.int(w.map.width);
-  const ty = w.rng.int(w.map.height);
+  let tx = w.park.entranceX;
+  let ty = w.park.entranceY;
+  if (tx < 0) {
+    tx = w.rng.int(w.map.width);
+    ty = w.rng.int(w.map.height);
+  }
   g.cols.x[slot] = tx * TILE_UNITS + (TILE_UNITS >> 1);
   g.cols.y[slot] = ty * TILE_UNITS + (TILE_UNITS >> 1);
-  g.cols.z[slot] = w.map.heights[w.map.index(tx, ty)] * Z_STEP;
+  g.cols.z[slot] = w.map.heightAt(g.cols.x[slot], g.cols.y[slot]);
   g.cols.targetX[slot] = tx;
   g.cols.targetY[slot] = ty;
   g.cols.targetRide[slot] = -1;
   g.cols.state[slot] = GuestState.Wandering;
+  g.cols.heading[slot] = HEADING_NONE;
   g.cols.tint[slot] = w.rng.int(8);
   g.cols.happiness[slot] = 96 + w.rng.int(96);
   g.cols.energy[slot] = 220 + w.rng.int(36);

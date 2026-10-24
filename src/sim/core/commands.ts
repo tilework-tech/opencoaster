@@ -10,6 +10,7 @@ import type { RideType } from '../rides/ride-types';
 export type Command =
   | { type: 'spawnGuests'; count: number }
   | { type: 'spawnStaff'; count: number; kind: number }
+  | { type: 'setParkEntrance'; x: number; y: number }
   | { type: 'createRide'; rideType: RideType; x: number; y: number }
   | MapCommand
   | { type: 'economy'; action: EconomyAction }

@@ -5,31 +5,34 @@ Path: @/src/sim/guests
 ### Overview
 
 - Stores guest state in typed struct-of-arrays columns and advances guest behaviour through the `guests` simulation system.
-- Covers guest generation, needs and thoughts, ride selection, movement, queueing, riding, and leaving; litter has separate store and system entry points in this folder.
+- Guests arrive at the park gate, walk the real footpath network with the [pathfinder](../pathfinding/docs.md), use rides, stalls and toilets, pay through the [economy](../economy/docs.md), and leave through the gate.
+- Litter has separate store and system entry points in this folder; guests do not drop litter yet.
 
 ### How it fits into the larger codebase
 
-- [World](../core/world.ts) owns the guest and ride entity stores, map, economy ledger, and seeded random generator. [Simulation](../core/simulation.ts) runs `guestSystem` as part of the deterministic system order and routes the `spawnGuests` command to `spawnGuest`.
-- Ride choice reads open state, price, intensity, excitement, nausea, queue length, and entrance coordinates from the [ride store](../rides/ride-store.ts). A selected ride's queue length is adjusted directly by guest behaviour; there is no separate queue-operation system yet.
-- Movement calls the [pathfinding contract](../pathfinding/pathfinder.ts) to request the next tile toward the current target. The system reuses a route buffer sized to the map area, growing it when a larger map is used, so it can hold any map path. Until a pathfinder finds a path, the default null implementation falls back to moving directly toward the target tile.
-- The default admission provider reads optional `parkRating` and `entranceFee` properties from the economy ledger, with defaults when those fields are absent. `createGuestSystem` accepts an admission provider so this dependency can remain narrow while economy support develops.
-- [Guest mechanics](../../../docs/mechanics/guests.md) describes the broader target behaviour. Food, drink, toilet, stall, and queue-service operations are not implemented by this module yet.
+- [World](../core/world.ts) owns the guest and ride stores, the map, the economy ledger and `world.park` (the gate tile, [park.ts](park.ts)). [Simulation](../core/simulation.ts) runs `guestSystem` in the deterministic system order and routes `spawnGuests` and `setParkEntrance` here.
+- Movement calls `nextDirection` from [pathfinding](../pathfinding/navigate.ts) at every tile centre, passing the target tile (a ride or stall entrance, or the gate) or `-1` to wander. `heading` stores the last direction so the pathfinder avoids reversing. Guests never leave the footpaths: positions advance 12 units per update toward the next tile centre.
+- Destinations are ride-store entries (rides, stalls, toilets alike) addressed by `targetRide`. A destination is only chosen when `isReachable` says a footpath route to its entrance exists.
+- The [ride queue system](../rides/queue-system.ts) seats `Waiting` guests when a ride dispatches; this system finishes the ride when the ride's completed-cycle counter moves on.
+- Money: gate fees post to `Admission`, tickets to `RideTickets` (at boarding, only in per-ride price mode), food and drink to `FoodDrinkSales` with a stock cost to `FoodDrinkStock`, toilet fees to `ShopSales`. Arrival chance reads `parkRating` and the active marketing campaign from the economy.
 
 ### Core Implementation
 
-- [Guest store](guest-store.ts) defines guest states and needs, preferences, cash in integer cents, ride target, patience and activity counters, and four typed thought columns addressed as a rotating ring. `spawnGuest` allocates an entity, gives it a seeded random map position and initial stats, and initializes it as wandering.
-- [Guest system](guest-system.ts) updates each guest when `(tick + stable entity id) % 4` is zero. Needs are integer counters with bounded updates: hunger, thirst, and toilet rise; energy falls while wandering and some is restored when a ride completes; happiness falls when hunger or thirst is very high. Hunger and thirst thoughts are written to the ring when their thresholds are reached, while an identical latest thought is suppressed.
-- Wandering guests score every ride that is open, affordable, and within the guest's intensity tolerance. The score combines excitement, preference gap, nausea, price, and queue length. Guests move toward the chosen ride entrance, join its queue counter on arrival, wait with a patience timer, ride for a fixed activity duration, pay the ride price on completion, and receive a happiness increase and nausea cost.
-- Guests whose happiness, energy, or cash reaches its leaving threshold enter `Leaving` and move toward a map-corner exit target. When no ride is selected, a guest occasionally gets a random map target and continues wandering.
-- Arrivals are considered at fixed tick intervals. The economy provider's park rating and entrance fee produce a bounded chance; ride count raises the baseline arrival capacity, up to the guest-store capacity. Reaching the baseline alone does not permanently stop arrivals when ride capacity is available. Arrivals use the same `spawnGuest` initialization as explicit spawn commands.
+- [Guest store](guest-store.ts): states `Wandering`, `Queuing` (walking a queue path toward the ride entrance), `Riding`, `Leaving`, `Shopping` (using a stall or toilets at its entrance tile) and `Waiting` (at the head of the queue, counted in the ride's `queueLength`). `spawnGuest` places the guest on the gate tile, or on a random tile while the park has no gate.
+- [Guest system](guest-system.ts) updates a guest when `(tick + id) % 4 === 0`. Needs advance once every four updates. A decision happens only at tile centres: leave if happiness, energy or cash is exhausted; otherwise keep or pick a destination (toilets when `toilet >= 128`, then food or drink for hunger/thirst `>= 128`, then the best-scoring open, affordable, reachable ride once the post-ride cooldown has elapsed).
+- Stalls and toilets are noticed within 10 tiles (Chebyshev), which realises the decision "head to a stall it has seen, otherwise wander and buy on encounter": a stall on the guest's own tile has distance 0. There is no per-guest memory of seen stalls.
+- Rides: a guest arriving at the entrance tile becomes `Waiting` and increments `queueLength`; guests still walking the queue are not counted. On dispatch the queue system turns that many `Waiting` guests (lowest slot first) into `Riding`, stamping the low 16 bits of the ride's `cyclesCompleted` in `activityTicks`. When the counter changes the guest steps onto the ride exit tile (or the entrance when the exit is not a footpath), gains happiness and energy, and starts a ride cooldown.
+- Patience: 2,400 ticks to reach a destination, 3,200 ticks queuing or waiting. A guest that times out, or whose ride closes, drops the destination (decrementing `queueLength` if it was `Waiting`).
+- Arrivals: every 80 ticks a park with a gate may admit one guest with probability `(rating - feePenalty) * marketingAttraction`, up to `200 + 50 * rides` guests. The gate fee is taken from the new guest's cash.
+- Leaving guests walk to the gate and despawn there; with no gate or no route they despawn at once.
 
 ### Things to Know
 
-- The numeric rates, thresholds, ride score weights, patience, ride duration, arrival interval, and admission calculation are implementation design choices. They are not exact claims about the original game's mechanics.
-- Leaving guests are despawned when they reach their map-corner exit target, which frees entity capacity for later arrivals.
-- Queueing is a placeholder counter and timer: no queue path, boarding slot, ride capacity, or queue-service system is consulted. A timed-out guest decrements the ride's queue length when the target ride still exists.
-- Guests do not consume food or drink, use toilets, receive stall effects, or alter litter through this system. Thought categories exist for these needs, but current need handling records hunger and thirst thoughts only.
-- `nullPathfinder` returns no route. The guest system then uses the target tile directly for movement, so the fallback does not validate path connectivity.
-- The guest store and system use typed arrays and bounded loops; the system avoids updating every guest every tick by staggering work using stable entity IDs.
+- Rates, thresholds, scores, patience and capacities are tunable design choices, not claims about the original game.
+- Guests in `Riding` stand on the ride's footprint tile, which is not a footpath; consumers that check footpath occupancy (for example the lost-guest count in [park inputs](../economy/park-inputs.ts)) skip them.
+- A guest whose tile is not a footpath (for example after the path under it is removed, or spawned by `spawnGuests` into a park without a gate) cannot move; it eventually leaves when its energy runs out and counts as lost for the park rating.
+- `queueLength` counts only guests at the head of the queue, so ride choice and the wait estimate under-count a long line. The queue capacity from `connectRideQueue` is not enforced against walking guests.
+- Stalls serve any number of guests at once; `capacity` is not enforced. The Information Kiosk is never visited.
+- Save version 5 added the `heading` column; version 3 and 4 saves migrate with `HEADING_NONE`.
 
 Created and maintained by Nori.

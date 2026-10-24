@@ -3,6 +3,7 @@ import { hashWorld } from '../core/hash';
 import { Simulation } from '../core/simulation';
 import { World } from '../core/world';
 import { Surface } from '../map/tile-map';
+import { legacyGuestArrays } from '../integration/fixtures';
 import { StaffKind, spawnStaff } from '../staff/staff-store';
 import { deserialize, serialize } from '../../save/save';
 import {
@@ -73,7 +74,7 @@ function preRidesSave(w: World): Uint8Array {
   const [slotToId, idToSlot, freeIds] = w.rides.arrays();
   const oldArrays = [
     ...w.map.arrays(),
-    ...w.guests.arrays(),
+    ...legacyGuestArrays(w),
     ...w.staff.arrays(),
     ...w.vehicles.arrays(),
     ...w.litter.arrays(),

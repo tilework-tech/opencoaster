@@ -234,7 +234,10 @@ function findGuestAt(
 }
 
 function guestState(state: number): string {
-  return ['walking', 'queueing', 'riding', 'leaving'][state] ?? `state ${state}`;
+  return (
+    ['walking', 'queueing', 'riding', 'leaving', 'shopping', 'waiting to board'][state] ??
+    `state ${state}`
+  );
 }
 
 let last = performance.now();

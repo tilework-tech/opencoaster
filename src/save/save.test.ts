@@ -4,6 +4,9 @@ import { Simulation } from '../sim/core/simulation';
 import { hashWorld } from '../sim/core/hash';
 import { PieceId } from '../sim/track/catalog';
 import { SAVE_VERSION, deserialize, serialize } from './save';
+import { legacyGuestArrays } from '../sim/integration/fixtures';
+import { HEADING_NONE } from '../sim/guests/guest-store';
+import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
 
 describe('save', () => {
   it('round-trips world state exactly', () => {
@@ -139,10 +142,72 @@ describe('save: map and economy together', () => {
     const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
     const headerLen = new DataView(bytes.buffer).getUint32(4, true);
     const header = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-    const old = header.replace(`"version":${SAVE_VERSION}`, `"version":${SAVE_VERSION - 2}`);
+    const old = header.replace(`"version":${SAVE_VERSION}`, `"version":2`);
     expect(old).not.toBe(header);
     const patched = new Uint8Array(bytes);
     patched.set(new TextEncoder().encode(old), 8);
     expect(() => deserialize(patched)).toThrow(/Unsupported save version/);
+  });
+});
+
+describe('save: version 4 migration', () => {
+  function versionFourSave(world: ReturnType<typeof flatWorld>): Uint8Array {
+    const current = serialize(world);
+    const dv = new DataView(current.buffer, current.byteOffset, current.byteLength);
+    const headerEnd = 8 + dv.getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+    header.version = 4;
+    delete header.park;
+    const headerBytes = new TextEncoder().encode(JSON.stringify(header));
+    const arrays = world.map
+      .arrays()
+      .concat(
+        legacyGuestArrays(world),
+        world.staff.arrays(),
+        world.vehicles.arrays(),
+        world.litter.arrays(),
+        world.rides.arrays(),
+        world.track.pieces.arrays(),
+        world.track.rideTables(),
+      );
+    const total = arrays.reduce((n, a) => n + a.byteLength, 0);
+    const out = new Uint8Array(8 + headerBytes.length + total);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, dv.getUint32(0, true), true);
+    view.setUint32(4, headerBytes.length, true);
+    out.set(headerBytes, 8);
+    let offset = 8 + headerBytes.length;
+    for (const a of arrays) {
+      out.set(new Uint8Array(a.buffer, a.byteOffset, a.byteLength), offset);
+      offset += a.byteLength;
+    }
+    return out;
+  }
+
+  it('loads guests saved before headings existed and keeps them walking', () => {
+    const world = flatWorld(16);
+    layPath(world, row(5, 2, 12));
+    for (let i = 0; i < 5; i++) guestAt(world, 2 + i, 5);
+    world.guests.cols.x[1] += 37;
+    world.guests.cols.state[2] = 1;
+    world.guests.cols.targetRide[2] = 0;
+    const loaded = deserialize(versionFourSave(world));
+    expect(loaded.guests.count).toBe(5);
+    expect(loaded.park.entranceX).toBe(-1);
+    for (let slot = 0; slot < 5; slot++) {
+      if (slot !== 1) expect(loaded.guests.cols.x[slot]).toBe(world.guests.cols.x[slot]);
+      expect(loaded.guests.cols.cash[slot]).toBe(world.guests.cols.cash[slot]);
+      expect(loaded.guests.cols.heading[slot]).toBe(HEADING_NONE);
+    }
+    expect(loaded.guests.cols.state[2]).toBe(0);
+    expect(loaded.guests.cols.targetRide[2]).toBe(-1);
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    Object.assign(sim, { world: loaded });
+    for (let i = 0; i < 200; i++) sim.step();
+    const [tileX, tileY] = [loaded.guests.cols.x[1] >> 8, loaded.guests.cols.y[1] >> 8];
+    expect(loaded.map.isWalkable(loaded.map.index(tileX, tileY))).toBe(true);
+    expect(loaded.guests.cols.heading[1]).toBeLessThan(HEADING_NONE);
+    expect(loaded.guests.slotToId[4]).toBe(world.guests.slotToId[4]);
+    expect(Array.from(loaded.map.heights)).toEqual(Array.from(world.map.heights));
   });
 });

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { TICKS_PER_MONTH } from '../economy/calendar';
-import { setEconomyInputs } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
 import { applyScenario, ObjectiveKind, ScenarioStatus } from './scenario';
 import type { ScenarioDef, ScenarioObjective } from './scenario';
@@ -37,7 +36,7 @@ describe('scenario objectives', () => {
   it('wins a park-value goal when the value meets the target at the deadline', () => {
     const status = play(
       { kind: ObjectiveKind.ParkValue, target: 5_000, rating: 0, categoryMask: 0, byTick: 512 },
-      (s) => setEconomyInputs(s.world, { rideValue: 5_000 }),
+      (s) => s.enqueue({ type: 'spawnGuests', count: 8 }),
     );
     expect(status).toBe(ScenarioStatus.Won);
   });
@@ -45,7 +44,7 @@ describe('scenario objectives', () => {
   it('loses a park-value goal when the deadline passes below target', () => {
     const status = play(
       { kind: ObjectiveKind.ParkValue, target: 5_000, rating: 0, categoryMask: 0, byTick: 512 },
-      (s) => setEconomyInputs(s.world, { rideValue: 4_999 }),
+      (s) => s.enqueue({ type: 'spawnGuests', count: 7 }),
     );
     expect(status).toBe(ScenarioStatus.Lost);
   });
@@ -59,7 +58,7 @@ describe('scenario objectives', () => {
         categoryMask: 0,
         byTick: 512,
       },
-      (s) => setEconomyInputs(s.world, { rideValue: 100 }),
+      (s) => s.enqueue({ type: 'spawnGuests', count: 1 }),
     );
     expect(won).toBe(ScenarioStatus.Won);
     const lost = play(
@@ -72,7 +71,7 @@ describe('scenario objectives', () => {
       },
       (s) => {
         s.world.economy.loan = 1;
-        setEconomyInputs(s.world, { rideValue: 100 });
+        s.enqueue({ type: 'spawnGuests', count: 1 });
       },
     );
     expect(lost).toBe(ScenarioStatus.Lost);

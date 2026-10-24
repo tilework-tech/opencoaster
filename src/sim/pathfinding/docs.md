@@ -10,6 +10,10 @@ Responsibility: deterministic, allocation-free navigation over the footpath grap
 - `PathGraph` (`graph.ts`): `width`, `height`, `pathVersion`, `edgeMask(tile)` (bits E,S,W,N). `world.map` may be a `PathGraph` or a real `TileMap`; a `TileMap` implements `PathGraph` itself (`edgeMask` = the tile's lowest path element's edges, `pathVersion` bumped by every path edit in `sim/map`), so map editors need not call `markPathsChanged`. The `Surface.Path` adapter remains only for maps that do not expose `edgeMask`. **Map editors must call `markPathsChanged(map)` after any path edit** (PathGraph implementations bump `pathVersion` instead).
 - The old `Pathfinder.findPath` / `nullPathfinder` contract in `pathfinder.ts` is retained for compatibility and unused.
 
+## Consumers
+
+- [Guests](../guests/docs.md) call `nextDirection` at each tile centre with `DEFAULT_GUEST_OPTS` and `isReachable` before choosing a destination. The old `Pathfinder.findPath` contract is no longer used anywhere.
+
 ## How it works
 
 - `PathNetwork` (one per graph, in a `WeakMap`, not world state) caches _corridor links_: from any (tile, dir), the junction or dead end reached by following degree-2 tiles, with length and arrival direction. Links fill lazily and are dropped when `pathVersion` changes. It also holds component labels and all search scratch (typed arrays), so queries do not allocate.

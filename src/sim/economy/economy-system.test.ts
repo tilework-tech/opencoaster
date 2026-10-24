@@ -4,6 +4,10 @@ import { hashWorld } from '../core/hash';
 import { TICKS_PER_FORTNIGHT, TICKS_PER_MONTH, TICKS_PER_WEEK } from './calendar';
 import { LedgerCategory } from './ledger';
 import { setEconomyInputs } from './api';
+import { STAFF_WAGE_PER_WEEK_CENTS, RIDE_UPKEEP_DIVISOR } from './park-inputs';
+import { layPath, openRide, prepareFlat, row } from '../integration/fixtures';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { getRideValueCents } from '../rides/ride-operations';
 import { applyEconomyAction } from './actions';
 import { PriceMode } from './ledger';
 import { CAMPAIGNS } from './marketing';
@@ -17,22 +21,45 @@ function runUntil(s: Simulation, tick: number): void {
   while (s.world.tick <= tick) s.step();
 }
 
+/** A sim with an open merry-go-round, so rides publish upkeep and value. */
+function simWithRide(): Simulation {
+  const s = new Simulation({ seed: 9, width: 16, height: 16 });
+  prepareFlat(s.world);
+  layPath(s.world, row(5, 2, 9));
+  layPath(s.world, row(5, 10, 11), true);
+  layPath(s.world, [[12, 4]]);
+  openRide(
+    s.world,
+    RideType.MerryGoRound,
+    [11, 4],
+    [11, 5],
+    [12, 4],
+    [
+      [10, 5],
+      [9, 5],
+    ],
+  );
+  return s;
+}
+
 describe('economy clock', () => {
-  it('pays wages weekly and ride upkeep fortnightly', () => {
-    const s = sim();
-    setEconomyInputs(s.world, { wageBillPerWeek: 700, rideUpkeepPerFortnight: 3_000 });
+  it('pays staff wages weekly and ride upkeep fortnightly', () => {
+    const s = simWithRide();
+    s.enqueue({ type: 'spawnStaff', count: 2, kind: 0 });
+    const wages = 2 * STAFF_WAGE_PER_WEEK_CENTS;
+    const upkeep = Math.floor(RIDE_CATALOG[RideType.MerryGoRound].cost / RIDE_UPKEEP_DIVISOR);
     const start = s.world.economy.cash;
     runUntil(s, TICKS_PER_WEEK);
-    expect(s.world.economy.cash).toBe(start - 700);
+    expect(s.world.economy.cash).toBe(start - wages);
     runUntil(s, TICKS_PER_FORTNIGHT);
-    expect(s.world.economy.cash).toBe(start - 700 * 2 - 3_000);
-    expect(s.world.economy.monthlyTotals[LedgerCategory.Wages]).toBe(-700 * 2);
-    expect(s.world.economy.monthlyTotals[LedgerCategory.RideRunning]).toBe(-3_000);
+    expect(s.world.economy.cash).toBe(start - wages * 2 - upkeep);
+    expect(s.world.economy.monthlyTotals[LedgerCategory.Wages]).toBe(-wages * 2);
+    expect(s.world.economy.monthlyTotals[LedgerCategory.RideRunning]).toBe(-upkeep);
   });
 
   it('reports the completed month and resets the running month at the boundary', () => {
     const s = sim();
-    setEconomyInputs(s.world, { wageBillPerWeek: 100 });
+    s.enqueue({ type: 'spawnStaff', count: 1, kind: 0 });
     runUntil(s, TICKS_PER_MONTH);
     const l = s.world.economy;
     expect(l.monthsCompleted).toBe(1);
@@ -73,9 +100,11 @@ describe('marketing campaigns', () => {
 
 describe('park rating and value refresh', () => {
   it('publishes park value from ride value and guests', () => {
-    const s = sim();
-    setEconomyInputs(s.world, { rideValue: 12_345 });
+    const s = simWithRide();
+    s.enqueue({ type: 'spawnGuests', count: 3 });
     runUntil(s, 512);
-    expect(s.world.economy.parkValue).toBe(12_345);
+    const rideValue = getRideValueCents(s.world, s.world.rides.slotToId[0]);
+    expect(rideValue).toBeGreaterThan(0);
+    expect(s.world.economy.parkValue).toBe(rideValue + 3 * 700);
   });
 });
