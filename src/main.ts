@@ -4,8 +4,11 @@ import type { Camera, MapData } from './render/renderer';
 import { pickTile, project } from './render/projection';
 import type { Rotation } from './render/projection';
 import { Hud } from './ui/hud';
-import { GameUI, guestDetailsText } from './ui/game-ui';
+import { GameUI } from './ui/game-ui';
 import type { GuestSelection, ToolMode } from './ui/game-ui';
+import { WindowManager } from './ui/window-manager';
+import { DEFAULT_ZOOM, stepZoom } from './ui/zoom';
+import './ui/ui.css';
 import { TitleScreen } from './ui/title-screen';
 import { SaveMenu } from './ui/save-menu';
 import { ScenarioDialog } from './ui/scenario-dialog';
@@ -15,6 +18,7 @@ import type { GameSpeed } from './ui/settings';
 import { DEFAULT_MAP_SIZE, TILE_UNITS } from './sim/core/constants';
 import { PathAddition } from './sim/map/paths';
 import { CoasterPanel } from './ui/coaster-panel';
+import { RIDE_CATALOG } from './sim/rides/ride-types';
 import { TrackPreviewOverlay } from './ui/track-preview';
 import { SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
 import { IMPORTED_ID, SANDBOX_ID } from './sim/scenario/scenario';
@@ -60,13 +64,16 @@ let lastSentPause: boolean | null = null;
 let session: Session | null = null;
 sim.setSpeed(speed);
 
-const camera: Camera = { x: 0, y: (DEFAULT_MAP_SIZE * 32) / 2, zoom: 1, rotation: 0 };
+const camera: Camera = { x: 0, y: (DEFAULT_MAP_SIZE * 32) / 2, zoom: DEFAULT_ZOOM, rotation: 0 };
 const hud = new Hud(root);
 let selectedTool: ToolMode = 'select';
 let selectedGuest: GuestSelection | null = null;
 let ridePlacement: { rideId: number; part: 'entrance' | 'exit' } | null = null;
 let patrolKind: number | null = null;
-const coasterPanel = new CoasterPanel(root, {
+let alternate = false;
+let brush = 1;
+const windows = new WindowManager(root);
+const coasterPanel = new CoasterPanel(windows, {
   command: (command) => sim.command(command),
   selectTool: (tool) => gameUi.selectTool(tool),
   snapshot: () => sim.latest,
@@ -74,7 +81,7 @@ const coasterPanel = new CoasterPanel(root, {
   status: (text) => gameUi.setToolStatus(text),
 });
 const trackPreview = new TrackPreviewOverlay(root);
-const gameUi = new GameUI(root, {
+const gameUi = new GameUI(root, windows, {
   setPaused(value) {
     userPaused = value;
     persistSettings();
@@ -88,6 +95,33 @@ const gameUi = new GameUI(root, {
   rotate(direction) {
     camera.rotation = ((camera.rotation + direction + 4) % 4) as Rotation;
   },
+  zoom(direction) {
+    camera.zoom = stepZoom(camera.zoom, direction);
+  },
+  command(command) {
+    sim.command(command);
+  },
+  setAlternate(on) {
+    alternate = on;
+  },
+  setBrush(size) {
+    brush = Math.max(1, Math.min(5, Math.round(size)));
+  },
+  locate(x, y) {
+    centreOnTile(x, y);
+  },
+  chooseRideType(type) {
+    coasterPanel.rideType = type;
+    ridePlacement = null;
+    gameUi.selectTool('ride');
+    gameUi.setToolStatus(`${RIDE_CATALOG[type].name} selected. Tap a tile you own to build it.`);
+  },
+  editTrack(rideId) {
+    coasterPanel.setActiveRide(rideId);
+    gameUi.selectTool('track');
+  },
+  map: () => sim.map,
+  camera: () => camera,
   setTool(tool) {
     selectedTool = tool;
     coasterPanel.setTool(tool);
@@ -126,6 +160,7 @@ const gameUi = new GameUI(root, {
   },
 });
 gameUi.syncPaused(userPaused);
+gameUi.syncSpeed(speed);
 
 const outcomeDialog = new ScenarioDialog(root);
 const outcomeActions = {
@@ -198,6 +233,7 @@ function begin(game: GameInfo, resumed: boolean): void {
   session = { ...game, outcomeShown: false, resumed };
   selectedGuest = null;
   root.classList.remove('title-open');
+  gameUi.onGameStart(!resumed);
   titleScreen.hide();
   saveMenu.close();
   outcomeDialog.hide();
@@ -319,55 +355,100 @@ resize();
 
 const keys = new Set<string>();
 window.addEventListener('keydown', (event) => {
-  const key = event.key.toLowerCase();
-  if (event.repeat && ['q', 'e', 'g', ' '].includes(key)) return;
-  keys.add(key);
-  if (key === 'q') camera.rotation = ((camera.rotation + 3) % 4) as Rotation;
-  if (key === 'e') camera.rotation = ((camera.rotation + 1) % 4) as Rotation;
-  const onControl =
-    event.target instanceof HTMLButtonElement ||
+  const typing =
     event.target instanceof HTMLInputElement ||
     event.target instanceof HTMLSelectElement ||
     event.target instanceof HTMLTextAreaElement;
-  if (key === 'g' && session && !overlayOpen() && !onControl) {
-    sim.command({ type: 'spawnGuests', count: 1000 });
-  }
-  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'enter')
-    coasterPanel.placeAtCursor();
-  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'backspace') {
+  const onButton = event.target instanceof HTMLButtonElement;
+  keys.add(event.key.toLowerCase());
+  if (!session || overlayOpen()) return;
+  if (event.key === 'Delete' && selectedTool === 'track' && !typing) {
     event.preventDefault();
     coasterPanel.removeLast();
+    return;
   }
-  if (key === ' ' && session && !overlayOpen()) {
-    event.preventDefault();
-    gameUi.togglePause();
-    gameUi.setToolStatus(userPaused ? 'Simulation paused.' : 'Simulation resumed.');
-  }
+  if (typing && !['Escape', 'PageUp', 'PageDown', 'F1', 'F2', 'F3', 'F4', 'F5'].includes(event.key))
+    return;
+  if (onButton && (event.key === ' ' || event.key === 'Enter')) return;
+  if (event.repeat && event.key !== 'PageUp' && event.key !== 'PageDown') return;
+  if (gameUi.handleShortcut(event)) event.preventDefault();
 });
 window.addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
+
+/** Smallest wheel travel that counts as one zoom step; trackpads send many small deltas. */
+const WHEEL_STEP = 60;
+let wheelAccum = 0;
 window.addEventListener(
   'wheel',
   (event) => {
+    if (event.target !== canvas) return;
+    wheelAccum += event.deltaY;
+    event.preventDefault();
+    if (Math.abs(wheelAccum) < WHEEL_STEP) return;
     const rect = canvas.getBoundingClientRect();
     const localX = event.clientX - rect.left;
     const localY = event.clientY - rect.top;
     const anchorX = camera.x + (localX - rect.width / 2) / camera.zoom;
     const anchorY = camera.y + (localY - rect.height / 2) / camera.zoom;
-    camera.zoom = Math.max(0.25, Math.min(4, camera.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1)));
+    camera.zoom = stepZoom(camera.zoom, wheelAccum < 0 ? 1 : -1);
+    wheelAccum = 0;
     camera.x = anchorX - (localX - rect.width / 2) / camera.zoom;
     camera.y = anchorY - (localY - rect.height / 2) / camera.zoom;
-    event.preventDefault();
   },
   { passive: false },
 );
 
+function centreOnTile(x: number, y: number): void {
+  const map = sim.map;
+  if (!map) return;
+  const out = new Float64Array(2);
+  project(
+    x * TILE_UNITS + TILE_UNITS / 2,
+    y * TILE_UNITS + TILE_UNITS / 2,
+    0,
+    map.width,
+    map.height,
+    camera.rotation,
+    out,
+  );
+  camera.x = out[0];
+  camera.y = out[1];
+}
+
 let pointerDown: { id: number; x: number; y: number; moved: boolean } | null = null;
+const touches = new Map<number, { x: number; y: number }>();
+let pinchBase = 0;
+/** Finger-spread ratio that counts as one zoom step. */
+const PINCH_STEP = 1.4;
+function pinchDistance(): number {
+  const [a, b] = [...touches.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
 canvas.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return;
+  if (event.pointerType === 'touch') {
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.size === 2) {
+      pinchBase = pinchDistance();
+      if (pointerDown) pointerDown.moved = true;
+    }
+  }
+  if (touches.size > 1) return;
   pointerDown = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', (event) => {
+  if (touches.has(event.pointerId)) {
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.size === 2 && pinchBase > 0) {
+      const ratio = pinchDistance() / pinchBase;
+      if (ratio >= PINCH_STEP || ratio <= 1 / PINCH_STEP) {
+        camera.zoom = stepZoom(camera.zoom, ratio > 1 ? 1 : -1);
+        pinchBase = pinchDistance();
+      }
+      return;
+    }
+  }
   if (selectedTool === 'track' && sim.map) {
     const rect = canvas.getBoundingClientRect();
     coasterPanel.setHover(
@@ -380,17 +461,21 @@ canvas.addEventListener('pointermove', (event) => {
   if (!pointerDown || pointerDown.id !== event.pointerId) return;
   const dx = event.clientX - pointerDown.x;
   const dy = event.clientY - pointerDown.y;
-  if (Math.abs(dx) + Math.abs(dy) > 3) pointerDown.moved = true;
+  if (Math.abs(dx) + Math.abs(dy) > 6) pointerDown.moved = true;
   if (!pointerDown.moved) return;
   camera.x -= event.movementX / camera.zoom;
   camera.y -= event.movementY / camera.zoom;
 });
 canvas.addEventListener('pointerup', (event) => {
+  touches.delete(event.pointerId);
   if (!pointerDown || pointerDown.id !== event.pointerId) return;
   if (!pointerDown.moved) handleCanvasClick(event);
   pointerDown = null;
 });
-canvas.addEventListener('pointercancel', () => (pointerDown = null));
+canvas.addEventListener('pointercancel', (event) => {
+  touches.delete(event.pointerId);
+  pointerDown = null;
+});
 
 function handleCanvasClick(event: PointerEvent): void {
   const rect = canvas.getBoundingClientRect();
@@ -408,10 +493,16 @@ function handleCanvasClick(event: PointerEvent): void {
     }
     const [x, y] = tile;
     if (selectedTool === 'land') {
-      sim.command({ type: event.shiftKey ? 'lowerLand' : 'raiseLand', x, y, width: 1, height: 1 });
-      gameUi.setToolStatus(
-        `${event.shiftKey ? 'Lowering' : 'Raising'} land at ${x}, ${y}. Hold Shift to lower.`,
-      );
+      const lower = event.shiftKey || alternate;
+      const origin = Math.floor((brush - 1) / 2);
+      sim.command({
+        type: lower ? 'lowerLand' : 'raiseLand',
+        x: Math.max(0, x - origin),
+        y: Math.max(0, y - origin),
+        width: brush,
+        height: brush,
+      });
+      gameUi.setToolStatus(`${lower ? 'Lowering' : 'Raising'} land at ${x}, ${y}.`);
     } else if (selectedTool === 'path') {
       sim.command({ type: 'placePath', x, y });
       gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
@@ -436,9 +527,9 @@ function handleCanvasClick(event: PointerEvent): void {
       });
       gameUi.setToolStatus(`${selectedTool} placement requested at ${x}, ${y}.`);
     } else if (selectedTool === 'flowerbed') {
-      sim.command({ type: 'setFlowerBed', x, y, enabled: !event.shiftKey });
+      sim.command({ type: 'setFlowerBed', x, y, enabled: !(event.shiftKey || alternate) });
       gameUi.setToolStatus(
-        `${event.shiftKey ? 'Flower bed removal' : 'Flower bed planting'} requested at ${x}, ${y}.`,
+        `${event.shiftKey || alternate ? 'Flower bed removal' : 'Flower bed planting'} requested at ${x}, ${y}.`,
       );
     } else if (selectedTool === 'patrol') {
       if (patrolKind === null) {
@@ -450,10 +541,10 @@ function handleCanvasClick(event: PointerEvent): void {
         kind: patrolKind,
         x,
         y,
-        enabled: !event.shiftKey,
+        enabled: !(event.shiftKey || alternate),
       });
       gameUi.setToolStatus(
-        `${event.shiftKey ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
+        `${event.shiftKey || alternate ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
       );
     } else if (selectedTool === 'ride') {
       if (ridePlacement) {
@@ -475,10 +566,9 @@ function handleCanvasClick(event: PointerEvent): void {
     }
     return;
   }
-  const guestDetails = findGuestAt(localX, localY, rect.width, rect.height, map, camera);
-  selectedGuest =
-    guestDetails && sim.latest ? { details: guestDetails, tick: sim.latest.tick } : null;
-  if (selectedGuest) gameUi.openGuestPanel();
+  const guest = findGuestAt(localX, localY, rect.width, rect.height, map, camera);
+  selectedGuest = guest;
+  if (guest) gameUi.openGuestPanel();
   gameUi.setToolStatus(tile ? `Tile ${tile[0]}, ${tile[1]}` : 'Outside the park map.');
   gameUi.update(sim.latest, sim.stats, selectedGuest);
 }
@@ -490,7 +580,7 @@ function findGuestAt(
   viewportHeight: number,
   map: MapData,
   cam: Camera,
-): string | null {
+): GuestSelection | null {
   const layer = sim.latest?.guests;
   if (!layer) return null;
   const projected = new Float64Array(2);
@@ -526,22 +616,25 @@ function findGuestAt(
   const detailOffset = nearest * 12;
   const snapshot = sim.latest;
   const details = snapshot?.guestDetails;
-  const inspection = details
-    ? guestDetailsText({
-        happiness: details[detailOffset],
-        hunger: details[detailOffset + 1],
-        thirst: details[detailOffset + 2],
-        toilet: details[detailOffset + 3],
-        nausea: details[detailOffset + 4],
-        energy: details[detailOffset + 5],
-        cash: details[detailOffset + 6],
-        thoughts: Array.from(
-          { length: 4 },
-          (_, i) => details[detailOffset + 8 + ((details[detailOffset + 7] + i) & 3)],
-        ),
-      })
-    : '';
-  return `Guest ${nearest + 1}\nTile  ${tileX}, ${tileY}\nState  ${guestState(state)}${inspection ? `\n${inspection}` : ''}`;
+  if (!snapshot || !details) return null;
+  return {
+    number: nearest + 1,
+    tileX,
+    tileY,
+    state: guestState(state),
+    happiness: details[detailOffset],
+    hunger: details[detailOffset + 1],
+    thirst: details[detailOffset + 2],
+    toilet: details[detailOffset + 3],
+    nausea: details[detailOffset + 4],
+    energy: details[detailOffset + 5],
+    cash: details[detailOffset + 6],
+    thoughts: Array.from(
+      { length: 4 },
+      (_, i) => details[detailOffset + 8 + ((details[detailOffset + 7] + i) & 3)],
+    ),
+    tick: snapshot.tick,
+  };
 }
 
 function guestState(state: number): string {

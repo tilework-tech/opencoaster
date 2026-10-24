@@ -15,8 +15,8 @@ test('mobile toolbar keeps far-end actions reachable by scrolling', async ({ pag
   expect(bounds.scrollWidth).toBeGreaterThan(bounds.clientWidth);
 
   await toolbar.evaluate((element) => element.scrollTo({ left: element.scrollWidth }));
-  const rides = toolbar.getByRole('button', { name: 'Rides' });
+  const rides = toolbar.getByRole('button', { name: 'Rides', exact: true });
   await expect(rides).toBeInViewport();
   await rides.click();
-  await expect(page.locator('[data-panel="rides"]')).toBeVisible();
+  await expect(page.locator('[data-panel="ride-list"]')).toBeVisible();
 });

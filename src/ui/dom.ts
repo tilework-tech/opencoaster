@@ -1,5 +1,8 @@
 /** Small DOM helpers shared by the menu components. */
 
+import { icon } from './icons';
+import type { IconName } from './icons';
+
 export function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
@@ -44,4 +47,55 @@ export function fileChooser(onFile: (file: File) => void): HTMLInputElement {
     if (file) onFile(file);
   });
   return input;
+}
+
+/** A button with an icon, an accessible name and an optional visible caption. */
+export function iconButton(
+  name: IconName,
+  label: string,
+  onClick: () => void,
+  className = 'icon-button',
+  caption?: string,
+): HTMLButtonElement {
+  const node = element('button', className);
+  node.type = 'button';
+  node.title = label;
+  node.setAttribute('aria-label', label);
+  node.append(icon(name));
+  if (caption) node.append(element('span', 'icon-caption', caption));
+  node.addEventListener('click', onClick);
+  return node;
+}
+
+export function setText(node: HTMLElement, text: string): void {
+  if (node.textContent !== text) node.textContent = text;
+}
+
+/** A label/value line used by the information windows. */
+export function statRow(label: string, value = ''): { row: HTMLElement; value: HTMLElement } {
+  const row = element('div', 'stat-row');
+  const valueNode = element('span', 'stat-value', value);
+  row.append(element('span', 'stat-label', label), valueNode);
+  return { row, value: valueNode };
+}
+
+/** A horizontal gauge; `set` takes a 0..1 fraction. */
+export function gauge(label: string): {
+  row: HTMLElement;
+  set(fraction: number, text?: string): void;
+} {
+  const row = element('div', 'gauge-row');
+  const fill = element('div', 'gauge-fill');
+  const track = element('div', 'gauge-track');
+  const text = element('span', 'gauge-text');
+  track.append(fill);
+  row.append(element('span', 'stat-label', label), track, text);
+  return {
+    row,
+    set(fraction, caption = '') {
+      const clamped = Math.max(0, Math.min(1, fraction));
+      fill.style.width = `${(clamped * 100).toFixed(1)}%`;
+      setText(text, caption);
+    },
+  };
 }

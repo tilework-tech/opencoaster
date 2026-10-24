@@ -8,6 +8,8 @@ import { RideState } from '../sim/rides/ride-store';
 import { GuestState } from '../sim/guests/guest-store';
 import { flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/fixtures';
 import { RideType } from '../sim/rides/ride-types';
+import { LedgerCategory, PriceMode } from '../sim/economy/ledger';
+import { Funding } from '../sim/research/research';
 import {
   RideInfo,
   RIDE_INFO_STRIDE,
@@ -60,6 +62,28 @@ describe('render snapshot', () => {
 
     expect(snapshot.park.entranceX).toBe(3);
     expect(snapshot.park.entranceY).toBe(5);
+  });
+
+  it('publishes pricing, monthly ledger totals and research state for the finance and research windows', () => {
+    const world = new World({ seed: 9, width: 8, height: 8 });
+    world.economy.priceMode = PriceMode.Admission;
+    world.economy.admissionPrice = 450;
+    world.economy.maxLoan = 5_000_000;
+    world.economy.monthlyTotals[LedgerCategory.Admission] = 1200;
+    world.economy.history[LedgerCategory.Wages] = -700;
+    world.economy.monthsCompleted = 1;
+    world.economy.historyHead = 0;
+    world.research.funding = Funding.Normal;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.economy.priceMode).toBe(PriceMode.Admission);
+    expect(snapshot.economy.admissionPrice).toBe(450);
+    expect(snapshot.economy.maxLoan).toBe(5_000_000);
+    expect(snapshot.economy.thisMonth[LedgerCategory.Admission]).toBe(1200);
+    expect(snapshot.economy.lastMonth[LedgerCategory.Wages]).toBe(-700);
+    expect(snapshot.research.funding).toBe(Funding.Normal);
   });
 
   it('publishes whether each tile allows construction', () => {

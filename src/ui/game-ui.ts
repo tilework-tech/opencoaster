@@ -1,90 +1,46 @@
-import type { Snapshot } from '../worker/snapshot';
 import type { Stats } from '../worker/protocol';
-import { RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
-import { MAX_CARS, MAX_TRAINS_PER_RIDE } from '../sim/vehicles/ride-trains';
-import { financePanelText } from './hud';
+import type { Snapshot } from '../worker/snapshot';
+import { LedgerCategory } from '../sim/economy/ledger';
+import { button, element } from './dom';
+import { SampleSeries } from './format';
+import { icon } from './icons';
+import { NewsTracker } from './news';
+import type { NewsItem } from './news';
 import { objectiveLines } from './objective';
-import { StaffRoster } from './staff-roster';
+import { StatusBar } from './status-bar';
+import { Toolbar } from './toolbar';
+import type { ToolbarButton } from './toolbar';
+import type {
+  GameUIActions,
+  GuestSelection,
+  ToolMode,
+  UiContext,
+  WindowController,
+} from './ui-types';
+import type { WindowManager } from './window-manager';
+import { openFinanceWindow } from './windows/finance-window';
+import { openGuestWindow } from './windows/guest-window';
+import { openMapWindow } from './windows/map-window';
+import { openNewsWindow } from './windows/news-window';
+import { openParkWindow } from './windows/park-window';
+import { openResearchWindow } from './windows/research-window';
+import { openRideList } from './windows/ride-list';
+import { openRideSelect } from './windows/ride-select';
+import { openRideWindow } from './windows/ride-window';
+import { openStaffWindow } from './windows/staff-window';
+import {
+  LAND_WINDOW,
+  PATH_WINDOW,
+  SCENERY_WINDOW,
+  WATER_WINDOW,
+  openToolWindow,
+} from './windows/tool-windows';
+import { shortcutFor } from './shortcuts';
+import type { KeyLike } from './shortcuts';
 
-export type ToolMode =
-  | 'select'
-  | 'land'
-  | 'path'
-  | 'bin'
-  | 'bench'
-  | 'shelter'
-  | 'flowerbed'
-  | 'lamp'
-  | 'ride'
-  | 'track'
-  | 'patrol';
-
-export interface GameUIActions {
-  setPaused(paused: boolean): void;
-  setSpeed(speed: number): void;
-  rotate(direction: -1 | 1): void;
-  setTool(tool: ToolMode): void;
-  spawnGuests(): void;
-  openMenu(): void;
-  hireStaff(kind: number): void;
-  setPatrolKind(kind: number | null): void;
-  renameStaff(staffId: number, name: string): void;
-  fireStaff(staffId: number): void;
-  setRidePrice(rideId: number, priceCents: number): void;
-  setRideTrains(rideId: number, trains: number, cars: number): void;
-  setRideStatus(rideId: number, status: 'open' | 'close'): void;
-  placeRidePart(rideId: number, part: 'entrance' | 'exit'): void;
-}
-
-export interface GuestSelection {
-  details: string;
-  tick: number;
-}
-
-export interface GuestDetails {
-  happiness: number;
-  hunger: number;
-  thirst: number;
-  toilet: number;
-  nausea: number;
-  energy: number;
-  cash: number;
-  thoughts: readonly number[];
-}
-
-const THOUGHT_LABELS: readonly string[] = [
-  'No thought',
-  'Hungry',
-  'Thirsty',
-  'Needs the toilet',
-  'Feeling nauseous',
-  'Ride is too intense',
-  'Ride enjoyed',
-  'Queue is too long',
-  'Leaving the park',
-];
-
-export function guestDetailsText(details: GuestDetails): string {
-  const thoughts = details.thoughts
-    .filter((thought) => thought > 0)
-    .map((thought) => THOUGHT_LABELS[thought] ?? `Thought ${thought}`);
-  return [
-    `Happiness  ${details.happiness}`,
-    `Hunger  ${details.hunger}`,
-    `Thirst  ${details.thirst}`,
-    `Toilet  ${details.toilet}`,
-    `Nausea  ${details.nausea}`,
-    `Energy  ${details.energy}`,
-    `Cash  $${(details.cash / 100).toFixed(2)}`,
-    'Thoughts',
-    ...(thoughts.length ? thoughts : ['No recent thoughts']),
-  ].join('\n');
-}
-
-export function guestSelectionText(details: string, tick: number): string {
-  return `Selection at tick ${tick}\n${details}`;
-}
+export type { GameUIActions, GuestSelection, ToolMode } from './ui-types';
+export { guestDetailsText, guestSelectionText } from './windows/guest-window';
+export type { GuestDetails } from './windows/guest-window';
 
 export interface RideOption {
   value: string;
@@ -117,77 +73,92 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   patrol: 'Patrol area',
 };
 
+/** Windows that arm a map tool; only one of them is open at a time. */
+const CONSTRUCTION_WINDOWS = ['land', 'water', 'scenery', 'paths', 'clear', 'ride-select'];
+
+const SERIES_INTERVAL_TICKS = 160;
+const SERIES_LENGTH = 120;
+
+/** The park interface: toolbar, status bar, ticker and every floating window. */
 export class GameUI {
-  private readonly toolbar: HTMLElement;
+  private readonly toolbar: Toolbar;
+  private readonly statusBar: StatusBar;
   private readonly status: HTMLElement;
   private readonly objective: HTMLElement;
   private readonly weatherOverlay: HTMLElement;
-  private readonly panels = new Map<string, { root: HTMLElement; body: HTMLElement }>();
+  private readonly controllers = new Map<string, WindowController>();
+  private readonly news = new NewsTracker();
+  private readonly series = {
+    cash: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
+    value: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
+    profit: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
+    guests: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
+  };
+  private readonly ctx: UiContext;
   private paused = false;
   private tool: ToolMode = 'select';
-  private staffRoster: StaffRoster | null = null;
-  private rideSelect: HTMLSelectElement | null = null;
-  private ridePrice: HTMLInputElement | null = null;
+  private selectedGuest: GuestSelection | null = null;
+  private latestSnapshot: Snapshot | null = null;
+  private latestStats: Stats | null = null;
+  private speed = 1;
 
   constructor(
     private readonly parent: HTMLElement,
+    private readonly windows: WindowManager,
     private readonly actions: GameUIActions,
   ) {
-    this.toolbar = document.createElement('nav');
-    this.toolbar.className = 'game-toolbar';
-    this.toolbar.setAttribute('aria-label', 'Park controls');
-    this.status = document.createElement('output');
-    this.status.className = 'tool-status';
-    this.objective = document.createElement('div');
-    this.objective.className = 'objective-strip';
+    this.ctx = {
+      windows,
+      actions,
+      snapshot: () => this.latestSnapshot,
+      selectedGuest: () => this.selectedGuest,
+      series: this.series,
+      openRide: (id) => this.openRide(id),
+      openWindow: (id) => this.openWindow(id),
+      chooseTool: (tool) => this.chooseTool(tool),
+      currentTool: () => this.tool,
+    };
+    this.status = element('output', 'tool-status');
+    this.objective = element('div', 'objective-strip');
     this.objective.hidden = true;
-    this.weatherOverlay = document.createElement('div');
-    this.weatherOverlay.className = 'weather-overlay weather-sunny';
+    this.weatherOverlay = element('div', 'weather-overlay weather-sunny');
     this.weatherOverlay.setAttribute('aria-hidden', 'true');
 
-    this.toolbar.append(
-      this.button('Pause', () => this.togglePause(), 'pause'),
-      this.button('1×', () => actions.setSpeed(1), 'speed-1'),
-      this.button('2×', () => actions.setSpeed(2), 'speed-2'),
-      this.button('4×', () => actions.setSpeed(4), 'speed-4'),
-      this.button('↶', () => actions.rotate(-1), 'rotate-left'),
-      this.button('↷', () => actions.rotate(1), 'rotate-right'),
-      this.button('Guests +1,000', actions.spawnGuests, 'spawn-guests'),
-    );
-
-    const tools = document.createElement('div');
-    tools.className = 'tool-group';
-    for (const tool of [
-      'select',
-      'land',
-      'path',
-      'bin',
-      'bench',
-      'shelter',
-      'flowerbed',
-      'lamp',
-      'ride',
-      'track',
-      'patrol',
-    ] as ToolMode[]) {
-      const button = this.button(TOOL_LABELS[tool], () => this.chooseTool(tool), `tool-${tool}`);
-      button.setAttribute('aria-pressed', String(tool === 'select'));
-      tools.append(button);
-    }
-    this.toolbar.append(tools);
-
-    const windows = document.createElement('div');
-    windows.className = 'window-tools';
-    windows.append(
-      this.button('Park', () => this.togglePanel('park', 'Park overview'), 'open-park'),
-      this.button('Finances', () => this.togglePanel('finance', 'Finances'), 'open-finance'),
-      this.button('Menu', actions.openMenu, 'open-menu'),
-      this.button('Guests', () => this.togglePanel('guests', 'Guest information'), 'open-guests'),
-      this.button('Staff', () => this.toggleStaffPanel(), 'open-staff'),
-      this.button('Rides', () => this.toggleRidePanel(), 'open-rides'),
-    );
-    this.toolbar.append(windows);
-    parent.append(this.toolbar, this.status, this.objective, this.weatherOverlay);
+    const open = (id: string) => () => this.toggleWindow(id);
+    const left: ToolbarButton[] = [
+      { id: 'pause', icon: 'pause', label: 'Pause', onClick: () => this.togglePause() },
+      { id: 'options', icon: 'options', label: 'Game options', onClick: open('options') },
+      { id: 'zoom-out', icon: 'zoomOut', label: 'Zoom out', onClick: () => actions.zoom(-1) },
+      { id: 'zoom-in', icon: 'zoomIn', label: 'Zoom in', onClick: () => actions.zoom(1) },
+      { id: 'rotate', icon: 'rotateRight', label: 'Rotate view', onClick: () => actions.rotate(1) },
+      { id: 'view', icon: 'view', label: 'View options', onClick: open('view') },
+      { id: 'map', icon: 'map', label: 'Map', onClick: open('map') },
+    ];
+    const right: ToolbarButton[] = [
+      { id: 'clear', icon: 'demolish', label: 'Clear scenery', onClick: open('clear') },
+      { id: 'land', icon: 'land', label: 'Land', onClick: open('land') },
+      { id: 'water', icon: 'water', label: 'Water', onClick: open('water') },
+      { id: 'scenery', icon: 'scenery', label: 'Scenery', onClick: open('scenery') },
+      { id: 'paths', icon: 'paths', label: 'Footpaths', onClick: open('paths') },
+      { id: 'ride-select', icon: 'rides', label: 'New ride', onClick: open('ride-select') },
+      { id: 'finance', icon: 'finances', label: 'Finances', onClick: open('finance') },
+      { id: 'research', icon: 'research', label: 'Research', onClick: open('research') },
+      { id: 'ride-list', icon: 'wheel', label: 'Rides', onClick: open('ride-list') },
+      { id: 'park', icon: 'park', label: 'Park', onClick: open('park') },
+      { id: 'staff', icon: 'staff', label: 'Staff', onClick: open('staff') },
+      { id: 'guests', icon: 'guests', label: 'Guests', onClick: open('guests') },
+      { id: 'news', icon: 'news', label: 'Messages', onClick: open('news') },
+    ];
+    this.toolbar = new Toolbar(parent, left, right);
+    this.statusBar = new StatusBar(parent, {
+      openFinance: () => this.openWindow('finance'),
+      openGuests: () => this.openWindow('guests'),
+      openPark: () => this.openWindow('park'),
+      openNews: () => this.openWindow('news'),
+      followNews: (item) => this.followNews(item),
+    });
+    parent.append(this.status, this.objective, this.weatherOverlay);
+    this.statusBar.setMessage(null);
     this.chooseTool('select');
   }
 
@@ -196,6 +167,9 @@ export class GameUI {
     stats: Stats | null,
     selectedGuest: GuestSelection | null,
   ): void {
+    this.latestSnapshot = snapshot;
+    this.latestStats = stats;
+    this.selectedGuest = selectedGuest;
     const weather = snapshot?.weather.kind ?? 0;
     const weatherClass = `weather-${['sunny', 'cloudy', 'rain', 'storm'][weather] ?? 'sunny'}`;
     if (!this.weatherOverlay.classList.contains(weatherClass))
@@ -204,79 +178,27 @@ export class GameUI {
       ? objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick)
       : [];
     this.objective.hidden = lines.length === 0;
-    setText(this.objective, lines.join('\n'));
-    const park = this.panels.get('park');
-    if (park) {
-      setText(
-        park.body,
-        snapshot
-          ? `Guests  ${stats?.guests ?? snapshot.guests.count}\nRides  ${snapshot.park.rides}\nSimulation tick  ${snapshot.tick}\nPark rating  ${snapshot.scenario.parkRating}`
-          : 'Waiting for the simulation snapshot…',
-      );
+    const objectiveText = lines.join('\n');
+    if (this.objective.textContent !== objectiveText) this.objective.textContent = objectiveText;
+
+    if (snapshot) {
+      const fresh = this.news.observe(snapshot);
+      if (fresh.length > 0) this.statusBar.setMessage(fresh[fresh.length - 1]);
+      let profit = 0;
+      for (let c = 0; c < LedgerCategory.COUNT; c++) profit += snapshot.economy.thisMonth[c];
+      this.series.cash.record(snapshot.tick, snapshot.park.cash - snapshot.park.loan);
+      this.series.value.record(snapshot.tick, snapshot.economy.parkValue);
+      this.series.profit.record(snapshot.tick, profit);
+      this.series.guests.record(snapshot.tick, stats?.guests ?? snapshot.guests.count);
     }
-    const finance = this.panels.get('finance');
-    if (finance) {
-      setText(
-        finance.body,
-        snapshot ? financePanelText(snapshot) : 'Waiting for the simulation snapshot…',
-      );
+    this.statusBar.update(snapshot, stats);
+
+    for (const [id, controller] of this.controllers) {
+      if (!this.windows.get(id)) this.controllers.delete(id);
+      else controller.update(snapshot, stats);
     }
-    const guests = this.panels.get('guests');
-    if (guests) {
-      setText(
-        guests.body,
-        (selectedGuest && guestSelectionText(selectedGuest.details, selectedGuest.tick)) ??
-          `Guests in park  ${stats?.guests ?? 0}\nSelect a guest in the park to inspect them.`,
-      );
-    }
-    const rides = this.panels.get('rides');
-    if (rides && snapshot) {
-      const selection = this.rideSelect;
-      const ids = Array.from({ length: snapshot.rides.count }, (_, i) => {
-        const o = i * RIDE_INFO_STRIDE;
-        return {
-          id: snapshot.rideInfo[o + RideInfo.Id],
-          index: i,
-          type: snapshot.rideInfo[o + RideInfo.Type],
-        };
-      });
-      const options = ids.map(({ id, type }) => ({
-        value: String(id),
-        label: `${typeName(type)} #${id}`,
-      }));
-      const previousId = selection?.value;
-      if (
-        selection &&
-        rideOptionsChanged(
-          Array.from(selection.options, (option) => ({ value: option.value, label: option.text })),
-          options,
-        )
-      ) {
-        selection.replaceChildren(...options.map(({ value, label }) => new Option(label, value)));
-        if (options.some((option) => option.value === previousId)) selection.value = previousId!;
-      }
-      const selectedId = Number(selection?.value ?? ids[0]?.id ?? -1);
-      const index = ids.find((ride) => ride.id === selectedId)?.index ?? ids[0]?.index;
-      if (index === undefined) {
-        setText(rides.body, 'No rides have been built yet.');
-      } else {
-        const o = index * RIDE_INFO_STRIDE;
-        const info = snapshot.rideInfo;
-        if (this.ridePrice && document.activeElement !== this.ridePrice)
-          this.ridePrice.value = String(info[o + RideInfo.Price] / 100);
-        setText(
-          rides.body,
-          `${typeName(info[o + RideInfo.Type])} #${selectedId}\nStatus  ${['Closed', 'Open', 'Testing', 'Broken'][info[o + RideInfo.State]]}\nExcitement  ${(info[o + RideInfo.Excitement] / 100).toFixed(2)}\nIntensity  ${(info[o + RideInfo.Intensity] / 100).toFixed(2)}\nNausea  ${(info[o + RideInfo.Nausea] / 100).toFixed(2)}\nQueue  ${info[o + RideInfo.QueueLength]}\nIncome  $${(info[o + RideInfo.IncomeCents] / 100).toFixed(2)}\nReliability  ${info[o + RideInfo.Reliability]}%`,
-        );
-      }
-    }
-    const staff = this.panels.get('staff');
-    if (staff)
-      setText(
-        staff.body,
-        `Staff employed  ${snapshot?.staff.count ?? 0}\nSelect a role below to hire staff. Patrol tools apply to the selected role or person.`,
-      );
-    this.staffRoster?.update(snapshot);
+    for (const button of this.toolbarWindowIds())
+      this.toolbar.setPressed(button, !!this.windows.get(button));
   }
 
   /** Switches tools as if the player had pressed the toolbar button. */
@@ -293,7 +215,15 @@ export class GameUI {
   }
 
   openGuestPanel(): void {
-    if (!this.panels.has('guests')) this.togglePanel('guests', 'Guest information');
+    this.openWindow('guests');
+  }
+
+  /** New games open the Park window; loaded games keep an empty desktop. */
+  onGameStart(openPark: boolean): void {
+    this.closeAllWindows();
+    this.controllers.clear();
+    this.chooseTool('select');
+    if (openPark) this.openWindow('park');
   }
 
   togglePause(): void {
@@ -304,196 +234,266 @@ export class GameUI {
   /** Shows the pause state without sending it, for state restored from settings. */
   syncPaused(paused: boolean): void {
     this.paused = paused;
-    this.label('pause', this.paused ? 'Resume' : 'Pause');
+    this.toolbar.relabel('pause', paused ? 'Resume' : 'Pause', icon(paused ? 'play' : 'pause'));
+  }
+
+  syncSpeed(speed: number): void {
+    this.speed = speed;
+  }
+
+  /** Runs a default keyboard shortcut; returns true when the key was handled. */
+  handleShortcut(event: KeyLike): boolean {
+    const action = shortcutFor(event);
+    if (!action) return false;
+    switch (action.type) {
+      case 'closeTop':
+        return this.closeTopWindow();
+      case 'closeAll':
+        this.closeAllWindows();
+        return true;
+      case 'cancel':
+        this.closeConstruction();
+        this.chooseTool('select');
+        return true;
+      case 'pause':
+        this.togglePause();
+        this.setToolStatus(this.paused ? 'Simulation paused.' : 'Simulation resumed.');
+        return true;
+      case 'rotate':
+        this.actions.rotate(1);
+        return true;
+      case 'zoom':
+        this.actions.zoom(action.direction);
+        return true;
+      case 'window':
+        this.toggleWindow(action.id);
+        return true;
+    }
+  }
+
+  openRide(rideId: number): void {
+    const id = `ride-${rideId}`;
+    if (this.windows.get(id)) {
+      this.windows.focus(this.windows.get(id)!);
+      return;
+    }
+    this.controllers.set(id, openRideWindow(this.ctx, rideId));
+    this.refresh();
+  }
+
+  toggleWindow(id: string): void {
+    if (this.windows.get(id)) this.windows.close(id);
+    else this.openWindow(id);
+  }
+
+  openWindow(id: string): void {
+    if (this.windows.get(id)) {
+      this.windows.focus(this.windows.get(id)!);
+      return;
+    }
+    if (CONSTRUCTION_WINDOWS.includes(id)) this.closeConstruction();
+    const controller = this.createController(id);
+    if (controller) this.controllers.set(id, controller);
+    this.refresh();
+  }
+
+  closeTopWindow(): boolean {
+    let top: { id: string; z: number } | null = null;
+    for (const id of this.windows.ids()) {
+      const z = Number(this.windows.get(id)?.root.style.zIndex ?? 0);
+      if (!top || z > top.z) top = { id, z };
+    }
+    if (!top) return false;
+    this.windows.close(top.id);
+    return true;
+  }
+
+  closeAllWindows(): void {
+    for (const id of this.windows.ids()) this.windows.close(id);
   }
 
   dispose(): void {
-    this.toolbar.remove();
+    this.toolbar.dispose();
+    this.statusBar.dispose();
     this.status.remove();
     this.objective.remove();
     this.weatherOverlay.remove();
-    for (const panel of this.panels.values()) panel.root.remove();
-    this.panels.clear();
+    this.windows.dispose();
+    this.controllers.clear();
+  }
+
+  private refresh(): void {
+    for (const [id, controller] of this.controllers)
+      if (this.windows.get(id)) controller.update(this.latestSnapshot, this.latestStats);
+  }
+
+  private toolbarWindowIds(): string[] {
+    return [
+      'options',
+      'view',
+      'map',
+      'clear',
+      'land',
+      'water',
+      'scenery',
+      'paths',
+      'ride-select',
+      'finance',
+      'research',
+      'ride-list',
+      'park',
+      'staff',
+      'guests',
+      'news',
+    ];
+  }
+
+  private closeConstruction(): void {
+    for (const id of [...CONSTRUCTION_WINDOWS, 'construction']) this.windows.close(id);
+  }
+
+  private followNews(item: NewsItem): void {
+    if (item.target) this.actions.locate(item.target.x, item.target.y);
+    if (item.target?.rideId !== undefined) this.openRide(item.target.rideId);
+  }
+
+  private createController(id: string): WindowController | null {
+    switch (id) {
+      case 'land':
+        return openToolWindow(this.ctx, { ...LAND_WINDOW });
+      case 'water':
+        return openToolWindow(this.ctx, WATER_WINDOW);
+      case 'scenery':
+        return openToolWindow(this.ctx, SCENERY_WINDOW);
+      case 'paths':
+        return openToolWindow(this.ctx, PATH_WINDOW);
+      case 'clear':
+        return this.openNotice(
+          'clear',
+          'Clear scenery',
+          'Clearing scenery is not available in this version.',
+          'tool',
+        );
+      case 'ride-select':
+        this.chooseTool('select');
+        return openRideSelect(this.ctx);
+      case 'ride-list':
+        return openRideList(this.ctx);
+      case 'park':
+        return openParkWindow(this.ctx);
+      case 'finance':
+        return openFinanceWindow(this.ctx);
+      case 'research':
+        return openResearchWindow(this.ctx);
+      case 'staff':
+        return openStaffWindow(this.ctx);
+      case 'guests':
+        return openGuestWindow(this.ctx);
+      case 'map':
+        return openMapWindow(this.ctx);
+      case 'news':
+        return openNewsWindow(
+          this.ctx,
+          () => this.news.history,
+          (item) => this.followNews(item),
+        );
+      case 'options':
+        return this.openOptions();
+      case 'view':
+        return this.openNotice(
+          'view',
+          'View options',
+          'Underground view and see-through overlays are not available in this version.',
+          'map',
+        );
+      default:
+        return null;
+    }
+  }
+
+  private openNotice(
+    id: string,
+    title: string,
+    text: string,
+    kind: 'tool' | 'map',
+  ): WindowController {
+    const { window: win, created } = this.windows.open({
+      id,
+      title,
+      kind,
+      width: 300,
+      onClose: () => {
+        if (id === 'clear') this.chooseTool('select');
+      },
+    });
+    if (created) win.pane().append(element('p', 'ui-help', text));
+    if (id === 'view' && created) {
+      const hud = button(
+        'Performance overlay',
+        () => {
+          const on = hud.getAttribute('aria-pressed') !== 'true';
+          hud.setAttribute('aria-pressed', String(on));
+          this.parent.classList.toggle('hud-visible', on);
+        },
+        'ui-button',
+      );
+      hud.setAttribute('aria-pressed', String(this.parent.classList.contains('hud-visible')));
+      win.pane().append(hud);
+    }
+    return { update() {} };
+  }
+
+  private openOptions(): WindowController {
+    const { window: win, created } = this.windows.open({
+      id: 'options',
+      title: 'Game options',
+      kind: 'tool',
+      width: 300,
+    });
+    const speeds = new Map<number, HTMLButtonElement>();
+    if (created) {
+      const pane = win.pane();
+      pane.append(
+        button('Save, load and quit…', () => this.actions.openMenu(), 'ui-button'),
+        element('p', 'ui-help', 'Game speed'),
+      );
+      const row = element('div', 'button-row');
+      for (const speed of [1, 2, 4]) {
+        const b = button(
+          `${speed}×`,
+          () => {
+            this.speed = speed;
+            this.actions.setSpeed(speed);
+          },
+          'ui-button',
+        );
+        speeds.set(speed, b);
+        row.append(b);
+      }
+      pane.append(
+        row,
+        element('p', 'ui-help', 'Development'),
+        button('Guests +1,000', () => this.actions.spawnGuests(), 'ui-button'),
+      );
+    }
+    return {
+      update: () => {
+        for (const [speed, b] of speeds)
+          b.setAttribute('aria-pressed', String(speed === this.speed));
+      },
+    };
   }
 
   private chooseTool(tool: ToolMode): void {
     this.tool = tool;
     this.actions.setTool(tool);
-    for (const button of this.toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]')) {
-      button.setAttribute('aria-pressed', String(button.dataset.tool === tool));
-    }
     this.status.textContent =
       tool === 'select'
-        ? 'Select a guest or tile. Drag to pan; wheel to zoom.'
+        ? 'Select a guest or tile. Drag to pan; Page Up/Down or pinch to zoom.'
         : tool === 'land'
-          ? 'Land tool selected. Click to raise; Shift-click to lower.'
+          ? 'Land tool selected. Tap to raise; use Lower (or Shift) to dig.'
           : tool === 'patrol'
-            ? 'Patrol tool selected. Click tiles to add them; Shift-click to remove them.'
-            : `${TOOL_LABELS[tool]} tool selected. Click a tile to place.`;
+            ? 'Patrol tool selected. Tap tiles to add them; use Remove tiles (or Shift) to remove.'
+            : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
   }
-
-  private togglePanel(id: string, title: string): void {
-    const existing = this.panels.get(id);
-    if (existing) {
-      existing.root.remove();
-      this.panels.delete(id);
-      if (id === 'staff') this.staffRoster = null;
-      return;
-    }
-    const root = document.createElement('section');
-    root.className = 'info-window';
-    root.dataset.panel = id;
-    const heading = document.createElement('header');
-    const label = document.createElement('strong');
-    label.textContent = title;
-    const close = this.button('×', () => this.togglePanel(id, title), `close-${id}`);
-    close.setAttribute('aria-label', `Close ${title}`);
-    heading.append(label, close);
-    const body = document.createElement('pre');
-    body.className = 'panel-content';
-    body.textContent = 'Waiting for the simulation snapshot…';
-    root.append(heading, body);
-    this.parent.append(root);
-    this.panels.set(id, { root, body });
-  }
-
-  private toggleStaffPanel(): void {
-    if (this.panels.has('staff')) {
-      this.togglePanel('staff', 'Staff');
-      return;
-    }
-    this.togglePanel('staff', 'Staff');
-    const panel = this.panels.get('staff');
-    if (!panel) return;
-    const controls = document.createElement('div');
-    controls.className = 'staff-controls';
-    ['Handyman', 'Mechanic', 'Security', 'Entertainer'].forEach((name, kind) => {
-      controls.append(
-        this.button(`Hire ${name}`, () => this.actions.hireStaff(kind), `hire-staff-${kind}`),
-        this.button(
-          `Patrol ${name}`,
-          () => {
-            this.actions.setPatrolKind(kind);
-            this.chooseTool('patrol');
-          },
-          `patrol-staff-${kind}`,
-        ),
-      );
-    });
-    panel.root.append(controls);
-    this.staffRoster = new StaffRoster(panel.root, {
-      rename: (staffId, name) => this.actions.renameStaff(staffId, name),
-      patrol: (kind) => {
-        this.actions.setPatrolKind(kind);
-        this.chooseTool('patrol');
-      },
-      fire: (staffId) => this.actions.fireStaff(staffId),
-    });
-  }
-
-  private toggleRidePanel(): void {
-    if (this.panels.has('rides')) {
-      this.togglePanel('rides', 'Ride information');
-      this.rideSelect = null;
-      this.ridePrice = null;
-      return;
-    }
-    this.togglePanel('rides', 'Ride information');
-    const panel = this.panels.get('rides');
-    if (!panel) return;
-    const select = document.createElement('select');
-    select.setAttribute('aria-label', 'Select ride');
-    const price = document.createElement('input');
-    price.type = 'number';
-    price.min = '0';
-    price.max = '655.35';
-    price.step = '0.01';
-    price.setAttribute('aria-label', 'Ride or stall price');
-    const setPrice = this.button(
-      'Set price',
-      () => {
-        const id = Number(select.value);
-        const cents = Math.round(Number(price.value) * 100);
-        if (Number.isInteger(id) && Number.isSafeInteger(cents) && cents >= 0 && cents <= 65535)
-          this.actions.setRidePrice(id, cents);
-      },
-      'set-ride-price',
-    );
-    const trains = document.createElement('input');
-    trains.type = 'number';
-    trains.min = '0';
-    trains.max = String(MAX_TRAINS_PER_RIDE);
-    trains.step = '1';
-    trains.value = '0';
-    trains.setAttribute('aria-label', 'Trains on the track (0 for automatic)');
-    const cars = document.createElement('input');
-    cars.type = 'number';
-    cars.min = '0';
-    cars.max = String(MAX_CARS);
-    cars.step = '1';
-    cars.value = '0';
-    cars.setAttribute('aria-label', 'Cars per train (0 for default)');
-    const setTrains = this.button(
-      'Set trains',
-      () =>
-        this.actions.setRideTrains(Number(select.value), Number(trains.value), Number(cars.value)),
-      'set-ride-trains',
-    );
-    const status = document.createElement('div');
-    status.className = 'ride-controls';
-    status.append(
-      this.button(
-        'Place entrance',
-        () => this.actions.placeRidePart(Number(select.value), 'entrance'),
-        'place-ride-entrance',
-      ),
-      this.button(
-        'Place exit',
-        () => this.actions.placeRidePart(Number(select.value), 'exit'),
-        'place-ride-exit',
-      ),
-      this.button(
-        'Open ride',
-        () => this.actions.setRideStatus(Number(select.value), 'open'),
-        'open-ride',
-      ),
-      this.button(
-        'Close ride',
-        () => this.actions.setRideStatus(Number(select.value), 'close'),
-        'close-ride',
-      ),
-    );
-    panel.root.insertBefore(select, panel.body);
-    panel.root.insertBefore(price, panel.body);
-    panel.root.insertBefore(setPrice, panel.body);
-    panel.root.insertBefore(trains, panel.body);
-    panel.root.insertBefore(cars, panel.body);
-    panel.root.insertBefore(setTrains, panel.body);
-    panel.root.insertBefore(status, panel.body);
-    this.rideSelect = select;
-    this.ridePrice = price;
-  }
-
-  private button(label: string, click: () => void, id: string): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.dataset.action = id;
-    if (id.startsWith('tool-')) button.dataset.tool = id.slice(5);
-    button.addEventListener('click', click);
-    return button;
-  }
-
-  private label(id: string, text: string): void {
-    const button = this.toolbar.querySelector<HTMLButtonElement>(`[data-action="${id}"]`);
-    if (button) button.textContent = text;
-  }
-}
-
-function typeName(type: number): string {
-  return RIDE_CATALOG[type as keyof typeof RIDE_CATALOG]?.name ?? 'Ride';
-}
-
-function setText(element: HTMLElement, text: string): void {
-  if (element.textContent !== text) element.textContent = text;
 }

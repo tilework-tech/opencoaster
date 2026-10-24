@@ -1,0 +1,263 @@
+import { element, iconButton } from './dom';
+import type { IconName } from './icons';
+import { MOBILE_QUERY, TOP_INSET, cascadePosition, clampPosition } from './window-layout';
+
+/** Selects the title-bar and body colour scheme. */
+export type WindowKind =
+  'ride' | 'park' | 'finance' | 'guest' | 'staff' | 'research' | 'map' | 'build' | 'tool';
+
+export interface TabSpec {
+  id: string;
+  label: string;
+  icon?: IconName;
+}
+
+export interface WindowSpec {
+  id: string;
+  title: string;
+  kind: WindowKind;
+  tabs?: readonly TabSpec[];
+  /** Desktop width in px. */
+  width?: number;
+  onClose?(): void;
+  onTab?(tabId: string): void;
+}
+
+/** A floating window: bevelled title bar with pin and close, optional tab strip, one pane per tab. */
+export class UiWindow {
+  readonly root: HTMLElement;
+  readonly body: HTMLElement;
+  readonly panes = new Map<string, HTMLElement>();
+  private readonly titleText: HTMLElement;
+  private readonly tabButtons = new Map<string, HTMLButtonElement>();
+  private tab = '';
+  pinned = false;
+
+  constructor(
+    readonly spec: WindowSpec,
+    manager: WindowManager,
+  ) {
+    this.root = element('section', `ui-window kind-${spec.kind}`);
+    this.root.dataset.panel = spec.id;
+    this.root.setAttribute('role', 'group');
+    this.root.setAttribute('aria-label', spec.title);
+    if (spec.width) this.root.style.setProperty('--w', `${spec.width}px`);
+
+    const header = element('header', 'ui-titlebar');
+    this.titleText = element('strong', 'ui-title', spec.title);
+    const pin = iconButton(
+      'pin',
+      `Pin ${spec.title}`,
+      () => this.setPinned(!this.pinned),
+      'ui-titlebtn',
+    );
+    pin.dataset.action = `pin-${spec.id}`;
+    const close = iconButton(
+      'close',
+      `Close ${spec.title}`,
+      () => manager.close(spec.id),
+      'ui-titlebtn',
+    );
+    close.dataset.action = `close-${spec.id}`;
+    header.append(this.titleText, pin, close);
+
+    this.body = element('div', 'ui-body');
+    if (spec.tabs?.length) {
+      const strip = element('div', 'ui-tabs');
+      strip.setAttribute('role', 'tablist');
+      for (const tab of spec.tabs) {
+        const button = iconButton(
+          tab.icon ?? 'info',
+          tab.label,
+          () => this.showTab(tab.id),
+          'ui-tab',
+        );
+        button.setAttribute('role', 'tab');
+        button.dataset.tab = tab.id;
+        this.tabButtons.set(tab.id, button);
+        strip.append(button);
+        const pane = element('div', 'ui-pane');
+        pane.dataset.tab = tab.id;
+        pane.setAttribute('role', 'tabpanel');
+        this.panes.set(tab.id, pane);
+        this.body.append(pane);
+      }
+      this.root.append(header, strip, this.body);
+      this.showTab(spec.tabs[0].id);
+    } else {
+      const pane = element('div', 'ui-pane active');
+      this.panes.set('main', pane);
+      this.body.append(pane);
+      this.root.append(header, this.body);
+    }
+    manager.attachDrag(this, header);
+  }
+
+  get activeTab(): string {
+    return this.tab;
+  }
+
+  pane(id = 'main'): HTMLElement {
+    const pane = this.panes.get(id);
+    if (!pane) throw new Error(`Window ${this.spec.id} has no pane ${id}`);
+    return pane;
+  }
+
+  setTitle(title: string): void {
+    if (this.titleText.textContent !== title) this.titleText.textContent = title;
+  }
+
+  showTab(id: string): void {
+    if (!this.panes.has(id)) return;
+    this.tab = id;
+    for (const [paneId, pane] of this.panes) pane.classList.toggle('active', paneId === id);
+    for (const [tabId, button] of this.tabButtons) {
+      button.setAttribute('aria-selected', String(tabId === id));
+      button.classList.toggle('active', tabId === id);
+    }
+    this.spec.onTab?.(id);
+  }
+
+  setPinned(pinned: boolean): void {
+    this.pinned = pinned;
+    this.root.classList.toggle('pinned', pinned);
+  }
+}
+
+/** Owns every open window: stacking order, dragging, and the mobile bottom-sheet layout. */
+export class WindowManager {
+  readonly layer: HTMLElement;
+  private readonly windows = new Map<string, UiWindow>();
+  private readonly media = window.matchMedia(MOBILE_QUERY);
+  private z = 10;
+  private opened = 0;
+
+  constructor(parent: HTMLElement) {
+    this.layer = element('div', 'ui-windows');
+    parent.append(this.layer);
+    this.media.addEventListener('change', () => this.relayout());
+    window.addEventListener('resize', () => this.relayout());
+  }
+
+  get mobile(): boolean {
+    return this.media.matches;
+  }
+
+  get(id: string): UiWindow | undefined {
+    return this.windows.get(id);
+  }
+
+  ids(): string[] {
+    return [...this.windows.keys()];
+  }
+
+  /** Opens the window, or raises it when already open. */
+  open(spec: WindowSpec): { window: UiWindow; created: boolean } {
+    const existing = this.windows.get(spec.id);
+    if (existing) {
+      this.focus(existing);
+      return { window: existing, created: false };
+    }
+    const win = new UiWindow(spec, this);
+    const at = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
+    win.root.style.setProperty('--x', `${at.x}px`);
+    win.root.style.setProperty('--y', `${at.y}px`);
+    win.root.addEventListener('pointerdown', () => this.focus(win), true);
+    this.windows.set(spec.id, win);
+    this.layer.append(win.root);
+    this.focus(win);
+    return { window: win, created: true };
+  }
+
+  close(id: string): void {
+    const win = this.windows.get(id);
+    if (!win) return;
+    this.windows.delete(id);
+    win.root.remove();
+    win.spec.onClose?.();
+    this.relayout();
+  }
+
+  toggle(spec: WindowSpec): boolean {
+    if (this.windows.has(spec.id)) {
+      this.close(spec.id);
+      return false;
+    }
+    this.open(spec);
+    return true;
+  }
+
+  closeUnpinned(): void {
+    for (const [id, win] of [...this.windows]) if (!win.pinned) this.close(id);
+  }
+
+  dispose(): void {
+    this.layer.remove();
+    this.windows.clear();
+  }
+
+  focus(win: UiWindow): void {
+    win.root.style.zIndex = String(win.pinned ? 1000 + ++this.z : ++this.z);
+    for (const other of this.windows.values()) other.root.classList.toggle('front', other === win);
+    this.relayout();
+  }
+
+  attachDrag(win: UiWindow, handle: HTMLElement): void {
+    handle.addEventListener('pointerdown', (event) => {
+      if ((event.target as HTMLElement).closest('button')) return;
+      if (this.mobile) return;
+      event.preventDefault();
+      const rect = win.root.getBoundingClientRect();
+      const grabX = event.clientX - rect.left;
+      const grabY = event.clientY - rect.top;
+      handle.setPointerCapture(event.pointerId);
+      const move = (e: PointerEvent): void => {
+        const at = clampPosition(
+          e.clientX - grabX,
+          e.clientY - grabY,
+          { width: rect.width, height: rect.height },
+          window.innerWidth,
+          window.innerHeight,
+        );
+        win.root.style.setProperty('--x', `${at.x}px`);
+        win.root.style.setProperty('--y', `${at.y}px`);
+      };
+      const end = (): void => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', end);
+        handle.removeEventListener('pointercancel', end);
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', end);
+      handle.addEventListener('pointercancel', end);
+    });
+    handle.addEventListener('click', (event) => {
+      if (!this.mobile || (event.target as HTMLElement).closest('button')) return;
+      win.root.classList.toggle('collapsed');
+    });
+  }
+
+  /** Mobile: only the front (or pinned) sheet is expanded; desktop: pull strays back on screen. */
+  private relayout(): void {
+    for (const win of this.windows.values()) {
+      if (this.mobile) {
+        const expanded = win.root.classList.contains('front') || win.pinned;
+        if (win.root.classList.contains('front')) win.root.classList.remove('collapsed');
+        else win.root.classList.toggle('collapsed', !expanded);
+      } else {
+        win.root.classList.remove('collapsed');
+        const rect = win.root.getBoundingClientRect();
+        if (rect.width === 0) continue;
+        const at = clampPosition(
+          rect.left,
+          Math.max(TOP_INSET, rect.top),
+          rect,
+          window.innerWidth,
+          window.innerHeight,
+        );
+        win.root.style.setProperty('--x', `${at.x}px`);
+        win.root.style.setProperty('--y', `${at.y}px`);
+      }
+    }
+  }
+}

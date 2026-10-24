@@ -23,7 +23,7 @@ Path: @/src/worker
 - Ride entries are positioned at their entrances and carry the stable ride ID in the fourth value. Track entries carry tile-centered position and height; their fourth value packs ride ID in the high 16 bits, direction in the next 8 bits, and piece type in the low 8 bits.
 - `guestDetails` contains needs, cash, a thought cursor, and the four-entry thought history in guest-layer order. `grounds` is a byte per tile for grass overgrowth and flower-bed state. The snapshot also includes weather, a park summary, and scenario state. Static map dimensions, heights, surface classes, slopes, water levels, and stacked path elements travel in a separate map message. Periodic statistics report tick, guest count, smoothed and peak simulation cost, and dropped ticks.
 - `buildable` is a `Uint8Array` indexed by map tile. Each snapshot fills it from the map's `canBuild` result, representing owned land or construction rights for that tile.
-- `rideInfo` carries `RIDE_INFO_STRIDE` ints per ride in ride-layer order: stable ID, type/state/phase, ratings, queue length, placement/test flags, guests served, price, track piece count, construction cursor, entrance/exit tiles, reliability, and lifetime income in cents. Cursor direction, slope, bank, and track presence are packed with `encodeCursor` / `decodeCursor`.
+- `rideInfo` carries `RIDE_INFO_STRIDE` ints per ride in ride-layer order: stable ID, type/state/phase, ratings, queue length, placement/test flags, guests served, price, track piece count, construction cursor, entrance/exit tiles, reliability, lifetime income in cents, and the ride's build tile (`RideX`/`RideY`). Cursor direction, slope, bank, and track presence are packed with `encodeCursor` / `decodeCursor`.
 - `feedback` copies `world.feedback` (`seq`, `domain`, `code`, `subject`) so the UI can show the outcome of its latest command.
 
 ### Things to Know
@@ -32,6 +32,7 @@ Path: @/src/worker
 - Three snapshots are pooled. The pool is sized for the largest map seen so far and grows only when a larger map arrives; recycled buffers smaller than the current pool are dropped. If none is free after simulation ticks advance, publication is skipped so the simulation can continue while the main thread catches up.
 - A new game or a load replaces the running `Simulation` in the same worker. The pool and the scheduler's speed and pause state carry over, so the player's settings survive a new game.
 - Ride rendering entries expose stable IDs rather than ride state or type. The UI uses these IDs to associate track pieces with a ride; ride type and operating state remain in the simulation state.
+- `economy` (price mode, admission price, loan limit, park value, this-month and last-month ledger totals by `LedgerCategory`) and `research` (funding, category mask, progress) are plain objects that travel with the snapshot message for the Park, Finances and Research windows.
 - `rideInfo` is transferred and recycled like the other buffers; `feedback` is a plain object that travels with the snapshot message.
 - Ride and track layer counts are capped by their output-buffer capacities, while the park summary's ride count reflects the full simulation count. The track layer and `buildable` array follow the same pooled transfer and recycle lifecycle as the other snapshot buffers.
 

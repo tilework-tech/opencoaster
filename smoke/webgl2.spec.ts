@@ -16,22 +16,27 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const hud = page.locator('.hud');
   await expect(hud).toContainText('WebGL2', { timeout: 20_000 });
-  await page.getByRole('button', { name: 'Rides' }).click();
-  await expect(page.locator('[data-panel="rides"]')).toContainText('No rides have been built yet.');
-  await expect(page.getByRole('button', { name: 'Place entrance' })).toBeVisible();
-  await page.locator('[data-panel="rides"] [data-action="close-rides"]').click();
+  const toolbar = page.locator('.game-toolbar');
+  await expect(page.locator('[data-panel="park"]')).toBeVisible();
+  await toolbar.getByRole('button', { name: 'Rides', exact: true }).click();
+  await expect(page.locator('[data-panel="ride-list"]')).toContainText('None have been built yet.');
+  await page.locator('[data-panel="ride-list"] [data-action="close-ride-list"]').click();
+  await toolbar.getByRole('button', { name: 'New ride' }).click();
+  await page.getByRole('tab', { name: 'Shops & Stalls' }).click();
+  await expect(page.getByRole('button', { name: /^Food Stall/ })).toBeVisible();
+  await page.locator('[data-panel="ride-select"] [data-action="close-ride-select"]').click();
 
   const gameCanvasUsesWebGl2 = await page.locator('#game').evaluate((canvas) => {
     return canvas.getContext('webgl2') instanceof WebGL2RenderingContext;
   });
   expect(gameCanvasUsesWebGl2).toBe(true);
 
+  await toolbar.getByRole('button', { name: 'Game options' }).click();
   for (let i = 0; i < 4; i++) {
     await page.getByRole('button', { name: 'Guests +1,000' }).click();
   }
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 30_000 });
-  await page.getByRole('button', { name: 'Menu' }).click();
-  await page.keyboard.press('g');
+  await page.getByRole('button', { name: 'Save, load and quit…' }).click();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.waitForTimeout(500);
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 10_000 });
