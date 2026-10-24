@@ -17,6 +17,7 @@ export function hashWorld(world: World): number {
     world.vehicles,
     world.litter,
     world.track.pieces,
+    world.rides,
   ]) {
     mix(store.count);
     for (const key of Object.keys(store.cols)) {
