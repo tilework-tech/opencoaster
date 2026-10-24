@@ -1,3 +1,10 @@
+import type { World } from '../core/world';
+import { PIECES, TANGENT_ONE } from '../track/catalog';
+import { getTrackPath } from '../track/track-path';
+import { MAX_TRACK_RIDES } from '../track/track-store';
+import { PieceFlag, PieceMode } from '../track/track-types';
+import type { TrackPath } from '../track/track-path';
+
 export const enum VehicleSegmentFlag {
   ChainLift = 1 << 0,
   Launch = 1 << 1,
@@ -29,6 +36,7 @@ export interface VehicleTrackInput {
   /** Q8 speed limits for rides whose cars can detach at the respective transition. */
   crestCrashSpeedQ8?: number;
   dropCrashSpeedQ8?: number;
+  sourceVersion?: number;
 }
 
 export interface VehicleTrack extends Required<VehicleTrackInput> {
@@ -40,6 +48,93 @@ export interface VehicleTrack extends Required<VehicleTrackInput> {
   blockOccupiedBy: Int32Array;
   /** Start index shared by adjacent segments that make up the same block section. */
   blockSectionStart: Uint32Array;
+}
+
+function boundedQ8(value: number): number {
+  return Math.max(-0x8000, Math.min(0x7fff, value));
+}
+
+/** Converts the track subsystem's cached polyline into the vehicle system's compact tick input. */
+export function createVehicleTrackFromPath(world: World, path: TrackPath): VehicleTrack {
+  const segmentCount = path.count - 1;
+  const points = new Int32Array(path.count * 3);
+  for (let point = 0; point < path.count; point++) {
+    const offset = point * 3;
+    points[offset] = path.x[point];
+    points[offset + 1] = path.y[point];
+    points[offset + 2] = path.z[point];
+  }
+
+  const segmentFlags = new Uint16Array(segmentCount);
+  const lateralCurvatureQ8 = new Int16Array(segmentCount);
+  const verticalCurvatureQ8 = new Int16Array(segmentCount);
+  const bankSinQ8 = new Int16Array(segmentCount);
+  const bankCosQ8 = new Int16Array(segmentCount);
+  const invertedSegments = new Uint8Array(segmentCount);
+  const pieceCols = world.track.pieces.cols;
+  let currentPiece = -1;
+  let entryTx = 0;
+  let entryTy = 0;
+  let entryTz = 0;
+  for (let segment = 0; segment < segmentCount; segment++) {
+    const pieceId = path.piece[segment];
+    const pieceSlot = world.track.pieces.idToSlot[pieceId];
+    const pieceDef = PIECES[pieceCols.pieceType[pieceSlot]];
+    const firstPieceSegment = pieceId !== currentPiece;
+    const mode = pieceCols.mode[pieceSlot];
+    if (firstPieceSegment) {
+      currentPiece = pieceId;
+      entryTx = path.tx[segment];
+      entryTy = path.ty[segment];
+      entryTz = path.tz[segment];
+    }
+    if (mode === PieceMode.ChainLift) segmentFlags[segment] |= VehicleSegmentFlag.ChainLift;
+    if (mode === PieceMode.Brake) segmentFlags[segment] |= VehicleSegmentFlag.Brake;
+    if (mode === PieceMode.BlockBrake) segmentFlags[segment] |= VehicleSegmentFlag.Block;
+    if (firstPieceSegment) {
+      if (pieceDef.flags & PieceFlag.Station) segmentFlags[segment] |= VehicleSegmentFlag.Station;
+      if (pieceDef.flags & PieceFlag.Crest) segmentFlags[segment] |= VehicleSegmentFlag.Crest;
+      if (pieceDef.flags & PieceFlag.DropStart)
+        segmentFlags[segment] |= VehicleSegmentFlag.DropStart;
+      if (pieceDef.flags & PieceFlag.Inverted)
+        segmentFlags[segment] |= VehicleSegmentFlag.Inversion;
+    }
+    const tangentDot =
+      path.tx[segment] * entryTx + path.ty[segment] * entryTy + path.tz[segment] * entryTz;
+    invertedSegments[segment] = pieceDef.flags & PieceFlag.Inverted && tangentDot < 0 ? 1 : 0;
+
+    const bankRadians = (path.bank[segment] * Math.PI) / 180;
+    bankSinQ8[segment] = boundedQ8(Math.round(Math.sin(bankRadians) * 256));
+    bankCosQ8[segment] = boundedQ8(Math.round(Math.cos(bankRadians) * 256));
+
+    const distance = Math.max(1, path.s[segment + 1] - path.s[segment]);
+    const tangentOffset = segment + 1;
+    const horizontalCross =
+      path.tx[segment] * path.ty[tangentOffset] - path.ty[segment] * path.tx[tangentOffset];
+    lateralCurvatureQ8[segment] = boundedQ8(
+      Math.trunc((horizontalCross * 256) / (TANGENT_ONE * TANGENT_ONE * distance)),
+    );
+    const horizontalStart = Math.round(Math.hypot(path.tx[segment], path.ty[segment]));
+    const horizontalEnd = Math.round(Math.hypot(path.tx[tangentOffset], path.ty[tangentOffset]));
+    const verticalCross =
+      horizontalStart * path.tz[tangentOffset] - path.tz[segment] * horizontalEnd;
+    verticalCurvatureQ8[segment] = boundedQ8(
+      Math.trunc((verticalCross * 256) / (TANGENT_ONE * TANGENT_ONE * distance)),
+    );
+  }
+
+  return createVehicleTrack({
+    rideId: path.rideId,
+    points,
+    segmentFlags,
+    lateralCurvatureQ8,
+    verticalCurvatureQ8,
+    bankSinQ8,
+    bankCosQ8,
+    invertedSegments,
+    loop: path.closed,
+    sourceVersion: path.version,
+  });
 }
 
 function integerSqrt(value: number): number {
@@ -144,6 +239,7 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     crashable: input.crashable ?? false,
     crestCrashSpeedQ8: input.crestCrashSpeedQ8 ?? 50 * 256,
     dropCrashSpeedQ8: input.dropCrashSpeedQ8 ?? 64 * 256,
+    sourceVersion: input.sourceVersion ?? -1,
     segmentLengths,
     cumulativeLengthsQ8,
     totalLengthQ8: cumulativeLengthsQ8[segmentCount],
@@ -173,7 +269,28 @@ export class VehicleTrackRegistry {
     return this.byRide.get(rideId);
   }
 
+  delete(rideId: number): void {
+    const current = this.byRide.get(rideId);
+    if (!current) return;
+    this.byRide.delete(rideId);
+    this.trackList.splice(this.trackList.indexOf(current), 1);
+  }
+
   all(): readonly VehicleTrack[] {
     return this.trackList;
+  }
+}
+
+/** Refreshes only changed paths; geometry work stays outside the vehicle tick loop. */
+export function syncVehicleTracks(world: World, tracks: VehicleTrackRegistry): void {
+  for (let rideId = 0; rideId < MAX_TRACK_RIDES; rideId++) {
+    const path = getTrackPath(world, rideId);
+    if (!path) {
+      if (tracks.get(rideId)?.sourceVersion !== -1) tracks.delete(rideId);
+      continue;
+    }
+    if (tracks.get(rideId)?.sourceVersion !== path.version) {
+      tracks.set(createVehicleTrackFromPath(world, path));
+    }
   }
 }

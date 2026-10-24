@@ -87,7 +87,7 @@ export function spawnTrain(world: Pick<World, 'vehicles'>, options: SpawnTrainOp
   cols.rideId[slot] = options.rideId;
   cols.state[slot] = options.state ?? VehicleState.Waiting;
   cols.trackPos[slot] = (options.trackPos ?? 0) << 8;
-  cols.speed[slot] = options.speed ?? 0;
+  cols.speed[slot] = Math.max(0, Math.min(0xffff, Math.trunc(options.speed ?? 0)));
   cols.mass[slot] = options.mass ?? 512;
   cols.carCount[slot] = options.carCount ?? 1;
   cols.passengers[slot] = options.passengers ?? 0;

@@ -2,11 +2,17 @@ import type { World } from '../core/world';
 import type { System } from '../core/system';
 import { calculateTrackedRideRatings } from './vehicle-ratings';
 import { setRideRatings, VehicleState } from './vehicle-store';
-import { VehicleSegmentFlag } from './vehicle-track';
-import type { VehicleTrack, VehicleTrackRegistry } from './vehicle-track';
+import { syncVehicleTracks, VehicleSegmentFlag, VehicleTrackRegistry } from './vehicle-track';
+import type { VehicleTrack } from './vehicle-track';
 
 export { VehicleState } from './vehicle-store';
-export { VehicleSegmentFlag, VehicleTrackRegistry, createVehicleTrack } from './vehicle-track';
+export {
+  VehicleSegmentFlag,
+  VehicleTrackRegistry,
+  createVehicleTrack,
+  createVehicleTrackFromPath,
+  syncVehicleTracks,
+} from './vehicle-track';
 export type { VehicleTrack, VehicleTrackInput } from './vehicle-track';
 export { calculateTrackedRideRatings } from './vehicle-ratings';
 
@@ -22,10 +28,6 @@ const BRAKE_DECEL_Q8 = 160;
 const OPEN_BLOCK_SPEED_Q8 = 4 * Q8;
 const COLLISION_SPEED_Q8 = 48 * Q8;
 const STALL_TICKS = 80;
-
-interface VehicleWorld extends World {
-  vehicleTracks?: VehicleTrackRegistry;
-}
 
 function integerSqrt(value: number): number {
   if (value <= 0) return 0;
@@ -76,8 +78,10 @@ function sampleForces(
 ): boolean {
   const cols = world.vehicles.cols;
   const inverted = track.invertedSegments[segment];
-  const gravityG = verticalGravityGQ8(track, segment) * (inverted ? -1 : 1);
-  const verticalG = gravityG + curveGQ8(speed, track.verticalCurvatureQ8[segment]);
+  const orientationSign = inverted ? -1 : 1;
+  const verticalG =
+    (verticalGravityGQ8(track, segment) + curveGQ8(speed, track.verticalCurvatureQ8[segment])) *
+    orientationSign;
   const lateralG = Math.abs(
     Math.trunc(
       (curveGQ8(speed, track.lateralCurvatureQ8[segment]) * track.bankCosQ8[segment]) / Q8,
@@ -222,7 +226,7 @@ function advanceTrain(world: World, track: VehicleTrack, slot: number): void {
   const position = Math.max(0, cols.trackPos[slot]);
   let segment = segmentAt(track, position);
   const speed = cols.speed[slot];
-  cols.maxSpeed[slot] = Math.max(cols.maxSpeed[slot], speed);
+  cols.maxSpeed[slot] = Math.min(0xffff, Math.max(cols.maxSpeed[slot], speed));
   if (cols.lastSegment[slot] !== segment && !enterSegment(world, track, slot, segment, speed))
     return;
 
@@ -390,7 +394,10 @@ export function stepVehicles(world: World, tracks: VehicleTrackRegistry): void {
 export const vehicleSystem: System = {
   name: 'vehicles',
   update(world) {
-    const tracks = (world as VehicleWorld).vehicleTracks;
-    if (tracks) stepVehicles(world, tracks);
+    if (world.vehicles.count === 0) return;
+    const tracks = world.vehicleTracks ?? new VehicleTrackRegistry();
+    world.vehicleTracks = tracks;
+    syncVehicleTracks(world, tracks);
+    stepVehicles(world, tracks);
   },
 };

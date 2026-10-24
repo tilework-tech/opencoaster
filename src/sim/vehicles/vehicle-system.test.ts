@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../core/world';
 import { hashWorld } from '../core/hash';
+import { PieceId } from '../track/catalog';
+import { getConstructionCursor, placeTrack } from '../track/construction';
+import { getTrackPath } from '../track/track-path';
+import { PieceMode, TrackResult } from '../track/track-types';
 import { calculateTrackedRideRatings } from './vehicle-ratings';
 import {
   createVehicleTrack,
+  createVehicleTrackFromPath,
   VehicleSegmentFlag,
   VehicleState,
   VehicleTrackRegistry,
@@ -728,6 +733,39 @@ describe('vehicle simulation', () => {
     expect(getTrainState(simWorld, train).airtimeTicks).toBe(1);
   });
 
+  it('flips vertical curvature force with inverted track orientation', () => {
+    const simWorld = world();
+    const simTrack = registry(
+      track(0, [0, 0, 0, 100, 0, 0], [], {
+        verticalCurvatureQ8: [32],
+        invertedSegments: [1],
+      }),
+    );
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 256,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, train).minVerticalGQ8).toBeLessThan(-450);
+  });
+
+  it('clamps train speed inputs to the stored fixed-point range', () => {
+    const simWorld = world();
+    const simTrack = registry(track(0, [0, 0, 0, 100, 0, 0]));
+    const train = spawnTrain(simWorld, {
+      rideId: 0,
+      speed: 70_000,
+      state: VehicleState.Testing,
+    });
+
+    stepVehicles(simWorld, simTrack);
+
+    expect(getTrainState(simWorld, train).maxSpeed).toBe(0xffff);
+  });
+
   it('keeps inversion event counts separate from sustained inverted orientation', () => {
     const simWorld = world();
     const simTrack = registry(
@@ -875,5 +913,94 @@ describe('vehicle simulation', () => {
     };
 
     expect(run()).toEqual(run());
+  });
+
+  it('builds vehicle paths from placed track during the vehicle system update', () => {
+    const simWorld = world();
+    const rideId = simWorld.rides.slotToId[simWorld.rides.spawn()];
+    const cursor = getConstructionCursor(simWorld, rideId);
+    expect(
+      placeTrack(simWorld, {
+        rideId,
+        pieceType: PieceId.Station,
+        x: 5,
+        y: 5,
+        z: 4,
+        dir: 0,
+        mode: PieceMode.Normal,
+      }),
+    ).toBe(TrackResult.Ok);
+    expect(cursor.hasTrack).toBe(false);
+    const next = getConstructionCursor(simWorld, rideId);
+    expect(
+      placeTrack(simWorld, {
+        rideId,
+        pieceType: PieceId.Flat,
+        x: next.x,
+        y: next.y,
+        z: next.z,
+        dir: next.dir,
+        mode: PieceMode.ChainLift,
+      }),
+    ).toBe(TrackResult.Ok);
+    const sourcePath = getTrackPath(simWorld, rideId)!;
+    const train = spawnTrain(simWorld, {
+      rideId,
+      speed: 256,
+      state: VehicleState.Running,
+    });
+
+    vehicleSystem.update(simWorld);
+
+    expect(getTrainState(simWorld, train).trackPos).toBeGreaterThan(0);
+    const vehicleTrack = simWorld.vehicleTracks?.get(rideId);
+    expect(vehicleTrack?.sourceVersion).toBe(simWorld.track.version[rideId]);
+    const liftStart = sourcePath.pieceStart[1];
+    expect(vehicleTrack!.segmentFlags[liftStart - 1] & VehicleSegmentFlag.ChainLift).toBe(0);
+    expect(vehicleTrack!.segmentFlags[liftStart] & VehicleSegmentFlag.ChainLift).not.toBe(0);
+  });
+
+  it('derives inverted orientation only along the inverted part of a vertical loop', () => {
+    const simWorld = new World({ seed: 1, width: 64, height: 64, maxGuests: 32 });
+    simWorld.map.heights.fill(2);
+    const rideId = simWorld.rides.slotToId[simWorld.rides.spawn()];
+    const put = (pieceType: number, mode = PieceMode.Normal, start?: [number, number, number]) => {
+      const cursor = getConstructionCursor(simWorld, rideId);
+      const [x, y, z] = start ?? [cursor.x, cursor.y, cursor.z];
+      expect(
+        placeTrack(simWorld, {
+          rideId,
+          pieceType,
+          x,
+          y,
+          z,
+          dir: cursor.dir,
+          mode,
+        }),
+      ).toBe(TrackResult.Ok);
+    };
+    put(PieceId.Station, PieceMode.Normal, [20, 20, 6]);
+    put(PieceId.FlatToUp25, PieceMode.ChainLift);
+    put(PieceId.Up25, PieceMode.ChainLift);
+    put(PieceId.Up25ToUp60);
+    put(PieceId.Up60);
+    put(PieceId.Up60ToUp25);
+    put(PieceId.Up25ToFlat);
+    put(PieceId.FlatToDown25);
+    put(PieceId.Down25ToDown60);
+    put(PieceId.Down60);
+    put(PieceId.Down60ToDown25);
+    put(PieceId.Down25ToFlat);
+    put(PieceId.VerticalLoopLeft);
+
+    const path = getTrackPath(simWorld, rideId)!;
+    const vehicleTrack = createVehicleTrackFromPath(simWorld, path);
+    const loopStart = path.pieceStart[12];
+    const loopEnd = path.pieceStart[13];
+    const loopOrientation = Array.from(vehicleTrack.invertedSegments.slice(loopStart, loopEnd - 1));
+
+    expect(vehicleTrack.invertedSegments[loopStart]).toBe(0);
+    expect(loopOrientation).toContain(1);
+    expect(vehicleTrack.invertedSegments[loopEnd - 2]).toBe(0);
   });
 });
