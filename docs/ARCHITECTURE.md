@@ -49,16 +49,24 @@ Chosen: **transferable snapshot buffers**, three pooled per run.
 
 ## Rendering
 
-`Renderer` interface (`src/render/renderer.ts`) with `Canvas2DRenderer` (flat coloured isometric tiles, dots for entities) and a planned `WebGL2Renderer` (instanced quads fed straight from the snapshot Int32 layers). Isometric 2:1 projection (64×32 px tiles), integer height levels, four view rotations via `rotateTile`/`unrotateTile`. Art is procedural placeholder only.
+`Renderer` interface (`src/render/renderer.ts`) with `WebGL2Renderer` as the primary backend and `Canvas2DRenderer` as a fallback. The WebGL2 path uses a runtime-generated procedural atlas and instanced quads fed from snapshot layers. Both renderers use the isometric 2:1 projection (64×32 px tiles), integer height levels, four view rotations via `rotateTile`/`unrotateTile`, and renderer-side viewport culling. The renderer reads only `Snapshot` and `MapData`; art remains procedural placeholder content.
+
+The Playwright smoke run launches Chromium with SwiftShader, checks the game's active canvas and HUD report WebGL2, verifies there are no browser console or page errors, and writes a screenshot. A capability check on a separate canvas is not sufficient because startup can fall back to Canvas2D after a shader error.
 
 ## Performance budget
 
-Target: **5000 guests at 40 ticks/s using < 8 ms of sim per tick** on a mid-range laptop (leaves 17 ms headroom per 25 ms tick for snapshotting, GC and a busy main thread; 8 ms is a p95 target).
+Target: **5000 guests at 40 ticks/s using < 8 ms of sim per tick** on a mid-range laptop (leaves 17 ms headroom per 25 ms tick for snapshotting, GC and a busy main thread). Strict benchmark mode enforces this limit at p99.
 
-- Measure with `pnpm bench` (`--guests N --ticks N --strict`; `--strict` exits non-zero if p95 exceeds 8 ms). CI runs a smoke bench.
+- Measure with `pnpm bench` (`--guests N --ticks N --strict`; `--strict` exits non-zero if p99 exceeds 8 ms). The benchmark warms up before timing individual `Simulation.step()` calls and uses nearest-rank percentiles; with 200 samples the p99 remains sensitive to individual slow ticks. It does not include worker snapshot copying or browser rendering.
 - The runtime HUD shows EMA and max ms/tick and dropped ticks.
 - Rules of thumb: no allocation in per-tick code; iterate columns, not objects; spread expensive work (pathfinding, decisions) across ticks keyed by entity id; cache and share paths.
-- The placeholder guest system is far under budget (well under 1 ms for 5000 guests on the dev machine), so the budget is effectively available to the real behaviour systems; re-benchmark as systems land.
+- Guest updates are staggered across four ticks and reuse a path buffer. Re-profile these systems before changing their schedule or state-update order.
+
+### Verification measurements (2026-10-24)
+
+- Simulation benchmark on the Modal session runtime (Node 22.20.0), 5000 guests, 100 staff, 40 warmup ticks and 200 measured ticks: mean 0.260 ms/tick, p50 0.257 ms, p95 0.267 ms, p99 0.269 ms, max 0.276 ms. Strict p99 budget: pass (8 ms).
+- Playwright headless Chromium 156 with SwiftShader at 1280×800 and 5000 guests: four runs collected 157–159 `renderer.draw` measurements each. Across runs, p50 was 0.58–0.60 ms, p95 1.41–1.63 ms, p99 1.90–2.10 ms, and max 2.31–4.14 ms. This measures the renderer's synchronous draw call, not the full browser frame or GPU hardware performance.
+- SwiftShader confirms the WebGL2 startup and draw path work in headless Chromium. Its timings validate functionality and are not representative of a physical GPU.
 
 ## Save/load
 

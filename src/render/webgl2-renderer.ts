@@ -11,6 +11,10 @@ const ATLAS_ROWS = 3;
 const INSTANCE_FLOATS = 7;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
 
+function glslFloat(value: number): string {
+  return Number.isInteger(value) ? `${value}.0` : String(value);
+}
+
 type SpriteBlendContext = Pick<
   WebGL2RenderingContext,
   'BLEND' | 'SRC_ALPHA' | 'ONE_MINUS_SRC_ALPHA' | 'enable' | 'blendFunc'
@@ -86,8 +90,8 @@ void main() {
     ry = uMapSize.x - rx;
     rx = next;
   }
-  vec2 screen = vec2((rx - ry) * ${TILE_W / 2}.0,
-                     (rx + ry) * ${TILE_H / 2}.0 - z * ${Z_PIXELS / Z_STEP}.0);
+  vec2 screen = vec2((rx - ry) * ${glslFloat(TILE_W / 2)},
+                     (rx + ry) * ${glslFloat(TILE_H / 2)} - z * ${glslFloat(Z_PIXELS / Z_STEP)});
   screen = (screen - uCamera) * uZoom + uViewport * 0.5;
   if (!terrain) screen += (aCorner - 0.5) * aSize * uZoom;
   gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,

@@ -1,6 +1,7 @@
 import { Simulation } from '../src/sim/core/simulation';
 import { DEFAULT_MAP_SIZE, TICK_MS } from '../src/sim/core/constants';
 import { placePath } from '../src/sim/map/paths';
+import { nearestRankPercentile, withinBudget } from './stats';
 
 const BUDGET_MS = 8;
 
@@ -43,7 +44,8 @@ for (let i = 0; i < ticks; i++) {
 }
 const sorted = Array.from(samples).sort((a, b) => a - b);
 const mean = sorted.reduce((a, b) => a + b, 0) / ticks;
-const pct = (p: number): number => sorted[Math.min(ticks - 1, Math.floor(p * ticks))];
+const pct = (p: number): number => nearestRankPercentile(sorted, p);
+const p99 = pct(0.99);
 
 console.log(
   `entities: ${sim.world.guests.count} guests, ${sim.world.staff.count} staff | ${ticks} ticks`,
@@ -54,6 +56,6 @@ console.log(
 );
 console.log(
   `budget ${BUDGET_MS}ms/tick (tick period ${TICK_MS}ms): ` +
-    `${pct(0.95) <= BUDGET_MS ? 'PASS' : 'OVER'} (p95)`,
+    `${withinBudget(p99, BUDGET_MS) ? 'PASS' : 'OVER'} (p99)`,
 );
-if (strict && pct(0.95) > BUDGET_MS) process.exit(1);
+if (strict && !withinBudget(p99, BUDGET_MS)) process.exit(1);
