@@ -186,7 +186,7 @@ export class GameUI {
           ? 'Land tool selected. Click to raise; Shift-click to lower.'
           : tool === 'patrol'
             ? 'Patrol tool selected. Click tiles to add them; Shift-click to remove them.'
-          : `${TOOL_LABELS[tool]} tool selected. Click a tile to place.`;
+            : `${TOOL_LABELS[tool]} tool selected. Click a tile to place.`;
   }
 
   private togglePanel(id: string, title: string): void {
