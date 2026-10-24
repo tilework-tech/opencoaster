@@ -8,7 +8,13 @@ import { invalidateRideTest } from '../rides/coaster';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
 import { PIECES } from './catalog';
-import { placeTrack, removeTrack, rotateTile, validatePlacement } from './construction';
+import {
+  circuitStatus,
+  placeTrack,
+  removeTrack,
+  rotateTile,
+  validatePlacement,
+} from './construction';
 import type { PlaceRequest } from './construction';
 import { MAX_TRACK_RIDES } from './track-store';
 import { PieceFlag, PieceMode, Slope, TrackResult } from './track-types';
@@ -31,6 +37,9 @@ function checkRideRules(world: World, req: PlaceRequest): TrackResult {
   if (steep && !rules.steepSlopes) return TrackResult.PieceNotAllowed;
   if (def.flags & PieceFlag.Inverted && !rules.inversions) return TrackResult.PieceNotAllowed;
   if (req.mode === PieceMode.Launch && !rules.launch) return TrackResult.PieceNotAllowed;
+  if (def.flags & PieceFlag.Station && circuitStatus(world, req.rideId).stations > 0) {
+    return TrackResult.PieceNotAllowed;
+  }
   let top = 0;
   for (const cell of def.footprint) top = Math.max(top, cell.zMax);
   if (req.z * Z_STEP + top > rules.maxLevel * Z_STEP) return TrackResult.TooHigh;

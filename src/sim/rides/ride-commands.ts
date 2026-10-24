@@ -8,7 +8,7 @@ import { placePath } from '../map/paths';
 import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { PieceFlag } from '../track/track-types';
-import { abortRideTest, isTrackRide, startRideTest } from './coaster';
+import { abortRideTest, isTrackRide, resetBrokenRide, startRideTest } from './coaster';
 import { setRideOpen } from './ride-operations';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
@@ -57,6 +57,17 @@ function trackAtGround(world: World, x: number, y: number): boolean {
   return false;
 }
 
+function rideFootprintAt(world: World, x: number, y: number): boolean {
+  const ride = world.rides.cols;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
+    for (const [dx, dy] of def?.footprint ?? []) {
+      if (ride.rideX[slot] + dx === x && ride.rideY[slot] + dy === y) return true;
+    }
+  }
+  return false;
+}
+
 function isBusy(world: World, slot: number): boolean {
   const ride = world.rides.cols;
   return (
@@ -75,7 +86,7 @@ function isBusy(world: World, slot: number): boolean {
 function connectQueueFromEntrance(world: World, slot: number): void {
   const map = world.map;
   const ride = world.rides.cols;
-  const exit = map.index(ride.exitX[slot], ride.exitY[slot]);
+  const exit = ride.exitPlaced[slot] ? map.index(ride.exitX[slot], ride.exitY[slot]) : -1;
   const start = map.index(ride.entranceX[slot], ride.entranceY[slot]);
   const seen = new Set<number>([start]);
   const stack = [start];
@@ -123,7 +134,7 @@ function placeBoardingTile(
   if (otherPlaced && otherX === x && otherY === y) return RideResult.Blocked;
   const tile = world.map.index(x, y);
   if (!world.map.canBuild(tile)) return RideResult.NotOwned;
-  if (trackAtGround(world, x, y)) return RideResult.Blocked;
+  if (trackAtGround(world, x, y) || rideFootprintAt(world, x, y)) return RideResult.Blocked;
 
   const wanted = kind === 'entrance' ? Surface.Queue : Surface.Path;
   const surface = world.map.surface[tile];
@@ -167,8 +178,13 @@ function openRide(world: World, rideId: number): RideResult {
 
 function closeRide(world: World, rideId: number): RideResult {
   if (!world.rides.isAlive(rideId)) return RideResult.NoSuchRide;
-  if (world.rides.cols.state[world.rides.idToSlot[rideId]] === RideState.Testing) {
+  const slot = world.rides.idToSlot[rideId];
+  if (world.rides.cols.state[slot] === RideState.Testing) {
     abortRideTest(world, rideId);
+    return RideResult.Ok;
+  }
+  if (world.rides.cols.state[slot] === RideState.Broken && isTrackRide(world, rideId)) {
+    resetBrokenRide(world, slot);
     return RideResult.Ok;
   }
   return setRideOpen(world, rideId, false) ? RideResult.Ok : RideResult.NoSuchRide;

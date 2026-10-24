@@ -1,5 +1,6 @@
 import type { Command } from '../sim/core/commands';
 import type { InitMessage, MapMessage, Stats, ToWorker, FromWorker } from './protocol';
+import { snapshotBuffers } from './snapshot';
 import type { Snapshot } from './snapshot';
 
 /** Main-thread handle to the sim worker. */
@@ -35,18 +36,7 @@ export class SimClient {
   }
 
   private send(msg: ToWorker, recycled?: Snapshot): void {
-    const transfer = recycled
-      ? [
-          recycled.guests,
-          recycled.staff,
-          recycled.vehicles,
-          recycled.litter,
-          recycled.rides,
-          recycled.tracks,
-        ]
-          .map((l) => l.data.buffer)
-          .concat(recycled.buildable.buffer)
-      : [];
+    const transfer = recycled ? snapshotBuffers(recycled) : [];
     this.worker.postMessage(msg, transfer);
   }
 

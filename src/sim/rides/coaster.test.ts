@@ -5,6 +5,7 @@ import { Simulation } from '../core/simulation';
 import { deserialize, serialize } from '../../save/save';
 import { PieceId, pieceByName } from '../track/catalog';
 import { circuitStatus } from '../track/construction';
+import { GuestState } from '../guests/guest-store';
 import { PieceMode, TrackResult } from '../track/track-types';
 import { VehicleState } from '../vehicles/vehicle-store';
 import {
@@ -15,12 +16,13 @@ import {
   connectStation,
   createCoaster,
   flatOwnedSim,
+  queueGuests,
   run,
 } from './coaster-fixtures';
 import { getRideTestMeasurements, isRideTested } from './ride-operations';
 import { RideResult } from './ride-results';
 import { RIDE_CATALOG, RideType } from './ride-types';
-import { RideState } from './ride-store';
+import { RidePhase, RideState } from './ride-store';
 
 const TEST_RUN_TICKS = 6000;
 
@@ -179,14 +181,21 @@ describe('opening a coaster', () => {
     expect(sim.world.feedback.code).toBe(RideResult.Ok);
     expect(sim.world.rides.cols.state[slot]).toBe(RideState.Open);
 
-    sim.world.rides.cols.queueLength[slot] = 40;
+    queueGuests(sim, rideId, 40);
     const states = new Set<number>();
-    for (let i = 0; i < 12000; i++) {
+    let maxRiding = 0;
+    for (let i = 0; i < 6000; i++) {
       sim.step();
       for (let v = 0; v < sim.world.vehicles.count; v++)
         states.add(sim.world.vehicles.cols.state[v]);
+      let riding = 0;
+      for (let g = 0; g < sim.world.guests.count; g++) {
+        if (sim.world.guests.cols.state[g] === GuestState.Riding) riding++;
+      }
+      maxRiding = Math.max(maxRiding, riding);
     }
     expect(states.has(VehicleState.Running)).toBe(true);
+    expect(maxRiding).toBe(RIDE_CATALOG[RideType.WoodenCoaster].capacity);
     expect(sim.world.rides.cols.guestsServed[slot]).toBeGreaterThan(0);
     expect(sim.world.rides.cols.queueLength[slot]).toBeLessThan(40);
     expect(sim.world.rides.cols.cyclesCompleted[slot]).toBeGreaterThan(0);
@@ -196,6 +205,7 @@ describe('opening a coaster', () => {
     const { sim, rideId } = testedCoaster();
     connectStation(sim, rideId);
     sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    queueGuests(sim, rideId, 20);
     const v = sim.world.vehicles.cols;
     let dispatched = 0;
     for (let i = 0; i < 6000; i++) {
@@ -226,9 +236,8 @@ describe('opening a coaster', () => {
     const { sim, rideId } = testedCoaster();
     connectStation(sim, rideId);
     sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
-    const slot = sim.world.rides.idToSlot[rideId];
     sim.step();
-    sim.world.rides.cols.queueLength[slot] = 30;
+    queueGuests(sim, rideId, 30);
     run(sim, 700);
     const copy = new Simulation({ seed: 1, width: 48, height: 48, maxGuests: 64 });
     Object.assign(copy, { world: deserialize(serialize(sim.world)) });
@@ -236,6 +245,105 @@ describe('opening a coaster', () => {
     run(sim, 1500);
     run(copy, 1500);
     expect(hashWorld(copy.world)).toBe(hashWorld(sim.world));
+  });
+});
+
+describe('coaster failure handling', () => {
+  function openWithRiders() {
+    const { sim, rideId } = testedCoaster();
+    connectStation(sim, rideId);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    sim.step();
+    queueGuests(sim, rideId, 12);
+    return { sim, rideId, slot: sim.world.rides.idToSlot[rideId] };
+  }
+
+  function runUntilTrainIsOut(sim: Simulation): void {
+    for (let i = 0; i < 2000 && sim.world.vehicles.cols.state[0] !== VehicleState.Running; i++) {
+      sim.step();
+    }
+    expect(sim.world.vehicles.cols.state[0]).toBe(VehicleState.Running);
+  }
+
+  it('lets riders off and closes the ride when its track is edited mid-ride', () => {
+    const { sim, rideId, slot } = openWithRiders();
+    runUntilTrainIsOut(sim);
+    run(sim, 5);
+    const riding = () => {
+      let n = 0;
+      for (let g = 0; g < sim.world.guests.count; g++) {
+        if (sim.world.guests.cols.state[g] === GuestState.Riding) n++;
+      }
+      return n;
+    };
+    expect(riding()).toBe(12);
+    sim.enqueue({ type: 'removeTrack', rideId, pieceId: -1 });
+    run(sim, 10);
+    expect(riding()).toBe(0);
+    expect(sim.world.vehicles.count).toBe(0);
+    expect(sim.world.rides.cols.phase[slot]).toBe(RidePhase.Closed);
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
+  });
+
+  it('keeps a ride that is closed right after dispatch consistent and reopenable', () => {
+    const { sim, rideId, slot } = openWithRiders();
+    runUntilTrainIsOut(sim);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'close' });
+    run(sim, 3000);
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
+    expect(sim.world.rides.cols.phase[slot]).toBe(RidePhase.Closed);
+    expect(sim.world.rides.cols.guestsServed[slot]).toBe(12);
+    expect(sim.world.vehicles.count).toBe(0);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    sim.step();
+    expect(sim.world.feedback.code).toBe(RideResult.Ok);
+  });
+
+  it('takes a ride out of service when its train never returns, and a close resets it', () => {
+    const { sim, rideId, slot } = openWithRiders();
+    runUntilTrainIsOut(sim);
+    sim.world.vehicles.cols.state[0] = VehicleState.Crashed;
+    run(sim, 3);
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Broken);
+    expect(sim.world.vehicles.count).toBe(0);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    sim.step();
+    expect(sim.world.feedback.code).toBe(RideResult.Broken);
+
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'close' });
+    sim.step();
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
+    expect(isRideTested(sim.world, rideId)).toBe(false);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
+    sim.step();
+    expect(sim.world.feedback.code).toBe(RideResult.Ok);
+  });
+
+  it('refuses a second station on a coaster', () => {
+    const sim = flatOwnedSim();
+    const rideId = createCoaster(sim);
+    buildCircuit(sim, rideId, [
+      ['station', PieceMode.Normal],
+      ['flat', PieceMode.Normal],
+    ]);
+    buildCircuit(sim, rideId, [['station', PieceMode.Normal]]);
+    expect(sim.world.feedback.code).toBe(TrackResult.PieceNotAllowed);
+    expect(sim.world.track.count[rideId]).toBe(2);
+  });
+});
+
+describe('park guests on a coaster', () => {
+  it('walk in from the park gate, queue on the entrance path, board and finish rides', () => {
+    const { sim, rideId } = testedCoaster();
+    for (let y = 10; y <= 17; y++) sim.enqueue({ type: 'placePath', x: STATION_X, y });
+    sim.enqueue({ type: 'setParkEntrance', x: STATION_X, y: 10 });
+    connectStation(sim, rideId);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    run(sim, 24000);
+    const slot = sim.world.rides.idToSlot[rideId];
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Open);
+    expect(sim.world.rides.cols.guestsServed[slot]).toBeGreaterThan(0);
+    expect(sim.world.rides.cols.cyclesCompleted[slot]).toBeGreaterThan(0);
   });
 });
 

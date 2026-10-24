@@ -13,6 +13,49 @@ export function isTrackRide(world: World, rideId: number): boolean {
   return RIDE_CATALOG[typeId]?.usesTrack === true;
 }
 
+function inActiveCycle(phase: number): boolean {
+  return (
+    phase === RidePhase.Loading || phase === RidePhase.Running || phase === RidePhase.Unloading
+  );
+}
+
+/**
+ * Ends the current cycle without a train coming home (track edited, train lost, ride reset):
+ * riders still get off because their ride is marked completed, but no wear or breakdown roll
+ * happens.
+ */
+export function abortCycle(world: World, slot: number): void {
+  const ride = world.rides.cols;
+  if (inActiveCycle(ride.phase[slot])) {
+    ride.cyclesCompleted[slot]++;
+    ride.guestsServed[slot] += ride.boarded[slot];
+  }
+  ride.boarded[slot] = 0;
+  ride.waitTicks[slot] = 0;
+  ride.phaseTicks[slot] = 0;
+  ride.phase[slot] = ride.state[slot] === RideState.Broken ? RidePhase.Broken : RidePhase.Closed;
+}
+
+/** Takes the ride out of service because its train stalled, crashed or never came back. */
+export function breakDownRide(world: World, slot: number): void {
+  const ride = world.rides.cols;
+  removeRideTrains(world, world.rides.slotToId[slot]);
+  ride.state[slot] = RideState.Broken;
+  abortCycle(world, slot);
+  ride.breakdownCounter[slot]++;
+}
+
+/**
+ * Manual reset of a broken coaster: the layout must be tested again before it can reopen.
+ */
+export function resetBrokenRide(world: World, slot: number): void {
+  const ride = world.rides.cols;
+  removeRideTrains(world, world.rides.slotToId[slot]);
+  ride.state[slot] = RideState.Closed;
+  abortCycle(world, slot);
+  ride.tested[slot] = 0;
+}
+
 /**
  * Called when a ride's track changes: the earlier test no longer describes the layout, so the
  * ride closes, loses its trains and must be tested again before it can reopen.
@@ -22,14 +65,9 @@ export function invalidateRideTest(world: World, rideId: number): void {
   const slot = world.rides.idToSlot[rideId];
   const ride = world.rides.cols;
   removeRideTrains(world, rideId);
+  if (ride.state[slot] !== RideState.Broken) ride.state[slot] = RideState.Closed;
+  abortCycle(world, slot);
   ride.tested[slot] = 0;
-  ride.boarded[slot] = 0;
-  ride.waitTicks[slot] = 0;
-  ride.phaseTicks[slot] = 0;
-  if (ride.state[slot] !== RideState.Broken) {
-    ride.state[slot] = RideState.Closed;
-    ride.phase[slot] = RidePhase.Closed;
-  }
 }
 
 /** Sends a test train around the closed circuit; the coaster system collects the result. */

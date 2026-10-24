@@ -1,5 +1,4 @@
 import type { Command } from '../sim/core/commands';
-import { FeedbackDomain } from '../sim/core/feedback';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import type { RideTypeDef } from '../sim/rides/ride-types';
 import type { RideState } from '../sim/rides/ride-store';
@@ -104,6 +103,7 @@ export class CoasterPanel {
   private hover: [number, number] | null = null;
   private lastFeedbackSeq = 0;
   private awaitingCreate = false;
+  private rideCount = 0;
 
   constructor(
     parent: HTMLElement,
@@ -367,7 +367,16 @@ export class CoasterPanel {
         ...rides.map((ride) => new Option(`${ride.def.name} #${ride.id}`, String(ride.id))),
       );
     }
+    const created = this.awaitingCreate
+      ? rides.find((ride) => !this.rides.some((known) => known.id === ride.id))
+      : undefined;
+    if (snapshot.rides.count !== this.rideCount) this.awaitingCreate = false;
+    this.rideCount = snapshot.rides.count;
     this.rides = rides;
+    if (created) {
+      this.activeRideId = created.id;
+      this.actions.selectTool('track');
+    }
     if (!rides.some((ride) => ride.id === this.activeRideId)) {
       this.activeRideId = rides.length > 0 ? rides[rides.length - 1].id : -1;
     }
@@ -382,14 +391,7 @@ export class CoasterPanel {
     this.feedbackLine.textContent = line.text;
     this.feedbackLine.dataset.ok = String(line.ok);
     this.actions.status(line.text);
-    if (this.awaitingCreate && feedback.domain === FeedbackDomain.Ride) {
-      this.awaitingCreate = false;
-      if (feedback.code === 0 && feedback.subject >= 0) {
-        this.activeRideId = feedback.subject;
-        this.refreshRides(snapshot);
-        this.actions.selectTool('track');
-      }
-    }
+    if (!line.ok) this.awaitingCreate = false;
   }
 
   private refreshControls(ride: RideSummary | undefined, snapshot: Snapshot): void {

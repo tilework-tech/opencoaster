@@ -1,4 +1,5 @@
 import { Simulation } from '../core/simulation';
+import { GuestState, spawnGuest } from '../guests/guest-store';
 import { OWNED } from '../map/tile-map';
 import { pieceByName } from '../track/catalog';
 import { getConstructionCursor } from '../track/construction';
@@ -79,4 +80,17 @@ export function connectStation(sim: Simulation, rideId: number): void {
 
 export function run(sim: Simulation, ticks: number): void {
   for (let i = 0; i < ticks; i++) sim.step();
+}
+
+/** Puts guests at the head of the ride's queue, as if they had walked up to the entrance. */
+export function queueGuests(sim: Simulation, rideId: number, count: number): void {
+  const world = sim.world;
+  const slot = world.rides.idToSlot[rideId];
+  for (let i = 0; i < count; i++) {
+    if (!spawnGuest(world)) return;
+    const guest = world.guests.count - 1;
+    world.guests.cols.state[guest] = GuestState.Waiting;
+    world.guests.cols.targetRide[guest] = rideId;
+    world.rides.cols.queueLength[slot]++;
+  }
 }

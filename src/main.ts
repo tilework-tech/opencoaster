@@ -70,8 +70,10 @@ window.addEventListener('keydown', (event) => {
   if (key === 'q') camera.rotation = ((camera.rotation + 3) % 4) as Rotation;
   if (key === 'e') camera.rotation = ((camera.rotation + 1) % 4) as Rotation;
   if (key === 'g') sim.command({ type: 'spawnGuests', count: 1000 });
-  if (selectedTool === 'track' && key === 'enter') coasterPanel.placeAtCursor();
-  if (selectedTool === 'track' && key === 'backspace') {
+  const onControl =
+    event.target instanceof HTMLButtonElement || event.target instanceof HTMLSelectElement;
+  if (selectedTool === 'track' && !onControl && key === 'enter') coasterPanel.placeAtCursor();
+  if (selectedTool === 'track' && !onControl && key === 'backspace') {
     event.preventDefault();
     coasterPanel.removeLast();
   }

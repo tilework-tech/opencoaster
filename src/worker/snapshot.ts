@@ -1,5 +1,7 @@
 import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
@@ -161,6 +163,13 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.GuestsServed] = r.guestsServed[slot];
   info[o + RideInfo.Price] = r.price[slot];
   info[o + RideInfo.TrackPieces] = trackRide ? world.track.count[rideId] : 0;
+  if (!RIDE_CATALOG[r.typeId[slot] as RideType]?.usesTrack) {
+    info[o + RideInfo.CursorX] = 0;
+    info[o + RideInfo.CursorY] = 0;
+    info[o + RideInfo.CursorZ] = 0;
+    info[o + RideInfo.Cursor] = encodeCursor(false, 0, 0, 0);
+    return;
+  }
   const cursor = getConstructionCursor(world, rideId);
   info[o + RideInfo.CursorX] = cursor.x;
   info[o + RideInfo.CursorY] = cursor.y;
