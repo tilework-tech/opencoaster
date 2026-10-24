@@ -1,4 +1,4 @@
-import { TILE_UNITS } from '../sim/core/constants';
+import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import type { Camera, MapData, Renderer } from './renderer';
@@ -6,7 +6,7 @@ import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import type { Rotation } from './projection';
 
 const CELL = 64;
-const ATLAS_COLUMNS = 6;
+const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 3;
 const INSTANCE_FLOATS = 7;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
@@ -21,12 +21,40 @@ export function enableSpriteAlphaBlending(gl: SpriteBlendContext): void {
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 }
 
+export function terrainSpriteIndex(surface: number, slopeMask: number): number {
+  let flatSprite: number;
+  switch (surface) {
+    case 0:
+      flatSprite = 0;
+      break;
+    case 1:
+      flatSprite = 2;
+      break;
+    case 2:
+      return 8;
+    case 3:
+      return 9;
+    case 4:
+      flatSprite = 4;
+      break;
+    case 5:
+      flatSprite = 6;
+      break;
+    case 6:
+      return 10;
+    default:
+      return 0;
+  }
+  return flatSprite + (slopeMask ? 1 : 0);
+}
+
 const vertexSource = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 aCorner;
 layout(location=1) in vec3 aWorld;
 layout(location=2) in vec2 aSize;
 layout(location=3) in float aSprite;
+layout(location=4) in float aSlopeMask;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -34,8 +62,18 @@ uniform float uZoom;
 uniform float uRotation;
 out vec2 vUv;
 void main() {
-  float rx = aWorld.x / ${TILE_UNITS.toFixed(1)};
-  float ry = aWorld.y / ${TILE_UNITS.toFixed(1)};
+  bool terrain = aSprite < 9.0;
+  vec2 worldPosition = terrain ? aWorld.xy + aCorner * ${TILE_UNITS.toFixed(1)} : aWorld.xy;
+  float raisedCorner = 0.0;
+  if (terrain) {
+    float cornerBit = aCorner.x < 0.5
+      ? (aCorner.y < 0.5 ? 1.0 : 8.0)
+      : (aCorner.y < 0.5 ? 2.0 : 4.0);
+    raisedCorner = mod(floor(aSlopeMask / cornerBit), 2.0);
+  }
+  float z = aWorld.z + raisedCorner * ${Z_STEP.toFixed(1)};
+  float rx = worldPosition.x / ${TILE_UNITS.toFixed(1)};
+  float ry = worldPosition.y / ${TILE_UNITS.toFixed(1)};
   if (uRotation > 0.5 && uRotation < 1.5) {
     float next = uMapSize.y - ry;
     ry = rx;
@@ -49,15 +87,21 @@ void main() {
     rx = next;
   }
   vec2 screen = vec2((rx - ry) * ${TILE_W / 2}.0,
-                     (rx + ry) * ${TILE_H / 2}.0 - aWorld.z * ${Z_PIXELS / 64}.0);
+                     (rx + ry) * ${TILE_H / 2}.0 - z * ${Z_PIXELS / Z_STEP}.0);
   screen = (screen - uCamera) * uZoom + uViewport * 0.5;
-  screen += (aCorner - 0.5) * aSize * uZoom;
+  if (!terrain) screen += (aCorner - 0.5) * aSize * uZoom;
   gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
                      1.0 - screen.y / uViewport.y * 2.0, 0.0, 1.0);
   float cell = floor(aSprite + 0.5);
   float col = mod(cell, ${ATLAS_COLUMNS}.0);
   float row = floor(cell / ${ATLAS_COLUMNS}.0);
-  vUv = (vec2(col, row) + vec2(aCorner.x, 1.0 - aCorner.y)) / vec2(${ATLAS_COLUMNS}.0, ${ATLAS_ROWS}.0);
+  vec2 spriteUv = terrain
+    ? vec2(0.5 + (aCorner.x - aCorner.y) * 0.4375,
+           0.5 + (aCorner.x + aCorner.y - 1.0) * 0.375)
+    : vec2(aCorner.x, 1.0 - aCorner.y);
+  float textureRow = ${ATLAS_ROWS - 1}.0 - row;
+  float textureY = terrain ? 1.0 - spriteUv.y : spriteUv.y;
+  vUv = (vec2(col, textureRow) + vec2(spriteUv.x, textureY)) / vec2(${ATLAS_COLUMNS}.0, ${ATLAS_ROWS}.0);
 }`;
 
 const fragmentSource = `#version 300 es
@@ -148,7 +192,7 @@ export class WebGL2Renderer implements Renderer {
       if (snapshot.tracks)
         this.appendLayer(
           snapshot.tracks,
-          17,
+          23,
           map,
           camera,
           viewportWidth,
@@ -157,10 +201,10 @@ export class WebGL2Renderer implements Renderer {
           28,
           1,
         );
-      this.appendLayer(snapshot.rides, 16, map, camera, viewportWidth, viewportHeight, 12, 14);
-      this.appendLayer(snapshot.litter, 15, map, camera, viewportWidth, viewportHeight, 6, 7);
-      this.appendLayer(snapshot.vehicles, 14, map, camera, viewportWidth, viewportHeight, 12, 12);
-      this.appendLayer(snapshot.staff, 13, map, camera, viewportWidth, viewportHeight, 11, 13);
+      this.appendLayer(snapshot.rides, 22, map, camera, viewportWidth, viewportHeight, 12, 14);
+      this.appendLayer(snapshot.litter, 21, map, camera, viewportWidth, viewportHeight, 6, 7);
+      this.appendLayer(snapshot.vehicles, 20, map, camera, viewportWidth, viewportHeight, 12, 12);
+      this.appendLayer(snapshot.staff, 19, map, camera, viewportWidth, viewportHeight, 11, 13);
       this.appendGuests(snapshot.guests, map, camera, viewportWidth, viewportHeight);
     }
     this.uploadInPainterOrder();
@@ -239,6 +283,7 @@ export class WebGL2Renderer implements Renderer {
     this.setInstanceAttribute(1, 3, 0);
     this.setInstanceAttribute(2, 2, 3 * Float32Array.BYTES_PER_ELEMENT);
     this.setInstanceAttribute(3, 1, 5 * Float32Array.BYTES_PER_ELEMENT);
+    this.setInstanceAttribute(4, 1, 6 * Float32Array.BYTES_PER_ELEMENT);
     this.texture = this.createAtlasTexture();
     gl.bindVertexArray(null);
   }
@@ -278,6 +323,7 @@ export class WebGL2Renderer implements Renderer {
     const ctx = atlas.getContext('2d');
     if (!ctx) throw new Error('Could not generate sprite atlas');
     drawAtlas(ctx);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     const texture = gl.createTexture();
     if (!texture) throw new Error('Could not allocate sprite atlas texture');
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -310,8 +356,8 @@ export class WebGL2Renderer implements Renderer {
         const index = y * map.width + x;
         const height = map.heights[index];
         project(
-          (x + 0.5) * TILE_UNITS,
-          (y + 0.5) * TILE_UNITS,
+          x * TILE_UNITS,
+          y * TILE_UNITS,
           height * 64,
           map.width,
           map.height,
@@ -326,24 +372,24 @@ export class WebGL2Renderer implements Renderer {
         )
           continue;
         const surface = map.surface[index];
-        const slope = hasSlope(map, x, y, height);
         this.append(
-          (x + 0.5) * TILE_UNITS,
-          (y + 0.5) * TILE_UNITS,
+          x * TILE_UNITS,
+          y * TILE_UNITS,
           height * 64,
           TILE_W,
           48,
-          surface === 1 ? 2 : surface === 2 ? 3 : slope ? 1 : 0,
+          terrainSpriteIndex(surface, map.slope[index]),
           2 * (rx + ry) - height,
+          map.slope[index],
         );
-        if (surface === 3)
+        if (surface === 3 || surface === 6)
           this.append(
             (x + 0.5) * TILE_UNITS,
             (y + 0.5) * TILE_UNITS,
             height * 64 + 1,
             44,
             24,
-            4,
+            surface === 6 ? 10 : 9,
             2 * (rx + ry) - height + 1,
           );
       }
@@ -365,7 +411,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendLayerSprite(
         layer,
         offset,
-        5 + (tint % 8),
+        11 + (tint % 8),
         map,
         camera,
         viewportWidth,
@@ -454,6 +500,7 @@ export class WebGL2Renderer implements Renderer {
     height: number,
     sprite: number,
     depth: number,
+    slopeMask = 0,
   ): void {
     if (this.count === this.depths.length) this.grow();
     const offset = this.count * INSTANCE_FLOATS;
@@ -463,7 +510,7 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 3] = width;
     this.instanceData[offset + 4] = height;
     this.instanceData[offset + 5] = sprite;
-    this.instanceData[offset + 6] = 1;
+    this.instanceData[offset + 6] = slopeMask;
     this.depths[this.count] = Math.round(depth * 2);
     this.count++;
   }
@@ -514,20 +561,30 @@ function drawAtlas(ctx: CanvasRenderingContext2D): void {
     const y = Math.floor(i / ATLAS_COLUMNS) * CELL;
     ctx.save();
     ctx.translate(x, y);
-    if (i === 0 || i === 1 || i === 2 || i === 3) drawTerrain(ctx, i);
-    else if (i === 4) drawPath(ctx);
-    else if (i >= 5 && i <= 12) drawGuest(ctx, i - 5);
-    else if (i === 13) drawStaff(ctx);
-    else if (i === 14) drawTrain(ctx);
-    else if (i === 15) drawLitter(ctx);
-    else if (i === 16) drawRide(ctx);
+    if (i <= 8) drawTerrain(ctx, i);
+    else if (i === 9 || i === 10) drawPath(ctx, i === 10);
+    else if (i >= 11 && i <= 18) drawGuest(ctx, i - 11);
+    else if (i === 19) drawStaff(ctx);
+    else if (i === 20) drawTrain(ctx);
+    else if (i === 21) drawLitter(ctx);
+    else if (i === 22) drawRide(ctx);
     else drawTrack(ctx);
     ctx.restore();
   }
 }
 
 function drawTerrain(ctx: CanvasRenderingContext2D, sprite: number): void {
-  const colors = ['#56a84f', '#62ad55', '#d5c184', '#4388bb'];
+  const colors = [
+    '#56a84f',
+    '#62ad55',
+    '#d5c184',
+    '#c7ad6a',
+    '#987044',
+    '#a0784b',
+    '#8b8c91',
+    '#777980',
+    '#4388bb',
+  ];
   ctx.fillStyle = colors[sprite];
   ctx.beginPath();
   ctx.moveTo(32, 8);
@@ -536,10 +593,10 @@ function drawTerrain(ctx: CanvasRenderingContext2D, sprite: number): void {
   ctx.lineTo(4, 32);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = sprite === 3 ? '#75b8da' : '#3c7139';
+  ctx.strokeStyle = sprite === 8 ? '#75b8da' : '#3c7139';
   ctx.lineWidth = 2;
   ctx.stroke();
-  if (sprite === 1) {
+  if (sprite % 2 === 1 && sprite < 8) {
     ctx.fillStyle = 'rgba(255,255,255,0.24)';
     ctx.beginPath();
     ctx.moveTo(32, 8);
@@ -550,8 +607,8 @@ function drawTerrain(ctx: CanvasRenderingContext2D, sprite: number): void {
   }
 }
 
-function drawPath(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = '#b59a70';
+function drawPath(ctx: CanvasRenderingContext2D, queue: boolean): void {
+  ctx.fillStyle = queue ? '#b77d9d' : '#b59a70';
   ctx.fillRect(24, 14, 16, 36);
   ctx.fillRect(14, 24, 36, 16);
   ctx.strokeStyle = '#715b3f';
@@ -636,15 +693,6 @@ function drawTrack(ctx: CanvasRenderingContext2D): void {
     ctx.lineTo(i + 4, 50);
     ctx.stroke();
   }
-}
-
-function hasSlope(map: MapData, x: number, y: number, height: number): boolean {
-  return (
-    (x > 0 && map.heights[y * map.width + x - 1] !== height) ||
-    (x + 1 < map.width && map.heights[y * map.width + x + 1] !== height) ||
-    (y > 0 && map.heights[(y - 1) * map.width + x] !== height) ||
-    (y + 1 < map.height && map.heights[(y + 1) * map.width + x] !== height)
-  );
 }
 
 function unrotateForDraw(

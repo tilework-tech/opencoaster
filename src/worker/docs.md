@@ -18,15 +18,15 @@ Path: @/src/worker
 ### Core Implementation
 
 - [protocol.ts](protocol.ts) defines initialization, simulation command, speed, pause, recycle, map, snapshot, and stats messages.
-- Each snapshot layer stores a count and a typed array with four `Int32` values per entity: fixed-point x, y, z, then packed state and tint/kind. The worker also publishes ride entrance positions and a park summary with cash, loan, and ride count.
-- The snapshot includes an optional `tracks` layer for renderers that can display track placeholders. The current simulation worker does not populate or publish that layer.
-- Static map dimensions, heights, and surfaces travel in a separate map message. Periodic stats report tick, guest count, smoothed and peak simulation cost, and dropped ticks.
+- Each snapshot layer stores a count and a typed array with four `Int32` values per entity: fixed-point x, y, z, then packed state and tint/kind. The worker publishes rides at their entrances, track pieces from `world.track.pieces`, and a park summary with cash, loan, and ride count.
+- Track positions are tile-centered and include height; the packed value carries direction and piece type for rendering. The renderers draw this layer alongside terrain and other entities.
+- Static map dimensions, heights, surface classes, and slope masks travel in a separate map message. Periodic stats report tick, guest count, smoothed and peak simulation cost, and dropped ticks.
 
 ### Things to Know
 
-- Snapshot buffers are transferred rather than copied; after transfer, the sender's typed-array backing buffers are detached until they are returned through a recycle message.
+- Snapshot buffers, including the track-piece layer, are transferred rather than copied; after transfer, the sender's typed-array backing buffers are detached until they are returned through a recycle message.
 - Three snapshots are pooled per run. If no free snapshot is available after ticks advance, publication is skipped, allowing the simulation to keep moving while the main thread catches up.
 - Ride rendering data is capped by the snapshot ride capacity. `rides.count` in the park summary reflects the simulation count, while the ride layer count reflects how many rides fit in the output buffer.
-- `Snapshot.tracks` is an optional render extension and is not included in current snapshot allocation or recycle-buffer handling because the current worker does not create it.
+- The track layer has a fixed pooled capacity. Its snapshot count is capped by that buffer's capacity, and its backing buffer follows the same transfer and recycle lifecycle as the other entity layers.
 
 Created and maintained by Nori.

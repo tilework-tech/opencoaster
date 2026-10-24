@@ -15,7 +15,7 @@ describe('finance panel', () => {
 });
 
 describe('guest selection', () => {
-  it('labels displayed guest details as a click-time snapshot', () => {
+  it('prefixes guest details with the selection tick', () => {
     expect(guestSelectionText('Guest 4\nTile  7, 2\nState  walking', 120)).toBe(
       'Selection at tick 120\nGuest 4\nTile  7, 2\nState  walking',
     );
