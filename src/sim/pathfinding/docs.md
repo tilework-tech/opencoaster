@@ -6,7 +6,7 @@ Responsibility: deterministic, allocation-free navigation over the footpath grap
 
 - `nextDirection(world, tile, target, rng, opts?) -> DIR_E | DIR_S | DIR_W | DIR_N | DIR_NONE`. Pass `target < 0` to wander. `DIR_NONE` means the tile is not a path, is the target, or the target is in another connected component (callers should retarget).
 - `isReachable(world, from, to, patrol?)`: O(1) via cached component labels; with a patrol mask it runs a BFS confined to the mask.
-- `NavOptions` (reuse one object per caller; nothing is allocated): `fromDir` (no reversing unless dead end), `maxJunctions`, `maxTiles`, `maxDistance`, `stepsTaken` / `lostAfter`, `patrol` (per-tile `Uint8Array` mask). Presets: `DEFAULT_GUEST_OPTS` (6 junctions, 15,000 tiles, radius 200), `DEFAULT_STAFF_OPTS` (16 junctions, 50,000 tiles).
+- `NavOptions` (reuse one object per caller; nothing is allocated): `fromDir` (no reversing unless dead end), `maxJunctions`, `maxTiles`, `maxDistance`, `stepsTaken` / `lostAfter`, `patrol` (per-tile `Uint8Array` mask). Presets: `DEFAULT_GUEST_OPTS` (16 junctions, 15,000 tiles, radius 200), `DEFAULT_STAFF_OPTS` (16 junctions, 50,000 tiles).
 - `PathGraph` (`graph.ts`): `width`, `height`, `pathVersion`, `edgeMask(tile)` (bits E,S,W,N). `world.map` may be a `PathGraph` or a real `TileMap`; a `TileMap` implements `PathGraph` itself (`edgeMask` = the tile's lowest path element's edges, `pathVersion` bumped by every path edit in `sim/map`), so map editors need not call `markPathsChanged`. The `Surface.Path` adapter remains only for maps that do not expose `edgeMask`. **Map editors must call `markPathsChanged(map)` after any path edit** (PathGraph implementations bump `pathVersion` instead).
 - The old `Pathfinder.findPath` / `nullPathfinder` contract in `pathfinder.ts` is retained for compatibility and unused.
 
@@ -24,6 +24,6 @@ Responsibility: deterministic, allocation-free navigation over the footpath grap
 
 ## Deviations / notes
 
-- Score is Manhattan distance, not the spec's min(|dx|,|dy|)/16 formula, and has no height term (the graph has no heights yet). Guest junction budget is 6 (16 - 10, P-1); lost threshold is a caller-supplied tunable (P-8 unverified).
+- Score is Manhattan distance, not the spec's min(|dx|,|dy|)/16 formula, and has no height term (the graph has no heights yet). Guest junction budget is 16 (P-9 community lookahead; P-1's 16 - 10 reading was rejected because it left guests unable to find rides past six junctions). Lost threshold is a caller-supplied tunable (P-8 unverified); the guest system does not set one, and instead treats a guest as lost when it stops getting closer to its destination (see guests docs).
 - Queue-path rules (P-4) and sloped paths are not modelled: the `PathGraph` provider decides which edges exist. Queue-targeted search needs a graph that exposes queue edges.
 - `fixture.ts` (`GridPathGraph`) is a test/bench fixture only; `bench/pathfinding.ts` is a standalone micro-benchmark (`npx tsx bench/pathfinding.ts`).

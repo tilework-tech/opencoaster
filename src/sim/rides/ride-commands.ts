@@ -9,7 +9,7 @@ import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { PieceFlag } from '../track/track-types';
 import { abortRideTest, isTrackRide, startRideTest } from './coaster';
-import { setRideOpen, setRidePrice } from './ride-operations';
+import { setRideOpen, setRidePrice, setTrainLayout } from './ride-operations';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
@@ -19,7 +19,8 @@ export type RideCommand =
   | { type: 'placeRideEntrance'; rideId: number; x: number; y: number }
   | { type: 'placeRideExit'; rideId: number; x: number; y: number }
   | { type: 'setRideStatus'; rideId: number; status: 'open' | 'close' | 'test' }
-  | { type: 'setRidePrice'; rideId: number; priceCents: number };
+  | { type: 'setRidePrice'; rideId: number; priceCents: number }
+  | { type: 'setRideTrains'; rideId: number; trains: number; cars: number };
 
 /** Tiles the ride's guests board and leave from: station tiles for track rides. */
 function boardingTiles(world: World, rideId: number, slot: number): Array<[number, number]> {
@@ -211,6 +212,11 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
       break;
     case 'setRidePrice':
       result = setRidePrice(world, c.rideId, c.priceCents) ? RideResult.Ok : RideResult.Blocked;
+      break;
+    case 'setRideTrains':
+      result = setTrainLayout(world, c.rideId, c.trains, c.cars)
+        ? RideResult.Ok
+        : RideResult.Blocked;
       break;
   }
   reportFeedback(world.feedback, FeedbackDomain.Ride, result, c.rideId);

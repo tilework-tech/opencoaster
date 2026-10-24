@@ -118,6 +118,32 @@ describe('walking the footpaths', () => {
     expect(w.economy.monthlyTotals[LedgerCategory.RideTickets]).toBe(0);
   });
 
+  it('keeps a far destination while the walk keeps getting closer', () => {
+    const w = flatWorld(72);
+    layPath(w, row(5, 2, 58));
+    layPath(w, row(5, 59, 60), true);
+    layPath(w, [[61, 4]]);
+    openRide(
+      w,
+      RideType.MerryGoRound,
+      [60, 4],
+      [60, 5],
+      [61, 4],
+      [
+        [59, 5],
+        [58, 5],
+      ],
+    );
+    const slot = guestAt(w, 2, 5);
+    let dropped = false;
+    for (let i = 0; i < 4000; i++) {
+      run(w, 1);
+      if (w.guests.cols.targetRide[slot] < 0) dropped = true;
+    }
+    expect(dropped).toBe(false);
+    expect(tileOf(w, slot)[0]).toBeGreaterThan(40);
+  });
+
   it('ignores rides it cannot reach by footpath', () => {
     const w = flatWorld();
     layPath(w, row(5, 2, 6));

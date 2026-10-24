@@ -6,9 +6,11 @@ import { syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
 const RIDE_MANAGED_MIN_WAIT = 0xffff;
 /** Empty mass of one car; riders add `PASSENGER_MASS` each, so loaded trains run more freely. */
 export const CAR_MASS = 1800;
-const RIDERS_PER_CAR = 4;
+export const RIDERS_PER_CAR = 4;
 /** A train must fit inside the station piece. */
-const MAX_CARS = 5;
+export const MAX_CARS = 5;
+/** Most trains a coaster runs at once, however many block sections it has. */
+export const MAX_TRAINS_PER_RIDE = 4;
 
 export function carsForCapacity(capacity: number): number {
   return Math.max(1, Math.min(MAX_CARS, Math.ceil(capacity / RIDERS_PER_CAR)));

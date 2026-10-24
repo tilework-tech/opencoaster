@@ -17,7 +17,7 @@ import {
 } from './construction';
 import type { PlaceRequest } from './construction';
 import { MAX_TRACK_RIDES } from './track-store';
-import { PieceFlag, PieceMode, Slope, TrackResult } from './track-types';
+import { PieceFlag, PieceMode, Slope, TrackResult, TrackWarning } from './track-types';
 import type { Direction } from './track-types';
 
 export type TrackCommand = Extract<Command, { type: 'placeTrack' | 'removeTrack' }>;
@@ -69,6 +69,19 @@ export function validatePlaceCommand(world: World, req: PlaceRequest): TrackResu
   return TrackResult.Ok;
 }
 
+/** The warning for a piece that would follow a chain lift's last piece onto an inversion. */
+function placementWarning(
+  world: World,
+  c: Extract<TrackCommand, { type: 'placeTrack' }>,
+): TrackWarning | null {
+  const t = world.track;
+  const tail = t.tail[c.rideId];
+  if (tail < 0 || !(PIECES[c.pieceType].flags & PieceFlag.Inverted)) return null;
+  const cols = t.pieces.cols;
+  const previous = t.pieces.idToSlot[tail];
+  return cols.mode[previous] === PieceMode.ChainLift ? TrackWarning.LiftIntoInversion : null;
+}
+
 function applyPlace(world: World, c: Extract<TrackCommand, { type: 'placeTrack' }>): TrackResult {
   const req: PlaceRequest = {
     rideId: c.rideId,
@@ -94,12 +107,16 @@ function applyPlace(world: World, c: Extract<TrackCommand, { type: 'placeTrack' 
 /** Applies a track command; the outcome is recorded in `world.track.lastResult` and feedback. */
 export function applyTrackCommand(world: World, c: TrackCommand): TrackResult {
   let result: TrackResult;
+  let code: number;
   if (c.type === 'placeTrack') {
+    const warning = placementWarning(world, c);
     result = applyPlace(world, c);
+    code = result === TrackResult.Ok && warning !== null ? warning : result;
   } else {
     result = removeTrack(world, c.rideId, c.pieceId);
     if (result === TrackResult.Ok) invalidateRideTest(world, c.rideId);
+    code = result;
   }
-  reportFeedback(world.feedback, FeedbackDomain.Track, result, c.rideId);
+  reportFeedback(world.feedback, FeedbackDomain.Track, code, c.rideId);
   return result;
 }

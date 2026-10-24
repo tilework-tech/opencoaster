@@ -10,8 +10,10 @@ import type { ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 import { calculateStaffWageBill } from '../sim/staff/staff-store';
 
-export const SAVE_VERSION = 8;
-const PREVIOUS_SAVE_VERSION = 7;
+export const SAVE_VERSION = 9;
+const PREVIOUS_SAVE_VERSION = 8;
+const PRE_TRAIN_LAYOUT_SAVE_VERSION = 8;
+const PRE_APPROACH_SAVE_VERSION = 8;
 const PRE_INCOME_SAVE_VERSION = 7;
 const PRE_STAFF_CARE_SAVE_VERSION = 5;
 const PRE_RIDES_SAVE_VERSION = 3;
@@ -202,6 +204,18 @@ export function serialize(world: World): Uint8Array {
   return out;
 }
 
+/** Guest columns appended after a save's version: the approach gap. */
+function guestColumnsAbsent(version: number): number {
+  return version <= PRE_APPROACH_SAVE_VERSION ? 1 : 0;
+}
+
+/** Ride columns appended after a save's version: income, then the train layout. */
+function rideColumnsAbsent(version: number): number {
+  if (version <= PRE_INCOME_SAVE_VERSION) return 3;
+  if (version <= PRE_TRAIN_LAYOUT_SAVE_VERSION) return 2;
+  return 0;
+}
+
 export function deserialize(bytes: Uint8Array): World {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (dv.getUint32(0, true) !== MAGIC) throw new Error('Not an OpenCoaster save');
@@ -212,6 +226,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_HEADING_SAVE_VERSION,
     PRE_STAFF_CARE_SAVE_VERSION,
     6,
+    PRE_INCOME_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];
@@ -246,14 +261,13 @@ export function deserialize(bytes: Uint8Array): World {
   const guestViewEnd = guestViewStart + world.guests.arrays().length;
   const serializedViews = [
     ...allViews.slice(0, guestViewStart),
-    ...(legacyGuests ? legacyGuests.arrays() : allViews.slice(guestViewStart, guestViewEnd)),
+    ...(legacyGuests
+      ? legacyGuests.arrays()
+      : allViews.slice(guestViewStart, guestViewEnd - guestColumnsAbsent(header.version))),
     ...allViews.slice(guestViewEnd, rideViewStart),
     ...(header.version === PRE_RIDES_SAVE_VERSION
       ? legacyViews
-      : allViews.slice(
-          rideViewStart,
-          header.version <= PRE_INCOME_SAVE_VERSION ? rideViewEnd - 1 : rideViewEnd,
-        )),
+      : allViews.slice(rideViewStart, rideViewEnd - rideColumnsAbsent(header.version))),
     ...allViews.slice(rideViewEnd),
   ];
   for (const v of serializedViews) {

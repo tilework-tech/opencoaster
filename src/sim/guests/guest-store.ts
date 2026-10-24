@@ -55,6 +55,8 @@ export const GUEST_SCHEMA = {
   thought1: Uint8Array,
   thought2: Uint8Array,
   thought3: Uint8Array,
+  /** Smallest tile gap to the current destination's entrance; a closer step refreshes patience. */
+  approachGap: Uint16Array,
 } as const;
 
 export function recordThought(w: World, slot: number, thought: GuestThought): void {

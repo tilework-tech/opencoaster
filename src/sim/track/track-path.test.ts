@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../core/world';
 import { Z_STEP } from '../core/constants';
-import { PIECES, PieceId, TANGENT_ONE } from './catalog';
+import { BANK_DEG, PIECES, PieceId, TANGENT_ONE } from './catalog';
 import { getConstructionCursor, placeTrack, removeTrack } from './construction';
 import { getTrackPath } from './track-path';
 import { PieceMode, TrackResult } from './track-types';
@@ -95,7 +95,7 @@ describe('track path', () => {
     let top = 0;
     for (let i = 0; i < p.count; i++) top = Math.max(top, p.z[i]);
     expect(top).toBe((6 + 1 + 2 + 5 + 8 + 5 + 1) * Z_STEP);
-    expect(Math.max(...p.bank)).toBe(45);
+    expect(Math.max(...p.bank)).toBe(BANK_DEG);
     expect(Math.min(...p.bank)).toBe(0);
   });
 

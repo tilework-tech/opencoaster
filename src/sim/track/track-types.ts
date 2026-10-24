@@ -58,6 +58,15 @@ export const enum TrackResult {
   PieceNotAllowed = 15,
 }
 
+/**
+ * Non-blocking placement warnings. They share the track feedback domain with `TrackResult`, from a
+ * code range above the results, and accompany a placement that still succeeded.
+ */
+export const enum TrackWarning {
+  /** An inversion placed straight after a chain lift: the train can roll back if the lift is slow. */
+  LiftIntoInversion = 100,
+}
+
 /** The horizontal shape of a piece in the vocabulary of the build controls. */
 export type PieceShape =
   | 'station'

@@ -4,7 +4,14 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { PIECES } from '../sim/track/catalog';
 import { rotateTile } from '../sim/track/construction';
-import { Bank, PieceFlag, PieceMode, Slope, TrackResult } from '../sim/track/track-types';
+import {
+  Bank,
+  PieceFlag,
+  PieceMode,
+  Slope,
+  TrackResult,
+  TrackWarning,
+} from '../sim/track/track-types';
 import type { PieceShape, TrackPieceDef } from '../sim/track/track-types';
 
 export type TurnKind = PieceShape;
@@ -160,6 +167,11 @@ const TRACK_MESSAGES: Record<TrackResult, string> = {
   [TrackResult.PieceNotAllowed]: 'This ride type cannot use that piece or mode.',
 };
 
+const TRACK_WARNING_MESSAGES: Record<TrackWarning, string> = {
+  [TrackWarning.LiftIntoInversion]:
+    'Warning: an inversion straight after a chain lift can stall the train. Add speed before it.',
+};
+
 const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.Ok]: 'Done.',
   [RideResult.NoSuchRide]: 'That ride no longer exists.',
@@ -176,7 +188,9 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.Blocked]: 'Something is in the way.',
   [RideResult.InsufficientFunds]: 'Not enough cash.',
   [RideResult.OutOfBounds]: 'That is outside the map.',
-  [RideResult.TestFailed]: 'Test failed: the train stalled, crashed or never finished the lap.',
+  [RideResult.TestFailed]: 'Test failed: the train crashed or never finished the lap.',
+  [RideResult.TestStalled]:
+    'Test failed: the train stalled part way round. Give the lift more speed or move the inversion.',
   [RideResult.TestPassed]: 'Test complete: ratings updated.',
 };
 
@@ -184,6 +198,9 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
 export function feedbackMessage(domain: FeedbackDomain, code: number): FeedbackLine {
   const ok = code === 0 || code === RideResult.TestPassed;
   if (domain === FeedbackDomain.Track) {
+    if (code === TrackWarning.LiftIntoInversion) {
+      return { text: TRACK_WARNING_MESSAGES[code], ok: false };
+    }
     return { text: TRACK_MESSAGES[code as TrackResult] ?? `Track result ${code}`, ok: code === 0 };
   }
   if (domain === FeedbackDomain.Ride) {

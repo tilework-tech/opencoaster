@@ -2,6 +2,7 @@ import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import {
+  MAX_TRAINS_PER_RIDE,
   findRideTrain,
   removeRideTrains,
   rideTrainSlots,
@@ -74,6 +75,9 @@ function runTest(world: World, slot: number, rideId: number, def: RideTypeDef): 
         endTest(world, slot, rideId, RideResult.TestFailed);
       }
       break;
+    case VehicleState.Stalled:
+      endTest(world, slot, rideId, RideResult.TestStalled);
+      break;
     default:
       endTest(world, slot, rideId, RideResult.TestFailed);
   }
@@ -81,8 +85,6 @@ function runTest(world: World, slot: number, rideId: number, def: RideTypeDef): 
 
 /** A lap takes well under a minute; a train still out after this many ticks is stuck. */
 const OPERATING_TIMEOUT_TICKS = 20_000;
-/** Most trains a coaster runs at once, however many block sections it has. */
-const MAX_TRAINS = 4;
 
 /** Tracks how long the train has been out; true once it is overdue. */
 function trainOverdue(world: World, train: number): boolean {
@@ -181,6 +183,16 @@ function showPhase(world: World, slot: number, trains: readonly number[]): void 
   ride.phaseTicks[slot] = 0;
 }
 
+/**
+ * Trains the ride runs: the operator's count when set, else as many as it can. Block sections cap
+ * both, since a section holds at most one train.
+ */
+function trainTarget(world: World, slot: number, track: VehicleTrack): number {
+  const blocks = maxTrainsOnTrack(track);
+  const requested = world.rides.cols.trainCount[slot];
+  return Math.min(requested === 0 ? MAX_TRAINS_PER_RIDE : requested, blocks);
+}
+
 function operate(world: World, slot: number, rideId: number): void {
   const ride = world.rides.cols;
   const v = world.vehicles.cols;
@@ -198,11 +210,7 @@ function operate(world: World, slot: number, rideId: number): void {
     trains = [first];
   }
   const track = world.vehicleTracks?.get(rideId);
-  if (
-    track &&
-    trains.length < Math.min(MAX_TRAINS, maxTrainsOnTrack(track)) &&
-    stationZoneClear(world, track)
-  ) {
+  if (track && trains.length < trainTarget(world, slot, track) && stationZoneClear(world, track)) {
     const next = spawnRideTrain(world, rideId, VehicleState.Waiting, ride.capacity[slot]);
     if (next >= 0) trains.push(next);
   }
