@@ -30,23 +30,18 @@ import { hasParkEntrance, parkEntranceTile } from './park';
 import { exceedsNauseaLimit, intensityCeilingOf, preferredIntensityOf } from './preferences';
 import { recountRideLines } from './ride-lines';
 import { WeatherKind } from '../weather/weather';
-import { PathFlag } from '../map/tile-map';
 
 const UPDATE_STRIDE = 4;
 const GUEST_SPEED = 12;
 const TILE_CENTRE = TILE_UNITS >> 1;
-/** Needs change once per this many guest updates. */
-const NEED_DECAY_UPDATES = 8;
-/**
- * Walking costs 1 energy once per this many need steps (a power of two). At every step a guest
- * ran out of energy about 100 tiles into its walk, so rides in the far half of a park starved.
- */
-const WALK_ENERGY_STEPS = 2;
+/** Needs change once every 128 world ticks. */
+const NEED_DECAY_TICKS = 128;
 /** Happiness a ride gives: a flat part plus 1 per this many hundredths of excitement. */
 const RIDE_HAPPINESS = 8;
 const EXCITEMENT_PER_HAPPINESS = 40;
 const APPROACH_PATIENCE = 2400;
 const QUEUE_PATIENCE = 3200;
+const QUEUE_BALK_TICKS = 4300;
 const RIDE_COOLDOWN = 640;
 const HUNGER_THOUGHT = 160;
 const THIRST_THOUGHT = 160;
@@ -60,8 +55,6 @@ const MEAL_RELIEF = 176;
 const MEAL_THIRST = 32;
 const SHOP_HAPPINESS = 8;
 const STOCK_COST_PERCENT = 40;
-const LEAVE_HAPPINESS = 16;
-const LEAVE_ENERGY = 12;
 const ARRIVAL_INTERVAL = 40;
 /** Guests the park comfortably holds before arrivals taper off: a base plus what its rides add. */
 const COMFORTABLE_BASE = 30;
@@ -77,17 +70,6 @@ const RAIN_PENALTY = 1200;
 const TASTE_RANGE = 400;
 /** The swing changes every 2^TASTE_EPOCH_SHIFT ticks, so a guest does not always want the same ride. */
 const TASTE_EPOCH_SHIFT = 11;
-/** Unsheltered guests outdoors in rain lose this much happiness once per `RAIN_LOSS_PERIOD` × 16 ticks. */
-const RAIN_HAPPINESS_LOSS = 2;
-const RAIN_LOSS_PERIOD = 8;
-/** Tiles (self and four neighbours) a rain shelter covers. */
-const SHELTER_REACH: ReadonlyArray<readonly [number, number]> = [
-  [0, 0],
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
 
 export interface GuestAdmission {
   parkRating: number;
@@ -166,6 +148,8 @@ function scoreRide(world: World, slot: number, ride: number): number {
   }
   const category = rideCategory(world, ride);
   if (!isThrillCategory(category)) return NOT_OFFERED;
+  if (g.lastRide[slot] === world.rides.slotToId[ride] && !allowsRepeatRide(world, slot, ride))
+    return NOT_OFFERED;
   if (r.intensity[ride] > intensityCeilingOf(g.preferredIntensity[slot])) return TOO_INTENSE;
   if (exceedsNauseaLimit(r.nausea[ride], g.nausea[slot], g.nauseaTolerance[slot])) {
     return TOO_NAUSEOUS;
@@ -192,6 +176,24 @@ function scoreRide(world: World, slot: number, ride: number): number {
     rainPenalty +
     taste(world, slot, ride);
   return score > 0 ? score : NOT_OFFERED;
+}
+
+function allowsRepeatRide(world: World, slot: number, ride: number): boolean {
+  const g = world.guests.cols;
+  const r = world.rides.cols;
+  if (
+    r.excitement[ride] <= 0 ||
+    r.intensity[ride] > 1000 ||
+    g.happiness[slot] < 180 ||
+    g.energy[slot] < 100 ||
+    g.nausea[slot] > 160 ||
+    g.hunger[slot] < 30 ||
+    g.thirst[slot] < 20 ||
+    g.toilet[slot] > 170
+  )
+    return false;
+  const roll = world.rng.int(10_000);
+  return roll < 4960 || (roll < 7500 && g.ridesTaken[slot] <= 7);
 }
 
 function chooseRide(world: World, slot: number, tile: number): number {
@@ -258,10 +260,10 @@ function chooseDestination(world: World, slot: number, tile: number): number {
     const kiosk = nearestService(world, slot, tile, RideType.InformationKiosk);
     if (kiosk >= 0) return kiosk;
   }
-  const hungry = g.hunger[slot] >= HUNGER_SEEK;
-  const thirsty = g.thirst[slot] >= THIRST_SEEK;
+  const hungry = g.hunger[slot] <= HUNGER_SEEK;
+  const thirsty = g.thirst[slot] <= THIRST_SEEK;
   if (hungry || thirsty) {
-    const foodFirst = hungry && (!thirsty || g.hunger[slot] >= g.thirst[slot]);
+    const foodFirst = hungry && (!thirsty || g.hunger[slot] <= g.thirst[slot]);
     const first = foodFirst ? RideType.FoodStall : RideType.DrinkStall;
     const second = foodFirst ? RideType.DrinkStall : RideType.FoodStall;
     const stall = nearestService(world, slot, tile, first);
@@ -362,6 +364,8 @@ function finishRide(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
   if (ride >= 0) {
     const r = world.rides.cols;
+    g.lastRide[slot] = world.rides.slotToId[ride];
+    g.ridesTaken[slot] = Math.min(0xffff, g.ridesTaken[slot] + 1);
     g.nausea[slot] = Math.min(255, g.nausea[slot] + (r.nausea[ride] >> 4));
     g.happiness[slot] = Math.min(
       255,
@@ -425,10 +429,10 @@ function finishShopping(world: World, slot: number, ride: number): void {
     }
   } else {
     if (type === RideType.FoodStall) {
-      g.hunger[slot] = Math.max(0, g.hunger[slot] - MEAL_RELIEF);
-      g.thirst[slot] = Math.min(255, g.thirst[slot] + MEAL_THIRST);
+      g.hunger[slot] = Math.min(255, g.hunger[slot] + MEAL_RELIEF);
+      g.thirst[slot] = Math.max(0, g.thirst[slot] - MEAL_THIRST);
     } else {
-      g.thirst[slot] = Math.max(0, g.thirst[slot] - MEAL_RELIEF);
+      g.thirst[slot] = Math.min(255, g.thirst[slot] + MEAL_RELIEF);
     }
     earn(world, LedgerCategory.FoodDrinkSales, price);
     addRideIncome(world, ride, price);
@@ -477,7 +481,7 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
       return;
     }
     g.state[slot] = GuestState.Waiting;
-    g.patience[slot] = QUEUE_PATIENCE;
+    g.patience[slot] = 0;
     r.queueLength[ride]++;
   } else if (lines.serving[ride] < serviceCapacity(world, ride)) {
     beginShopping(world, slot, ride);
@@ -506,55 +510,18 @@ function leaveQueue(world: World, slot: number, gaveUp: boolean): void {
   g.state[slot] = GuestState.Wandering;
 }
 
-function nearRainShelter(world: World, tileX: number, tileY: number): boolean {
-  const map = world.map;
-  for (const [dx, dy] of SHELTER_REACH) {
-    if (!map.inBounds(tileX + dx, tileY + dy)) continue;
-    const element = map.pathElement(map.index(tileX + dx, tileY + dy), -1);
-    if (element >= 0 && (map.elFlags[element] & PathFlag.Shelter) !== 0) return true;
-  }
-  return false;
-}
-
-function exposedToRain(world: World, slot: number): boolean {
-  const g = world.guests.cols;
-  if (world.weather.kind < WeatherKind.Rain) return false;
-  if (world.umbrellas[world.guests.slotToId[slot]] !== 0) return false;
-  const state = g.state[slot];
-  if (
-    state !== GuestState.Wandering &&
-    state !== GuestState.Queuing &&
-    state !== GuestState.Waiting
-  )
-    return false;
-  return !nearRainShelter(world, g.x[slot] >> 8, g.y[slot] >> 8);
-}
-
 function ageNeeds(world: World, slot: number): void {
   const g = world.guests.cols;
   const state = g.state[slot];
-  if (
-    exposedToRain(world, slot) &&
-    ((world.tick + world.guests.slotToId[slot]) >> 4) % RAIN_LOSS_PERIOD === 0
-  ) {
-    g.happiness[slot] = Math.max(0, g.happiness[slot] - RAIN_HAPPINESS_LOSS);
-  }
-  g.hunger[slot] = Math.min(255, g.hunger[slot] + 1);
-  g.thirst[slot] = Math.min(255, g.thirst[slot] + 1);
-  g.toilet[slot] = Math.min(255, g.toilet[slot] + (g.thirst[slot] > 180 ? 2 : 1));
-  if (
-    (state === GuestState.Wandering || state === GuestState.Queuing) &&
-    (((world.tick + world.guests.slotToId[slot]) >> 5) & (WALK_ENERGY_STEPS - 1)) === 0
-  ) {
+  g.hunger[slot] = Math.max(0, g.hunger[slot] - 1);
+  g.thirst[slot] = Math.max(0, g.thirst[slot] - 1);
+  g.toilet[slot] = Math.min(255, g.toilet[slot] + (g.thirst[slot] < 75 ? 2 : 1));
+  if (state === GuestState.Wandering || state === GuestState.Queuing) {
     g.energy[slot] = Math.max(0, g.energy[slot] - 1);
   }
   g.nausea[slot] = Math.max(0, g.nausea[slot] - 1);
-  g.happiness[slot] = Math.max(
-    0,
-    g.happiness[slot] - (g.hunger[slot] > 220 || g.thirst[slot] > 220 ? 1 : 0),
-  );
-  if (g.hunger[slot] >= HUNGER_THOUGHT) recordThought(world, slot, GuestThought.Hungry);
-  else if (g.thirst[slot] >= THIRST_THOUGHT) recordThought(world, slot, GuestThought.Thirsty);
+  if (g.hunger[slot] <= HUNGER_THOUGHT) recordThought(world, slot, GuestThought.Hungry);
+  else if (g.thirst[slot] <= THIRST_THOUGHT) recordThought(world, slot, GuestThought.Thirsty);
   else if (g.toilet[slot] >= TOILET_THOUGHT) recordThought(world, slot, GuestThought.NeedsToilet);
 }
 
@@ -591,8 +558,18 @@ function loseWayOut(world: World, slot: number): void {
 function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   const g = world.guests.cols;
   tickLost(world, slot, UPDATE_STRIDE);
-  if (((world.tick + world.guests.slotToId[slot]) >> 2) % NEED_DECAY_UPDATES === 0) {
+  g.visitTicks[slot] = Math.min(0x7fffffff, g.visitTicks[slot] + UPDATE_STRIDE);
+  const guestTick = world.tick + world.guests.slotToId[slot];
+  if (guestTick > 0 && guestTick % NEED_DECAY_TICKS === 0) {
     ageNeeds(world, slot);
+  }
+  if (guestTick > 0 && guestTick % 512 === 0) {
+    const penalty =
+      (g.energy[slot] <= 50 ? 2 : 0) +
+      (g.hunger[slot] < 10 ? 1 : 0) +
+      (g.thirst[slot] < 10 ? 1 : 0) +
+      (g.toilet[slot] >= 195 ? 1 : 0);
+    g.happiness[slot] = Math.max(0, g.happiness[slot] - penalty);
   }
   const state = g.state[slot];
   if (
@@ -641,14 +618,25 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
 
   if (state === GuestState.Waiting) {
     const ride = targetRideSlot(world, slot);
-    g.patience[slot] = Math.max(0, g.patience[slot] - UPDATE_STRIDE);
-    if (ride < 0 || world.rides.cols.state[ride] !== RideState.Open || g.patience[slot] === 0) {
-      leaveQueue(world, slot, g.patience[slot] === 0);
-    } else if (
-      !isThrillCategory(rideCategory(world, ride)) &&
-      world.rideLines.serving[ride] < serviceCapacity(world, ride)
-    ) {
-      beginShopping(world, slot, ride);
+    if (ride < 0 || world.rides.cols.state[ride] !== RideState.Open) {
+      leaveQueue(world, slot, false);
+    } else if (isThrillCategory(rideCategory(world, ride))) {
+      g.patience[slot] = Math.min(0xffff, g.patience[slot] + UPDATE_STRIDE);
+      if (
+        g.happiness[slot] <= 65 &&
+        g.patience[slot] >= QUEUE_BALK_TICKS &&
+        guestTick % NEED_DECAY_TICKS === 0 &&
+        world.rng.int(10_000) < 330
+      ) {
+        leaveQueue(world, slot, true);
+      }
+    } else {
+      g.patience[slot] = Math.max(0, g.patience[slot] - UPDATE_STRIDE);
+      if (g.patience[slot] === 0) {
+        leaveQueue(world, slot, true);
+      } else if (world.rideLines.serving[ride] < serviceCapacity(world, ride)) {
+        beginShopping(world, slot, ride);
+      }
     }
     return false;
   }
@@ -683,7 +671,14 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     return false;
   }
 
-  if (g.happiness[slot] <= LEAVE_HAPPINESS || g.energy[slot] <= LEAVE_ENERGY || g.cash[slot] <= 0) {
+  const belowLeaveThresholds = g.energy[slot] < 55 || g.happiness[slot] < 45 || g.cash[slot] < 500;
+  if (
+    g.visitTicks[slot] >= 10_240 &&
+    g.targetRide[slot] < 0 &&
+    belowLeaveThresholds &&
+    guestTick % 512 === 0 &&
+    world.rng.int(10_000) < 500
+  ) {
     g.state[slot] = GuestState.Leaving;
     g.targetRide[slot] = -1;
     recordThought(world, slot, GuestThought.Leaving);

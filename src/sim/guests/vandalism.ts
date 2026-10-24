@@ -6,12 +6,11 @@ import { StaffKind } from '../staff/staff-store';
 import { GuestState } from './guest-store';
 
 const CHECK_INTERVAL = 32;
-/** Guests at or below this happiness are angry enough to vandalise. */
-export const ANGRY_HAPPINESS = 64;
+/** Each eligible walking guest has a 5% chance to vandalise on a check. */
+const VANDAL_ODDS = 20;
 /** Chebyshev tiles within which a security guard deters vandalism. */
 export const SECURITY_RADIUS = 6;
 /** Each check of an angry guest on a bench or bin breaks it with probability 1 / this. */
-const VANDAL_ODDS = 8;
 
 function securityNearby(world: World, tileX: number, tileY: number): boolean {
   const staff = world.staff.cols;
@@ -37,8 +36,8 @@ export function createVandalismSystem(): System {
       const guests = world.guests.cols;
       const map = world.map;
       for (let slot = 0; slot < world.guests.count; slot++) {
-        if (guests.happiness[slot] > ANGRY_HAPPINESS) continue;
-        if (guests.state[slot] === GuestState.Riding) continue;
+        if (guests.happiness[slot] >= 48 || guests.energy[slot] < 85) continue;
+        if (guests.state[slot] !== GuestState.Wandering || world.litter.count === 0) continue;
         const tileX = guests.x[slot] >> 8;
         const tileY = guests.y[slot] >> 8;
         if (!map.inBounds(tileX, tileY)) continue;

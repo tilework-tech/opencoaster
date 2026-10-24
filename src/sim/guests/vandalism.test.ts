@@ -5,15 +5,19 @@ import { PathFlag } from '../map/tile-map';
 import { flatWorld, guestAt, layPath, row } from '../integration/fixtures';
 import { StaffKind, spawnStaff } from '../staff/staff-store';
 import { TILE_UNITS } from '../core/constants';
+import { dropLitter, LitterKind } from './litter-store';
+import { hashWorld } from '../core/hash';
 
 const CHECK_INTERVAL = 32;
 
-function benchWorld(guestHappiness: number) {
+function benchWorld(guestHappiness: number, energy = 128, hasLitter = true) {
   const w = flatWorld(16, 6);
   layPath(w, row(6, 4, 10));
   setPathAddition(w.map, 7, 6, PathAddition.Bench);
   const guest = guestAt(w, 7, 6);
   w.guests.cols.happiness[guest] = guestHappiness;
+  w.guests.cols.energy[guest] = energy;
+  if (hasLitter) dropLitter(w, 7, 6, LitterKind.Trash);
   return w;
 }
 
@@ -30,7 +34,7 @@ function benchElement(w: ReturnType<typeof flatWorld>): number {
 }
 
 describe('vandalism', () => {
-  it('breaks a bench under an angry guest', () => {
+  it('breaks a bench under an unhappy energetic guest when the park has litter', () => {
     const w = benchWorld(20);
 
     runChecks(w, 400);
@@ -44,6 +48,32 @@ describe('vandalism', () => {
     runChecks(w, 400);
 
     expect(w.map.elFlags[benchElement(w)] & PathFlag.Bench).toBe(PathFlag.Bench);
+  });
+
+  it('does not vandalise when the guest is too tired', () => {
+    const w = benchWorld(20, 84);
+
+    runChecks(w, 1000);
+
+    expect(w.map.elFlags[benchElement(w)] & PathFlag.Bench).toBe(PathFlag.Bench);
+  });
+
+  it('does not vandalise a clean park', () => {
+    const w = benchWorld(20, 128, false);
+
+    runChecks(w, 1000);
+
+    expect(w.map.elFlags[benchElement(w)] & PathFlag.Bench).toBe(PathFlag.Bench);
+  });
+
+  it('makes the same vandalism decisions for the same seed', () => {
+    const first = benchWorld(20);
+    const second = benchWorld(20);
+
+    runChecks(first, 400);
+    runChecks(second, 400);
+
+    expect(hashWorld(first)).toBe(hashWorld(second));
   });
 
   it('is deterred by a security guard within six tiles', () => {

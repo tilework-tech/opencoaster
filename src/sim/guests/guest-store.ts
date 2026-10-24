@@ -68,6 +68,10 @@ export const GUEST_SCHEMA = {
   lostTicks: Uint16Array,
   /** 1 once the guest owns a park map. */
   hasMap: Uint8Array,
+  /** Total ticks spent in the park. */
+  visitTicks: Uint32Array,
+  ridesTaken: Uint16Array,
+  lastRide: Int32Array,
 } as const;
 
 export function recordThought(w: World, slot: number, thought: GuestThought): void {
@@ -112,12 +116,17 @@ export function spawnGuest(w: World): boolean {
   g.cols.heading[slot] = HEADING_NONE;
   g.cols.tint[slot] = w.rng.int(8);
   g.cols.happiness[slot] = 96 + w.rng.int(96);
-  g.cols.energy[slot] = 220 + w.rng.int(36);
-  g.cols.hunger[slot] = w.rng.int(64);
-  g.cols.thirst[slot] = w.rng.int(64);
-  g.cols.nauseaTolerance[slot] = 96 + w.rng.int(160);
+  g.cols.energy[slot] = 65 + w.rng.int(64);
+  g.cols.hunger[slot] = 128 + w.rng.int(128);
+  g.cols.thirst[slot] = 128 + w.rng.int(128);
+  const toleranceRoll = w.rng.int(8);
+  g.cols.nauseaTolerance[slot] =
+    toleranceRoll === 0 ? 0 : toleranceRoll < 3 ? 1 : toleranceRoll < 6 ? 2 : 3;
   g.cols.preferredIntensity[slot] = 48 + w.rng.int(176);
   g.cols.cash[slot] = 5000 + w.rng.int(5000);
   g.cols.patience[slot] = 600;
+  g.cols.visitTicks[slot] = 0;
+  g.cols.ridesTaken[slot] = 0;
+  g.cols.lastRide[slot] = -1;
   return true;
 }

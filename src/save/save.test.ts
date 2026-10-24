@@ -15,12 +15,12 @@ import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { WeatherKind } from '../sim/weather/weather';
 
 describe('save', () => {
-  it('writes the combined guest and ride format as version 11', () => {
-    expect(SAVE_VERSION).toBe(11);
+  it('writes the combined guest and ride format as version 12', () => {
+    expect(SAVE_VERSION).toBe(12);
     const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(11);
+    expect(header.version).toBe(12);
   });
 
   it('round-trips world state exactly', () => {
@@ -76,6 +76,85 @@ describe('save', () => {
 
   it('rejects garbage input', () => {
     expect(() => deserialize(new Uint8Array(32))).toThrow();
+  });
+});
+
+describe('save: guest history and satiation migration', () => {
+  it.each([8, 9, 10, 11])(
+    'migrates version %s guest columns and hunger/thirst scale',
+    (version) => {
+      const world = flatWorld(16);
+      const guest = guestAt(world, 4, 5);
+      world.guests.cols.hunger[guest] = 30;
+      world.guests.cols.thirst[guest] = 50;
+      world.guests.cols.approachGap[guest] = 12;
+      const views = [
+        ...world.map.arrays(),
+        ...world.guests.arrays(),
+        ...world.staff.arrays(),
+        ...world.vehicles.arrays(),
+        ...world.litter.arrays(),
+        ...world.rides.arrays(),
+        ...world.track.pieces.arrays(),
+        ...world.track.rideTables(),
+      ];
+      const absent = [
+        world.guests.cols.visitTicks,
+        world.guests.cols.ridesTaken,
+        world.guests.cols.lastRide,
+        ...(version <= 9 ? navigationColumns(world) : []),
+        ...(version === 8
+          ? [
+              world.guests.cols.approachGap,
+              world.rides.cols.trainCount,
+              world.rides.cols.carsPerTrain,
+            ]
+          : []),
+        ...(version <= 10 ? reliabilityColumns(world) : []),
+      ];
+      const oldSave = withoutColumns(serialize(world), version, views, absent);
+
+      const loaded = deserialize(oldSave);
+
+      expect(loaded.guests.cols.hunger[guest]).toBe(225);
+      expect(loaded.guests.cols.thirst[guest]).toBe(205);
+      expect(loaded.guests.cols.visitTicks[guest]).toBe(0);
+      expect(loaded.guests.cols.ridesTaken[guest]).toBe(0);
+      expect(loaded.guests.cols.lastRide[guest]).toBe(-1);
+      expect(loaded.guests.cols.approachGap[guest]).toBe(version === 8 ? 0xffff : 12);
+    },
+  );
+
+  it('maps legacy nausea tolerance bytes back into the four audited buckets', () => {
+    const world = flatWorld(16);
+    const oldValues = [96, 116, 156, 216];
+    oldValues.forEach((value, index) => {
+      const guest = guestAt(world, 4 + index, 5);
+      world.guests.cols.nauseaTolerance[guest] = value;
+    });
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const oldSave = withoutColumns(serialize(world), 9, views, [
+      world.guests.cols.visitTicks,
+      world.guests.cols.ridesTaken,
+      world.guests.cols.lastRide,
+      ...navigationColumns(world),
+      ...reliabilityColumns(world),
+    ]);
+
+    const loaded = deserialize(oldSave);
+
+    expect(Array.from(loaded.guests.cols.nauseaTolerance.slice(0, oldValues.length))).toEqual([
+      0, 1, 2, 3,
+    ]);
   });
 });
 
@@ -362,6 +441,9 @@ describe('save: version 4 migration', () => {
       ...world.track.rideTables(),
     ];
     const legacy = withoutColumns(serialize(world), 8, views, [
+      world.guests.cols.visitTicks,
+      world.guests.cols.ridesTaken,
+      world.guests.cols.lastRide,
       world.guests.cols.approachGap,
       ...navigationColumns(world),
       world.rides.cols.trainCount,
@@ -393,7 +475,12 @@ describe('save: version 4 migration', () => {
       ...world.track.pieces.arrays(),
       ...world.track.rideTables(),
     ];
-    const legacy = withoutColumns(serialize(world), 9, views, navigationColumns(world));
+    const legacy = withoutColumns(serialize(world), 9, views, [
+      ...navigationColumns(world),
+      world.guests.cols.visitTicks,
+      world.guests.cols.ridesTaken,
+      world.guests.cols.lastRide,
+    ]);
 
     const loaded = deserialize(legacy);
 
@@ -425,7 +512,12 @@ describe('save: version 4 migration', () => {
       ...world.track.pieces.arrays(),
       ...world.track.rideTables(),
     ];
-    const legacy = withoutColumns(serialize(world), 10, views, reliabilityColumns(world));
+    const legacy = withoutColumns(serialize(world), 10, views, [
+      ...reliabilityColumns(world),
+      world.guests.cols.visitTicks,
+      world.guests.cols.ridesTaken,
+      world.guests.cols.lastRide,
+    ]);
 
     const loaded = deserialize(legacy);
 
@@ -456,6 +548,9 @@ describe('save: version 4 migration', () => {
       ...world.track.rideTables(),
     ];
     const legacy = withoutColumns(serialize(world), version, oldViews, [
+      world.guests.cols.visitTicks,
+      world.guests.cols.ridesTaken,
+      world.guests.cols.lastRide,
       world.guests.cols.approachGap,
       ...navigationColumns(world),
       world.rides.cols.incomeCents,

@@ -14,8 +14,9 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 11;
-const PREVIOUS_SAVE_VERSION = 10;
+export const SAVE_VERSION = 12;
+const PREVIOUS_SAVE_VERSION = 11;
+const PRE_GUEST_HISTORY_SAVE_VERSION = 11;
 /** First version whose research stores invention work units rather than cents. */
 const RESEARCH_UNITS_SAVE_VERSION = 10;
 const PRE_NAVIGATION_SAVE_VERSION = 9;
@@ -29,8 +30,34 @@ const PRE_HEADING_SAVE_VERSION = 4;
 
 /** Guest columns before `heading` was added (saves up to version 4). */
 const LEGACY_GUEST_SCHEMA = Object.fromEntries(
-  Object.entries(GUEST_SCHEMA).filter(([name]) => name !== 'heading'),
-) as Omit<typeof GUEST_SCHEMA, 'heading'>;
+  Object.entries(GUEST_SCHEMA).filter(
+    ([name]) =>
+      ![
+        'heading',
+        'approachGap',
+        'navGoal',
+        'navGap',
+        'navSteps',
+        'lostTicks',
+        'hasMap',
+        'visitTicks',
+        'ridesTaken',
+        'lastRide',
+      ].includes(name),
+  ),
+) as Omit<
+  typeof GUEST_SCHEMA,
+  | 'heading'
+  | 'approachGap'
+  | 'navGoal'
+  | 'navGap'
+  | 'navSteps'
+  | 'lostTicks'
+  | 'hasMap'
+  | 'visitTicks'
+  | 'ridesTaken'
+  | 'lastRide'
+>;
 const MAGIC = 0x56534f43; // "COSV" little-endian
 
 type StoreName = 'guests' | 'staff' | 'vehicles' | 'litter' | 'rides';
@@ -154,6 +181,24 @@ function migratePreReliabilityRides(world: World): void {
   }
 }
 
+function migrateGuestHistory(world: World, count: number): void {
+  const guests = world.guests.cols;
+  for (let slot = 0; slot < count; slot++) {
+    guests.hunger[slot] = 255 - guests.hunger[slot];
+    guests.thirst[slot] = 255 - guests.thirst[slot];
+    const oldTolerance = Math.max(96, Math.min(255, guests.nauseaTolerance[slot]));
+    const roll = Math.floor(((oldTolerance - 96) * 8) / 160);
+    guests.nauseaTolerance[slot] = roll === 0 ? 0 : roll < 3 ? 1 : roll < 6 ? 2 : 3;
+  }
+  guests.visitTicks.fill(0, 0, count);
+  guests.ridesTaken.fill(0, 0, count);
+  guests.lastRide.fill(-1, 0, count);
+}
+
+function migrateMissingApproachGap(world: World, count: number): void {
+  world.guests.cols.approachGap.fill(0xffff, 0, count);
+}
+
 const MAX_SAVED_MAP_SIDE = 512;
 const MAX_SAVED_CAPACITY = 65536;
 
@@ -221,9 +266,10 @@ export function serialize(world: World): Uint8Array {
   return out;
 }
 
-/** Guest columns appended after a save's version: the approach gap, then the five navigation columns. */
+/** Guest columns appended after a save's version: approach gap, navigation, then ride history. */
 function guestColumnsAbsent(version: number): number {
   return (
+    (version <= PRE_GUEST_HISTORY_SAVE_VERSION ? 3 : 0) +
     (version <= PRE_APPROACH_SAVE_VERSION ? 1 : 0) +
     (version <= PRE_NAVIGATION_SAVE_VERSION ? 5 : 0)
   );
@@ -252,6 +298,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_TRAIN_LAYOUT_SAVE_VERSION,
     PRE_APPROACH_SAVE_VERSION,
     PRE_NAVIGATION_SAVE_VERSION,
+    PRE_RELIABILITY_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];
@@ -312,6 +359,10 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
   if (legacyGuests) migrateLegacyGuests(world, legacyGuests, header.stores.guests.count);
   if (header.version <= PRE_RELIABILITY_SAVE_VERSION) migratePreReliabilityRides(world);
+  if (header.version <= PRE_GUEST_HISTORY_SAVE_VERSION)
+    migrateGuestHistory(world, header.stores.guests.count);
+  if (header.version <= PRE_APPROACH_SAVE_VERSION)
+    migrateMissingApproachGap(world, header.stores.guests.count);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION

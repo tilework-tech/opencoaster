@@ -25,8 +25,24 @@ export function prepareFlat(w: World): void {
 
 /** Guest store arrays in the layout used by saves before the `heading` column existed. */
 export function legacyGuestArrays(w: World): ArrayBufferView[] {
-  const headingAt = 3 + Object.keys(GUEST_SCHEMA).indexOf('heading');
-  return w.guests.arrays().filter((_, index) => index !== headingAt);
+  const columnsAbsentFromVersion3 = new Set([
+    'approachGap',
+    'navGoal',
+    'navGap',
+    'navSteps',
+    'lostTicks',
+    'hasMap',
+    'visitTicks',
+    'ridesTaken',
+    'lastRide',
+  ]);
+  const legacyColumns = Object.keys(GUEST_SCHEMA).filter(
+    (name) => name !== 'heading' && !columnsAbsentFromVersion3.has(name),
+  );
+  return [
+    ...w.guests.arrays().slice(0, 3),
+    ...legacyColumns.map((name) => w.guests.cols[name as keyof typeof GUEST_SCHEMA]),
+  ];
 }
 
 export function layPath(
