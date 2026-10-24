@@ -39,7 +39,7 @@ export class UiWindow {
   ) {
     this.root = element('section', `ui-window kind-${spec.kind}`);
     this.root.dataset.panel = spec.id;
-    this.root.setAttribute('role', 'dialog');
+    this.root.setAttribute('role', 'group');
     this.root.setAttribute('aria-label', spec.title);
     if (spec.width) this.root.style.setProperty('--w', `${spec.width}px`);
 
