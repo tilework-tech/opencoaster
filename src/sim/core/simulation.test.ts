@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from './simulation';
 import { hashWorld } from './hash';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { SALE_LAND } from '../map/tile-map';
+import { PIECES, PieceId } from '../track/catalog';
 
 function run(seed: number, ticks: number): number {
   const sim = new Simulation({ seed, width: 64, height: 64, maxGuests: 2000 });
@@ -32,6 +35,110 @@ describe('Simulation', () => {
     expect(sim.world.guests.count).toBe(0);
     sim.step();
     expect(sim.world.guests.count).toBe(5);
+  });
+
+  it('creates a ride from a command at the requested tile', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    const cash = sim.world.economy.cash;
+    sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
+
+    expect(sim.world.rides.count).toBe(0);
+    sim.step();
+
+    expect(sim.world.rides.count).toBe(1);
+    expect(sim.world.rides.cols.typeId[0]).toBe(RideType.MerryGoRound);
+    expect(sim.world.rides.cols.rideX[0]).toBe(5);
+    expect(sim.world.rides.cols.rideY[0]).toBe(6);
+    expect(sim.world.economy.cash).toBe(cash - RIDE_CATALOG[RideType.MerryGoRound].cost);
+  });
+
+  it('does not create or charge for a ride on land the park cannot build on', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    const tile = sim.world.map.index(2, 2);
+    sim.world.map.ownership[tile] = SALE_LAND;
+    const cash = sim.world.economy.cash;
+    sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 2, y: 2 });
+
+    sim.step();
+
+    expect(sim.world.rides.count).toBe(0);
+    expect(sim.world.economy.cash).toBe(cash);
+  });
+
+  it('does not create or charge for a ride that the park cannot afford', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    sim.world.economy.cash = 0;
+    sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
+
+    sim.step();
+
+    expect(sim.world.rides.count).toBe(0);
+    expect(sim.world.economy.cash).toBe(0);
+  });
+
+  it('charges the catalog cost when a track piece is placed', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    const rideId = sim.world.rides.slotToId[sim.world.rides.spawn()];
+    const piece = PIECES[PieceId.Station];
+    const z = sim.world.map.heights[sim.world.map.index(5, 6)];
+    const cash = sim.world.economy.cash;
+    sim.enqueue({
+      type: 'placeTrack',
+      rideId,
+      pieceType: piece.id,
+      x: 5,
+      y: 6,
+      z,
+      dir: 0,
+      mode: 0,
+    });
+
+    sim.step();
+
+    expect(sim.world.track.pieces.count).toBe(1);
+    expect(sim.world.economy.cash).toBe(cash - piece.cost);
+  });
+
+  it('does not place a track piece the park cannot afford', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    const rideId = sim.world.rides.slotToId[sim.world.rides.spawn()];
+    sim.world.economy.cash = 1000;
+    sim.enqueue({
+      type: 'placeTrack',
+      rideId,
+      pieceType: PieceId.Station,
+      x: 5,
+      y: 6,
+      z: sim.world.map.heights[sim.world.map.index(5, 6)],
+      dir: 0,
+      mode: 0,
+    });
+
+    sim.step();
+
+    expect(sim.world.track.pieces.count).toBe(0);
+    expect(sim.world.economy.cash).toBe(1000);
+  });
+
+  it('does not charge when a track placement is rejected', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    const rideId = sim.world.rides.slotToId[sim.world.rides.spawn()];
+    const cash = sim.world.economy.cash;
+    sim.enqueue({
+      type: 'placeTrack',
+      rideId,
+      pieceType: PieceId.Station,
+      x: -1,
+      y: 6,
+      z: 2,
+      dir: 0,
+      mode: 0,
+    });
+
+    sim.step();
+
+    expect(sim.world.track.pieces.count).toBe(0);
+    expect(sim.world.economy.cash).toBe(cash);
   });
 
   it('keeps guests inside the map', () => {

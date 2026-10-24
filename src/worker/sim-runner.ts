@@ -1,7 +1,7 @@
 import { Simulation } from '../sim/core/simulation';
 import { MAX_GUESTS, MAX_LITTER, MAX_STAFF, MAX_VEHICLES } from '../sim/core/constants';
 import { FixedStepScheduler } from './scheduler';
-import { createSnapshot, snapshotBuffers, writeSnapshot } from './snapshot';
+import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
 import type { Snapshot } from './snapshot';
 import type { FromWorker, InitMessage, ToWorker } from './protocol';
 
@@ -67,6 +67,8 @@ export class SimRunner {
           staff: MAX_STAFF,
           vehicles: MAX_VEHICLES,
           litter: MAX_LITTER,
+          rides: SNAPSHOT_RIDE_CAPACITY,
+          mapTiles: msg.width * msg.height,
         }),
       );
     }

@@ -25,6 +25,8 @@ export interface Camera {
  * instanced quads for tiles and entities, texture atlas generated procedurally).
  */
 export interface Renderer {
+  readonly backend: string;
+  readonly visibleSpriteCount: number;
   attach(canvas: HTMLCanvasElement): void;
   resize(width: number, height: number, devicePixelRatio: number): void;
   setMap(map: MapData): void;

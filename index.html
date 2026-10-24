@@ -5,28 +5,164 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenCoaster</title>
     <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        color: #f4f0dd;
+        background: #10151b;
+      }
       html,
-      body {
+      body,
+      #app {
         margin: 0;
         height: 100%;
         background: #10151b;
         overflow: hidden;
       }
+      #app {
+        position: relative;
+      }
       #game {
         display: block;
         width: 100vw;
         height: 100vh;
+        touch-action: none;
+        cursor: crosshair;
+      }
+      .game-toolbar {
+        position: fixed;
+        z-index: 5;
+        inset: 10px 10px auto 10px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        padding: 7px;
+        border: 1px solid #6f725e;
+        border-radius: 7px;
+        background: linear-gradient(#475143, #262f2b 44%, #1b2422);
+        box-shadow: 0 3px 12px #0008;
+      }
+      .game-toolbar button,
+      .info-window button {
+        min-height: 30px;
+        padding: 4px 9px;
+        border: 1px solid #879073;
+        border-radius: 4px;
+        background: linear-gradient(#647054, #3c493c);
+        color: #fff5d7;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .game-toolbar button:hover,
+      .info-window button:hover {
+        filter: brightness(1.2);
+      }
+      .game-toolbar button[aria-pressed='true'] {
+        border-color: #f1d36e;
+        background: linear-gradient(#987d38, #6c592d);
+      }
+      .tool-group,
+      .window-tools {
+        display: flex;
+        gap: 4px;
+      }
+      .tool-group {
+        padding-left: 6px;
+        border-left: 1px solid #879073;
+      }
+      .window-tools {
+        margin-left: auto;
       }
       .hud {
         position: fixed;
-        top: 8px;
-        left: 8px;
+        z-index: 4;
+        right: 12px;
+        bottom: 12px;
         margin: 0;
-        padding: 6px 8px;
+        padding: 8px 10px;
+        border: 1px solid #54636b;
+        border-radius: 5px;
         color: #cfe8ff;
-        background: rgba(0, 0, 0, 0.55);
-        font: 12px/1.4 monospace;
+        background: rgba(9, 15, 19, 0.82);
+        font:
+          11px/1.45 ui-monospace,
+          monospace;
         pointer-events: none;
+      }
+      .tool-status {
+        position: fixed;
+        z-index: 4;
+        bottom: 12px;
+        left: 12px;
+        padding: 8px 10px;
+        border: 1px solid #887b55;
+        border-radius: 5px;
+        color: #fff0bd;
+        background: rgba(20, 24, 21, 0.84);
+        font-size: 12px;
+      }
+      .info-window {
+        position: fixed;
+        z-index: 6;
+        top: 62px;
+        right: 12px;
+        width: min(260px, calc(100vw - 24px));
+        border: 1px solid #8d8b71;
+        border-radius: 6px;
+        background: #202923f2;
+        box-shadow: 0 5px 18px #0009;
+      }
+      .info-window:nth-of-type(2) {
+        top: 290px;
+      }
+      .info-window:nth-of-type(3) {
+        top: 518px;
+      }
+      .info-window header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 34px;
+        padding: 0 6px 0 10px;
+        border-bottom: 1px solid #646b59;
+        color: #fff1bf;
+        background: linear-gradient(#565f48, #353e32);
+      }
+      .info-window button {
+        min-height: 24px;
+        padding: 2px 7px;
+      }
+      .panel-content {
+        margin: 0;
+        padding: 11px;
+        color: #e1e6d8;
+        font:
+          12px/1.6 ui-monospace,
+          monospace;
+        white-space: pre-wrap;
+      }
+      @media (max-width: 760px) {
+        .game-toolbar {
+          inset: 6px 6px auto;
+          gap: 4px;
+          padding: 5px;
+        }
+        .game-toolbar button {
+          min-height: 28px;
+          padding: 4px 6px;
+          font-size: 11px;
+        }
+        .window-tools {
+          margin-left: 0;
+        }
+        .info-window {
+          top: auto;
+          right: 8px;
+          bottom: 62px;
+        }
       }
     </style>
   </head>
