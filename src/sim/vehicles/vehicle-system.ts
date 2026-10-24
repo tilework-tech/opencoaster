@@ -360,7 +360,12 @@ function updateRideTestStats(world: World, slot: number): void {
 }
 
 /** Ends a test lap at the start of a station segment and records the run's ratings. */
-function completeTestAtStation(world: World, track: VehicleTrack, slot: number, segment: number): void {
+function completeTestAtStation(
+  world: World,
+  track: VehicleTrack,
+  slot: number,
+  segment: number,
+): void {
   const cols = world.vehicles.cols;
   const point = segment * 3;
   cols.x[slot] = track.points[point];
