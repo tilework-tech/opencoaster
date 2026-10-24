@@ -3,6 +3,7 @@ import { createGuestSystem } from './guest-system';
 import { GuestState, GuestThought, spawnGuest } from './guest-store';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
 import { rideQueueCapacity } from '../rides/ride-operations';
+import { RideState } from '../rides/ride-store';
 import { RideType } from '../rides/ride-types';
 import type { World } from '../core/world';
 
@@ -31,7 +32,7 @@ function oneRide(ratings: { excitement: number; intensity: number; nausea: numbe
 }
 
 describe('ride choice against ride ratings', () => {
-  it('accepts a coaster with typical ratings', () => {
+  it('accepts a ride with coaster-like ratings', () => {
     const { world, guest, ride } = oneRide({ excitement: 526, intensity: 484, nausea: 128 });
     expect(world.guests.cols.targetRide[guest]).toBe(world.rides.slotToId[ride]);
   });
@@ -159,6 +160,61 @@ describe('park capacity', () => {
   }
 
   it('lets a park with more attractions hold more guests', () => {
-    expect(arrivals(5)).toBeGreaterThan(arrivals(0));
+    expect(arrivals(0)).toBeLessThanOrEqual(30);
+    expect(arrivals(5)).toBeGreaterThan(30);
+  });
+});
+
+describe('stall edge cases', () => {
+  function stallWithGuests(type: RideType, count: number) {
+    const world = flatWorld(24, 8);
+    layPath(world, row(5, 3, 15));
+    const stall = openRide(world, type, [8, 4], [8, 5], [9, 4]);
+    world.rides.cols.price[stall] = 0;
+    const guests: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const slot = guestAt(world, 8, 5);
+      world.guests.cols.toilet[slot] = 200;
+      world.guests.cols.hunger[slot] = 200;
+      guests.push(slot);
+    }
+    return { world, stall, guests };
+  }
+
+  it('serves two guests at once at toilets', () => {
+    const { world, guests } = stallWithGuests(RideType.Toilets, 4);
+    const system = createGuestSystem(admission);
+    let most = 0;
+    for (let i = 0; i < 400; i++) {
+      system.update(world);
+      world.tick++;
+      most = Math.max(
+        most,
+        guests.filter((g) => world.guests.cols.state[g] === GuestState.Shopping).length,
+      );
+    }
+    expect(most).toBe(2);
+  });
+
+  it('sends waiting guests away without a complaint when the stall closes', () => {
+    const { world, stall, guests } = stallWithGuests(RideType.FoodStall, 3);
+    const system = createGuestSystem(admission);
+    stepSystem(world, system, 8);
+    world.rides.cols.state[stall] = RideState.Closed;
+    stepSystem(world, system, 16);
+    for (const g of guests) {
+      expect(world.guests.cols.state[g]).not.toBe(GuestState.Waiting);
+      expect(world.guests.cols.thought0[g]).not.toBe(GuestThought.QueueTooLong);
+    }
+  });
+
+  it('keeps further guests away from a stall whose line is already long', () => {
+    const { world, stall, guests } = stallWithGuests(RideType.FoodStall, 12);
+    const system = createGuestSystem(admission);
+    stepSystem(world, system, 8);
+    const state = (g: number) => world.guests.cols.state[g];
+    expect(guests.filter((g) => state(g) === GuestState.Waiting)).toHaveLength(8);
+    expect(guests.filter((g) => state(g) === GuestState.Wandering)).toHaveLength(3);
+    expect(world.rideLines.queued[stall]).toBe(8);
   });
 });

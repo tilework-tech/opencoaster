@@ -410,13 +410,17 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
     r.queueLength[ride]++;
   } else if (lines.serving[ride] < serviceCapacity(world, ride)) {
     beginShopping(world, slot, ride);
+  } else if (lines.queued[ride] + lines.approaching[ride] > STALL_LINE_LIMIT) {
+    recordThought(world, slot, GuestThought.QueueTooLong);
+    clearDestination(world, slot);
   } else {
     g.state[slot] = GuestState.Waiting;
     g.patience[slot] = QUEUE_PATIENCE;
   }
 }
 
-function leaveQueue(world: World, slot: number): void {
+/** Drops out of a line; the guest only complains when it ran out of patience. */
+function leaveQueue(world: World, slot: number, gaveUp: boolean): void {
   const g = world.guests.cols;
   const ride = targetRideSlot(world, slot);
   if (
@@ -426,7 +430,7 @@ function leaveQueue(world: World, slot: number): void {
   ) {
     world.rides.cols.queueLength[ride]--;
   }
-  recordThought(world, slot, GuestThought.QueueTooLong);
+  if (gaveUp) recordThought(world, slot, GuestThought.QueueTooLong);
   g.targetRide[slot] = -1;
   g.state[slot] = GuestState.Wandering;
 }
@@ -525,7 +529,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     const ride = targetRideSlot(world, slot);
     g.patience[slot] = Math.max(0, g.patience[slot] - UPDATE_STRIDE);
     if (ride < 0 || world.rides.cols.state[ride] !== RideState.Open || g.patience[slot] === 0) {
-      leaveQueue(world, slot);
+      leaveQueue(world, slot, g.patience[slot] === 0);
     } else if (
       !isThrillCategory(rideCategory(world, ride)) &&
       world.rideLines.serving[ride] < serviceCapacity(world, ride)

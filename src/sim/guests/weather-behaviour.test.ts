@@ -60,11 +60,14 @@ describe('weather guest behaviour', () => {
     const cash = world.guests.cols.cash[guest];
     const update = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));
 
+    const startX = world.guests.cols.x[guest];
     for (let tick = 0; tick < 1200; tick++) {
       update.update(world);
       world.tick++;
     }
 
+    expect(world.guests.cols.x[guest]).toBeGreaterThan(startX);
+    expect(world.rides.cols.guestsServed[kiosk]).toBe(1);
     expect(world.guests.cols.state[guest]).toBe(GuestState.Wandering);
     expect(world.umbrellas[world.guests.slotToId[guest]]).toBe(1);
     expect(world.guests.cols.cash[guest]).toBe(cash - 75);

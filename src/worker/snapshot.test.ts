@@ -5,6 +5,8 @@ import { OWNED, RIGHTS_OWNED, SALE_RIGHTS } from '../sim/map/tile-map';
 import { createCoaster, buildCircuit, flatOwnedSim } from '../sim/rides/coaster-fixtures';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RideState } from '../sim/rides/ride-store';
+import { GuestState } from '../sim/guests/guest-store';
+import { flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/fixtures';
 import { RideType } from '../sim/rides/ride-types';
 import {
   RideInfo,
@@ -16,6 +18,25 @@ import {
 } from './snapshot';
 
 describe('render snapshot', () => {
+  it('publishes the whole line for a ride, not just its head of queue', () => {
+    const world = flatWorld(24, 8);
+    layPath(world, row(5, 3, 15));
+    const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
+    const id = world.rides.slotToId[ride];
+    for (let i = 0; i < 5; i++) {
+      guestAt(world, 5, 5);
+      const slot = world.guests.count - 1;
+      world.guests.cols.state[slot] = i < 2 ? GuestState.Waiting : GuestState.Queuing;
+      world.guests.cols.targetRide[slot] = id;
+    }
+    world.rides.cols.queueLength[ride] = 2;
+    const snapshot = createSnapshot({ guests: 8, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.rideInfo[ride * RIDE_INFO_STRIDE + RideInfo.QueueLength]).toBe(5);
+  });
+
   it('publishes finance values to the render snapshot', () => {
     const world = new World({ seed: 9, width: 8, height: 8 });
     world.economy.cash = 345678;

@@ -3,6 +3,7 @@ import type { EntityStore, Schema } from '../sim/core/entity-store';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
+import { recountRideLines } from '../sim/guests/ride-lines';
 import { getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
@@ -207,6 +208,7 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
 
 export function writeSnapshot(world: World, out: Snapshot): void {
   out.tick = world.tick;
+  recountRideLines(world);
   const buildableCount = Math.min(world.map.ownership.length, out.buildable.length);
   for (let i = 0; i < buildableCount; i++) out.buildable[i] = world.map.canBuild(i) ? 1 : 0;
   writeLayer(out.guests, world.guests, world.guests.cols.tint, world.guests.cols.state);
