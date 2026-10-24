@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenCoaster</title>
+    <link rel="icon" href="data:," />
     <style>
       :root {
         color-scheme: dark;
@@ -248,6 +249,176 @@
           right: 8px;
           bottom: 62px;
         }
+      }
+      [hidden] {
+        display: none !important;
+      }
+      #app.title-open .game-toolbar,
+      #app.title-open .tool-status,
+      #app.title-open .hud,
+      #app.title-open .info-window,
+      #app.title-open .objective-strip {
+        display: none;
+      }
+      .title-screen,
+      .save-menu,
+      .outcome-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(8, 12, 14, 0.78);
+      }
+      .title-panel,
+      .save-panel,
+      .outcome-dialog {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: min(580px, calc(100vw - 32px));
+        max-height: calc(100vh - 48px);
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 22px 26px;
+        border: 1px solid #879073;
+        border-radius: 10px;
+        background: linear-gradient(#2d3830, #1b2320);
+        box-shadow: 0 10px 40px #000a;
+      }
+      .title-heading {
+        margin: 0;
+        color: #fff1bf;
+        font-size: 34px;
+        letter-spacing: 0.02em;
+      }
+      .title-tagline,
+      .scenario-description,
+      .slot-meta,
+      .outcome-text,
+      .slot-empty {
+        margin: 0;
+        color: #c9d1bc;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .title-message,
+      .save-message {
+        min-height: 1.4em;
+        margin: 0;
+        color: #f3c27a;
+        font-size: 13px;
+      }
+      .menu-button {
+        align-self: flex-start;
+        min-height: 34px;
+        padding: 6px 12px;
+        border: 1px solid #879073;
+        border-radius: 5px;
+        background: linear-gradient(#647054, #3c493c);
+        color: #fff5d7;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .menu-button:hover:not(:disabled) {
+        filter: brightness(1.2);
+      }
+      .menu-button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .menu-button.secondary {
+        background: linear-gradient(#4a5246, #2c332d);
+      }
+      .scenario-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .scenario-card,
+      .slot-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid #56604d;
+        border-radius: 6px;
+        background: #1e2622;
+      }
+      .scenario-card {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .scenario-name {
+        margin: 0;
+        color: #fff1bf;
+        font-size: 18px;
+      }
+      .slot-info {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+      }
+      .slot-name {
+        color: #fff1bf;
+        overflow-wrap: anywhere;
+      }
+      .slot-actions,
+      .save-new,
+      .save-files {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .save-new .save-name {
+        flex: 1;
+        min-width: 180px;
+      }
+      .save-name {
+        min-height: 30px;
+        padding: 4px 8px;
+        border: 1px solid #879073;
+        border-radius: 4px;
+        background: #111714;
+        color: #f4f0dd;
+        font: inherit;
+      }
+      .save-header {
+        color: #fff1bf;
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .save-section {
+        margin: 6px 0 0;
+        color: #aab39a;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .objective-strip {
+        position: fixed;
+        z-index: 4;
+        top: 64px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 8px 12px;
+        border: 1px solid #887b55;
+        border-radius: 5px;
+        background: rgba(20, 24, 21, 0.86);
+        color: #fff0bd;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre;
+        pointer-events: none;
+      }
+      .outcome-heading {
+        margin: 0;
+        color: #fff1bf;
+        font-size: 24px;
       }
     </style>
   </head>

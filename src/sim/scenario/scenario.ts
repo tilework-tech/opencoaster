@@ -2,6 +2,10 @@ import type { World } from '../core/world';
 import type { LedgerCategory, PriceMode } from '../economy/ledger';
 import type { ResearchInvention } from '../research/research';
 
+/** Save-slot ids for games that are not scenarios: the development sandbox, and imported files. */
+export const SANDBOX_ID = 'sandbox';
+export const IMPORTED_ID = 'imported';
+
 export enum ObjectiveKind {
   /** Guest count reaches target by byTick. */
   Guests,
@@ -33,9 +37,18 @@ export interface ScenarioObjective {
   byTick: number;
 }
 
+export type EntranceSide = 'north' | 'east' | 'south' | 'west';
+
+/** Gate on the owned edge facing `side`, with a straight path of `length` tiles leading inward. */
+export interface ScenarioEntrance {
+  side: EntranceSide;
+  length: number;
+}
+
 export interface ScenarioDef {
   id: string;
   name: string;
+  description?: string;
   seed: number;
   mapWidth: number;
   mapHeight: number;
@@ -47,6 +60,7 @@ export interface ScenarioDef {
   admissionPrice: number;
   availableItemIds: number[];
   inventions: ResearchInvention[];
+  entrance?: ScenarioEntrance;
   objective: ScenarioObjective;
 }
 

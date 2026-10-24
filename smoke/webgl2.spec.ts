@@ -13,6 +13,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await page.goto('/');
+  await page.getByRole('button', { name: 'Sandbox' }).click();
   const hud = page.locator('.hud');
   await expect(hud).toContainText('WebGL2', { timeout: 20_000 });
 
@@ -25,6 +26,11 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
     await page.getByRole('button', { name: 'Guests +1,000' }).click();
   }
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.keyboard.press('g');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.waitForTimeout(500);
+  await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 10_000 });
 
   const frameSamples = await page.evaluate(async () => {
     const element = document.querySelector('.hud');

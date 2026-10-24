@@ -5,6 +5,9 @@ import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
+import { ScenarioStatus } from '../sim/scenario/scenario';
+import type { ScenarioObjective } from '../sim/scenario/scenario';
+import { objectiveMetric } from '../sim/scenario/scenario-system';
 
 /** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
@@ -83,6 +86,16 @@ export interface Snapshot {
   feedback: CommandFeedback;
   buildable: Uint8Array;
   park: { cash: number; loan: number; rides: number };
+  scenario: SnapshotScenario;
+}
+
+export interface SnapshotScenario {
+  status: ScenarioStatus;
+  /** Null for sandbox games, which have no objective. */
+  objective: ScenarioObjective | null;
+  /** Live figure the objective compares with its target. */
+  metric: number;
+  parkRating: number;
 }
 
 export interface SnapshotCapacities {
@@ -112,6 +125,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
     park: { cash: 0, loan: 0, rides: 0 },
+    scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
   };
 }
 
@@ -220,4 +234,9 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.park.cash = world.economy.cash;
   out.park.loan = world.economy.loan;
   out.park.rides = rides.count;
+  const scenario = world.scenario;
+  out.scenario.status = scenario.status;
+  out.scenario.objective = scenario.objective ? { ...scenario.objective } : null;
+  out.scenario.metric = scenario.objective ? objectiveMetric(world, scenario.objective) : 0;
+  out.scenario.parkRating = world.economy.parkRating;
 }

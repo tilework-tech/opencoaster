@@ -38,7 +38,7 @@ export function financePanelText(snapshot: Snapshot): string {
   return `Cash  ${formatCents(snapshot.park.cash)}\nLoan  ${formatCents(snapshot.park.loan)}`;
 }
 
-function formatCents(cents: number): string {
+export function formatCents(cents: number): string {
   const value = (cents / 100).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

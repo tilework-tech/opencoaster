@@ -118,8 +118,9 @@ export class Simulation {
   readonly world: World;
   private pending: Command[] = [];
 
-  constructor(opts: WorldOptions) {
-    this.world = new World(opts);
+  /** Accepts options for a new world, or an existing world (for example one just deserialised). */
+  constructor(opts: WorldOptions | World) {
+    this.world = opts instanceof World ? opts : new World(opts);
   }
 
   enqueue(command: Command): void {

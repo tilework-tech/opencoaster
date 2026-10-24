@@ -16,26 +16,36 @@ export const scenarioSystem: System = {
   },
 };
 
-export function meetsObjective(world: World, o: ScenarioObjective): boolean {
+/** The live figure an objective compares with its target (guests, park value, and so on). */
+export function objectiveMetric(world: World, o: ScenarioObjective): number {
   const l = world.economy;
-  const guests = world.guests.count;
   switch (o.kind) {
     case ObjectiveKind.Guests:
-      return guests >= o.target;
-    case ObjectiveKind.ParkValue:
-      return parkValueOf(guests, l.inputs) >= o.target;
     case ObjectiveKind.GuestsAndRating:
-      return guests >= o.target && l.parkRating >= o.rating;
+      return world.guests.count;
+    case ObjectiveKind.ParkValue:
     case ObjectiveKind.RepayLoanAndParkValue:
-      return l.loan === 0 && parkValueOf(guests, l.inputs) >= o.target;
+      return parkValueOf(world.guests.count, l.inputs);
     case ObjectiveKind.MonthlyIncome: {
       let net = 0;
       for (let c = 0; c < LedgerCategory.COUNT; c++) {
         if ((o.categoryMask >>> c) & 1) net += completedMonthTotal(l, c, 0);
       }
-      return net >= o.target;
+      return net;
     }
     case ObjectiveKind.QualifyingRides:
-      return l.inputs.qualifyingRideCount >= o.target;
+      return l.inputs.qualifyingRideCount;
+  }
+}
+
+export function meetsObjective(world: World, o: ScenarioObjective): boolean {
+  const metric = objectiveMetric(world, o) >= o.target;
+  switch (o.kind) {
+    case ObjectiveKind.GuestsAndRating:
+      return metric && world.economy.parkRating >= o.rating;
+    case ObjectiveKind.RepayLoanAndParkValue:
+      return metric && world.economy.loan === 0;
+    default:
+      return metric;
   }
 }

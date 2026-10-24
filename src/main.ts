@@ -6,26 +6,57 @@ import type { Rotation } from './render/projection';
 import { Hud } from './ui/hud';
 import { GameUI } from './ui/game-ui';
 import type { GuestSelection, ToolMode } from './ui/game-ui';
+import { TitleScreen } from './ui/title-screen';
+import { SaveMenu } from './ui/save-menu';
+import { ScenarioDialog } from './ui/scenario-dialog';
+import { downloadBytes } from './ui/dom';
+import { loadSettings, saveSettings } from './ui/settings';
+import type { GameSpeed } from './ui/settings';
 import { DEFAULT_MAP_SIZE, TILE_UNITS } from './sim/core/constants';
 import { CoasterPanel } from './ui/coaster-panel';
 import { TrackPreviewOverlay } from './ui/track-preview';
+import { SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
+import { IMPORTED_ID, SANDBOX_ID } from './sim/scenario/scenario';
+import { ScenarioStatus } from './sim/scenario/scenario';
+import type { ScenarioDef } from './sim/scenario/scenario';
+import { createMemorySlotStore, openIndexedDbSlotStore } from './save/slot-store';
+import type { SaveSlotMeta, SlotStore } from './save/slot-store';
+import { defaultSlotName, exportFileName, saveGameToSlot } from './save/game-saves';
+import { summarizeSave } from './save/save';
 
 const root = document.getElementById('app') as HTMLElement;
 const selection = createRenderer(document.getElementById('game') as HTMLCanvasElement);
 const canvas = selection.canvas;
 const renderer = selection.renderer;
 
-const sim = new SimClient({
-  seed: 1,
-  width: DEFAULT_MAP_SIZE,
-  height: DEFAULT_MAP_SIZE,
-  initialGuests: 1000,
-});
+const sim = new SimClient();
 sim.onMap = (map) => renderer.setMap(map);
+
+const { store: slots, note: storeNote } = await openSlotStore();
+
+interface GameInfo {
+  scenarioId: string;
+  scenarioName: string;
+}
+
+/**
+ * The game the player is in. `resumed` marks a loaded game whose outcome has not been seen
+ * active yet: if it is already finished, the objective strip states the result and no dialog opens.
+ */
+interface Session extends GameInfo {
+  outcomeShown: boolean;
+  resumed: boolean;
+}
+
+const settings = loadSettings();
+let speed: GameSpeed = settings.speed;
+let userPaused = settings.paused;
+let lastSentPause: boolean | null = null;
+let session: Session | null = null;
+sim.setSpeed(speed);
 
 const camera: Camera = { x: 0, y: (DEFAULT_MAP_SIZE * 32) / 2, zoom: 1, rotation: 0 };
 const hud = new Hud(root);
-let paused = false;
 let selectedTool: ToolMode = 'select';
 let selectedGuest: GuestSelection | null = null;
 const coasterPanel = new CoasterPanel(root, {
@@ -38,11 +69,14 @@ const coasterPanel = new CoasterPanel(root, {
 const trackPreview = new TrackPreviewOverlay(root);
 const gameUi = new GameUI(root, {
   setPaused(value) {
-    paused = value;
-    sim.setPaused(value);
+    userPaused = value;
+    persistSettings();
+    syncPause();
   },
-  setSpeed(speed) {
-    sim.setSpeed(speed);
+  setSpeed(next) {
+    speed = next as GameSpeed;
+    sim.setSpeed(next);
+    persistSettings();
   },
   rotate(direction) {
     camera.rotation = ((camera.rotation + direction + 4) % 4) as Rotation;
@@ -54,7 +88,195 @@ const gameUi = new GameUI(root, {
   spawnGuests() {
     sim.command({ type: 'spawnGuests', count: 1000 });
   },
+  openMenu() {
+    openSaveMenu();
+  },
 });
+gameUi.syncPaused(userPaused);
+
+const outcomeDialog = new ScenarioDialog(root);
+const outcomeActions = {
+  keepPlaying() {
+    outcomeDialog.hide();
+    syncPause();
+  },
+  openMenu() {
+    outcomeDialog.hide();
+    openSaveMenu();
+  },
+  backToTitle() {
+    goToTitle();
+  },
+};
+
+const titleScreen = new TitleScreen(root, SCENARIOS, slots, {
+  newGame: (def) => startNewGame(def),
+  sandbox: () => startSandbox(),
+  loadSlot: (slot) => void loadSlotFromTitle(slot),
+  importFile: (file) => void importFromTitle(file),
+});
+
+const saveMenu = new SaveMenu(root, slots, {
+  save: async (id, name) => {
+    const current = requireSession();
+    await saveGameToSlot(sim, slots, {
+      id,
+      name,
+      scenarioId: current.scenarioId,
+      savedAt: Date.now(),
+    });
+  },
+  load: async (slot) => {
+    await loadBytes((await requireSlot(slot.id)).bytes, gameOf(slot));
+  },
+  remove: async (slot) => {
+    await slots.remove(slot.id);
+  },
+  exportFile: async () => {
+    const current = requireSession();
+    downloadBytes(await sim.save(), exportFileName(current.scenarioId, Date.now()));
+  },
+  importFile: async (file) => {
+    await loadBytes(new Uint8Array(await file.arrayBuffer()), {
+      scenarioId: IMPORTED_ID,
+      scenarioName: scenarioDisplayName(IMPORTED_ID),
+    });
+  },
+  backToTitle: () => goToTitle(),
+});
+
+function persistSettings(): void {
+  saveSettings({ speed, paused: userPaused });
+}
+
+function overlayOpen(): boolean {
+  return titleScreen.visible || saveMenu.isOpen || outcomeDialog.visible;
+}
+
+/** The worker pauses while the player has paused or a menu/outcome dialog is open. */
+function syncPause(): void {
+  const effective = userPaused || overlayOpen();
+  if (effective === lastSentPause) return;
+  lastSentPause = effective;
+  sim.setPaused(effective);
+}
+
+function begin(game: GameInfo, resumed: boolean): void {
+  session = { ...game, outcomeShown: false, resumed };
+  selectedGuest = null;
+  root.classList.remove('title-open');
+  titleScreen.hide();
+  saveMenu.close();
+  outcomeDialog.hide();
+  syncPause();
+}
+
+function startNewGame(def: ScenarioDef): void {
+  sim.startGame({
+    seed: def.seed,
+    width: def.mapWidth,
+    height: def.mapHeight,
+    initialGuests: 0,
+    scenario: def,
+  });
+  begin({ scenarioId: def.id, scenarioName: def.name }, false);
+}
+
+function startSandbox(): void {
+  sim.startGame({
+    seed: 1,
+    width: DEFAULT_MAP_SIZE,
+    height: DEFAULT_MAP_SIZE,
+    initialGuests: 1000,
+  });
+  begin({ scenarioId: SANDBOX_ID, scenarioName: scenarioDisplayName(SANDBOX_ID) }, false);
+}
+
+async function loadBytes(bytes: Uint8Array, game: GameInfo): Promise<void> {
+  // Check the header before the worker is touched, so a bad file leaves the current game running.
+  summarizeSave(bytes);
+  // No game is current while the load is in flight, so a save cannot be labelled with the old scenario.
+  const previous = session;
+  session = null;
+  try {
+    await sim.load(bytes);
+  } catch (err) {
+    session = previous;
+    throw err;
+  }
+  begin(game, true);
+}
+
+async function loadSlotFromTitle(slot: SaveSlotMeta): Promise<void> {
+  try {
+    await loadBytes((await requireSlot(slot.id)).bytes, gameOf(slot));
+  } catch (err) {
+    titleScreen.showError(`Could not load that save: ${(err as Error).message}`);
+  }
+}
+
+async function importFromTitle(file: File): Promise<void> {
+  try {
+    await loadBytes(new Uint8Array(await file.arrayBuffer()), {
+      scenarioId: IMPORTED_ID,
+      scenarioName: scenarioDisplayName(IMPORTED_ID),
+    });
+  } catch (err) {
+    titleScreen.showError(`Could not import that file: ${(err as Error).message}`);
+  }
+}
+
+function openSaveMenu(): void {
+  const current = session;
+  if (!current) return;
+  saveMenu.open({
+    scenarioName: current.scenarioName,
+    defaultSlotName: defaultSlotName(current.scenarioName, Date.now()),
+  });
+  syncPause();
+}
+
+function goToTitle(): void {
+  session = null;
+  saveMenu.close();
+  outcomeDialog.hide();
+  root.classList.add('title-open');
+  titleScreen.show();
+  syncPause();
+}
+
+function requireSession(): Session {
+  if (!session) throw new Error('No game is running.');
+  return session;
+}
+
+async function requireSlot(id: string) {
+  const slot = await slots.get(id);
+  if (!slot) throw new Error('That save no longer exists.');
+  return slot;
+}
+
+function gameOf(slot: SaveSlotMeta): GameInfo {
+  return {
+    scenarioId: slot.scenarioId,
+    scenarioName: scenarioDisplayName(slot.scenarioId),
+  };
+}
+
+async function openSlotStore(): Promise<{ store: SlotStore; note: string }> {
+  try {
+    return { store: await openIndexedDbSlotStore(), note: '' };
+  } catch (err) {
+    return {
+      store: createMemorySlotStore(),
+      note: `Saved games will not persist in this browser: ${(err as Error).message}`,
+    };
+  }
+}
+
+root.classList.add('title-open');
+titleScreen.show();
+if (storeNote) titleScreen.showError(storeNote);
 
 function resize(): void {
   renderer.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
@@ -69,18 +291,24 @@ window.addEventListener('keydown', (event) => {
   keys.add(key);
   if (key === 'q') camera.rotation = ((camera.rotation + 3) % 4) as Rotation;
   if (key === 'e') camera.rotation = ((camera.rotation + 1) % 4) as Rotation;
-  if (key === 'g') sim.command({ type: 'spawnGuests', count: 1000 });
   const onControl =
-    event.target instanceof HTMLButtonElement || event.target instanceof HTMLSelectElement;
-  if (selectedTool === 'track' && !onControl && key === 'enter') coasterPanel.placeAtCursor();
-  if (selectedTool === 'track' && !onControl && key === 'backspace') {
+    event.target instanceof HTMLButtonElement ||
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLSelectElement ||
+    event.target instanceof HTMLTextAreaElement;
+  if (key === 'g' && session && !overlayOpen() && !onControl) {
+    sim.command({ type: 'spawnGuests', count: 1000 });
+  }
+  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'enter')
+    coasterPanel.placeAtCursor();
+  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'backspace') {
     event.preventDefault();
     coasterPanel.removeLast();
   }
-  if (key === ' ') {
+  if (key === ' ' && session && !overlayOpen()) {
     event.preventDefault();
     gameUi.togglePause();
-    gameUi.setToolStatus(paused ? 'Simulation paused.' : 'Simulation resumed.');
+    gameUi.setToolStatus(userPaused ? 'Simulation paused.' : 'Simulation resumed.');
   }
 });
 window.addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
@@ -230,6 +458,18 @@ function frame(now: number): void {
   if (keys.has('d')) camera.x += pan;
   if (keys.has('w')) camera.y -= pan;
   if (keys.has('s')) camera.y += pan;
+  const latest = sim.latest;
+  if (session && latest) {
+    if (latest.scenario.status === ScenarioStatus.Active) {
+      session.resumed = false;
+    } else if (!session.outcomeShown) {
+      session.outcomeShown = true;
+      if (!session.resumed) {
+        outcomeDialog.show(latest.scenario.status, session.scenarioName, outcomeActions);
+      }
+    }
+  }
+  syncPause();
   const renderStart = performance.now();
   renderer.draw(sim.latest, camera);
   renderMs = performance.now() - renderStart;

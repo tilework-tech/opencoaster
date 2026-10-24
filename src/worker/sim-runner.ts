@@ -1,5 +1,8 @@
 import { Simulation } from '../sim/core/simulation';
+import type { World } from '../sim/core/world';
 import { MAX_GUESTS, MAX_LITTER, MAX_STAFF, MAX_VEHICLES } from '../sim/core/constants';
+import { prepareScenario } from '../sim/scenario/scenario-layout';
+import { deserialize, serialize } from '../save/save';
 import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
 import type { Snapshot } from './snapshot';
@@ -20,6 +23,8 @@ export class SimRunner {
   private sim: Simulation | null = null;
   private readonly sched = new FixedStepScheduler();
   private pool: Snapshot[] = [];
+  /** Tile count the pooled snapshots were sized for; a larger map replaces the pool. */
+  private poolTiles = 0;
   private emaMs = 0;
   private maxMs = 0;
   private lastStats = 0;
@@ -45,7 +50,13 @@ export class SimRunner {
         this.sched.paused = msg.paused;
         break;
       case 'recycle':
-        this.pool.push(msg.snapshot);
+        if (msg.snapshot.buildable.length >= this.poolTiles) this.pool.push(msg.snapshot);
+        break;
+      case 'save':
+        this.save();
+        break;
+      case 'load':
+        this.load(msg.bytes);
         break;
     }
   }
@@ -57,23 +68,60 @@ export class SimRunner {
       height: msg.height,
       maxGuests: msg.maxGuests,
     });
-    this.sim = sim;
+    if (msg.scenario) prepareScenario(sim.world, msg.scenario);
     sim.enqueue({ type: 'spawnGuests', count: msg.initialGuests });
+    this.start(sim);
+    this.port.post({ type: 'ready' });
+  }
+
+  private save(): void {
+    if (!this.sim) {
+      this.fail('save', 'No game is running.');
+      return;
+    }
+    const bytes = serialize(this.sim.world);
+    this.port.post({ type: 'saved', bytes }, [bytes.buffer as ArrayBuffer]);
+  }
+
+  private load(bytes: Uint8Array): void {
+    let world: World;
+    try {
+      world = deserialize(bytes);
+    } catch (err) {
+      this.fail('load', err instanceof Error ? err.message : String(err));
+      return;
+    }
+    this.start(new Simulation(world));
+    this.port.post({ type: 'loaded' });
+  }
+
+  private fail(request: 'save' | 'load', message: string): void {
+    this.port.post({ type: 'error', request, message });
+  }
+
+  /** Makes `sim` the running game: sizes the snapshot pool to its map and publishes the map. */
+  private start(sim: Simulation): void {
+    this.sim = sim;
+    this.ensurePool(sim.world.map.width * sim.world.map.height);
+    this.postMap(sim);
+  }
+
+  private ensurePool(mapTiles: number): void {
+    if (this.poolTiles >= mapTiles) return;
+    this.poolTiles = mapTiles;
     this.pool = [];
     for (let i = 0; i < SNAPSHOT_POOL; i++) {
       this.pool.push(
         createSnapshot({
-          guests: msg.maxGuests ?? MAX_GUESTS,
+          guests: MAX_GUESTS,
           staff: MAX_STAFF,
           vehicles: MAX_VEHICLES,
           litter: MAX_LITTER,
           rides: SNAPSHOT_RIDE_CAPACITY,
-          mapTiles: msg.width * msg.height,
+          mapTiles,
         }),
       );
     }
-    this.postMap(sim);
-    this.port.post({ type: 'ready' });
   }
 
   private postMap(sim: Simulation): void {
