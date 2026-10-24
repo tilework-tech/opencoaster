@@ -28,11 +28,16 @@ import { createMemorySlotStore, openIndexedDbSlotStore } from './save/slot-store
 import type { SaveSlotMeta, SlotStore } from './save/slot-store';
 import { defaultSlotName, exportFileName, saveGameToSlot } from './save/game-saves';
 import { summarizeSave } from './save/save';
+import { registerPwa } from './pwa/register';
+import { capDevicePixelRatio, zoomCameraAt } from './input/camera-controls';
+import { PointerInput } from './input/pointer-input';
+import type { PointerSample } from './input/pointer-input';
 
 const root = document.getElementById('app') as HTMLElement;
 const selection = createRenderer(document.getElementById('game') as HTMLCanvasElement);
 const canvas = selection.canvas;
 const renderer = selection.renderer;
+registerPwa();
 
 const sim = new SimClient();
 sim.onMap = (map) => {
@@ -60,6 +65,7 @@ interface Session extends GameInfo {
 const settings = loadSettings();
 let speed: GameSpeed = settings.speed;
 let userPaused = settings.paused;
+let hiddenPaused = document.visibilityState === 'hidden';
 let lastSentPause: boolean | null = null;
 let session: Session | null = null;
 sim.setSpeed(speed);
@@ -223,7 +229,7 @@ function overlayOpen(): boolean {
 
 /** The worker pauses while the player has paused or a menu/outcome dialog is open. */
 function syncPause(): void {
-  const effective = userPaused || overlayOpen();
+  const effective = userPaused || hiddenPaused || overlayOpen();
   if (effective === lastSentPause) return;
   lastSentPause = effective;
   sim.setPaused(effective);
@@ -348,10 +354,20 @@ titleScreen.show();
 if (storeNote) titleScreen.showError(storeNote);
 
 function resize(): void {
-  renderer.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+  const rect = canvas.getBoundingClientRect();
+  const dpr = capDevicePixelRatio(window.devicePixelRatio || 1);
+  renderer.resize(rect.width, rect.height, dpr);
 }
 window.addEventListener('resize', resize);
+window.visualViewport?.addEventListener('resize', resize);
+screen.orientation?.addEventListener('change', resize);
+new ResizeObserver(resize).observe(canvas);
 resize();
+
+document.addEventListener('visibilitychange', () => {
+  hiddenPaused = document.visibilityState === 'hidden';
+  syncPause();
+});
 
 const keys = new Set<string>();
 window.addEventListener('keydown', (event) => {
@@ -388,12 +404,11 @@ window.addEventListener(
     const rect = canvas.getBoundingClientRect();
     const localX = event.clientX - rect.left;
     const localY = event.clientY - rect.top;
-    const anchorX = camera.x + (localX - rect.width / 2) / camera.zoom;
-    const anchorY = camera.y + (localY - rect.height / 2) / camera.zoom;
-    camera.zoom = stepZoom(camera.zoom, wheelAccum < 0 ? 1 : -1);
+    zoomCameraAt(camera, stepZoom(camera.zoom, wheelAccum < 0 ? 1 : -1), localX, localY, {
+      width: rect.width,
+      height: rect.height,
+    });
     wheelAccum = 0;
-    camera.x = anchorX - (localX - rect.width / 2) / camera.zoom;
-    camera.y = anchorY - (localY - rect.height / 2) / camera.zoom;
   },
   { passive: false },
 );
@@ -415,40 +430,76 @@ function centreOnTile(x: number, y: number): void {
   camera.y = out[1];
 }
 
-let pointerDown: { id: number; x: number; y: number; moved: boolean } | null = null;
-const touches = new Map<number, { x: number; y: number }>();
-let pinchBase = 0;
-/** Finger-spread ratio that counts as one zoom step. */
-const PINCH_STEP = 1.4;
-function pinchDistance(): number {
-  const [a, b] = [...touches.values()];
-  return Math.hypot(a.x - b.x, a.y - b.y);
+function localPosition(x: number, y: number): [number, number] {
+  const rect = canvas.getBoundingClientRect();
+  return [x - rect.left, y - rect.top];
 }
+
+function pointerSample(event: PointerEvent): PointerSample {
+  return {
+    pointerId: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+    pointerType: event.pointerType,
+    shiftKey: event.shiftKey,
+  };
+}
+
+let pinchStartZoom: number | null = null;
+let lastPaintTile: string | null = null;
+const pointerInput = new PointerInput({
+  tool: () => selectedTool,
+  pan(dx, dy) {
+    camera.x -= dx / camera.zoom;
+    camera.y -= dy / camera.zoom;
+  },
+  zoomStart() {
+    pinchStartZoom = camera.zoom;
+  },
+  zoom(scale, x, y) {
+    if (pinchStartZoom === null) return;
+    const [localX, localY] = localPosition(x, y);
+    const rect = canvas.getBoundingClientRect();
+    zoomCameraAt(camera, pinchStartZoom * scale, localX, localY, {
+      width: rect.width,
+      height: rect.height,
+    });
+  },
+  zoomEnd() {
+    pinchStartZoom = null;
+  },
+  rotate(direction) {
+    camera.rotation = ((camera.rotation + direction + 4) % 4) as Rotation;
+  },
+  tap(x, y, shiftKey) {
+    handleCanvasClick(x, y, shiftKey);
+  },
+  hold(x, y) {
+    handleCanvasClick(x, y, false, true);
+  },
+  paint(x, y, shiftKey) {
+    const map = sim.map;
+    if (!map) return;
+    const [localX, localY] = localPosition(x, y);
+    const rect = canvas.getBoundingClientRect();
+    const tile = pickTile(localX, localY, map, camera, {
+      width: rect.width,
+      height: rect.height,
+    });
+    if (!tile) return;
+    const key = `${tile[0]}:${tile[1]}`;
+    if (key === lastPaintTile) return;
+    lastPaintTile = key;
+    handleCanvasClick(x, y, shiftKey);
+  },
+});
 canvas.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0) return;
-  if (event.pointerType === 'touch') {
-    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (touches.size === 2) {
-      pinchBase = pinchDistance();
-      if (pointerDown) pointerDown.moved = true;
-    }
-  }
-  if (touches.size > 1) return;
-  pointerDown = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  lastPaintTile = null;
+  pointerInput.pointerDown(pointerSample(event));
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', (event) => {
-  if (touches.has(event.pointerId)) {
-    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (touches.size === 2 && pinchBase > 0) {
-      const ratio = pinchDistance() / pinchBase;
-      if (ratio >= PINCH_STEP || ratio <= 1 / PINCH_STEP) {
-        camera.zoom = stepZoom(camera.zoom, ratio > 1 ? 1 : -1);
-        pinchBase = pinchDistance();
-      }
-      return;
-    }
-  }
   if (selectedTool === 'track' && sim.map) {
     const rect = canvas.getBoundingClientRect();
     coasterPanel.setHover(
@@ -458,33 +509,26 @@ canvas.addEventListener('pointermove', (event) => {
       }),
     );
   }
-  if (!pointerDown || pointerDown.id !== event.pointerId) return;
-  const dx = event.clientX - pointerDown.x;
-  const dy = event.clientY - pointerDown.y;
-  if (Math.abs(dx) + Math.abs(dy) > 6) pointerDown.moved = true;
-  if (!pointerDown.moved) return;
-  camera.x -= event.movementX / camera.zoom;
-  camera.y -= event.movementY / camera.zoom;
+  pointerInput.pointerMove(pointerSample(event));
 });
 canvas.addEventListener('pointerup', (event) => {
-  touches.delete(event.pointerId);
-  if (!pointerDown || pointerDown.id !== event.pointerId) return;
-  if (!pointerDown.moved) handleCanvasClick(event);
-  pointerDown = null;
+  pointerInput.pointerUp(pointerSample(event));
 });
-canvas.addEventListener('pointercancel', (event) => {
-  touches.delete(event.pointerId);
-  pointerDown = null;
-});
+canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
 
-function handleCanvasClick(event: PointerEvent): void {
+function handleCanvasClick(
+  clientX: number,
+  clientY: number,
+  shiftKey = false,
+  forceSelect = false,
+): void {
   const rect = canvas.getBoundingClientRect();
-  const localX = event.clientX - rect.left;
-  const localY = event.clientY - rect.top;
+  const localX = clientX - rect.left;
+  const localY = clientY - rect.top;
   const map = sim.map;
   if (!map) return;
   const tile = pickTile(localX, localY, map, camera, { width: rect.width, height: rect.height });
-  if (selectedTool !== 'select') {
+  if (selectedTool !== 'select' && !forceSelect) {
     if (!tile) {
       gameUi.setToolStatus(
         `${selectedTool[0].toUpperCase()}${selectedTool.slice(1)} tool · outside the park map.`,
@@ -493,7 +537,7 @@ function handleCanvasClick(event: PointerEvent): void {
     }
     const [x, y] = tile;
     if (selectedTool === 'land') {
-      const lower = event.shiftKey || alternate;
+      const lower = shiftKey || alternate;
       const origin = Math.floor((brush - 1) / 2);
       sim.command({
         type: lower ? 'lowerLand' : 'raiseLand',
@@ -527,9 +571,9 @@ function handleCanvasClick(event: PointerEvent): void {
       });
       gameUi.setToolStatus(`${selectedTool} placement requested at ${x}, ${y}.`);
     } else if (selectedTool === 'flowerbed') {
-      sim.command({ type: 'setFlowerBed', x, y, enabled: !(event.shiftKey || alternate) });
+      sim.command({ type: 'setFlowerBed', x, y, enabled: !(shiftKey || alternate) });
       gameUi.setToolStatus(
-        `${event.shiftKey || alternate ? 'Flower bed removal' : 'Flower bed planting'} requested at ${x}, ${y}.`,
+        `${shiftKey || alternate ? 'Flower bed removal' : 'Flower bed planting'} requested at ${x}, ${y}.`,
       );
     } else if (selectedTool === 'patrol') {
       if (patrolKind === null) {
@@ -541,10 +585,10 @@ function handleCanvasClick(event: PointerEvent): void {
         kind: patrolKind,
         x,
         y,
-        enabled: !(event.shiftKey || alternate),
+        enabled: !(shiftKey || alternate),
       });
       gameUi.setToolStatus(
-        `${event.shiftKey || alternate ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
+        `${shiftKey || alternate ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
       );
     } else if (selectedTool === 'ride') {
       if (ridePlacement) {
@@ -687,7 +731,7 @@ function frame(now: number): void {
     sim.map ?? { width: 0, height: 0 },
     camera,
     { width: rect.width, height: rect.height },
-    window.devicePixelRatio || 1,
+    capDevicePixelRatio(window.devicePixelRatio || 1),
   );
   requestAnimationFrame(frame);
 }

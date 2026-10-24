@@ -1,4 +1,6 @@
-import { defineConfig } from 'vitest/config';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { defineConfig, type Plugin } from 'vitest/config';
 
 // COOP/COEP make the page cross-origin isolated, which unlocks SharedArrayBuffer and
 // high-resolution timers. The current transport (transferable snapshots) does not require
@@ -9,7 +11,44 @@ const isolationHeaders = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
+const workerSource = readFileSync(resolve('src/pwa/service-worker.js'), 'utf8');
+
+function publicFiles(directory: string, prefix = ''): string[] {
+  return readdirSync(directory).flatMap((name) => {
+    const absolutePath = resolve(directory, name);
+    const relativePath = `${prefix}${name}`;
+    return statSync(absolutePath).isDirectory()
+      ? publicFiles(absolutePath, `${relativePath}/`)
+      : [`/${relativePath}`];
+  });
+}
+
+function pwaPlugin(): Plugin {
+  return {
+    name: 'opencoaster-pwa',
+    configureServer(server) {
+      server.middlewares.use('/service-worker.js', (_request, response) => {
+        response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+        response.setHeader('Service-Worker-Allowed', '/');
+        response.end(workerSource.replace('self.__PRECACHE_URLS__', JSON.stringify(['/'])));
+      });
+    },
+    generateBundle(_options, bundle) {
+      const urls = Object.keys(bundle)
+        .filter((fileName) => fileName !== 'service-worker.js')
+        .map((fileName) => `/${fileName}`);
+      urls.push('/index.html', '/', ...publicFiles(resolve('public')));
+      this.emitFile({
+        type: 'asset',
+        fileName: 'service-worker.js',
+        source: workerSource.replace('self.__PRECACHE_URLS__', JSON.stringify(urls)),
+      });
+    },
+  };
+}
+
 export default defineConfig({
+  plugins: [pwaPlugin()],
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
   worker: { format: 'es' },

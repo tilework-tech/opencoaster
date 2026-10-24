@@ -14,6 +14,7 @@ Path: @/src/render
 - [renderer.ts](renderer.ts) defines the renderer boundary. [src/worker](../worker/docs.md) publishes map geometry separately from changing simulation snapshots so renderers never access worker-owned world state.
 - [projection.ts](projection.ts) provides world projection and tile picking used by rendering and build input; [create-renderer.ts](create-renderer.ts) handles WebGL setup and the Canvas2D fallback.
 - The canvas is layered with DOM controls and overlays. The responsive toolbar's horizontal scrolling is styled in [index.html](../../index.html) and covered by the [mobile toolbar browser check](../../e2e/mobile-toolbar.spec.ts).
+- The input camera helpers in [src/input](../input/docs.md) preserve the world point under a zoom anchor and cap device pixel ratio before passing viewport dimensions to `Renderer.resize`; pointer and picking math remain in CSS pixels.
 
 ### Core Implementation
 
