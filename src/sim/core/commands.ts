@@ -10,7 +10,18 @@ export type Command =
   | { type: 'spawnStaff'; count: number; kind: number }
   | { type: 'setTileHeight'; x: number; y: number; height: number }
   | { type: 'economy'; action: EconomyAction }
-  | { type: 'research'; action: ResearchAction };
+  | { type: 'research'; action: ResearchAction }
+  | {
+      type: 'placeTrack';
+      rideId: number;
+      pieceType: number;
+      x: number;
+      y: number;
+      z: number;
+      dir: number;
+      mode: number;
+    }
+  | { type: 'removeTrack'; rideId: number; pieceId: number };
 
 export interface TimedCommand {
   tick: number;

@@ -11,7 +11,13 @@ export function hashWorld(world: World): number {
   };
   mix(world.tick);
   for (const w of world.rng.state) mix(w);
-  for (const store of [world.guests, world.staff, world.vehicles, world.litter]) {
+  for (const store of [
+    world.guests,
+    world.staff,
+    world.vehicles,
+    world.litter,
+    world.track.pieces,
+  ]) {
     mix(store.count);
     for (const key of Object.keys(store.cols)) {
       const col = (store.cols as unknown as Record<string, Int32Array>)[key];
@@ -52,5 +58,10 @@ export function hashWorld(world: World): number {
   const s = world.scenario;
   mix(s.status);
   if (s.objective) for (const v of Object.values(s.objective)) mix(v);
+  for (const table of world.track.rideTables()) {
+    const t = table as Int32Array;
+    for (let i = 0; i < t.length; i++) mix(t[i]);
+  }
+  mix(world.track.lastResult);
   return h >>> 0;
 }
