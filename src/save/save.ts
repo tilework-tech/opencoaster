@@ -6,7 +6,7 @@ import { restoreResearch, saveResearch } from '../sim/research/research';
 import type { ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 const MAGIC = 0x56534f43; // "COSV" little-endian
 
 type StoreName = 'guests' | 'staff' | 'vehicles' | 'litter' | 'rides';

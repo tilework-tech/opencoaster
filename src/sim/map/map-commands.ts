@@ -1,5 +1,5 @@
 import type { World } from '../core/world';
-import { LedgerCategory, record } from '../economy/ledger';
+import { LedgerCategory, post } from '../economy/ledger';
 import { lowerLand, paintLand, raiseLand, setTileHeight, setWaterLevel } from './land';
 import { placePath, removePath } from './paths';
 import {
@@ -29,8 +29,8 @@ function canAfford(w: World, cents: number): boolean {
   return w.economy.cash >= cents;
 }
 
-function charge(w: World, cents: number): void {
-  record(w.economy, LedgerCategory.Construction, -cents);
+function charge(w: World, category: LedgerCategory, cents: number): void {
+  post(w.economy, category, -cents);
 }
 
 /** Tiles in the rectangle that the purchase would acquire. */
@@ -73,13 +73,14 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       if (!canAfford(w, cost)) break;
       const edit = c.type === 'raiseLand' ? raiseLand : lowerLand;
       const corner = c.corner === undefined ? undefined : c.corner | 0;
-      if (edit(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, corner)) charge(w, cost);
+      if (edit(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, corner))
+        charge(w, LedgerCategory.Landscaping, cost);
       break;
     }
     case 'setWater':
       if (canAfford(w, LAND_EDIT_COST_CENTS)) {
         if (setWaterLevel(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, c.level | 0)) {
-          charge(w, LAND_EDIT_COST_CENTS);
+          charge(w, LedgerCategory.Landscaping, LAND_EDIT_COST_CENTS);
         }
       }
       break;
@@ -87,7 +88,8 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       paintLand(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, c.surface | 0);
       break;
     case 'placePath':
-      if (canAfford(w, PATH_COST_CENTS) && placePath(m, c)) charge(w, PATH_COST_CENTS);
+      if (canAfford(w, PATH_COST_CENTS) && placePath(m, c))
+        charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
       break;
     case 'removePath':
       removePath(m, c);
@@ -100,7 +102,7 @@ export function applyMapCommand(w: World, c: MapCommand): void {
         (c.rights ? RIGHTS_PRICE_CENTS : LAND_PRICE_CENTS);
       if (cost > 0 && canAfford(w, cost)) {
         applyBuy(m, x, y, c.width | 0, c.height | 0, c.rights);
-        charge(w, cost);
+        charge(w, LedgerCategory.Land, cost);
       }
       break;
     }

@@ -21,7 +21,7 @@ Responsibility: the tile-element-stack map (engine spec "World grid and tile-ele
 - **Land edits** (`raiseLand`/`lowerLand`): move every vertex of an owned rectangle one level, or one corner of a single tile. Neighbouring vertices are dragged to restore the smoothness invariant (order-independent closure), which may alter unowned tiles. The edit is rolled back if any affected tile would bury or tilt an element: a path must rest on a matching surface (flat on flat, ramp on its matching slope) or sit at/above the tile's highest corner; other elements must not straddle the surface.
 - **Paths** (`placePath`/`removePath`): a piece is flat or a ramp rising one level toward a direction. Must be at or above ground per the rule above, not under water, within `MAX_ELEMENT_BASE`, and not overlap another element's range (`PATH_CLEARANCE` = 2 levels, +1 for ramps). Placing on an existing piece at the same base replaces its queue/ramp state. Pieces auto-connect to a neighbour when the shared edge heights match; ramps connect only at their two ends. Elevated pieces stack above ground pieces.
 - **Buying**: `buyLand` buys `SALE_LAND` (or `SALE_RIGHTS` with `rights`) tiles in a rectangle atomically against available cash.
-- Money goes through `record(..., LedgerCategory.Construction, -cents)`; prices are the tunable constants in `tile-map.ts`. Removing a path refunds nothing.
+- Money goes through `post(economy, category, -cents)`: `LedgerCategory.Land` for land/rights purchases, `LedgerCategory.Landscaping` for terrain, water and path edits; prices are the tunable constants in `tile-map.ts`. Removing a path refunds nothing.
 
 ## Commands (`MapCommand`, part of the core `Command` union)
 
