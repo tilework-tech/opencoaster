@@ -1,7 +1,7 @@
 import type { World } from '../core/world';
 import { WeatherKind } from '../weather/weather';
 import { StaffKind } from '../staff/staff-store';
-import { breakDownRide } from './coaster';
+import { breakDownRide, holdRideTrains, releaseHeldTrains } from './coaster';
 import { BreakdownReason, holdsRidersAboard, repairTicksFor } from './breakdown-reasons';
 import type { BreakdownWeight } from './breakdown-reasons';
 import { RidePhase, RideState } from './ride-store';
@@ -90,7 +90,8 @@ export function breakRide(world: World, slot: number, reason: BreakdownReason): 
   ride.breakdownReason[slot] = reason;
   ride.serviceTicks[slot] = 0;
   if (RIDE_CATALOG[ride.typeId[slot] as RideType].usesTrack) {
-    breakDownRide(world, slot);
+    if (holdsRidersAboard(reason)) holdRideTrains(world, slot);
+    else breakDownRide(world, slot);
     ride.phase[slot] = RidePhase.Broken;
     return;
   }
@@ -161,7 +162,8 @@ function mechanicSlot(world: World, staffId: number): number {
 
 function repair(world: World, slot: number): void {
   const ride = world.rides.cols;
-  if (ride.boarded[slot] > 0) releaseRiders(world, slot);
+  if (RIDE_CATALOG[ride.typeId[slot] as RideType].usesTrack) releaseHeldTrains(world, slot);
+  else if (ride.boarded[slot] > 0) releaseRiders(world, slot);
   ride.breakdownReason[slot] = BreakdownReason.None;
   ride.state[slot] = ride.queueConnected[slot] ? RideState.Open : RideState.Closed;
   ride.phase[slot] = ride.queueConnected[slot] ? RidePhase.Waiting : RidePhase.Closed;

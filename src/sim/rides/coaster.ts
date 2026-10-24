@@ -56,6 +56,27 @@ export function breakDownRide(world: World, slot: number): void {
 }
 
 /**
+ * Stops a coaster whose restraints or doors are locked shut. Every train freezes where it is with
+ * its riders still aboard, and stays that way until `releaseHeldTrains` after a repair.
+ */
+export function holdRideTrains(world: World, slot: number): void {
+  const ride = world.rides.cols;
+  ride.state[slot] = RideState.Broken;
+  for (const train of rideTrainSlots(world, world.rides.slotToId[slot])) {
+    world.vehicles.cols.state[train] = VehicleState.Stalled;
+  }
+  ride.breakdownCounter[slot]++;
+}
+
+/** Lets off the riders held by `holdRideTrains` and removes the trains so the ride can restart. */
+export function releaseHeldTrains(world: World, slot: number): void {
+  const rideId = world.rides.slotToId[slot];
+  world.rides.cols.state[slot] = RideState.Closed;
+  abortCycle(world, slot);
+  removeRideTrains(world, rideId);
+}
+
+/**
  * Called when a ride's track changes: the earlier test no longer describes the layout, so the
  * ride closes, loses its trains and must be tested again before it can reopen.
  */
