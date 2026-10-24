@@ -7,6 +7,9 @@ import { Hud } from './ui/hud';
 import { GameUI } from './ui/game-ui';
 import type { GuestSelection, ToolMode } from './ui/game-ui';
 import { DEFAULT_MAP_SIZE, TILE_UNITS } from './sim/core/constants';
+import { RideType } from './sim/rides/ride-types';
+import { PieceId } from './sim/track/catalog';
+import { PIECES } from './sim/track/catalog';
 
 const root = document.getElementById('app') as HTMLElement;
 const selection = createRenderer(document.getElementById('game') as HTMLCanvasElement);
@@ -112,11 +115,72 @@ function handleCanvasClick(event: PointerEvent): void {
   if (!map) return;
   const tile = pickTile(localX, localY, map, camera, { width: rect.width, height: rect.height });
   if (selectedTool !== 'select') {
-    gameUi.setToolStatus(
-      tile
-        ? `${selectedTool[0].toUpperCase()}${selectedTool.slice(1)} tool · tile ${tile[0]}, ${tile[1]} · placement command is not available yet.`
-        : `${selectedTool[0].toUpperCase()}${selectedTool.slice(1)} tool · outside the park map.`,
-    );
+    if (!tile) {
+      gameUi.setToolStatus(
+        `${selectedTool[0].toUpperCase()}${selectedTool.slice(1)} tool · outside the park map.`,
+      );
+      return;
+    }
+    const [x, y] = tile;
+    if (selectedTool === 'land') {
+      sim.command({ type: event.shiftKey ? 'lowerLand' : 'raiseLand', x, y, width: 1, height: 1 });
+      gameUi.setToolStatus(
+        `${event.shiftKey ? 'Lowering' : 'Raising'} land at ${x}, ${y}. Hold Shift to lower.`,
+      );
+    } else if (selectedTool === 'path') {
+      sim.command({ type: 'placePath', x, y });
+      gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
+    } else if (selectedTool === 'ride') {
+      sim.command({ type: 'createRide', rideType: RideType.MerryGoRound, x, y });
+      gameUi.setToolStatus(`Merry-Go-Round placement requested at ${x}, ${y}.`);
+    } else {
+      const rides = sim.latest?.rides;
+      if (!rides || rides.count === 0) {
+        gameUi.setToolStatus('Track geometry prototype: place a ride first.');
+        return;
+      }
+      const rideId = rides.data[3];
+      const trackLayer = sim.latest?.tracks;
+      let hasTrack = false;
+      if (trackLayer) {
+        for (let i = 0; i < trackLayer.count; i++) {
+          if (trackLayer.data[i * 4 + 3] >>> 16 === rideId) {
+            hasTrack = true;
+            break;
+          }
+        }
+      }
+      const pieceType = hasTrack ? PieceId.Flat : PieceId.Station;
+      const buildable = sim.latest?.buildable;
+      for (const cell of PIECES[pieceType].footprint) {
+        const footprintX = x + cell.i;
+        const footprintY = y + cell.j;
+        if (
+          !buildable ||
+          footprintX < 0 ||
+          footprintX >= map.width ||
+          footprintY < 0 ||
+          footprintY >= map.height ||
+          !buildable[footprintY * map.width + footprintX]
+        ) {
+          gameUi.setToolStatus('Track placement needs owned land or construction rights.');
+          return;
+        }
+      }
+      sim.command({
+        type: 'placeTrack',
+        rideId,
+        pieceType,
+        x,
+        y,
+        z: map.heights[y * map.width + x],
+        dir: 0,
+        mode: 0,
+      });
+      gameUi.setToolStatus(
+        `Track geometry prototype: ${hasTrack ? 'track' : 'station'} placement requested at ${x}, ${y}.`,
+      );
+    }
     return;
   }
   const guestDetails = findGuestAt(localX, localY, rect.width, rect.height, map, camera);

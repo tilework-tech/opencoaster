@@ -68,6 +68,7 @@ export class SimRunner {
           vehicles: MAX_VEHICLES,
           litter: MAX_LITTER,
           rides: SNAPSHOT_RIDE_CAPACITY,
+          mapTiles: msg.width * msg.height,
         }),
       );
     }

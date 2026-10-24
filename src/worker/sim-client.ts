@@ -43,7 +43,9 @@ export class SimClient {
           recycled.litter,
           recycled.rides,
           recycled.tracks,
-        ].map((l) => l.data.buffer)
+        ]
+          .map((l) => l.data.buffer)
+          .concat(recycled.buildable.buffer)
       : [];
     this.worker.postMessage(msg, transfer);
   }

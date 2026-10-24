@@ -4,29 +4,30 @@ Path: @/src/worker
 
 ### Overview
 
-- This module runs the authoritative simulation off the browser main thread and defines its message boundary.
-- It publishes map data once and pooled, transferable render snapshots as simulation ticks advance.
-- Main-thread UI and rendering consume snapshots and stats without reading worker-owned simulation objects.
+- Runs the authoritative simulation off the browser main thread and defines its message boundary.
+- Sends map geometry as needed and pooled, transferable render snapshots as simulation ticks advance.
+- Lets the main-thread UI and renderer consume snapshots and statistics without reading worker-owned simulation objects.
 
 ### How it fits into the larger codebase
 
-- [SimClient](sim-client.ts) starts [sim.worker.ts](sim.worker.ts), sends commands and scheduler controls, and receives map data, snapshots, and stats.
-- [SimRunner](sim-runner.ts) owns the [Simulation](../sim/core/simulation.ts) and advances it through [FixedStepScheduler](scheduler.ts); `pump()` runs due ticks, updates timing statistics, and publishes a snapshot when a pooled buffer is available.
-- [snapshot.ts](snapshot.ts) translates simulation entity columns into the render-facing data format consumed by [src/render](../render/docs.md) and the information panels in [src/ui](../ui/docs.md).
-- The pool uses transferable `ArrayBuffer`s and recycle messages: the worker transfers a snapshot to the main thread, and the client returns the previously consumed buffers for reuse.
+- [SimClient](sim-client.ts) starts [sim.worker.ts](sim.worker.ts), sends commands and scheduler controls, and receives map data, snapshots, and statistics.
+- [SimRunner](sim-runner.ts) owns the [Simulation](../sim/core/simulation.ts) and advances it through [FixedStepScheduler](scheduler.ts). Its pump applies due ticks, updates timing statistics, and publishes a snapshot when a pooled buffer is available.
+- [snapshot.ts](snapshot.ts) translates simulation entity columns into the render-facing format consumed by [src/render](../render/docs.md) and information panels in [src/ui](../ui/docs.md). It also publishes a per-tile buildability view for main-thread placement feedback.
+- Snapshot buffers travel as transferable `ArrayBuffer`s. The client returns consumed buffers to the worker for reuse, keeping the simulation thread as the sole owner of live world state.
 
 ### Core Implementation
 
 - [protocol.ts](protocol.ts) defines initialization, simulation command, speed, pause, recycle, map, snapshot, and stats messages.
-- Each snapshot layer stores a count and a typed array with four `Int32` values per entity: fixed-point x, y, z, then packed state and tint/kind. The worker publishes rides at their entrances, track pieces from `world.track.pieces`, and a park summary with cash, loan, and ride count.
-- Track positions are tile-centered and include height; the packed value carries direction and piece type for rendering. The renderers draw this layer alongside terrain and other entities.
-- Static map dimensions, heights, surface classes, and slope masks travel in a separate map message. Periodic stats report tick, guest count, smoothed and peak simulation cost, and dropped ticks.
+- A snapshot layer has a count and four `Int32` values per entity. For guests, staff, vehicles, and litter, the values are fixed-point x, y, z, then packed state and tint or kind. Ride and track layers use their fourth value for renderer metadata.
+- Ride entries are positioned at their entrances and carry the stable ride ID in the fourth value. Track entries carry tile-centered position and height; their fourth value packs ride ID in the high 16 bits, direction in the next 8 bits, and piece type in the low 8 bits.
+- The snapshot also includes a park summary with cash, loan, and ride count. Static map dimensions, heights, surface classes, and slope masks travel in a separate map message. Periodic statistics report tick, guest count, smoothed and peak simulation cost, and dropped ticks.
+- `buildable` is a `Uint8Array` indexed by map tile. Each snapshot fills it from the map's `canBuild` result, representing owned land or construction rights for that tile.
 
 ### Things to Know
 
-- Snapshot buffers, including the track-piece layer, are transferred rather than copied; after transfer, the sender's typed-array backing buffers are detached until they are returned through a recycle message.
-- Three snapshots are pooled per run. If no free snapshot is available after ticks advance, publication is skipped, allowing the simulation to keep moving while the main thread catches up.
-- Ride rendering data is capped by the snapshot ride capacity. `rides.count` in the park summary reflects the simulation count, while the ride layer count reflects how many rides fit in the output buffer.
-- The track layer has a fixed pooled capacity. Its snapshot count is capped by that buffer's capacity, and its backing buffer follows the same transfer and recycle lifecycle as the other entity layers.
+- Snapshot buffers, including the track-piece layer and per-tile `buildable` array, are transferred rather than copied. After transfer, the sender's typed-array backing buffers are detached until the client returns them in a recycle message.
+- Three snapshots are pooled per run. If none is free after simulation ticks advance, publication is skipped so the simulation can continue while the main thread catches up.
+- Ride rendering entries expose stable IDs rather than ride state or type. The UI uses these IDs to associate track pieces with a ride; ride type and operating state remain in the simulation state.
+- Ride and track layer counts are capped by their output-buffer capacities, while the park summary's ride count reflects the full simulation count. The track layer and `buildable` array follow the same pooled transfer and recycle lifecycle as the other snapshot buffers.
 
 Created and maintained by Nori.

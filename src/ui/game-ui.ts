@@ -26,7 +26,7 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   land: 'Land',
   path: 'Path',
   ride: 'Ride',
-  track: 'Track',
+  track: 'Track prototype',
 };
 
 export class GameUI {
@@ -146,7 +146,9 @@ export class GameUI {
     this.status.textContent =
       tool === 'select'
         ? 'Select a guest or tile. Drag to pan; wheel to zoom.'
-        : `${TOOL_LABELS[tool]} tool selected. Placement will activate when the simulation command is available.`;
+        : tool === 'land'
+          ? 'Land tool selected. Click to raise; Shift-click to lower.'
+          : `${TOOL_LABELS[tool]} tool selected. Click a tile to place.`;
   }
 
   private togglePanel(id: string, title: string): void {

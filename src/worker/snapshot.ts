@@ -2,7 +2,7 @@ import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
 import { MAX_TRACK_PIECES } from '../sim/track/track-store';
 
-/** Ints per entity in a layer: x, y, z (fixed-point), then (state << 8) | tint/kind. */
+/** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
 export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
@@ -20,6 +20,7 @@ export interface Snapshot {
   litter: SnapshotLayer;
   rides: SnapshotLayer;
   tracks: SnapshotLayer;
+  buildable: Uint8Array;
   park: { cash: number; loan: number; rides: number };
 }
 
@@ -30,6 +31,7 @@ export interface SnapshotCapacities {
   litter: number;
   rides?: number;
   tracks?: number;
+  mapTiles?: number;
 }
 
 export function createSnapshot(caps: SnapshotCapacities): Snapshot {
@@ -45,14 +47,15 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     litter: layer(caps.litter),
     rides: layer(caps.rides ?? SNAPSHOT_RIDE_CAPACITY),
     tracks: layer(caps.tracks ?? SNAPSHOT_TRACK_CAPACITY),
+    buildable: new Uint8Array(caps.mapTiles ?? 0),
     park: { cash: 0, loan: 0, rides: 0 },
   };
 }
 
 export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
-  return [s.guests, s.staff, s.vehicles, s.litter, s.rides, s.tracks].map(
-    (l) => l.data.buffer as ArrayBuffer,
-  );
+  return [s.guests, s.staff, s.vehicles, s.litter, s.rides, s.tracks]
+    .map((l) => l.data.buffer as ArrayBuffer)
+    .concat(s.buildable.buffer as ArrayBuffer);
 }
 
 type PosCols = { x: Int32Array; y: Int32Array; z: Int32Array };
@@ -77,6 +80,8 @@ function writeLayer<S extends Schema>(
 
 export function writeSnapshot(world: World, out: Snapshot): void {
   out.tick = world.tick;
+  const buildableCount = Math.min(world.map.ownership.length, out.buildable.length);
+  for (let i = 0; i < buildableCount; i++) out.buildable[i] = world.map.canBuild(i) ? 1 : 0;
   writeLayer(out.guests, world.guests, world.guests.cols.tint, world.guests.cols.state);
   writeLayer(out.staff, world.staff, world.staff.cols.kind, world.staff.cols.state);
   writeLayer(out.vehicles, world.vehicles, world.vehicles.cols.state, null);
@@ -91,7 +96,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     rideData[o] = x * 256 + 128;
     rideData[o + 1] = y * 256 + 128;
     rideData[o + 2] = world.map.inBounds(x, y) ? world.map.heights[mapIndex] * 64 : 0;
-    rideData[o + 3] = (rides.cols.state[i] << 8) | (rides.cols.typeId[i] & 0xff);
+    rideData[o + 3] = rides.slotToId[i];
   }
   out.rides.count = rideCount;
   const trackPieces = world.track.pieces;
@@ -101,7 +106,10 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     trackData[o] = trackPieces.cols.x[i] * 256 + 128;
     trackData[o + 1] = trackPieces.cols.y[i] * 256 + 128;
     trackData[o + 2] = trackPieces.cols.z[i] * 64;
-    trackData[o + 3] = (trackPieces.cols.dir[i] << 8) | (trackPieces.cols.pieceType[i] & 0xff);
+    trackData[o + 3] =
+      (trackPieces.cols.rideId[i] << 16) |
+      (trackPieces.cols.dir[i] << 8) |
+      (trackPieces.cols.pieceType[i] & 0xff);
   }
   out.tracks.count = trackCount;
   out.park.cash = world.economy.cash;

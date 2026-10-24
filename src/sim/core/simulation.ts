@@ -10,8 +10,14 @@ import { staffSystem } from '../staff/staff-system';
 import { vehicleSystem } from '../vehicles/vehicle-system';
 import { litterSystem } from '../guests/litter-system';
 import { rideSystem } from '../rides/ride-system';
+import { createRide } from '../rides/ride-operations';
+import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
 import { trackSystem } from '../track/track-system';
 import { applyTrackCommand } from '../track/track-commands';
+import { PIECES } from '../track/catalog';
+import { rotateTile } from '../track/construction';
+import { Surface } from '../map/tile-map';
+import { LedgerCategory, post } from '../economy/ledger';
 import { economySystem } from '../economy/economy-system';
 import { weatherSystem } from '../weather/weather-system';
 import { researchSystem } from '../research/research-system';
@@ -35,6 +41,62 @@ export const SYSTEM_ORDER: readonly System[] = [
   economySystem,
   scenarioSystem,
 ];
+
+function applyCreateRide(w: World, type: RideType, x: number, y: number): void {
+  const definition = RIDE_CATALOG[type];
+  if (!definition || !Number.isInteger(x) || !Number.isInteger(y)) return;
+  if (w.economy.cash < definition.cost) return;
+
+  for (const [dx, dy] of definition.footprint) {
+    const tx = x + dx;
+    const ty = y + dy;
+    if (!w.map.inBounds(tx, ty)) return;
+    const tile = w.map.index(tx, ty);
+    if (!w.map.canBuild(tile)) return;
+    if (
+      w.map.surface[tile] === Surface.Path ||
+      w.map.surface[tile] === Surface.Queue ||
+      w.map.surface[tile] === Surface.Water
+    ) {
+      return;
+    }
+  }
+
+  const rides = w.rides;
+  for (let existing = 0; existing < rides.count; existing++) {
+    const existingDefinition = RIDE_CATALOG[rides.cols.typeId[existing] as RideType];
+    if (!existingDefinition) continue;
+    for (const [dx, dy] of definition.footprint) {
+      for (const [otherDx, otherDy] of existingDefinition.footprint) {
+        if (
+          x + dx === rides.cols.rideX[existing] + otherDx &&
+          y + dy === rides.cols.rideY[existing] + otherDy
+        ) {
+          return;
+        }
+      }
+    }
+  }
+
+  const trackPieces = w.track.pieces;
+  for (let existing = 0; existing < trackPieces.count; existing++) {
+    const trackDefinition = PIECES[trackPieces.cols.pieceType[existing]];
+    for (const [dx, dy] of definition.footprint) {
+      for (const cell of trackDefinition.footprint) {
+        const [otherDx, otherDy] = rotateTile(cell.i, cell.j, trackPieces.cols.dir[existing]);
+        if (
+          x + dx === trackPieces.cols.x[existing] + otherDx &&
+          y + dy === trackPieces.cols.y[existing] + otherDy
+        ) {
+          return;
+        }
+      }
+    }
+  }
+
+  if (createRide(w, type, x, y) >= 0)
+    post(w.economy, LedgerCategory.RideConstruction, -definition.cost);
+}
 
 export class Simulation {
   readonly world: World;
@@ -69,6 +131,9 @@ export class Simulation {
       case 'spawnStaff':
         for (let i = 0; i < c.count; i++) if (!spawnStaff(w, c.kind)) break;
         break;
+      case 'createRide':
+        applyCreateRide(w, c.rideType, c.x, c.y);
+        break;
       default:
         applyMapCommand(w, c);
         break;
@@ -79,6 +144,15 @@ export class Simulation {
         applyResearchAction(w.research, c.action);
         break;
       case 'placeTrack':
+        {
+          const piece = PIECES[c.pieceType];
+          if (piece && w.economy.cash < piece.cost) break;
+          const countBefore = w.track.pieces.count;
+          applyTrackCommand(w, c);
+          if (piece && w.track.pieces.count > countBefore)
+            post(w.economy, LedgerCategory.RideConstruction, -piece.cost);
+        }
+        break;
       case 'removeTrack':
         applyTrackCommand(w, c);
         break;
