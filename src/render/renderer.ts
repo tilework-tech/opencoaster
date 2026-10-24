@@ -21,8 +21,8 @@ export interface Camera {
  * Rendering backend contract. The main thread owns exactly one Renderer; it never touches sim
  * state, only the immutable-for-the-frame Snapshot and the (rarely changing) MapData.
  *
- * Implementations: Canvas2DRenderer (placeholder, shipped) and WebGL2Renderer (planned:
- * instanced quads for tiles and entities, texture atlas generated procedurally).
+ * Implementations: WebGL2Renderer (primary, instanced quads for tiles and entities with a
+ * procedural atlas) and Canvas2DRenderer (fallback).
  */
 export interface Renderer {
   readonly backend: string;
