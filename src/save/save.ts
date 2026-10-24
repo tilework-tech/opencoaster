@@ -14,6 +14,7 @@ export const SAVE_VERSION = 10;
 const PREVIOUS_SAVE_VERSION = 9;
 /** First version whose research stores invention work units rather than cents. */
 const RESEARCH_UNITS_SAVE_VERSION = 10;
+const PRE_NAVIGATION_SAVE_VERSION = 9;
 const PRE_TRAIN_LAYOUT_SAVE_VERSION = 8;
 const PRE_APPROACH_SAVE_VERSION = 8;
 const PRE_INCOME_SAVE_VERSION = 7;
@@ -206,9 +207,12 @@ export function serialize(world: World): Uint8Array {
   return out;
 }
 
-/** Guest columns appended after a save's version: the approach gap. */
+/** Guest columns appended after a save's version: the approach gap, then the five navigation columns. */
 function guestColumnsAbsent(version: number): number {
-  return version <= PRE_APPROACH_SAVE_VERSION ? 1 : 0;
+  return (
+    (version <= PRE_APPROACH_SAVE_VERSION ? 1 : 0) +
+    (version <= PRE_NAVIGATION_SAVE_VERSION ? 5 : 0)
+  );
 }
 
 /** Ride columns appended after a save's version: income, then the train layout. */
@@ -230,6 +234,7 @@ export function deserialize(bytes: Uint8Array): World {
     6,
     PRE_INCOME_SAVE_VERSION,
     PRE_APPROACH_SAVE_VERSION,
+    PRE_NAVIGATION_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];

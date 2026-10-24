@@ -10,7 +10,10 @@ type RngLike = Pick<Prng, 'int'>;
 export interface NavOptions {
   /** Direction the entity just moved in; the reverse is avoided unless at a dead end. */
   fromDir: number;
-  /** Junction expansions allowed per decision. */
+  /**
+   * Junction budget per decision. A junction costs 1, or 2 when the corridor leading to it had
+   * no choice along the way; corridor tiles themselves are free.
+   */
   maxJunctions: number;
   /** Total corridor tiles one decision may traverse. */
   maxTiles: number;
@@ -40,8 +43,26 @@ export const DEFAULT_STAFF_OPTS: Readonly<NavOptions> = {
   maxTiles: 50000,
 };
 
+/** Distance score per tile: the original scores in 32-unit tiles and divides by 16. */
+const SCORE_PER_TILE = 2;
 const MAX_JUNCTIONS_CAP = QUEUE_CAP / 4;
 const INF = 0x7fffffff;
+
+/** What the last `nextDirection` call knew about a goal. */
+export const enum SearchOutcome {
+  /** No goal-directed choice was made: wandering, a single exit, or no step. */
+  Unsearched = 0,
+  /** The search ended without finding the target, so the step was a guess. */
+  Blind = 1,
+  /** The search found the target within its budget. */
+  Seen = 2,
+}
+
+let lastOutcome = SearchOutcome.Unsearched;
+
+export function lastSearchOutcome(): SearchOutcome {
+  return lastOutcome;
+}
 
 const bestScore = new Int32Array(4);
 const bestSteps = new Int32Array(4);
@@ -58,6 +79,7 @@ export function nextDirection(
   rng: RngLike,
   opts: Readonly<NavOptions> = DEFAULT_GUEST_OPTS,
 ): number {
+  lastOutcome = SearchOutcome.Unsearched;
   const graph = resolveGraph(world.map);
   const net = networkFor(graph);
   const mask = graph.edgeMask(tile);
@@ -106,10 +128,25 @@ function pickDir(mask: number, rng: RngLike): number {
   return DIR_NONE;
 }
 
-function manhattan(a: number, b: number, w: number): number {
+/** Room for the secondary gap below the primary score; maps are far smaller than this. */
+const SECONDARY_RANGE = 4096;
+
+/**
+ * Original distance score (the smaller of the x and y gaps, in score units, lower is closer),
+ * ranked first. The larger gap breaks ties between nodes level with the target on one axis,
+ * which the original's rule alone cannot tell apart.
+ */
+function distanceScore(a: number, b: number, w: number): number {
   const dx = (a % w) - (b % w);
   const dy = ((a / w) | 0) - ((b / w) | 0);
-  return (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+  const ax = dx < 0 ? -dx : dx;
+  const ay = dy < 0 ? -dy : dy;
+  return (ax < ay ? ax : ay) * SCORE_PER_TILE * SECONDARY_RANGE + (ax < ay ? ay : ax);
+}
+
+/** Budget cost of arriving at a junction through a corridor of `len` steps. */
+function junctionCost(len: number): number {
+  return len > 1 ? 2 : 1;
 }
 
 function chebyshev(a: number, b: number, w: number): number {
@@ -127,8 +164,8 @@ function offer(first: number, score: number, steps: number): void {
 
 /**
  * Breadth-first over junction nodes. Each candidate first step keeps the best (score, steps) seen
- * through it, where score is the Manhattan distance of a reached node to the target (0 = target
- * found on the way).
+ * through it, where score is the distance score of a reached node to the target (0 = target
+ * found on the way). A node is expanded only while the cost of reaching it is within the budget.
  */
 function searchDirection(
   net: PathNetwork,
@@ -170,7 +207,7 @@ function searchDirection(
   }
 
   const visit = net.newVisitSet();
-  const { qNode, qArr, qFirst, qSteps, stamp } = net;
+  const { qNode, qArr, qFirst, qSteps, qCost, stamp } = net;
   let head = 0;
   let tail = 0;
   net.stamp[start] = visit;
@@ -184,26 +221,27 @@ function searchDirection(
     }
     const e = net.walkEnd;
     if (e < 0 || net.walkLen > opts.maxTiles) continue;
-    offer(d, e === target ? 0 : manhattan(e, target, w), net.walkLen);
+    offer(d, e === target ? 0 : distanceScore(e, target, w), net.walkLen);
     if (e !== target && stamp[e] !== visit && tail < QUEUE_CAP) {
       stamp[e] = visit;
       qNode[tail] = e;
       qArr[tail] = net.walkArr;
       qFirst[tail] = d;
       qSteps[tail] = net.walkLen;
+      qCost[tail] = junctionCost(net.walkLen);
       tail++;
     }
   }
 
   const maxJ = Math.min(opts.maxJunctions, MAX_JUNCTIONS_CAP);
-  let expanded = 0;
-  while (head < tail && expanded < maxJ) {
+  while (head < tail) {
     const node = qNode[head];
     const back = oppositeDir(qArr[head]);
     const first = qFirst[head];
     const steps = qSteps[head];
+    const cost = qCost[head];
     head++;
-    expanded++;
+    if (cost > maxJ) continue;
     const m = g.edgeMask(node);
     for (let d = 0; d < 4; d++) {
       if ((m & (1 << d)) === 0 || d === back) continue;
@@ -215,13 +253,15 @@ function searchDirection(
       if (e < 0) continue;
       const total = steps + net.linkLen[node * 4 + d];
       if (total > opts.maxTiles || chebyshev(e, start, w) > opts.maxDistance) continue;
-      offer(first, e === target ? 0 : manhattan(e, target, w), total);
+      offer(first, e === target ? 0 : distanceScore(e, target, w), total);
       if (e !== target && stamp[e] !== visit && tail < QUEUE_CAP) {
         stamp[e] = visit;
         qNode[tail] = e;
         qArr[tail] = net.linkArr[node * 4 + d];
         qFirst[tail] = first;
         qSteps[tail] = total;
+        const next = cost + junctionCost(net.linkLen[node * 4 + d]);
+        qCost[tail] = next < 255 ? next : 255;
         tail++;
       }
     }
@@ -239,6 +279,7 @@ function searchDirection(
     } else if (bestScore[d] === bs && bestSteps[d] === bt) ties++;
   }
   if (ties === 0) return pickDir(cand, rng);
+  lastOutcome = bs === 0 ? SearchOutcome.Seen : SearchOutcome.Blind;
   let k = ties === 1 ? 0 : rng.int(ties);
   for (let d = 0; d < 4; d++) {
     if (bestScore[d] === bs && bestSteps[d] === bt && k-- === 0) return d;

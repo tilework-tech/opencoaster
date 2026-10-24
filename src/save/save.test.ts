@@ -6,6 +6,7 @@ import { PieceId } from '../sim/track/catalog';
 import { SAVE_VERSION, deserialize, serialize } from './save';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
+import type { World } from '../sim/core/world';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
 import { StaffKind, spawnStaff } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
@@ -177,14 +178,22 @@ describe('save: map and economy together', () => {
     const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
     const headerLen = new DataView(bytes.buffer).getUint32(4, true);
     const header = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-    // The trailing space keeps the header the same length as the current version's, so the length prefix stays valid.
-    const old = header.replace(`"version":${SAVE_VERSION}`, '"version":2 ');
+    const old = header.replace(
+      `"version":${SAVE_VERSION}`,
+      `"version":2${' '.repeat(String(SAVE_VERSION).length - 1)}`,
+    );
     expect(old).not.toBe(header);
     const patched = new Uint8Array(bytes);
     patched.set(new TextEncoder().encode(old), 8);
     expect(() => deserialize(patched)).toThrow(/Unsupported save version/);
   });
 });
+
+/** Guest columns added in save version 10. */
+function navigationColumns(world: World): ArrayBufferView[] {
+  const c = world.guests.cols;
+  return [c.navGoal, c.navGap, c.navSteps, c.lostTicks, c.hasMap];
+}
 
 /**
  * Rewrites a current save as `version` would have written it: the header carries that version and
@@ -332,6 +341,7 @@ describe('save: version 4 migration', () => {
     ];
     const legacy = withoutColumns(serialize(world), 8, views, [
       world.guests.cols.approachGap,
+      ...navigationColumns(world),
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,
     ]);
@@ -341,6 +351,32 @@ describe('save: version 4 migration', () => {
     expect(loaded.rides.cols.incomeCents[rideSlot]).toBe(99_999);
     expect(loaded.rides.cols.trainCount[rideSlot]).toBe(0);
     expect(loaded.rides.cols.carsPerTrain[rideSlot]).toBe(0);
+  });
+
+  it('migrates version 9 saves with guests that are neither lost nor holding a map', () => {
+    const world = flatWorld(16);
+    layPath(world, row(5, 2, 8));
+    const slot = guestAt(world, 2, 5);
+    world.guests.cols.happiness[slot] = 77;
+    world.guests.cols.hasMap[slot] = 1;
+    world.guests.cols.lostTicks[slot] = 500;
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const legacy = withoutColumns(serialize(world), 9, views, navigationColumns(world));
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.guests.cols.happiness[slot]).toBe(77);
+    expect(loaded.guests.cols.hasMap[slot]).toBe(0);
+    expect(loaded.guests.cols.lostTicks[slot]).toBe(0);
   });
 
   it.each([6, 7])('migrates version %s ride records with zeroed lifetime income', (version) => {
@@ -360,6 +396,7 @@ describe('save: version 4 migration', () => {
     ];
     const legacy = withoutColumns(serialize(world), version, oldViews, [
       world.guests.cols.approachGap,
+      ...navigationColumns(world),
       world.rides.cols.incomeCents,
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,

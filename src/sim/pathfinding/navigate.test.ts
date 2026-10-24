@@ -128,6 +128,37 @@ describe('nextDirection', () => {
     expect(d).not.toBe(DIR_NONE);
   });
 
+  /**
+   * Start at (0,1). East is a dead end whose tip sits beside the target column and so scores
+   * best; south then east along a row with a tooth every `gap` tiles leads round to the target.
+   */
+  function detourWorld(
+    gap: number,
+    junctions: number,
+  ): { w: ReturnType<typeof world>; target: number } {
+    const lastTooth = junctions * gap - (gap - 1);
+    const width = lastTooth + 3;
+    const cells = Array.from({ length: 6 }, () => Array<string>(width).fill('.'));
+    for (let x = 0; x <= width - 4; x++) cells[1][x] = '#';
+    for (let y = 1; y <= 3; y++) cells[y][0] = '#';
+    for (let x = 0; x <= width - 2; x++) cells[3][x] = '#';
+    for (let y = 0; y <= 3; y++) cells[y][width - 2] = '#';
+    for (let t = 1; t <= lastTooth; t += gap) cells[4][t] = '#';
+    for (let x = 1; x <= width - 3; x++) cells[5][x] = '#';
+    const w = world(cells.map((r) => r.join('')));
+    return { w, target: w.map.index(width - 2, 0) };
+  }
+
+  it('charges 1 per junction for adjacent junctions and 2 after a stretch with no choice', () => {
+    const budget = 9;
+    const opts = { ...DEFAULT_GUEST_OPTS, maxJunctions: budget, fromDir: DIR_NONE };
+    const near = detourWorld(1, 5);
+    const far = detourWorld(2, 5);
+    const start = near.w.map.index(0, 1);
+    expect(nextDirection(near.w, start, near.target, new Prng(1), opts)).toBe(DIR_S);
+    expect(nextDirection(far.w, far.w.map.index(0, 1), far.target, new Prng(1), opts)).toBe(DIR_E);
+  });
+
   it('wanders at junctions without reversing and varies by rng', () => {
     const w = world(['..#..', '#####', '..#..']);
     const seen = new Set<number>();

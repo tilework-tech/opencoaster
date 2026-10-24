@@ -34,6 +34,7 @@ export class PathNetwork {
   readonly qArr = new Uint8Array(QUEUE_CAP);
   readonly qFirst = new Uint8Array(QUEUE_CAP);
   readonly qSteps = new Int32Array(QUEUE_CAP);
+  readonly qCost = new Uint8Array(QUEUE_CAP);
 
   /** Outputs of `walk`. */
   walkEnd = NO_END;

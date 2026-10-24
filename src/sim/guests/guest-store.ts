@@ -25,6 +25,7 @@ export const enum GuestThought {
   RideEnjoyed = 6,
   QueueTooLong = 7,
   Leaving = 8,
+  Lost = 9,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */
@@ -57,6 +58,16 @@ export const GUEST_SCHEMA = {
   thought3: Uint8Array,
   /** Smallest tile gap to the current destination's entrance; a closer step refreshes patience. */
   approachGap: Uint16Array,
+  /** Tile (plus one; 0 = none) the guest's progress toward is being tracked for. */
+  navGoal: Int32Array,
+  /** Smallest tile gap to `navGoal` seen while the pathfinder could not see the goal. */
+  navGap: Uint16Array,
+  /** Tiles walked blind without getting closer to `navGoal`. */
+  navSteps: Uint16Array,
+  /** Ticks left of being lost: the guest wanders and looks for an information kiosk. */
+  lostTicks: Uint16Array,
+  /** 1 once the guest owns a park map. */
+  hasMap: Uint8Array,
 } as const;
 
 export function recordThought(w: World, slot: number, thought: GuestThought): void {
