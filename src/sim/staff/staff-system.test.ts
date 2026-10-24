@@ -80,7 +80,7 @@ describe('staff commands and work', () => {
     expect(world.litter.cols.y[0]).toBe(8 * 256 + 128);
   });
 
-  it('empties a reachable bin instead of getting stuck on a closer disconnected bin', () => {
+  it('selects and empties a reachable bin instead of a closer disconnected bin', () => {
     const sim = new Simulation({ seed: 35, width: 16, height: 16 });
     const world = sim.world;
     world.map.fillFlat(2);
@@ -102,6 +102,11 @@ describe('staff commands and work', () => {
 
     expect(world.staff.cols.targetX[0]).toBe(8);
     expect(world.staff.cols.targetY[0]).toBe(6);
+
+    for (let tick = 0; tick < 500; tick++) sim.step();
+
+    expect(world.map.elData[disconnectedBin]).toBe(4);
+    expect(world.map.elData[reachableBin]).toBe(0);
   });
 
   it('sends a mechanic to a broken ride and restores its operation', () => {

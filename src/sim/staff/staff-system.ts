@@ -158,16 +158,17 @@ export function createStaffSystem(): System {
           }
           let bin = -1;
           let binDistance = 0x7fffffff;
+          const staffTile = map.index(x, y);
           for (let i = 0; i < binCount; i++) {
             const tile = binTiles[i];
             if (area > 0 && activePatrol[tile] === 0) continue;
-            if (
-              tile !== map.index(x, y) &&
-              !isReachable(world, map.index(x, y), tile, area > 0 ? activePatrol : null)
-            )
-              continue;
             const element = binElements[i];
             if (map.elData[element] === 0) continue;
+            if (
+              tile !== staffTile &&
+              !isReachable(world, staffTile, tile, area > 0 ? activePatrol : null)
+            )
+              continue;
             const d = Math.abs((tile % map.width) - x) + Math.abs(((tile / map.width) | 0) - y);
             if (d < binDistance) {
               bin = tile;
