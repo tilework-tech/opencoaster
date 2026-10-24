@@ -16,6 +16,7 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
 | `pnpm bench`                   | sim benchmark (`-- --guests 5000 --strict`) |
 | `pnpm balance`                 | one-year balance harness (docs/BALANCE.md)  |
 | `pnpm check`                   | everything CI runs                          |
+| `pnpm smoke` / `smoke:subpath` | Playwright smoke (dev / prod build at `/opencoaster/`) |
 
 ## Layout
 

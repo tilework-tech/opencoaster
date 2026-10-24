@@ -5,7 +5,8 @@ Path: @/smoke
 ### Overview
 
 - This folder contains the quick browser smoke suite for the game renderer.
-- `pnpm smoke` runs the WebGL2 integration check with a 5,000-guest park.
+- `pnpm smoke` runs the WebGL2 integration check with a 5,000-guest park against the Vite dev server.
+- `pnpm smoke:subpath` builds `dist/`, serves it under `/opencoaster/` without cross-origin isolation headers, and runs the same suite plus `deployed-base.spec.ts`, which checks the manifest, icons, sprite atlas, and service-worker scope resolve under the deploy base.
 
 ### How it fits into the larger codebase
 
@@ -15,6 +16,7 @@ Path: @/smoke
 ### Things to Know
 
 - The smoke test captures a frame after adding 5,000 guests and asserts that WebGL2 remains active.
-- Playwright screenshots are stored in `.local/playwright-results/`.
+- Playwright screenshots are stored in `.local/playwright-results/` (dev) and `.local/playwright-results-subpath/` (subpath).
+- Specs navigate with `page.goto('./')` so the same spec runs at the origin root and under the subpath.
 
 Created and maintained by Nori.

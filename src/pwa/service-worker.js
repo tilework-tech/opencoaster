@@ -40,7 +40,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       } catch (error) {
         if (request.mode === 'navigate') {
-          const shell = await caches.match('/');
+          const shell = await caches.match(self.registration.scope);
           if (shell) return shell;
         }
         throw error;

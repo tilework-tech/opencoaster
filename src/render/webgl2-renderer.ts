@@ -419,10 +419,11 @@ export class WebGL2Renderer implements Renderer {
     if (this.atlasRequestStarted || typeof fetch !== 'function') return;
     this.atlasRequestStarted = true;
     void (async () => {
-      const manifestResponse = await fetch('/sprites/manifest.json');
+      const spritesBase = `${import.meta.env.BASE_URL}sprites/`;
+      const manifestResponse = await fetch(`${spritesBase}manifest.json`);
       if (!manifestResponse.ok) return;
       const manifest = (await manifestResponse.json()) as SpriteAtlasManifest;
-      const imageResponse = await fetch('/sprites/atlas.png');
+      const imageResponse = await fetch(`${spritesBase}atlas.png`);
       if (!imageResponse.ok) return;
       const image = await createImageBitmap(await imageResponse.blob());
       this.generatedAtlas = { image, manifest };
