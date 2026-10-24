@@ -3,15 +3,50 @@ import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
+import { FLOWER_BED } from '../sim/staff/grounds';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import type { Rotation } from './projection';
+import {
+  pathSpriteName,
+  scenerySpriteName,
+  terrainSpriteName,
+  waterFrameIndex,
+  waterSpriteName,
+} from './world-art';
 
 const CELL = 64;
 const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 5;
-const INSTANCE_FLOATS = 7;
+const INSTANCE_FLOATS = 11;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
+const TREE_NAMES = [
+  'tree-oak',
+  'tree-conifer',
+  'tree-birch',
+  'tree-blossom',
+  'tree-autumn',
+  'tree-topiary',
+] as const;
+
+interface SpriteFrame {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface SpriteEntry {
+  frames: SpriteFrame[];
+  anchor: { x: number; y: number };
+  footprint: { width: number; height: number };
+}
+
+interface SpriteAtlasManifest {
+  width: number;
+  height: number;
+  sprites: Record<string, SpriteEntry>;
+}
 
 function glslFloat(value: number): string {
   return Number.isInteger(value) ? `${value}.0` : String(value);
@@ -67,8 +102,9 @@ precision highp float;
 layout(location=0) in vec2 aCorner;
 layout(location=1) in vec3 aWorld;
 layout(location=2) in vec2 aSize;
-layout(location=3) in float aSprite;
-layout(location=4) in float aSlopeMask;
+layout(location=3) in vec4 aUvRect;
+layout(location=4) in float aTerrain;
+layout(location=5) in float aSlopeMask;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -76,7 +112,7 @@ uniform float uZoom;
 uniform float uRotation;
 out vec2 vUv;
 void main() {
-  bool terrain = aSprite < 9.0;
+  bool terrain = aTerrain > 0.5;
   vec2 worldPosition = terrain ? aWorld.xy + aCorner * ${TILE_UNITS.toFixed(1)} : aWorld.xy;
   float raisedCorner = 0.0;
   if (terrain) {
@@ -106,16 +142,12 @@ void main() {
   if (!terrain) screen += (aCorner - 0.5) * aSize * uZoom;
   gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
                      1.0 - screen.y / uViewport.y * 2.0, 0.0, 1.0);
-  float cell = floor(aSprite + 0.5);
-  float col = mod(cell, ${ATLAS_COLUMNS}.0);
-  float row = floor(cell / ${ATLAS_COLUMNS}.0);
   vec2 spriteUv = terrain
     ? vec2(0.5 + (aCorner.x - aCorner.y) * 0.4375,
            0.5 + (aCorner.x + aCorner.y - 1.0) * 0.375)
     : vec2(aCorner.x, 1.0 - aCorner.y);
-  float textureRow = ${ATLAS_ROWS - 1}.0 - row;
   float textureY = terrain ? 1.0 - spriteUv.y : spriteUv.y;
-  vUv = (vec2(col, textureRow) + vec2(spriteUv.x, textureY)) / vec2(${ATLAS_COLUMNS}.0, ${ATLAS_ROWS}.0);
+  vUv = mix(aUvRect.xy, aUvRect.zw, vec2(spriteUv.x, textureY));
 }`;
 
 const fragmentSource = `#version 300 es
@@ -137,6 +169,12 @@ export class WebGL2Renderer implements Renderer {
   private vao: WebGLVertexArrayObject | null = null;
   private instanceBuffer: WebGLBuffer | null = null;
   private texture: WebGLTexture | null = null;
+  private fallbackAtlas: HTMLCanvasElement | null = null;
+  private generatedAtlas: { image: ImageBitmap; manifest: SpriteAtlasManifest } | null = null;
+  private atlasFrames: Record<string, SpriteEntry> = {};
+  private atlasWidth = CELL * ATLAS_COLUMNS;
+  private atlasHeight = CELL * ATLAS_ROWS;
+  private atlasRequestStarted = false;
   private uniforms: {
     atlas: WebGLUniformLocation | null;
     viewport: WebGLUniformLocation | null;
@@ -201,9 +239,12 @@ export class WebGL2Renderer implements Renderer {
     const viewportHeight = canvas.height / this.dpr;
     gl.clearColor(0.06, 0.08, 0.1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    this.appendTiles(map, camera, viewportWidth, viewportHeight);
+    this.appendTiles(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
+      this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
+      this.appendGrounds(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendPathElements(map, camera, viewportWidth, viewportHeight);
+      this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
       if (snapshot.tracks)
         this.appendLayer(
@@ -316,9 +357,20 @@ export class WebGL2Renderer implements Renderer {
     gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
     this.setInstanceAttribute(1, 3, 0);
     this.setInstanceAttribute(2, 2, 3 * Float32Array.BYTES_PER_ELEMENT);
-    this.setInstanceAttribute(3, 1, 5 * Float32Array.BYTES_PER_ELEMENT);
-    this.setInstanceAttribute(4, 1, 6 * Float32Array.BYTES_PER_ELEMENT);
-    this.texture = this.createAtlasTexture();
+    this.setInstanceAttribute(3, 4, 5 * Float32Array.BYTES_PER_ELEMENT);
+    this.setInstanceAttribute(4, 1, 9 * Float32Array.BYTES_PER_ELEMENT);
+    this.setInstanceAttribute(5, 1, 10 * Float32Array.BYTES_PER_ELEMENT);
+    this.fallbackAtlas = document.createElement('canvas');
+    this.fallbackAtlas.width = CELL * ATLAS_COLUMNS;
+    this.fallbackAtlas.height = CELL * ATLAS_ROWS;
+    const fallbackContext = this.fallbackAtlas.getContext('2d');
+    if (!fallbackContext) throw new Error('Could not generate fallback sprite atlas');
+    drawAtlas(fallbackContext);
+    this.atlasWidth = this.fallbackAtlas.width;
+    this.atlasHeight = this.fallbackAtlas.height;
+    this.texture = this.createAtlasTexture(this.fallbackAtlas);
+    if (this.generatedAtlas) this.installGeneratedAtlas(this.generatedAtlas);
+    else this.loadGeneratedAtlas();
     gl.bindVertexArray(null);
   }
 
@@ -345,24 +397,17 @@ export class WebGL2Renderer implements Renderer {
     return shader;
   }
 
-  private createAtlasTexture(): WebGLTexture {
+  private createAtlasTexture(atlas: HTMLCanvasElement): WebGLTexture {
     const gl = this.gl;
     if (!gl) throw new Error('WebGL2 unavailable');
     const maxSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
-    const atlas = document.createElement('canvas');
-    atlas.width = CELL * ATLAS_COLUMNS;
-    atlas.height = CELL * ATLAS_ROWS;
     if (atlas.width > maxSize || atlas.height > maxSize)
       throw new Error('Sprite atlas exceeds GPU limit');
-    const ctx = atlas.getContext('2d');
-    if (!ctx) throw new Error('Could not generate sprite atlas');
-    drawAtlas(ctx);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     const texture = gl.createTexture();
     if (!texture) throw new Error('Could not allocate sprite atlas texture');
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, atlas.width, atlas.height);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -370,11 +415,54 @@ export class WebGL2Renderer implements Renderer {
     return texture;
   }
 
+  private loadGeneratedAtlas(): void {
+    if (this.atlasRequestStarted || typeof fetch !== 'function') return;
+    this.atlasRequestStarted = true;
+    void (async () => {
+      const manifestResponse = await fetch('/sprites/manifest.json');
+      if (!manifestResponse.ok) return;
+      const manifest = (await manifestResponse.json()) as SpriteAtlasManifest;
+      const imageResponse = await fetch('/sprites/atlas.png');
+      if (!imageResponse.ok) return;
+      const image = await createImageBitmap(await imageResponse.blob());
+      this.generatedAtlas = { image, manifest };
+      this.installGeneratedAtlas(this.generatedAtlas);
+    })().catch(() => {
+      this.atlasRequestStarted = false;
+    });
+  }
+
+  private installGeneratedAtlas(assets: {
+    image: ImageBitmap;
+    manifest: SpriteAtlasManifest;
+  }): void {
+    const gl = this.gl;
+    const fallback = this.fallbackAtlas;
+    if (!gl || !fallback || this.lost) return;
+    const width = assets.image.width + fallback.width + 2;
+    const height = Math.max(assets.image.height, fallback.height);
+    const combined = document.createElement('canvas');
+    combined.width = width;
+    combined.height = height;
+    const context = combined.getContext('2d');
+    if (!context) return;
+    context.imageSmoothingEnabled = false;
+    context.drawImage(assets.image, 0, 0);
+    context.drawImage(fallback, assets.image.width + 2, 0);
+    const texture = this.createAtlasTexture(combined);
+    if (this.texture) gl.deleteTexture(this.texture);
+    this.texture = texture;
+    this.atlasWidth = width;
+    this.atlasHeight = height;
+    this.atlasFrames = assets.manifest.sprites;
+  }
+
   private appendTiles(
     map: MapData,
     camera: Camera,
     viewportWidth: number,
     viewportHeight: number,
+    tick: number,
   ): void {
     const [viewW, viewH] =
       camera.rotation % 2 === 0 ? [map.width, map.height] : [map.height, map.width];
@@ -406,15 +494,18 @@ export class WebGL2Renderer implements Renderer {
         )
           continue;
         const surface = map.surface[index];
+        const terrainSurface =
+          surface === 1 ? 'sand' : surface === 4 ? 'dirt' : surface === 5 ? 'rock' : 'grass';
         this.append(
           x * TILE_UNITS,
           y * TILE_UNITS,
           height * 64,
           TILE_W,
           48,
-          terrainSpriteIndex(surface, map.slope[index]),
+          terrainSpriteName(terrainSurface, map.slope[index]),
           2 * (rx + ry) - height,
           map.slope[index],
+          true,
         );
         if ((map.waterLevel?.[index] ?? 0) > height) {
           this.append(
@@ -423,7 +514,7 @@ export class WebGL2Renderer implements Renderer {
             map.waterLevel![index] * 64,
             TILE_W,
             48,
-            8,
+            waterSpriteName(waterFrameIndex(tick)),
             2 * (rx + ry) - map.waterLevel![index],
           );
         } else if (surface === 3 || surface === 6)
@@ -433,11 +524,107 @@ export class WebGL2Renderer implements Renderer {
             height * 64 + 1,
             44,
             24,
-            surface === 6 ? 10 : 9,
+            pathSpriteName(surface === 6 ? 'queue' : 'tarmac', 0),
             2 * (rx + ry) - height + 1,
           );
       }
     }
+  }
+
+  private appendAmbientTrees(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const index = y * map.width + x;
+        if (map.surface[index] !== 0 || (x * 17 + y * 31) % 23 !== 7) continue;
+        const sprite = scenerySpriteName(TREE_NAMES[(x * 3 + y * 5) % TREE_NAMES.length]);
+        const z = map.heights[index] * Z_STEP;
+        const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+        const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+        const depth =
+          2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 2;
+        project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+        if (
+          inViewport(
+            this.projected[0],
+            this.projected[1],
+            camera,
+            viewportWidth,
+            viewportHeight,
+            34,
+            44,
+          )
+        )
+          this.append(worldX, worldY, z, 34, 44, sprite, depth);
+      }
+    }
+  }
+
+  private appendGrounds(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const count = Math.min(map.width * map.height, snapshot.grounds.length);
+    for (let index = 0; index < count; index++) {
+      if ((snapshot.grounds[index] & FLOWER_BED) === 0) continue;
+      const x = index % map.width;
+      const y = Math.floor(index / map.width);
+      const z = map.heights[index] * Z_STEP + 1;
+      const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+      const depth =
+        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 1;
+      project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          30,
+          12,
+        )
+      )
+        this.append(worldX, worldY, z, 30, 12, scenerySpriteName('flower-bed'), depth);
+    }
+  }
+
+  private appendParkGate(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const { entranceX, entranceY } = snapshot.park;
+    if (entranceX < 0 || entranceY < 0 || entranceX >= map.width || entranceY >= map.height) return;
+    const z = map.heights[entranceY * map.width + entranceX] * Z_STEP + 1;
+    const worldX = entranceX * TILE_UNITS + TILE_UNITS / 2;
+    const worldY = entranceY * TILE_UNITS + TILE_UNITS / 2;
+    const depth =
+      2 * rotatedPositionSum(entranceX * TILE_UNITS, entranceY * TILE_UNITS, map, camera.rotation) +
+      3;
+    project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+    if (
+      inViewport(
+        this.projected[0],
+        this.projected[1],
+        camera,
+        viewportWidth,
+        viewportHeight,
+        46,
+        40,
+      )
+    )
+      this.append(worldX, worldY, z, 46, 40, scenerySpriteName('park-entrance'), depth);
   }
 
   private appendPathElements(
@@ -457,7 +644,13 @@ export class WebGL2Renderer implements Renderer {
       const flags = paths[o + 3];
       const slope = (flags & PathFlag.Sloped) !== 0;
       const direction = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
-      const sprite = slope ? 33 + direction : (flags & PathFlag.Queue) !== 0 ? 10 : 9;
+      const isQueue = (flags & PathFlag.Queue) !== 0;
+      const edges = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
+      const sprite = pathSpriteName(
+        isQueue ? 'queue' : 'tarmac',
+        edges,
+        slope ? direction : undefined,
+      );
       const depth =
         2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) - z / Z_STEP;
       const worldX = x * TILE_UNITS + 128;
@@ -476,14 +669,15 @@ export class WebGL2Renderer implements Renderer {
       )
         this.append(worldX, worldY, z, 40, 26, sprite, depth + 1);
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
-        const sprite =
+        const sprite = scenerySpriteName(
           (flags & PathFlag.Bin) !== 0
-            ? 28
+            ? 'bin'
             : (flags & PathFlag.Bench) !== 0
-              ? 29
+              ? 'bench'
               : (flags & PathFlag.Shelter) !== 0
-                ? 37
-                : 30;
+                ? 'shelter'
+                : 'lamp',
+        );
         this.append(worldX, worldY, z + Z_STEP, 12, 16, sprite, depth + 2);
       }
     }
@@ -664,19 +858,68 @@ export class WebGL2Renderer implements Renderer {
     z: number,
     width: number,
     height: number,
-    sprite: number,
+    sprite: number | string,
     depth: number,
     slopeMask = 0,
+    terrain = false,
   ): void {
     if (this.count === this.depths.length) this.grow();
     const offset = this.count * INSTANCE_FLOATS;
+    let frame: SpriteFrame | undefined;
+    let entry: SpriteEntry | undefined;
+    let frameIndex: number;
+    let fallbackIndex = -1;
+    if (typeof sprite === 'string') {
+      const match = /#(\d+)$/.exec(sprite);
+      const spriteName = match ? sprite.slice(0, match.index) : sprite;
+      frameIndex = match ? Number(match[1]) : 0;
+      entry = this.atlasFrames[spriteName];
+      frame = entry?.frames[frameIndex] ?? entry?.frames[0];
+    } else {
+      fallbackIndex = sprite;
+    }
+    let u0: number;
+    let v0: number;
+    let u1: number;
+    let v1: number;
+    if (frame) {
+      u0 = frame.x / this.atlasWidth;
+      v0 = 1 - (frame.y + frame.height) / this.atlasHeight;
+      u1 = (frame.x + frame.width) / this.atlasWidth;
+      v1 = 1 - frame.y / this.atlasHeight;
+      if (!terrain && entry) z += (entry.anchor.y / frame.height - 0.5) * height * (Z_PIXELS / 64);
+    } else {
+      if (fallbackIndex < 0) {
+        fallbackIndex = terrain ? 0 : 0;
+        if (typeof sprite === 'string') {
+          if (sprite.startsWith('paths/')) fallbackIndex = sprite.includes('/queue/') ? 10 : 9;
+          else if (sprite.startsWith('water/')) fallbackIndex = 8;
+          else if (sprite.includes('/bench')) fallbackIndex = 29;
+          else if (sprite.includes('/bin')) fallbackIndex = 28;
+          else if (sprite.includes('/lamp')) fallbackIndex = 30;
+          else if (sprite.includes('/park-entrance')) fallbackIndex = 31;
+          else if (sprite.includes('/flower-bed')) fallbackIndex = 0;
+        }
+      }
+      const fallbackX = (this.generatedAtlas?.image.width ?? 0) + (this.generatedAtlas ? 2 : 0);
+      const x = fallbackX + (fallbackIndex % ATLAS_COLUMNS) * CELL;
+      const y = Math.floor(fallbackIndex / ATLAS_COLUMNS) * CELL;
+      u0 = x / this.atlasWidth;
+      v0 = 1 - (y + CELL) / this.atlasHeight;
+      u1 = (x + CELL) / this.atlasWidth;
+      v1 = 1 - y / this.atlasHeight;
+    }
     this.instanceData[offset] = x;
     this.instanceData[offset + 1] = y;
     this.instanceData[offset + 2] = z;
     this.instanceData[offset + 3] = width;
     this.instanceData[offset + 4] = height;
-    this.instanceData[offset + 5] = sprite;
-    this.instanceData[offset + 6] = slopeMask;
+    this.instanceData[offset + 5] = u0;
+    this.instanceData[offset + 6] = v0;
+    this.instanceData[offset + 7] = u1;
+    this.instanceData[offset + 8] = v1;
+    this.instanceData[offset + 9] = terrain ? 1 : 0;
+    this.instanceData[offset + 10] = slopeMask;
     this.depths[this.count] = Math.round(depth * 2);
     this.count++;
   }

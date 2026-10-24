@@ -102,7 +102,7 @@ export interface Snapshot {
   buildable: Uint8Array;
   /** Per-tile grass overgrowth and flower-bed bits (see staff/grounds.ts). */
   grounds: Uint8Array;
-  park: { cash: number; loan: number; rides: number };
+  park: { cash: number; loan: number; rides: number; entranceX: number; entranceY: number };
   scenario: SnapshotScenario;
 }
 
@@ -146,7 +146,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
     grounds: new Uint8Array(caps.mapTiles ?? 0),
-    park: { cash: 0, loan: 0, rides: 0 },
+    park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1 },
     scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
   };
 }
@@ -293,6 +293,8 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.park.cash = world.economy.cash;
   out.park.loan = world.economy.loan;
   out.park.rides = rides.count;
+  out.park.entranceX = world.park.entranceX;
+  out.park.entranceY = world.park.entranceY;
   const scenario = world.scenario;
   out.scenario.status = scenario.status;
   out.scenario.objective = scenario.objective ? { ...scenario.objective } : null;

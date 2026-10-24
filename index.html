@@ -271,6 +271,20 @@
           inset: 6px 6px auto;
           gap: 4px;
           padding: 5px;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          overflow-y: hidden;
+          touch-action: pan-x;
+          scrollbar-width: none;
+        }
+        .game-toolbar::-webkit-scrollbar {
+          display: none;
+        }
+        .game-toolbar button,
+        .tool-group,
+        .window-tools {
+          flex: 0 0 auto;
+          white-space: nowrap;
         }
         .game-toolbar button {
           min-height: 28px;
