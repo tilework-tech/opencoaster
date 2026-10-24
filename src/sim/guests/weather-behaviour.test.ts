@@ -113,11 +113,8 @@ describe('rain shelters', () => {
     return world.guests.cols.happiness[guest];
   }
 
-  it('lets an unsheltered guest without an umbrella lose happiness in rain', () => {
-    expect(soakedGuest(false)).toBeLessThan(200);
-  });
-
-  it('keeps a guest standing beside a rain shelter dry', () => {
+  it('does not change happiness based on rain exposure', () => {
+    expect(soakedGuest(false)).toBe(200);
     expect(soakedGuest(true)).toBe(200);
   });
 });

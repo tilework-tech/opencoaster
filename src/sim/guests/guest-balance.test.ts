@@ -104,7 +104,7 @@ describe('stall service', () => {
     const guests: number[] = [];
     for (let i = 0; i < count; i++) {
       const slot = guestAt(world, 8, 5);
-      world.guests.cols.hunger[slot] = 200;
+      world.guests.cols.hunger[slot] = 0;
       guests.push(slot);
     }
     return { world, stall, guests };
@@ -122,7 +122,7 @@ describe('stall service', () => {
     }
     expect(mostServing).toBe(1);
     expect(world.rides.cols.guestsServed[stall]).toBe(3);
-    for (const g of guests) expect(world.guests.cols.hunger[g]).toBeLessThan(100);
+    for (const g of guests) expect(world.guests.cols.hunger[g]).toBeGreaterThan(100);
   });
 
   it('lets guests wait in line while the stall is busy', () => {
@@ -175,7 +175,7 @@ describe('stall edge cases', () => {
     for (let i = 0; i < count; i++) {
       const slot = guestAt(world, 8, 5);
       world.guests.cols.toilet[slot] = 200;
-      world.guests.cols.hunger[slot] = 200;
+      world.guests.cols.hunger[slot] = 0;
       guests.push(slot);
     }
     return { world, stall, guests };

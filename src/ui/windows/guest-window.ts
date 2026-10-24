@@ -36,8 +36,8 @@ export function guestDetailsText(details: GuestDetails): string {
     .map((thought) => THOUGHT_LABELS[thought] ?? `Thought ${thought}`);
   return [
     `Happiness  ${details.happiness}`,
-    `Hunger  ${details.hunger}`,
-    `Thirst  ${details.thirst}`,
+    `Hunger satisfaction  ${details.hunger}`,
+    `Thirst satisfaction  ${details.thirst}`,
     `Toilet  ${details.toilet}`,
     `Nausea  ${details.nausea}`,
     `Energy  ${details.energy}`,
@@ -80,8 +80,8 @@ export function openGuestWindow(ctx: UiContext): WindowController {
   const where = statRow('Where');
   const gauges = {
     happiness: gauge('Happiness'),
-    hunger: gauge('Hunger'),
-    thirst: gauge('Thirst'),
+    hunger: gauge('Hunger satisfaction'),
+    thirst: gauge('Thirst satisfaction'),
     toilet: gauge('Toilet'),
     nausea: gauge('Nausea'),
     energy: gauge('Energy'),

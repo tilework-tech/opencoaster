@@ -634,6 +634,9 @@ function downgradeToVersion9(w: World): Uint8Array {
     guestColumns.navSteps,
     guestColumns.lostTicks,
     guestColumns.hasMap,
+    guestColumns.visitTicks,
+    guestColumns.ridesTaken,
+    guestColumns.lastRide,
   ]);
   const head = current.subarray(headerEnd);
   const sections: Uint8Array[] = [];

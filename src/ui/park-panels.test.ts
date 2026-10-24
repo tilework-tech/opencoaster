@@ -34,7 +34,7 @@ describe('guest selection', () => {
         thoughts: [6, 2],
       }),
     ).toBe(
-      'Happiness  177\nHunger  88\nThirst  43\nToilet  29\nNausea  17\nEnergy  222\nCash  $34.56\nThoughts\nRide enjoyed\nThirsty',
+      'Happiness  177\nHunger satisfaction  88\nThirst satisfaction  43\nToilet  29\nNausea  17\nEnergy  222\nCash  $34.56\nThoughts\nRide enjoyed\nThirsty',
     );
   });
 });
