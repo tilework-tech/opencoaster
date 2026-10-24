@@ -52,6 +52,16 @@ export function recordThought(w: World, slot: number, thought: GuestThought): vo
   if (thought === GuestThought.None) return;
   const g = w.guests.cols;
   const cursor = g.thoughtCursor[slot] & 3;
+  const previous = (cursor + 3) & 3;
+  const latest =
+    previous === 0
+      ? g.thought0[slot]
+      : previous === 1
+        ? g.thought1[slot]
+        : previous === 2
+          ? g.thought2[slot]
+          : g.thought3[slot];
+  if (latest === thought) return;
   if (cursor === 0) g.thought0[slot] = thought;
   else if (cursor === 1) g.thought1[slot] = thought;
   else if (cursor === 2) g.thought2[slot] = thought;

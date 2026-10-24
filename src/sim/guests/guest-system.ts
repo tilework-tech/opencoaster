@@ -17,7 +17,6 @@ const LEAVE_HAPPINESS = 16;
 const LEAVE_ENERGY = 12;
 const ARRIVAL_INTERVAL = 400;
 const BASE_GUEST_CAP = 200;
-const PATH_STEP = new Int32Array(1);
 
 export interface GuestAdmission {
   parkRating: number;
@@ -60,7 +59,12 @@ function chooseRide(world: World, slot: number): number {
   return selected;
 }
 
-function moveTowardTarget(world: World, slot: number, pathfinder: Pathfinder): void {
+function moveTowardTarget(
+  world: World,
+  slot: number,
+  pathfinder: Pathfinder,
+  pathBuffer: Int32Array,
+): void {
   const g = world.guests.cols;
   const map = world.map;
   const tx = g.targetX[slot];
@@ -69,8 +73,8 @@ function moveTowardTarget(world: World, slot: number, pathfinder: Pathfinder): v
   const fromY = (g.y[slot] / TILE_UNITS) | 0;
   const from = map.index(fromX, fromY);
   const to = map.index(tx, ty);
-  const pathLength = pathfinder.findPath(map, from, to, PATH_STEP);
-  const destination = pathLength > 0 ? PATH_STEP[0] : to;
+  const pathLength = pathfinder.findPath(map, from, to, pathBuffer);
+  const destination = pathLength > 0 ? pathBuffer[0] : to;
   const goalX = (destination % map.width) * TILE_UNITS + (TILE_UNITS >> 1);
   const goalY = ((destination / map.width) | 0) * TILE_UNITS + (TILE_UNITS >> 1);
   const dx = goalX - g.x[slot];
@@ -82,12 +86,18 @@ function moveTowardTarget(world: World, slot: number, pathfinder: Pathfinder): v
   g.z[slot] = map.heights[map.index(x, y)] * Z_STEP;
 }
 
-function updateGuest(world: World, slot: number, pathfinder: Pathfinder): void {
+function updateGuest(
+  world: World,
+  slot: number,
+  pathfinder: Pathfinder,
+  pathBuffer: Int32Array,
+): boolean {
   const g = world.guests.cols;
+  const state = g.state[slot];
   g.hunger[slot] = Math.min(255, g.hunger[slot] + STAT_DECAY);
   g.thirst[slot] = Math.min(255, g.thirst[slot] + STAT_DECAY);
   g.toilet[slot] = Math.min(255, g.toilet[slot] + (g.thirst[slot] > 180 ? 2 : 1));
-  g.energy[slot] = Math.max(0, g.energy[slot] - 1);
+  if (state === GuestState.Wandering) g.energy[slot] = Math.max(0, g.energy[slot] - 1);
   g.nausea[slot] = Math.max(0, g.nausea[slot] - 1);
   g.happiness[slot] = Math.max(
     0,
@@ -96,7 +106,6 @@ function updateGuest(world: World, slot: number, pathfinder: Pathfinder): void {
   if (g.hunger[slot] >= HUNGER_THOUGHT) recordThought(world, slot, GuestThought.Hungry);
   else if (g.thirst[slot] >= THIRST_THOUGHT) recordThought(world, slot, GuestThought.Thirsty);
 
-  const state = g.state[slot];
   if (state === GuestState.Riding) {
     g.activityTicks[slot]++;
     if (g.activityTicks[slot] >= RIDE_DURATION) {
@@ -106,13 +115,14 @@ function updateGuest(world: World, slot: number, pathfinder: Pathfinder): void {
         g.cash[slot] = Math.max(0, g.cash[slot] - world.rides.cols.price[rideSlot]);
         g.nausea[slot] = Math.min(255, g.nausea[slot] + (world.rides.cols.nausea[rideSlot] >> 4));
         g.happiness[slot] = Math.min(255, g.happiness[slot] + 8);
+        g.energy[slot] = Math.min(255, g.energy[slot] + 32);
       }
       recordThought(world, slot, GuestThought.RideEnjoyed);
       g.targetRide[slot] = -1;
       g.activityTicks[slot] = 0;
       g.state[slot] = GuestState.Wandering;
     }
-    return;
+    return false;
   }
 
   if (state === GuestState.Queuing) {
@@ -132,12 +142,15 @@ function updateGuest(world: World, slot: number, pathfinder: Pathfinder): void {
       g.state[slot] = GuestState.Riding;
       g.activityTicks[slot] = 0;
     }
-    return;
+    return false;
   }
 
   if (state === GuestState.Leaving) {
-    moveTowardTarget(world, slot, pathfinder);
-    return;
+    moveTowardTarget(world, slot, pathfinder, pathBuffer);
+    return (
+      ((g.x[slot] / TILE_UNITS) | 0) === g.targetX[slot] &&
+      ((g.y[slot] / TILE_UNITS) | 0) === g.targetY[slot]
+    );
   }
 
   if (g.happiness[slot] <= LEAVE_HAPPINESS || g.energy[slot] <= LEAVE_ENERGY || g.cash[slot] <= 0) {
@@ -145,7 +158,7 @@ function updateGuest(world: World, slot: number, pathfinder: Pathfinder): void {
     g.targetX[slot] = g.x[slot] < (world.map.width * TILE_UNITS) / 2 ? 0 : world.map.width - 1;
     g.targetY[slot] = g.y[slot] < (world.map.height * TILE_UNITS) / 2 ? 0 : world.map.height - 1;
     recordThought(world, slot, GuestThought.Leaving);
-    return;
+    return false;
   }
 
   const ride = chooseRide(world, slot);
@@ -159,12 +172,12 @@ function updateGuest(world: World, slot: number, pathfinder: Pathfinder): void {
       g.targetY[slot] = targetY;
       g.patience[slot] = QUEUE_PATIENCE;
     }
-    moveTowardTarget(world, slot, pathfinder);
+    moveTowardTarget(world, slot, pathfinder, pathBuffer);
     if (((g.x[slot] / TILE_UNITS) | 0) === targetX && ((g.y[slot] / TILE_UNITS) | 0) === targetY) {
       g.state[slot] = GuestState.Queuing;
       world.rides.cols.queueLength[ride]++;
     }
-    return;
+    return false;
   }
 
   if (g.targetRide[slot] >= 0) g.targetRide[slot] = -1;
@@ -172,17 +185,21 @@ function updateGuest(world: World, slot: number, pathfinder: Pathfinder): void {
     g.targetX[slot] = world.rng.int(world.map.width);
     g.targetY[slot] = world.rng.int(world.map.height);
   }
-  moveTowardTarget(world, slot, pathfinder);
+  moveTowardTarget(world, slot, pathfinder, pathBuffer);
+  return false;
 }
 
 export function createGuestSystem(
   pathfinder: Pathfinder = nullPathfinder,
   admissionProvider: GuestAdmissionProvider = admissionFromEconomy,
 ): System {
+  let pathBuffer = new Int32Array(0);
   return {
     name: 'guests',
     update(world) {
-      if (world.tick % ARRIVAL_INTERVAL === 0 && world.guests.count < BASE_GUEST_CAP) {
+      if (pathBuffer.length < world.map.width * world.map.height)
+        pathBuffer = new Int32Array(world.map.width * world.map.height);
+      if (world.tick % ARRIVAL_INTERVAL === 0) {
         const admission = admissionProvider(world);
         const rideCapacity = world.rides.count * 50;
         const capacity = Math.min(world.guests.capacity, BASE_GUEST_CAP + rideCapacity);
@@ -193,9 +210,14 @@ export function createGuestSystem(
         const arrivalChance = Math.max(0, Math.min(1000, admission.parkRating - feePenalty));
         if (world.guests.count < capacity && world.rng.int(1000) < arrivalChance) spawnGuest(world);
       }
-      for (let slot = 0; slot < world.guests.count; slot++) {
-        if ((world.tick + world.guests.slotToId[slot]) % UPDATE_STRIDE === 0)
-          updateGuest(world, slot, pathfinder);
+      for (let slot = 0; slot < world.guests.count;) {
+        if ((world.tick + world.guests.slotToId[slot]) % UPDATE_STRIDE === 0) {
+          if (updateGuest(world, slot, pathfinder, pathBuffer)) {
+            world.guests.despawnSlot(slot);
+            continue;
+          }
+        }
+        slot++;
       }
     },
   };

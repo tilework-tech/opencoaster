@@ -26,12 +26,29 @@ describe('guest behaviour', () => {
   it('chooses an open affordable ride that matches the guest preference', () => {
     const w = world();
     spawnGuest(w);
+    const mismatched = w.rides.spawn();
+    w.rides.cols.state[mismatched] = RideState.Open;
+    w.rides.cols.price[mismatched] = 100;
+    w.rides.cols.excitement[mismatched] = 2000;
+    w.rides.cols.intensity[mismatched] = 200;
     const ride = w.rides.spawn();
     w.rides.cols.state[ride] = RideState.Open;
     w.rides.cols.price[ride] = 100;
-    w.rides.cols.excitement[ride] = 700;
+    w.rides.cols.excitement[ride] = 500;
     w.rides.cols.intensity[ride] = 80;
-    w.guests.cols.cash[0] = 1000;
+    const closed = w.rides.spawn();
+    w.rides.cols.state[closed] = RideState.Closed;
+    w.rides.cols.price[closed] = 100;
+    w.rides.cols.excitement[closed] = 3000;
+    w.rides.cols.intensity[closed] = 80;
+    const unaffordable = w.rides.spawn();
+    w.rides.cols.state[unaffordable] = RideState.Open;
+    w.rides.cols.price[unaffordable] = 1000;
+    w.rides.cols.excitement[unaffordable] = 3000;
+    w.rides.cols.intensity[unaffordable] = 80;
+    w.guests.cols.cash[0] = 500;
+    w.guests.cols.preferredIntensity[0] = 80;
+    w.guests.cols.nauseaTolerance[0] = 50;
     w.rides.cols.entranceX[ride] = (w.guests.cols.x[0] / 256) | 0;
     w.rides.cols.entranceY[ride] = (w.guests.cols.y[0] / 256) | 0;
     w.guests.cols.x[0] = w.rides.cols.entranceX[ride] * 256 + 128;
@@ -40,6 +57,36 @@ describe('guest behaviour', () => {
     guestSystem.update(w);
     expect(w.guests.cols.state[0]).toBe(GuestState.Queuing);
     expect(w.guests.cols.targetRide[0]).toBe(w.rides.slotToId[ride]);
+  });
+
+  it('completes a queued ride, charges the guest, and updates their mood and nausea', () => {
+    const w = world();
+    spawnGuest(w);
+    const ride = w.rides.spawn();
+    w.rides.cols.state[ride] = RideState.Open;
+    w.rides.cols.price[ride] = 100;
+    w.rides.cols.excitement[ride] = 500;
+    w.rides.cols.intensity[ride] = 80;
+    w.rides.cols.nausea[ride] = 64;
+    w.guests.cols.preferredIntensity[0] = 80;
+    w.guests.cols.nauseaTolerance[0] = 100;
+    w.guests.cols.nausea[0] = 80;
+    w.rides.cols.entranceX[ride] = (w.guests.cols.x[0] / 256) | 0;
+    w.rides.cols.entranceY[ride] = (w.guests.cols.y[0] / 256) | 0;
+    const cash = w.guests.cols.cash[0];
+    const system = createGuestSystem(undefined, () => ({ parkRating: 0, entranceFee: 0 }));
+    for (let tick = 0; tick < 4 * 240; tick += 4) {
+      w.tick = tick;
+      system.update(w);
+    }
+    const happinessBeforeRideCompletion = w.guests.cols.happiness[0];
+    w.tick = 4 * 240;
+    system.update(w);
+    expect(w.guests.cols.state[0]).toBe(GuestState.Wandering);
+    expect(w.guests.cols.cash[0]).toBeLessThan(cash);
+    expect(w.guests.cols.happiness[0]).toBeGreaterThan(happinessBeforeRideCompletion);
+    expect(w.guests.cols.nausea[0]).toBeGreaterThan(0);
+    expect(w.rides.cols.queueLength[ride]).toBe(0);
   });
 
   it('leaves through the exit state when needs and happiness are exhausted', () => {
