@@ -1,7 +1,7 @@
 {
   "id": "starter",
   "name": "Starter Park",
-  "description": "A small rolling valley with a lake. Build a lively park for 100 guests and a rating of 750 before the end of year one.",
+  "description": "A small rolling valley with a lake. Build a lively park for 100 guests and a rating of 730 before the end of year one.",
   "seed": 2026,
   "map": { "width": 64, "height": 64 },
   "finance": {
@@ -22,7 +22,7 @@
   "objective": {
     "kind": "guestsAndRating",
     "target": 100,
-    "rating": 750,
+    "rating": 730,
     "byYear": 1
   }
 }

@@ -88,35 +88,35 @@ One food stall keeps up with about 60 guests at the current need rate; the scrip
 
 ## Results
 
-Starter scenario, one year, scenario seed. "Before" is the pre-change code driven by the same scripted modest park.
+Starter scenario, one year, scenario seed. "Before" is the pre-change code (main at 69d174e) driven by the same scripted modest park; "after" is this change on top of main at a4c3f69, which also brings rain-driven unhappiness and vandalism.
 
 | Metric                                                         | Before                          | After (modest)        |
 | -------------------------------------------------------------- | ------------------------------- | --------------------- |
-| Guests at month ends                                           | 53 - 70                         | 96 - 159              |
-| Arrivals per month                                             | about 150                       | 130 - 166             |
-| Park rating at month ends                                      | 514 - 836 (litter-driven noise) | 706 - 775             |
-| Merry-go-round / swinging ship / twist / coaster guests served | 0 / 0 / 0 / 0                   | 799 / 420 / 298 / 214 |
-| Ferris wheel guests served                                     | 1,415                           | 1,020                 |
-| Food / drink / toilets served (first stall of each)            | 1,025 / 1,076 / 1,110           | 1,434 / 1,524 / 1,500 |
-| Information kiosk served                                       | 0                               | 677                   |
-| "Too intense" thoughts                                         | 0                               | 204                   |
-| Cash at year end                                               | $38,316                         | $38,493               |
+| Guests at month ends                                           | 53 - 70                         | 88 - 159              |
+| Arrivals per month                                             | 138 - 163                       | 128 - 163             |
+| Park rating at month ends                                      | 514 - 836 (litter-driven noise) | 649 - 729             |
+| Merry-go-round / swinging ship / twist / coaster guests served | 0 / 0 / 0 / 0                   | 780 / 470 / 383 / 248 |
+| Ferris wheel guests served                                     | 1,415                           | 959                   |
+| Food / drink / toilets served (first stall of each)            | 1,025 / 1,076 / 1,110           | 1,396 / 1,451 / 1,449 |
+| Information kiosk served                                       | 0                               | 806                   |
+| "Too intense" thoughts (summed over month-end samples)         | 0                               | 151                   |
+| Cash at year end                                               | $38,316                         | $38,458               |
 
-Whole-run ledger, modest build (dollars): construction -11,162, ride running -2,398, landscaping -1,220, admission +3,234, shop sales +585, food and drink +4,232 (stock -1,693), wages -1,717, interest -1,750. The park roughly breaks even; income is dominated by food and drink, then the gate.
+Whole-run ledger, modest build (dollars): construction -11,162, ride running -2,398, landscaping -1,220, admission +3,138, shop sales +653, food and drink +4,167 (stock -1,667), wages -1,717, interest -1,750. The park roughly breaks even; income is dominated by food and drink, then the gate.
 
-Final rating and crowd by profile (scenario seed): minimal 242 rating and 65 guests (no staff, so litter and unhappy guests dominate), modest about 750 and 140 guests, ambitious about 760 - 820 and 160 - 180 guests.
+Year-end crowd and rating by profile at the scenario seed: minimal 70 guests and 226 rating (no staff, so litter and unhappy guests dominate), modest 159 and 714, ambitious 152 and 789.
 
 ## Starter objective
 
-Was 50 guests and rating 900 in year one. 50 guests is reached by even the minimal park, and 900 was unreachable once the rating became honest: the ambitious build (fifteen attractions, twelve stalls, $23,000 of rides) peaks around 850 and ends near 800 because the rating floats with litter and breakdowns. It is now **100 guests and rating 750**. Six seeds each, at the year-end check:
+Was 50 guests and rating 900 in year one. 50 guests is reached by even the minimal park, and 900 was unreachable once the rating became honest: the ambitious build (fifteen attractions, twelve stalls, $23,000 of rides) peaks around 850 and ends near 800 because the rating floats with litter, rain and breakdowns. It is now **100 guests and rating 730**. Twelve seeds per profile (11 - 16 and 21 - 26), scored at the year-end check:
 
-| Profile   | Guests    | Rating    | Result                 |
-| --------- | --------- | --------- | ---------------------- |
-| minimal   | 56 - 69   | 157 - 298 | fails                  |
-| modest    | 125 - 150 | 677 - 769 | passes on 2 of 6 seeds |
-| ambitious | 156 - 176 | 762 - 822 | passes on 6 of 6 seeds |
+| Profile   | Guests    | Rating    | Wins    |
+| --------- | --------- | --------- | ------- |
+| minimal   | 46 - 71   | 156 - 309 | 0 / 12  |
+| modest    | 116 - 153 | 668 - 752 | 3 / 12  |
+| ambitious | 156 - 178 | 728 - 858 | 11 / 12 |
 
-So a player who builds the full set of stalls and staff but few attractions is a coin flip, and one who keeps adding attractions wins.
+So a player who builds the full set of stalls and staff but few attractions can still scrape it, and one who keeps adding attractions nearly always wins. Year-end ratings move about 40 points between seeds, which is why the target sits between the profiles rather than at the ambitious floor.
 
 ## Known gaps
 
