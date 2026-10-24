@@ -57,6 +57,10 @@ export const parkInputsSystem: System = {
     for (let slot = 0; slot < world.guests.count; slot++) {
       if (guests.happiness[slot] < UNHAPPY_BELOW) unhappy++;
       if (guests.state[slot] === GuestState.Riding) continue;
+      if (guests.lostTicks[slot] > 0) {
+        lost++;
+        continue;
+      }
       if (!map.isWalkable(map.index(guests.x[slot] >> 8, guests.y[slot] >> 8))) lost++;
     }
 

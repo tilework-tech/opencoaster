@@ -17,6 +17,15 @@ import { RideState } from '../rides/ride-store';
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
+import {
+  applyGuestBudget,
+  EXIT_HAPPINESS_LOSS,
+  EXIT_PENALTY_TICKS,
+  isLost,
+  MAP_PRICE,
+  noteNavigation,
+  tickLost,
+} from './navigation';
 import { hasParkEntrance, parkEntranceTile } from './park';
 import { exceedsNauseaLimit, intensityCeilingOf, preferredIntensityOf } from './preferences';
 import { recountRideLines } from './ride-lines';
@@ -28,6 +37,11 @@ const GUEST_SPEED = 12;
 const TILE_CENTRE = TILE_UNITS >> 1;
 /** Needs change once per this many guest updates. */
 const NEED_DECAY_UPDATES = 8;
+/**
+ * Walking costs 1 energy once per this many need steps (a power of two). At every step a guest
+ * ran out of energy about 100 tiles into its walk, so rides in the far half of a park starved.
+ */
+const WALK_ENERGY_STEPS = 2;
 /** Happiness a ride gives: a flat part plus 1 per this many hundredths of excitement. */
 const RIDE_HAPPINESS = 8;
 const EXCITEMENT_PER_HAPPINESS = 40;
@@ -228,6 +242,11 @@ function nearestService(world: World, slot: number, tile: number, type: RideType
 /** Picks what a wandering guest heads for next: a need first, then a ride. */
 function chooseDestination(world: World, slot: number, tile: number): number {
   const g = world.guests.cols;
+  if (isLost(world, slot)) {
+    return g.hasMap[slot] === 0 && g.cash[slot] >= MAP_PRICE
+      ? nearestService(world, slot, tile, RideType.InformationKiosk)
+      : -1;
+  }
   if (g.toilet[slot] >= TOILET_SEEK) {
     const toilets = nearestService(world, slot, tile, RideType.Toilets);
     if (toilets >= 0) return toilets;
@@ -263,6 +282,7 @@ function setDestination(world: World, slot: number, ride: number): void {
   g.targetY[slot] = world.rides.cols.entranceY[ride];
   g.patience[slot] = APPROACH_PATIENCE;
   g.approachGap[slot] = 0xffff;
+  g.navGoal[slot] = 0;
   world.rideLines.approaching[ride]++;
 }
 
@@ -364,6 +384,16 @@ function finishRide(world: World, slot: number, ride: number): void {
   g.state[slot] = GuestState.Wandering;
 }
 
+/** A lost guest without a map buys one, rather than an umbrella, at an information kiosk. */
+function isMapSale(world: World, slot: number, ride: number): boolean {
+  const g = world.guests.cols;
+  return (
+    world.rides.cols.typeId[ride] === RideType.InformationKiosk &&
+    g.lostTicks[slot] > 0 &&
+    g.hasMap[slot] === 0
+  );
+}
+
 function finishShopping(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
   g.targetRide[slot] = -1;
@@ -372,7 +402,8 @@ function finishShopping(world: World, slot: number, ride: number): void {
   if (ride < 0) return;
   const r = world.rides.cols;
   const type = r.typeId[ride] as RideType;
-  const price = Math.min(r.price[ride], g.cash[slot]);
+  const mapSale = isMapSale(world, slot, ride);
+  const price = Math.min(mapSale ? MAP_PRICE : r.price[ride], g.cash[slot]);
   g.cash[slot] -= price;
   if (type === RideType.Toilets) {
     g.toilet[slot] = 0;
@@ -381,7 +412,13 @@ function finishShopping(world: World, slot: number, ride: number): void {
       addRideIncome(world, ride, price);
     }
   } else if (type === RideType.InformationKiosk) {
-    world.umbrellas[world.guests.slotToId[slot]] = 1;
+    if (mapSale) {
+      g.hasMap[slot] = 1;
+      g.lostTicks[slot] = 0;
+      g.navGoal[slot] = 0;
+    } else {
+      world.umbrellas[world.guests.slotToId[slot]] = 1;
+    }
     if (price > 0) {
       earn(world, LedgerCategory.ShopSales, price);
       addRideIncome(world, ride, price);
@@ -420,10 +457,16 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
   const category = rideCategory(world, ride);
   const price = isThrillCategory(category) ? ticketPriceCents(world, ride) : r.price[ride];
   const lines = world.rideLines;
+  const mapSale = isMapSale(world, slot, ride);
   const unwanted =
     world.umbrellas[world.guests.slotToId[slot]] === 1 &&
-    r.typeId[ride] === RideType.InformationKiosk;
-  if (r.state[ride] !== RideState.Open || price > g.cash[slot] || unwanted) {
+    r.typeId[ride] === RideType.InformationKiosk &&
+    !mapSale;
+  if (
+    r.state[ride] !== RideState.Open ||
+    (mapSale ? MAP_PRICE : price) > g.cash[slot] ||
+    unwanted
+  ) {
     clearDestination(world, slot);
     return;
   }
@@ -499,7 +542,10 @@ function ageNeeds(world: World, slot: number): void {
   g.hunger[slot] = Math.min(255, g.hunger[slot] + 1);
   g.thirst[slot] = Math.min(255, g.thirst[slot] + 1);
   g.toilet[slot] = Math.min(255, g.toilet[slot] + (g.thirst[slot] > 180 ? 2 : 1));
-  if (state === GuestState.Wandering || state === GuestState.Queuing) {
+  if (
+    (state === GuestState.Wandering || state === GuestState.Queuing) &&
+    (((world.tick + world.guests.slotToId[slot]) >> 5) & (WALK_ENERGY_STEPS - 1)) === 0
+  ) {
     g.energy[slot] = Math.max(0, g.energy[slot] - 1);
   }
   g.nausea[slot] = Math.max(0, g.nausea[slot] - 1);
@@ -522,16 +568,29 @@ function stepToward(
 ): boolean {
   const g = world.guests.cols;
   nav.fromDir = g.heading[slot] > 3 ? DIR_NONE : g.heading[slot];
+  applyGuestBudget(world, slot, nav);
   const dir = nextDirection(world, tile, target, world.rng, nav);
   if (dir === DIR_NONE) return false;
+  if (target >= 0 && !isLost(world, slot) && noteNavigation(world, slot, tile, target))
+    return false;
   g.heading[slot] = dir;
   moveAlongHeading(world, slot);
   return true;
 }
 
+/** A leaving guest that cannot find the exit complains, and gets unhappier the longer it takes. */
+function loseWayOut(world: World, slot: number): void {
+  const g = world.guests.cols;
+  recordThought(world, slot, GuestThought.Lost);
+  if ((world.tick + world.guests.slotToId[slot]) % EXIT_PENALTY_TICKS === 0) {
+    g.happiness[slot] = Math.max(0, g.happiness[slot] - EXIT_HAPPINESS_LOSS);
+  }
+}
+
 /** Returns true when the guest has left the park and should be despawned. */
 function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   const g = world.guests.cols;
+  tickLost(world, slot, UPDATE_STRIDE);
   if (((world.tick + world.guests.slotToId[slot]) >> 2) % NEED_DECAY_UPDATES === 0) {
     ageNeeds(world, slot);
   }
@@ -602,9 +661,13 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
       moveAlongHeading(world, slot);
       return false;
     }
-    // No gate or no footpath route to it: the guest finds its own way out and leaves the park.
     const gate = parkEntranceTile(world);
-    return gate < 0 || tile === gate || !stepToward(world, slot, tile, gate, nav);
+    if (gate < 0 || tile === gate) return true;
+    if (isLost(world, slot) || !stepToward(world, slot, tile, gate, nav)) {
+      stepToward(world, slot, tile, -1, nav);
+      loseWayOut(world, slot);
+    }
+    return false;
   }
 
   if (g.targetRide[slot] >= 0) {

@@ -16,6 +16,7 @@ export const THOUGHT_LABELS: readonly string[] = [
   'Ride enjoyed',
   'Queue is too long',
   'Leaving the park',
+  "I'm lost!",
 ];
 
 export interface GuestDetails {
