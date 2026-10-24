@@ -183,6 +183,44 @@ describe('save: map and economy together', () => {
   });
 });
 
+/**
+ * Rewrites a current save as `version` would have written it: the header carries that version and
+ * the listed columns, which that version did not have, are removed from the body.
+ */
+function withoutColumns(
+  current: Uint8Array,
+  version: number,
+  views: ArrayBufferView[],
+  absent: ArrayBufferView[],
+): Uint8Array {
+  const dv = new DataView(current.buffer, current.byteOffset, current.byteLength);
+  const headerLength = dv.getUint32(4, true);
+  const headerEnd = 8 + headerLength;
+  const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+  header.version = version;
+  const encoded = new TextEncoder().encode(JSON.stringify(header));
+  const body = current.subarray(headerEnd);
+  const kept: Uint8Array[] = [];
+  let offset = 0;
+  for (const view of views) {
+    if (!absent.includes(view)) {
+      kept.push(body.subarray(offset, offset + view.byteLength));
+    }
+    offset += view.byteLength;
+  }
+  const bodyBytes = kept.reduce((n, part) => n + part.byteLength, 0);
+  const out = new Uint8Array(8 + encoded.length + bodyBytes);
+  out.set(current.subarray(0, 8));
+  new DataView(out.buffer).setUint32(4, encoded.length, true);
+  out.set(encoded, 8);
+  let at = 8 + encoded.length;
+  for (const part of kept) {
+    out.set(part, at);
+    at += part.byteLength;
+  }
+  return out;
+}
+
 describe('save: version 4 migration', () => {
   function versionFourSave(world: ReturnType<typeof flatWorld>): Uint8Array {
     const current = serialize(world);
@@ -201,7 +239,7 @@ describe('save: version 4 migration', () => {
         world.staff.arrays(),
         world.vehicles.arrays(),
         world.litter.arrays(),
-        world.rides.arrays(),
+        world.rides.arrays().slice(0, -3),
         world.track.pieces.arrays(),
         world.track.rideTables(),
       );
@@ -274,18 +312,39 @@ describe('save: version 4 migration', () => {
     expect(loaded.park.entranceX).toBe(world.park.entranceX);
   });
 
+  it('migrates version 8 saves with default train layout and approach gap', () => {
+    const world = flatWorld(16);
+    const rideSlot = world.rides.spawn();
+    world.rides.cols.price[rideSlot] = 275;
+    world.rides.cols.incomeCents[rideSlot] = 99_999;
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const legacy = withoutColumns(serialize(world), 8, views, [
+      world.guests.cols.approachGap,
+      world.rides.cols.trainCount,
+      world.rides.cols.carsPerTrain,
+    ]);
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.rides.cols.incomeCents[rideSlot]).toBe(99_999);
+    expect(loaded.rides.cols.trainCount[rideSlot]).toBe(0);
+    expect(loaded.rides.cols.carsPerTrain[rideSlot]).toBe(0);
+  });
+
   it.each([6, 7])('migrates version %s ride records with zeroed lifetime income', (version) => {
     const world = flatWorld(16);
     const rideSlot = world.rides.spawn();
     world.rides.cols.price[rideSlot] = 275;
     world.rides.cols.incomeCents[rideSlot] = 99_999;
-    const current = serialize(world);
-    const view = new DataView(current.buffer, current.byteOffset, current.byteLength);
-    const headerLength = view.getUint32(4, true);
-    const headerEnd = 8 + headerLength;
-    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
-    header.version = version;
-    const encoded = new TextEncoder().encode(JSON.stringify(header));
     const oldViews = [
       ...world.map.arrays(),
       ...world.guests.arrays(),
@@ -296,27 +355,12 @@ describe('save: version 4 migration', () => {
       ...world.track.pieces.arrays(),
       ...world.track.rideTables(),
     ];
-    const incomeBytes = world.rides.cols.incomeCents.byteLength;
-    const incomeViewOffset =
-      8 +
-      headerLength +
-      oldViews
-        .slice(
-          0,
-          oldViews.length -
-            world.track.pieces.arrays().length -
-            world.track.rideTables().length -
-            1,
-        )
-        .reduce((n, array) => n + array.byteLength, 0);
-    const raw = current.subarray(headerEnd);
-    const relative = incomeViewOffset - headerEnd;
-    const legacy = new Uint8Array(8 + encoded.length + raw.length - incomeBytes);
-    legacy.set(current.subarray(0, 8));
-    new DataView(legacy.buffer).setUint32(4, encoded.length, true);
-    legacy.set(encoded, 8);
-    legacy.set(raw.subarray(0, relative), 8 + encoded.length);
-    legacy.set(raw.subarray(relative + incomeBytes), 8 + encoded.length + relative);
+    const legacy = withoutColumns(serialize(world), version, oldViews, [
+      world.guests.cols.approachGap,
+      world.rides.cols.incomeCents,
+      world.rides.cols.trainCount,
+      world.rides.cols.carsPerTrain,
+    ]);
 
     const loaded = deserialize(legacy);
 

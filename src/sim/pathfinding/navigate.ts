@@ -26,7 +26,7 @@ export interface NavOptions {
 
 export const DEFAULT_GUEST_OPTS: Readonly<NavOptions> = {
   fromDir: DIR_NONE,
-  maxJunctions: 6,
+  maxJunctions: 16,
   maxTiles: 15000,
   maxDistance: 200,
   stepsTaken: 0,

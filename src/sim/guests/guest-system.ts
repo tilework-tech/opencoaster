@@ -262,7 +262,19 @@ function setDestination(world: World, slot: number, ride: number): void {
   g.targetX[slot] = world.rides.cols.entranceX[ride];
   g.targetY[slot] = world.rides.cols.entranceY[ride];
   g.patience[slot] = APPROACH_PATIENCE;
+  g.approachGap[slot] = 0xffff;
   world.rideLines.approaching[ride]++;
+}
+
+/** A guest still getting closer to its destination is making progress, not lost. */
+function noteApproachProgress(world: World, slot: number, tile: number): void {
+  const g = world.guests.cols;
+  const id = g.targetRide[slot];
+  if (!world.rides.isAlive(id)) return;
+  const gap = tileDistance(world, tile, entranceTile(world, world.rides.idToSlot[id]));
+  if (gap >= g.approachGap[slot]) return;
+  g.approachGap[slot] = gap;
+  g.patience[slot] = APPROACH_PATIENCE;
 }
 
 function clearDestination(world: World, slot: number): void {
@@ -596,6 +608,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   }
 
   if (g.targetRide[slot] >= 0) {
+    noteApproachProgress(world, slot, tile);
     g.patience[slot] = Math.max(0, g.patience[slot] - UPDATE_STRIDE);
     if (g.patience[slot] === 0) clearDestination(world, slot);
   }

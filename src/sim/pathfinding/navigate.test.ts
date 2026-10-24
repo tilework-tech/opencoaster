@@ -106,6 +106,16 @@ describe('nextDirection', () => {
     }
   });
 
+  it('finds a target twelve junctions down a spine lined with side teeth', () => {
+    const teeth = 12;
+    const width = teeth * 2 + 3;
+    const toothRow = Array.from({ length: width }, (_, x) =>
+      x >= 2 && x <= teeth * 2 && x % 2 === 0 ? '#' : '.',
+    ).join('');
+    const spine = '#'.repeat(width);
+    expect(walk(world([toothRow, spine]), [0, 1], [width - 1, 1])).toBeGreaterThan(0);
+  });
+
   it('gets lost when the target is beyond the junction budget but still moves', () => {
     const rows = ['#'.repeat(41), ...Array.from({ length: 4 }, () => '#' + '.'.repeat(39) + '#')];
     const comb: string[] = [];

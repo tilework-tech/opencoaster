@@ -17,7 +17,9 @@ export const enum RideResult {
   Blocked = 12,
   InsufficientFunds = 13,
   OutOfBounds = 14,
-  /** The test train stalled, crashed or did not finish in time. */
+  /** The test train crashed or did not finish in time. */
   TestFailed = 15,
   TestPassed = 16,
+  /** The test train stopped part way round the circuit and could not continue. */
+  TestStalled = 17,
 }

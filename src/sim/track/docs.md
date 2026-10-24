@@ -32,7 +32,9 @@ Added after the original 34 (ids are appended so saves stay valid):
 
 Each piece carries a `shape` (`PieceShape`, the build-control vocabulary: straight, turns by size, loop, S-bend, corkscrew, helix by size/side/direction) that the UI uses to find the piece for the chosen controls; no two pieces share a shape with the same entry and exit slope and bank.
 
-Slope classes: 25 = 0.5 rise/run (26.6 degrees), 60 = 2.0 rise/run (63.4 degrees), so every piece rises a whole number of height levels. Bank is 45 degrees (`BANK_DEG`); left banks are negative.
+Slope classes: 25 = 0.5 rise/run (26.6 degrees), 60 = 2.0 rise/run (63.4 degrees), so every piece rises a whole number of height levels. Bank is 60 degrees (`BANK_DEG`); left banks are negative. The bank was raised from 45 to 60 degrees so the banked turns reach the spec's lateral-G speeds (medium banked 162 km/h, small banked about 95 against 101); this is an analytic calibration from the lateral-G formula, not yet measured in play.
+
+Placing an inversion (`Inverted` flag) straight after a chain-lift piece reports `TrackWarning.LiftIntoInversion` (code 100) in the track feedback. The placement still succeeds.
 
 Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and upward slopes), Brake and BlockBrake (flag `BrakeOk`: flat only), Launch (`PieceMode.Launch`, flag `LaunchOk`: flat pieces only). Stations take no mode.
 

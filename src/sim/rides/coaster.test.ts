@@ -107,7 +107,7 @@ describe('coaster test run', () => {
     const slot = sim.world.rides.idToSlot[rideId];
     expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
     expect(isRideTested(sim.world, rideId)).toBe(false);
-    expect(sim.world.feedback.code).toBe(RideResult.TestFailed);
+    expect(sim.world.feedback.code).toBe(RideResult.TestStalled);
   });
 });
 

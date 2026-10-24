@@ -113,6 +113,9 @@ const gameUi = new GameUI(root, {
   setRidePrice(rideId, priceCents) {
     sim.command({ type: 'setRidePrice', rideId, priceCents });
   },
+  setRideTrains(rideId, trains, cars) {
+    sim.command({ type: 'setRideTrains', rideId, trains, cars });
+  },
   setRideStatus(rideId, status) {
     sim.command({ type: 'setRideStatus', rideId, status });
   },

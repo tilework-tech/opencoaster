@@ -68,4 +68,8 @@ export const RIDE_SCHEMA = {
   testInversionCount: Uint16Array,
   /** Gross lifetime receipts in integer cents, capped at the stored integer range. */
   incomeCents: Uint32Array,
+  /** Trains the operator asked for; 0 runs as many as the block sections allow. */
+  trainCount: Uint8Array,
+  /** Cars the operator asked for per train; 0 uses the ride type's default capacity. */
+  carsPerTrain: Uint8Array,
 } as const;

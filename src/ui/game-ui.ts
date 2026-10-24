@@ -2,6 +2,7 @@ import type { Snapshot } from '../worker/snapshot';
 import type { Stats } from '../worker/protocol';
 import { RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import { MAX_CARS, MAX_TRAINS_PER_RIDE } from '../sim/vehicles/ride-trains';
 import { financePanelText } from './hud';
 import { objectiveLines } from './objective';
 import { StaffRoster } from './staff-roster';
@@ -31,6 +32,7 @@ export interface GameUIActions {
   renameStaff(staffId: number, name: string): void;
   fireStaff(staffId: number): void;
   setRidePrice(rideId: number, priceCents: number): void;
+  setRideTrains(rideId: number, trains: number, cars: number): void;
   setRideStatus(rideId: number, status: 'open' | 'close'): void;
   placeRidePart(rideId: number, part: 'entrance' | 'exit'): void;
 }
@@ -417,6 +419,26 @@ export class GameUI {
       },
       'set-ride-price',
     );
+    const trains = document.createElement('input');
+    trains.type = 'number';
+    trains.min = '0';
+    trains.max = String(MAX_TRAINS_PER_RIDE);
+    trains.step = '1';
+    trains.value = '0';
+    trains.setAttribute('aria-label', 'Trains on the track (0 for automatic)');
+    const cars = document.createElement('input');
+    cars.type = 'number';
+    cars.min = '0';
+    cars.max = String(MAX_CARS);
+    cars.step = '1';
+    cars.value = '0';
+    cars.setAttribute('aria-label', 'Cars per train (0 for default)');
+    const setTrains = this.button(
+      'Set trains',
+      () =>
+        this.actions.setRideTrains(Number(select.value), Number(trains.value), Number(cars.value)),
+      'set-ride-trains',
+    );
     const status = document.createElement('div');
     status.className = 'ride-controls';
     status.append(
@@ -444,6 +466,9 @@ export class GameUI {
     panel.root.insertBefore(select, panel.body);
     panel.root.insertBefore(price, panel.body);
     panel.root.insertBefore(setPrice, panel.body);
+    panel.root.insertBefore(trains, panel.body);
+    panel.root.insertBefore(cars, panel.body);
+    panel.root.insertBefore(setTrains, panel.body);
     panel.root.insertBefore(status, panel.body);
     this.rideSelect = select;
     this.ridePrice = price;

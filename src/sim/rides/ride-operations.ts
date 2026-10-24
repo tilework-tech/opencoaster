@@ -1,6 +1,7 @@
 import type { World } from '../core/world';
 import { Surface } from '../map/tile-map';
 import { StaffKind } from '../staff/staff-store';
+import { MAX_CARS, MAX_TRAINS_PER_RIDE, RIDERS_PER_CAR } from '../vehicles/ride-trains';
 import { RIDE_CATALOG, type RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
 
@@ -281,6 +282,28 @@ export function leaveRideQueue(world: World, rideId: number, guests: number): bo
   const ride = world.rides.cols;
   if (guests > ride.queueLength[slot]) return false;
   ride.queueLength[slot] -= guests;
+  return true;
+}
+
+/**
+ * Sets how many trains a coaster runs and how many cars each has (0 for either means automatic).
+ * Riders per train follow from the cars, so the ride's capacity per dispatch is set with them.
+ * Trains already on the track keep their length until they are next spawned.
+ */
+export function setTrainLayout(
+  world: World,
+  rideId: number,
+  trains: number,
+  cars: number,
+): boolean {
+  const slot = slotForRide(world, rideId);
+  if (slot < 0 || !inRangeInteger(trains, 0, MAX_TRAINS_PER_RIDE)) return false;
+  if (!inRangeInteger(cars, 0, MAX_CARS)) return false;
+  const definition = RIDE_CATALOG[world.rides.cols.typeId[slot] as RideType];
+  const cols = world.rides.cols;
+  cols.trainCount[slot] = trains;
+  cols.carsPerTrain[slot] = cars;
+  cols.capacity[slot] = cars === 0 ? definition.capacity : cars * RIDERS_PER_CAR;
   return true;
 }
 

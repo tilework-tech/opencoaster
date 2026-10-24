@@ -14,7 +14,7 @@ import {
 } from './geometry';
 
 /** Roll angle of a banked piece, in degrees. Left banks are negative. */
-export const BANK_DEG = 45;
+export const BANK_DEG = 60;
 /** Fixed-point scale of the tangent vectors stored in SAMPLES. */
 export const TANGENT_ONE = 1024;
 /** Target distance between consecutive centre-line points, in TILE_UNITS. */
