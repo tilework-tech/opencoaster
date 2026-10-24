@@ -2,6 +2,7 @@ import { applyScenario } from '../sim/scenario/scenario';
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/core/simulation';
 import { hashWorld } from '../sim/core/hash';
+import { PieceId } from '../sim/track/catalog';
 import { SAVE_VERSION, deserialize, serialize } from './save';
 
 describe('save', () => {
@@ -91,6 +92,17 @@ describe('save: map and economy together', () => {
     sim.enqueue({ type: 'placePath', x: 2, y: 8 });
     sim.enqueue({ type: 'research', action: { type: 'setFunding', level: 2 } });
     sim.enqueue({ type: 'spawnGuests', count: 20 });
+    const ride = sim.world.rides.slotToId[sim.world.rides.spawn()];
+    sim.enqueue({
+      type: 'placeTrack',
+      rideId: ride,
+      pieceType: PieceId.Station,
+      x: 10,
+      y: 10,
+      z: 4,
+      dir: 0,
+      mode: 0,
+    });
     for (let i = 0; i < 300; i++) sim.step();
     expect(hashWorld(sim.world)).not.toBe(untouched);
 
@@ -102,6 +114,17 @@ describe('save: map and economy together', () => {
       );
     }
     expect(loaded.economy.cash).toBe(sim.world.economy.cash);
+    expect(sim.world.track.pieces.count).toBeGreaterThan(0);
+    expect(loaded.track.pieces.count).toBe(sim.world.track.pieces.count);
+    for (const [a, b] of sim.world.track.pieces
+      .arrays()
+      .concat(sim.world.track.rideTables())
+      .map((arr, i) => [arr, loaded.track.pieces.arrays().concat(loaded.track.rideTables())[i]])) {
+      expect(Array.from(b as unknown as ArrayLike<number>)).toEqual(
+        Array.from(a as unknown as ArrayLike<number>),
+      );
+    }
+    expect(loaded.track.lastResult).toBe(sim.world.track.lastResult);
 
     const copy = make();
     Object.assign(copy, { world: loaded });

@@ -12,6 +12,12 @@ const MAGIC = 0x56534f43; // "COSV" little-endian
 type StoreName = 'guests' | 'staff' | 'vehicles' | 'litter' | 'rides';
 const STORE_NAMES: StoreName[] = ['guests', 'staff', 'vehicles', 'litter', 'rides'];
 
+interface StoreHeader {
+  capacity: number;
+  count: number;
+  freeTop: number;
+}
+
 interface Header {
   version: number;
   seed: number;
@@ -19,16 +25,18 @@ interface Header {
   height: number;
   tick: number;
   rng: number[];
-  stores: Record<string, { capacity: number; count: number; freeTop: number }>;
+  stores: Record<string, StoreHeader>;
   economy: LedgerSave;
   weather: { kind: number; temperature: number; ticksUntilChange: number };
   research: ResearchSave;
   scenario: ScenarioState;
+  track: { pieces: StoreHeader; lastResult: number; lastPiece: number };
 }
 
 function views(world: World): ArrayBufferView[] {
   const out: ArrayBufferView[] = [...world.map.arrays()];
   for (const n of STORE_NAMES) out.push(...(world[n] as EntityStore<Schema>).arrays());
+  out.push(...world.track.pieces.arrays(), ...world.track.rideTables());
   return out;
 }
 
@@ -51,6 +59,15 @@ export function serialize(world: World): Uint8Array {
     weather: { ...world.weather },
     research: saveResearch(world.research),
     scenario: { ...world.scenario },
+    track: {
+      pieces: {
+        capacity: world.track.pieces.capacity,
+        count: world.track.pieces.count,
+        freeTop: world.track.pieces.freeCount,
+      },
+      lastResult: world.track.lastResult,
+      lastPiece: world.track.lastPiece,
+    },
   };
   const headerBytes = new TextEncoder().encode(JSON.stringify(header));
   const vs = views(world);
@@ -95,6 +112,9 @@ export function deserialize(bytes: Uint8Array): World {
     const h = header.stores[n];
     (world[n] as EntityStore<Schema>).restore(h.count, h.freeTop);
   }
+  world.track.pieces.restore(header.track.pieces.count, header.track.pieces.freeTop);
+  world.track.lastResult = header.track.lastResult;
+  world.track.lastPiece = header.track.lastPiece;
   restoreLedger(world.economy, header.economy);
   Object.assign(world.weather, header.weather);
   restoreResearch(world.research, header.research);
