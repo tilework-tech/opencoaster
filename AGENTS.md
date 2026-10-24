@@ -28,4 +28,4 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
 - Renderers read `Snapshot`/`MapData` only, never sim state.
 - Comments describe the code, not its history. Prefer third-party libraries to hand-rolled ones (ask before adding a dependency).
 - Never push to `main`; PRs only. Never commit original game assets or copied OpenRCT2 code.
-- GitHub session tokens cannot push `.github/workflows/`; CI lives in `ci/github-actions-ci.yml` until a maintainer installs it.
+- GitHub session tokens cannot push `.github/workflows/`; ask an admin-elevated session to change CI (`.github/workflows/ci.yml`).
