@@ -64,8 +64,9 @@ Target: **5000 guests at 40 ticks/s using < 8 ms of sim per tick** on a mid-rang
 
 ### Verification measurements (2026-10-24)
 
-- Simulation benchmark on the Modal session runtime (Node 22.20.0), 5000 guests, 100 staff, 40 warmup ticks and 200 measured ticks: mean 0.260 ms/tick, p50 0.257 ms, p95 0.267 ms, p99 0.269 ms, max 0.276 ms. Strict p99 budget: pass (8 ms).
-- Playwright headless Chromium 156 with SwiftShader at 1280×800 and 5000 guests: four runs collected 157–159 `renderer.draw` measurements each. Across runs, p50 was 0.58–0.60 ms, p95 1.41–1.63 ms, p99 1.90–2.10 ms, and max 2.31–4.14 ms. This measures the renderer's synchronous draw call, not the full browser frame or GPU hardware performance.
+- Simulation benchmark on the Modal session runtime (Node 22.20.0), 5000 guests, 100 staff, 40 warmup ticks and 200 measured ticks: across three strict runs, mean was 0.222–0.242 ms/tick, p50 0.154–0.161 ms, p95 0.297–0.379 ms, p99 1.586–1.966 ms, and max 2.956–4.567 ms. All runs passed the 8 ms p99 budget. The p99 variation reflects a small sample: at 200 ticks, nearest-rank p99 selects the second-highest sample.
+- The pre-change benchmark on the same path-lattice scenario reported mean 0.203 ms/tick, p50 0.163 ms, p95 0.281 ms, p99 1.034 ms and max 4.773 ms in one run, using the previous percentile index. Simulation code did not change in this work, so these samples do not establish a speedup; they show the strict p99 budget and its run-to-run tail variation.
+- Playwright headless Chromium 156 with SwiftShader at 1280×800 and 5000 guests: five runs collected 157–159 `renderer.draw` measurements each. Across runs, p50 was 0.58–0.60 ms, p95 1.00–1.63 ms, p99 1.90–2.10 ms, and max 2.00–4.14 ms. This measures the renderer's synchronous draw call, not the full browser frame or GPU hardware performance.
 - SwiftShader confirms the WebGL2 startup and draw path work in headless Chromium. Its timings validate functionality and are not representative of a physical GPU.
 
 ## Save/load
