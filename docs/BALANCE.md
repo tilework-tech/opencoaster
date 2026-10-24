@@ -200,23 +200,19 @@ Starter scenario, one year, default seed (2026), scripted modest build, `pnpm ba
 
 The ledger is unchanged by design: monthly research funding equals the old weekly charge times four, and the scripted park runs no research or campaign. The moves come from the rating's happiness term and the starter target.
 
-### Coaster rating changes
+## Coaster fidelity on the combined tree (PR #32)
 
-The coaster fidelity pass (crash defaults, turn/helix/shelter/scenery terms, multiplicative base ratings, requirements, air-time shape) moves the starter wooden coaster from 4.65 / 4.67 / 1.63 to 4.68 / 4.68 / 1.65 (excitement / intensity / nausea); the ride is unpenalised and does not crash, and its guests-served and "too intense" counts stay in the ranges above. A one-hundredth rating change alters guest choices enough to reshuffle which seeds win, so the per-seed table was re-run on the same seeds: the starter objective is still winnable (modest 5 / 12, ambitious 10 / 12, minimal 0 / 12, measured on main at 339fecc plus this change).
+Rebased on main at `f0c48a6` (PR #36, save v11), so this includes guest navigation, ride reliability and the coaster fidelity changes (crash defaults, turn/helix/shelter/scenery terms, multiplicative base ratings, requirements). Twelve seeds per profile (11 - 16 and 21 - 26), `pnpm balance --profile P --seed N`, scored against the scenario's 575-rating target:
 
-### Combined: economy and coaster fidelity
+| Build (wins / 12) | main `f0c48a6` | this PR |
+| ----------------- | -------------- | ------- |
+| minimal           | 0              | 0       |
+| modest            | 12             | 10      |
+| ambitious         | 2              | 3       |
 
-Both passes on one tree (main at 14ac232, #33, plus the coaster fidelity commits from #32 rebased on it). Same twelve seeds, `pnpm balance --profile P --seed N`, scored at the year-end check against the 100 guests / 650 rating objective:
+Modest rating ranges: main 580 - 659, this PR 558 - 688. The starter objective stays winnable for the modest build on most seeds (10 / 12).
 
-| Profile   | Guests    | Rating (min - max) | Wins @ 650 |
-| --------- | --------- | ------------------ | ---------- |
-| minimal   | 28 - 67   | 0 - 364            | 0 / 12     |
-| modest    | 129 - 160 | 580 - 754          | 7 / 12     |
-| ambitious | 136 - 167 | 577 - 762          | 8 / 12     |
-
-The modest build wins on seven of twelve seeds, down from ten of twelve in the economy-pass sweep above. This is not yet attributed to either pass; the rating-by-pass split was not measured. Re-run this table if either pass changes again.
-
-**Default seed (2026):** the scripted modest build ends year one at rating 692 and wins against 650, with guests at 133 (target 100). This is a clearer win than the 653 near-miss recorded above for the economy pass alone, but it is one seed out of twelve that clears.
+**Default seed (2026), scripted modest build:** main ends year one at rating 636 and wins; this PR ends at 550 and loses (189 guests, target 100). The coaster rating change moves this one run across the 575 line. The seed-sweep result above is the number to trust; the default run is a near miss in the other direction. Do not retune the target from this PR alone.
 
 ## Known gaps
 
