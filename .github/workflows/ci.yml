@@ -22,3 +22,10 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm bench -- --guests 5000 --ticks 200
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm smoke
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-results
+          path: test-results/
