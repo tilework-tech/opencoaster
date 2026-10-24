@@ -28,7 +28,7 @@ Path: @/src/render
 - `MapData` is sent separately from snapshots and contains dimensions, heights, surface classes, and per-tile slope masks. WebGL2 uses the surface and mask to select terrain atlas sprites and lift the corresponding corners; the Canvas2D fallback also raises those corners. Entity positions, including track pieces, use the snapshot's four-integer stride; renderers unpack these values rather than holding simulation objects.
 - Sprite art and terrain styling are generated at runtime. This keeps rendering independent of original game assets and external art files.
 - WebGL2 context loss pauses drawing until restoration rebuilds GPU resources. Initial context or resource setup errors trigger the Canvas2D fallback through [create-renderer.ts](create-renderer.ts).
-- The root `pnpm smoke` browser check runs [smoke/webgl2.spec.ts](../../smoke/webgl2.spec.ts) in headless Chromium with SwiftShader. It confirms the active canvas and HUD use WebGL2, adds guests through the UI to reach 5,000, checks for console and page errors, samples frame-time percentiles, and captures a screenshot. CI installs Chromium and its system dependencies with Playwright before running this smoke check.
+- The root `pnpm smoke` browser check runs [smoke/webgl2.spec.ts](../../smoke/webgl2.spec.ts) in headless Chromium with SwiftShader. It confirms the active canvas and HUD use WebGL2, adds guests through the UI to reach 5,000, checks for console and page errors, samples frame-time percentiles, and captures a screenshot.
 - Picking accounts for camera zoom, rotation, and map elevation. It is used for selection and tool feedback; it does not itself issue a simulation command.
 
 Created and maintained by Nori.
