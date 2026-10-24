@@ -174,9 +174,10 @@ function openRide(world: World, rideId: number): RideResult {
   if (!ride.entrancePlaced[slot]) return RideResult.NoEntrance;
   if (def.category !== 'stall' && def.category !== 'facility' && !ride.exitPlaced[slot])
     return RideResult.NoExit;
-  if (tracked) connectQueueFromEntrance(world, slot);
-  if (def.category !== 'stall' && def.category !== 'facility' && !ride.queueConnected[slot])
-    return RideResult.NoQueue;
+  if (def.category !== 'stall' && def.category !== 'facility') {
+    connectQueueFromEntrance(world, slot);
+    if (!ride.queueConnected[slot]) return RideResult.NoQueue;
+  }
   return setRideOpen(world, rideId, true) ? RideResult.Ok : RideResult.Busy;
 }
 
