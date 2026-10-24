@@ -6,6 +6,7 @@ export interface MapData {
   height: number;
   heights: Uint8Array;
   surface: Uint8Array;
+  slope: Uint8Array;
 }
 
 export interface Camera {

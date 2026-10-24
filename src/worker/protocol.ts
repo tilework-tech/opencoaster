@@ -24,6 +24,8 @@ export interface MapMessage {
   height: number;
   heights: Uint8Array;
   surface: Uint8Array;
+  /** Corner mask per tile (bit c set when corner c is one level above `heights`). */
+  slope: Uint8Array;
 }
 
 export interface Stats {

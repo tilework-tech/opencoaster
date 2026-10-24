@@ -3,7 +3,15 @@ import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './pro
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 
-const SURFACE_COLORS = ['#5aa24a', '#d9c98a', '#3f7fbf', '#8a8a8a'];
+const SURFACE_COLORS = [
+  '#5aa24a',
+  '#d9c98a',
+  '#3f7fbf',
+  '#8a8a8a',
+  '#8b6b43',
+  '#77716b',
+  '#b08a8a',
+];
 const GUEST_TINTS = [
   '#e63946',
   '#f1c40f',
@@ -79,12 +87,19 @@ export class Canvas2DRenderer implements Renderer {
         const [x, y] = unrotateTile(rx, ry, map.width, map.height, cam.rotation);
         const i = y * map.width + x;
         const lift = map.heights[i] * Z_PIXELS;
+        // View-space top/right/bottom/left vertices are tile corners starting at (4 - rot) & 3.
+        const top = (4 - cam.rotation) & 3;
+        const mask = map.slope[i];
+        const liftTop = lift + ((mask >> top) & 1) * Z_PIXELS;
+        const liftRight = lift + ((mask >> ((top + 1) & 3)) & 1) * Z_PIXELS;
+        const liftBottom = lift + ((mask >> ((top + 2) & 3)) & 1) * Z_PIXELS;
+        const liftLeft = lift + ((mask >> ((top + 3) & 3)) & 1) * Z_PIXELS;
         ctx.fillStyle = SURFACE_COLORS[map.surface[i]] ?? '#f0f';
         ctx.beginPath();
-        ctx.moveTo(sx, sy - lift);
-        ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - lift);
-        ctx.lineTo(sx, sy + TILE_H - lift);
-        ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - lift);
+        ctx.moveTo(sx, sy - liftTop);
+        ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - liftRight);
+        ctx.lineTo(sx, sy + TILE_H - liftBottom);
+        ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
         ctx.closePath();
         ctx.fill();
       }

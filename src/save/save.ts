@@ -27,7 +27,7 @@ interface Header {
 }
 
 function views(world: World): ArrayBufferView[] {
-  const out: ArrayBufferView[] = [world.map.heights, world.map.surface, world.map.flags];
+  const out: ArrayBufferView[] = [...world.map.arrays()];
   for (const n of STORE_NAMES) out.push(...(world[n] as EntityStore<Schema>).arrays());
   return out;
 }

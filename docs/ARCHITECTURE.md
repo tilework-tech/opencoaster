@@ -44,7 +44,7 @@ Chosen: **transferable snapshot buffers**, three pooled per run.
 - Cost: ~16 B per entity, so 5000 guests ≈ 80 KB per snapshot; the copy-out loop is a tight typed-array loop (a few hundred µs at most).
 - Why not SharedArrayBuffer: it requires cross-origin isolation (COOP/COEP), which static hosts like GitHub Pages cannot set, and shared mutable memory invites torn reads without extra synchronisation. The renderer only needs a consistent frame, which snapshots give for free.
 - Headers: `vite.config.ts` serves COOP `same-origin` and COEP `require-corp` in dev/preview anyway, so a later SAB upgrade (e.g. a double-buffered shared position array with an atomic frame index) does not hit surprises. Nothing depends on them today; production hosting does not need to set them.
-- Static data (terrain) is sent once in a `map` message and re-sent on edits, not per frame.
+- Static data (terrain heights, corner slopes, surface class) is sent in a `map` message and re-sent whenever `TileMap.revision` changes, not per frame.
 - Rendering uses the latest snapshot without interpolation for now. Interpolating between the last two snapshots is a planned renderer-side change that needs no protocol change.
 
 ## Rendering
@@ -62,4 +62,4 @@ Target: **5000 guests at 40 ticks/s using < 8 ms of sim per tick** on a mid-rang
 
 ## Save/load
 
-`src/save` writes a versioned header (JSON) plus the raw typed-array columns. Loading rebuilds a `World` and continues bit-identically.
+`src/save` writes a versioned header (JSON) plus the raw typed-array columns (the map contributes everything in `TileMap.arrays()`). Loading rebuilds a `World` and continues bit-identically.

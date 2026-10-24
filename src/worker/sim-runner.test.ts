@@ -16,6 +16,18 @@ describe('SimRunner', () => {
     expect(snap && snap.type === 'snapshot' && snap.snapshot.guests.count).toBe(20);
   });
 
+  it('re-sends the map after a terrain edit', () => {
+    const out: FromWorker[] = [];
+    let now = 0;
+    const r = new SimRunner({ post: (m) => out.push(m) }, () => now);
+    r.handle({ type: 'init', seed: 1, width: 16, height: 16, initialGuests: 0, maxGuests: 10 });
+    r.handle({ type: 'command', command: { type: 'raiseLand', x: 6, y: 6, width: 1, height: 1 } });
+    r.pump();
+    now = 100;
+    r.pump();
+    expect(out.filter((m) => m.type === 'map').length).toBe(2);
+  });
+
   it('stops publishing when no recycled buffers remain, and resumes after recycle', () => {
     const out: FromWorker[] = [];
     let now = 0;

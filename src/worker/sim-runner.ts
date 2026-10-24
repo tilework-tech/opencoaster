@@ -23,6 +23,7 @@ export class SimRunner {
   private emaMs = 0;
   private maxMs = 0;
   private lastStats = 0;
+  private mapRevision = 0;
 
   constructor(
     private readonly port: Port,
@@ -69,14 +70,21 @@ export class SimRunner {
         }),
       );
     }
+    this.postMap(sim);
+    this.port.post({ type: 'ready' });
+  }
+
+  private postMap(sim: Simulation): void {
     const { map } = sim.world;
     const heights = map.heights.slice();
     const surface = map.surface.slice();
-    this.port.post({ type: 'map', width: map.width, height: map.height, heights, surface }, [
+    const slope = map.slope.slice();
+    this.mapRevision = map.revision;
+    this.port.post({ type: 'map', width: map.width, height: map.height, heights, surface, slope }, [
       heights.buffer as ArrayBuffer,
       surface.buffer as ArrayBuffer,
+      slope.buffer as ArrayBuffer,
     ]);
-    this.port.post({ type: 'ready' });
   }
 
   /** Runs due ticks and publishes a snapshot if any ran and a free buffer is available. */
@@ -88,6 +96,7 @@ export class SimRunner {
     if (n > 0) {
       const t0 = this.clock();
       for (let i = 0; i < n; i++) sim.step();
+      if (sim.world.map.revision !== this.mapRevision) this.postMap(sim);
       const per = (this.clock() - t0) / n;
       this.emaMs = this.emaMs === 0 ? per : this.emaMs * 0.9 + per * 0.1;
       if (per > this.maxMs) this.maxMs = per;
