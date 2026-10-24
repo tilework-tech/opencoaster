@@ -50,6 +50,18 @@ describe('render snapshot', () => {
     expect(snapshot.park.rides).toBe(world.rides.count);
   });
 
+  it('publishes the park gate tile to renderers', () => {
+    const world = new World({ seed: 9, width: 8, height: 8 });
+    world.park.entranceX = 3;
+    world.park.entranceY = 5;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.park.entranceX).toBe(3);
+    expect(snapshot.park.entranceY).toBe(5);
+  });
+
   it('publishes whether each tile allows construction', () => {
     const world = new World({ seed: 9, width: 8, height: 8 });
     const owned = world.map.index(2, 2);

@@ -14,5 +14,8 @@ export default defineConfig({
   preview: { headers: isolationHeaders },
   worker: { format: 'es' },
   build: { target: 'es2022' },
-  test: { environment: 'node', include: ['src/**/*.test.ts', 'bench/**/*.test.ts'] },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts', 'bench/**/*.test.ts', 'tools/art/**/*.test.ts'],
+  },
 });

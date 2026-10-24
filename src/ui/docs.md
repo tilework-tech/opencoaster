@@ -16,6 +16,7 @@ Path: @/src/ui
 - Placement input is translated into simulation commands at the main-thread boundary. The worker applies commands to its owned [Simulation](../sim/core/simulation.ts) on a tick, then publishes a later snapshot.
 - Park and finance panels read snapshot and worker-stat values. A successful guest pick opens Guest information and shows details from that snapshot with its tick label.
 - [Hud](hud.ts) combines worker timing and dropped-tick statistics with frame rate, render duration, visible sprite count, and renderer backend from the render loop.
+- On narrow screens, the toolbar stays on one row and scrolls horizontally so every park action remains reachable without covering more of the map. The layout rule lives in [index.html](../../index.html) and is covered by the [mobile toolbar browser check](../../e2e/mobile-toolbar.spec.ts).
 - [title-screen.ts](title-screen.ts), [save-menu.ts](save-menu.ts) and [scenario-dialog.ts](scenario-dialog.ts) are DOM overlays. They call into the save layer ([game-saves.ts](../save/game-saves.ts), [slot-store.ts](../save/slot-store.ts)) and the worker ([SimClient](../worker/sim-client.ts)) through callbacks wired in `main.ts`.
 
 ### Core Implementation

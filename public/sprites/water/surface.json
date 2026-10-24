@@ -1,0 +1,36 @@
+{
+  "frames": [
+    {
+      "x": 0,
+      "y": 0,
+      "width": 107,
+      "height": 128
+    },
+    {
+      "x": 0,
+      "y": 128,
+      "width": 107,
+      "height": 128
+    },
+    {
+      "x": 0,
+      "y": 256,
+      "width": 107,
+      "height": 128
+    },
+    {
+      "x": 0,
+      "y": 384,
+      "width": 107,
+      "height": 128
+    }
+  ],
+  "anchor": {
+    "x": 53,
+    "y": 128
+  },
+  "footprint": {
+    "width": 1,
+    "height": 1
+  }
+}
