@@ -1,4 +1,4 @@
-import { Funding, FUNDING_WEEKLY_CENTS } from '../../sim/research/research';
+import { Funding, FUNDING_MONTHLY_CENTS } from '../../sim/research/research';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, setText, statRow } from '../dom';
 import { formatMoney } from '../format';
@@ -40,7 +40,7 @@ export function fundingControls(ctx: UiContext): FundingControls {
   const levelRow = element('div', 'button-row');
   for (const [level, label] of FUNDING_LABELS) {
     const caption =
-      level === Funding.None ? label : `${label} ${formatMoney(FUNDING_WEEKLY_CENTS[level])}/wk`;
+      level === Funding.None ? label : `${label} ${formatMoney(FUNDING_MONTHLY_CENTS[level])}/month`;
     const b = button(
       caption,
       () => ctx.actions.command({ type: 'research', action: { type: 'setFunding', level } }),

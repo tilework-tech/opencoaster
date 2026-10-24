@@ -374,7 +374,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.research.funding = research.funding;
   out.research.enabledCategoryMask = research.enabledCategoryMask;
   out.research.progress = research.progress;
-  out.research.currentCost = current ? current.costCents : -1;
+  out.research.currentCost = current ? current.workUnits : -1;
   out.research.inventionCount = research.inventions.length;
   out.research.unlockedCount = research.unlocked.size;
 }
