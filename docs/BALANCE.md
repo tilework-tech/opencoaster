@@ -204,6 +204,20 @@ The ledger is unchanged by design: monthly research funding equals the old weekl
 
 The coaster fidelity pass (crash defaults, turn/helix/shelter/scenery terms, multiplicative base ratings, requirements, air-time shape) moves the starter wooden coaster from 4.65 / 4.67 / 1.63 to 4.68 / 4.68 / 1.65 (excitement / intensity / nausea); the ride is unpenalised and does not crash, and its guests-served and "too intense" counts stay in the ranges above. A one-hundredth rating change alters guest choices enough to reshuffle which seeds win, so the per-seed table was re-run on the same seeds: the starter objective is still winnable (modest 5 / 12, ambitious 10 / 12, minimal 0 / 12, measured on main at 339fecc plus this change).
 
+### Combined: economy and coaster fidelity
+
+Both passes on one tree (main at 14ac232, #33, plus the coaster fidelity commits from #32 rebased on it). Same twelve seeds, `pnpm balance --profile P --seed N`, scored at the year-end check against the 100 guests / 650 rating objective:
+
+| Profile   | Guests    | Rating (min - max) | Wins @ 650 |
+| --------- | --------- | ------------------ | ---------- |
+| minimal   | 28 - 67   | 0 - 364            | 0 / 12     |
+| modest    | 129 - 160 | 580 - 754          | 7 / 12     |
+| ambitious | 136 - 167 | 577 - 762          | 8 / 12     |
+
+The modest build wins on seven of twelve seeds, down from ten of twelve in the economy-pass sweep above. This is not yet attributed to either pass; the rating-by-pass split was not measured. Re-run this table if either pass changes again.
+
+**Default seed (2026):** the scripted modest build ends year one at rating 692 and wins against 650, with guests at 133 (target 100). This is a clearer win than the 653 near-miss recorded above for the economy pass alone, but it is one seed out of twelve that clears.
+
 ## Known gaps
 
 - Far rides still cost a long walk: after the change the wooden coaster (a 35-tile walk, open for the last two thirds of the year) serves 362 guests against 905 for the merry-go-round next to the gate, and it is capped by what its single train carries. Energy is a placeholder until the target-based needs model lands ([fidelity/guests.md](fidelity/guests.md) F2).
