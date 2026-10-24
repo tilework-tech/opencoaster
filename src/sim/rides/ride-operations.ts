@@ -42,6 +42,15 @@ export interface RideOperations {
   unloadTicks?: number;
 }
 
+function isFootpathSurface(surface: number): boolean {
+  return surface === Surface.Path || surface === Surface.Queue;
+}
+
+/** Stalls and facilities are used at their entrance tile and need no queue line or exit. */
+export function isShopCategory(category: string): boolean {
+  return category === 'stall' || category === 'facility';
+}
+
 function slotForRide(world: World, rideId: number): number {
   return world.rides.idToSlot[rideId] ?? -1;
 }
@@ -156,13 +165,13 @@ export function connectRideQueue(
         if (tiles[j].x === tile.x && tiles[j].y === tile.y) return false;
       }
     }
-    if (i > 0 && world.map.surface[world.map.index(tile.x, tile.y)] !== Surface.Path) {
+    if (i > 0 && !isFootpathSurface(world.map.surface[world.map.index(tile.x, tile.y)])) {
       return false;
     }
   }
 
   const endpoint = tiles[tiles.length - 1];
-  if (world.map.surface[world.map.index(endpoint.x, endpoint.y)] !== Surface.Path) return false;
+  if (!isFootpathSurface(world.map.surface[world.map.index(endpoint.x, endpoint.y)])) return false;
   const queueLineTiles = Math.min(Math.max(0, tiles.length - 2), 0xffff);
   if (ride.queueLength[slot] > queueLineTiles * QUEUE_GUESTS_PER_TILE) return false;
   ride.queueConnected[slot] = 1;
@@ -189,14 +198,15 @@ export function setRideOpen(world: World, rideId: number, open: boolean): boolea
     return true;
   }
 
+  const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  const shop = isShopCategory(definition.category);
   if (
     ride.state[slot] === RideState.Broken ||
     ride.phase[slot] === RidePhase.Broken ||
     isRideInActiveCycle(ride.phase[slot]) ||
     ride.entrancePlaced[slot] === 0 ||
-    ride.exitPlaced[slot] === 0 ||
-    ride.queueConnected[slot] === 0 ||
-    (RIDE_CATALOG[ride.typeId[slot] as RideType].usesTrack && ride.tested[slot] === 0)
+    (!shop && (ride.exitPlaced[slot] === 0 || ride.queueConnected[slot] === 0)) ||
+    (definition.usesTrack && ride.tested[slot] === 0)
   ) {
     return false;
   }

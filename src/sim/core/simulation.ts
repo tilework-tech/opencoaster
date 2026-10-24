@@ -17,8 +17,12 @@ import { applyTrackCommand } from '../track/track-commands';
 import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { Surface } from '../map/tile-map';
-import { LedgerCategory, post } from '../economy/ledger';
+import { LedgerCategory } from '../economy/ledger';
 import { economySystem } from '../economy/economy-system';
+import { parkInputsSystem } from '../economy/park-inputs';
+import { charge } from '../economy/api';
+import { rideQueueSystem } from '../rides/queue-system';
+import { setParkEntrance } from '../guests/park';
 import { weatherSystem } from '../weather/weather-system';
 import { researchSystem } from '../research/research-system';
 import { scenarioSystem } from '../scenario/scenario-system';
@@ -34,10 +38,12 @@ export const SYSTEM_ORDER: readonly System[] = [
   researchSystem,
   trackSystem,
   rideSystem,
+  rideQueueSystem,
   vehicleSystem,
   guestSystem,
   staffSystem,
   litterSystem,
+  parkInputsSystem,
   economySystem,
   scenarioSystem,
 ];
@@ -94,8 +100,7 @@ function applyCreateRide(w: World, type: RideType, x: number, y: number): void {
     }
   }
 
-  if (createRide(w, type, x, y) >= 0)
-    post(w.economy, LedgerCategory.RideConstruction, -definition.cost);
+  if (createRide(w, type, x, y) >= 0) charge(w, LedgerCategory.RideConstruction, definition.cost);
 }
 
 export class Simulation {
@@ -131,6 +136,9 @@ export class Simulation {
       case 'spawnStaff':
         for (let i = 0; i < c.count; i++) if (!spawnStaff(w, c.kind)) break;
         break;
+      case 'setParkEntrance':
+        setParkEntrance(w, c.x, c.y);
+        break;
       case 'createRide':
         applyCreateRide(w, c.rideType, c.x, c.y);
         break;
@@ -150,7 +158,7 @@ export class Simulation {
           const countBefore = w.track.pieces.count;
           applyTrackCommand(w, c);
           if (piece && w.track.pieces.count > countBefore)
-            post(w.economy, LedgerCategory.RideConstruction, -piece.cost);
+            charge(w, LedgerCategory.RideConstruction, piece.cost);
         }
         break;
       case 'removeTrack':

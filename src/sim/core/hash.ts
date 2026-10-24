@@ -67,6 +67,8 @@ export function hashWorld(world: World): number {
     const t = table as Int32Array;
     for (let i = 0; i < t.length; i++) mix(t[i]);
   }
+  mix(world.park.entranceX);
+  mix(world.park.entranceY);
   mix(world.track.lastResult);
   return h >>> 0;
 }

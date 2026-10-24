@@ -1,5 +1,6 @@
 import { Simulation } from '../src/sim/core/simulation';
 import { DEFAULT_MAP_SIZE, TICK_MS } from '../src/sim/core/constants';
+import { placePath } from '../src/sim/map/paths';
 
 const BUDGET_MS = 8;
 
@@ -14,6 +15,21 @@ const warmup = arg('warmup', 40);
 const strict = process.argv.includes('--strict');
 
 const sim = new Simulation({ seed: 1, width: DEFAULT_MAP_SIZE, height: DEFAULT_MAP_SIZE });
+
+// A flat park with a footpath lattice (every fourth row and column) and the gate at its corner,
+// so guests spend the benchmark navigating real paths.
+const map = sim.world.map;
+map.waterLevel.fill(0);
+map.ownership.fill(1);
+map.fillFlat(4);
+const LATTICE_MIN = 8;
+const LATTICE_MAX = DEFAULT_MAP_SIZE - 8;
+for (let y = LATTICE_MIN; y <= LATTICE_MAX; y++) {
+  for (let x = LATTICE_MIN; x <= LATTICE_MAX; x++) {
+    if (x % 4 === 0 || y % 4 === 0) placePath(map, { x, y });
+  }
+}
+sim.enqueue({ type: 'setParkEntrance', x: LATTICE_MIN, y: LATTICE_MIN });
 sim.enqueue({ type: 'spawnGuests', count: guests });
 sim.enqueue({ type: 'spawnStaff', count: 100, kind: 0 });
 

@@ -7,6 +7,8 @@ import { GUEST_SCHEMA } from '../guests/guest-store';
 import { STAFF_SCHEMA } from '../staff/staff-store';
 import { VEHICLE_SCHEMA } from '../vehicles/vehicle-store';
 import { LITTER_SCHEMA } from '../guests/litter-store';
+import { createParkState } from '../guests/park';
+import type { ParkState } from '../guests/park';
 import { createLedger } from '../economy/ledger';
 import type { Ledger } from '../economy/ledger';
 import { createWeather } from '../weather/weather';
@@ -44,6 +46,7 @@ export class World {
   readonly research: ResearchState;
   readonly scenario: ScenarioState;
   readonly track: TrackState;
+  readonly park: ParkState;
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;
@@ -60,5 +63,6 @@ export class World {
     this.research = createResearch();
     this.scenario = createScenarioState();
     this.track = new TrackState();
+    this.park = createParkState();
   }
 }
