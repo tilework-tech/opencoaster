@@ -137,3 +137,29 @@ describe('render snapshot', () => {
     expect(snapshot.feedback.code).toBe(sim.world.feedback.code);
   });
 });
+
+describe('staff and ground state in the snapshot', () => {
+  it('publishes staff ids, names and per-tile grounds', () => {
+    const sim = new Simulation({ seed: 4, width: 8, height: 8 });
+    sim.world.map.terrain.fill(0);
+    sim.world.map.fillFlat(2);
+    sim.enqueue({ type: 'hireStaff', kind: 0 });
+    sim.enqueue({ type: 'hireStaff', kind: 2 });
+    sim.step();
+    const [first, second] = [sim.world.staff.slotToId[0], sim.world.staff.slotToId[1]];
+    sim.enqueue({ type: 'renameStaff', staffId: second, name: 'Rex' });
+    sim.enqueue({ type: 'setFlowerBed', x: 2, y: 2, enabled: true });
+    sim.step();
+    const snapshot = createSnapshot({ guests: 0, staff: 4, vehicles: 0, litter: 0, mapTiles: 64 });
+
+    writeSnapshot(sim.world, snapshot);
+
+    expect(Array.from(snapshot.staffIds.subarray(0, 2))).toEqual([first, second]);
+    expect(snapshot.staffNames.get(second)).toBe('Rex');
+    expect(snapshot.staffNames.has(first)).toBe(false);
+    expect(snapshot.grounds[sim.world.map.index(2, 2)]).toBe(
+      sim.world.grounds[sim.world.map.index(2, 2)],
+    );
+    expect(snapshotBuffers(snapshot)).toHaveLength(10);
+  });
+});

@@ -63,6 +63,18 @@ export function fireStaff(w: World, staffId: number): boolean {
   if (slot < 0) return false;
   w.economy.inputs.wageBillPerWeek -= STAFF_WAGE_CENTS_PER_WEEK[w.staff.cols.kind[slot]] ?? 0;
   w.staff.despawnSlot(slot);
+  w.staffNames.delete(staffId);
+  return true;
+}
+
+export const MAX_STAFF_NAME_LENGTH = 24;
+
+/** Names are trimmed and whitespace-collapsed; an empty name removes the player's name. */
+export function renameStaff(w: World, staffId: number, name: string): boolean {
+  if (w.staff.idToSlot[staffId] === undefined || w.staff.idToSlot[staffId] < 0) return false;
+  const cleaned = name.replace(/\s+/g, ' ').trim().slice(0, MAX_STAFF_NAME_LENGTH);
+  if (cleaned.length === 0) w.staffNames.delete(staffId);
+  else w.staffNames.set(staffId, cleaned);
   return true;
 }
 
@@ -75,10 +87,10 @@ export function setStaffPatrolTile(
 ): boolean {
   const slot = w.staff.idToSlot[staffId] ?? -1;
   if (slot < 0 || !w.map.inBounds(x, y)) return false;
+  if (w.staff.cols.patrolArea[slot] === 0)
+    w.staff.cols.patrolArea[slot] = w.staff.cols.kind[slot] + 1;
   const area = w.staff.cols.patrolArea[slot];
-  const tile = w.map.index(x, y);
-  if (area === 0) w.staff.cols.patrolArea[slot] = 1;
-  const offset = ((area === 0 ? 1 : area) - 1) * w.map.width * w.map.height + tile;
+  const offset = (area - 1) * w.map.width * w.map.height + w.map.index(x, y);
   w.patrolAreas[offset] = enabled ? 1 : 0;
   return true;
 }

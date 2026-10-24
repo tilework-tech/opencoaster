@@ -99,6 +99,12 @@ const gameUi = new GameUI(root, {
   setPatrolKind(kind) {
     patrolKind = kind;
   },
+  renameStaff(staffId, name) {
+    sim.command({ type: 'renameStaff', staffId, name });
+  },
+  fireStaff(staffId) {
+    sim.command({ type: 'fireStaff', staffId });
+  },
 });
 gameUi.syncPaused(userPaused);
 
@@ -390,17 +396,27 @@ function handleCanvasClick(event: PointerEvent): void {
     } else if (selectedTool === 'path') {
       sim.command({ type: 'placePath', x, y });
       gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
-    } else if (selectedTool === 'bin' || selectedTool === 'bench') {
+    } else if (selectedTool === 'bin' || selectedTool === 'bench' || selectedTool === 'shelter') {
       sim.command({
         type: 'setPathAddition',
         x,
         y,
-        addition: selectedTool === 'bin' ? PathAddition.Bin : PathAddition.Bench,
+        addition:
+          selectedTool === 'bin'
+            ? PathAddition.Bin
+            : selectedTool === 'bench'
+              ? PathAddition.Bench
+              : PathAddition.Shelter,
       });
       gameUi.setToolStatus(`${selectedTool} placement requested at ${x}, ${y}.`);
+    } else if (selectedTool === 'flowerbed') {
+      sim.command({ type: 'setFlowerBed', x, y, enabled: !event.shiftKey });
+      gameUi.setToolStatus(
+        `${event.shiftKey ? 'Flower bed removal' : 'Flower bed planting'} requested at ${x}, ${y}.`,
+      );
     } else if (selectedTool === 'patrol') {
       if (patrolKind === null) {
-        gameUi.setToolStatus('Choose a staff role in the Staff panel first.');
+        gameUi.setToolStatus('Choose a staff role or person in the Staff panel first.');
         return;
       }
       sim.command({

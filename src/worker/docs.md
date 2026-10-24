@@ -12,7 +12,7 @@ Path: @/src/worker
 
 - [SimClient](sim-client.ts) starts [sim.worker.ts](sim.worker.ts), sends commands and scheduler controls, and receives map data, snapshots, and statistics.
 - [SimRunner](sim-runner.ts) owns the [Simulation](../sim/core/simulation.ts) and advances it through [FixedStepScheduler](scheduler.ts). Its pump applies due ticks, updates timing statistics, and publishes a snapshot when a pooled buffer is available.
-- [snapshot.ts](snapshot.ts) translates simulation entity columns into the render-facing format consumed by [src/render](../render/docs.md) and information panels in [src/ui](../ui/docs.md). It also publishes a per-tile buildability view for main-thread placement feedback.
+- [snapshot.ts](snapshot.ts) translates simulation entity columns into the render-facing format consumed by [src/render](../render/docs.md) and information panels in [src/ui](../ui/docs.md). It also publishes a per-tile buildability view for main-thread placement feedback, the per-tile ground care bytes (grass overgrowth and flower beds), and staff ids with player names for the staff roster. Staff ids are a separate array in staff-slot order; names travel as a structured-cloned map because they change rarely.
 - Snapshot buffers travel as transferable `ArrayBuffer`s. The client returns consumed buffers to the worker for reuse, keeping the simulation thread as the sole owner of live world state.
 
 ### Core Implementation

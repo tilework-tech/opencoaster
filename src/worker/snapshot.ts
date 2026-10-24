@@ -76,6 +76,10 @@ export interface Snapshot {
   tick: number;
   guests: SnapshotLayer;
   staff: SnapshotLayer;
+  /** Stable staff id per staff slot, in the same order as `staff`. */
+  staffIds: Int32Array;
+  /** Player-given staff names by staff id. */
+  staffNames: ReadonlyMap<number, string>;
   vehicles: SnapshotLayer;
   litter: SnapshotLayer;
   rides: SnapshotLayer;
@@ -85,6 +89,8 @@ export interface Snapshot {
   /** Outcome of the latest player command. */
   feedback: CommandFeedback;
   buildable: Uint8Array;
+  /** Per-tile grass overgrowth and flower-bed bits (see staff/grounds.ts). */
+  grounds: Uint8Array;
   park: { cash: number; loan: number; rides: number };
   scenario: SnapshotScenario;
 }
@@ -117,6 +123,8 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     tick: 0,
     guests: layer(caps.guests),
     staff: layer(caps.staff),
+    staffIds: new Int32Array(caps.staff),
+    staffNames: new Map(),
     vehicles: layer(caps.vehicles),
     litter: layer(caps.litter),
     rides: layer(caps.rides ?? SNAPSHOT_RIDE_CAPACITY),
@@ -124,6 +132,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     rideInfo: new Int32Array((caps.rides ?? SNAPSHOT_RIDE_CAPACITY) * RIDE_INFO_STRIDE),
     feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
+    grounds: new Uint8Array(caps.mapTiles ?? 0),
     park: { cash: 0, loan: 0, rides: 0 },
     scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
   };
@@ -132,7 +141,12 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
 export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
   return [s.guests, s.staff, s.vehicles, s.litter, s.rides, s.tracks]
     .map((l) => l.data.buffer as ArrayBuffer)
-    .concat(s.rideInfo.buffer as ArrayBuffer, s.buildable.buffer as ArrayBuffer);
+    .concat(
+      s.rideInfo.buffer as ArrayBuffer,
+      s.buildable.buffer as ArrayBuffer,
+      s.grounds.buffer as ArrayBuffer,
+      s.staffIds.buffer as ArrayBuffer,
+    );
 }
 
 type PosCols = { x: Int32Array; y: Int32Array; z: Int32Array };
@@ -197,6 +211,11 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   for (let i = 0; i < buildableCount; i++) out.buildable[i] = world.map.canBuild(i) ? 1 : 0;
   writeLayer(out.guests, world.guests, world.guests.cols.tint, world.guests.cols.state);
   writeLayer(out.staff, world.staff, world.staff.cols.kind, world.staff.cols.state);
+  const staffIdCount = Math.min(world.staff.count, out.staffIds.length);
+  for (let i = 0; i < staffIdCount; i++) out.staffIds[i] = world.staff.slotToId[i];
+  out.staffNames = world.staffNames;
+  const groundCount = Math.min(world.grounds.length, out.grounds.length);
+  out.grounds.set(world.grounds.subarray(0, groundCount));
   writeLayer(out.vehicles, world.vehicles, world.vehicles.cols.state, null);
   writeLayer(out.litter, world.litter, world.litter.cols.kind, null);
   const rides = world.rides;

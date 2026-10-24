@@ -299,7 +299,7 @@ describe('coaster failure handling', () => {
     expect(sim.world.feedback.code).toBe(RideResult.Ok);
   });
 
-  it('takes a ride out of service when its train never returns, and a close resets it', () => {
+  it('takes a ride out of service when its train never returns, and keeps its test until a mechanic repairs it', () => {
     const { sim, rideId, slot } = openWithRiders();
     runUntilTrainIsOut(sim);
     sim.world.vehicles.cols.state[0] = VehicleState.Crashed;
@@ -312,11 +312,8 @@ describe('coaster failure handling', () => {
 
     sim.enqueue({ type: 'setRideStatus', rideId, status: 'close' });
     sim.step();
-    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
-    expect(isRideTested(sim.world, rideId)).toBe(false);
-    sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
-    sim.step();
-    expect(sim.world.feedback.code).toBe(RideResult.Ok);
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Broken);
+    expect(isRideTested(sim.world, rideId)).toBe(true);
   });
 
   it('refuses a second station on a coaster', () => {

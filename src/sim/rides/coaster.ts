@@ -46,17 +46,6 @@ export function breakDownRide(world: World, slot: number): void {
 }
 
 /**
- * Manual reset of a broken coaster: the layout must be tested again before it can reopen.
- */
-export function resetBrokenRide(world: World, slot: number): void {
-  const ride = world.rides.cols;
-  removeRideTrains(world, world.rides.slotToId[slot]);
-  ride.state[slot] = RideState.Closed;
-  abortCycle(world, slot);
-  ride.tested[slot] = 0;
-}
-
-/**
  * Called when a ride's track changes: the earlier test no longer describes the layout, so the
  * ride closes, loses its trains and must be tested again before it can reopen.
  */

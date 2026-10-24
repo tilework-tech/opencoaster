@@ -5,11 +5,21 @@ import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/n
 import type { NavOptions } from '../pathfinding/navigate';
 import { isRideInspectionDue, inspectRide } from '../rides/ride-operations';
 import { StaffKind } from './staff-store';
-import { ElementType, PathFlag } from '../map/tile-map';
+import { DIR_DX, DIR_DY, ElementType, PathFlag } from '../map/tile-map';
 import { RideState } from '../rides/ride-store';
+import {
+  collectGardenSites,
+  growGrounds,
+  mowGrass,
+  needsMowing,
+  needsWatering,
+  waterFlowerBed,
+} from './grounds';
 
 const STAFF_UPDATE_STRIDE = 16;
 const STAFF_SPEED = 48;
+const GARDEN_SEARCH_RADIUS = 10;
+const WANDER_STRIDE = 80;
 
 function moveStaff(
   world: World,
@@ -81,11 +91,17 @@ export function createStaffSystem(): System {
   let walkableCount = 0;
   let mapRevision = -1;
   let cachedMap: World['map'] | null = null;
+  let gardenSites = new Int32Array(0);
+  let gardenSiteCount = 0;
+  let gardenWorld: World | null = null;
+  let gardenTick = -1;
   return {
     name: 'staff',
     update(world: World) {
+      growGrounds(world);
       const map = world.map;
       const mapSize = world.map.width * world.map.height;
+      if (gardenSites.length !== mapSize) gardenSites = new Int32Array(mapSize);
       if (unrestricted.length !== mapSize) {
         unrestricted = new Uint8Array(mapSize).fill(1);
       }
@@ -203,6 +219,23 @@ export function createStaffSystem(): System {
               world.litter.despawnSlot(nearest);
             continue;
           }
+          const patrolOrNull = area > 0 ? activePatrol : null;
+          if (gardenWorld !== world || gardenTick !== world.tick) {
+            gardenSiteCount = collectGardenSites(world, gardenSites);
+            gardenWorld = world;
+            gardenTick = world.tick;
+          }
+          const site = findGardenSite(world, x, y, patrolOrNull, gardenSites, gardenSiteCount);
+          const stand = site >= 0 ? standTileFor(world, site, map.index(x, y), patrolOrNull) : -1;
+          if (stand >= 0) {
+            staff.targetX[slot] = stand % map.width;
+            staff.targetY[slot] = (stand / map.width) | 0;
+            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
+            const nx = (staff.x[slot] / TILE_UNITS) | 0;
+            const ny = (staff.y[slot] / TILE_UNITS) | 0;
+            if (nx === staff.targetX[slot] && ny === staff.targetY[slot]) tendGarden(world, site);
+            continue;
+          }
           let bin = -1;
           let binDistance = 0x7fffffff;
           const staffTile = map.index(x, y);
@@ -253,6 +286,7 @@ export function createStaffSystem(): System {
         } else if (staff.kind[slot] === StaffKind.Mechanic) {
           let targetRide = -1;
           let targetTile = -1;
+          let targetKey = 0x7fffffff;
           const staffTile = map.index(x, y);
           if (area > 0 && activePatrol[staffTile] === 0) {
             moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
@@ -261,37 +295,34 @@ export function createStaffSystem(): System {
           const canCheckRoute = map.isWalkable(staffTile);
           for (let i = 0; i < world.rides.count; i++) {
             const rideId = world.rides.slotToId[i];
-            if (
-              world.rides.cols.state[i] === RideState.Broken ||
-              isRideInspectionDue(world, rideId)
-            ) {
-              const rideX = world.rides.cols.rideX[i];
-              const rideY = world.rides.cols.rideY[i];
-              let serviceTile = -1;
-              for (const [dx, dy] of [
-                [0, -1],
-                [1, 0],
-                [0, 1],
-                [-1, 0],
-              ]) {
-                if (!map.inBounds(rideX + dx, rideY + dy)) continue;
-                const candidate = map.index(rideX + dx, rideY + dy);
-                if (!map.isWalkable(candidate) || (area > 0 && activePatrol[candidate] === 0))
-                  continue;
-                if (
-                  canCheckRoute &&
-                  staffTile !== candidate &&
-                  !isReachable(world, staffTile, candidate, area > 0 ? activePatrol : null)
-                )
-                  continue;
-                serviceTile = candidate;
-                break;
-              }
-              if (serviceTile >= 0) {
-                targetRide = i;
-                targetTile = serviceTile;
-                break;
-              }
+            const broken = world.rides.cols.state[i] === RideState.Broken;
+            if (!broken && !isRideInspectionDue(world, rideId)) continue;
+            const rideX = world.rides.cols.rideX[i];
+            const rideY = world.rides.cols.rideY[i];
+            let serviceTile = -1;
+            for (let dir = 0; dir < 4; dir++) {
+              const tileX = rideX + DIR_DX[dir];
+              const tileY = rideY + DIR_DY[dir];
+              if (!map.inBounds(tileX, tileY)) continue;
+              const candidate = map.index(tileX, tileY);
+              if (!map.isWalkable(candidate) || (area > 0 && activePatrol[candidate] === 0))
+                continue;
+              if (
+                canCheckRoute &&
+                staffTile !== candidate &&
+                !isReachable(world, staffTile, candidate, area > 0 ? activePatrol : null)
+              )
+                continue;
+              serviceTile = candidate;
+              break;
+            }
+            if (serviceTile < 0) continue;
+            const distance = Math.abs(rideX - x) + Math.abs(rideY - y);
+            const key = (broken ? 0 : 0x10000) + distance;
+            if (key < targetKey) {
+              targetKey = key;
+              targetRide = i;
+              targetTile = serviceTile;
             }
           }
           if (targetRide >= 0) {
@@ -305,8 +336,8 @@ export function createStaffSystem(): System {
               inspectRide(world, rideId, world.staff.slotToId[slot]);
           }
         }
-        if (staff.kind[slot] === StaffKind.Entertainer) {
-          const workTick = (world.tick + world.staff.slotToId[slot]) % 80 === 0;
+        if (staff.kind[slot] === StaffKind.Entertainer || staff.kind[slot] === StaffKind.Security) {
+          const workTick = (world.tick + world.staff.slotToId[slot]) % WANDER_STRIDE === 0;
           const target = mapIndex(world, staff.targetX[slot], staff.targetY[slot]);
           if (workTick || target < 0 || !activePatrol[target] || !map.isWalkable(target)) {
             for (let attempt = 0; attempt < 24; attempt++) {
@@ -319,7 +350,7 @@ export function createStaffSystem(): System {
             }
           }
           moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
-          if (workTick) {
+          if (staff.kind[slot] === StaffKind.Entertainer && workTick) {
             if (!guestIndexBuilt) {
               if (guestIndexVersion === 0xffffffff) {
                 guestStampByTile.fill(0);
@@ -351,6 +382,56 @@ export function createStaffSystem(): System {
       world.economy.inputs.litter = Math.min(100, world.litter.count);
     },
   };
+}
+
+/** Nearest listed site within reach that a handyman can work from, or -1. */
+function findGardenSite(
+  world: World,
+  x: number,
+  y: number,
+  patrol: Uint8Array | null,
+  sites: Int32Array,
+  count: number,
+): number {
+  const map = world.map;
+  const from = map.index(x, y);
+  let best = -1;
+  let bestDistance = 0x7fffffff;
+  for (let i = 0; i < count; i++) {
+    const tile = sites[i];
+    const dx = (tile % map.width) - x;
+    const dy = ((tile / map.width) | 0) - y;
+    if (Math.abs(dx) > GARDEN_SEARCH_RADIUS || Math.abs(dy) > GARDEN_SEARCH_RADIUS) continue;
+    if (!needsWatering(world, tile) && !needsMowing(world, tile)) continue;
+    const distance = Math.abs(dx) + Math.abs(dy);
+    if (distance >= bestDistance) continue;
+    if (standTileFor(world, tile, from, patrol) < 0) continue;
+    best = tile;
+    bestDistance = distance;
+  }
+  return best;
+}
+
+/** A walkable, reachable tile beside `site` where a handyman can work on it, or -1. */
+function standTileFor(world: World, site: number, from: number, patrol: Uint8Array | null): number {
+  const map = world.map;
+  const siteX = site % map.width;
+  const siteY = (site / map.width) | 0;
+  for (let dir = 0; dir < 4; dir++) {
+    const tileX = siteX + DIR_DX[dir];
+    const tileY = siteY + DIR_DY[dir];
+    if (!map.inBounds(tileX, tileY)) continue;
+    const tile = map.index(tileX, tileY);
+    if (!map.isWalkable(tile) || (patrol !== null && patrol[tile] === 0)) continue;
+    if (tile !== from && !isReachable(world, from, tile, patrol)) continue;
+    return tile;
+  }
+  return -1;
+}
+
+function tendGarden(world: World, site: number): void {
+  if (needsWatering(world, site)) waterFlowerBed(world, site);
+  else if (needsMowing(world, site)) mowGrass(world, site);
 }
 
 function nearestLitterSlot(

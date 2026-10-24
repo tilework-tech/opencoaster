@@ -8,7 +8,7 @@ import { placePath } from '../map/paths';
 import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { PieceFlag } from '../track/track-types';
-import { abortRideTest, isTrackRide, resetBrokenRide, startRideTest } from './coaster';
+import { abortRideTest, isTrackRide, startRideTest } from './coaster';
 import { setRideOpen } from './ride-operations';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
@@ -183,10 +183,7 @@ function closeRide(world: World, rideId: number): RideResult {
     abortRideTest(world, rideId);
     return RideResult.Ok;
   }
-  if (world.rides.cols.state[slot] === RideState.Broken && isTrackRide(world, rideId)) {
-    resetBrokenRide(world, slot);
-    return RideResult.Ok;
-  }
+  if (world.rides.cols.state[slot] === RideState.Broken) return RideResult.Broken;
   return setRideOpen(world, rideId, false) ? RideResult.Ok : RideResult.NoSuchRide;
 }
 
