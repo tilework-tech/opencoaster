@@ -30,6 +30,14 @@ export function hashWorld(world: World): number {
     const a = arr as unknown as ArrayLike<number>;
     for (let i = 0; i < a.length; i++) mix(a[i]);
   }
+  for (const value of world.patrolAreas) mix(value);
+  for (const value of world.umbrellas) mix(value);
+  for (const value of [
+    world.weather.kind,
+    world.weather.temperature,
+    world.weather.ticksUntilChange,
+  ])
+    mix(value);
   const e = world.economy;
   for (const v of [
     e.cash,

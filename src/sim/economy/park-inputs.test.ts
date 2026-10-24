@@ -4,6 +4,7 @@ import { layPath, openRide, prepareFlat, row } from '../integration/fixtures';
 import { setRideOpen } from '../rides/ride-operations';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { INPUT_REFRESH_TICKS, RIDE_UPKEEP_DIVISOR } from './park-inputs';
+import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
 
 function park(): Simulation {
   const s = new Simulation({ seed: 2, width: 16, height: 16 });
@@ -31,6 +32,19 @@ function refresh(s: Simulation): void {
 }
 
 describe('economy inputs from the park', () => {
+  it('keeps role-specific wages after the regular park input refresh', () => {
+    const s = park();
+    s.enqueue({ type: 'hireStaff', kind: 1 });
+    s.enqueue({ type: 'hireStaff', kind: 2 });
+    s.step();
+
+    refresh(s);
+
+    expect(s.world.economy.inputs.wageBillPerWeek).toBe(
+      STAFF_WAGE_CENTS_PER_WEEK[1] + STAFF_WAGE_CENTS_PER_WEEK[2],
+    );
+  });
+
   it('reports running cost, value and qualifying rides for open rides only', () => {
     const s = park();
     refresh(s);

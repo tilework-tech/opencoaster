@@ -7,14 +7,23 @@ import { SAVE_VERSION, deserialize, serialize } from './save';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
+import { StaffKind, spawnStaff } from '../sim/staff/staff-store';
+import { dropLitter, LitterKind } from '../sim/guests/litter-store';
+import { WeatherKind } from '../sim/weather/weather';
 
 describe('save', () => {
   it('round-trips world state exactly', () => {
     const sim = new Simulation({ seed: 11, width: 32, height: 32, maxGuests: 500 });
     sim.enqueue({ type: 'spawnGuests', count: 200 });
     for (let i = 0; i < 60; i++) sim.step();
+    sim.world.patrolAreas[12] = 1;
+    sim.world.umbrellas[sim.world.guests.slotToId[0]] = 1;
+    sim.world.weather.ticksUntilChange = 1234;
     const loaded = deserialize(serialize(sim.world));
     expect(hashWorld(loaded)).toBe(hashWorld(sim.world));
+    expect(loaded.patrolAreas[12]).toBe(1);
+    expect(loaded.umbrellas[sim.world.guests.slotToId[0]]).toBe(1);
+    expect(loaded.weather.ticksUntilChange).toBe(1234);
   });
 
   it('a loaded world continues identically to the original', () => {
@@ -28,6 +37,30 @@ describe('save', () => {
       b.step();
     }
     expect(hashWorld(b.world)).toBe(hashWorld(a.world));
+  });
+
+  it('continues deterministically across a weather transition with staff and litter', () => {
+    const original = new Simulation({ seed: 19, width: 16, height: 16 });
+    original.world.map.fillFlat(2);
+    original.enqueue({ type: 'placePath', x: 6, y: 6, z: 2 });
+    original.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    original.step();
+    dropLitter(original.world, 6, 6, LitterKind.Trash);
+    original.world.weather.kind = WeatherKind.Rain;
+    original.world.weather.ticksUntilChange = 2;
+    const continued = new Simulation({ seed: 1, width: 1, height: 1 });
+    Object.assign(continued, { world: deserialize(serialize(original.world)) });
+    expect(hashWorld(continued.world)).toBe(hashWorld(original.world));
+    expect(continued.world.litter.count).toBe(1);
+    expect(continued.world.staff.count).toBe(1);
+
+    for (let i = 0; i < 20; i++) {
+      original.step();
+      continued.step();
+    }
+
+    expect(hashWorld(continued.world)).toBe(hashWorld(original.world));
+    expect(original.world.weather.kind).not.toBe(WeatherKind.Rain);
   });
 
   it('rejects garbage input', () => {
@@ -158,6 +191,8 @@ describe('save: version 4 migration', () => {
     const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
     header.version = 4;
     delete header.park;
+    delete header.patrolAreas;
+    delete header.umbrellas;
     const headerBytes = new TextEncoder().encode(JSON.stringify(header));
     const arrays = world.map
       .arrays()
@@ -186,6 +221,8 @@ describe('save: version 4 migration', () => {
 
   it('loads guests saved before headings existed and keeps them walking', () => {
     const world = flatWorld(16);
+    spawnStaff(world, StaffKind.Handyman);
+    world.economy.inputs.wageBillPerWeek = 0;
     layPath(world, row(5, 2, 12));
     for (let i = 0; i < 5; i++) guestAt(world, 2 + i, 5);
     world.guests.cols.x[1] += 37;
@@ -193,6 +230,7 @@ describe('save: version 4 migration', () => {
     world.guests.cols.targetRide[2] = 0;
     const loaded = deserialize(versionFourSave(world));
     expect(loaded.guests.count).toBe(5);
+    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_154);
     expect(loaded.park.entranceX).toBe(-1);
     for (let slot = 0; slot < 5; slot++) {
       if (slot !== 1) expect(loaded.guests.cols.x[slot]).toBe(world.guests.cols.x[slot]);
@@ -209,5 +247,30 @@ describe('save: version 4 migration', () => {
     expect(loaded.guests.cols.heading[1]).toBeLessThan(HEADING_NONE);
     expect(loaded.guests.slotToId[4]).toBe(world.guests.slotToId[4]);
     expect(Array.from(loaded.map.heights)).toEqual(Array.from(world.map.heights));
+  });
+
+  it('loads version 5 saves with default patrol masks and umbrella ownership', () => {
+    const world = flatWorld(16);
+    spawnStaff(world, StaffKind.Handyman);
+    world.economy.inputs.wageBillPerWeek = 0;
+    const current = serialize(world);
+    const headerLen = new DataView(current.buffer).getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, 8 + headerLen)));
+    header.version = 5;
+    delete header.patrolAreas;
+    delete header.umbrellas;
+    const encoded = new TextEncoder().encode(JSON.stringify(header));
+    const legacy = new Uint8Array(8 + encoded.length + current.length - 8 - headerLen);
+    legacy.set(current.subarray(0, 8));
+    new DataView(legacy.buffer).setUint32(4, encoded.length, true);
+    legacy.set(encoded, 8);
+    legacy.set(current.subarray(8 + headerLen), 8 + encoded.length);
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.patrolAreas.every((value) => value === 0)).toBe(true);
+    expect(loaded.umbrellas.every((value) => value === 0)).toBe(true);
+    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_154);
+    expect(loaded.park.entranceX).toBe(world.park.entranceX);
   });
 });

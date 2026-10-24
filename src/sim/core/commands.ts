@@ -12,6 +12,10 @@ export type Command =
   | { type: 'spawnGuests'; count: number }
   | { type: 'spawnStaff'; count: number; kind: number }
   | { type: 'setParkEntrance'; x: number; y: number }
+  | { type: 'hireStaff'; kind: number }
+  | { type: 'fireStaff'; staffId: number }
+  | { type: 'setStaffPatrolTile'; staffId: number; x: number; y: number; enabled: boolean }
+  | { type: 'setStaffKindPatrolTile'; kind: number; x: number; y: number; enabled: boolean }
   | { type: 'createRide'; rideType: RideType; x: number; y: number }
   | MapCommand
   | RideCommand

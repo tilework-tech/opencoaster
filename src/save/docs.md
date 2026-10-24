@@ -1,21 +1,34 @@
-# save
+# Noridoc: Save and Load
 
-Responsibility: binary serialisation of `World` (versioned header + raw typed-array columns), loading it back, header-only summaries for save listings, and the browser-side slot storage.
+Path: @/src/save
 
-Contents: header JSON (scalars, ledger, research, scenario, track result) plus raw columns for the map, entity stores, track pieces and per-ride track tables. Derived track paths are rebuilt on demand.
+### Overview
 
-Interface: `serialize(world): Uint8Array`, `deserialize(bytes): World`, `SAVE_VERSION`. Bump the version and add a migration when the schema changes; a loaded world must continue bit-identically.
+- Serializes deterministic `World` state into a versioned binary format.
+- Stores scalar and variable-size metadata in a JSON header followed by typed-array bytes.
+- Migrates supported legacy guest, ride, and staff state before returning a playable world.
 
-Version 5 added the guest `heading` column and the `park` gate to the header. Saves from versions 3 and 4 still load: guests are read with the legacy column layout and given no heading, and the park starts without a gate.
+### How it fits into the larger codebase
 
-Additional save and storage interfaces:
+- [World](../sim/core/world.ts) defines authoritative state; [hashWorld](../sim/core/hash.ts) covers persistent state so save/load continuation can be checked.
+- Entity stores, the map, and track state provide arrays in a fixed order. Ledger, research, scenario, park gate, weather, patrol masks, and umbrella ownership are restored from header data or module helpers.
+- Save version 6 adds patrol masks and stable-id umbrella flags. Older supported versions default those fields and reconstruct weekly staff wages from the restored staff roles.
+- Raw array layout changes require an explicit save version path and migration.
 
-- `save.ts`: `serialize(world): Uint8Array`, `deserialize(bytes): World`, `SAVE_VERSION`, and `summarizeSave(bytes)` which reads only the header (version, tick, cash, loan). Bump the version and add a migration when the schema changes; a loaded world must continue bit-identically.
-- `game-saves.ts`: `saveGameToSlot(source, store, request)` serialises a running game into a slot with listing details, `exportFileName` (the `.ocsave` download name) and `defaultSlotName`.
-- `slot-store.ts`: the `SlotStore` interface (`list` newest first without bytes, `get`, `put`, `remove`). `openIndexedDbSlotStore()` is the browser implementation, one IndexedDB record per slot. `createMemorySlotStore()` has the same semantics for tests and for browsers without IndexedDB.
+### Core Implementation
 
-Decisions:
+- [save.ts](save.ts) writes a magic value, header length, UTF-8 JSON header, then each typed-array view in deterministic order.
+- [game-saves.ts](game-saves.ts) saves a running game into a slot record and defines the default slot name and export filename. [slot-store.ts](slot-store.ts) provides `SlotStore`, IndexedDB storage, and an in-memory fallback; slot metadata such as scenario id and display name stays outside the simulation bytes.
+- Deserialization restores raw views, entity counts/free lists, legacy guest headings and ride data where needed, then restores economy, weather, research, scenario, and park state.
+- Versions 3 through 6 are accepted. Version 3 uses a legacy ride layout; versions 3 and 4 omit guest headings and migrate guests to the current representation; version 5 has the current array layout but no patrol or umbrella fields.
+- Derived track paths are not serialized independently.
 
-- Saves contain only sim state. Scenario definitions, player settings (game speed, pause) and slot names are not part of the binary; slot names and scenario ids live in the slot record. Player settings live in `localStorage`.
-- `deserialize` checks the header before allocating anything: map sides up to 512 and entity capacities up to 65536. Anything else is refused as an invalid save.
-- Export and import use the same bytes as a slot. Import validates the header with `summarizeSave` before the worker loads it.
+### Things to Know
+
+- The header contains patrol masks and umbrella flags for current saves; missing legacy fields retain zero-initialized defaults.
+- Array ordering returned by map, entity-store, and track helpers is part of the binary format.
+- Deterministic continuation depends on restoring PRNG state, tick, weather countdown, persistent masks, entities, and economy/research/scenario state together.
+- The serializer expects a structurally valid header and does not provide a general corruption-recovery layer.
+- Player settings such as speed and pause are kept in browser `localStorage`; they are not part of save files. Import and load validate the save header before replacing the active simulation.
+
+Created and maintained by Nori.

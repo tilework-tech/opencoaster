@@ -3,7 +3,7 @@ import type { Stats } from '../worker/protocol';
 import { financePanelText } from './hud';
 import { objectiveLines } from './objective';
 
-export type ToolMode = 'select' | 'land' | 'path' | 'ride' | 'track';
+export type ToolMode = 'select' | 'land' | 'path' | 'bin' | 'bench' | 'ride' | 'track' | 'patrol';
 
 export interface GameUIActions {
   setPaused(paused: boolean): void;
@@ -12,6 +12,8 @@ export interface GameUIActions {
   setTool(tool: ToolMode): void;
   spawnGuests(): void;
   openMenu(): void;
+  hireStaff(kind: number): void;
+  setPatrolKind(kind: number | null): void;
 }
 
 export interface GuestSelection {
@@ -27,8 +29,11 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   select: 'Select',
   land: 'Land',
   path: 'Path',
+  bin: 'Bin',
+  bench: 'Bench',
   ride: 'Ride',
   track: 'Coaster',
+  patrol: 'Patrol area',
 };
 
 export class GameUI {
@@ -64,7 +69,16 @@ export class GameUI {
 
     const tools = document.createElement('div');
     tools.className = 'tool-group';
-    for (const tool of ['select', 'land', 'path', 'ride', 'track'] as ToolMode[]) {
+    for (const tool of [
+      'select',
+      'land',
+      'path',
+      'bin',
+      'bench',
+      'ride',
+      'track',
+      'patrol',
+    ] as ToolMode[]) {
       const button = this.button(TOOL_LABELS[tool], () => this.chooseTool(tool), `tool-${tool}`);
       button.setAttribute('aria-pressed', String(tool === 'select'));
       tools.append(button);
@@ -78,6 +92,7 @@ export class GameUI {
       this.button('Finances', () => this.togglePanel('finance', 'Finances'), 'open-finance'),
       this.button('Menu', actions.openMenu, 'open-menu'),
       this.button('Guests', () => this.togglePanel('guests', 'Guest information'), 'open-guests'),
+      this.button('Staff', () => this.toggleStaffPanel(), 'open-staff'),
     );
     this.toolbar.append(windows);
     parent.append(this.toolbar, this.status, this.objective);
@@ -118,6 +133,12 @@ export class GameUI {
           `Guests in park  ${stats?.guests ?? 0}\nSelect a guest in the park to inspect them.`,
       );
     }
+    const staff = this.panels.get('staff');
+    if (staff)
+      setText(
+        staff.body,
+        `Staff employed  ${snapshot?.staff.count ?? 0}\nSelect a role below to hire staff. Patrol tools apply to the selected role.`,
+      );
   }
 
   /** Switches tools as if the player had pressed the toolbar button. */
@@ -163,7 +184,9 @@ export class GameUI {
         ? 'Select a guest or tile. Drag to pan; wheel to zoom.'
         : tool === 'land'
           ? 'Land tool selected. Click to raise; Shift-click to lower.'
-          : `${TOOL_LABELS[tool]} tool selected. Click a tile to place.`;
+          : tool === 'patrol'
+            ? 'Patrol tool selected. Click tiles to add them; Shift-click to remove them.'
+            : `${TOOL_LABELS[tool]} tool selected. Click a tile to place.`;
   }
 
   private togglePanel(id: string, title: string): void {
@@ -188,6 +211,32 @@ export class GameUI {
     root.append(heading, body);
     this.parent.append(root);
     this.panels.set(id, { root, body });
+  }
+
+  private toggleStaffPanel(): void {
+    if (this.panels.has('staff')) {
+      this.togglePanel('staff', 'Staff');
+      return;
+    }
+    this.togglePanel('staff', 'Staff');
+    const panel = this.panels.get('staff');
+    if (!panel) return;
+    const controls = document.createElement('div');
+    controls.className = 'staff-controls';
+    ['Handyman', 'Mechanic', 'Security', 'Entertainer'].forEach((name, kind) => {
+      controls.append(
+        this.button(`Hire ${name}`, () => this.actions.hireStaff(kind), `hire-staff-${kind}`),
+        this.button(
+          `Patrol ${name}`,
+          () => {
+            this.actions.setPatrolKind(kind);
+            this.chooseTool('patrol');
+          },
+          `patrol-staff-${kind}`,
+        ),
+      );
+    });
+    panel.root.append(controls);
   }
 
   private button(label: string, click: () => void, id: string): HTMLButtonElement {

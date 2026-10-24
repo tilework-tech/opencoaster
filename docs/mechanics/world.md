@@ -20,6 +20,8 @@ Player-facing feel:
 - Weather is a soft constraint, not a hard stop. Rain changes which food sells and whether guests join uncovered queues [S].
 - Staff are a recurring cost that the player balances against cleanliness [S].
 
+These are source observations about the reference games. Current OpenCoaster behavior is summarized separately in §7; it is intentionally narrower.
+
 ---
 
 ## 2. Precise rules
@@ -40,42 +42,42 @@ Staff AI and patrol:
 - Handymen can climb roof paths in their patrol area and get stuck. Keep roof paths off their patrol area [S].
 - Community rule of thumb: 4 to 6 handymen and 6 to 8 mechanics later in a park, at least two of each early on [S, forum opinion, not a game rule].
 
-Cost: staff wages are a monthly expense. Players are told to balance headcount against finances [S].
+Cost: the cited material describes staff wages as a monthly expense [S]. OpenCoaster charges wages weekly and includes those entries in its monthly finance history, as specified in [DECISIONS.md](../DECISIONS.md). The handyman's 1,154 cents per week converts the cited $50/month reference using a 52-week year; the mechanic, security and entertainer rates (1,846, 1,385 and 1,269 cents per week) are provisional game tuning, not historical salary facts. Park inputs refresh from the staff roster every 128 ticks, while hire and fire actions also adjust the wage input immediately.
 
 ### 2.2 Litter and vomit
 
-- Guests generate litter and vomit. Vomit comes from rides, and the nausea trigger is covered in the guests spec, not here [I].
-- Handymen clean litter and vomit. Trash and vomit are separate tile states [S].
+- In the reference games, guests generate litter and vomit; the precise trigger and representation are not established here [S/I].
+- OpenCoaster generates vomit for sufficiently nauseous guests and may generate trash for other guests. Litter entities have a lifetime and handymen can remove them; see §7.
 - Guests lose happiness when they walk past trash or vomit. Stepping on many vomit tiles produces a specific negative thought [S].
 - Clean paths produce a positive guest thought [S].
-- Exact per-tile penalties, decay rates and tick timings are NOT found in any source reachable here. Do not hard-code them. Pull them from a primary source before implementation [unverified].
+- Exact per-tile penalties, decay rates and tick timings are not established by the references collected here. OpenCoaster's values are implementation tuning rather than claims about RCT2.
 
 ### 2.3 Bins, benches, lamps
 
-- Bins, benches and lamps are path items. Vandals destroy them and they must be repaired by the player [S].
+- In the reference games, bins, benches and lamps are path items. Vandals can destroy them and they must be repaired by the player [S].
 - Vandalised bins, benches and lamps lower park rating when guests comment on them [S].
 - Bins sit on path tiles and hold litter. Bin emptying is a handyman task [S].
-- Placement and capacity rules are not found [unverified].
+- OpenCoaster supports path bin and bench additions. Bin capacity and emptying behavior are implementation details summarized in §7; benches currently have no simulation or rendering behavior.
 
 ### 2.4 Vandalism
 
 - Vandals are guests whose happiness is very low, mainly because of excess litter and vomit [S].
 - The vandal rate is tied to litter and vomit density in a path area [S].
 - Vandals also destroy nearby benches, lamps and bins regardless of their own happiness [S].
-- Security guards deter vandalism near their patrol area [S].
+- Security guards are described as deterring vandalism near their patrol area [S]. OpenCoaster has no vandalism simulation, so security has no gameplay effect yet.
 - Thresholds and probabilities are not found [unverified].
 
 ### 2.5 Weather
 
-Weather states are not fully described in any source reached.
+Weather states and transitions are not fully described in the sources reached.
 
-Confirmed effects:
+Reference-game effects reported by the collected sources:
 - Rain: ice cream does not sell when it is cold or raining. Cotton candy does not sell in rain but does sell when cold [S].
 - Rain and queues: guests refuse to join uncovered queues in rain. Guests already in an uncovered queue stay [S].
 - Rain and rides: uncovered rides are described as very unpopular in rain [S, forum anecdote].
 - Umbrellas: information kiosks sell umbrellas that keep guests dry in rain [S].
 
-Unknowns: the state list, transition rules, durations, probabilities, and how rain changes happiness and ride popularity numerically. Treat as an open question.
+The exact state list, transition rules, durations, probabilities, and numerical ride effects remain unknown for the reference game. OpenCoaster's current weather effects and tuning are described in §7.
 
 RCT3 is not a reference for this. A forum thread on RCT3 rides and rain says guests still ride at the minimum rate in rain [S, RCT3 only, do not apply to RCT2].
 
@@ -115,6 +117,8 @@ These are not in any source reached. Do not guess them. Each needs a primary sou
 
 ## 3. Data model proposal
 
+This section records an early design proposal, not the current TypeScript layout. Current state is distributed across [World](../../src/sim/core/world.ts), entity stores, and tile-element stacks; see the module Noridocs for implementation details.
+
 Use struct-of-arrays for anything with many instances. Tiles are the big array; staff and vandals are smaller arrays.
 
 ```ts
@@ -141,7 +145,7 @@ interface StaffPool {
   patrolId: Uint16Array;      // index into patrol area table
   task: Uint8Array;           // current task enum
   taskTimer: Uint16Array;     // ticks remaining on current task
-  wageCents: Uint32Array;     // monthly cost, integer cents
+  wageCents: Uint32Array;     // proposed monthly cost; not the current wage representation
 }
 
 // Patrol areas: a set of tiles per staff group.
@@ -179,22 +183,20 @@ Per-tick CPU budget:
 
 ## 5. Prioritised implementation checklist
 
-MVP:
-1. Tile grid with surface, height and path items.
-2. Staff pool with handymen only. Wander, then patrol areas.
-3. Litter and vomit on path tiles, cleaned by handymen.
-4. Guest happiness hook: litter and vomit penalty (values TBD from a primary source).
-5. Monthly wage accounting.
-6. Rain state with two effects: ice cream and cotton candy sales, and uncovered-queue refusal.
+This was an initial target list and is not a statement that the items remain unimplemented. Current behavior and tuning are summarized below; source observations above remain distinct from game-specific implementation choices.
 
-Fidelity:
-7. Mechanics with inspect, repair and mixed modes, tied to rides (depends on rides spec).
-8. Vandalism, bins and benches condition, and park rating impact.
-9. Security guards and entertainers.
-10. Full weather state machine, temperature, snow and puddles.
-11. Land ownership and construction rights.
-12. Scenery happiness weights and jumping fountain compliments.
-13. Roof path staff trap.
+MVP:
+1. Tile map with terrain, ownership, paths and path additions.
+2. Staff hire/fire commands, role-based weekly wages, patrol masks, handyman litter/bin tasks, mechanic inspections, and entertainer happiness effect.
+3. Guest trash/vomit generation and litter cleanup; current rates and lifetime are OpenCoaster tuning.
+4. Seeded weather transitions, rain/storm ride scoring, and kiosk umbrella purchases.
+5. Save migration for staff patrol masks, umbrella ownership, and wage reconstruction.
+
+Still outside the current implementation:
+1. Security deterrence and vandalism simulation, item damage, and item repair.
+2. Handyman watering and mowing; bench simulation and rendering; staff firing controls.
+3. Rain shelter and covered queue behavior, weather-specific stall behavior, and weather visuals.
+4. Reference-game numerical calibration for staff rates, weather and litter behavior.
 
 ---
 
@@ -211,16 +213,27 @@ Fidelity:
 9. Do community staff-count rules of thumb match the game's real behaviour?
 10. Is the 40% underground rule for indoor status verified?
 
+## 7. Current OpenCoaster implementation notes
+
+These are verified code behaviors, not claims about the referenced games. Rates and thresholds are implementation tuning unless a source-backed value is explicitly identified above.
+
+- Staff hire/fire actions update a per-role weekly wage input, which [park inputs](../../src/sim/economy/park-inputs.ts) republishes from the roster every 128 ticks. Older saves rebuild wages from staff kinds. Patrol masks are per staff role; mechanics inspect due or broken rides, handymen remove litter and empty bins, and entertainers periodically raise happiness nearby. Security has no effect because no vandalism simulation exists. Handyman watering/mowing and staff firing UI are not implemented. See [staff Noridoc](../../src/sim/staff/docs.md).
+- Guests periodically generate trash or vomit on walkable tiles. Trash is stored in a path bin when available (capacity 12); otherwise trash and vomit occupy litter entities that age out after 20,000 ticks or are removed by a handyman. The staff system caches walkable and bin locations by both map object identity and map revision. See [guest Noridoc](../../src/sim/guests/docs.md).
+- OpenCoaster weather transitions among sunny, cloudy, rain and storm using the shared seeded random generator; durations, temperatures and scoring are implementation tuning. Rain and storm penalize thrill/coaster ride scores for guests without umbrellas. A wandering guest near an open information kiosk checks nearby kiosks, skips prices they cannot afford, and buys at the first affordable price. Successful purchases deduct guest cash and post the kiosk price to `ShopSales`. These are OpenCoaster behaviors, separate from the reference-game observations in §2.5. Rain shelter, covered queues, weather visuals, and weather-specific stall behavior are not implemented. See [weather Noridoc](../../src/sim/weather/docs.md) and [guest Noridoc](../../src/sim/guests/docs.md).
+- Litter does not currently apply guest happiness penalties or thoughts in OpenCoaster; the reference-game observations above remain research context.
+- Bins and benches are path additions stored on path elements. Bins collect trash for handyman emptying. Benches have no simulation behavior, and neither addition is rendered. Vandalism and path-item repair are not implemented. See [map Noridoc](../../src/sim/map/docs.md) and [UI Noridoc](../../src/ui/docs.md).
+
 
 ---
 
-## 7. Sources
+## 8. Sources
 
 Fetched and read:
 - https://github.com/OpenRCT2/OpenRCT2/wiki (wiki index; no staff or weather page visible in listing)
 - https://en.wikipedia.org/wiki/RollerCoaster_Tycoon_2 (park simulation summary)
 - https://forums.openrct2.org/topic/6444-understanding-simulation-in-rct2/ (transport rides, rain cover, ride ratings; anecdotal)
 - https://forums.openrct2.org/topic/6612-few-ideas-weather-handymen-ride-crashes-dual-track-rides-and-more (suggestions and some observations; mostly not verified)
+- https://rct2.rctspace.com/rct2_manual.pdf (RollerCoaster Tycoon 2 manual; staff roles and the cited handyman monthly wage)
 
 Seen in search results only (not fetched; HTTP 402 or search snippet only):
 - https://rct.fandom.com/wiki/Guests_and_Staff (handymen, mechanics, staff wages, patrol advice)

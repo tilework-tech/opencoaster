@@ -6,7 +6,7 @@ Path: @/src/ui
 
 - Builds the park toolbar, information windows, selection feedback, and performance HUD with DOM elements.
 - Displays worker snapshots and timing statistics; authoritative game state remains in the simulation worker.
-- Exposes selection, land, path, ride, and coaster (track) tools, with placement behavior wired by the main thread.
+- Exposes selection, land, path, bin, bench, ride, coaster (track), and patrol tools, with placement behavior wired by the main thread.
 - Provides a coaster panel for building, testing and operating coasters, with command feedback from snapshots.
 - Hosts the game shell: a title screen (new scenario, sandbox, continue, load, import), an in-game menu (save to slots, load, export and import files, back to title), and a one-time scenario outcome dialog.
 
@@ -20,9 +20,10 @@ Path: @/src/ui
 
 ### Core Implementation
 
-- [game-ui.ts](game-ui.ts) creates the toolbar and togglable park, finance, and guest windows, updates their text from snapshots, and tracks selected tool and pause state.
+- [game-ui.ts](game-ui.ts) creates the toolbar and togglable park, finance, guest, and staff windows, updates their text from snapshots, and tracks selected tool and pause state.
 - [src/main.ts](../main.ts) handles keyboard and pointer input: WASD and drag pan, wheel zooms around the pointer, Q/E rotate, Space toggles pause, and canvas clicks select guests or issue the active build command.
 - A land click enqueues a one-tile raise; holding Shift enqueues a one-tile lower. Path clicks enqueue `placePath`. Ride clicks enqueue `createRide` for the ride type chosen in the panel.
+- Bin and bench clicks enqueue `setPathAddition`, which only succeeds on an owned tile that already has a path; rejected map commands are silent. Bins currently affect litter handling, while benches have no simulation behavior and neither addition is rendered. The Staff panel hires handymen, mechanics, security, or entertainers and selects a role for patrol painting. Patrol clicks set or clear one tile in that role's mask. The panel shows total staff count but does not expose firing controls or render patrol masks.
 - The track tool is labelled `Coaster` and `selectTool` is public so the panel can switch to it. In track mode, clicks/Enter place the piece resolved by the panel at the selected ride's construction cursor; Backspace removes the last piece. In entrance/exit modes clicks enqueue `placeRideEntrance` / `placeRideExit`.
 - [track-tool.ts](track-tool.ts) is pure logic: `classifyPiece` / `resolvePiece` map the shape, slope and bank controls to a catalog piece connectable at the cursor, plus `allowedModes`, `previewStatus`, `footprintTiles`, and `feedbackMessage`, which has text for every `TrackResult` and `RideResult`.
 - [coaster-panel.ts](coaster-panel.ts) is the DOM panel: ride-type selector with cost, coaster selector, track/entrance/exit modes, shape/slope/bank/drive controls, start direction for the first piece, cost display, place/remove-last, Test/Open/Close buttons, ratings and status readout, and the command feedback line. Creating a ride selects it and switches to the track tool. It reads `Snapshot.rideInfo` (cursor decoded with `decodeCursor`).
@@ -34,6 +35,7 @@ Path: @/src/ui
 - Tool status text reports that a placement was requested. The authoritative outcome arrives in `Snapshot.feedback`, which the panel shows via `feedbackMessage` when `seq` changes. Map-command rejections remain silent.
 - The placement preview is a client-side approximation using the snapshot (bounds, ownership via `buildable`, funds); the simulation result is authoritative and may differ.
 - Ownership, ride-type rules and funds are enforced by the simulation's track command handler, not by the UI.
+- Staff interactions are limited to hiring and role patrol masks. There is no firing control or patrol-mask overlay yet.
 - Game speed and pause controls affect the worker scheduler through [SimClient](../worker/sim-client.ts); rendering and panel refresh continue on the browser animation frame loop.
 - Speed and the player's pause choice are saved in `localStorage` ([settings.ts](settings.ts)) and restored on the next visit. The worker is also paused while the title screen, the in-game menu or an outcome dialog is open; that pause is not saved.
 - Session lifecycle lives in `main.ts`. A new game, sandbox start, save load or import replaces the worker's game and clears the session's outcome state. Quitting to title clears the session. Loading a save reads only its header first (`summarizeSave`), so a bad file leaves the current game running.

@@ -82,6 +82,7 @@ export function spawnGuest(w: World): boolean {
   const g = w.guests;
   const slot = g.spawn();
   if (slot < 0) return false;
+  w.umbrellas[g.slotToId[slot]] = 0;
   let tx = w.park.entranceX;
   let ty = w.park.entranceY;
   if (tx < 0) {

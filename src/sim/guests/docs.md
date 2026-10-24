@@ -6,7 +6,7 @@ Path: @/src/sim/guests
 
 - Stores guest state in typed struct-of-arrays columns and advances guest behaviour through the `guests` simulation system.
 - Guests arrive at the park gate, walk the real footpath network with the [pathfinder](../pathfinding/docs.md), use rides, stalls and toilets, pay through the [economy](../economy/docs.md), and leave through the gate.
-- Litter has separate store and system entry points in this folder; guests do not drop litter yet.
+- Litter has separate store and system entry points in this folder; guests periodically create trash or vomit on walkable tiles.
 
 ### How it fits into the larger codebase
 
@@ -14,7 +14,7 @@ Path: @/src/sim/guests
 - Movement calls `nextDirection` from [pathfinding](../pathfinding/navigate.ts) at every tile centre, passing the target tile (a ride or stall entrance, or the gate) or `-1` to wander. `heading` stores the last direction so the pathfinder avoids reversing. Guests never leave the footpaths: positions advance 12 units per update toward the next tile centre.
 - Destinations are ride-store entries (rides, stalls, toilets alike) addressed by `targetRide`. A destination is only chosen when `isReachable` says a footpath route to its entrance exists.
 - The [ride queue system](../rides/queue-system.ts) seats `Waiting` guests when a ride dispatches; this system finishes the ride when the ride's completed-cycle counter moves on.
-- Money: gate fees post to `Admission`, tickets to `RideTickets` (at boarding, only in per-ride price mode), food and drink to `FoodDrinkSales` with a stock cost to `FoodDrinkStock`, toilet fees to `ShopSales`. Arrival chance reads `parkRating` and the active marketing campaign from the economy.
+- Money: gate fees post to `Admission`, tickets to `RideTickets` (at boarding, only in per-ride price mode), food and drink to `FoodDrinkSales` with a stock cost to `FoodDrinkStock`, and toilet fees and successful umbrella kiosk purchases to `ShopSales`. Arrival chance reads `parkRating` and the active marketing campaign from the economy.
 
 ### Core Implementation
 
@@ -24,6 +24,7 @@ Path: @/src/sim/guests
 - Rides: a guest arriving at the entrance tile becomes `Waiting` and increments `queueLength`; guests still walking the queue are not counted. On dispatch the queue system turns that many `Waiting` guests (lowest slot first) into `Riding`, stamping the low 16 bits of the ride's `cyclesCompleted` in `activityTicks`. When the counter changes the guest steps onto the ride exit tile (or the entrance when the exit is not a footpath), gains happiness and energy, and starts a ride cooldown.
 - Patience: 2,400 ticks to reach a destination, 3,200 ticks queuing or waiting. A guest that times out, or whose ride closes, drops the destination (decrementing `queueLength` if it was `Waiting`).
 - Arrivals: every 80 ticks a park with a gate may admit one guest with probability `(rating - feePenalty) * marketingAttraction`, up to `200 + 50 * rides` guests. The gate fee is taken from the new guest's cash.
+- Weather and litter: guests without an umbrella receive a ride-score penalty for thrill and coaster rides during rain or storms. A wandering guest near an open information kiosk in rain or storm checks nearby kiosks and buys at the first price they can afford; unaffordable kiosks do not stop the search. A successful purchase deducts guest cash, posts the price to `ShopSales`, and stores umbrella ownership by stable guest id. Guest litter generation is handled by [litter-system.ts](litter-system.ts): sufficiently nauseous guests create vomit, while other guests may create trash. Trash increments a bin on the tile up to its capacity; when there is no bin or it is full, both trash and vomit use the litter entity store.
 - Leaving guests walk to the gate and despawn there; with no gate or no route they despawn at once.
 
 ### Things to Know
@@ -32,7 +33,7 @@ Path: @/src/sim/guests
 - Guests in `Riding` stand on the ride's footprint tile, which is not a footpath; consumers that check footpath occupancy (for example the lost-guest count in [park inputs](../economy/park-inputs.ts)) skip them.
 - A guest whose tile is not a footpath (for example after the path under it is removed, or spawned by `spawnGuests` into a park without a gate) cannot move; it eventually leaves when its energy runs out and counts as lost for the park rating.
 - `queueLength` counts only guests at the head of the queue, so ride choice and the wait estimate under-count a long line. The queue capacity from `connectRideQueue` is not enforced against walking guests.
-- Stalls serve any number of guests at once; `capacity` is not enforced. The Information Kiosk is never visited.
-- Save version 5 added the `heading` column; version 3 and 4 saves migrate with `HEADING_NONE`.
+- Stalls serve any number of guests at once; `capacity` is not enforced. The Information Kiosk has no ordinary shopping destination behavior; its weather-triggered umbrella purchase is handled separately while a guest wanders nearby.
+- Current saves use version 6. Version 5 added the guest `heading` column; version 6 added staff patrol masks and per-guest umbrella ownership. Loading versions 3 through 5 initializes missing patrol and umbrella state to defaults and rebuilds the weekly wage input from saved staff. Versions 3 and 4 also migrate guests with `HEADING_NONE`.
 
 Created and maintained by Nori.

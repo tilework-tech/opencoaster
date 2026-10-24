@@ -62,6 +62,8 @@ export const enum PathFlag {
   /** Ramp rising one level toward `SlopeDir`. */
   Sloped = 0x200,
   SlopeDir = 0xc00,
+  Bin = 0x1000,
+  Bench = 0x2000,
 }
 export const SLOPE_DIR_SHIFT = 10;
 
