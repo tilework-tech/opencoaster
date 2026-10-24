@@ -19,6 +19,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
   await page.getByRole('button', { name: 'Rides' }).click();
   await expect(page.locator('[data-panel="rides"]')).toContainText('No rides have been built yet.');
   await expect(page.getByRole('button', { name: 'Place entrance' })).toBeVisible();
+  await page.locator('[data-panel="rides"] [data-action="close-rides"]').click();
 
   const gameCanvasUsesWebGl2 = await page.locator('#game').evaluate((canvas) => {
     return canvas.getContext('webgl2') instanceof WebGL2RenderingContext;

@@ -35,8 +35,9 @@ Path: @/src/sim/guests
 - Rates, thresholds, scores, patience and capacities are tunable design choices, not claims about the original game.
 - Guests in `Riding` stand on the ride's footprint tile, which is not a footpath; consumers that check footpath occupancy (for example the lost-guest count in [park inputs](../economy/park-inputs.ts)) skip them.
 - A guest whose tile is not a footpath (for example after the path under it is removed, or spawned by `spawnGuests` into a park without a gate) cannot move; it eventually leaves when its energy runs out and counts as lost for the park rating.
-- The information kiosk is visited only for umbrellas (rain, no umbrella); it sells nothing else.
-- Current saves use version 7. Version 5 added the guest `heading` column; version 6 added staff patrol masks and per-guest umbrella ownership; version 7 adds the grounds byte per tile and player staff names. Loading versions 3 through 6 initializes missing fields to defaults and rebuilds the weekly wage input from saved staff. Versions 3 and 4 also migrate guests with `HEADING_NONE`.
+- `queueLength` counts only guests at the head of the queue, so ride choice and the wait estimate under-count a long line. The queue capacity from `connectRideQueue` is not enforced against walking guests.
+- Stalls serve any number of guests at once; `capacity` is not enforced. The Information Kiosk is selected for umbrellas in rain and also sells them to nearby wandering guests.
+- Current saves use version 8. Version 5 added the guest `heading` column; version 6 added staff patrol masks and per-guest umbrella ownership; version 7 added the grounds byte per tile and player staff names; version 8 added per-ride income. Loading older saves initializes missing fields to defaults and rebuilds the weekly wage input from saved staff. Versions 3 and 4 also migrate guests with `HEADING_NONE`.
 
 ### Vandalism
 
