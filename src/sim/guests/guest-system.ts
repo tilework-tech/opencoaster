@@ -546,6 +546,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
         g.cash[slot] -= price;
         earn(world, LedgerCategory.ShopSales, price);
         addRideIncome(world, ride, price);
+        world.rides.cols.guestsServed[ride]++;
         break;
       }
     }
