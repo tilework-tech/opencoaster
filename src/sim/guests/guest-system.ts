@@ -375,8 +375,9 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
       if (price <= g.cash[slot]) {
         world.umbrellas[world.guests.slotToId[slot]] = 1;
         g.cash[slot] -= price;
+        earn(world, LedgerCategory.ShopSales, price);
+        break;
       }
-      break;
     }
   }
 

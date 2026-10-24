@@ -1,29 +1,34 @@
-# sim/economy
+# Noridoc: Economy Simulation
 
-Responsibility: money in integer cents, the calendar, the monthly ledger and rolling history, loans and weekly interest, wages and ride upkeep, marketing campaigns, admission vs. per-ride pricing mode, park value, company value and park rating. Spec: `docs/mechanics/economy.md`; decisions: `docs/DECISIONS.md`.
+Path: @/src/sim/economy
 
-## Interface
+### Overview
 
-- `api.ts` (what other systems call): `earn(world, category, cents)`, `charge(world, category, cents)` (both take non-negative integers and throw `RangeError` otherwise), `setEconomyInputs(world, patch)` (rides, staff and guests publish wage bill, upkeep, ride value, rating inputs), `gateAdmissionCents(world)`, `ridePricingEnabled(world)`, `marketingAttraction(world)` (basis points, 10000 = none).
-- `actions.ts`: `EconomyAction` (`borrow`, `repay`, `setPriceMode`, `setAdmissionPrice`, `startCampaign`), applied from the `economy` command. Rejected actions return `false` and change nothing.
-- `ledger.ts`: `Ledger` state, `LedgerCategory`, `PriceMode`, `completedMonthTotal`, save helpers.
-- `calendar.ts`: `gameDate(tick)`, `isBoundary(tick, period)` and the tick cadences.
-- `economy-system.ts`: the clock. Runs weekly charges, fortnightly upkeep, the monthly rollover, and the 512-tick rating refresh, in that order at shared boundaries.
+- Owns the integer-cent economy, game calendar, monthly finance history, loans, wages, ride upkeep, marketing, park value and park rating inputs.
+- Other simulation systems post transactions through the economy API; recurring charges and periodic rating updates run in a deterministic system.
+- Current mechanics and tuning are summarized in [economy.md](../../../docs/mechanics/economy.md), with binding choices in [DECISIONS.md](../../../docs/DECISIONS.md).
 
-- `park-inputs.ts`: `parkInputsSystem` (runs before the economy system, every 128 ticks) publishes the economy inputs from the park: `staff * 1,500` weekly wages, fortnightly upkeep of open rides (build cost / 50, stalls / 100), summed value of open rides, qualifying (open, non-shop) ride count, guests off the footpaths as lost guests, the percentage of guests with happiness below 128, the percentage of broken rides, and the litter count. Anything that calls `setEconomyInputs` for these fields is overwritten at the next refresh.
+### How it fits into the larger codebase
 
-## Decisions
+- The worker-owned [World](../core/world.ts) contains the cash balance, ledger, calendar and published park inputs. World hashing and [save data](../../save/save.ts) preserve the economy state.
+- Guest purchases, admissions, ride tickets and construction call [api.ts](api.ts) to post ledger entries. For example, a successful umbrella purchase at an information kiosk is recorded as `ShopSales` by the [guest system](../guests/guest-system.ts); unaffordable kiosks do not produce a transaction.
+- [Park inputs](park-inputs.ts) derives wages, upkeep, ride value and guest/park metrics from current world stores. Its values are refreshed before the economy system processes shared tick boundaries.
+- [Simulation](../core/simulation.ts) applies economy actions from commands, while [economy-system.ts](economy-system.ts) advances the calendar and applies recurring charges and monthly rollover.
 
-- Calendar: 16,384 ticks per month, 8 months per year starting in March, so a week is 4,096 ticks and a fortnight is 8,192. Display day labels use 31/30 days and are cosmetic.
-- Boundaries fire on the tick that reaches them, never on tick 0.
-- Wages are a weekly charge of `wageBillPerWeek`, reported in the monthly ledger. Ride upkeep is a fortnightly charge of `rideUpkeepPerFortnight`.
-- Interest is simple and weekly: `floor(loan * bps / (10000 * 32))`. Weeks per year come from the calendar. This is inferred; see economy.md open question 2.
-- Loans move in $1,000 steps. Borrowing is capped at `maxLoan`. Repaying is capped at the balance and cash. Financing moves cash but is not a ledger category.
-- Cash may go negative. Construction (land, paths, rides, track) is checked against cash before it is applied and posts through `charge`.
-- Campaigns: one active slot. Each week it charges its cost and consumes a week. The attraction multiplier applies while weeks remain. The table in `marketing.ts` is a tunable placeholder.
-- Park value is `rideValue + 700 * guests` (cents), refreshed every 512 ticks. Company value is `parkValue + cash - loan`.
-- Park rating follows the community formula in `park-rating.ts`. It is clamped to 0..999. The excitement and intensity terms are not implemented. The sign of the guest term is ambiguous in the source; the implementation follows the range it states. Calibrate before relying on it.
+### Core Implementation
 
-## Save
+- [api.ts](api.ts) is the entry point for earning and charging non-negative integer cents, publishing economy inputs, and querying admission price, ride pricing mode and marketing attraction. Invalid transaction amounts throw `RangeError`.
+- [actions.ts](actions.ts) applies borrowing, repayment, pricing and marketing actions. Rejected actions return `false` without changing state.
+- [calendar.ts](calendar.ts) defines the tick-based dates and boundary checks. [economy-system.ts](economy-system.ts) processes weekly wages, weekly interest and campaign costs, fortnightly ride upkeep, monthly ledger rollover, and periodic rating refreshes at those boundaries.
+- [ledger.ts](ledger.ts) defines transaction categories and rolling monthly totals. Guest kiosk umbrella revenue, like toilet fees, uses `ShopSales`; it is separate from food and drink sales.
+- [park-inputs.ts](park-inputs.ts) sums role-specific staff wage rates from [staff-store.ts](../staff/staff-store.ts), plus ride and guest measures. These roster-derived fields are republished periodically, so direct callers of `setEconomyInputs` should treat them as refreshed simulation inputs rather than durable overrides.
+- `saveLedger` and `restoreLedger` in [ledger.ts](ledger.ts) form the ledger serialization boundary. New ledger fields must also be represented in [save data](../../save/save.ts) and [world hashing](../core/hash.ts).
 
-`saveLedger` and `restoreLedger` are the serialisation boundary; `src/save` uses them. Any new `Ledger` field must be added to `LedgerSave` and to `hash.ts`.
+### Things to Know
+
+- Money uses integer cents. Cash may go below zero through recurring charges; construction actions check available cash before applying and post costs through the economy API.
+- Wages are charged weekly and shown in monthly finance history; ride upkeep is charged fortnightly. Staff hire/fire actions also update the weekly wage input immediately, and park inputs recompute it from the roster on refresh.
+- Interest is simple weekly interest using the configured basis-point rate. The calendar defines the number of weeks per year; this is an implementation choice recorded as an inference in the economy mechanics document.
+- Marketing has one active campaign slot, charged weekly while active. Attraction multipliers and several park-rating terms are tunable or incomplete; see the mechanics document for unresolved source questions.
+
+Created and maintained by Nori.

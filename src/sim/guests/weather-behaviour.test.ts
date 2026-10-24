@@ -6,6 +6,7 @@ import { RideState } from '../rides/ride-store';
 import { createRide } from '../rides/ride-operations';
 import { RideType } from '../rides/ride-types';
 import { WeatherKind } from '../weather/weather';
+import { LedgerCategory } from '../economy/ledger';
 
 function chooseRide(weather: WeatherKind, umbrella: boolean) {
   const world = flatWorld(24, 8);
@@ -64,6 +65,7 @@ describe('weather guest behaviour', () => {
     expect(world.guests.cols.state[guest]).toBe(GuestState.Wandering);
     expect(world.umbrellas[world.guests.slotToId[guest]]).toBe(1);
     expect(world.guests.cols.cash[guest]).toBe(cash - 75);
+    expect(world.economy.monthlyTotals[LedgerCategory.ShopSales]).toBe(75);
   });
 
   it('does not sell umbrellas from a closed or unaffordable kiosk', () => {

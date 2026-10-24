@@ -8,6 +8,8 @@ import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
 import { StaffKind, spawnStaff } from '../sim/staff/staff-store';
+import { dropLitter, LitterKind } from '../sim/guests/litter-store';
+import { WeatherKind } from '../sim/weather/weather';
 
 describe('save', () => {
   it('round-trips world state exactly', () => {
@@ -35,6 +37,30 @@ describe('save', () => {
       b.step();
     }
     expect(hashWorld(b.world)).toBe(hashWorld(a.world));
+  });
+
+  it('continues deterministically across a weather transition with staff and litter', () => {
+    const original = new Simulation({ seed: 19, width: 16, height: 16 });
+    original.world.map.fillFlat(2);
+    original.enqueue({ type: 'placePath', x: 6, y: 6, z: 2 });
+    original.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    original.step();
+    dropLitter(original.world, 6, 6, LitterKind.Trash);
+    original.world.weather.kind = WeatherKind.Rain;
+    original.world.weather.ticksUntilChange = 2;
+    const continued = new Simulation({ seed: 1, width: 1, height: 1 });
+    Object.assign(continued, { world: deserialize(serialize(original.world)) });
+    expect(hashWorld(continued.world)).toBe(hashWorld(original.world));
+    expect(continued.world.litter.count).toBe(1);
+    expect(continued.world.staff.count).toBe(1);
+
+    for (let i = 0; i < 20; i++) {
+      original.step();
+      continued.step();
+    }
+
+    expect(hashWorld(continued.world)).toBe(hashWorld(original.world));
+    expect(original.world.weather.kind).not.toBe(WeatherKind.Rain);
   });
 
   it('rejects garbage input', () => {
@@ -204,7 +230,7 @@ describe('save: version 4 migration', () => {
     world.guests.cols.targetRide[2] = 0;
     const loaded = deserialize(versionFourSave(world));
     expect(loaded.guests.count).toBe(5);
-    expect(loaded.economy.inputs.wageBillPerWeek).toBeGreaterThan(0);
+    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_154);
     expect(loaded.park.entranceX).toBe(-1);
     for (let slot = 0; slot < 5; slot++) {
       if (slot !== 1) expect(loaded.guests.cols.x[slot]).toBe(world.guests.cols.x[slot]);
@@ -244,7 +270,7 @@ describe('save: version 4 migration', () => {
 
     expect(loaded.patrolAreas.every((value) => value === 0)).toBe(true);
     expect(loaded.umbrellas.every((value) => value === 0)).toBe(true);
-    expect(loaded.economy.inputs.wageBillPerWeek).toBeGreaterThan(0);
+    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_154);
     expect(loaded.park.entranceX).toBe(world.park.entranceX);
   });
 });
