@@ -19,7 +19,7 @@
 .game-toolbar {
   position: fixed;
   z-index: 50;
-  inset: 0 0 auto 0;
+  inset: env(safe-area-inset-top) env(safe-area-inset-right) auto env(safe-area-inset-left);
   height: var(--toolbar-h);
   box-sizing: border-box;
   display: flex;
@@ -96,7 +96,7 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - var(--toolbar-h) - var(--status-h) - 16px);
+  max-height: calc(100dvh - var(--toolbar-h) - var(--status-h) - 16px);
   pointer-events: auto;
   border: 2px solid;
   border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
@@ -483,7 +483,7 @@
 .status-bar {
   position: fixed;
   z-index: 45;
-  inset: auto 0 0 0;
+  inset: auto env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   height: 0;
   pointer-events: none;
 }
@@ -678,11 +678,14 @@
     display: none;
   }
   .ui-windows {
-    inset: auto 0 var(--status-h) 0;
+    inset: auto env(safe-area-inset-right) calc(var(--status-h) + env(safe-area-inset-bottom))
+      env(safe-area-inset-left);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    max-height: calc(100vh - 52px - var(--status-h));
+    max-height: calc(
+      100dvh - 52px - var(--status-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    );
     overflow-y: auto;
   }
   .ui-window {
@@ -781,7 +784,7 @@
     max-width: none;
   }
   .tool-status {
-    top: 58px;
+    top: calc(58px + env(safe-area-inset-top));
     bottom: auto;
   }
   .objective-strip {

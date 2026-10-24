@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#10151b" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
     <title>OpenCoaster</title>
     <link rel="icon" href="data:," />
     <style>
@@ -17,6 +23,7 @@
       #app {
         margin: 0;
         height: 100%;
+        height: 100dvh;
         background: #10151b;
         overflow: hidden;
       }
@@ -26,7 +33,7 @@
       #game {
         display: block;
         width: 100vw;
-        height: 100vh;
+        height: 100dvh;
         touch-action: none;
         cursor: crosshair;
       }
@@ -71,7 +78,7 @@
         inset: 0;
         z-index: 3;
         width: 100vw;
-        height: 100vh;
+        height: 100dvh;
         pointer-events: none;
       }
       [hidden] {

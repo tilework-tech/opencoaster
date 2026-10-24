@@ -53,6 +53,14 @@ Chosen: **transferable snapshot buffers**, three pooled per run.
 
 The Playwright smoke run launches Chromium with SwiftShader, checks the game's active canvas and HUD report WebGL2, exercises the Rides window, verifies there are no browser console or page errors, and writes a screenshot. A capability check on a separate canvas is not sufficient because startup can fall back to Canvas2D after a shader error.
 
+## Browser input and mobile runtime
+
+The browser main thread owns UI, pointer gestures, camera state, rendering, and the simulation command bridge. [src/input](../src/input/docs.md) recognizes taps, drags, holds, pinch scale, and twist; [src/main.ts](../src/main.ts) maps those intents through the existing projection/picking and UI command path. Forced holds use [object-picking.ts](../src/input/object-picking.ts) to resolve ride footprints and track tiles to ride IDs from the latest snapshot; guest details use the existing guest hit-test, and other tiles remain tile selections. This keeps touch placement subject to the same map bounds and worker-side validation as desktop placement. Pointer and projection coordinates use CSS pixels, while canvas and track-preview backing buffers use a device-pixel ratio capped at 2.
+
+The app shell uses a cover viewport and safe-area CSS offsets, resizes from canvas bounds and viewport/orientation changes, and pauses the worker while the document is hidden. [src/pwa](../src/pwa/docs.md) registers the root-scoped service worker and caches the app shell and same-origin resources for offline startup after an online install/load. Service-worker caches contain app assets; save data stays in the save subsystem.
+
+Playwright's iPhone 15 and Pixel 8 profiles use Chromium DevTools touch injection to exercise touch-driven path placement, pan, pinch zoom, rotation controls, guest-window access, viewport behavior, and offline reload. This is Chromium emulation, not WebKit/Safari or physical-device testing. The final post-rebase mobile FPS case ran headless Chromium with SwiftShader using Pixel 8 viewport emulation and 2,000 guests; it collected 100 HUD FPS samples with p50 23, p95 41, p99 47, and max 48 FPS. The final strict 5,000-guest simulation benchmark passed with p99 1.683 ms/tick; the WebGL2 smoke run collected 112 frames with p50 1.88 ms, p95 3.27 ms, p99 4.77 ms, and max 8.89 ms. Smoke frame timing is browser-emulated and is not directly comparable to simulation-tick timing or physical hardware performance.
+
 ## Performance budget
 
 Target: **5000 guests at 40 ticks/s using at most 3 ms of sim per tick at p99** in the benchmark workload (5,000 guests, 100 mixed staff, and 1,000 litter items). This leaves headroom within the 25 ms fixed tick for snapshotting, rendering, and other runtime work. Strict benchmark mode enforces the 3 ms p99 limit; the performance work's optimization goal is at most 2 ms, which the strict benchmark does not enforce.
