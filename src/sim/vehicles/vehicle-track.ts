@@ -4,6 +4,11 @@ import { getTrackPath } from '../track/track-path';
 import { MAX_TRACK_RIDES } from '../track/track-store';
 import { PieceFlag, PieceMode } from '../track/track-types';
 import type { TrackPath } from '../track/track-path';
+import { RIDE_CATALOG } from '../rides/ride-types';
+import type { RideType } from '../rides/ride-types';
+import { CREST_CRASH_SPEED_Q8, DROP_CRASH_SPEED_Q8 } from './speed-units';
+import { measureTrackElements, NO_TRACK_ELEMENTS } from './track-elements';
+import type { TrackElementStats } from './vehicle-ratings';
 
 export const enum VehicleSegmentFlag {
   ChainLift = 1 << 0,
@@ -39,7 +44,10 @@ export interface VehicleTrackInput {
   /** A zero marks a block section that currently cannot accept a train. */
   blockOpen?: Uint8Array;
   loop?: boolean;
+  /** Crest, drop-start and train-collision crashes apply; defaults to true. */
   crashable?: boolean;
+  /** Turn, helix and shelter counts for the rating terms; defaults to none. */
+  elements?: TrackElementStats;
   /** Q8 speed limits for rides whose cars can detach at the respective transition. */
   crestCrashSpeedQ8?: number;
   dropCrashSpeedQ8?: number;
@@ -78,6 +86,21 @@ const CURVATURE_SCALE = 256 << PATH_CURVATURE_SHIFT;
 
 function boundedQ8(value: number): number {
   return Math.max(-0x8000, Math.min(0x7fff, value));
+}
+
+/** Speed no train reaches: crest and drop checks of rides whose cars are attached never fire. */
+const NO_CRASH_SPEED_Q8 = 0x7fffffff;
+
+function rideCrashRules(world: World, rideId: number) {
+  const slot = world.rides.idToSlot[rideId];
+  const rules =
+    slot >= 0 ? RIDE_CATALOG[world.rides.cols.typeId[slot] as RideType]?.trackRules : undefined;
+  const unattached = rules?.unattachedCars ?? true;
+  return {
+    crashable: rules?.crashable ?? true,
+    crestCrashSpeedQ8: unattached ? CREST_CRASH_SPEED_Q8 : NO_CRASH_SPEED_Q8,
+    dropCrashSpeedQ8: unattached ? DROP_CRASH_SPEED_Q8 : NO_CRASH_SPEED_Q8,
+  };
 }
 
 /** Converts the track subsystem's cached polyline into the vehicle system's compact tick input. */
@@ -163,6 +186,8 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     invertedSegments,
     curvatureShift: PATH_CURVATURE_SHIFT,
     loop: path.closed,
+    ...rideCrashRules(world, path.rideId),
+    elements: measureTrackElements(world, path),
     sourceVersion: path.version,
   });
 }
@@ -292,9 +317,10 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     invertedSegments,
     blockOpen,
     loop: input.loop ?? false,
-    crashable: input.crashable ?? false,
-    crestCrashSpeedQ8: input.crestCrashSpeedQ8 ?? 50 * 256,
-    dropCrashSpeedQ8: input.dropCrashSpeedQ8 ?? 64 * 256,
+    crashable: input.crashable ?? true,
+    elements: input.elements ?? NO_TRACK_ELEMENTS,
+    crestCrashSpeedQ8: input.crestCrashSpeedQ8 ?? CREST_CRASH_SPEED_Q8,
+    dropCrashSpeedQ8: input.dropCrashSpeedQ8 ?? DROP_CRASH_SPEED_Q8,
     sourceVersion: input.sourceVersion ?? -1,
     segmentLengths,
     cumulativeLengthsQ8,

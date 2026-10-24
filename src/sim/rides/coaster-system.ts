@@ -8,6 +8,7 @@ import {
   rideTrainSlots,
   spawnRideTrain,
 } from '../vehicles/ride-trains';
+import { MAX_RATING } from '../vehicles/vehicle-ratings';
 import { VehicleState } from '../vehicles/vehicle-store';
 import {
   maxTrainsOnTrack,
@@ -22,14 +23,14 @@ import { completeCycle } from './ride-system';
 import { seatQueuedGuests } from './queue-system';
 import { RidePhase, RideState } from './ride-store';
 import { RIDE_CATALOG } from './ride-types';
-import type { RideType, RideTypeDef } from './ride-types';
+import type { RideType } from './ride-types';
 import { RideResult } from './ride-results';
 
 /** A test lap that has not finished after five game minutes is abandoned. */
 const TEST_TIMEOUT_TICKS = 12_000;
 
 function clampRating(value: number): number {
-  return Math.max(0, Math.min(0xffff, value));
+  return Math.max(0, Math.min(MAX_RATING, value));
 }
 
 function endTest(world: World, slot: number, rideId: number, result: RideResult): void {
@@ -39,7 +40,7 @@ function endTest(world: World, slot: number, rideId: number, result: RideResult)
   reportFeedback(world.feedback, FeedbackDomain.Ride, result, rideId);
 }
 
-function completeTest(world: World, slot: number, rideId: number, train: number, def: RideTypeDef) {
+function completeTest(world: World, slot: number, rideId: number, train: number) {
   const v = world.vehicles.cols;
   const ride = world.rides.cols;
   const recorded = recordRideTestMeasurements(world, rideId, {
@@ -56,19 +57,19 @@ function completeTest(world: World, slot: number, rideId: number, train: number,
     endTest(world, slot, rideId, RideResult.TestFailed);
     return;
   }
-  ride.excitement[slot] = clampRating(v.excitement[train] + def.baseExcitement);
-  ride.intensity[slot] = clampRating(v.intensity[train] + def.baseIntensity);
-  ride.nausea[slot] = clampRating(v.nausea[train] + def.baseNausea);
+  ride.excitement[slot] = clampRating(v.excitement[train]);
+  ride.intensity[slot] = clampRating(v.intensity[train]);
+  ride.nausea[slot] = clampRating(v.nausea[train]);
   endTest(world, slot, rideId, RideResult.TestPassed);
 }
 
-function runTest(world: World, slot: number, rideId: number, def: RideTypeDef): void {
+function runTest(world: World, slot: number, rideId: number): void {
   const train = findRideTrain(world, rideId);
   if (train < 0) return endTest(world, slot, rideId, RideResult.TestFailed);
   const v = world.vehicles.cols;
   switch (v.state[train]) {
     case VehicleState.TestComplete:
-      completeTest(world, slot, rideId, train, def);
+      completeTest(world, slot, rideId, train);
       break;
     case VehicleState.Testing:
       if (v.elapsedTicks[train] > TEST_TIMEOUT_TICKS) {
@@ -277,7 +278,7 @@ export const coasterSystem: System = {
       const rideId = rides.slotToId[slot];
       if (ride.state[slot] === RideState.Broken) continue;
       if (ride.state[slot] === RideState.Testing) {
-        runTest(world, slot, rideId, def);
+        runTest(world, slot, rideId);
         continue;
       }
       if (ride.state[slot] === RideState.Open) operate(world, slot, rideId);

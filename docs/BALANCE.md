@@ -167,9 +167,9 @@ Historical pre-stack calibration: **100 guests and rating 650** in year one (it 
 
 | Profile   | Guests    | Rating    | Wins    |
 | --------- | --------- | --------- | ------- |
-| minimal   | 46 - 71   | 156 - 309 | 0 / 12  |
-| modest    | 116 - 153 | 668 - 752 | 3 / 12  |
-| ambitious | 156 - 178 | 728 - 858 | 11 / 12 |
+| minimal   | 46 - 71   | 156 - 241 | 0 / 12  |
+| modest    | 136 - 157 | 650 - 756 | 4 / 12  |
+| ambitious | 152 - 173 | 729 - 838 | 11 / 12 |
 
 So a player who builds the full set of stalls and staff but few attractions can still scrape it, and one who keeps adding attractions nearly always wins. Year-end ratings move about 40 points between seeds, which is why the target sits between the profiles rather than at the ambitious floor.
 
@@ -199,6 +199,10 @@ Starter scenario, one year, default seed (2026), scripted modest build, `pnpm ba
 | Ledger: interest, wages, construction | -1,750, -1,717, -11,162 | unchanged              |
 
 The ledger is unchanged by design: monthly research funding equals the old weekly charge times four, and the scripted park runs no research or campaign. The moves come from the rating's happiness term and the starter target.
+
+### Coaster rating changes
+
+The coaster fidelity pass (crash defaults, turn/helix/shelter/scenery terms, multiplicative base ratings, requirements, air-time shape) moves the starter wooden coaster from 4.65 / 4.67 / 1.63 to 4.68 / 4.68 / 1.65 (excitement / intensity / nausea); the ride is unpenalised and does not crash, and its guests-served and "too intense" counts stay in the ranges above. A one-hundredth rating change alters guest choices enough to reshuffle which seeds win, so the per-seed table was re-run on the same seeds: the starter objective is still winnable (modest 4 / 12, ambitious 11 / 12, minimal 0 / 12).
 
 ## Known gaps
 
