@@ -167,9 +167,9 @@ Historical pre-stack calibration: **100 guests and rating 650** in year one (it 
 
 | Profile   | Guests    | Rating    | Wins    |
 | --------- | --------- | --------- | ------- |
-| minimal   | 46 - 71   | 156 - 241 | 0 / 12  |
-| modest    | 136 - 157 | 650 - 756 | 4 / 12  |
-| ambitious | 152 - 173 | 729 - 838 | 11 / 12 |
+| minimal   | 26 - 77   | 157 - 327 | 0 / 12  |
+| modest    | 133 - 153 | 623 - 758 | 5 / 12  |
+| ambitious | 152 - 180 | 699 - 829 | 10 / 12 |
 
 So a player who builds the full set of stalls and staff but few attractions can still scrape it, and one who keeps adding attractions nearly always wins. Year-end ratings move about 40 points between seeds, which is why the target sits between the profiles rather than at the ambitious floor.
 
@@ -202,7 +202,7 @@ The ledger is unchanged by design: monthly research funding equals the old weekl
 
 ### Coaster rating changes
 
-The coaster fidelity pass (crash defaults, turn/helix/shelter/scenery terms, multiplicative base ratings, requirements, air-time shape) moves the starter wooden coaster from 4.65 / 4.67 / 1.63 to 4.68 / 4.68 / 1.65 (excitement / intensity / nausea); the ride is unpenalised and does not crash, and its guests-served and "too intense" counts stay in the ranges above. A one-hundredth rating change alters guest choices enough to reshuffle which seeds win, so the per-seed table was re-run on the same seeds: the starter objective is still winnable (modest 4 / 12, ambitious 11 / 12, minimal 0 / 12).
+The coaster fidelity pass (crash defaults, turn/helix/shelter/scenery terms, multiplicative base ratings, requirements, air-time shape) moves the starter wooden coaster from 4.65 / 4.67 / 1.63 to 4.68 / 4.68 / 1.65 (excitement / intensity / nausea); the ride is unpenalised and does not crash, and its guests-served and "too intense" counts stay in the ranges above. A one-hundredth rating change alters guest choices enough to reshuffle which seeds win, so the per-seed table was re-run on the same seeds: the starter objective is still winnable (modest 5 / 12, ambitious 10 / 12, minimal 0 / 12, measured on main at 339fecc plus this change).
 
 ## Known gaps
 
