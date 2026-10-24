@@ -145,7 +145,7 @@ function migrateLegacyGuests(
   world.rides.cols.queueLength.fill(0);
 }
 
-/** Saves before version 9 stored reliability as a whole percent and had no ride modes. */
+/** Saves through version 10 stored reliability as a whole percent and had no ride modes. */
 function migratePreReliabilityRides(world: World): void {
   const rides = world.rides.cols;
   for (let slot = 0; slot < world.rides.count; slot++) {

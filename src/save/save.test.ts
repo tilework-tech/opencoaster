@@ -243,7 +243,7 @@ function withoutColumns(
   return out;
 }
 
-/** Ride columns that saves before version 10 did not have. */
+/** Ride columns that saves before version 11 did not have. */
 function reliabilityColumns(world: ReturnType<typeof flatWorld>): ArrayBufferView[] {
   const cols = world.rides.cols;
   return [
