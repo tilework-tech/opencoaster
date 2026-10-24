@@ -33,9 +33,18 @@ export interface ScenarioObjective {
   byTick: number;
 }
 
+export type EntranceSide = 'north' | 'east' | 'south' | 'west';
+
+/** Gate on the owned edge facing `side`, with a straight path of `length` tiles leading inward. */
+export interface ScenarioEntrance {
+  side: EntranceSide;
+  length: number;
+}
+
 export interface ScenarioDef {
   id: string;
   name: string;
+  description?: string;
   seed: number;
   mapWidth: number;
   mapHeight: number;
@@ -47,6 +56,7 @@ export interface ScenarioDef {
   admissionPrice: number;
   availableItemIds: number[];
   inventions: ResearchInvention[];
+  entrance?: ScenarioEntrance;
   objective: ScenarioObjective;
 }
 

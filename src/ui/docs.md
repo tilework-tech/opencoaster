@@ -8,6 +8,7 @@ Path: @/src/ui
 - Displays worker snapshots and timing statistics; authoritative game state remains in the simulation worker.
 - Exposes selection, land, path, ride, and coaster (track) tools, with placement behavior wired by the main thread.
 - Provides a coaster panel for building, testing and operating coasters, with command feedback from snapshots.
+- Hosts the game shell: a title screen (new scenario, sandbox, continue, load, import), an in-game menu (save to slots, load, export and import files, back to title), and a one-time scenario outcome dialog.
 
 ### How it fits into the larger codebase
 
@@ -15,6 +16,7 @@ Path: @/src/ui
 - Placement input is translated into simulation commands at the main-thread boundary. The worker applies commands to its owned [Simulation](../sim/core/simulation.ts) on a tick, then publishes a later snapshot.
 - Park and finance panels read snapshot and worker-stat values. Guest details are selected from the current snapshot at click time and retain that snapshot's tick label.
 - [Hud](hud.ts) combines worker timing and dropped-tick statistics with frame rate, render duration, visible sprite count, and renderer backend from the render loop.
+- [title-screen.ts](title-screen.ts), [save-menu.ts](save-menu.ts) and [scenario-dialog.ts](scenario-dialog.ts) are DOM overlays. They call into the save layer ([game-saves.ts](../save/game-saves.ts), [slot-store.ts](../save/slot-store.ts)) and the worker ([SimClient](../worker/sim-client.ts)) through callbacks wired in `main.ts`.
 
 ### Core Implementation
 
@@ -33,7 +35,11 @@ Path: @/src/ui
 - The placement preview is a client-side approximation using the snapshot (bounds, ownership via `buildable`, funds); the simulation result is authoritative and may differ.
 - Ownership, ride-type rules and funds are enforced by the simulation's track command handler, not by the UI.
 - Game speed and pause controls affect the worker scheduler through [SimClient](../worker/sim-client.ts); rendering and panel refresh continue on the browser animation frame loop.
-- The park panel shows guest and ride counts and simulation tick; park rating is unavailable. The finance panel shows cash and loan. Guest details remain unchanged as newer snapshots arrive until another selection replaces or clears them.
+- Speed and the player's pause choice are saved in `localStorage` ([settings.ts](settings.ts)) and restored on the next visit. The worker is also paused while the title screen, the in-game menu or an outcome dialog is open; that pause is not saved.
+- Session lifecycle lives in `main.ts`. A new game, sandbox start, save load or import replaces the worker's game and clears the session's outcome state. Quitting to title clears the session. Loading a save reads only its header first (`summarizeSave`), so a bad file leaves the current game running.
+- Scenario outcome: when a snapshot's scenario status leaves Active, the outcome dialog shows once per game. It offers keep playing (sandbox), the menu, or back to title. The objective strip ([objective.ts](objective.ts)) shows progress and the deadline. Until the first rating refresh (tick 512) the rating reads as pending.
+- The park panel shows guest and ride counts, simulation tick and park rating. The finance panel shows cash and loan. Guest details remain unchanged as newer snapshots arrive until another selection replaces or clears them.
+- Title and menu actions are asynchronous and their failures are shown in the overlay (for example a save that cannot be read, or storage that is unavailable; the title falls back to an in-memory store when IndexedDB cannot be opened, and says so).
 - Guest spawning from the toolbar is a development control that sends the existing `spawnGuests` command.
 
 Created and maintained by Nori.

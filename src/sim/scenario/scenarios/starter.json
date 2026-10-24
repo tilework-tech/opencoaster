@@ -1,0 +1,28 @@
+{
+  "id": "starter",
+  "name": "Starter Park",
+  "description": "A small rolling valley with a lake. Fund a modest park, build to a rating of 600, and bring in guests before the end of year one.",
+  "seed": 2026,
+  "map": { "width": 64, "height": 64 },
+  "finance": {
+    "startingCash": 5000000,
+    "startingLoan": 2000000,
+    "maxLoan": 10000000,
+    "annualInterestBps": 1000
+  },
+  "pricing": { "mode": "admission", "admissionPrice": 300 },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      { "itemId": 2, "category": 0, "costCents": 40000 },
+      { "itemId": 3, "category": 0, "costCents": 80000 }
+    ]
+  },
+  "entrance": { "side": "south", "length": 4 },
+  "objective": {
+    "kind": "guestsAndRating",
+    "target": 10,
+    "rating": 600,
+    "byYear": 1
+  }
+}

@@ -1,4 +1,5 @@
 import type { Command } from '../sim/core/commands';
+import type { ScenarioDef } from '../sim/scenario/scenario';
 import type { Snapshot } from './snapshot';
 
 export interface InitMessage {
@@ -8,6 +9,8 @@ export interface InitMessage {
   height: number;
   initialGuests: number;
   maxGuests?: number;
+  /** Applied to the new world before its first tick (finances, objective, entrance). */
+  scenario?: ScenarioDef;
 }
 
 export type ToWorker =
@@ -16,7 +19,11 @@ export type ToWorker =
   | { type: 'setSpeed'; multiplier: number }
   | { type: 'setPaused'; paused: boolean }
   /** Hands a consumed snapshot's buffers back to the worker for reuse. */
-  | { type: 'recycle'; snapshot: Snapshot };
+  | { type: 'recycle'; snapshot: Snapshot }
+  /** Serialises the running game; answered with `saved`. */
+  | { type: 'save' }
+  /** Replaces the running game with a save; answered with `loaded` or `error`. */
+  | { type: 'load'; bytes: Uint8Array };
 
 export interface MapMessage {
   type: 'map';
@@ -42,4 +49,7 @@ export type FromWorker =
   | { type: 'ready' }
   | MapMessage
   | { type: 'snapshot'; snapshot: Snapshot }
-  | { type: 'stats'; stats: Stats };
+  | { type: 'stats'; stats: Stats }
+  | { type: 'saved'; bytes: Uint8Array }
+  | { type: 'loaded' }
+  | { type: 'error'; request: 'save' | 'load'; message: string };

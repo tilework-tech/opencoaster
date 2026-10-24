@@ -1,6 +1,7 @@
 import type { Snapshot } from '../worker/snapshot';
 import type { Stats } from '../worker/protocol';
 import { financePanelText } from './hud';
+import { objectiveLines } from './objective';
 
 export type ToolMode = 'select' | 'land' | 'path' | 'ride' | 'track';
 
@@ -10,6 +11,7 @@ export interface GameUIActions {
   rotate(direction: -1 | 1): void;
   setTool(tool: ToolMode): void;
   spawnGuests(): void;
+  openMenu(): void;
 }
 
 export interface GuestSelection {
@@ -32,6 +34,7 @@ const TOOL_LABELS: Record<ToolMode, string> = {
 export class GameUI {
   private readonly toolbar: HTMLElement;
   private readonly status: HTMLElement;
+  private readonly objective: HTMLElement;
   private readonly panels = new Map<string, { root: HTMLElement; body: HTMLElement }>();
   private paused = false;
   private tool: ToolMode = 'select';
@@ -45,17 +48,12 @@ export class GameUI {
     this.toolbar.setAttribute('aria-label', 'Park controls');
     this.status = document.createElement('output');
     this.status.className = 'tool-status';
+    this.objective = document.createElement('div');
+    this.objective.className = 'objective-strip';
+    this.objective.hidden = true;
 
     this.toolbar.append(
-      this.button(
-        'Pause',
-        () => {
-          this.paused = !this.paused;
-          this.actions.setPaused(this.paused);
-          this.label('pause', this.paused ? 'Resume' : 'Pause');
-        },
-        'pause',
-      ),
+      this.button('Pause', () => this.togglePause(), 'pause'),
       this.button('1×', () => actions.setSpeed(1), 'speed-1'),
       this.button('2×', () => actions.setSpeed(2), 'speed-2'),
       this.button('4×', () => actions.setSpeed(4), 'speed-4'),
@@ -78,10 +76,11 @@ export class GameUI {
     windows.append(
       this.button('Park', () => this.togglePanel('park', 'Park overview'), 'open-park'),
       this.button('Finances', () => this.togglePanel('finance', 'Finances'), 'open-finance'),
+      this.button('Menu', actions.openMenu, 'open-menu'),
       this.button('Guests', () => this.togglePanel('guests', 'Guest information'), 'open-guests'),
     );
     this.toolbar.append(windows);
-    parent.append(this.toolbar, this.status);
+    parent.append(this.toolbar, this.status, this.objective);
     this.chooseTool('select');
   }
 
@@ -90,12 +89,17 @@ export class GameUI {
     stats: Stats | null,
     selectedGuest: GuestSelection | null,
   ): void {
+    const lines = snapshot
+      ? objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick)
+      : [];
+    this.objective.hidden = lines.length === 0;
+    setText(this.objective, lines.join('\n'));
     const park = this.panels.get('park');
     if (park) {
       setText(
         park.body,
         snapshot
-          ? `Guests  ${stats?.guests ?? snapshot.guests.count}\nRides  ${snapshot.park.rides}\nSimulation tick  ${snapshot.tick}\nPark rating  Not available yet`
+          ? `Guests  ${stats?.guests ?? snapshot.guests.count}\nRides  ${snapshot.park.rides}\nSimulation tick  ${snapshot.tick}\nPark rating  ${snapshot.scenario.parkRating}`
           : 'Waiting for the simulation snapshot…',
       );
     }
@@ -130,14 +134,20 @@ export class GameUI {
   }
 
   togglePause(): void {
-    this.paused = !this.paused;
+    this.syncPaused(!this.paused);
     this.actions.setPaused(this.paused);
+  }
+
+  /** Shows the pause state without sending it, for state restored from settings. */
+  syncPaused(paused: boolean): void {
+    this.paused = paused;
     this.label('pause', this.paused ? 'Resume' : 'Pause');
   }
 
   dispose(): void {
     this.toolbar.remove();
     this.status.remove();
+    this.objective.remove();
     for (const panel of this.panels.values()) panel.root.remove();
     this.panels.clear();
   }

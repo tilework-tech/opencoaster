@@ -3,18 +3,26 @@ import type { InitMessage, MapMessage, Stats, ToWorker, FromWorker } from './pro
 import { snapshotBuffers } from './snapshot';
 import type { Snapshot } from './snapshot';
 
+interface PendingRequest {
+  kind: 'save' | 'load';
+  resolve: (value: unknown) => void;
+  reject: (err: Error) => void;
+}
+
 /** Main-thread handle to the sim worker. */
 export class SimClient {
   private readonly worker: Worker;
+  private pending: PendingRequest[] = [];
+  /** True from a start or load request until the worker confirms it; older snapshots are stale. */
+  private starting = false;
   latest: Snapshot | null = null;
   map: MapMessage | null = null;
   stats: Stats | null = null;
   onMap: ((m: MapMessage) => void) | null = null;
 
-  constructor(init: Omit<InitMessage, 'type'>) {
+  constructor() {
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<FromWorker>) => this.onMessage(e.data);
-    this.send({ type: 'init', ...init });
   }
 
   private onMessage(msg: FromWorker): void {
@@ -24,20 +32,75 @@ export class SimClient {
         this.onMap?.(msg);
         break;
       case 'snapshot':
-        if (this.latest) this.send({ type: 'recycle', snapshot: this.latest }, this.latest);
+        if (this.starting) {
+          this.send({ type: 'recycle', snapshot: msg.snapshot }, msg.snapshot);
+          break;
+        }
+        this.recycleLatest();
         this.latest = msg.snapshot;
         break;
       case 'stats':
         this.stats = msg.stats;
         break;
+      case 'saved':
+        this.settle('save')?.resolve(msg.bytes);
+        break;
+      case 'loaded':
+        this.starting = false;
+        this.settle('load')?.resolve(undefined);
+        break;
+      case 'error':
+        if (msg.request === 'load') this.starting = false;
+        this.settle(msg.request)?.reject(new Error(msg.message));
+        break;
       case 'ready':
+        this.starting = false;
         break;
     }
+  }
+
+  private recycleLatest(): void {
+    if (!this.latest) return;
+    this.send({ type: 'recycle', snapshot: this.latest }, this.latest);
+    this.latest = null;
+  }
+
+  /** Answers the oldest request of this kind; the worker replies to requests in order. */
+  private settle(kind: 'save' | 'load'): PendingRequest | undefined {
+    const index = this.pending.findIndex((p) => p.kind === kind);
+    if (index < 0) return undefined;
+    return this.pending.splice(index, 1)[0];
   }
 
   private send(msg: ToWorker, recycled?: Snapshot): void {
     const transfer = recycled ? snapshotBuffers(recycled) : [];
     this.worker.postMessage(msg, transfer);
+  }
+
+  /** Starts a new game in the worker, replacing any game already running. */
+  startGame(init: Omit<InitMessage, 'type'>): void {
+    this.recycleLatest();
+    this.starting = true;
+    this.send({ type: 'init', ...init });
+  }
+
+  /** Serialises the running game. Rejects when no game is running. */
+  save(): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+      this.pending.push({ kind: 'save', resolve: resolve as (v: unknown) => void, reject });
+      this.worker.postMessage({ type: 'save' } satisfies ToWorker);
+    });
+  }
+
+  /** Replaces the running game with a save. Rejects with the reason when the bytes are not a save. */
+  load(bytes: Uint8Array): Promise<void> {
+    const copy = bytes.slice();
+    this.recycleLatest();
+    this.starting = true;
+    return new Promise((resolve, reject) => {
+      this.pending.push({ kind: 'load', resolve: resolve as (v: unknown) => void, reject });
+      this.worker.postMessage({ type: 'load', bytes: copy } satisfies ToWorker, [copy.buffer]);
+    });
   }
 
   command(command: Command): void {

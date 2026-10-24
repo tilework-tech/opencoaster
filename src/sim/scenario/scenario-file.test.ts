@@ -1,0 +1,118 @@
+import { describe, expect, it } from 'vitest';
+import { TICKS_PER_YEAR } from '../economy/calendar';
+import { ObjectiveKind } from './scenario';
+import { parseScenarioFile } from './scenario-file';
+
+const valid = {
+  id: 'test-park',
+  name: 'Test Park',
+  description: 'A park for tests.',
+  seed: 7,
+  map: { width: 48, height: 40 },
+  finance: {
+    startingCash: 5_000_000,
+    startingLoan: 1_000_000,
+    maxLoan: 10_000_000,
+    annualInterestBps: 1000,
+  },
+  pricing: { mode: 'admission', admissionPrice: 300 },
+  research: {
+    availableItemIds: [1, 2],
+    inventions: [{ itemId: 3, category: 0, costCents: 9_000 }],
+  },
+  entrance: { side: 'south', length: 4 },
+  objective: { kind: 'guestsAndRating', target: 150, rating: 600, byYear: 1 },
+};
+
+function withObjective(objective: Record<string, unknown>): unknown {
+  return { ...valid, objective };
+}
+
+describe('parseScenarioFile', () => {
+  it('converts a JSON scenario into a scenario definition', () => {
+    const def = parseScenarioFile(valid);
+    expect(def).toEqual({
+      id: 'test-park',
+      name: 'Test Park',
+      description: 'A park for tests.',
+      seed: 7,
+      mapWidth: 48,
+      mapHeight: 40,
+      startingCash: 5_000_000,
+      startingLoan: 1_000_000,
+      maxLoan: 10_000_000,
+      annualInterestBps: 1000,
+      priceMode: 1,
+      admissionPrice: 300,
+      availableItemIds: [1, 2],
+      inventions: [{ itemId: 3, category: 0, costCents: 9_000 }],
+      entrance: { side: 'south', length: 4 },
+      objective: {
+        kind: ObjectiveKind.GuestsAndRating,
+        target: 150,
+        rating: 600,
+        categoryMask: 0,
+        byTick: TICKS_PER_YEAR,
+      },
+    });
+  });
+
+  it('accepts a raw byTick deadline instead of byYear', () => {
+    const def = parseScenarioFile(withObjective({ kind: 'guests', target: 10, byTick: 500 }));
+    expect(def.objective.byTick).toBe(500);
+    expect(def.objective.kind).toBe(ObjectiveKind.Guests);
+  });
+
+  it('maps monthly income objectives onto ledger category bits', () => {
+    const def = parseScenarioFile(
+      withObjective({
+        kind: 'monthlyIncome',
+        target: 0,
+        categories: ['admission', 'rideTickets'],
+        byYear: 2,
+      }),
+    );
+    expect(def.objective.kind).toBe(ObjectiveKind.MonthlyIncome);
+    expect(def.objective.categoryMask).toBe((1 << 4) | (1 << 5));
+    expect(def.objective.byTick).toBe(2 * TICKS_PER_YEAR);
+  });
+
+  it('defaults the entrance to none when the file omits it', () => {
+    const rest: Record<string, unknown> = { ...valid };
+    delete rest.entrance;
+    expect(parseScenarioFile(rest).entrance).toBeUndefined();
+  });
+
+  it('rejects an unknown objective kind with the field path in the message', () => {
+    expect(() => parseScenarioFile(withObjective({ kind: 'fame', target: 1, byYear: 1 }))).toThrow(
+      /test-park.*objective\.kind/,
+    );
+  });
+
+  it('rejects an objective with no deadline', () => {
+    expect(() => parseScenarioFile(withObjective({ kind: 'guests', target: 1 }))).toThrow(
+      /byYear or byTick/,
+    );
+  });
+
+  it('rejects a non-integer or negative money amount', () => {
+    const bad = { ...valid, finance: { ...valid.finance, startingCash: 12.5 } };
+    expect(() => parseScenarioFile(bad)).toThrow(/finance\.startingCash/);
+  });
+
+  it('rejects a map smaller than the minimum playable size', () => {
+    const bad = { ...valid, map: { width: 4, height: 40 } };
+    expect(() => parseScenarioFile(bad)).toThrow(/map\.width/);
+  });
+
+  it('rejects an unknown pricing mode', () => {
+    const bad = { ...valid, pricing: { mode: 'tolls', admissionPrice: 0 } };
+    expect(() => parseScenarioFile(bad)).toThrow(/pricing\.mode/);
+  });
+
+  it('rejects a missing id', () => {
+    const rest: Record<string, unknown> = { ...valid };
+    delete rest.id;
+    expect(() => parseScenarioFile(rest)).toThrow(/id/);
+  });
+});

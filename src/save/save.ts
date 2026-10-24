@@ -233,3 +233,26 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.park) Object.assign(world.park, header.park);
   return world;
 }
+
+export interface SaveSummary {
+  version: number;
+  tick: number;
+  cash: number;
+  loan: number;
+}
+
+/** Reads the header only, for save listings. Throws for bytes that are not an OpenCoaster save. */
+export function summarizeSave(bytes: Uint8Array): SaveSummary {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.byteLength < 8 || dv.getUint32(0, true) !== MAGIC) {
+    throw new Error('Not an OpenCoaster save');
+  }
+  const headerLen = dv.getUint32(4, true);
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLen))) as Header;
+  return {
+    version: header.version,
+    tick: header.tick,
+    cash: header.economy.cash,
+    loan: header.economy.loan,
+  };
+}
