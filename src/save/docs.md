@@ -12,7 +12,7 @@ Path: @/src/save
 
 - [World](../sim/core/world.ts) defines authoritative state; [hashWorld](../sim/core/hash.ts) covers persistent state so save/load continuation can be checked.
 - Entity stores, the map, and track state provide arrays in a fixed order. Ledger, research, scenario, park gate, weather, patrol masks, and umbrella ownership are restored from header data or module helpers.
-- Save version 8 adds the per-ride lifetime income column. Version 7 added per-tile `grounds` bytes and player staff names keyed by stable staff id; version 6 added patrol masks and stable-id umbrella flags. Older supported versions default fields absent from their layout and reconstruct weekly staff wages from restored staff roles.
+- Save version 10 appends the ride `reliabilityRaw`, `mode`, `breakdownReason`, `serviceTicks` and `serviceLastTick` columns; `rideColumnsAbsent` lists how many trailing ride columns each older version lacks, and `migratePreReliabilityRides` sets reliability to the stored percent times 256 and each ride to its type's default mode. Save version 8 adds the per-ride lifetime income column. Version 7 added per-tile `grounds` bytes and player staff names keyed by stable staff id; version 6 added patrol masks and stable-id umbrella flags. Older supported versions default fields absent from their layout and reconstruct weekly staff wages from restored staff roles.
 - Raw array layout changes require an explicit save version path and migration.
 
 ### Core Implementation
