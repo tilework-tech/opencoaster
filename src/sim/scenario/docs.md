@@ -57,4 +57,4 @@ Responsibility: scenario definitions (starting finances, price mode, loan terms,
 
 ## Starter Objective Calibration
 
-The target is calibrated with the headless balance harness (`pnpm balance`, [bench/docs.md](../../../bench/docs.md)) on flattened terrain. After the economy fidelity pass the happiness term narrows the band. Over twelve seeds, minimal, modest and ambitious scripted parks end year one at 0 - 364, 598 - 762 and 662 - 759 rating; rating 650 wins 0, 10 and 12 times, and rating 730 wins only 2 and 3 times for modest and ambitious. The scenario's own seed (2026) ends the modest build at 653, a three-point margin; see [BALANCE.md](../../../docs/BALANCE.md#starter-objective).
+The target is calibrated with the headless balance harness (`pnpm balance`, [bench/docs.md](../../../bench/docs.md)) on flattened terrain. After guest navigation and ride fidelity were combined, the modest scripted build reached rating 650 on 3 of 12 seeds and rating 575 on all 12; the default seed (2026) ends at 636. The current 575 target is a calibration for that combined model. See [BALANCE.md](../../../docs/BALANCE.md#combined-guest-navigation-and-ride-fidelity).
