@@ -11,6 +11,7 @@ pnpm install
 pnpm dev      # http://localhost:5173
 pnpm check    # lint, format, typecheck, test, build
 pnpm bench    # sim ms/tick with 5000 guests
+pnpm e2e      # headless Chromium playtest; screenshots go to .local/playwright-results/
 ```
 
 Docs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [CONTRIBUTING.md](CONTRIBUTING.md) (clean-room rules), [AGENTS.md](AGENTS.md). Mechanics research lives in `docs/mechanics/`.
