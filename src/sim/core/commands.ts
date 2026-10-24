@@ -1,4 +1,5 @@
 import type { EconomyAction } from '../economy/actions';
+import type { MapCommand } from '../map/map-commands';
 import type { ResearchAction } from '../research/research';
 
 /**
@@ -8,7 +9,7 @@ import type { ResearchAction } from '../research/research';
 export type Command =
   | { type: 'spawnGuests'; count: number }
   | { type: 'spawnStaff'; count: number; kind: number }
-  | { type: 'setTileHeight'; x: number; y: number; height: number }
+  | MapCommand
   | { type: 'economy'; action: EconomyAction }
   | { type: 'research'; action: ResearchAction }
   | {

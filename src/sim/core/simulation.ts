@@ -3,6 +3,7 @@ import type { System } from './system';
 import { World } from './world';
 import type { WorldOptions } from './world';
 import { spawnGuest } from '../guests/guest-store';
+import { applyMapCommand } from '../map/map-commands';
 import { spawnStaff } from '../staff/staff-store';
 import { guestSystem } from '../guests/guest-system';
 import { staffSystem } from '../staff/staff-system';
@@ -68,8 +69,8 @@ export class Simulation {
       case 'spawnStaff':
         for (let i = 0; i < c.count; i++) if (!spawnStaff(w, c.kind)) break;
         break;
-      case 'setTileHeight':
-        w.map.setHeight(c.x, c.y, c.height);
+      default:
+        applyMapCommand(w, c);
         break;
       case 'economy':
         applyEconomyAction(w.economy, c.action);

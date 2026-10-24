@@ -24,7 +24,10 @@ export function hashWorld(world: World): number {
       for (let i = 0; i < store.count; i++) mix(col[i]);
     }
   }
-  for (let i = 0; i < world.map.heights.length; i++) mix(world.map.heights[i]);
+  for (const arr of world.map.arrays()) {
+    const a = arr as unknown as ArrayLike<number>;
+    for (let i = 0; i < a.length; i++) mix(a[i]);
+  }
   const e = world.economy;
   for (const v of [
     e.cash,
