@@ -31,7 +31,11 @@ const canvas = selection.canvas;
 const renderer = selection.renderer;
 
 const sim = new SimClient();
-sim.onMap = (map) => renderer.setMap(map);
+sim.onMap = (map) => {
+  renderer.setMap(map);
+  camera.x = (map.width - map.height) * 16;
+  camera.y = (map.width + map.height) * 8;
+};
 
 const { store: slots, note: storeNote } = await openSlotStore();
 
