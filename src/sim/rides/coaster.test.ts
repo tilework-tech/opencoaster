@@ -8,6 +8,8 @@ import { circuitStatus } from '../track/construction';
 import { GuestState } from '../guests/guest-store';
 import { PieceMode, TrackResult } from '../track/track-types';
 import { VehicleState } from '../vehicles/vehicle-store';
+import { StaffKind, spawnStaff } from '../staff/staff-store';
+import { rideTrainSlots } from '../vehicles/ride-trains';
 import {
   GROUND,
   STATION_X,
@@ -23,6 +25,8 @@ import { getRideTestMeasurements, isRideTested } from './ride-operations';
 import { RideResult } from './ride-results';
 import { RIDE_CATALOG, RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
+import { BreakdownReason, repairTicksFor } from './breakdown-reasons';
+import { breakRide, serviceRide } from './ride-maintenance';
 
 const TEST_RUN_TICKS = 6000;
 
@@ -430,5 +434,66 @@ describe('track commands', () => {
     };
     expect(attempt(RideType.SteelLoopingCoaster)).toBe(TrackResult.Ok);
     expect(attempt(RideType.WoodenCoaster)).toBe(TrackResult.PieceNotAllowed);
+  });
+});
+
+describe('coaster restraint failure', () => {
+  it('holds the train and its riders in place until a mechanic repairs the restraints', () => {
+    const { sim, rideId } = testedCoaster();
+    connectStation(sim, rideId);
+    const slot = sim.world.rides.idToSlot[rideId];
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    queueGuests(sim, rideId, 40);
+
+    const v = sim.world.vehicles.cols;
+    let out = -1;
+    for (let i = 0; i < 6000 && out < 0; i++) {
+      sim.step();
+      for (let t = 0; t < sim.world.vehicles.count; t++) {
+        if (v.state[t] === VehicleState.Running && v.passengers[t] > 0) {
+          out = t;
+          break;
+        }
+      }
+    }
+    expect(out).toBeGreaterThanOrEqual(0);
+    const riders = v.passengers[out];
+    const position = v.trackPos[out];
+    const served = sim.world.rides.cols.guestsServed[slot];
+
+    breakRide(sim.world, slot, BreakdownReason.RestraintsStuckClosed);
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Broken);
+    expect(sim.world.rides.cols.boarded[slot]).toBeGreaterThanOrEqual(riders);
+
+    for (let i = 0; i < 3000; i++) sim.step();
+    expect(v.state[out]).toBe(VehicleState.Stalled);
+    expect(v.trackPos[out]).toBe(position);
+    expect(v.passengers[out]).toBe(riders);
+    expect(sim.world.rides.cols.guestsServed[slot]).toBe(served);
+
+    expect(spawnStaff(sim.world, StaffKind.Mechanic)).toBe(true);
+    const mechanic = sim.world.staff.slotToId[sim.world.staff.count - 1];
+    for (let i = 0; i < repairTicksFor(BreakdownReason.RestraintsStuckClosed); i++) {
+      sim.world.tick++;
+      serviceRide(sim.world, rideId, mechanic);
+    }
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Open);
+    expect(sim.world.rides.cols.boarded[slot]).toBe(0);
+    expect(sim.world.rides.cols.guestsServed[slot]).toBe(served + riders);
+    expect(v.state.subarray(0, sim.world.vehicles.count)).not.toContain(VehicleState.Stalled);
+  });
+
+  it('releases riders at once for a failure that does not lock restraints', () => {
+    const { sim, rideId } = testedCoaster();
+    connectStation(sim, rideId);
+    const slot = sim.world.rides.idToSlot[rideId];
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    queueGuests(sim, rideId, 40);
+    for (let i = 0; i < 6000 && sim.world.rides.cols.boarded[slot] === 0; i++) sim.step();
+    expect(sim.world.rides.cols.boarded[slot]).toBeGreaterThan(0);
+
+    breakRide(sim.world, slot, BreakdownReason.SafetyCutOut);
+    expect(sim.world.rides.cols.boarded[slot]).toBe(0);
+    expect(rideTrainSlots(sim.world, rideId)).toEqual([]);
   });
 });

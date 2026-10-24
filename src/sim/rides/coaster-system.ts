@@ -275,6 +275,7 @@ export const coasterSystem: System = {
       const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
       if (!def?.usesTrack) continue;
       const rideId = rides.slotToId[slot];
+      if (ride.state[slot] === RideState.Broken) continue;
       if (ride.state[slot] === RideState.Testing) {
         runTest(world, slot, rideId, def);
         continue;
