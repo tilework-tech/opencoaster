@@ -16,6 +16,8 @@ export type Command =
   | { type: 'fireStaff'; staffId: number }
   | { type: 'setStaffPatrolTile'; staffId: number; x: number; y: number; enabled: boolean }
   | { type: 'setStaffKindPatrolTile'; kind: number; x: number; y: number; enabled: boolean }
+  | { type: 'renameStaff'; staffId: number; name: string }
+  | { type: 'setFlowerBed'; x: number; y: number; enabled: boolean }
   | { type: 'createRide'; rideType: RideType; x: number; y: number }
   | MapCommand
   | RideCommand

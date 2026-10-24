@@ -42,6 +42,10 @@ export class World {
   /** Umbrella ownership indexed by stable guest id. */
   readonly umbrellas: Uint8Array;
   readonly staff: EntityStore<typeof STAFF_SCHEMA>;
+  /** Player-given staff names by stable staff id; not simulated, saved with the game. */
+  readonly staffNames = new Map<number, string>();
+  /** Per-tile grass overgrowth and flower-bed state (see staff/grounds.ts). */
+  readonly grounds: Uint8Array;
   readonly vehicles: EntityStore<typeof VEHICLE_SCHEMA>;
   /** Runtime track geometry is rebuilt by the track subsystem and consumed by vehicles. */
   vehicleTracks?: VehicleTrackRegistry;
@@ -65,6 +69,7 @@ export class World {
     this.guests = new EntityStore(GUEST_SCHEMA, opts.maxGuests ?? MAX_GUESTS);
     this.umbrellas = new Uint8Array(this.guests.capacity);
     this.staff = new EntityStore(STAFF_SCHEMA, MAX_STAFF);
+    this.grounds = new Uint8Array(opts.width * opts.height);
     this.vehicles = new EntityStore(VEHICLE_SCHEMA, MAX_VEHICLES);
     this.litter = new EntityStore(LITTER_SCHEMA, MAX_LITTER);
     this.rides = new EntityStore(RIDE_SCHEMA, 256);

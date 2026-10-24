@@ -32,6 +32,7 @@ export function hashWorld(world: World): number {
   }
   for (const value of world.patrolAreas) mix(value);
   for (const value of world.umbrellas) mix(value);
+  for (const value of world.grounds) mix(value);
   for (const value of [
     world.weather.kind,
     world.weather.temperature,

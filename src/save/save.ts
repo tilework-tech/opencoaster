@@ -10,8 +10,9 @@ import type { ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 import { calculateStaffWageBill } from '../sim/staff/staff-store';
 
-export const SAVE_VERSION = 6;
-const PREVIOUS_SAVE_VERSION = 5;
+export const SAVE_VERSION = 7;
+const PREVIOUS_SAVE_VERSION = 6;
+const PRE_STAFF_CARE_SAVE_VERSION = 5;
 const PRE_RIDES_SAVE_VERSION = 3;
 const PRE_HEADING_SAVE_VERSION = 4;
 
@@ -45,6 +46,8 @@ interface Header {
   park?: ParkState;
   patrolAreas?: number[];
   umbrellas?: number[];
+  grounds?: number[];
+  staffNames?: Record<string, string>;
   track: { pieces: StoreHeader; lastResult: number; lastPiece: number };
 }
 
@@ -170,6 +173,8 @@ export function serialize(world: World): Uint8Array {
     park: { ...world.park },
     patrolAreas: Array.from(world.patrolAreas),
     umbrellas: Array.from(world.umbrellas),
+    grounds: Array.from(world.grounds),
+    staffNames: Object.fromEntries(world.staffNames),
     track: {
       pieces: {
         capacity: world.track.pieces.capacity,
@@ -204,6 +209,7 @@ export function deserialize(bytes: Uint8Array): World {
   const supported = [
     PRE_RIDES_SAVE_VERSION,
     PRE_HEADING_SAVE_VERSION,
+    PRE_STAFF_CARE_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];
@@ -220,6 +226,9 @@ export function deserialize(bytes: Uint8Array): World {
   world.tick = header.tick;
   if (header.patrolAreas) world.patrolAreas.set(header.patrolAreas);
   if (header.umbrellas) world.umbrellas.set(header.umbrellas);
+  if (header.grounds) world.grounds.set(header.grounds);
+  for (const [id, name] of Object.entries(header.staffNames ?? {}))
+    world.staffNames.set(Number(id), name);
   world.rng.state.set(header.rng);
   let off = 8 + headerLen;
   const allViews = views(world);

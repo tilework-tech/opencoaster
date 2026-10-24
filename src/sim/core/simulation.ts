@@ -7,11 +7,14 @@ import { applyMapCommand } from '../map/map-commands';
 import {
   fireStaff,
   hireStaff,
+  renameStaff,
   setStaffKindPatrolTile,
   setStaffPatrolTile,
   spawnStaff,
 } from '../staff/staff-store';
+import { setFlowerBed } from '../staff/grounds';
 import { guestSystem } from '../guests/guest-system';
+import { vandalismSystem } from '../guests/vandalism';
 import { staffSystem } from '../staff/staff-system';
 import { vehicleSystem } from '../vehicles/vehicle-system';
 import { litterSystem } from '../guests/litter-system';
@@ -53,6 +56,7 @@ export const SYSTEM_ORDER: readonly System[] = [
   coasterSystem,
   guestSystem,
   staffSystem,
+  vandalismSystem,
   litterSystem,
   parkInputsSystem,
   economySystem,
@@ -168,6 +172,12 @@ export class Simulation {
         break;
       case 'setStaffKindPatrolTile':
         setStaffKindPatrolTile(w, c.kind, c.x, c.y, c.enabled);
+        break;
+      case 'renameStaff':
+        renameStaff(w, c.staffId, c.name);
+        break;
+      case 'setFlowerBed':
+        setFlowerBed(w, c.x, c.y, c.enabled);
         break;
       case 'createRide':
         applyCreateRide(w, c.rideType, c.x, c.y);

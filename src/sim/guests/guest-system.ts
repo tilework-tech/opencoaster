@@ -19,6 +19,7 @@ import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
 import { hasParkEntrance, parkEntranceTile } from './park';
 import { WeatherKind } from '../weather/weather';
+import { PathFlag } from '../map/tile-map';
 
 const UPDATE_STRIDE = 4;
 const GUEST_SPEED = 12;
@@ -45,6 +46,17 @@ const LEAVE_ENERGY = 12;
 const ARRIVAL_INTERVAL = 80;
 const BASE_GUEST_CAP = 200;
 const GUESTS_PER_RIDE = 50;
+/** Unsheltered guests outdoors in rain lose this much happiness once per `RAIN_LOSS_PERIOD` × 16 ticks. */
+const RAIN_HAPPINESS_LOSS = 2;
+const RAIN_LOSS_PERIOD = 8;
+/** Tiles (self and four neighbours) a rain shelter covers. */
+const SHELTER_REACH: ReadonlyArray<readonly [number, number]> = [
+  [0, 0],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 
 export interface GuestAdmission {
   parkRating: number;
@@ -312,9 +324,39 @@ function leaveQueue(world: World, slot: number): void {
   g.state[slot] = GuestState.Wandering;
 }
 
+function nearRainShelter(world: World, tileX: number, tileY: number): boolean {
+  const map = world.map;
+  for (const [dx, dy] of SHELTER_REACH) {
+    if (!map.inBounds(tileX + dx, tileY + dy)) continue;
+    const element = map.pathElement(map.index(tileX + dx, tileY + dy), -1);
+    if (element >= 0 && (map.elFlags[element] & PathFlag.Shelter) !== 0) return true;
+  }
+  return false;
+}
+
+function exposedToRain(world: World, slot: number): boolean {
+  const g = world.guests.cols;
+  if (world.weather.kind < WeatherKind.Rain) return false;
+  if (world.umbrellas[world.guests.slotToId[slot]] !== 0) return false;
+  const state = g.state[slot];
+  if (
+    state !== GuestState.Wandering &&
+    state !== GuestState.Queuing &&
+    state !== GuestState.Waiting
+  )
+    return false;
+  return !nearRainShelter(world, g.x[slot] >> 8, g.y[slot] >> 8);
+}
+
 function ageNeeds(world: World, slot: number): void {
   const g = world.guests.cols;
   const state = g.state[slot];
+  if (
+    exposedToRain(world, slot) &&
+    ((world.tick + world.guests.slotToId[slot]) >> 4) % RAIN_LOSS_PERIOD === 0
+  ) {
+    g.happiness[slot] = Math.max(0, g.happiness[slot] - RAIN_HAPPINESS_LOSS);
+  }
   g.hunger[slot] = Math.min(255, g.hunger[slot] + 1);
   g.thirst[slot] = Math.min(255, g.thirst[slot] + 1);
   g.toilet[slot] = Math.min(255, g.toilet[slot] + (g.thirst[slot] > 180 ? 2 : 1));

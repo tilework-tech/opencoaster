@@ -2,8 +2,19 @@ import type { Snapshot } from '../worker/snapshot';
 import type { Stats } from '../worker/protocol';
 import { financePanelText } from './hud';
 import { objectiveLines } from './objective';
+import { StaffRoster } from './staff-roster';
 
-export type ToolMode = 'select' | 'land' | 'path' | 'bin' | 'bench' | 'ride' | 'track' | 'patrol';
+export type ToolMode =
+  | 'select'
+  | 'land'
+  | 'path'
+  | 'bin'
+  | 'bench'
+  | 'shelter'
+  | 'flowerbed'
+  | 'ride'
+  | 'track'
+  | 'patrol';
 
 export interface GameUIActions {
   setPaused(paused: boolean): void;
@@ -14,6 +25,8 @@ export interface GameUIActions {
   openMenu(): void;
   hireStaff(kind: number): void;
   setPatrolKind(kind: number | null): void;
+  renameStaff(staffId: number, name: string): void;
+  fireStaff(staffId: number): void;
 }
 
 export interface GuestSelection {
@@ -31,6 +44,8 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   path: 'Path',
   bin: 'Bin',
   bench: 'Bench',
+  shelter: 'Shelter',
+  flowerbed: 'Flower bed',
   ride: 'Ride',
   track: 'Coaster',
   patrol: 'Patrol area',
@@ -43,6 +58,7 @@ export class GameUI {
   private readonly panels = new Map<string, { root: HTMLElement; body: HTMLElement }>();
   private paused = false;
   private tool: ToolMode = 'select';
+  private staffRoster: StaffRoster | null = null;
 
   constructor(
     private readonly parent: HTMLElement,
@@ -75,6 +91,8 @@ export class GameUI {
       'path',
       'bin',
       'bench',
+      'shelter',
+      'flowerbed',
       'ride',
       'track',
       'patrol',
@@ -137,8 +155,9 @@ export class GameUI {
     if (staff)
       setText(
         staff.body,
-        `Staff employed  ${snapshot?.staff.count ?? 0}\nSelect a role below to hire staff. Patrol tools apply to the selected role.`,
+        `Staff employed  ${snapshot?.staff.count ?? 0}\nSelect a role below to hire staff. Patrol tools apply to the selected role or person.`,
       );
+    this.staffRoster?.update(snapshot);
   }
 
   /** Switches tools as if the player had pressed the toolbar button. */
@@ -194,6 +213,7 @@ export class GameUI {
     if (existing) {
       existing.root.remove();
       this.panels.delete(id);
+      if (id === 'staff') this.staffRoster = null;
       return;
     }
     const root = document.createElement('section');
@@ -237,6 +257,14 @@ export class GameUI {
       );
     });
     panel.root.append(controls);
+    this.staffRoster = new StaffRoster(panel.root, {
+      rename: (staffId, name) => this.actions.renameStaff(staffId, name),
+      patrol: (kind) => {
+        this.actions.setPatrolKind(kind);
+        this.chooseTool('patrol');
+      },
+      fire: (staffId) => this.actions.fireStaff(staffId),
+    });
   }
 
   private button(label: string, click: () => void, id: string): HTMLButtonElement {

@@ -7,6 +7,7 @@ import { createRide } from '../rides/ride-operations';
 import { RideType } from '../rides/ride-types';
 import { WeatherKind } from '../weather/weather';
 import { LedgerCategory } from '../economy/ledger';
+import { PathAddition, setPathAddition } from '../map/paths';
 
 function chooseRide(weather: WeatherKind, umbrella: boolean) {
   const world = flatWorld(24, 8);
@@ -88,5 +89,30 @@ describe('weather guest behaviour', () => {
       expect(world.umbrellas[world.guests.slotToId[guest]]).toBe(0);
       expect(world.guests.cols.cash[guest]).toBe(cash);
     }
+  });
+});
+
+describe('rain shelters', () => {
+  function soakedGuest(shelter: boolean): number {
+    const world = flatWorld(12, 4);
+    layPath(world, [[5, 5]]);
+    if (shelter) setPathAddition(world.map, 5, 5, PathAddition.Shelter);
+    const guest = guestAt(world, 5, 5);
+    world.guests.cols.happiness[guest] = 200;
+    world.weather.kind = WeatherKind.Rain;
+    const system = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));
+    for (let i = 0; i < 400; i++) {
+      system.update(world);
+      world.tick++;
+    }
+    return world.guests.cols.happiness[guest];
+  }
+
+  it('lets an unsheltered guest without an umbrella lose happiness in rain', () => {
+    expect(soakedGuest(false)).toBeLessThan(200);
+  });
+
+  it('keeps a guest standing beside a rain shelter dry', () => {
+    expect(soakedGuest(true)).toBe(200);
   });
 });
