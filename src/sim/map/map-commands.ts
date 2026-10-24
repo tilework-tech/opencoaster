@@ -1,7 +1,7 @@
 import type { World } from '../core/world';
 import { LedgerCategory, post } from '../economy/ledger';
 import { lowerLand, paintLand, raiseLand, setTileHeight, setWaterLevel } from './land';
-import { placePath, removePath } from './paths';
+import { placePath, removePath, setPathAddition, type PathAddition } from './paths';
 import {
   LAND_EDIT_COST_CENTS,
   LAND_PRICE_CENTS,
@@ -23,6 +23,7 @@ export type MapCommand =
   | { type: 'paintLand'; x: number; y: number; width: number; height: number; surface: number }
   | { type: 'placePath'; x: number; y: number; z?: number; slope?: number; queue?: boolean }
   | { type: 'removePath'; x: number; y: number; z?: number }
+  | { type: 'setPathAddition'; x: number; y: number; addition: PathAddition }
   | { type: 'buyLand'; x: number; y: number; width: number; height: number; rights: boolean };
 
 function canAfford(w: World, cents: number): boolean {
@@ -93,6 +94,9 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     case 'removePath':
       removePath(m, c);
+      break;
+    case 'setPathAddition':
+      setPathAddition(m, c.x, c.y, c.addition);
       break;
     case 'buyLand': {
       const x = c.x | 0;

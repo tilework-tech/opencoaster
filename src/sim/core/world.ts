@@ -36,7 +36,11 @@ export class World {
   readonly seed: number;
   readonly rng: Prng;
   readonly map: TileMap;
+  /** Persistent tile masks keyed by patrol area id (0 means unrestricted). */
+  readonly patrolAreas: Uint8Array;
   readonly guests: EntityStore<typeof GUEST_SCHEMA>;
+  /** Umbrella ownership indexed by stable guest id. */
+  readonly umbrellas: Uint8Array;
   readonly staff: EntityStore<typeof STAFF_SCHEMA>;
   readonly vehicles: EntityStore<typeof VEHICLE_SCHEMA>;
   /** Runtime track geometry is rebuilt by the track subsystem and consumed by vehicles. */
@@ -56,8 +60,10 @@ export class World {
     this.seed = opts.seed;
     this.rng = new Prng(opts.seed);
     this.map = new TileMap(opts.width, opts.height);
+    this.patrolAreas = new Uint8Array(opts.width * opts.height * 4);
     generateTerrain(this.map, new Prng(opts.seed ^ 0x5eed));
     this.guests = new EntityStore(GUEST_SCHEMA, opts.maxGuests ?? MAX_GUESTS);
+    this.umbrellas = new Uint8Array(this.guests.capacity);
     this.staff = new EntityStore(STAFF_SCHEMA, MAX_STAFF);
     this.vehicles = new EntityStore(VEHICLE_SCHEMA, MAX_VEHICLES);
     this.litter = new EntityStore(LITTER_SCHEMA, MAX_LITTER);

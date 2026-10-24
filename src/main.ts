@@ -13,6 +13,7 @@ import { downloadBytes } from './ui/dom';
 import { loadSettings, saveSettings } from './ui/settings';
 import type { GameSpeed } from './ui/settings';
 import { DEFAULT_MAP_SIZE, TILE_UNITS } from './sim/core/constants';
+import { PathAddition } from './sim/map/paths';
 import { CoasterPanel } from './ui/coaster-panel';
 import { TrackPreviewOverlay } from './ui/track-preview';
 import { SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
@@ -59,6 +60,7 @@ const camera: Camera = { x: 0, y: (DEFAULT_MAP_SIZE * 32) / 2, zoom: 1, rotation
 const hud = new Hud(root);
 let selectedTool: ToolMode = 'select';
 let selectedGuest: GuestSelection | null = null;
+let patrolKind: number | null = null;
 const coasterPanel = new CoasterPanel(root, {
   command: (command) => sim.command(command),
   selectTool: (tool) => gameUi.selectTool(tool),
@@ -90,6 +92,12 @@ const gameUi = new GameUI(root, {
   },
   openMenu() {
     openSaveMenu();
+  },
+  hireStaff(kind) {
+    sim.command({ type: 'hireStaff', kind });
+  },
+  setPatrolKind(kind) {
+    patrolKind = kind;
   },
 });
 gameUi.syncPaused(userPaused);
@@ -382,6 +390,29 @@ function handleCanvasClick(event: PointerEvent): void {
     } else if (selectedTool === 'path') {
       sim.command({ type: 'placePath', x, y });
       gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
+    } else if (selectedTool === 'bin' || selectedTool === 'bench') {
+      sim.command({
+        type: 'setPathAddition',
+        x,
+        y,
+        addition: selectedTool === 'bin' ? PathAddition.Bin : PathAddition.Bench,
+      });
+      gameUi.setToolStatus(`${selectedTool} placement requested at ${x}, ${y}.`);
+    } else if (selectedTool === 'patrol') {
+      if (patrolKind === null) {
+        gameUi.setToolStatus('Choose a staff role in the Staff panel first.');
+        return;
+      }
+      sim.command({
+        type: 'setStaffKindPatrolTile',
+        kind: patrolKind,
+        x,
+        y,
+        enabled: !event.shiftKey,
+      });
+      gameUi.setToolStatus(
+        `${event.shiftKey ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
+      );
     } else if (selectedTool === 'ride') {
       gameUi.setToolStatus(coasterPanel.createRideAt(x, y));
     } else {

@@ -22,6 +22,31 @@ export interface PathRemoval {
   z?: number;
 }
 
+export const enum PathAddition {
+  None = 0,
+  Bin = 1,
+  Bench = 2,
+}
+
+export function setPathAddition(m: TileMap, x: number, y: number, addition: PathAddition): boolean {
+  if (!m.inBounds(x, y) || !Number.isInteger(addition) || addition < 0 || addition > 2)
+    return false;
+  const tile = m.index(x, y);
+  if (!m.canBuild(tile)) return false;
+  const element = m.pathElement(tile, -1);
+  if (element < 0) return false;
+  m.elFlags[element] &= ~(PathFlag.Bin | PathFlag.Bench);
+  m.elFlags[element] |=
+    addition === PathAddition.Bin
+      ? PathFlag.Bin
+      : addition === PathAddition.Bench
+        ? PathFlag.Bench
+        : 0;
+  if (addition !== PathAddition.Bin) m.elData[element] = 0;
+  m.revision++;
+  return true;
+}
+
 /** Height level of path element `e` along edge `dir`, or -1 when that side cannot connect. */
 function edgeHeight(m: TileMap, e: number, dir: number): number {
   const s = m.pathSlopeDir(e);

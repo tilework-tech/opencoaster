@@ -4,7 +4,8 @@ import { hashWorld } from '../core/hash';
 import { TICKS_PER_FORTNIGHT, TICKS_PER_MONTH, TICKS_PER_WEEK } from './calendar';
 import { LedgerCategory } from './ledger';
 import { setEconomyInputs } from './api';
-import { STAFF_WAGE_PER_WEEK_CENTS, RIDE_UPKEEP_DIVISOR } from './park-inputs';
+import { RIDE_UPKEEP_DIVISOR } from './park-inputs';
+import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
 import { layPath, openRide, prepareFlat, row } from '../integration/fixtures';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { getRideValueCents } from '../rides/ride-operations';
@@ -46,7 +47,7 @@ describe('economy clock', () => {
   it('pays staff wages weekly and ride upkeep fortnightly', () => {
     const s = simWithRide();
     s.enqueue({ type: 'spawnStaff', count: 2, kind: 0 });
-    const wages = 2 * STAFF_WAGE_PER_WEEK_CENTS;
+    const wages = 2 * STAFF_WAGE_CENTS_PER_WEEK[0];
     const upkeep = Math.floor(RIDE_CATALOG[RideType.MerryGoRound].cost / RIDE_UPKEEP_DIVISOR);
     const start = s.world.economy.cash;
     runUntil(s, TICKS_PER_WEEK);

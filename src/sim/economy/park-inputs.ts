@@ -4,12 +4,11 @@ import { GuestState } from '../guests/guest-store';
 import { getRideValueCents, isShopCategory } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
+import { calculateStaffWageBill } from '../staff/staff-store';
 import { setEconomyInputs } from './api';
 
 /** Inputs are republished this often; a divisor of the rating refresh cadence. */
 export const INPUT_REFRESH_TICKS = 128;
-/** Weekly wage per staff member, cents. Tunable. */
-export const STAFF_WAGE_PER_WEEK_CENTS = 1_500;
 /** Fortnightly running cost of an open ride, as a fraction (1/N) of its build cost. Tunable. */
 export const RIDE_UPKEEP_DIVISOR = 50;
 const SHOP_UPKEEP_DIVISOR = 100;
@@ -17,7 +16,7 @@ const SHOP_UPKEEP_DIVISOR = 100;
 const UNHAPPY_BELOW = 128;
 
 /**
- * Publishes what rides, stalls, staff and guests currently contribute to the economy: wages,
+ * Publishes what rides, stalls and guests currently contribute to the economy: upkeep,
  * upkeep, ride value and the park-rating inputs. Runs ahead of the economy system so the
  * weekly, fortnightly and rating-refresh boundaries read fresh figures.
  */
@@ -58,7 +57,7 @@ export const parkInputsSystem: System = {
     }
 
     setEconomyInputs(world, {
-      wageBillPerWeek: world.staff.count * STAFF_WAGE_PER_WEEK_CENTS,
+      wageBillPerWeek: calculateStaffWageBill(world),
       rideUpkeepPerFortnight: upkeep,
       rideValue: value,
       qualifyingRideCount: qualifying,

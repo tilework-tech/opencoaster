@@ -40,7 +40,7 @@ Staff AI and patrol:
 - Handymen can climb roof paths in their patrol area and get stuck. Keep roof paths off their patrol area [S].
 - Community rule of thumb: 4 to 6 handymen and 6 to 8 mechanics later in a park, at least two of each early on [S, forum opinion, not a game rule].
 
-Cost: staff wages are a monthly expense. Players are told to balance headcount against finances [S].
+Cost: the cited material describes staff wages as a monthly expense [S]. OpenCoaster's economy currently charges wages weekly and includes those entries in its monthly finance history, as specified in [DECISIONS.md](../DECISIONS.md). The current handyman rate converts the cited $50/month reference to cents per week using a 52-week year; mechanics, security and entertainers use provisional OpenCoaster weekly rates because no source wage was found. These implementation rates are game tuning, not additional historical salary facts.
 
 ### 2.2 Litter and vomit
 
@@ -115,6 +115,8 @@ These are not in any source reached. Do not guess them. Each needs a primary sou
 
 ## 3. Data model proposal
 
+This section records an early design proposal, not the current TypeScript layout. Current state is distributed across [World](../../src/sim/core/world.ts), entity stores, and tile-element stacks; see the module Noridocs for implementation details.
+
 Use struct-of-arrays for anything with many instances. Tiles are the big array; staff and vandals are smaller arrays.
 
 ```ts
@@ -141,7 +143,7 @@ interface StaffPool {
   patrolId: Uint16Array;      // index into patrol area table
   task: Uint8Array;           // current task enum
   taskTimer: Uint16Array;     // ticks remaining on current task
-  wageCents: Uint32Array;     // monthly cost, integer cents
+  wageCents: Uint32Array;     // proposed monthly cost; not the current wage representation
 }
 
 // Patrol areas: a set of tiles per staff group.
@@ -179,12 +181,14 @@ Per-tick CPU budget:
 
 ## 5. Prioritised implementation checklist
 
+This was an initial target list and is not a statement that the items remain unimplemented. Current behavior and tuning are summarized below; source observations above remain distinct from game-specific implementation choices.
+
 MVP:
 1. Tile grid with surface, height and path items.
 2. Staff pool with handymen only. Wander, then patrol areas.
 3. Litter and vomit on path tiles, cleaned by handymen.
 4. Guest happiness hook: litter and vomit penalty (values TBD from a primary source).
-5. Monthly wage accounting.
+5. Staff wage accounting (implemented weekly in OpenCoaster and summarized in monthly history; see §2.1).
 6. Rain state with two effects: ice cream and cotton candy sales, and uncovered-queue refusal.
 
 Fidelity:
@@ -211,10 +215,19 @@ Fidelity:
 9. Do community staff-count rules of thumb match the game's real behaviour?
 10. Is the 40% underground rule for indoor status verified?
 
+## 7. Current OpenCoaster implementation notes
+
+These are verified code behaviors, not claims about the referenced games. Rates and thresholds are named implementation tuning unless a source-backed value is explicitly identified above.
+
+- Hiring and firing adjust the weekly wage input by each staff member's role rate. Older save versions recalculate this input from restored staff kinds. Handymen remove litter entities and empty path bins; mechanics inspect due rides and inspect broken rides to restore reliability and reopen them when their queues remain connected. Entertainers roam walkable tiles within their assigned patrol mask and periodically raise nearby guest happiness. Security deterrence is not implemented because there is no vandalism simulation; handyman mowing and watering and staff firing controls in the UI are also absent. Staff job details are in [staff Noridoc](../../src/sim/staff/docs.md).
+- Guests periodically generate trash or vomit on walkable tiles. Trash enters a path bin when available; litter ages out and handymen can remove litter entities. Exact generation cadence, thresholds, bin capacity and lifetime are OpenCoaster values. The staff system caches bin tile and element locations using both map object identity and map revision. See [guest Noridoc](../../src/sim/guests/docs.md).
+- Weather has sunny, cloudy, rain and storm states with seeded transitions and implementation-selected durations and temperatures. Rain/storm penalize thrill/coaster ride scores for guests without an umbrella. In rain, only wandering guests within one tile of an open information kiosk may buy an umbrella; the price is deducted from guest cash but is not recorded as kiosk revenue in the economy ledger. Numeric effects are tuned in code; source-reported kiosk and rain observations do not specify these scoring values. See [weather Noridoc](../../src/sim/weather/docs.md).
+- Bins and benches are path additions stored on path elements. Bins hold trash for handyman emptying. Benches have no simulation behavior, and neither path addition is currently rendered. Vandalism and path item repair are not implemented here. See [map Noridoc](../../src/sim/map/docs.md) and [UI Noridoc](../../src/ui/docs.md).
+
 
 ---
 
-## 7. Sources
+## 8. Sources
 
 Fetched and read:
 - https://github.com/OpenRCT2/OpenRCT2/wiki (wiki index; no staff or weather page visible in listing)

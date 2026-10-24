@@ -4,7 +4,13 @@ import { World } from './world';
 import type { WorldOptions } from './world';
 import { spawnGuest } from '../guests/guest-store';
 import { applyMapCommand } from '../map/map-commands';
-import { spawnStaff } from '../staff/staff-store';
+import {
+  fireStaff,
+  hireStaff,
+  setStaffKindPatrolTile,
+  setStaffPatrolTile,
+  spawnStaff,
+} from '../staff/staff-store';
 import { guestSystem } from '../guests/guest-system';
 import { staffSystem } from '../staff/staff-system';
 import { vehicleSystem } from '../vehicles/vehicle-system';
@@ -150,6 +156,18 @@ export class Simulation {
         break;
       case 'setParkEntrance':
         setParkEntrance(w, c.x, c.y);
+        break;
+      case 'hireStaff':
+        hireStaff(w, c.kind);
+        break;
+      case 'fireStaff':
+        fireStaff(w, c.staffId);
+        break;
+      case 'setStaffPatrolTile':
+        setStaffPatrolTile(w, c.staffId, c.x, c.y, c.enabled);
+        break;
+      case 'setStaffKindPatrolTile':
+        setStaffKindPatrolTile(w, c.kind, c.x, c.y, c.enabled);
         break;
       case 'createRide':
         applyCreateRide(w, c.rideType, c.x, c.y);

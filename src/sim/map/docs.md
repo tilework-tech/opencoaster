@@ -1,36 +1,33 @@
-# sim/map
+# Noridoc: Simulation Map
 
-Responsibility: the tile-element-stack map (engine spec "World grid and tile-element stacks", world spec 2.6/2.7): terrain with corner slopes, water, land ownership, footpaths, and the commands that edit them. Deterministic, integer-only, allocation-free queries.
+Path: @/src/sim/map
 
-## Data model (`TileMap`)
+### Overview
 
-- **Terrain** is a `(width+1) x (height+1)` grid of corner heights (`vertexHeights`, levels 0..31, `Z_STEP` units each), so neighbouring tiles share corners by construction. Invariant: every tile spans at most one level, i.e. any two vertices that share a tile differ by at most 1. `heights[i]` is the lowest corner; `slope[i]` has bit `c` set when corner `c` is one level above it. Corners: 0 = (x,y), 1 = (x+1,y), 2 = (x+1,y+1), 3 = (x,y+1). Derived by `refreshTile`; never write them directly.
-- `terrain` is the land type (grass, sand, dirt, rock); `surface` is the derived draw class (`Surface`: path/queue beats water beats terrain). `waterLevel[i]` is the water surface level (0 = none); water shows when it exceeds `heights[i]`.
-- `ownership[i]`: `OWNED`, `RIGHTS_OWNED` (build above ground only), `SALE_LAND`, `SALE_RIGHTS`. Terrain/water/paint edits need `OWNED`; elements need `OWNED` or `RIGHTS_OWNED`. The outermost `MAP_BORDER` ring is never owned.
-- **Elements** (paths now; track, scenery, entrances later) live in a fixed-capacity pool of parallel typed arrays (`elType/elBase/elClear/elFlags/elData/elNext`) with a per-tile linked list (`tileHead`) sorted by base level. Freed slots are reused. `addElement` returns -1 when the pool is full. `[elBase, elClear)` is the occupied level range; the ground is not an element.
-- Path `elFlags` (`PathFlag`): joined-edge mask (bits 0-3, derived), forced-edge mask (bits 4-7, set by ride entrances via `setForcedEdges`), queue, ramp, ramp direction. Edge bit `1 << dir`, dir 0 = +x, 1 = +y, 2 = -x, 3 = -y.
-- `flags[i]` stays a free per-tile byte for other modules. `revision` increments on any visible change (the worker re-sends the map when it moves); it is not saved.
-- All typed arrays are listed by `arrays()`, which feeds `hashWorld` and the save format.
+- Owns the deterministic tile map: terrain, water, ownership, walkable paths, and stacked map elements.
+- Validates map edits and applies their economy charges through the map command boundary.
+- Provides path additions for bins and benches, which are stored as flags and data on path elements; bins receive trash, while benches currently have no simulation or rendering behavior.
 
-## Queries (no allocation)
+### How it fits into the larger codebase
 
-`isWalkable(i)`, `pathEdges(i)` / `pathEdgesOf(el)`, `pathElement(i, z)`, `isQueue(i)`, `neighbor(i, dir)`, `canBuild(i)`, `terrainHeightAt(xu, yu)` (bilinear over the four corners), `heightAt(xu, yu)` (walking surface: the tile's lowest path if present, else ground), `pathHeightAt(el, xu, yu)`. Positions are fixed-point (`TILE_UNITS` per tile); results are `Z_STEP` units.
+- [World](../core/world.ts) owns `TileMap`; [Simulation](../core/simulation.ts) applies [map commands](map-commands.ts) before the ordered simulation systems run.
+- [Pathfinding](../pathfinding/docs.md) and guest/staff systems query walkability and connected path edges. Guests add trash/vomit using the map's path and bin queries; handymen locate and empty filled bins.
+- Map arrays feed [world hashing](../core/hash.ts) and [save serialization](../../save/save.ts). `revision` is runtime metadata used by worker map snapshots and staff's cached bin index, so it is not persisted.
+- The [UI](../../ui/docs.md) sends path, bin, and bench placement as commands; the UI status reports a request, while invalid or unaffordable map commands are silently ignored.
 
-## Rules
+### Core Implementation
 
-- **Land edits** (`raiseLand`/`lowerLand`): move every vertex of an owned rectangle one level, or one corner of a single tile. Neighbouring vertices are dragged to restore the smoothness invariant (order-independent closure), which may alter unowned tiles. The edit is rolled back if any affected tile would bury or tilt an element: a path must rest on a matching surface (flat on flat, ramp on its matching slope) or sit at/above the tile's highest corner; other elements must not straddle the surface.
-- **Paths** (`placePath`/`removePath`): a piece is flat or a ramp rising one level toward a direction. Must be at or above ground per the rule above, not under water, within `MAX_ELEMENT_BASE`, and not overlap another element's range (`PATH_CLEARANCE` = 2 levels, +1 for ramps). Placing on an existing piece at the same base replaces its queue/ramp state. Pieces auto-connect to a neighbour when the shared edge heights match; ramps connect only at their two ends. Elevated pieces stack above ground pieces.
-- **Buying**: `buyLand` buys `SALE_LAND` (or `SALE_RIGHTS` with `rights`) tiles in a rectangle atomically against available cash.
-- Money goes through `post(economy, category, -cents)`: `LedgerCategory.Land` for land/rights purchases, `LedgerCategory.Landscaping` for terrain, water and path edits; prices are the tunable constants in `tile-map.ts`. Removing a path refunds nothing.
+- [tile-map.ts](tile-map.ts) stores shared terrain corner heights and derived tile heights/slopes, ownership and surface arrays, plus a fixed-capacity pool of stacked elements linked per tile. `arrays()` supplies persistent arrays to hashing and save code.
+- [land.ts](land.ts) implements terrain, water, and ownership operations. Terrain edits preserve the one-level neighbor slope invariant and roll back when an element would be buried or invalidly tilted.
+- [paths.ts](paths.ts) places/removes flat or one-level ramp path elements, recomputes edge connectivity, and attaches `Bin` or `Bench` flags to the lowest path selected by the path query. Bin fill is stored in that element's data byte; trash deposited in a bin accumulates up to the implementation's fixed capacity, and a handyman empties it.
+- [map-commands.ts](map-commands.ts) validates affordability for paid land, terrain, water, and path edits, records charges in the ledger, and routes path-addition commands. Path additions currently have no separate charge.
+- `surface` is a derived draw class; path elements remain the source of path connectivity and height. Elevated pieces can coexist with lower elements where clearances permit.
 
-## Commands (`MapCommand`, part of the core `Command` union)
+### Things to Know
 
-`setTileHeight` (debug; ignores ownership), `raiseLand`, `lowerLand`, `setWater`, `paintLand`, `placePath`, `removePath`, `buyLand`. Invalid or unaffordable commands are silently ignored.
+- Stored simulation values are integers and map state is deterministic. Do not write derived tile heights/slopes directly; update terrain through its operations so neighboring tiles stay consistent.
+- Tile elements are pool slots, not stable IDs. A path addition modifies flags/data on a particular path element; `setPathAddition` requires an in-bounds buildable tile with a path.
+- Bins currently collect guest trash only. Vomit remains a separate litter entity; benches are placeable path additions but have no simulation or rendering effect yet.
+- The map does not yet implement tunnels, path railings, path litter/vomit counters, item repair or vandalism, or rendering of elevated path pieces. See [world mechanics](../../../docs/mechanics/world.md) for researched behavior and the boundary between sources and current game tuning.
 
-## Generation
-
-`generateTerrain` samples a coarse random grid at tile corners, relaxes it to the smoothness invariant, floods tiles below `SEA_LEVEL`, and owns the central half of the map; the rest inside the border is for sale.
-
-## Not done
-
-Steep (two-level) diagonal slopes, tunnels/underground paths, path railings and additions (benches, bins), path litter/vomit counters, partial-tile water, refunds, and rendering of elevated path pieces (the renderer only sees `surface`, `heights`, `slope`).
+Created and maintained by Nori.

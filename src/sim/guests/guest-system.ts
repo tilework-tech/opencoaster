@@ -18,6 +18,7 @@ import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
 import { hasParkEntrance, parkEntranceTile } from './park';
+import { WeatherKind } from '../weather/weather';
 
 const UPDATE_STRIDE = 4;
 const GUEST_SPEED = 12;
@@ -100,7 +101,14 @@ function scoreRide(world: World, slot: number, ride: number): number {
   const excitement = r.excitement[ride];
   const nauseaCost = r.nausea[ride] + g.nausea[slot];
   const queueCost = r.queueLength[ride] * 20;
-  return excitement * 4 - intensityGap * 2 - nauseaCost * 3 - price - queueCost;
+  const category = rideCategory(world, ride);
+  const rainPenalty =
+    world.weather.kind >= WeatherKind.Rain &&
+    world.umbrellas[world.guests.slotToId[slot]] === 0 &&
+    (category === 'thrill' || category === 'coaster')
+      ? 120
+      : 0;
+  return excitement * 4 - intensityGap * 2 - nauseaCost * 3 - price - queueCost - rainPenalty;
 }
 
 function chooseRide(world: World, slot: number, tile: number): number {
@@ -347,6 +355,30 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     ageNeeds(world, slot);
   }
   const state = g.state[slot];
+  if (
+    world.weather.kind >= WeatherKind.Rain &&
+    world.umbrellas[world.guests.slotToId[slot]] === 0 &&
+    state === GuestState.Wandering
+  ) {
+    const guestX = g.x[slot] >> 8;
+    const guestY = g.y[slot] >> 8;
+    for (let ride = 0; ride < world.rides.count; ride++) {
+      if (
+        world.rides.cols.typeId[ride] !== RideType.InformationKiosk ||
+        world.rides.cols.state[ride] !== RideState.Open ||
+        world.rides.cols.entrancePlaced[ride] === 0 ||
+        Math.abs(world.rides.cols.entranceX[ride] - guestX) > 1 ||
+        Math.abs(world.rides.cols.entranceY[ride] - guestY) > 1
+      )
+        continue;
+      const price = world.rides.cols.price[ride];
+      if (price <= g.cash[slot]) {
+        world.umbrellas[world.guests.slotToId[slot]] = 1;
+        g.cash[slot] -= price;
+      }
+      break;
+    }
+  }
 
   if (state === GuestState.Riding) {
     const ride = targetRideSlot(world, slot);

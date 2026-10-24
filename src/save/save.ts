@@ -8,8 +8,10 @@ import type { LedgerSave } from '../sim/economy/ledger';
 import { restoreResearch, saveResearch } from '../sim/research/research';
 import type { ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
+import { calculateStaffWageBill } from '../sim/staff/staff-store';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
+const PREVIOUS_SAVE_VERSION = 5;
 const PRE_RIDES_SAVE_VERSION = 3;
 const PRE_HEADING_SAVE_VERSION = 4;
 
@@ -41,6 +43,8 @@ interface Header {
   research: ResearchSave;
   scenario: ScenarioState;
   park?: ParkState;
+  patrolAreas?: number[];
+  umbrellas?: number[];
   track: { pieces: StoreHeader; lastResult: number; lastPiece: number };
 }
 
@@ -164,6 +168,8 @@ export function serialize(world: World): Uint8Array {
     research: saveResearch(world.research),
     scenario: { ...world.scenario },
     park: { ...world.park },
+    patrolAreas: Array.from(world.patrolAreas),
+    umbrellas: Array.from(world.umbrellas),
     track: {
       pieces: {
         capacity: world.track.pieces.capacity,
@@ -195,7 +201,12 @@ export function deserialize(bytes: Uint8Array): World {
   if (dv.getUint32(0, true) !== MAGIC) throw new Error('Not an OpenCoaster save');
   const headerLen = dv.getUint32(4, true);
   const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLen))) as Header;
-  const supported = [PRE_RIDES_SAVE_VERSION, PRE_HEADING_SAVE_VERSION, SAVE_VERSION];
+  const supported = [
+    PRE_RIDES_SAVE_VERSION,
+    PRE_HEADING_SAVE_VERSION,
+    PREVIOUS_SAVE_VERSION,
+    SAVE_VERSION,
+  ];
   if (!supported.includes(header.version)) {
     throw new Error(`Unsupported save version ${header.version}`);
   }
@@ -207,6 +218,8 @@ export function deserialize(bytes: Uint8Array): World {
     maxGuests: header.stores.guests.capacity,
   });
   world.tick = header.tick;
+  if (header.patrolAreas) world.patrolAreas.set(header.patrolAreas);
+  if (header.umbrellas) world.umbrellas.set(header.umbrellas);
   world.rng.state.set(header.rng);
   let off = 8 + headerLen;
   const allViews = views(world);
@@ -249,6 +262,9 @@ export function deserialize(bytes: Uint8Array): World {
   restoreResearch(world.research, header.research);
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
+  if (header.version < SAVE_VERSION) {
+    world.economy.inputs.wageBillPerWeek = calculateStaffWageBill(world);
+  }
   return world;
 }
 
