@@ -2,6 +2,9 @@ import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, viewSize } from './projection';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
+import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
+import { PathFlag } from '../sim/map/tile-map';
+import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 
 const SURFACE_COLORS = [
   '#5aa24a',
@@ -22,6 +25,8 @@ const GUEST_TINTS = [
   '#e67e22',
   '#1abc9c',
 ];
+const PATH_DX = [1, 0, -1, 0];
+const PATH_DY = [0, 1, 0, -1];
 
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
 export class Canvas2DRenderer implements Renderer {
@@ -32,7 +37,11 @@ export class Canvas2DRenderer implements Renderer {
   private ch = 1;
   private dpr = 1;
   private readonly tmp = new Float64Array(2);
+  private readonly pathLow = new Float64Array(2);
+  private readonly pathHigh = new Float64Array(2);
   private readonly tile = new Int32Array(2);
+  private pathOffsets = new Int32Array(0);
+  private pathIndices = new Int32Array(0);
   private visibleCount = 0;
 
   get visibleSpriteCount(): number {
@@ -58,6 +67,23 @@ export class Canvas2DRenderer implements Renderer {
 
   setMap(map: MapData): void {
     this.map = map;
+    const paths = map.pathElements;
+    const count = Math.min(map.pathCount ?? 0, paths?.length ? paths.length / 5 : 0);
+    this.pathOffsets = new Int32Array(map.width * map.height + 1);
+    this.pathIndices = new Int32Array(count);
+    if (!paths || count === 0) return;
+
+    for (let i = 0; i < count; i++) {
+      const tile = paths[i * 5 + 1] * map.width + paths[i * 5];
+      if (tile >= 0 && tile < map.width * map.height) this.pathOffsets[tile + 1]++;
+    }
+    for (let tile = 1; tile < this.pathOffsets.length; tile++)
+      this.pathOffsets[tile] += this.pathOffsets[tile - 1];
+    const cursor = this.pathOffsets.slice(0, -1);
+    for (let i = 0; i < count; i++) {
+      const tile = paths[i * 5 + 1] * map.width + paths[i * 5];
+      if (tile >= 0 && tile < map.width * map.height) this.pathIndices[cursor[tile]++] = i;
+    }
   }
 
   draw(snapshot: Snapshot | null, cam: Camera): void {
@@ -74,10 +100,16 @@ export class Canvas2DRenderer implements Renderer {
     ctx.setTransform(scale, 0, 0, scale, this.cw / 2 - cam.x * scale, this.ch / 2 - cam.y * scale);
     this.drawTiles(ctx, map, cam);
     if (snapshot) {
+      this.drawRideMarkers(ctx, snapshot, map, cam);
       if (snapshot.tracks) this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
-      this.drawLayer(ctx, snapshot.litter, map, cam, 2, '#6b4f2a');
+      this.drawLayer(ctx, snapshot.litter, map, cam, 2, ['#6b4f2a', '#9fc35b']);
       this.drawLayer(ctx, snapshot.vehicles, map, cam, 4, '#c0392b');
-      this.drawLayer(ctx, snapshot.staff, map, cam, 3, '#f39c12');
+      this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
+        '#4ca95b',
+        '#397cb3',
+        '#855ea8',
+        '#de8840',
+      ]);
       this.drawLayer(ctx, snapshot.rides, map, cam, 8, '#6f75bd');
       this.drawGuests(ctx, snapshot.guests, map, cam);
     }
@@ -117,7 +149,148 @@ export class Canvas2DRenderer implements Renderer {
         ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
         ctx.closePath();
         ctx.fill();
+        const waterLevel = map.waterLevel?.[i] ?? 0;
+        if (waterLevel > map.heights[i]) {
+          const waterLift = waterLevel * Z_PIXELS;
+          ctx.fillStyle = 'rgba(61, 141, 188, 0.72)';
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - waterLift);
+          ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - waterLift);
+          ctx.lineTo(sx, sy + TILE_H - waterLift);
+          ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - waterLift);
+          ctx.closePath();
+          ctx.fill();
+        }
+        this.drawMapElements(ctx, map, cam, i);
         this.visibleCount++;
+      }
+    }
+  }
+
+  private drawMapElements(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    tile: number,
+  ): void {
+    const paths = map.pathElements;
+    if (!paths) return;
+    for (let path = this.pathOffsets[tile]; path < this.pathOffsets[tile + 1]; path++) {
+      const i = this.pathIndices[path];
+      const o = i * 5;
+      const x = paths[o];
+      const y = paths[o + 1];
+      const z = paths[o + 2] * Z_STEP;
+      const flags = paths[o + 3];
+      const direction = (flags & PathFlag.SlopeDir) >> 10;
+      const sloped = (flags & PathFlag.Sloped) !== 0;
+      const centerX = x * TILE_UNITS + 128;
+      const centerY = y * TILE_UNITS + 128;
+      project(
+        centerX,
+        centerY,
+        z + (sloped ? Z_STEP / 2 : 1),
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 22)) continue;
+      ctx.fillStyle = flags & PathFlag.Queue ? '#b77d9d' : '#b59a70';
+      if (sloped) {
+        const dx = PATH_DX[direction] ?? 0;
+        const dy = PATH_DY[direction] ?? 0;
+        project(
+          centerX - dx * 64,
+          centerY - dy * 64,
+          z,
+          map.width,
+          map.height,
+          cam.rotation,
+          this.pathLow,
+        );
+        project(
+          centerX + dx * 64,
+          centerY + dy * 64,
+          z + Z_STEP,
+          map.width,
+          map.height,
+          cam.rotation,
+          this.pathHigh,
+        );
+        const vx = this.pathHigh[0] - this.pathLow[0];
+        const vy = this.pathHigh[1] - this.pathLow[1];
+        const length = Math.hypot(vx, vy) || 1;
+        const nx = (-vy / length) * 4;
+        const ny = (vx / length) * 4;
+        ctx.beginPath();
+        ctx.moveTo(this.pathLow[0] + nx, this.pathLow[1] + ny);
+        ctx.lineTo(this.pathHigh[0] + nx, this.pathHigh[1] + ny);
+        ctx.lineTo(this.pathHigh[0] - nx, this.pathHigh[1] - ny);
+        ctx.lineTo(this.pathLow[0] - nx, this.pathLow[1] - ny);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#725f4b';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 4, 18, 8);
+      }
+      if (flags & PathFlag.Bin) {
+        ctx.fillStyle = '#547d58';
+        ctx.fillRect(this.tmp[0] - 3, this.tmp[1] - 13, 6, 9);
+      } else if (flags & PathFlag.Bench) {
+        ctx.fillStyle = '#805535';
+        ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 11, 18, 3);
+      } else if (flags & PathFlag.Shelter) {
+        ctx.fillStyle = '#5c6fa1';
+        ctx.beginPath();
+        ctx.moveTo(this.tmp[0] - 7, this.tmp[1] - 9);
+        ctx.quadraticCurveTo(this.tmp[0], this.tmp[1] - 19, this.tmp[0] + 7, this.tmp[1] - 9);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(this.tmp[0] - 1, this.tmp[1] - 9, 2, 9);
+      } else if (flags & PathFlag.Lamp) {
+        ctx.fillStyle = '#e9d784';
+        ctx.beginPath();
+        ctx.arc(this.tmp[0], this.tmp[1] - 13, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      this.visibleCount++;
+    }
+  }
+
+  private drawRideMarkers(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const colors = [
+      [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, '#46ae72'],
+      [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, '#d36355'],
+    ] as const;
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const o = i * RIDE_INFO_STRIDE;
+      const flags = snapshot.rideInfo[o + RideInfo.Flags];
+      for (const [flag, xField, yField, color] of colors) {
+        if ((flags & flag) === 0) continue;
+        const x = snapshot.rideInfo[o + xField];
+        const y = snapshot.rideInfo[o + yField];
+        project(
+          x * TILE_UNITS + 128,
+          y * TILE_UNITS + 128,
+          map.heights[y * map.width + x] * Z_STEP,
+          map.width,
+          map.height,
+          cam.rotation,
+          this.tmp,
+        );
+        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 8)) continue;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(this.tmp[0], this.tmp[1] - 4, 5, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
   }
@@ -128,12 +301,12 @@ export class Canvas2DRenderer implements Renderer {
     map: MapData,
     cam: Camera,
     r: number,
-    color: string,
+    color: string | readonly string[],
   ): void {
-    ctx.fillStyle = color;
     const d = layer.data;
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
+      ctx.fillStyle = typeof color === 'string' ? color : (color[d[o + 3] & 0xff] ?? color[0]);
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
       if (!this.isVisible(t[0], t[1], cam, r * 2)) continue;
       ctx.fillRect(t[0] - r, t[1] - r, r * 2, r * 2);

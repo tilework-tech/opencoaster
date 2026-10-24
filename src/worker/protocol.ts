@@ -33,6 +33,10 @@ export interface MapMessage {
   surface: Uint8Array;
   /** Corner mask per tile (bit c set when corner c is one level above `heights`). */
   slope: Uint8Array;
+  waterLevel: Uint8Array;
+  /** Five ints per path stack element: tile x, tile y, base level, flags, element data. */
+  pathElements: Int32Array;
+  pathCount: number;
 }
 
 export interface Stats {

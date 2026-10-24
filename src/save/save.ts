@@ -10,8 +10,9 @@ import type { ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 import { calculateStaffWageBill } from '../sim/staff/staff-store';
 
-export const SAVE_VERSION = 7;
-const PREVIOUS_SAVE_VERSION = 6;
+export const SAVE_VERSION = 8;
+const PREVIOUS_SAVE_VERSION = 7;
+const PRE_INCOME_SAVE_VERSION = 7;
 const PRE_STAFF_CARE_SAVE_VERSION = 5;
 const PRE_RIDES_SAVE_VERSION = 3;
 const PRE_HEADING_SAVE_VERSION = 4;
@@ -210,6 +211,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_RIDES_SAVE_VERSION,
     PRE_HEADING_SAVE_VERSION,
     PRE_STAFF_CARE_SAVE_VERSION,
+    6,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];
@@ -248,7 +250,10 @@ export function deserialize(bytes: Uint8Array): World {
     ...allViews.slice(guestViewEnd, rideViewStart),
     ...(header.version === PRE_RIDES_SAVE_VERSION
       ? legacyViews
-      : allViews.slice(rideViewStart, rideViewEnd)),
+      : allViews.slice(
+          rideViewStart,
+          header.version <= PRE_INCOME_SAVE_VERSION ? rideViewEnd - 1 : rideViewEnd,
+        )),
     ...allViews.slice(rideViewEnd),
   ];
   for (const v of serializedViews) {

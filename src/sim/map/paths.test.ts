@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TileMap, OWNED, RIGHTS_OWNED, PathFlag, ElementType } from './tile-map';
 import { placePath, removePath, raiseLand } from './index';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { PathAddition, setPathAddition } from './paths';
 
 function ownedMap(): TileMap {
   const m = new TileMap(16, 16);
@@ -18,6 +19,30 @@ describe('placePath', () => {
     expect(placePath(m, { x: 3, y: 3 })).toBe(true);
     expect(m.isWalkable(I(m, 3, 3))).toBe(true);
     expect(m.surface[I(m, 3, 3)]).toBe(3);
+  });
+
+  it('places a lamp as a replaceable path addition', () => {
+    const m = ownedMap();
+    expect(placePath(m, { x: 4, y: 4 })).toBe(true);
+
+    expect(setPathAddition(m, 4, 4, PathAddition.Lamp)).toBe(true);
+
+    const path = m.pathElement(I(m, 4, 4), -1);
+    expect(m.elFlags[path] & PathFlag.Lamp).toBe(PathFlag.Lamp);
+  });
+
+  it('keeps lamp and shelter additions distinct and replaces either one cleanly', () => {
+    const m = ownedMap();
+    placePath(m, { x: 4, y: 4 });
+
+    expect(setPathAddition(m, 4, 4, PathAddition.Shelter)).toBe(true);
+    const path = m.pathElement(I(m, 4, 4), -1);
+    expect(m.elFlags[path] & PathFlag.Shelter).toBe(PathFlag.Shelter);
+    expect(m.elFlags[path] & PathFlag.Lamp).toBe(0);
+
+    expect(setPathAddition(m, 4, 4, PathAddition.Lamp)).toBe(true);
+    expect(m.elFlags[path] & PathFlag.Lamp).toBe(PathFlag.Lamp);
+    expect(m.elFlags[path] & PathFlag.Shelter).toBe(0);
   });
 
   it('auto-connects edges with adjacent paths, symmetrically', () => {

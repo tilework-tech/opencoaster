@@ -2,7 +2,7 @@
 
 An open-source, browser-based, clean-room theme-park management game inspired by the gameplay of 1999–2004 era roller-coaster tycoon games.
 
-Status: early scaffold (private until a maintainer approves going public). Procedural placeholder art only. Not affiliated with or endorsed by the publishers of any commercial game; contains none of their assets or code.
+Status: playable end-to-end prototype (private until a maintainer approves going public). Procedural placeholder art only. Not affiliated with or endorsed by the publishers of any commercial game; contains none of their assets or code.
 
 ## Quick start
 

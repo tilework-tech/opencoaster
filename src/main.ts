@@ -4,7 +4,7 @@ import type { Camera, MapData } from './render/renderer';
 import { pickTile, project } from './render/projection';
 import type { Rotation } from './render/projection';
 import { Hud } from './ui/hud';
-import { GameUI } from './ui/game-ui';
+import { GameUI, guestDetailsText } from './ui/game-ui';
 import type { GuestSelection, ToolMode } from './ui/game-ui';
 import { TitleScreen } from './ui/title-screen';
 import { SaveMenu } from './ui/save-menu';
@@ -60,6 +60,7 @@ const camera: Camera = { x: 0, y: (DEFAULT_MAP_SIZE * 32) / 2, zoom: 1, rotation
 const hud = new Hud(root);
 let selectedTool: ToolMode = 'select';
 let selectedGuest: GuestSelection | null = null;
+let ridePlacement: { rideId: number; part: 'entrance' | 'exit' } | null = null;
 let patrolKind: number | null = null;
 const coasterPanel = new CoasterPanel(root, {
   command: (command) => sim.command(command),
@@ -104,6 +105,17 @@ const gameUi = new GameUI(root, {
   },
   fireStaff(staffId) {
     sim.command({ type: 'fireStaff', staffId });
+  },
+  setRidePrice(rideId, priceCents) {
+    sim.command({ type: 'setRidePrice', rideId, priceCents });
+  },
+  setRideStatus(rideId, status) {
+    sim.command({ type: 'setRideStatus', rideId, status });
+  },
+  placeRidePart(rideId, part) {
+    ridePlacement = { rideId, part };
+    gameUi.selectTool('ride');
+    gameUi.setToolStatus(`Click a tile next to ride ${rideId} to place its ${part}.`);
   },
 });
 gameUi.syncPaused(userPaused);
@@ -396,7 +408,12 @@ function handleCanvasClick(event: PointerEvent): void {
     } else if (selectedTool === 'path') {
       sim.command({ type: 'placePath', x, y });
       gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
-    } else if (selectedTool === 'bin' || selectedTool === 'bench' || selectedTool === 'shelter') {
+    } else if (
+      selectedTool === 'bin' ||
+      selectedTool === 'bench' ||
+      selectedTool === 'shelter' ||
+      selectedTool === 'lamp'
+    ) {
       sim.command({
         type: 'setPathAddition',
         x,
@@ -406,7 +423,9 @@ function handleCanvasClick(event: PointerEvent): void {
             ? PathAddition.Bin
             : selectedTool === 'bench'
               ? PathAddition.Bench
-              : PathAddition.Shelter,
+              : selectedTool === 'shelter'
+                ? PathAddition.Shelter
+                : PathAddition.Lamp,
       });
       gameUi.setToolStatus(`${selectedTool} placement requested at ${x}, ${y}.`);
     } else if (selectedTool === 'flowerbed') {
@@ -430,7 +449,20 @@ function handleCanvasClick(event: PointerEvent): void {
         `${event.shiftKey ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
       );
     } else if (selectedTool === 'ride') {
-      gameUi.setToolStatus(coasterPanel.createRideAt(x, y));
+      if (ridePlacement) {
+        sim.command({
+          type: ridePlacement.part === 'entrance' ? 'placeRideEntrance' : 'placeRideExit',
+          rideId: ridePlacement.rideId,
+          x,
+          y,
+        });
+        gameUi.setToolStatus(
+          `Placing ${ridePlacement.part} for ride ${ridePlacement.rideId} at ${x}, ${y}.`,
+        );
+        ridePlacement = null;
+      } else {
+        gameUi.setToolStatus(coasterPanel.createRideAt(x, y));
+      }
     } else {
       gameUi.setToolStatus(coasterPanel.handleTileClick(x, y));
     }
@@ -439,6 +471,7 @@ function handleCanvasClick(event: PointerEvent): void {
   const guestDetails = findGuestAt(localX, localY, rect.width, rect.height, map, camera);
   selectedGuest =
     guestDetails && sim.latest ? { details: guestDetails, tick: sim.latest.tick } : null;
+  if (selectedGuest) gameUi.openGuestPanel();
   gameUi.setToolStatus(tile ? `Tile ${tile[0]}, ${tile[1]}` : 'Outside the park map.');
   gameUi.update(sim.latest, sim.stats, selectedGuest);
 }
@@ -483,7 +516,25 @@ function findGuestAt(
   const state = layer.data[offset + 3] >>> 8;
   const tileX = Math.floor(x / TILE_UNITS);
   const tileY = Math.floor(y / TILE_UNITS);
-  return `Guest ${nearest + 1}\nTile  ${tileX}, ${tileY}\nState  ${guestState(state)}`;
+  const detailOffset = nearest * 12;
+  const snapshot = sim.latest;
+  const details = snapshot?.guestDetails;
+  const inspection = details
+    ? guestDetailsText({
+        happiness: details[detailOffset],
+        hunger: details[detailOffset + 1],
+        thirst: details[detailOffset + 2],
+        toilet: details[detailOffset + 3],
+        nausea: details[detailOffset + 4],
+        energy: details[detailOffset + 5],
+        cash: details[detailOffset + 6],
+        thoughts: Array.from(
+          { length: 4 },
+          (_, i) => details[detailOffset + 8 + ((details[detailOffset + 7] + i) & 3)],
+        ),
+      })
+    : '';
+  return `Guest ${nearest + 1}\nTile  ${tileX}, ${tileY}\nState  ${guestState(state)}${inspection ? `\n${inspection}` : ''}`;
 }
 
 function guestState(state: number): string {

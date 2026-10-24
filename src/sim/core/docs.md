@@ -18,7 +18,7 @@ Path: @/src/sim/core
 
 ### Core Implementation
 
-- [commands.ts](commands.ts) defines the `Command` union for guest and staff spawning, staff hiring/firing, staff renaming, role and per-person patrol tiles, flower beds, `setParkEntrance` (the gate must stand on a footpath), ride creation, `RideCommand` (entrance/exit placement, ride status), map edits, economy, research, and track placement or removal.
+- [commands.ts](commands.ts) defines the `Command` union for guest and staff spawning, staff hiring/firing, staff renaming, role and per-person patrol tiles, flower beds, `setParkEntrance` (the gate must stand on a footpath), ride creation, `RideCommand` (entrance/exit placement, ride status and price), map edits, economy, research, and track placement or removal.
 - [feedback.ts](feedback.ts) holds `world.feedback` (`seq`, `domain`, `code`, `subject`). `reportFeedback` is called by command handlers with a `FeedbackDomain` (`Track` -> `TrackResult`, `Ride` -> `RideResult`) so the UI learns the outcome through snapshots. `seq` increments on every report so repeated identical outcomes are distinguishable. It is neither hashed nor saved.
 - `Simulation.enqueue` appends commands to a pending queue. At the next `step`, the queue is drained before systems update; each command is dispatched to the owning domain operation.
 - The additive `createRide` command carries a ride type and tile coordinates. Core checks affordability, build rights and supported surfaces across the catalog footprint, and overlap with existing ride or track footprints before calling the ride creation operation. It charges the catalog cost to `RideConstruction` only when ride creation succeeds.

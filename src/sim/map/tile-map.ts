@@ -66,6 +66,7 @@ export const enum PathFlag {
   Bench = 0x2000,
   /** Covers guests standing on or beside it from rain. */
   Shelter = 0x4000,
+  Lamp = 0x8000,
 }
 export const SLOPE_DIR_SHIFT = 10;
 

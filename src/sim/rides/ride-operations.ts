@@ -291,6 +291,11 @@ export function setRidePrice(world: World, rideId: number, priceCents: number): 
   return true;
 }
 
+export function addRideIncome(world: World, rideSlot: number, cents: number): void {
+  const income = world.rides.cols.incomeCents;
+  income[rideSlot] = Math.min(0x7fff_ffff, income[rideSlot] + cents);
+}
+
 export function getRideRatings(world: World, rideId: number): RideRatings {
   const slot = slotForRide(world, rideId);
   if (slot < 0) return { excitement: 0, intensity: 0, nausea: 0 };

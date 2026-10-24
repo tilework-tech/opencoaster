@@ -273,4 +273,54 @@ describe('save: version 4 migration', () => {
     expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_154);
     expect(loaded.park.entranceX).toBe(world.park.entranceX);
   });
+
+  it.each([6, 7])('migrates version %s ride records with zeroed lifetime income', (version) => {
+    const world = flatWorld(16);
+    const rideSlot = world.rides.spawn();
+    world.rides.cols.price[rideSlot] = 275;
+    world.rides.cols.incomeCents[rideSlot] = 99_999;
+    const current = serialize(world);
+    const view = new DataView(current.buffer, current.byteOffset, current.byteLength);
+    const headerLength = view.getUint32(4, true);
+    const headerEnd = 8 + headerLength;
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+    header.version = version;
+    const encoded = new TextEncoder().encode(JSON.stringify(header));
+    const oldViews = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const incomeBytes = world.rides.cols.incomeCents.byteLength;
+    const incomeViewOffset =
+      8 +
+      headerLength +
+      oldViews
+        .slice(
+          0,
+          oldViews.length -
+            world.track.pieces.arrays().length -
+            world.track.rideTables().length -
+            1,
+        )
+        .reduce((n, array) => n + array.byteLength, 0);
+    const raw = current.subarray(headerEnd);
+    const relative = incomeViewOffset - headerEnd;
+    const legacy = new Uint8Array(8 + encoded.length + raw.length - incomeBytes);
+    legacy.set(current.subarray(0, 8));
+    new DataView(legacy.buffer).setUint32(4, encoded.length, true);
+    legacy.set(encoded, 8);
+    legacy.set(raw.subarray(0, relative), 8 + encoded.length);
+    legacy.set(raw.subarray(relative + incomeBytes), 8 + encoded.length + relative);
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.rides.cols.price[rideSlot]).toBe(275);
+    expect(loaded.rides.cols.incomeCents[rideSlot]).toBe(0);
+  });
 });

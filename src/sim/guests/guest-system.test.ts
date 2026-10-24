@@ -97,6 +97,7 @@ describe('walking the footpaths', () => {
     expect(w.guests.cols.state[slot]).toBe(GuestState.Riding);
     expect(w.guests.cols.cash[slot]).toBe(cash - 150);
     expect(w.economy.monthlyTotals[LedgerCategory.RideTickets]).toBe(150);
+    expect(w.rides.cols.incomeCents[ride]).toBe(150);
     expect(w.rides.cols.queueLength[ride]).toBe(0);
 
     for (let i = 0; i < 2000 && w.guests.cols.state[slot] === GuestState.Riding; i++) run(w, 1);

@@ -9,7 +9,7 @@ import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { PieceFlag } from '../track/track-types';
 import { abortRideTest, isTrackRide, startRideTest } from './coaster';
-import { setRideOpen } from './ride-operations';
+import { setRideOpen, setRidePrice } from './ride-operations';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
@@ -18,7 +18,8 @@ import { RideResult } from './ride-results';
 export type RideCommand =
   | { type: 'placeRideEntrance'; rideId: number; x: number; y: number }
   | { type: 'placeRideExit'; rideId: number; x: number; y: number }
-  | { type: 'setRideStatus'; rideId: number; status: 'open' | 'close' | 'test' };
+  | { type: 'setRideStatus'; rideId: number; status: 'open' | 'close' | 'test' }
+  | { type: 'setRidePrice'; rideId: number; priceCents: number };
 
 /** Tiles the ride's guests board and leave from: station tiles for track rides. */
 function boardingTiles(world: World, rideId: number, slot: number): Array<[number, number]> {
@@ -165,14 +166,18 @@ function openRide(world: World, rideId: number): RideResult {
   if (!world.rides.isAlive(rideId)) return RideResult.NoSuchRide;
   const slot = world.rides.idToSlot[rideId];
   const ride = world.rides.cols;
+  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
   if (ride.state[slot] === RideState.Broken) return RideResult.Broken;
   if (isBusy(world, slot)) return RideResult.Busy;
   const tracked = isTrackRide(world, rideId);
   if (tracked && !ride.tested[slot]) return RideResult.NotTested;
   if (!ride.entrancePlaced[slot]) return RideResult.NoEntrance;
-  if (!ride.exitPlaced[slot]) return RideResult.NoExit;
-  if (tracked) connectQueueFromEntrance(world, slot);
-  if (!ride.queueConnected[slot]) return RideResult.NoQueue;
+  if (def.category !== 'stall' && def.category !== 'facility' && !ride.exitPlaced[slot])
+    return RideResult.NoExit;
+  if (def.category !== 'stall' && def.category !== 'facility') {
+    connectQueueFromEntrance(world, slot);
+    if (!ride.queueConnected[slot]) return RideResult.NoQueue;
+  }
   return setRideOpen(world, rideId, true) ? RideResult.Ok : RideResult.Busy;
 }
 
@@ -203,6 +208,9 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
           : c.status === 'close'
             ? closeRide(world, c.rideId)
             : startRideTest(world, c.rideId);
+      break;
+    case 'setRidePrice':
+      result = setRidePrice(world, c.rideId, c.priceCents) ? RideResult.Ok : RideResult.Blocked;
       break;
   }
   reportFeedback(world.feedback, FeedbackDomain.Ride, result, c.rideId);
