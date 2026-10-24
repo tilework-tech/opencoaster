@@ -2,6 +2,7 @@ import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/navigate';
+import type { NavOptions } from '../pathfinding/navigate';
 import { isRideInspectionDue, inspectRide } from '../rides/ride-operations';
 import { StaffKind } from './staff-store';
 import { ElementType, PathFlag } from '../map/tile-map';
@@ -16,6 +17,7 @@ function moveStaff(
   patrol: Uint8Array,
   walkableTiles: Int32Array,
   walkableCount: number,
+  navOptions: NavOptions,
 ): void {
   const staff = world.staff.cols;
   const map = world.map;
@@ -25,7 +27,8 @@ function moveStaff(
   const tx = staff.targetX[slot];
   const ty = staff.targetY[slot];
   const target = map.index(tx, ty);
-  const dir = nextDirection(world, from, target, world.rng, { ...DEFAULT_STAFF_OPTS, patrol });
+  navOptions.patrol = patrol;
+  const dir = nextDirection(world, from, target, world.rng, navOptions);
   if (dir < 0) {
     let best = -1;
     let distance = 0x7fffffff;
@@ -56,13 +59,24 @@ function moveStaff(
 }
 
 export function createStaffSystem(): System {
-  let patrol = new Uint8Array(0);
   let unrestricted = new Uint8Array(0);
+  let patrolSource: Uint8Array | null = null;
+  let patrolMasks: Uint8Array[] = [];
+  const navOptions: NavOptions = { ...DEFAULT_STAFF_OPTS, patrol: unrestricted };
   let binTiles = new Int32Array(0);
   let binElements = new Int32Array(0);
   let binCount = 0;
   let litterHeadByTile = new Int32Array(0);
+  let litterStampByTile = new Uint32Array(0);
   let litterNextById = new Int32Array(0);
+  let litterIndexVersion = 0;
+  let guestHeadByTile = new Int32Array(0);
+  let guestStampByTile = new Uint32Array(0);
+  let guestNextById = new Int32Array(0);
+  let guestIndexVersion = 0;
+  let guestIndexWorld: World | null = null;
+  let guestIndexTick = -1;
+  let guestIndexBuilt = false;
   let walkableTiles = new Int32Array(0);
   let walkableCount = 0;
   let mapRevision = -1;
@@ -72,14 +86,35 @@ export function createStaffSystem(): System {
     update(world: World) {
       const map = world.map;
       const mapSize = world.map.width * world.map.height;
-      if (patrol.length !== mapSize) {
-        patrol = new Uint8Array(mapSize);
+      if (unrestricted.length !== mapSize) {
         unrestricted = new Uint8Array(mapSize).fill(1);
       }
+      if (patrolSource !== world.patrolAreas) {
+        patrolSource = world.patrolAreas;
+        patrolMasks = new Array<Uint8Array>(4);
+        for (let area = 0; area < patrolMasks.length; area++)
+          patrolMasks[area] = world.patrolAreas.subarray(area * mapSize, (area + 1) * mapSize);
+      }
       const staff = world.staff.cols;
-      if (litterHeadByTile.length !== mapSize) litterHeadByTile = new Int32Array(mapSize);
+      if (litterHeadByTile.length !== mapSize) {
+        litterHeadByTile = new Int32Array(mapSize);
+        litterStampByTile = new Uint32Array(mapSize);
+        litterIndexVersion = 0;
+      }
       if (litterNextById.length !== world.litter.capacity)
         litterNextById = new Int32Array(world.litter.capacity);
+      if (guestHeadByTile.length !== mapSize) {
+        guestHeadByTile = new Int32Array(mapSize);
+        guestStampByTile = new Uint32Array(mapSize);
+        guestIndexVersion = 0;
+      }
+      if (guestNextById.length !== world.guests.capacity)
+        guestNextById = new Int32Array(world.guests.capacity);
+      if (guestIndexWorld !== world || guestIndexTick !== world.tick) {
+        guestIndexWorld = world;
+        guestIndexTick = world.tick;
+        guestIndexBuilt = false;
+      }
       if (cachedMap !== map || mapRevision !== map.revision) {
         if (walkableTiles.length < mapSize) walkableTiles = new Int32Array(mapSize);
         if (binTiles.length < map.elementCapacity) {
@@ -107,16 +142,29 @@ export function createStaffSystem(): System {
         mapRevision = map.revision;
         cachedMap = map;
       }
-      if (
-        world.litter.count > 0 &&
-        staff.kind.subarray(0, world.staff.count).includes(StaffKind.Handyman)
-      ) {
-        litterHeadByTile.fill(-1);
+      let hasHandyman = false;
+      for (let slot = 0; slot < world.staff.count; slot++) {
+        if (staff.kind[slot] === StaffKind.Handyman) {
+          hasHandyman = true;
+          break;
+        }
+      }
+      if (world.litter.count > 0 && hasHandyman) {
+        if (litterIndexVersion === 0xffffffff) {
+          litterStampByTile.fill(0);
+          litterIndexVersion = 1;
+        } else {
+          litterIndexVersion++;
+        }
         for (let slot = 0; slot < world.litter.count; slot++) {
           const x = (world.litter.cols.x[slot] / TILE_UNITS) | 0;
           const y = (world.litter.cols.y[slot] / TILE_UNITS) | 0;
           const tile = map.index(x, y);
           const id = world.litter.slotToId[slot];
+          if (litterStampByTile[tile] !== litterIndexVersion) {
+            litterStampByTile[tile] = litterIndexVersion;
+            litterHeadByTile[tile] = -1;
+          }
           litterNextById[id] = litterHeadByTile[tile];
           litterHeadByTile[tile] = id;
         }
@@ -124,15 +172,12 @@ export function createStaffSystem(): System {
       for (let slot = 0; slot < world.staff.count; slot++) {
         if ((world.tick + world.staff.slotToId[slot]) % STAFF_UPDATE_STRIDE !== 0) continue;
         const area = staff.patrolArea[slot];
-        const activePatrol =
-          area > 0
-            ? (patrol.set(world.patrolAreas.subarray((area - 1) * mapSize, area * mapSize)), patrol)
-            : unrestricted;
+        const activePatrol = area > 0 ? patrolMasks[area - 1] : unrestricted;
         const x = (staff.x[slot] / TILE_UNITS) | 0;
         const y = (staff.y[slot] / TILE_UNITS) | 0;
         if (staff.kind[slot] === StaffKind.Handyman) {
           if (!map.isWalkable(map.index(x, y))) {
-            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount);
+            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             continue;
           }
           const nearest =
@@ -143,13 +188,15 @@ export function createStaffSystem(): System {
                   y,
                   area > 0 ? activePatrol : null,
                   litterHeadByTile,
+                  litterStampByTile,
+                  litterIndexVersion,
                   litterNextById,
                 )
               : -1;
           if (nearest >= 0) {
             staff.targetX[slot] = (world.litter.cols.x[nearest] / TILE_UNITS) | 0;
             staff.targetY[slot] = (world.litter.cols.y[nearest] / TILE_UNITS) | 0;
-            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount);
+            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             const nx = (staff.x[slot] / TILE_UNITS) | 0;
             const ny = (staff.y[slot] / TILE_UNITS) | 0;
             if (nx === staff.targetX[slot] && ny === staff.targetY[slot])
@@ -178,7 +225,7 @@ export function createStaffSystem(): System {
           if (bin >= 0) {
             staff.targetX[slot] = bin % map.width;
             staff.targetY[slot] = (bin / map.width) | 0;
-            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount);
+            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             if (x === staff.targetX[slot] && y === staff.targetY[slot]) {
               const element = map.pathElement(bin, -1);
               if (element >= 0 && map.elData[element] > 0) map.elData[element] = 0;
@@ -201,14 +248,14 @@ export function createStaffSystem(): System {
               staff.targetY[slot] = (chosen / map.width) | 0;
             }
           }
-          moveStaff(world, slot, activePatrol, walkableTiles, walkableCount);
+          moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
           continue;
         } else if (staff.kind[slot] === StaffKind.Mechanic) {
           let targetRide = -1;
           let targetTile = -1;
           const staffTile = map.index(x, y);
           if (area > 0 && activePatrol[staffTile] === 0) {
-            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount);
+            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             continue;
           }
           const canCheckRoute = map.isWalkable(staffTile);
@@ -251,7 +298,7 @@ export function createStaffSystem(): System {
             const rideId = world.rides.slotToId[targetRide];
             staff.targetX[slot] = targetTile % map.width;
             staff.targetY[slot] = (targetTile / map.width) | 0;
-            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount);
+            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             const nx = (staff.x[slot] / TILE_UNITS) | 0;
             const ny = (staff.y[slot] / TILE_UNITS) | 0;
             if (nx === staff.targetX[slot] && ny === staff.targetY[slot])
@@ -271,18 +318,33 @@ export function createStaffSystem(): System {
               }
             }
           }
-          moveStaff(world, slot, activePatrol, walkableTiles, walkableCount);
+          moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
           if (workTick) {
-            for (let guest = 0; guest < world.guests.count; guest++) {
-              if (
-                Math.abs(((world.guests.cols.x[guest] / TILE_UNITS) | 0) - x) <= 2 &&
-                Math.abs(((world.guests.cols.y[guest] / TILE_UNITS) | 0) - y) <= 2
-              )
-                world.guests.cols.happiness[guest] = Math.min(
-                  255,
-                  world.guests.cols.happiness[guest] + 1,
-                );
+            if (!guestIndexBuilt) {
+              if (guestIndexVersion === 0xffffffff) {
+                guestStampByTile.fill(0);
+                guestIndexVersion = 1;
+              } else {
+                guestIndexVersion++;
+              }
+              buildGuestIndex(
+                world,
+                guestHeadByTile,
+                guestStampByTile,
+                guestNextById,
+                guestIndexVersion,
+              );
+              guestIndexBuilt = true;
             }
+            applyEntertainerEffect(
+              world,
+              x,
+              y,
+              guestHeadByTile,
+              guestStampByTile,
+              guestNextById,
+              guestIndexVersion,
+            );
           }
         }
       }
@@ -297,6 +359,8 @@ function nearestLitterSlot(
   y: number,
   patrol: Uint8Array | null,
   headByTile: Int32Array,
+  stampByTile: Uint32Array,
+  indexVersion: number,
   nextById: Int32Array,
 ): number {
   const map = world.map;
@@ -311,7 +375,11 @@ function nearestLitterSlot(
         const tile = map.index(tileX, tileY);
         if (!map.isWalkable(tile) || (patrol !== null && patrol[tile] === 0)) continue;
         let nearest = -1;
-        for (let id = headByTile[tile]; id >= 0; id = nextById[id]) {
+        for (
+          let id = stampByTile[tile] === indexVersion ? headByTile[tile] : -1;
+          id >= 0;
+          id = nextById[id]
+        ) {
           const slot = world.litter.idToSlot[id];
           if (slot >= 0) {
             nearest = slot;
@@ -329,6 +397,55 @@ function nearestLitterSlot(
 
 function mapIndex(world: World, x: number, y: number): number {
   return world.map.inBounds(x, y) ? world.map.index(x, y) : -1;
+}
+
+function buildGuestIndex(
+  world: World,
+  headByTile: Int32Array,
+  stampByTile: Uint32Array,
+  nextById: Int32Array,
+  version: number,
+): void {
+  const guests = world.guests;
+  for (let slot = 0; slot < guests.count; slot++) {
+    const x = (guests.cols.x[slot] / TILE_UNITS) | 0;
+    const y = (guests.cols.y[slot] / TILE_UNITS) | 0;
+    if (!world.map.inBounds(x, y)) continue;
+    const tile = world.map.index(x, y);
+    if (stampByTile[tile] !== version) {
+      stampByTile[tile] = version;
+      headByTile[tile] = -1;
+    }
+    const id = guests.slotToId[slot];
+    nextById[id] = headByTile[tile];
+    headByTile[tile] = id;
+  }
+}
+
+function applyEntertainerEffect(
+  world: World,
+  x: number,
+  y: number,
+  headByTile: Int32Array,
+  stampByTile: Uint32Array,
+  nextById: Int32Array,
+  indexVersion: number,
+): void {
+  const map = world.map;
+  const guests = world.guests;
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const tileX = x + dx;
+      const tileY = y + dy;
+      if (!map.inBounds(tileX, tileY)) continue;
+      const tile = map.index(tileX, tileY);
+      if (stampByTile[tile] !== indexVersion) continue;
+      for (let id = headByTile[tile]; id >= 0; id = nextById[id]) {
+        const slot = guests.idToSlot[id];
+        if (slot >= 0) guests.cols.happiness[slot] = Math.min(255, guests.cols.happiness[slot] + 1);
+      }
+    }
+  }
 }
 
 export const staffSystem = createStaffSystem();

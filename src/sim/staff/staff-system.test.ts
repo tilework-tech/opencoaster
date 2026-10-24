@@ -182,6 +182,33 @@ describe('staff commands and work', () => {
     expect(world.guests.cols.happiness[guestSlot]).toBe(101);
   });
 
+  it('limits an entertainer happiness boost to guests within two tiles', () => {
+    const sim = new Simulation({ seed: 35, width: 16, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    placePath(world.map, { x: 5, y: 5, z: 2 });
+    const nearbyId = world.guests.spawn();
+    const nearbySlot = world.guests.idToSlot[nearbyId];
+    world.guests.cols.x[nearbySlot] = 7 * 256 + 128;
+    world.guests.cols.y[nearbySlot] = 7 * 256 + 128;
+    world.guests.cols.happiness[nearbySlot] = 100;
+    const distantId = world.guests.spawn();
+    const distantSlot = world.guests.idToSlot[distantId];
+    world.guests.cols.x[distantSlot] = 8 * 256 + 128;
+    world.guests.cols.y[distantSlot] = 8 * 256 + 128;
+    world.guests.cols.happiness[distantSlot] = 100;
+    spawnStaff(world, StaffKind.Handyman);
+    spawnStaff(world, StaffKind.Entertainer);
+    world.staff.cols.x[1] = 5 * 256 + 128;
+    world.staff.cols.y[1] = 5 * 256 + 128;
+    world.tick = 79;
+
+    staffSystem.update(world);
+
+    expect(world.guests.cols.happiness[nearbySlot]).toBe(101);
+    expect(world.guests.cols.happiness[distantSlot]).toBe(100);
+  });
+
   it('keeps an unassigned handyman in place when there is no work', () => {
     const sim = new Simulation({ seed: 33, width: 16, height: 16 });
     const world = sim.world;
