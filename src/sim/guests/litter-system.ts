@@ -2,6 +2,9 @@ import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { LitterKind, dropLitter } from './litter-store';
 
+/** A guest drops trash at roughly one in this many litter checks (every 160 ticks). */
+const TRASH_ONE_IN = 48;
+
 export function createLitterSystem(): System {
   return {
     name: 'litter',
@@ -21,7 +24,7 @@ export function createLitterSystem(): System {
         const x = (guests.x[i] / TILE_UNITS) | 0;
         const y = (guests.y[i] / TILE_UNITS) | 0;
         if (guests.nausea[i] > 180) dropLitter(world, x, y, LitterKind.Vomit);
-        else if (world.rng.int(8) === 0) dropLitter(world, x, y, LitterKind.Trash);
+        else if (world.rng.int(TRASH_ONE_IN) === 0) dropLitter(world, x, y, LitterKind.Trash);
       }
       world.economy.inputs.litter = Math.min(100, litter.count);
     },

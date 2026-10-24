@@ -29,6 +29,8 @@ export const parkInputsSystem: System = {
     let value = 0;
     let qualifying = 0;
     let attractions = 0;
+    let excitement = 0;
+    let intensity = 0;
     let broken = 0;
     for (let slot = 0; slot < world.rides.count; slot++) {
       const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
@@ -42,6 +44,8 @@ export const parkInputsSystem: System = {
       upkeep += Math.floor(definition.cost / (shop ? SHOP_UPKEEP_DIVISOR : RIDE_UPKEEP_DIVISOR));
       if (!shop) {
         qualifying++;
+        excitement += ride.excitement[slot];
+        intensity += ride.intensity[slot];
         value += getRideValueCents(world, world.rides.slotToId[slot]);
       }
     }
@@ -61,6 +65,9 @@ export const parkInputsSystem: System = {
       rideUpkeepPerFortnight: upkeep,
       rideValue: value,
       qualifyingRideCount: qualifying,
+      openAttractionCount: qualifying,
+      excitementTotal: excitement,
+      intensityTotal: intensity,
       lostGuests: lost,
       unhappyPercent:
         world.guests.count === 0 ? 0 : Math.floor((unhappy * 100) / world.guests.count),

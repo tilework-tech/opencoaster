@@ -180,7 +180,7 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.Excitement] = r.excitement[slot];
   info[o + RideInfo.Intensity] = r.intensity[slot];
   info[o + RideInfo.Nausea] = r.nausea[slot];
-  info[o + RideInfo.QueueLength] = r.queueLength[slot];
+  info[o + RideInfo.QueueLength] = world.rideLines.queued[slot];
   const trackRide = rideId < MAX_TRACK_RIDES;
   info[o + RideInfo.Flags] =
     (r.entrancePlaced[slot] ? RideFlag.EntrancePlaced : 0) |

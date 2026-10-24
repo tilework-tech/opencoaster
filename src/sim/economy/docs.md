@@ -29,6 +29,7 @@ Path: @/src/sim/economy
 - Money uses integer cents. Cash may go below zero through recurring charges; construction actions check available cash before applying and post costs through the economy API.
 - Wages are charged weekly and shown in monthly finance history; ride upkeep is charged fortnightly. Staff hire/fire actions also update the weekly wage input immediately, and park inputs recompute it from the roster on refresh.
 - Interest is simple weekly interest using the configured basis-point rate. The calendar defines the number of weeks per year; this is an implementation choice recorded as an inference in the economy mechanics document.
+- The park rating ([park-rating.ts](park-rating.ts)) includes ride terms fed by the park inputs `openAttractionCount`, `excitementTotal` and `intensityTotal`: average proximity to 3.68 / 5.20 and a variety penalty until each total reaches 80.00. Without them a clean park sat at the 999 clamp. Constants and results: [docs/BALANCE.md](../../../docs/BALANCE.md). `restoreLedger` merges saved inputs over defaults, so saves from before these fields load without a version bump.
 - Marketing has one active campaign slot, charged weekly while active. Attraction multipliers and several park-rating terms are tunable or incomplete; see the mechanics document for unresolved source questions.
 
 Created and maintained by Nori.

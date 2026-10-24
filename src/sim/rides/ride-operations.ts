@@ -5,7 +5,7 @@ import { RIDE_CATALOG, type RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
 
 const TICKS_PER_MONTH = 16_384;
-const QUEUE_GUESTS_PER_TILE = 4;
+export const QUEUE_GUESTS_PER_TILE = 4;
 const MAX_RIDE_VALUE_AGE_MONTHS = 12;
 const AGE_VALUE_DEPRECIATION_PERCENT = 5;
 
@@ -251,6 +251,11 @@ export function configureRide(world: World, rideId: number, options: RideOperati
   ride.runTicks[slot] = runTicks;
   ride.unloadTicks[slot] = unloadTicks;
   return true;
+}
+
+/** Guests a ride's line can hold: its queue tiles plus the entrance tile itself. */
+export function rideQueueCapacity(world: World, slot: number): number {
+  return (world.rides.cols.queueLineTiles[slot] + 1) * QUEUE_GUESTS_PER_TILE;
 }
 
 export function joinRideQueue(world: World, rideId: number, guests: number): boolean {
