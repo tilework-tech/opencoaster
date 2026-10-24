@@ -156,7 +156,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       operating.load.row,
       operating.run.row,
       operating.unload.row,
-      element('p', 'ui-help', 'Operating mode and wait limits are fixed in this version.'),
+      element('p', 'ui-help', 'Trains and cars per train (0 for automatic)'),
+      trainsRow,
     );
     p('maintenance').append(
       reliability.row,
@@ -239,6 +240,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       if (!(flags & RideFlag.QueueConnected)) missing.push('footpath link');
       setText(mainFacts.setup.value, missing.length ? `needs ${missing.join(', ')}` : 'complete');
       buildTrack.hidden = !def?.usesTrack;
+      trainsRow.hidden = !def?.usesTrack;
       partButtons.hidden = false;
 
       setText(vehicle.type.value, def?.name ?? 'Ride');

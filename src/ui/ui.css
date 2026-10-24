@@ -713,6 +713,7 @@
   .ui-window select,
   .ui-window input[type='text'],
   .price-input,
+  .count-input,
   .icon-button,
   .glyph-button,
   .coaster-panel button,
@@ -792,4 +793,10 @@
   .hud {
     top: 130px;
   }
+}
+
+.count-input {
+  width: 64px;
+  min-height: 28px;
+  box-sizing: border-box;
 }
