@@ -14,6 +14,8 @@ import { economySystem } from '../economy/economy-system';
 import { weatherSystem } from '../weather/weather-system';
 import { researchSystem } from '../research/research-system';
 import { scenarioSystem } from '../scenario/scenario-system';
+import { applyEconomyAction } from '../economy/actions';
+import { applyResearchAction } from '../research/research';
 
 /**
  * Fixed execution order. Adding a system means adding one line here; ordering is part of the
@@ -67,6 +69,12 @@ export class Simulation {
         break;
       case 'setTileHeight':
         w.map.setHeight(c.x, c.y, c.height);
+        break;
+      case 'economy':
+        applyEconomyAction(w.economy, c.action);
+        break;
+      case 'research':
+        applyResearchAction(w.research, c.action);
         break;
     }
   }

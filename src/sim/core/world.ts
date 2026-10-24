@@ -13,6 +13,8 @@ import { createWeather } from '../weather/weather';
 import type { WeatherState } from '../weather/weather';
 import { createResearch } from '../research/research';
 import type { ResearchState } from '../research/research';
+import { createScenarioState } from '../scenario/scenario';
+import type { ScenarioState } from '../scenario/scenario';
 import { RIDE_SCHEMA } from '../rides/ride-store';
 
 export interface WorldOptions {
@@ -36,6 +38,7 @@ export class World {
   readonly economy: Ledger;
   readonly weather: WeatherState;
   readonly research: ResearchState;
+  readonly scenario: ScenarioState;
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;
@@ -50,5 +53,6 @@ export class World {
     this.economy = createLedger();
     this.weather = createWeather();
     this.research = createResearch();
+    this.scenario = createScenarioState();
   }
 }
