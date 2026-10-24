@@ -127,6 +127,23 @@ function migrateLegacyGuests(
   world.rides.cols.queueLength.fill(0);
 }
 
+const MAX_SAVED_MAP_SIDE = 512;
+const MAX_SAVED_CAPACITY = 65536;
+
+/** Refuses sizes that would allocate unreasonable memory before any column is read. */
+function checkHeaderBounds(header: Header): void {
+  const inRange = (n: unknown, max: number) =>
+    typeof n === 'number' && Number.isSafeInteger(n) && n >= 1 && n <= max;
+  if (!inRange(header.width, MAX_SAVED_MAP_SIDE) || !inRange(header.height, MAX_SAVED_MAP_SIDE)) {
+    throw new Error('Save has an invalid map size');
+  }
+  for (const n of STORE_NAMES) {
+    if (!inRange(header.stores?.[n]?.capacity, MAX_SAVED_CAPACITY)) {
+      throw new Error(`Save has an invalid ${n} capacity`);
+    }
+  }
+}
+
 /** Binary layout: [magic u32][headerLen u32][header JSON utf8][raw typed-array bytes...]. */
 export function serialize(world: World): Uint8Array {
   const stores: Header['stores'] = {};
@@ -182,6 +199,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (!supported.includes(header.version)) {
     throw new Error(`Unsupported save version ${header.version}`);
   }
+  checkHeaderBounds(header);
   const world = new World({
     seed: header.seed,
     width: header.width,

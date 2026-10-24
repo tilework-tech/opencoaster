@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ObjectiveKind } from './scenario';
-import {
-  IMPORTED_ID,
-  SANDBOX_ID,
-  SCENARIOS,
-  buildCatalog,
-  findScenario,
-  scenarioDisplayName,
-} from './catalog';
+import { IMPORTED_ID, SANDBOX_ID, ObjectiveKind } from './scenario';
+import { SCENARIOS, buildCatalog, findScenario, scenarioDisplayName } from './catalog';
 
 const minimal = (id: string) => ({
   id,

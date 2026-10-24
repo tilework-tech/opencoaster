@@ -17,4 +17,5 @@ Additional save and storage interfaces:
 Decisions:
 
 - Saves contain only sim state. Scenario definitions, player settings (game speed, pause) and slot names are not part of the binary; slot names and scenario ids live in the slot record. Player settings live in `localStorage`.
+- `deserialize` checks the header before allocating anything: map sides up to 512 and entity capacities up to 65536. Anything else is refused as an invalid save.
 - Export and import use the same bytes as a slot. Import validates the header with `summarizeSave` before the worker loads it.

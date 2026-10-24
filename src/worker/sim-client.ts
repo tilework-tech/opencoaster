@@ -23,6 +23,14 @@ export class SimClient {
   constructor() {
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<FromWorker>) => this.onMessage(e.data);
+    // A crashed worker sends no replies, so pending requests are failed rather than left hanging.
+    this.worker.onerror = (e: ErrorEvent) =>
+      this.failPending(new Error(e.message || 'The simulation worker stopped unexpectedly.'));
+  }
+
+  private failPending(err: Error): void {
+    this.starting = false;
+    for (const request of this.pending.splice(0)) request.reject(err);
   }
 
   private onMessage(msg: FromWorker): void {

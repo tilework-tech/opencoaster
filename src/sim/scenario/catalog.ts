@@ -1,4 +1,5 @@
 import { parseScenarioFile } from './scenario-file';
+import { SANDBOX_ID } from './scenario';
 import type { ScenarioDef } from './scenario';
 
 /** Every `scenarios/*.json` file is a scenario. Adding a file adds a playable scenario. */
@@ -10,10 +11,6 @@ export const SCENARIOS: readonly ScenarioDef[] = buildCatalog(files);
 export function findScenario(id: string): ScenarioDef | undefined {
   return SCENARIOS.find((s) => s.id === id);
 }
-
-/** Save-slot ids for games that are not scenarios: the development sandbox, and imported files. */
-export const SANDBOX_ID = 'sandbox';
-export const IMPORTED_ID = 'imported';
 
 /** Name shown for a saved game's scenario id, including the non-scenario ids above. */
 export function scenarioDisplayName(id: string): string {

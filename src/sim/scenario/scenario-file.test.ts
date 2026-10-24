@@ -110,6 +110,30 @@ describe('parseScenarioFile', () => {
     expect(() => parseScenarioFile(bad)).toThrow(/pricing\.mode/);
   });
 
+  it('rejects ids reserved for non-scenario saves', () => {
+    expect(() => parseScenarioFile({ ...valid, id: 'sandbox' })).toThrow(/reserved/);
+    expect(() => parseScenarioFile({ ...valid, id: 'imported' })).toThrow(/reserved/);
+  });
+
+  it('rejects a starting loan above the loan limit', () => {
+    const bad = {
+      ...valid,
+      finance: { ...valid.finance, startingLoan: 20_000_000, maxLoan: 10_000_000 },
+    };
+    expect(() => parseScenarioFile(bad)).toThrow(/startingLoan must not exceed/);
+  });
+
+  it('rejects a negative objective target', () => {
+    expect(() =>
+      parseScenarioFile(withObjective({ kind: 'guests', target: -1, byYear: 1 })),
+    ).toThrow(/objective\.target/);
+  });
+
+  it('rejects money beyond the exact-integer range of a park', () => {
+    const bad = { ...valid, finance: { ...valid.finance, startingCash: Number.MAX_SAFE_INTEGER } };
+    expect(() => parseScenarioFile(bad)).toThrow(/finance\.startingCash/);
+  });
+
   it('rejects a missing id', () => {
     const rest: Record<string, unknown> = { ...valid };
     delete rest.id;

@@ -95,10 +95,15 @@ export class TitleScreen {
               slotRow(slot, this.scenarioName(slot.scenarioId), {
                 load: (s) => this.actions.loadSlot(s),
                 remove: (s) => {
-                  void this.slots.remove(s.id).then(() => {
-                    saves.splice(saves.indexOf(s), 1);
-                    render();
-                  });
+                  this.slots
+                    .remove(s.id)
+                    .then(() => {
+                      saves.splice(saves.indexOf(s), 1);
+                      render();
+                    })
+                    .catch((err: Error) =>
+                      this.showError(`Could not delete that save: ${err.message}`),
+                    );
                 },
               }),
             )),

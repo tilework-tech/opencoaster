@@ -1,6 +1,6 @@
 import { TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
-import { ObjectiveKind } from './scenario';
+import { IMPORTED_ID, ObjectiveKind, SANDBOX_ID } from './scenario';
 import type { EntranceSide, ScenarioDef, ScenarioEntrance } from './scenario';
 
 type Json = Record<string, unknown>;
@@ -48,6 +48,10 @@ const MIN_MAP_SIZE = 8;
 const MAX_MAP_SIZE = 256;
 const MAX_ENTRANCE_LENGTH = 16;
 const MAX_INVENTION_CATEGORY = 30;
+/** Money stays exact in doubles through the sums a long game adds up, far beyond any sensible park. */
+const MAX_MONEY = 1_000_000_000_000;
+const MAX_SAFE = Number.MAX_SAFE_INTEGER;
+const RESERVED_IDS: readonly string[] = [SANDBOX_ID, IMPORTED_ID];
 
 /**
  * Converts a parsed scenario JSON document into a ScenarioDef. Every field is checked, and the
@@ -68,6 +72,7 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
   };
 
   const id = check(() => text(root.id, 'id'));
+  if (RESERVED_IDS.includes(id)) fail(`id ${id} is reserved for non-scenario saves`);
   const name = check(() => text(root.name, 'name'));
   const description =
     root.description === undefined ? undefined : check(() => text(root.description, 'description'));
@@ -84,9 +89,9 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
     seed: check(() => integer(root.seed, 'seed', 0, 0xffffffff)),
     mapWidth: check(() => integer(map.width, 'map.width', MIN_MAP_SIZE, MAX_MAP_SIZE)),
     mapHeight: check(() => integer(map.height, 'map.height', MIN_MAP_SIZE, MAX_MAP_SIZE)),
-    startingCash: check(() => integer(finance.startingCash, 'finance.startingCash', 0, MAX_SAFE)),
-    startingLoan: check(() => integer(finance.startingLoan, 'finance.startingLoan', 0, MAX_SAFE)),
-    maxLoan: check(() => integer(finance.maxLoan, 'finance.maxLoan', 0, MAX_SAFE)),
+    startingCash: check(() => integer(finance.startingCash, 'finance.startingCash', 0, MAX_MONEY)),
+    startingLoan: check(() => integer(finance.startingLoan, 'finance.startingLoan', 0, MAX_MONEY)),
+    maxLoan: check(() => integer(finance.maxLoan, 'finance.maxLoan', 0, MAX_MONEY)),
     annualInterestBps: check(() =>
       integer(finance.annualInterestBps, 'finance.annualInterestBps', 0, 10_000),
     ),
@@ -94,7 +99,7 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
     admissionPrice: check(() =>
       pricing.admissionPrice === undefined
         ? 0
-        : integer(pricing.admissionPrice, 'pricing.admissionPrice', 0, MAX_SAFE),
+        : integer(pricing.admissionPrice, 'pricing.admissionPrice', 0, MAX_MONEY),
     ),
     availableItemIds: check(() =>
       array(research.availableItemIds ?? [], 'research.availableItemIds').map((v, i) =>
@@ -112,17 +117,16 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
             0,
             MAX_INVENTION_CATEGORY,
           ),
-          costCents: integer(inv.costCents, `research.inventions[${i}].costCents`, 0, MAX_SAFE),
+          costCents: integer(inv.costCents, `research.inventions[${i}].costCents`, 0, MAX_MONEY),
         };
       }),
     ),
     objective: check(() => objective(root.objective)),
   };
+  if (def.startingLoan > def.maxLoan) fail('finance.startingLoan must not exceed finance.maxLoan');
   if (root.entrance !== undefined) def.entrance = check(() => entrance(root.entrance));
   return def;
 }
-
-const MAX_SAFE = Number.MAX_SAFE_INTEGER;
 
 function objective(v: unknown): ScenarioDef['objective'] {
   const o = object(v, 'objective');
@@ -139,7 +143,7 @@ function objective(v: unknown): ScenarioDef['objective'] {
   }
   return {
     kind,
-    target: integer(o.target, 'objective.target', -MAX_SAFE, MAX_SAFE),
+    target: integer(o.target, 'objective.target', 0, MAX_MONEY),
     rating: o.rating === undefined ? 0 : integer(o.rating, 'objective.rating', 0, 999),
     categoryMask,
     byTick: deadline(o),

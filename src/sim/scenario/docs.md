@@ -36,7 +36,8 @@ Responsibility: scenario definitions (starting finances, price mode, loan terms,
 }
 ```
 
-- Money is integer cents. `pricing.mode` is `free`, `admission` or `perRide`.
+- Money is integer cents, capped at 10^12 so sums stay exact. `pricing.mode` is `free`, `admission` or `perRide`. The starting loan may not exceed the loan limit, and objective targets are never negative.
+- The ids `sandbox` and `imported` are reserved: they name non-scenario saves (`SANDBOX_ID`, `IMPORTED_ID` in `scenario.ts`).
 - `objective.kind` is one of `guests`, `parkValue`, `guestsAndRating`, `repayLoanAndParkValue`, `monthlyIncome` (needs `categories`, ledger category names such as `admission`), `qualifyingRides`.
 - The deadline is `byYear` (whole years; year N ends at the start of year N+1) or a raw `byTick`.
 - `entrance` is optional. Without it the park has no path.

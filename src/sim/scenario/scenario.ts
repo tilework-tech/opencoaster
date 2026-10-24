@@ -2,6 +2,10 @@ import type { World } from '../core/world';
 import type { LedgerCategory, PriceMode } from '../economy/ledger';
 import type { ResearchInvention } from '../research/research';
 
+/** Save-slot ids for games that are not scenarios: the development sandbox, and imported files. */
+export const SANDBOX_ID = 'sandbox';
+export const IMPORTED_ID = 'imported';
+
 export enum ObjectiveKind {
   /** Guest count reaches target by byTick. */
   Guests,

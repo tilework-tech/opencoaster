@@ -18,7 +18,8 @@ import { TrackPreviewOverlay } from './ui/track-preview';
 import { RideType } from './sim/rides/ride-types';
 import { PieceId } from './sim/track/catalog';
 import { PIECES } from './sim/track/catalog';
-import { IMPORTED_ID, SANDBOX_ID, SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
+import { SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
+import { IMPORTED_ID, SANDBOX_ID } from './sim/scenario/scenario';
 import { ScenarioStatus } from './sim/scenario/scenario';
 import type { ScenarioDef } from './sim/scenario/scenario';
 import { createMemorySlotStore, openIndexedDbSlotStore } from './save/slot-store';
@@ -36,11 +37,18 @@ sim.onMap = (map) => renderer.setMap(map);
 
 const { store: slots, note: storeNote } = await openSlotStore();
 
-/** The game the player is in: which scenario it came from, and whether its outcome was shown. */
-interface Session {
+interface GameInfo {
   scenarioId: string;
   scenarioName: string;
+}
+
+/**
+ * The game the player is in. `resumed` marks a loaded game whose outcome has not been seen
+ * active yet: if it is already finished, the objective strip states the result and no dialog opens.
+ */
+interface Session extends GameInfo {
   outcomeShown: boolean;
+  resumed: boolean;
 }
 
 const settings = loadSettings();
@@ -156,8 +164,8 @@ function syncPause(): void {
   sim.setPaused(effective);
 }
 
-function begin(game: Omit<Session, 'outcomeShown'>): void {
-  session = { ...game, outcomeShown: false };
+function begin(game: GameInfo, resumed: boolean): void {
+  session = { ...game, outcomeShown: false, resumed };
   selectedGuest = null;
   root.classList.remove('title-open');
   titleScreen.hide();
@@ -174,7 +182,7 @@ function startNewGame(def: ScenarioDef): void {
     initialGuests: 0,
     scenario: def,
   });
-  begin({ scenarioId: def.id, scenarioName: def.name });
+  begin({ scenarioId: def.id, scenarioName: def.name }, false);
 }
 
 function startSandbox(): void {
@@ -184,14 +192,22 @@ function startSandbox(): void {
     height: DEFAULT_MAP_SIZE,
     initialGuests: 1000,
   });
-  begin({ scenarioId: SANDBOX_ID, scenarioName: scenarioDisplayName(SANDBOX_ID) });
+  begin({ scenarioId: SANDBOX_ID, scenarioName: scenarioDisplayName(SANDBOX_ID) }, false);
 }
 
-async function loadBytes(bytes: Uint8Array, game: Omit<Session, 'outcomeShown'>): Promise<void> {
+async function loadBytes(bytes: Uint8Array, game: GameInfo): Promise<void> {
   // Check the header before the worker is touched, so a bad file leaves the current game running.
   summarizeSave(bytes);
-  await sim.load(bytes);
-  begin(game);
+  // No game is current while the load is in flight, so a save cannot be labelled with the old scenario.
+  const previous = session;
+  session = null;
+  try {
+    await sim.load(bytes);
+  } catch (err) {
+    session = previous;
+    throw err;
+  }
+  begin(game, true);
 }
 
 async function loadSlotFromTitle(slot: SaveSlotMeta): Promise<void> {
@@ -243,7 +259,7 @@ async function requireSlot(id: string) {
   return slot;
 }
 
-function gameOf(slot: SaveSlotMeta): Omit<Session, 'outcomeShown'> {
+function gameOf(slot: SaveSlotMeta): GameInfo {
   return {
     scenarioId: slot.scenarioId,
     scenarioName: scenarioDisplayName(slot.scenarioId),
@@ -281,12 +297,12 @@ window.addEventListener('keydown', (event) => {
   if (key === 'g' && session) sim.command({ type: 'spawnGuests', count: 1000 });
   const onControl =
     event.target instanceof HTMLButtonElement || event.target instanceof HTMLSelectElement;
-  if (session && selectedTool === 'track' && !onControl && key === 'enter') coasterPanel.placeAtCursor();
-  if (session && selectedTool === 'track' && !onControl && key === 'backspace') {
+  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'enter') coasterPanel.placeAtCursor();
+  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'backspace') {
     event.preventDefault();
     coasterPanel.removeLast();
   }
-  if (key === ' ' && session) {
+  if (key === ' ' && session && !overlayOpen()) {
     event.preventDefault();
     gameUi.togglePause();
     gameUi.setToolStatus(userPaused ? 'Simulation paused.' : 'Simulation resumed.');
@@ -440,14 +456,15 @@ function frame(now: number): void {
   if (keys.has('w')) camera.y -= pan;
   if (keys.has('s')) camera.y += pan;
   const latest = sim.latest;
-  if (
-    session &&
-    latest &&
-    !session.outcomeShown &&
-    latest.scenario.status !== ScenarioStatus.Active
-  ) {
-    session.outcomeShown = true;
-    outcomeDialog.show(latest.scenario.status, session.scenarioName, outcomeActions);
+  if (session && latest) {
+    if (latest.scenario.status === ScenarioStatus.Active) {
+      session.resumed = false;
+    } else if (!session.outcomeShown) {
+      session.outcomeShown = true;
+      if (!session.resumed) {
+        outcomeDialog.show(latest.scenario.status, session.scenarioName, outcomeActions);
+      }
+    }
   }
   syncPause();
   const renderStart = performance.now();
