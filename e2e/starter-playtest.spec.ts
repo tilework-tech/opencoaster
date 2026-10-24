@@ -137,9 +137,7 @@ test('plays the starter park shell and exercises save file round trips', async (
     await expect(page.locator('[data-panel="staff"]')).toContainText('Staff employed  2');
     await page.getByRole('button', { name: 'Close Staff' }).click();
     await toolbarButton('Rides').click();
-    await expect(page.locator('[data-panel="ride-list"]')).toContainText(
-      'Steel Looping Coaster',
-    );
+    await expect(page.locator('[data-panel="ride-list"]')).toContainText('Steel Looping Coaster');
     await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   };
 
