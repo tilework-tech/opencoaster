@@ -3,6 +3,7 @@ import { placePath } from '../map/paths';
 import type { TileMap } from '../map/tile-map';
 import { applyScenario } from './scenario';
 import type { EntranceSide, ScenarioDef, ScenarioEntrance } from './scenario';
+import { setParkEntrance } from '../guests/park';
 
 /** Step from the gate into the park for each side's entrance. */
 const INWARD: Record<EntranceSide, readonly [number, number]> = {
@@ -49,6 +50,7 @@ export function layOutEntrance(world: World, entrance: ScenarioEntrance): number
       for (let k = 0; k < entrance.length; k++) {
         placePath(m, { x: gx + dx * k, y: gy + dy * k });
       }
+      setParkEntrance(world, gx, gy);
       return entrance.length;
     }
   }

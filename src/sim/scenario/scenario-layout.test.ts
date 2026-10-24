@@ -86,6 +86,14 @@ describe('prepareScenario', () => {
     expect(sim.world.economy.cash).toBe(5_000_000);
     expect(sim.world.scenario.status).toBe(ScenarioStatus.Active);
     expect(pathTiles(sim.world)).toHaveLength(4);
+    const gate = sim.world.map.index(sim.world.park.entranceX, sim.world.park.entranceY);
+    expect(sim.world.park.entranceY).toBe(sim.world.map.height - (sim.world.map.height >> 2) - 1);
+    expect(sim.world.map.isWalkable(gate)).toBe(true);
+    expect(sim.world.map.surface[gate]).toBe(Surface.Path);
+    sim.enqueue({ type: 'spawnGuests', count: 1 });
+    sim.step();
+    expect(sim.world.guests.cols.x[0] >> 8).toBe(sim.world.park.entranceX);
+    expect(sim.world.guests.cols.y[0] >> 8).toBe(sim.world.park.entranceY);
   });
 
   it('is deterministic: the same definition gives the same starting world', () => {

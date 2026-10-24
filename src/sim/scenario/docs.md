@@ -5,7 +5,7 @@ Responsibility: scenario definitions (starting finances, price mode, loan terms,
 ## Interface
 
 - `scenario.ts`: `ScenarioDef`, `ScenarioEntrance`, `EntranceSide`, `ScenarioObjective` (flat numeric record), `ObjectiveKind`, `ScenarioStatus`, `applyScenario(world, def)`. `applyScenario` sets finances, research catalogue and objective only.
-- `scenario-layout.ts`: `prepareScenario(world, def)` runs `applyScenario` and then `layOutEntrance`. The worker calls this for new games. `layOutEntrance(world, entrance)` returns the number of path pieces placed.
+- `scenario-layout.ts`: `prepareScenario(world, def)` runs `applyScenario` and then `layOutEntrance`. The worker calls this for new games. `layOutEntrance(world, entrance)` lays the path and registers its edge tile as the park gate, returning the number of path pieces placed.
 - `scenario-file.ts`: `parseScenarioFile(raw: unknown): ScenarioDef` validates one scenario JSON document. Errors name the scenario id and the field path.
 - `catalog.ts`: `SCENARIOS` (every `scenarios/*.json`, parsed at import, in file-name order), `findScenario(id)`, `buildCatalog(modules)`. Adding a JSON file adds a playable scenario; duplicate ids fail the whole catalog.
 - `scenario-system.ts`: `scenarioSystem`, `objectiveMetric(world, objective)` (the live figure an objective compares with its target), and `meetsObjective(world, objective)`.
@@ -49,5 +49,11 @@ Responsibility: scenario definitions (starting finances, price mode, loan terms,
 - `MonthlyIncome` sums the masked categories for the most recently completed month. The economy rolls the month before scenarios evaluate, so a deadline on a month boundary judges the month that just ended.
 - The park entrance is laid on the owned-land edge on the requested side, with a straight path inward. The search runs outward from the edge midpoint and takes the first run of `length` tiles that is buildable, flat, dry and empty. It only depends on the terrain, so the same seed gives the same entrance. If no run qualifies, no path is placed.
 - The objective record and status are saved; the research catalogue is saved as part of research state. The scenario definition itself is not stored, and nothing about the scenario file is in the save format. A loaded game keeps its objective and outcome.
-- Starter tuning: the objective target (10 live guests) is a placeholder. Guests arrive at most once per 400 ticks and leave when their patience runs out, so a live-count target is limited by the guest system. The starter cannot yet be won reliably without tuning arrivals and patience.
-- Guests arrive on random tiles, not at the entrance. The entrance path is laid out and saved but guests do not route through it yet.
+- Starter objective: 50 live guests and park rating 900 by the end of year one. The target is calibrated against a deterministic headless run described below.
+- The scenario entrance registers the outermost path tile as the park gate. Guest arrivals and departures use this gate and its connected footpath network.
+
+## Starter Objective Calibration
+
+Run on 2026-10-24 with the starter definition (seed 2026, 64×64 map, $50,000 starting cash, $20,000 starting loan, 300-cent admission price). Before applying the scenario, the fixture flattened the generated map to height 4. It then laid a four-tile south gate, connected it to a path loop, placed and opened three flat rides (Merry-Go-Round, Ferris Wheel, Swinging Ship) and two stalls (food and drink), and stepped the deterministic simulation through `TICKS_PER_YEAR` (131,072 ticks). All five attractions were accepted by the simulation.
+
+At the year-one deadline the run had 61 guests, a park rating of 999, and $48,040.40 in cash; the scenario status was `Won` against the 50-guest / 900-rating objective. The previous 10-guest / 600-rating target was substantially below this result. This deterministic run provides an 11-guest margin while requiring a functioning gate, connected paths, three operating flat rides and two operating stalls. Because the fixture flattened the map before scenario setup, the result does not measure how the starter objective performs on the scenario’s original rolling terrain; player terrain edits and layouts can also change the outcome.

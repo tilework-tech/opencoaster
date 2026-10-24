@@ -15,9 +15,6 @@ import type { GameSpeed } from './ui/settings';
 import { DEFAULT_MAP_SIZE, TILE_UNITS } from './sim/core/constants';
 import { CoasterPanel } from './ui/coaster-panel';
 import { TrackPreviewOverlay } from './ui/track-preview';
-import { RideType } from './sim/rides/ride-types';
-import { PieceId } from './sim/track/catalog';
-import { PIECES } from './sim/track/catalog';
 import { SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
 import { IMPORTED_ID, SANDBOX_ID } from './sim/scenario/scenario';
 import { ScenarioStatus } from './sim/scenario/scenario';
@@ -294,10 +291,16 @@ window.addEventListener('keydown', (event) => {
   keys.add(key);
   if (key === 'q') camera.rotation = ((camera.rotation + 3) % 4) as Rotation;
   if (key === 'e') camera.rotation = ((camera.rotation + 1) % 4) as Rotation;
-  if (key === 'g' && session) sim.command({ type: 'spawnGuests', count: 1000 });
   const onControl =
-    event.target instanceof HTMLButtonElement || event.target instanceof HTMLSelectElement;
-  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'enter') coasterPanel.placeAtCursor();
+    event.target instanceof HTMLButtonElement ||
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLSelectElement ||
+    event.target instanceof HTMLTextAreaElement;
+  if (key === 'g' && session && !overlayOpen() && !onControl) {
+    sim.command({ type: 'spawnGuests', count: 1000 });
+  }
+  if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'enter')
+    coasterPanel.placeAtCursor();
   if (session && !overlayOpen() && selectedTool === 'track' && !onControl && key === 'backspace') {
     event.preventDefault();
     coasterPanel.removeLast();
