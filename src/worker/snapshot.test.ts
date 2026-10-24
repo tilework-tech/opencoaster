@@ -145,6 +145,44 @@ describe('render snapshot', () => {
     expect([info[o + RideInfo.CursorX], info[o + RideInfo.CursorY]]).toEqual([21, 20]);
   });
 
+  it('publishes the guest needs and thought history for click-to-inspect windows', () => {
+    const world = new World({ seed: 12, width: 8, height: 8 });
+    const guest = world.guests.spawn();
+    world.guests.cols.happiness[guest] = 177;
+    world.guests.cols.hunger[guest] = 88;
+    world.guests.cols.thirst[guest] = 43;
+    world.guests.cols.toilet[guest] = 29;
+    world.guests.cols.nausea[guest] = 17;
+    world.guests.cols.energy[guest] = 222;
+    world.guests.cols.cash[guest] = 3456;
+    world.guests.cols.thought0[guest] = 6;
+    world.guests.cols.thought1[guest] = 2;
+    world.guests.cols.thoughtCursor[guest] = 2;
+    world.weather.kind = 3;
+    const snapshot = createSnapshot({ guests: 4, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(Array.from(snapshot.guestDetails.slice(0, 10))).toEqual([
+      177, 88, 43, 29, 17, 222, 3456, 2, 6, 2,
+    ]);
+    expect(snapshot.weather.kind).toBe(3);
+    expect(snapshotBuffers(snapshot)).toContain(snapshot.guestDetails.buffer);
+  });
+
+  it('publishes current reliability and cumulative income for each ride', () => {
+    const world = new World({ seed: 9, width: 8, height: 8 });
+    const slot = world.rides.spawn();
+    world.rides.cols.reliability[slot] = 73;
+    world.rides.cols.incomeCents[slot] = 12345;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.rideInfo[RideInfo.Reliability]).toBe(73);
+    expect(snapshot.rideInfo[RideInfo.IncomeCents]).toBe(12345);
+  });
+
   it('publishes the latest command feedback', () => {
     const sim = flatOwnedSim();
     sim.enqueue({ type: 'setRideStatus', rideId: 99, status: 'open' });
@@ -181,6 +219,6 @@ describe('staff and ground state in the snapshot', () => {
     expect(snapshot.grounds[sim.world.map.index(2, 2)]).toBe(
       sim.world.grounds[sim.world.map.index(2, 2)],
     );
-    expect(snapshotBuffers(snapshot)).toHaveLength(10);
+    expect(snapshotBuffers(snapshot)).toHaveLength(11);
   });
 });

@@ -27,22 +27,24 @@ export const enum PathAddition {
   Bin = 1,
   Bench = 2,
   Shelter = 3,
+  Lamp = 4,
 }
 
 const PATH_ADDITION_FLAGS: Readonly<Record<number, number>> = {
   [PathAddition.Bin]: PathFlag.Bin,
   [PathAddition.Bench]: PathFlag.Bench,
   [PathAddition.Shelter]: PathFlag.Shelter,
+  [PathAddition.Lamp]: PathFlag.Lamp,
 };
 
 export function setPathAddition(m: TileMap, x: number, y: number, addition: PathAddition): boolean {
-  if (!m.inBounds(x, y) || !Number.isInteger(addition) || addition < 0 || addition > 3)
+  if (!m.inBounds(x, y) || !Number.isInteger(addition) || addition < 0 || addition > 4)
     return false;
   const tile = m.index(x, y);
   if (!m.canBuild(tile)) return false;
   const element = m.pathElement(tile, -1);
   if (element < 0) return false;
-  m.elFlags[element] &= ~(PathFlag.Bin | PathFlag.Bench | PathFlag.Shelter);
+  m.elFlags[element] &= ~(PathFlag.Bin | PathFlag.Bench | PathFlag.Shelter | PathFlag.Lamp);
   m.elFlags[element] |= PATH_ADDITION_FLAGS[addition] ?? 0;
   if (addition !== PathAddition.Bin) m.elData[element] = 0;
   m.revision++;

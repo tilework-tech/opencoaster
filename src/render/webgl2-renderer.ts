@@ -1,13 +1,15 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
+import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
+import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import type { Rotation } from './projection';
 
 const CELL = 64;
 const ATLAS_COLUMNS = 8;
-const ATLAS_ROWS = 3;
+const ATLAS_ROWS = 5;
 const INSTANCE_FLOATS = 7;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
 
@@ -50,6 +52,14 @@ export function terrainSpriteIndex(surface: number, slopeMask: number): number {
       return 0;
   }
   return flatSprite + (slopeMask ? 1 : 0);
+}
+
+export function staffSpriteIndex(kind: number): number {
+  return 19 + (kind >= 0 && kind <= 3 ? kind : 0);
+}
+
+export function litterSpriteIndex(kind: number): number {
+  return kind === 1 ? 25 : 24;
 }
 
 const vertexSource = `#version 300 es
@@ -193,10 +203,12 @@ export class WebGL2Renderer implements Renderer {
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.appendTiles(map, camera, viewportWidth, viewportHeight);
     if (snapshot) {
+      this.appendPathElements(map, camera, viewportWidth, viewportHeight);
+      this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
       if (snapshot.tracks)
         this.appendLayer(
           snapshot.tracks,
-          23,
+          27,
           map,
           camera,
           viewportWidth,
@@ -205,10 +217,28 @@ export class WebGL2Renderer implements Renderer {
           28,
           1,
         );
-      this.appendLayer(snapshot.rides, 22, map, camera, viewportWidth, viewportHeight, 12, 14);
-      this.appendLayer(snapshot.litter, 21, map, camera, viewportWidth, viewportHeight, 6, 7);
-      this.appendLayer(snapshot.vehicles, 20, map, camera, viewportWidth, viewportHeight, 12, 12);
-      this.appendLayer(snapshot.staff, 19, map, camera, viewportWidth, viewportHeight, 11, 13);
+      this.appendLayer(snapshot.rides, 26, map, camera, viewportWidth, viewportHeight, 12, 14);
+      this.appendVariantLayer(
+        snapshot.litter,
+        litterSpriteIndex,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        7,
+        8,
+      );
+      this.appendLayer(snapshot.vehicles, 23, map, camera, viewportWidth, viewportHeight, 12, 12);
+      this.appendVariantLayer(
+        snapshot.staff,
+        staffSpriteIndex,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        11,
+        13,
+      );
       this.appendGuests(snapshot.guests, map, camera, viewportWidth, viewportHeight);
     }
     this.uploadInPainterOrder();
@@ -386,7 +416,17 @@ export class WebGL2Renderer implements Renderer {
           2 * (rx + ry) - height,
           map.slope[index],
         );
-        if (surface === 3 || surface === 6)
+        if ((map.waterLevel?.[index] ?? 0) > height) {
+          this.append(
+            x * TILE_UNITS,
+            y * TILE_UNITS,
+            map.waterLevel![index] * 64,
+            TILE_W,
+            48,
+            8,
+            2 * (rx + ry) - map.waterLevel![index],
+          );
+        } else if (surface === 3 || surface === 6)
           this.append(
             (x + 0.5) * TILE_UNITS,
             (y + 0.5) * TILE_UNITS,
@@ -396,6 +436,97 @@ export class WebGL2Renderer implements Renderer {
             surface === 6 ? 10 : 9,
             2 * (rx + ry) - height + 1,
           );
+      }
+    }
+  }
+
+  private appendPathElements(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const paths = map.pathElements;
+    const count = Math.min(map.pathCount ?? 0, paths ? paths.length / 5 : 0);
+    if (!paths) return;
+    for (let i = 0; i < count; i++) {
+      const o = i * 5;
+      const x = paths[o];
+      const y = paths[o + 1];
+      const z = paths[o + 2] * Z_STEP;
+      const flags = paths[o + 3];
+      const slope = (flags & PathFlag.Sloped) !== 0;
+      const direction = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
+      const sprite = slope ? 33 + direction : (flags & PathFlag.Queue) !== 0 ? 10 : 9;
+      const depth =
+        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) - z / Z_STEP;
+      const worldX = x * TILE_UNITS + 128;
+      const worldY = y * TILE_UNITS + 128;
+      project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          40,
+          26,
+        )
+      )
+        this.append(worldX, worldY, z, 40, 26, sprite, depth + 1);
+      if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
+        const sprite =
+          (flags & PathFlag.Bin) !== 0
+            ? 28
+            : (flags & PathFlag.Bench) !== 0
+              ? 29
+              : (flags & PathFlag.Shelter) !== 0
+                ? 37
+                : 30;
+        this.append(worldX, worldY, z + Z_STEP, 12, 16, sprite, depth + 2);
+      }
+    }
+  }
+
+  private appendRideMarkers(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const o = i * RIDE_INFO_STRIDE;
+      const flags = snapshot.rideInfo[o + RideInfo.Flags];
+      for (const [flag, xField, yField, sprite] of [
+        [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, 31],
+        [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, 32],
+      ]) {
+        if ((flags & flag) === 0) continue;
+        const x = snapshot.rideInfo[o + xField];
+        const y = snapshot.rideInfo[o + yField];
+        const index = y * map.width + x;
+        const z = map.heights[index] * Z_STEP + 1;
+        const depth =
+          2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) -
+          z / Z_STEP +
+          2;
+        const centerX = x * TILE_UNITS + 128;
+        const centerY = y * TILE_UNITS + 128;
+        project(centerX, centerY, z, map.width, map.height, camera.rotation, this.projected);
+        if (
+          inViewport(
+            this.projected[0],
+            this.projected[1],
+            camera,
+            viewportWidth,
+            viewportHeight,
+            10,
+            14,
+          )
+        )
+          this.append(centerX, centerY, z, 10, 14, sprite, depth);
       }
     }
   }
@@ -454,6 +585,37 @@ export class WebGL2Renderer implements Renderer {
         layer,
         dataOffset,
         sprite,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        width,
+        height,
+        depth,
+      );
+    }
+  }
+
+  private appendVariantLayer(
+    layer: SnapshotLayer,
+    spriteFor: (kind: number) => number,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+    width: number,
+    height: number,
+  ): void {
+    for (let i = 0; i < layer.count; i++) {
+      const offset = i * SNAPSHOT_STRIDE;
+      const dataOffset = offset + 3;
+      const depth =
+        2 * rotatedPositionSum(layer.data[offset], layer.data[offset + 1], map, camera.rotation) -
+        layer.data[offset + 2] / 64;
+      this.appendLayerSprite(
+        layer,
+        offset,
+        spriteFor(layer.data[dataOffset] & 0xff),
         map,
         camera,
         viewportWidth,
@@ -568,11 +730,18 @@ function drawAtlas(ctx: CanvasRenderingContext2D): void {
     if (i <= 8) drawTerrain(ctx, i);
     else if (i === 9 || i === 10) drawPath(ctx, i === 10);
     else if (i >= 11 && i <= 18) drawGuest(ctx, i - 11);
-    else if (i === 19) drawStaff(ctx);
-    else if (i === 20) drawTrain(ctx);
-    else if (i === 21) drawLitter(ctx);
-    else if (i === 22) drawRide(ctx);
-    else drawTrack(ctx);
+    else if (i >= 19 && i <= 22) drawStaff(ctx, i - 19);
+    else if (i === 23) drawTrain(ctx);
+    else if (i === 24 || i === 25) drawLitter(ctx, i === 25);
+    else if (i === 26) drawRide(ctx);
+    else if (i === 27) drawTrack(ctx);
+    else if (i === 28) drawPathAddition(ctx, 'bin');
+    else if (i === 29) drawPathAddition(ctx, 'bench');
+    else if (i === 30) drawPathAddition(ctx, 'lamp');
+    else if (i === 31) drawMarker(ctx, 'in');
+    else if (i === 32) drawMarker(ctx, 'out');
+    else if (i >= 33 && i <= 36) drawRamp(ctx, i - 33);
+    else if (i === 37) drawPathAddition(ctx, 'shelter');
     ctx.restore();
   }
 }
@@ -642,9 +811,23 @@ function drawGuest(ctx: CanvasRenderingContext2D, variant: number): void {
   ctx.fill();
 }
 
-function drawStaff(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = '#f0a92f';
+function drawStaff(ctx: CanvasRenderingContext2D, kind: number): void {
+  const coats = ['#4ca95b', '#397cb3', '#855ea8', '#de8840'];
+  ctx.fillStyle = coats[kind] ?? coats[0];
   ctx.fillRect(22, 18, 20, 33);
+  if (kind === 0) {
+    ctx.fillStyle = '#dfd6ad';
+    ctx.fillRect(18, 21, 28, 4);
+  } else if (kind === 1) {
+    ctx.fillStyle = '#d0d8e2';
+    ctx.fillRect(28, 29, 10, 7);
+  } else if (kind === 2) {
+    ctx.fillStyle = '#e7d45d';
+    ctx.fillRect(27, 29, 10, 7);
+  } else {
+    ctx.fillStyle = '#f0d5a5';
+    ctx.fillRect(25, 10, 14, 4);
+  }
   ctx.fillStyle = '#f6d6ac';
   ctx.beginPath();
   ctx.arc(32, 17, 7, 0, Math.PI * 2);
@@ -664,11 +847,15 @@ function drawTrain(ctx: CanvasRenderingContext2D): void {
   ctx.fill();
 }
 
-function drawLitter(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = '#6b4f2a';
-  ctx.fillRect(23, 25, 18, 16);
-  ctx.fillStyle = '#b2a47d';
-  ctx.fillRect(26, 21, 12, 5);
+function drawLitter(ctx: CanvasRenderingContext2D, vomit: boolean): void {
+  ctx.fillStyle = vomit ? '#91b84b' : '#6b4f2a';
+  ctx.beginPath();
+  ctx.ellipse(32, 35, vomit ? 12 : 8, vomit ? 6 : 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (!vomit) {
+    ctx.fillStyle = '#b2a47d';
+    ctx.fillRect(26, 21, 12, 5);
+  }
 }
 
 function drawRide(ctx: CanvasRenderingContext2D): void {
@@ -697,6 +884,80 @@ function drawTrack(ctx: CanvasRenderingContext2D): void {
     ctx.lineTo(i + 4, 50);
     ctx.stroke();
   }
+}
+
+function drawPathAddition(
+  ctx: CanvasRenderingContext2D,
+  kind: 'bin' | 'bench' | 'lamp' | 'shelter',
+): void {
+  if (kind === 'bin') {
+    ctx.fillStyle = '#547d58';
+    ctx.fillRect(23, 23, 18, 27);
+    ctx.fillStyle = '#bbc3aa';
+    ctx.fillRect(21, 22, 22, 5);
+    ctx.fillStyle = '#29392d';
+    ctx.fillRect(27, 30, 10, 3);
+  } else if (kind === 'bench') {
+    ctx.fillStyle = '#805535';
+    ctx.fillRect(17, 33, 30, 7);
+    ctx.fillRect(21, 40, 4, 10);
+    ctx.fillRect(39, 40, 4, 10);
+    ctx.fillRect(17, 28, 30, 4);
+  } else if (kind === 'lamp') {
+    ctx.fillStyle = '#424951';
+    ctx.fillRect(30, 25, 4, 28);
+    ctx.fillStyle = '#e9d784';
+    ctx.beginPath();
+    ctx.arc(32, 21, 7, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = '#5c6fa1';
+    ctx.beginPath();
+    ctx.moveTo(12, 30);
+    ctx.quadraticCurveTo(32, 8, 52, 30);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#554b44';
+    ctx.fillRect(29, 29, 6, 24);
+  }
+}
+
+function drawMarker(ctx: CanvasRenderingContext2D, kind: 'in' | 'out'): void {
+  ctx.fillStyle = kind === 'in' ? '#46ae72' : '#d36355';
+  ctx.beginPath();
+  ctx.moveTo(32, 8);
+  ctx.lineTo(53, 20);
+  ctx.lineTo(32, 32);
+  ctx.lineTo(11, 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff4cf';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(kind === 'in' ? 'IN' : 'OUT', 32, 26);
+}
+
+function drawRamp(ctx: CanvasRenderingContext2D, direction: number): void {
+  ctx.fillStyle = '#b59a70';
+  ctx.beginPath();
+  const offsets = [
+    [-14, 9],
+    [14, 9],
+    [14, -9],
+    [-14, -9],
+  ][direction & 3];
+  ctx.moveTo(32 - offsets[0], 32 - offsets[1]);
+  ctx.lineTo(32 + offsets[0], 32 + offsets[1]);
+  ctx.lineTo(48, 32);
+  ctx.lineTo(32, 48);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#715b3f';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(32 - offsets[0], 32 - offsets[1]);
+  ctx.lineTo(32 + offsets[0], 32 + offsets[1]);
+  ctx.stroke();
 }
 
 function unrotateForDraw(

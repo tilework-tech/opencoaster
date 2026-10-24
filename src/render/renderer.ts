@@ -7,6 +7,9 @@ export interface MapData {
   heights: Uint8Array;
   surface: Uint8Array;
   slope: Uint8Array;
+  waterLevel?: Uint8Array;
+  pathElements?: Int32Array;
+  pathCount?: number;
 }
 
 export interface Camera {

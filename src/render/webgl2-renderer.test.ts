@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enableSpriteAlphaBlending, terrainSpriteIndex } from './webgl2-renderer';
+import {
+  enableSpriteAlphaBlending,
+  litterSpriteIndex,
+  staffSpriteIndex,
+  terrainSpriteIndex,
+} from './webgl2-renderer';
 
 describe('WebGL sprite blending', () => {
   it('enables source-over alpha blending for sprites', () => {
@@ -33,5 +38,13 @@ describe('terrain atlas selection', () => {
     ];
 
     expect(new Set(sprites).size).toBe(sprites.length);
+  });
+});
+
+describe('entity atlas selection', () => {
+  it('uses distinct procedural sprites for each staff role and litter kind', () => {
+    const staff = [0, 1, 2, 3].map(staffSpriteIndex);
+    const litter = [litterSpriteIndex(0), litterSpriteIndex(1)];
+    expect(new Set([...staff, ...litter]).size).toBe(staff.length + litter.length);
   });
 });

@@ -1,5 +1,7 @@
 import type { Snapshot } from '../worker/snapshot';
 import type { Stats } from '../worker/protocol';
+import { RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import { financePanelText } from './hud';
 import { objectiveLines } from './objective';
 import { StaffRoster } from './staff-roster';
@@ -12,6 +14,7 @@ export type ToolMode =
   | 'bench'
   | 'shelter'
   | 'flowerbed'
+  | 'lamp'
   | 'ride'
   | 'track'
   | 'patrol';
@@ -27,6 +30,9 @@ export interface GameUIActions {
   setPatrolKind(kind: number | null): void;
   renameStaff(staffId: number, name: string): void;
   fireStaff(staffId: number): void;
+  setRidePrice(rideId: number, priceCents: number): void;
+  setRideStatus(rideId: number, status: 'open' | 'close'): void;
+  placeRidePart(rideId: number, part: 'entrance' | 'exit'): void;
 }
 
 export interface GuestSelection {
@@ -34,8 +40,65 @@ export interface GuestSelection {
   tick: number;
 }
 
+export interface GuestDetails {
+  happiness: number;
+  hunger: number;
+  thirst: number;
+  toilet: number;
+  nausea: number;
+  energy: number;
+  cash: number;
+  thoughts: readonly number[];
+}
+
+const THOUGHT_LABELS: readonly string[] = [
+  'No thought',
+  'Hungry',
+  'Thirsty',
+  'Needs the toilet',
+  'Feeling nauseous',
+  'Ride is too intense',
+  'Ride enjoyed',
+  'Queue is too long',
+  'Leaving the park',
+];
+
+export function guestDetailsText(details: GuestDetails): string {
+  const thoughts = details.thoughts
+    .filter((thought) => thought > 0)
+    .map((thought) => THOUGHT_LABELS[thought] ?? `Thought ${thought}`);
+  return [
+    `Happiness  ${details.happiness}`,
+    `Hunger  ${details.hunger}`,
+    `Thirst  ${details.thirst}`,
+    `Toilet  ${details.toilet}`,
+    `Nausea  ${details.nausea}`,
+    `Energy  ${details.energy}`,
+    `Cash  $${(details.cash / 100).toFixed(2)}`,
+    'Thoughts',
+    ...(thoughts.length ? thoughts : ['No recent thoughts']),
+  ].join('\n');
+}
+
 export function guestSelectionText(details: string, tick: number): string {
   return `Selection at tick ${tick}\n${details}`;
+}
+
+export interface RideOption {
+  value: string;
+  label: string;
+}
+
+export function rideOptionsChanged(
+  current: readonly RideOption[],
+  next: readonly RideOption[],
+): boolean {
+  return (
+    current.length !== next.length ||
+    current.some(
+      (option, index) => option.value !== next[index]?.value || option.label !== next[index]?.label,
+    )
+  );
 }
 
 const TOOL_LABELS: Record<ToolMode, string> = {
@@ -46,6 +109,7 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   bench: 'Bench',
   shelter: 'Shelter',
   flowerbed: 'Flower bed',
+  lamp: 'Lamp',
   ride: 'Ride',
   track: 'Coaster',
   patrol: 'Patrol area',
@@ -55,10 +119,13 @@ export class GameUI {
   private readonly toolbar: HTMLElement;
   private readonly status: HTMLElement;
   private readonly objective: HTMLElement;
+  private readonly weatherOverlay: HTMLElement;
   private readonly panels = new Map<string, { root: HTMLElement; body: HTMLElement }>();
   private paused = false;
   private tool: ToolMode = 'select';
   private staffRoster: StaffRoster | null = null;
+  private rideSelect: HTMLSelectElement | null = null;
+  private ridePrice: HTMLInputElement | null = null;
 
   constructor(
     private readonly parent: HTMLElement,
@@ -72,6 +139,9 @@ export class GameUI {
     this.objective = document.createElement('div');
     this.objective.className = 'objective-strip';
     this.objective.hidden = true;
+    this.weatherOverlay = document.createElement('div');
+    this.weatherOverlay.className = 'weather-overlay weather-sunny';
+    this.weatherOverlay.setAttribute('aria-hidden', 'true');
 
     this.toolbar.append(
       this.button('Pause', () => this.togglePause(), 'pause'),
@@ -93,6 +163,7 @@ export class GameUI {
       'bench',
       'shelter',
       'flowerbed',
+      'lamp',
       'ride',
       'track',
       'patrol',
@@ -111,9 +182,10 @@ export class GameUI {
       this.button('Menu', actions.openMenu, 'open-menu'),
       this.button('Guests', () => this.togglePanel('guests', 'Guest information'), 'open-guests'),
       this.button('Staff', () => this.toggleStaffPanel(), 'open-staff'),
+      this.button('Rides', () => this.toggleRidePanel(), 'open-rides'),
     );
     this.toolbar.append(windows);
-    parent.append(this.toolbar, this.status, this.objective);
+    parent.append(this.toolbar, this.status, this.objective, this.weatherOverlay);
     this.chooseTool('select');
   }
 
@@ -122,6 +194,10 @@ export class GameUI {
     stats: Stats | null,
     selectedGuest: GuestSelection | null,
   ): void {
+    const weather = snapshot?.weather.kind ?? 0;
+    const weatherClass = `weather-${['sunny', 'cloudy', 'rain', 'storm'][weather] ?? 'sunny'}`;
+    if (!this.weatherOverlay.classList.contains(weatherClass))
+      this.weatherOverlay.className = `weather-overlay ${weatherClass}`;
     const lines = snapshot
       ? objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick)
       : [];
@@ -151,6 +227,47 @@ export class GameUI {
           `Guests in park  ${stats?.guests ?? 0}\nSelect a guest in the park to inspect them.`,
       );
     }
+    const rides = this.panels.get('rides');
+    if (rides && snapshot) {
+      const selection = this.rideSelect;
+      const ids = Array.from({ length: snapshot.rides.count }, (_, i) => {
+        const o = i * RIDE_INFO_STRIDE;
+        return {
+          id: snapshot.rideInfo[o + RideInfo.Id],
+          index: i,
+          type: snapshot.rideInfo[o + RideInfo.Type],
+        };
+      });
+      const options = ids.map(({ id, type }) => ({
+        value: String(id),
+        label: `${typeName(type)} #${id}`,
+      }));
+      const previousId = selection?.value;
+      if (
+        selection &&
+        rideOptionsChanged(
+          Array.from(selection.options, (option) => ({ value: option.value, label: option.text })),
+          options,
+        )
+      ) {
+        selection.replaceChildren(...options.map(({ value, label }) => new Option(label, value)));
+        if (options.some((option) => option.value === previousId)) selection.value = previousId!;
+      }
+      const selectedId = Number(selection?.value ?? ids[0]?.id ?? -1);
+      const index = ids.find((ride) => ride.id === selectedId)?.index ?? ids[0]?.index;
+      if (index === undefined) {
+        setText(rides.body, 'No rides have been built yet.');
+      } else {
+        const o = index * RIDE_INFO_STRIDE;
+        const info = snapshot.rideInfo;
+        if (this.ridePrice && document.activeElement !== this.ridePrice)
+          this.ridePrice.value = String(info[o + RideInfo.Price] / 100);
+        setText(
+          rides.body,
+          `${typeName(info[o + RideInfo.Type])} #${selectedId}\nStatus  ${['Closed', 'Open', 'Testing', 'Broken'][info[o + RideInfo.State]]}\nExcitement  ${(info[o + RideInfo.Excitement] / 100).toFixed(2)}\nIntensity  ${(info[o + RideInfo.Intensity] / 100).toFixed(2)}\nNausea  ${(info[o + RideInfo.Nausea] / 100).toFixed(2)}\nQueue  ${info[o + RideInfo.QueueLength]}\nIncome  $${(info[o + RideInfo.IncomeCents] / 100).toFixed(2)}\nReliability  ${info[o + RideInfo.Reliability]}%`,
+        );
+      }
+    }
     const staff = this.panels.get('staff');
     if (staff)
       setText(
@@ -173,6 +290,10 @@ export class GameUI {
     this.status.textContent = message;
   }
 
+  openGuestPanel(): void {
+    if (!this.panels.has('guests')) this.togglePanel('guests', 'Guest information');
+  }
+
   togglePause(): void {
     this.syncPaused(!this.paused);
     this.actions.setPaused(this.paused);
@@ -188,6 +309,7 @@ export class GameUI {
     this.toolbar.remove();
     this.status.remove();
     this.objective.remove();
+    this.weatherOverlay.remove();
     for (const panel of this.panels.values()) panel.root.remove();
     this.panels.clear();
   }
@@ -267,6 +389,66 @@ export class GameUI {
     });
   }
 
+  private toggleRidePanel(): void {
+    if (this.panels.has('rides')) {
+      this.togglePanel('rides', 'Ride information');
+      this.rideSelect = null;
+      this.ridePrice = null;
+      return;
+    }
+    this.togglePanel('rides', 'Ride information');
+    const panel = this.panels.get('rides');
+    if (!panel) return;
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', 'Select ride');
+    const price = document.createElement('input');
+    price.type = 'number';
+    price.min = '0';
+    price.max = '655.35';
+    price.step = '0.01';
+    price.setAttribute('aria-label', 'Ride or stall price');
+    const setPrice = this.button(
+      'Set price',
+      () => {
+        const id = Number(select.value);
+        const cents = Math.round(Number(price.value) * 100);
+        if (Number.isInteger(id) && Number.isSafeInteger(cents) && cents >= 0 && cents <= 65535)
+          this.actions.setRidePrice(id, cents);
+      },
+      'set-ride-price',
+    );
+    const status = document.createElement('div');
+    status.className = 'ride-controls';
+    status.append(
+      this.button(
+        'Place entrance',
+        () => this.actions.placeRidePart(Number(select.value), 'entrance'),
+        'place-ride-entrance',
+      ),
+      this.button(
+        'Place exit',
+        () => this.actions.placeRidePart(Number(select.value), 'exit'),
+        'place-ride-exit',
+      ),
+      this.button(
+        'Open ride',
+        () => this.actions.setRideStatus(Number(select.value), 'open'),
+        'open-ride',
+      ),
+      this.button(
+        'Close ride',
+        () => this.actions.setRideStatus(Number(select.value), 'close'),
+        'close-ride',
+      ),
+    );
+    panel.root.insertBefore(select, panel.body);
+    panel.root.insertBefore(price, panel.body);
+    panel.root.insertBefore(setPrice, panel.body);
+    panel.root.insertBefore(status, panel.body);
+    this.rideSelect = select;
+    this.ridePrice = price;
+  }
+
   private button(label: string, click: () => void, id: string): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button';
@@ -281,6 +463,10 @@ export class GameUI {
     const button = this.toolbar.querySelector<HTMLButtonElement>(`[data-action="${id}"]`);
     if (button) button.textContent = text;
   }
+}
+
+function typeName(type: number): string {
+  return RIDE_CATALOG[type as keyof typeof RIDE_CATALOG]?.name ?? 'Ride';
 }
 
 function setText(element: HTMLElement, text: string): void {

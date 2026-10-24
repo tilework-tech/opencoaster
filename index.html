@@ -30,6 +30,42 @@
         touch-action: none;
         cursor: crosshair;
       }
+      .weather-overlay {
+        position: fixed;
+        z-index: 2;
+        inset: 0;
+        pointer-events: none;
+      }
+      .weather-cloudy {
+        background: rgba(25, 36, 48, 0.16);
+      }
+      .weather-rain,
+      .weather-storm {
+        background-color: rgba(22, 34, 50, 0.21);
+        background-image: repeating-linear-gradient(
+          108deg,
+          transparent 0 19px,
+          #d7e7ff55 20px 21px,
+          transparent 22px 38px
+        );
+        background-size: 38px 54px;
+        animation: rain-drift 0.65s linear infinite;
+      }
+      .weather-storm {
+        background-color: rgba(8, 15, 30, 0.4);
+        background-image: repeating-linear-gradient(
+          108deg,
+          transparent 0 13px,
+          #c6d5ef66 14px 16px,
+          transparent 17px 29px
+        );
+        background-size: 29px 42px;
+      }
+      @keyframes rain-drift {
+        to {
+          background-position: -24px 54px;
+        }
+      }
       .game-toolbar {
         position: fixed;
         z-index: 5;
@@ -258,6 +294,9 @@
       #app.title-open .hud,
       #app.title-open .info-window,
       #app.title-open .objective-strip {
+        display: none;
+      }
+      #app.title-open .weather-overlay {
         display: none;
       }
       .title-screen,

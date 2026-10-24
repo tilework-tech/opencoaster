@@ -16,6 +16,9 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const hud = page.locator('.hud');
   await expect(hud).toContainText('WebGL2', { timeout: 20_000 });
+  await page.getByRole('button', { name: 'Rides' }).click();
+  await expect(page.locator('[data-panel="rides"]')).toContainText('No rides have been built yet.');
+  await expect(page.getByRole('button', { name: 'Place entrance' })).toBeVisible();
 
   const gameCanvasUsesWebGl2 = await page.locator('#game').evaluate((canvas) => {
     return canvas.getContext('webgl2') instanceof WebGL2RenderingContext;
@@ -28,7 +31,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 30_000 });
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.keyboard.press('g');
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.waitForTimeout(500);
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 10_000 });
 

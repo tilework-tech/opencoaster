@@ -185,6 +185,7 @@ export class Simulation {
       case 'placeRideEntrance':
       case 'placeRideExit':
       case 'setRideStatus':
+      case 'setRidePrice':
         applyRideCommand(w, c);
         break;
       default:

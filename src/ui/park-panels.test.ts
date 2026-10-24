@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSnapshot } from '../worker/snapshot';
 import { financePanelText } from './hud';
-import { guestSelectionText } from './game-ui';
+import { guestDetailsText, guestSelectionText, rideOptionsChanged } from './game-ui';
 
 describe('finance panel', () => {
   it('shows cash and outstanding loan from the latest worker snapshot', () => {
@@ -19,5 +19,39 @@ describe('guest selection', () => {
     expect(guestSelectionText('Guest 4\nTile  7, 2\nState  walking', 120)).toBe(
       'Selection at tick 120\nGuest 4\nTile  7, 2\nState  walking',
     );
+  });
+
+  it('shows current guest needs, cash and newest thoughts in the detail window', () => {
+    expect(
+      guestDetailsText({
+        happiness: 177,
+        hunger: 88,
+        thirst: 43,
+        toilet: 29,
+        nausea: 17,
+        energy: 222,
+        cash: 3456,
+        thoughts: [6, 2],
+      }),
+    ).toBe(
+      'Happiness  177\nHunger  88\nThirst  43\nToilet  29\nNausea  17\nEnergy  222\nCash  $34.56\nThoughts\nRide enjoyed\nThirsty',
+    );
+  });
+});
+
+describe('ride information selection', () => {
+  it('detects changed ride identities when the option count stays the same', () => {
+    expect(
+      rideOptionsChanged(
+        [
+          { value: '7', label: 'Carousel #7' },
+          { value: '8', label: 'Coaster #8' },
+        ],
+        [
+          { value: '19', label: 'Carousel #19' },
+          { value: '20', label: 'Coaster #20' },
+        ],
+      ),
+    ).toBe(true);
   });
 });

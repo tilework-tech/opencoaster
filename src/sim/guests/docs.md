@@ -41,7 +41,7 @@ Path: @/src/sim/guests
 ### Vandalism
 
 - [vandalism.ts](vandalism.ts) runs every 32 ticks after the staff system. An angry guest (happiness at or below `ANGRY_HAPPINESS`, 64) standing on a path tile with a bench or bin breaks it with probability 1 in 8 per check. The broken addition is removed and the element reverts to plain path; a bin's stored trash is lost. Riding guests are skipped.
-- A security guard within `SECURITY_RADIUS` (6 tiles, Chebyshev) of the guest stops the attempt before it lands. Lamps are not implemented, so they cannot be vandalised.
+- A security guard within `SECURITY_RADIUS` (6 tiles, Chebyshev) of the guest stops the attempt before it lands. Lamp additions are visual path features and are not vandalized by guests.
 - Breakage is not tracked as a counter; rebuild the bench or bin with the Bench or Bin tool.
 
 Created and maintained by Nori.

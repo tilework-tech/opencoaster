@@ -32,6 +32,6 @@ Path: @/src/sim/staff
 - Movement falls back to a direct relocation onto the nearest walkable marked tile when pathfinding cannot return a direction. Patrol masks constrain staff destinations and pathfinding, but are not a generic job-assignment system.
 - Staff wages are named per-week integer-cent rates. They are OpenCoaster tuning values; the handyman rate is a weekly conversion of the cited $50 monthly reference, while unsupported role salaries remain provisional.
 - Staff names are player-given strings held in `World.staffNames`, not in the typed-array store. Renaming to blank removes the name; firing removes it too.
-- Grounds are not rendered yet; the snapshot exposes them for the visuals workstream. Lamps do not exist in the map, so no staff job or vandalism applies to them.
+- Ground and flower-bed state is included in snapshots, while this module owns its growth and watering simulation. Lamps are visual path additions and have no staff maintenance job.
 
 Created and maintained by Nori.

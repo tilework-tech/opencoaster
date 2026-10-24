@@ -52,6 +52,32 @@ describe('Simulation', () => {
     expect(sim.world.economy.cash).toBe(cash - RIDE_CATALOG[RideType.MerryGoRound].cost);
   });
 
+  it('sets an operating ride ticket price through a simulation command', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    const id = sim.world.rides.slotToId[sim.world.rides.spawn()];
+    sim.enqueue({ type: 'setRidePrice', rideId: id, priceCents: 275 });
+
+    sim.step();
+
+    expect(sim.world.rides.cols.price[sim.world.rides.idToSlot[id]]).toBe(275);
+  });
+
+  it('opens a stall after placing its service entrance without requiring an exit', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    const slot = sim.world.rides.spawn();
+    const id = sim.world.rides.slotToId[slot];
+    sim.world.rides.cols.typeId[slot] = RideType.FoodStall;
+    sim.world.rides.cols.rideX[slot] = 5;
+    sim.world.rides.cols.rideY[slot] = 6;
+    sim.enqueue({ type: 'placeRideEntrance', rideId: id, x: 5, y: 7 });
+    sim.step();
+    sim.enqueue({ type: 'setRideStatus', rideId: id, status: 'open' });
+
+    sim.step();
+
+    expect(sim.world.rides.cols.state[sim.world.rides.idToSlot[id]]).toBe(1);
+  });
+
   it('does not create or charge for a ride on land the park cannot build on', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16 });
     const tile = sim.world.map.index(2, 2);

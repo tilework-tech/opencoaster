@@ -66,4 +66,6 @@ export const RIDE_SCHEMA = {
   testDropCount: Uint16Array,
   testHighestDrop: Int32Array,
   testInversionCount: Uint16Array,
+  /** Gross lifetime receipts in integer cents, capped at the stored integer range. */
+  incomeCents: Uint32Array,
 } as const;

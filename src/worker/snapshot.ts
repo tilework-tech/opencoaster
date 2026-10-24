@@ -16,7 +16,8 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 16;
+export const RIDE_INFO_STRIDE = 22;
+export const GUEST_DETAIL_STRIDE = 12;
 
 export const enum RideInfo {
   Id = 0,
@@ -38,6 +39,12 @@ export const enum RideInfo {
   CursorZ = 14,
   /** Packed by `encodeCursor`. */
   Cursor = 15,
+  EntranceX = 16,
+  EntranceY = 17,
+  ExitX = 18,
+  ExitY = 19,
+  Reliability = 20,
+  IncomeCents = 21,
 }
 
 export const enum RideFlag {
@@ -87,6 +94,9 @@ export interface Snapshot {
   tracks: SnapshotLayer;
   /** `RIDE_INFO_STRIDE` ints per ride, in the same order as `rides`. */
   rideInfo: Int32Array;
+  /** Guest needs and thought history, aligned with the guest render layer. */
+  guestDetails: Int32Array;
+  weather: { kind: number; temperature: number };
   /** Outcome of the latest player command. */
   feedback: CommandFeedback;
   buildable: Uint8Array;
@@ -131,6 +141,8 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     rides: layer(caps.rides ?? SNAPSHOT_RIDE_CAPACITY),
     tracks: layer(caps.tracks ?? SNAPSHOT_TRACK_CAPACITY),
     rideInfo: new Int32Array((caps.rides ?? SNAPSHOT_RIDE_CAPACITY) * RIDE_INFO_STRIDE),
+    guestDetails: new Int32Array(caps.guests * GUEST_DETAIL_STRIDE),
+    weather: { kind: 0, temperature: 20 },
     feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
     grounds: new Uint8Array(caps.mapTiles ?? 0),
@@ -147,6 +159,7 @@ export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
       s.buildable.buffer as ArrayBuffer,
       s.grounds.buffer as ArrayBuffer,
       s.staffIds.buffer as ArrayBuffer,
+      s.guestDetails.buffer as ArrayBuffer,
     );
 }
 
@@ -192,6 +205,12 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.GuestsServed] = r.guestsServed[slot];
   info[o + RideInfo.Price] = r.price[slot];
   info[o + RideInfo.TrackPieces] = trackRide ? world.track.count[rideId] : 0;
+  info[o + RideInfo.EntranceX] = r.entranceX[slot];
+  info[o + RideInfo.EntranceY] = r.entranceY[slot];
+  info[o + RideInfo.ExitX] = r.exitX[slot];
+  info[o + RideInfo.ExitY] = r.exitY[slot];
+  info[o + RideInfo.Reliability] = r.reliability[slot];
+  info[o + RideInfo.IncomeCents] = r.incomeCents[slot];
   if (!RIDE_CATALOG[r.typeId[slot] as RideType]?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;
@@ -209,9 +228,28 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
 export function writeSnapshot(world: World, out: Snapshot): void {
   out.tick = world.tick;
   recountRideLines(world);
+  out.weather.kind = world.weather.kind;
+  out.weather.temperature = world.weather.temperature;
   const buildableCount = Math.min(world.map.ownership.length, out.buildable.length);
   for (let i = 0; i < buildableCount; i++) out.buildable[i] = world.map.canBuild(i) ? 1 : 0;
   writeLayer(out.guests, world.guests, world.guests.cols.tint, world.guests.cols.state);
+  const guests = world.guests.cols;
+  const guestCount = Math.min(world.guests.count, out.guestDetails.length / GUEST_DETAIL_STRIDE);
+  for (let i = 0; i < guestCount; i++) {
+    const o = i * GUEST_DETAIL_STRIDE;
+    out.guestDetails[o] = guests.happiness[i];
+    out.guestDetails[o + 1] = guests.hunger[i];
+    out.guestDetails[o + 2] = guests.thirst[i];
+    out.guestDetails[o + 3] = guests.toilet[i];
+    out.guestDetails[o + 4] = guests.nausea[i];
+    out.guestDetails[o + 5] = guests.energy[i];
+    out.guestDetails[o + 6] = guests.cash[i];
+    out.guestDetails[o + 7] = guests.thoughtCursor[i] & 3;
+    out.guestDetails[o + 8] = guests.thought0[i];
+    out.guestDetails[o + 9] = guests.thought1[i];
+    out.guestDetails[o + 10] = guests.thought2[i];
+    out.guestDetails[o + 11] = guests.thought3[i];
+  }
   writeLayer(out.staff, world.staff, world.staff.cols.kind, world.staff.cols.state);
   const staffIdCount = Math.min(world.staff.count, out.staffIds.length);
   for (let i = 0; i < staffIdCount; i++) out.staffIds[i] = world.staff.slotToId[i];

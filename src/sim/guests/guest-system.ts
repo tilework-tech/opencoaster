@@ -12,7 +12,7 @@ import {
   nextDirection,
 } from '../pathfinding';
 import type { NavOptions } from '../pathfinding';
-import { isShopCategory, rideQueueCapacity } from '../rides/ride-operations';
+import { addRideIncome, isShopCategory, rideQueueCapacity } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
@@ -364,10 +364,16 @@ function finishShopping(world: World, slot: number, ride: number): void {
   g.cash[slot] -= price;
   if (type === RideType.Toilets) {
     g.toilet[slot] = 0;
-    if (price > 0) earn(world, LedgerCategory.ShopSales, price);
+    if (price > 0) {
+      earn(world, LedgerCategory.ShopSales, price);
+      addRideIncome(world, ride, price);
+    }
   } else if (type === RideType.InformationKiosk) {
     world.umbrellas[world.guests.slotToId[slot]] = 1;
-    if (price > 0) earn(world, LedgerCategory.ShopSales, price);
+    if (price > 0) {
+      earn(world, LedgerCategory.ShopSales, price);
+      addRideIncome(world, ride, price);
+    }
   } else {
     if (type === RideType.FoodStall) {
       g.hunger[slot] = Math.max(0, g.hunger[slot] - MEAL_RELIEF);
@@ -376,6 +382,7 @@ function finishShopping(world: World, slot: number, ride: number): void {
       g.thirst[slot] = Math.max(0, g.thirst[slot] - MEAL_RELIEF);
     }
     earn(world, LedgerCategory.FoodDrinkSales, price);
+    addRideIncome(world, ride, price);
     charge(world, LedgerCategory.FoodDrinkStock, Math.floor((price * STOCK_COST_PERCENT) / 100));
   }
   g.happiness[slot] = Math.min(255, g.happiness[slot] + SHOP_HAPPINESS);
@@ -517,6 +524,32 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     ageNeeds(world, slot);
   }
   const state = g.state[slot];
+  if (
+    world.weather.kind >= WeatherKind.Rain &&
+    world.umbrellas[world.guests.slotToId[slot]] === 0 &&
+    state === GuestState.Wandering
+  ) {
+    const guestX = g.x[slot] >> 8;
+    const guestY = g.y[slot] >> 8;
+    for (let ride = 0; ride < world.rides.count; ride++) {
+      if (
+        world.rides.cols.typeId[ride] !== RideType.InformationKiosk ||
+        world.rides.cols.state[ride] !== RideState.Open ||
+        world.rides.cols.entrancePlaced[ride] === 0 ||
+        Math.abs(world.rides.cols.entranceX[ride] - guestX) > 1 ||
+        Math.abs(world.rides.cols.entranceY[ride] - guestY) > 1
+      )
+        continue;
+      const price = world.rides.cols.price[ride];
+      if (price <= g.cash[slot]) {
+        world.umbrellas[world.guests.slotToId[slot]] = 1;
+        g.cash[slot] -= price;
+        earn(world, LedgerCategory.ShopSales, price);
+        addRideIncome(world, ride, price);
+        break;
+      }
+    }
+  }
   if (state === GuestState.Riding) {
     const ride = targetRideSlot(world, slot);
     if (ride < 0 || tripFinished(world.rides.cols.cyclesCompleted[ride], g.activityTicks[slot])) {

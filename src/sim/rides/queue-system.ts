@@ -5,6 +5,7 @@ import { earn, ridePricingEnabled } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
 import { GuestState } from '../guests/guest-store';
 import { RidePhase } from './ride-store';
+import { addRideIncome } from './ride-operations';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 
@@ -39,7 +40,10 @@ export function seatQueuedGuests(world: World, slot: number, count: number, tag:
     if (guests.state[g] !== GuestState.Waiting || guests.targetRide[g] !== id) continue;
     const fare = Math.min(price, guests.cash[g]);
     guests.cash[g] -= fare;
-    if (fare > 0) earn(world, LedgerCategory.RideTickets, fare);
+    if (fare > 0) {
+      earn(world, LedgerCategory.RideTickets, fare);
+      addRideIncome(world, slot, fare);
+    }
     guests.state[g] = GuestState.Riding;
     guests.activityTicks[g] = tag & 0xffff;
     guests.x[g] = ride.rideX[slot] * TILE_UNITS + (TILE_UNITS >> 1);

@@ -5,6 +5,7 @@ import { prepareScenario } from '../sim/scenario/scenario-layout';
 import { deserialize, serialize } from '../save/save';
 import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
+import { extractMapData } from './map-data';
 import type { Snapshot } from './snapshot';
 import type { FromWorker, InitMessage, ToWorker } from './protocol';
 
@@ -126,14 +127,14 @@ export class SimRunner {
 
   private postMap(sim: Simulation): void {
     const { map } = sim.world;
-    const heights = map.heights.slice();
-    const surface = map.surface.slice();
-    const slope = map.slope.slice();
+    const data = extractMapData(map);
     this.mapRevision = map.revision;
-    this.port.post({ type: 'map', width: map.width, height: map.height, heights, surface, slope }, [
-      heights.buffer as ArrayBuffer,
-      surface.buffer as ArrayBuffer,
-      slope.buffer as ArrayBuffer,
+    this.port.post({ type: 'map', ...data }, [
+      data.heights.buffer as ArrayBuffer,
+      data.surface.buffer as ArrayBuffer,
+      data.slope.buffer as ArrayBuffer,
+      data.waterLevel.buffer as ArrayBuffer,
+      data.pathElements.buffer as ArrayBuffer,
     ]);
   }
 
