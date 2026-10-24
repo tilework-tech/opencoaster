@@ -16,6 +16,7 @@ import type { ResearchState } from '../research/research';
 import { createScenarioState } from '../scenario/scenario';
 import type { ScenarioState } from '../scenario/scenario';
 import { RIDE_SCHEMA } from '../rides/ride-store';
+import { TrackState } from '../track/track-store';
 
 export interface WorldOptions {
   seed: number;
@@ -39,6 +40,7 @@ export class World {
   readonly weather: WeatherState;
   readonly research: ResearchState;
   readonly scenario: ScenarioState;
+  readonly track: TrackState;
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;
@@ -54,5 +56,6 @@ export class World {
     this.weather = createWeather();
     this.research = createResearch();
     this.scenario = createScenarioState();
+    this.track = new TrackState();
   }
 }

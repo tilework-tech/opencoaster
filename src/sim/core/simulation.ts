@@ -10,6 +10,7 @@ import { vehicleSystem } from '../vehicles/vehicle-system';
 import { litterSystem } from '../guests/litter-system';
 import { rideSystem } from '../rides/ride-system';
 import { trackSystem } from '../track/track-system';
+import { applyTrackCommand } from '../track/track-commands';
 import { economySystem } from '../economy/economy-system';
 import { weatherSystem } from '../weather/weather-system';
 import { researchSystem } from '../research/research-system';
@@ -75,6 +76,10 @@ export class Simulation {
         break;
       case 'research':
         applyResearchAction(w.research, c.action);
+        break;
+      case 'placeTrack':
+      case 'removeTrack':
+        applyTrackCommand(w, c);
         break;
     }
   }
