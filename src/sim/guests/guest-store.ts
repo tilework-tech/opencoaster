@@ -8,22 +8,66 @@ export const enum GuestState {
   Leaving = 3,
 }
 
-/** Guest columns. Positions are fixed-point (TILE_UNITS per tile). Needs/stats are 0..255. */
+export const enum GuestThought {
+  None = 0,
+  Hungry = 1,
+  Thirsty = 2,
+  NeedsToilet = 3,
+  TooNauseous = 4,
+  TooIntense = 5,
+  RideEnjoyed = 6,
+  QueueTooLong = 7,
+  Leaving = 8,
+}
+
+/** Guest columns. Needs and preferences use 0..255; money is integer cents. */
 export const GUEST_SCHEMA = {
   x: Int32Array,
   y: Int32Array,
   z: Int32Array,
   targetX: Int16Array,
   targetY: Int16Array,
+  targetRide: Int32Array,
   state: Uint8Array,
   tint: Uint8Array,
   happiness: Uint8Array,
   hunger: Uint8Array,
   thirst: Uint8Array,
+  toilet: Uint8Array,
   nausea: Uint8Array,
+  nauseaTolerance: Uint8Array,
+  preferredIntensity: Uint8Array,
   energy: Uint8Array,
   cash: Int32Array,
+  patience: Uint16Array,
+  activityTicks: Uint16Array,
+  thoughtCursor: Uint8Array,
+  thought0: Uint8Array,
+  thought1: Uint8Array,
+  thought2: Uint8Array,
+  thought3: Uint8Array,
 } as const;
+
+export function recordThought(w: World, slot: number, thought: GuestThought): void {
+  if (thought === GuestThought.None) return;
+  const g = w.guests.cols;
+  const cursor = g.thoughtCursor[slot] & 3;
+  const previous = (cursor + 3) & 3;
+  const latest =
+    previous === 0
+      ? g.thought0[slot]
+      : previous === 1
+        ? g.thought1[slot]
+        : previous === 2
+          ? g.thought2[slot]
+          : g.thought3[slot];
+  if (latest === thought) return;
+  if (cursor === 0) g.thought0[slot] = thought;
+  else if (cursor === 1) g.thought1[slot] = thought;
+  else if (cursor === 2) g.thought2[slot] = thought;
+  else g.thought3[slot] = thought;
+  g.thoughtCursor[slot] = (cursor + 1) & 3;
+}
 
 export function spawnGuest(w: World): boolean {
   const g = w.guests;
@@ -36,10 +80,16 @@ export function spawnGuest(w: World): boolean {
   g.cols.z[slot] = w.map.heights[w.map.index(tx, ty)] * Z_STEP;
   g.cols.targetX[slot] = tx;
   g.cols.targetY[slot] = ty;
+  g.cols.targetRide[slot] = -1;
   g.cols.state[slot] = GuestState.Wandering;
   g.cols.tint[slot] = w.rng.int(8);
-  g.cols.happiness[slot] = 128;
-  g.cols.energy[slot] = 255;
+  g.cols.happiness[slot] = 96 + w.rng.int(96);
+  g.cols.energy[slot] = 220 + w.rng.int(36);
+  g.cols.hunger[slot] = w.rng.int(64);
+  g.cols.thirst[slot] = w.rng.int(64);
+  g.cols.nauseaTolerance[slot] = 96 + w.rng.int(160);
+  g.cols.preferredIntensity[slot] = 48 + w.rng.int(176);
   g.cols.cash[slot] = 5000 + w.rng.int(5000);
+  g.cols.patience[slot] = 600;
   return true;
 }
