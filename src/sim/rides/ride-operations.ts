@@ -37,6 +37,7 @@ export interface RideOperations {
   maxWaitTicks?: number;
   /** 0 dispatches with any nonempty load; 255 waits for a full load. */
   loadThreshold?: number;
+  loadTicks?: number;
   runTicks?: number;
   unloadTicks?: number;
 }
@@ -50,7 +51,9 @@ function inRangeInteger(value: number, min: number, max: number): boolean {
 }
 
 function isRideInActiveCycle(phase: number): boolean {
-  return phase === RidePhase.Running || phase === RidePhase.Unloading;
+  return (
+    phase === RidePhase.Loading || phase === RidePhase.Running || phase === RidePhase.Unloading
+  );
 }
 
 export function createRide(world: World, type: RideType, x: number, y: number): number {
@@ -189,8 +192,7 @@ export function setRideOpen(world: World, rideId: number, open: boolean): boolea
   if (
     ride.state[slot] === RideState.Broken ||
     ride.phase[slot] === RidePhase.Broken ||
-    ride.phase[slot] === RidePhase.Running ||
-    ride.phase[slot] === RidePhase.Unloading ||
+    isRideInActiveCycle(ride.phase[slot]) ||
     ride.entrancePlaced[slot] === 0 ||
     ride.exitPlaced[slot] === 0 ||
     ride.queueConnected[slot] === 0 ||
@@ -218,12 +220,14 @@ export function configureRide(world: World, rideId: number, options: RideOperati
   const minWait = options.minWaitTicks ?? ride.minWaitTicks[slot];
   const maxWait = options.maxWaitTicks ?? ride.maxWaitTicks[slot];
   const threshold = options.loadThreshold ?? ride.loadThreshold[slot];
+  const loadTicks = options.loadTicks ?? ride.loadTicks[slot];
   const runTicks = options.runTicks ?? ride.runTicks[slot];
   const unloadTicks = options.unloadTicks ?? ride.unloadTicks[slot];
   if (
     !inRangeInteger(minWait, 0, 0xffff) ||
     !inRangeInteger(maxWait, minWait, 0xffff) ||
     !inRangeInteger(threshold, 0, 0xff) ||
+    !inRangeInteger(loadTicks, 0, 0xffff) ||
     !inRangeInteger(runTicks, 1, 0xffff) ||
     !inRangeInteger(unloadTicks, 0, 0xffff)
   ) {
@@ -233,6 +237,7 @@ export function configureRide(world: World, rideId: number, options: RideOperati
   ride.minWaitTicks[slot] = minWait;
   ride.maxWaitTicks[slot] = maxWait;
   ride.loadThreshold[slot] = threshold;
+  ride.loadTicks[slot] = loadTicks;
   ride.runTicks[slot] = runTicks;
   ride.unloadTicks[slot] = unloadTicks;
   return true;
@@ -430,8 +435,7 @@ export function inspectRide(world: World, rideId: number, staffId: number): bool
     slot < 0 ||
     mechanicSlot < 0 ||
     world.staff.cols.kind[mechanicSlot] !== StaffKind.Mechanic ||
-    world.rides.cols.phase[slot] === RidePhase.Running ||
-    world.rides.cols.phase[slot] === RidePhase.Unloading
+    isRideInActiveCycle(world.rides.cols.phase[slot])
   ) {
     return false;
   }

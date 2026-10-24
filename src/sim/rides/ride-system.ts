@@ -47,6 +47,16 @@ export const rideSystem: System = {
         continue;
       }
 
+      if (ride.phase[slot] === RidePhase.Loading) {
+        if (ride.phaseTicks[slot] > 1) {
+          ride.phaseTicks[slot]--;
+        } else {
+          ride.phase[slot] = RidePhase.Running;
+          ride.phaseTicks[slot] = ride.runTicks[slot];
+        }
+        continue;
+      }
+
       if (ride.phase[slot] === RidePhase.Running) {
         if (ride.phaseTicks[slot] > 1) {
           ride.phaseTicks[slot]--;
@@ -85,8 +95,13 @@ export const rideSystem: System = {
       if (boarded === 0) continue;
       ride.boarded[slot] = boarded;
       ride.queueLength[slot] -= boarded;
-      ride.phase[slot] = RidePhase.Running;
-      ride.phaseTicks[slot] = ride.runTicks[slot];
+      if (ride.loadTicks[slot] > 0) {
+        ride.phase[slot] = RidePhase.Loading;
+        ride.phaseTicks[slot] = ride.loadTicks[slot];
+      } else {
+        ride.phase[slot] = RidePhase.Running;
+        ride.phaseTicks[slot] = ride.runTicks[slot];
+      }
     }
   },
 };

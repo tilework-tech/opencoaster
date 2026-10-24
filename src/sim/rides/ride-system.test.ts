@@ -243,7 +243,7 @@ describe('ride operation cycles', () => {
     expect(getRidePhase(w, id)).toBe(RidePhase.Waiting);
     rideSystem.update(w);
 
-    expect(getRidePhase(w, id)).toBe(RidePhase.Running);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Loading);
     expect(getRideBoardedCount(w, id)).toBe(getRideCapacity(w, id));
   });
 
@@ -260,14 +260,46 @@ describe('ride operation cycles', () => {
     rideSystem.update(w);
     expect(getRidePhase(w, id)).toBe(RidePhase.Waiting);
     rideSystem.update(w);
-    expect(getRidePhase(w, id)).toBe(RidePhase.Running);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Loading);
     expect(getRideBoardedCount(w, id)).toBe(1);
+  });
+
+  it('runs a configured loading countdown before the ride cycle', () => {
+    const w = world();
+    const id = preparedRide(w);
+    configureRide(w, id, {
+      minWaitTicks: 1,
+      maxWaitTicks: 1,
+      loadTicks: 2,
+      runTicks: 1,
+      unloadTicks: 0,
+    });
+    expect(setRideOpen(w, id, true)).toBe(true);
+    expect(joinRideQueue(w, id, 1)).toBe(true);
+
+    rideSystem.update(w);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Loading);
+    expect(setRideOpen(w, id, true)).toBe(false);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Loading);
+    rideSystem.update(w);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Loading);
+    rideSystem.update(w);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Running);
+    rideSystem.update(w);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Waiting);
+    expect(getRideGuestsServed(w, id)).toBe(1);
   });
 
   it('completes running and unloading phases and reports theoretical hourly throughput', () => {
     const w = world();
     const id = preparedRide(w);
-    configureRide(w, id, { minWaitTicks: 1, maxWaitTicks: 1, runTicks: 2, unloadTicks: 1 });
+    configureRide(w, id, {
+      minWaitTicks: 1,
+      maxWaitTicks: 1,
+      loadTicks: 1,
+      runTicks: 2,
+      unloadTicks: 1,
+    });
     expect(setRideOpen(w, id, true)).toBe(true);
     expect(joinRideQueue(w, id, 2)).toBe(true);
 
@@ -281,12 +313,19 @@ describe('ride operation cycles', () => {
   it('counts service only after unloading completes', () => {
     const w = world();
     const id = preparedRide(w);
-    configureRide(w, id, { minWaitTicks: 1, maxWaitTicks: 1, runTicks: 2, unloadTicks: 1 });
+    configureRide(w, id, {
+      minWaitTicks: 1,
+      maxWaitTicks: 1,
+      loadTicks: 1,
+      runTicks: 2,
+      unloadTicks: 1,
+    });
     expect(setRideOpen(w, id, true)).toBe(true);
     expect(joinRideQueue(w, id, 2)).toBe(true);
 
     rideSystem.update(w);
     expect(getRideGuestsServed(w, id)).toBe(0);
+    rideSystem.update(w);
     rideSystem.update(w);
     rideSystem.update(w);
     rideSystem.update(w);
@@ -296,9 +335,17 @@ describe('ride operation cycles', () => {
   it('finishes an occupied cycle safely when the ride closes or breaks down', () => {
     const w = world();
     const id = preparedRide(w);
-    configureRide(w, id, { minWaitTicks: 1, maxWaitTicks: 1, runTicks: 2, unloadTicks: 1 });
+    configureRide(w, id, {
+      minWaitTicks: 1,
+      maxWaitTicks: 1,
+      loadTicks: 1,
+      runTicks: 2,
+      unloadTicks: 1,
+    });
     expect(setRideOpen(w, id, true)).toBe(true);
     expect(joinRideQueue(w, id, 2)).toBe(true);
+    rideSystem.update(w);
+    expect(getRidePhase(w, id)).toBe(RidePhase.Loading);
     rideSystem.update(w);
     expect(getRidePhase(w, id)).toBe(RidePhase.Running);
 
@@ -320,7 +367,9 @@ describe('ride operation cycles', () => {
     expect(setRideOpen(w, id, true)).toBe(true);
     expect(joinRideQueue(w, id, 1)).toBe(true);
     rideSystem.update(w);
+    rideSystem.update(w);
     expect(triggerRideBreakdown(w, id)).toBe(true);
+    expect(setRideOpen(w, id, false)).toBe(true);
     expect(setRideOpen(w, id, false)).toBe(true);
     rideSystem.update(w);
     rideSystem.update(w);
@@ -332,7 +381,13 @@ describe('ride operation cycles', () => {
   it('serves queued guests at food and drink stalls using service capacity', () => {
     const w = world();
     const id = preparedRide(w, RideType.FoodStall);
-    configureRide(w, id, { minWaitTicks: 1, maxWaitTicks: 1, runTicks: 1, unloadTicks: 0 });
+    configureRide(w, id, {
+      minWaitTicks: 1,
+      maxWaitTicks: 1,
+      loadTicks: 0,
+      runTicks: 1,
+      unloadTicks: 0,
+    });
     expect(setRideOpen(w, id, true)).toBe(true);
     expect(joinRideQueue(w, id, 2)).toBe(true);
 

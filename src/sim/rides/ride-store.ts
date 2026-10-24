@@ -11,6 +11,7 @@ export enum RidePhase {
   Running = 2,
   Unloading = 3,
   Broken = 4,
+  Loading = 5,
 }
 
 /** Per-ride-instance state. Static tuning data lives in ride-types.ts. */
