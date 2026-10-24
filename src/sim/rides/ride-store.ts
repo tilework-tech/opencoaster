@@ -51,6 +51,7 @@ export const RIDE_SCHEMA = {
   cyclesCompleted: Uint32Array,
   createdTick: Uint32Array,
   ageMonths: Uint16Array,
+  /** Whole-percent reliability shown to the player. */
   reliability: Uint8Array,
   breakdownCounter: Uint16Array,
   downtimeTicks: Uint32Array,
@@ -72,4 +73,20 @@ export const RIDE_SCHEMA = {
   trainCount: Uint8Array,
   /** Cars the operator asked for per train; 0 uses the ride type's default capacity. */
   carsPerTrain: Uint8Array,
+  /**
+   * Reliability on a 0-25,855 scale: 256 units per percent, so the fractional byte below the
+   * whole percent in `reliability` is kept. `reliability` mirrors `floor(reliabilityRaw / 256)`.
+   */
+  reliabilityRaw: Uint16Array,
+  /** `RideMode` the ride is set to. */
+  mode: Uint8Array,
+  /** `BreakdownReason` of the current failure, `None` while the ride is not broken down. */
+  breakdownReason: Uint8Array,
+  /** Consecutive ticks a mechanic has worked on the ride. */
+  serviceTicks: Uint16Array,
+  /** Tick of the latest mechanic work, to tell continuous work from separate visits. */
+  serviceLastTick: Uint32Array,
 } as const;
+
+/** Columns appended to the schema after each released save version, newest last. */
+export const RIDE_COLUMNS_ADDED_IN_V10 = 5;

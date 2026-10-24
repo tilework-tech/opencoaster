@@ -3,7 +3,8 @@ import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/navigate';
 import type { NavOptions } from '../pathfinding/navigate';
-import { isRideInspectionDue, inspectRide } from '../rides/ride-operations';
+import { isRideInspectionDue } from '../rides/ride-operations';
+import { rideServiceX, rideServiceY, serviceRide } from '../rides/ride-maintenance';
 import { StaffKind } from './staff-store';
 import { DIR_DX, DIR_DY, ElementType, PathFlag } from '../map/tile-map';
 import { RideState } from '../rides/ride-store';
@@ -297,8 +298,8 @@ export function createStaffSystem(): System {
             const rideId = world.rides.slotToId[i];
             const broken = world.rides.cols.state[i] === RideState.Broken;
             if (!broken && !isRideInspectionDue(world, rideId)) continue;
-            const rideX = world.rides.cols.rideX[i];
-            const rideY = world.rides.cols.rideY[i];
+            const rideX = rideServiceX(world, i);
+            const rideY = rideServiceY(world, i);
             let serviceTile = -1;
             for (let dir = 0; dir < 4; dir++) {
               const tileX = rideX + DIR_DX[dir];
@@ -333,7 +334,7 @@ export function createStaffSystem(): System {
             const nx = (staff.x[slot] / TILE_UNITS) | 0;
             const ny = (staff.y[slot] / TILE_UNITS) | 0;
             if (nx === staff.targetX[slot] && ny === staff.targetY[slot])
-              inspectRide(world, rideId, world.staff.slotToId[slot]);
+              serviceRide(world, rideId, world.staff.slotToId[slot]);
           }
         }
         if (staff.kind[slot] === StaffKind.Entertainer || staff.kind[slot] === StaffKind.Security) {

@@ -1,3 +1,8 @@
+import { BreakdownReason } from './breakdown-reasons';
+import type { BreakdownWeight } from './breakdown-reasons';
+import { FERRIS_BACKWARD_EXCITEMENT, RideMode, modeDef } from './ride-modes';
+import type { RideModeDef } from './ride-modes';
+
 export enum RideType {
   MerryGoRound = 1,
   SwingingShip,
@@ -42,14 +47,59 @@ export interface RideTypeDef {
   baseExcitement: number;
   baseIntensity: number;
   baseNausea: number;
-  baseValueCents: number;
+  /**
+   * Ride value coefficients for excitement, intensity and nausea (see `rideValueUnits`). Stalls
+   * and facilities have none: they sell items rather than rides.
+   */
+  valueWeights: readonly [excitement: number, intensity: number, nausea: number];
+  /** Modes the player may select, the first being the default for a new ride. */
+  modes: readonly RideModeDef[];
+  /** Reliability lost at each check before the age multiplier, in 1/256 percent. */
+  unreliability: number;
+  /** Failures this type can suffer and their relative odds; empty when it never breaks down. */
+  breakdowns: readonly BreakdownWeight[];
+  /** Price a new ride or stall starts at, in cents. */
+  defaultPriceCents: number;
   inspectionIntervalTicks: number;
   /** Present on ride types that set `usesTrack`. */
   trackRules?: TrackRules;
 }
 
-const HOUR_TICKS = 40 * 60 * 60;
-const INSPECTION_INTERVAL_TICKS = HOUR_TICKS;
+/** One minute of the original game's inspection clock, at 40 ticks a second. */
+export const INSPECTION_MINUTE_TICKS = 40 * 60;
+/** Inspection intervals the player can pick, in minutes; 0 means never. */
+export const INSPECTION_INTERVAL_MINUTES = [10, 20, 30, 45, 60, 120] as const;
+/** New rides ask for a mechanic every 30 minutes. */
+const INSPECTION_INTERVAL_TICKS = 30 * INSPECTION_MINUTE_TICKS;
+
+const weights = (reason: BreakdownReason, weight: number): BreakdownWeight => ({ reason, weight });
+
+const FLAT_WITH_RESTRAINTS: readonly BreakdownWeight[] = [
+  weights(BreakdownReason.SafetyCutOut, 20),
+  weights(BreakdownReason.RestraintsStuckClosed, 12),
+  weights(BreakdownReason.RestraintsStuckOpen, 10),
+  weights(BreakdownReason.ControlFailure, 6),
+];
+
+const FERRIS_WHEEL_BREAKDOWNS: readonly BreakdownWeight[] = [
+  weights(BreakdownReason.SafetyCutOut, 20),
+  weights(BreakdownReason.DoorsStuckClosed, 10),
+  weights(BreakdownReason.DoorsStuckOpen, 8),
+  weights(BreakdownReason.ControlFailure, 4),
+];
+
+/** The one worked example in the public breakdown write-up (a mine train coaster). */
+const COASTER_BREAKDOWNS: readonly BreakdownWeight[] = [
+  weights(BreakdownReason.SafetyCutOut, 25),
+  weights(BreakdownReason.RestraintsStuckClosed, 12),
+  weights(BreakdownReason.RestraintsStuckOpen, 10),
+  weights(BreakdownReason.VehicleMalfunction, 6),
+  weights(BreakdownReason.BrakesFailure, 3),
+];
+
+const NO_VALUE: RideTypeDef['valueWeights'] = [0, 0, 0];
+const SHOP_MODES = [modeDef(RideMode.Shop, 'Shop')];
+const COASTER_MODES = [modeDef(RideMode.ContinuousCircuit, 'Continuous circuit')];
 
 export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
   [RideType.MerryGoRound]: {
@@ -66,7 +116,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 360,
     baseIntensity: 120,
     baseNausea: 40,
-    baseValueCents: 600,
+    valueWeights: [60, 16, 10],
+    modes: [modeDef(RideMode.Rotation, 'Rotation')],
+    unreliability: 4,
+    breakdowns: FLAT_WITH_RESTRAINTS,
+    defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.SwingingShip]: {
@@ -83,7 +137,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 620,
     baseIntensity: 540,
     baseNausea: 310,
-    baseValueCents: 900,
+    valueWeights: [50, 32, 10],
+    modes: [modeDef(RideMode.Swing, 'Swing')],
+    unreliability: 7,
+    breakdowns: FLAT_WITH_RESTRAINTS,
+    defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.FerrisWheel]: {
@@ -100,7 +158,16 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 450,
     baseIntensity: 100,
     baseNausea: 20,
-    baseValueCents: 750,
+    valueWeights: [60, 16, 10],
+    modes: [
+      modeDef(RideMode.ForwardRotation, 'Forward rotation'),
+      modeDef(RideMode.BackwardRotation, 'Backward rotation', {
+        excitement: FERRIS_BACKWARD_EXCITEMENT,
+      }),
+    ],
+    unreliability: 4,
+    breakdowns: FERRIS_WHEEL_BREAKDOWNS,
+    defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.Twist]: {
@@ -117,7 +184,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 580,
     baseIntensity: 680,
     baseNausea: 460,
-    baseValueCents: 800,
+    valueWeights: [50, 32, 10],
+    modes: [modeDef(RideMode.Rotation, 'Rotation')],
+    unreliability: 8,
+    breakdowns: FLAT_WITH_RESTRAINTS,
+    defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.FoodStall]: {
@@ -134,7 +205,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 0,
     baseIntensity: 0,
     baseNausea: 0,
-    baseValueCents: 0,
+    valueWeights: NO_VALUE,
+    modes: SHOP_MODES,
+    unreliability: 0,
+    breakdowns: [],
+    defaultPriceCents: 120,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.DrinkStall]: {
@@ -151,7 +226,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 0,
     baseIntensity: 0,
     baseNausea: 0,
-    baseValueCents: 0,
+    valueWeights: NO_VALUE,
+    modes: SHOP_MODES,
+    unreliability: 0,
+    breakdowns: [],
+    defaultPriceCents: 80,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.InformationKiosk]: {
@@ -168,7 +247,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 0,
     baseIntensity: 0,
     baseNausea: 0,
-    baseValueCents: 0,
+    valueWeights: NO_VALUE,
+    modes: SHOP_MODES,
+    unreliability: 0,
+    breakdowns: [],
+    defaultPriceCents: 100,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.Toilets]: {
@@ -185,7 +268,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 0,
     baseIntensity: 0,
     baseNausea: 0,
-    baseValueCents: 0,
+    valueWeights: NO_VALUE,
+    modes: SHOP_MODES,
+    unreliability: 0,
+    breakdowns: [],
+    defaultPriceCents: 20,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.WoodenCoaster]: {
@@ -202,7 +289,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 120,
     baseIntensity: 60,
     baseNausea: 30,
-    baseValueCents: 1200,
+    valueWeights: [51, 32, 10],
+    modes: COASTER_MODES,
+    unreliability: 10,
+    breakdowns: COASTER_BREAKDOWNS,
+    defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     trackRules: { maxLevel: 40, steepSlopes: false, inversions: false, launch: false },
   },
@@ -220,7 +311,11 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     baseExcitement: 160,
     baseIntensity: 90,
     baseNausea: 45,
-    baseValueCents: 1600,
+    valueWeights: [51, 32, 10],
+    modes: COASTER_MODES,
+    unreliability: 14,
+    breakdowns: COASTER_BREAKDOWNS,
+    defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     trackRules: { maxLevel: 80, steepSlopes: true, inversions: true, launch: true },
   },

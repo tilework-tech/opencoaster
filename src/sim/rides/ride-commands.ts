@@ -9,7 +9,14 @@ import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { PieceFlag } from '../track/track-types';
 import { abortRideTest, isTrackRide, startRideTest } from './coaster';
-import { setRideOpen, setRidePrice, setTrainLayout } from './ride-operations';
+import {
+  setRideInspectionInterval,
+  setRideMode,
+  setRideOpen,
+  setRidePrice,
+  setTrainLayout,
+} from './ride-operations';
+import type { RideMode } from './ride-modes';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
@@ -20,7 +27,10 @@ export type RideCommand =
   | { type: 'placeRideExit'; rideId: number; x: number; y: number }
   | { type: 'setRideStatus'; rideId: number; status: 'open' | 'close' | 'test' }
   | { type: 'setRidePrice'; rideId: number; priceCents: number }
-  | { type: 'setRideTrains'; rideId: number; trains: number; cars: number };
+  | { type: 'setRideTrains'; rideId: number; trains: number; cars: number }
+  | { type: 'setRideMode'; rideId: number; mode: RideMode }
+  /** `minutes` is one of `INSPECTION_INTERVAL_MINUTES`, or 0 for never. */
+  | { type: 'setRideInspection'; rideId: number; minutes: number };
 
 /** Tiles the ride's guests board and leave from: station tiles for track rides. */
 function boardingTiles(world: World, rideId: number, slot: number): Array<[number, number]> {
@@ -217,6 +227,20 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
       result = setTrainLayout(world, c.rideId, c.trains, c.cars)
         ? RideResult.Ok
         : RideResult.Blocked;
+      break;
+    case 'setRideMode':
+      result = !world.rides.isAlive(c.rideId)
+        ? RideResult.NoSuchRide
+        : setRideMode(world, c.rideId, c.mode)
+          ? RideResult.Ok
+          : RideResult.Busy;
+      break;
+    case 'setRideInspection':
+      result = !world.rides.isAlive(c.rideId)
+        ? RideResult.NoSuchRide
+        : setRideInspectionInterval(world, c.rideId, c.minutes)
+          ? RideResult.Ok
+          : RideResult.Blocked;
       break;
   }
   reportFeedback(world.feedback, FeedbackDomain.Ride, result, c.rideId);
