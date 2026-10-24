@@ -4,16 +4,16 @@ Responsibility: track piece catalog and geometry, construction (cursor, validati
 
 ## Files
 
-| File                | Contents                                                                                                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `track-types.ts`    | `Slope`, `Bank`, `PieceMode`, `PieceFlag`, `TrackResult` enums; `TrackPieceDef`, `FootprintCell`.                                                                                 |
-| `geometry.ts`       | Build-time curves (straight, Bezier quarter arc, vertical loop, Hermite height profile). Uses only `+ - * / sqrt`, so the generated integer tables are identical on every engine. |
-| `catalog.ts`        | `PIECES` (34 piece types), `PieceId`, `SAMPLES` (shared SoA centre-line table), `pieceByName`. Built once at module load.                                                         |
-| `track-store.ts`    | `TrackState` (`world.track`): `pieces` EntityStore plus per-ride `head/tail/count/closed/length/version`.                                                                         |
-| `construction.ts`   | Cursor, `validatePlacement`, `placeTrack`, `removeTrack`, `removeRideTrack`, `circuitStatus`.                                                                                     |
-| `track-path.ts`     | `getTrackPath(world, rideId)`: cached world-space polyline for vehicles.                                                                                                          |
-| `track-commands.ts` | `applyTrackCommand`: place/remove with ride rules, ownership, funds.                                                                                                              |
-| `track-system.ts`   | Per-tick upkeep: removes the track of rides that no longer exist.                                                                                                                 |
+| File                | Contents                                                                                                                                                                                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `track-types.ts`    | `Slope`, `Bank`, `PieceMode`, `PieceFlag`, `TrackResult` enums; `TrackPieceDef`, `FootprintCell`.                                                                                                                                                                    |
+| `geometry.ts`       | Build-time curves (straight, Bezier quarter arc, vertical loop, S-bend, helix, corkscrew, Hermite height profile). Uses only `+ - * / sqrt` (sine and cosine come from Taylor series, `sinCosTurns`), so the generated integer tables are identical on every engine. |
+| `catalog.ts`        | `PIECES` (66 piece types), `PieceId`, `SAMPLES` (shared SoA centre-line table), `pieceByName`. Built once at module load.                                                                                                                                            |
+| `track-store.ts`    | `TrackState` (`world.track`): `pieces` EntityStore plus per-ride `head/tail/count/closed/length/version`.                                                                                                                                                            |
+| `construction.ts`   | Cursor, `validatePlacement`, `placeTrack`, `removeTrack`, `removeRideTrack`, `circuitStatus`.                                                                                                                                                                        |
+| `track-path.ts`     | `getTrackPath(world, rideId)`: cached world-space polyline for vehicles.                                                                                                                                                                                             |
+| `track-commands.ts` | `applyTrackCommand`: place/remove with ride rules, ownership, funds.                                                                                                                                                                                                 |
+| `track-system.ts`   | Per-tick upkeep: removes the track of rides that no longer exist.                                                                                                                                                                                                    |
 
 ## Piece model
 
@@ -22,6 +22,15 @@ Pieces sit on the tile grid (the map's tile, `TILE_UNITS = 256` units; height le
 Each `TrackPieceDef` records entry/exit slope class, entry/exit bank class, heading delta, exit tile offset `(dx, dy)`, height delta `dz` (levels), flags, cost, length and its range in `SAMPLES`. Two pieces connect iff exit position, heading, slope class and bank class match.
 
 Catalog: station; flat; slopes 25 and 60 up/down with all flat<->25<->60 transitions (12); small/medium/large curves left/right (radius 1.5/2.5/3.5 tiles, exit offsets `(1,±2)`, `(2,±3)`, `(3,±4)`); flat<->bank transitions and banked straights; banked small/medium/large curves; left/right vertical loop (a 5-level circle with a one-tile forward drift and a one-tile lateral shift so the legs pass side by side; exit is one tile ahead, one tile to the side).
+
+Added after the original 34 (ids are appended so saves stay valid):
+
+- S-bend left/right: five tiles long, one tile sideways, heading unchanged (`dx 5, dy ±1`); the radius is sized so the 2.8 G speed is about 100 km/h as in the spec table.
+- Corkscrew left/right (`Inverted`): six tiles long, one full roll toward the named side. The track winds around a forward axis with a radius that grows from zero to 64 units and back (the track leaves and re-enters straight and level, rising two levels mid-piece), and the bank sweeps 0 to ±360 degrees so the rider is upside down at the top. The inversion rule of the steel coaster allows it.
+- Small and large helix, left/right, up/down (8): a full banked circle (radius 1.5 or 2.5 tiles) that drifts forward 3 or 4 tiles and changes height by 4 or 6 levels with level slope classes at both ends. Entry and exit bank are the turn side, so a flat-to-bank piece goes before and a bank-to-flat piece after.
+- Banked slopes (12): banked up/down 25 straights and the flat<->slope transitions that keep the bank, left and right. Bank changes on a slope (8): up/down 25 flat<->left/right bank.
+
+Each piece carries a `shape` (`PieceShape`, the build-control vocabulary: straight, turns by size, loop, S-bend, corkscrew, helix by size/side/direction) that the UI uses to find the piece for the chosen controls; no two pieces share a shape with the same entry and exit slope and bank.
 
 Slope classes: 25 = 0.5 rise/run (26.6 degrees), 60 = 2.0 rise/run (63.4 degrees), so every piece rises a whole number of height levels. Bank is 45 degrees (`BANK_DEG`); left banks are negative.
 
@@ -66,4 +75,4 @@ All stored state is integers (`TRACK_SCHEMA`, per-ride tables); both are in `has
 
 - `validatePlacement` itself is rule-agnostic; ride-type limits and ownership live only in the command path.
 - Supports, tunnel portals, and collision with paths/scenery (tile `flags`) are not modelled.
-- Corkscrews, helixes, barrel rolls, S-bends, diagonal pieces, slope+bank combinations and half-tile grid positions are not in the catalog; pieces are whole-tile.
+- Barrel rolls, twists, diagonal pieces, steep banked slopes and half-tile grid positions are not in the catalog; pieces are whole-tile. A corkscrew rises above the entry height mid-piece, so it needs speed to cross: the track-end of a chain lift does not give enough.

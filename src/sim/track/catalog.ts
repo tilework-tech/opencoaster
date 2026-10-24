@@ -1,9 +1,12 @@
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { Bank, PieceFlag, Slope } from './track-types';
-import type { FootprintCell, TrackPieceDef } from './track-types';
+import type { FootprintCell, PieceShape, TrackPieceDef } from './track-types';
 import {
   arcCurve,
+  corkscrewCurve,
+  helixCurve,
   loopCurve,
+  sBendCurve,
   smoothBank,
   straightCurve,
   withProfile,
@@ -32,6 +35,10 @@ const BANK_ANGLE: Record<number, number> = {
   [Bank.Right]: BANK_DEG,
 };
 
+const S_BEND_LENGTH = 5 * TILE_UNITS;
+const CORKSCREW_LENGTH = 5 * TILE_UNITS;
+const CORKSCREW_RADIUS = 64;
+
 const LOOP_RADIUS = 160;
 const LOOP_DRIFT = TILE_UNITS;
 const LOOP_LATERAL = TILE_UNITS;
@@ -41,7 +48,10 @@ export const CLEARANCE_UNITS = 3 * Z_STEP;
 type Horizontal =
   | { kind: 'straight' }
   | { kind: 'arc'; radiusTiles: number; side: 1 | -1 }
-  | { kind: 'loop'; side: 1 | -1 };
+  | { kind: 'loop'; side: 1 | -1 }
+  | { kind: 'sBend'; side: 1 | -1 }
+  | { kind: 'corkscrew'; side: 1 | -1 }
+  | { kind: 'helix'; radiusTiles: number; driftTiles: number; side: 1 | -1; rise: number };
 
 interface Spec {
   name: string;
@@ -76,6 +86,53 @@ const turn = (name: string, radiusTiles: number, side: 1 | -1, banked: boolean):
     cost: 1500 + radiusTiles * 400,
   };
 };
+
+const bankOf = (side: 1 | -1): Bank => (side === 1 ? Bank.Right : Bank.Left);
+
+/** A straight (slope or level) whose bank class stays constant. */
+const bankedStraight = (
+  name: string,
+  side: 1 | -1,
+  entrySlope: Slope,
+  exitSlope: Slope,
+  flags = 0,
+): Spec => ({
+  name,
+  horizontal: { kind: 'straight' },
+  entrySlope,
+  exitSlope,
+  entryBank: bankOf(side),
+  exitBank: bankOf(side),
+  flags,
+  cost: 1500,
+});
+
+/** A bank transition laid on a constant slope. */
+const bankChangeOnSlope = (name: string, slope: Slope, entryBank: Bank, exitBank: Bank): Spec => ({
+  name,
+  horizontal: { kind: 'straight' },
+  entrySlope: slope,
+  exitSlope: slope,
+  entryBank,
+  exitBank,
+  flags: 0,
+  cost: 1600,
+});
+
+const helix = (
+  name: string,
+  radiusTiles: number,
+  driftTiles: number,
+  side: 1 | -1,
+  rise: number,
+): Spec => ({
+  name,
+  horizontal: { kind: 'helix', radiusTiles, driftTiles, side, rise },
+  entryBank: bankOf(side),
+  exitBank: bankOf(side),
+  flags: 0,
+  cost: 3500 + radiusTiles * 1200,
+});
 
 const SPECS: Spec[] = [
   {
@@ -165,6 +222,44 @@ const SPECS: Spec[] = [
     flags: PieceFlag.Inverted,
     cost: 9000,
   },
+  { name: 'sBendLeft', horizontal: { kind: 'sBend', side: -1 }, flags: BASIC, cost: 2400 },
+  { name: 'sBendRight', horizontal: { kind: 'sBend', side: 1 }, flags: BASIC, cost: 2400 },
+  {
+    name: 'corkscrewLeft',
+    horizontal: { kind: 'corkscrew', side: -1 },
+    flags: PieceFlag.Inverted,
+    cost: 7000,
+  },
+  {
+    name: 'corkscrewRight',
+    horizontal: { kind: 'corkscrew', side: 1 },
+    flags: PieceFlag.Inverted,
+    cost: 7000,
+  },
+  helix('smallHelixLeftDown', 1.5, 3, -1, -4),
+  helix('smallHelixRightDown', 1.5, 3, 1, -4),
+  helix('smallHelixLeftUp', 1.5, 3, -1, 4),
+  helix('smallHelixRightUp', 1.5, 3, 1, 4),
+  helix('largeHelixLeftDown', 2.5, 4, -1, -6),
+  helix('largeHelixRightDown', 2.5, 4, 1, -6),
+  helix('largeHelixLeftUp', 2.5, 4, -1, 6),
+  helix('largeHelixRightUp', 2.5, 4, 1, 6),
+  ...([-1, 1] as const).flatMap((side) => {
+    const n = side === -1 ? 'left' : 'right';
+    const N = side === -1 ? 'Left' : 'Right';
+    return [
+      bankedStraight(`${n}BankUp25`, side, Slope.Up25, Slope.Up25),
+      bankedStraight(`${n}BankDown25`, side, Slope.Down25, Slope.Down25),
+      bankedStraight(`${n}BankFlatToUp25`, side, Slope.Flat, Slope.Up25),
+      bankedStraight(`${n}BankUp25ToFlat`, side, Slope.Up25, Slope.Flat, PieceFlag.Crest),
+      bankedStraight(`${n}BankFlatToDown25`, side, Slope.Flat, Slope.Down25, PieceFlag.DropStart),
+      bankedStraight(`${n}BankDown25ToFlat`, side, Slope.Down25, Slope.Flat),
+      bankChangeOnSlope(`up25FlatTo${N}Bank`, Slope.Up25, Bank.None, bankOf(side)),
+      bankChangeOnSlope(`up25${N}BankToFlat`, Slope.Up25, bankOf(side), Bank.None),
+      bankChangeOnSlope(`down25FlatTo${N}Bank`, Slope.Down25, Bank.None, bankOf(side)),
+      bankChangeOnSlope(`down25${N}BankToFlat`, Slope.Down25, bankOf(side), Bank.None),
+    ];
+  }),
 ];
 
 export const PieceId = {
@@ -202,6 +297,38 @@ export const PieceId = {
   LargeRightBanked: 31,
   VerticalLoopLeft: 32,
   VerticalLoopRight: 33,
+  SBendLeft: 34,
+  SBendRight: 35,
+  CorkscrewLeft: 36,
+  CorkscrewRight: 37,
+  SmallHelixLeftDown: 38,
+  SmallHelixRightDown: 39,
+  SmallHelixLeftUp: 40,
+  SmallHelixRightUp: 41,
+  LargeHelixLeftDown: 42,
+  LargeHelixRightDown: 43,
+  LargeHelixLeftUp: 44,
+  LargeHelixRightUp: 45,
+  LeftBankUp25: 46,
+  LeftBankDown25: 47,
+  LeftBankFlatToUp25: 48,
+  LeftBankUp25ToFlat: 49,
+  LeftBankFlatToDown25: 50,
+  LeftBankDown25ToFlat: 51,
+  Up25FlatToLeftBank: 52,
+  Up25LeftBankToFlat: 53,
+  Down25FlatToLeftBank: 54,
+  Down25LeftBankToFlat: 55,
+  RightBankUp25: 56,
+  RightBankDown25: 57,
+  RightBankFlatToUp25: 58,
+  RightBankUp25ToFlat: 59,
+  RightBankFlatToDown25: 60,
+  RightBankDown25ToFlat: 61,
+  Up25FlatToRightBank: 62,
+  Up25RightBankToFlat: 63,
+  Down25FlatToRightBank: 64,
+  Down25RightBankToFlat: 65,
 } as const;
 
 /** Shared centre-line point table, struct-of-arrays over every piece's samples. */
@@ -229,6 +356,24 @@ function buildCurve(spec: Spec): { curve: Curve; dz: number; headingDelta: numbe
       headingDelta: 0,
     };
   }
+  if (h.kind === 'sBend') {
+    return {
+      curve: sBendCurve(S_BEND_LENGTH, h.side * TILE_UNITS, HALF),
+      dz: 0,
+      headingDelta: 0,
+    };
+  }
+  if (h.kind === 'corkscrew') {
+    return {
+      curve: corkscrewCurve(CORKSCREW_LENGTH, CORKSCREW_RADIUS, h.side, HALF),
+      dz: 0,
+      headingDelta: 0,
+    };
+  }
+  if (h.kind === 'helix') {
+    const base = helixCurve(h.radiusTiles * TILE_UNITS, h.driftTiles * TILE_UNITS, h.side, HALF);
+    return { curve: withProfile(base, h.rise * Z_STEP, 0, 0), dz: h.rise, headingDelta: 0 };
+  }
   if (h.kind === 'arc') {
     return {
       curve: arcCurve(h.radiusTiles * TILE_UNITS, h.side, HALF),
@@ -244,6 +389,27 @@ function buildCurve(spec: Spec): { curve: Curve; dz: number; headingDelta: numbe
     dz,
     headingDelta: 0,
   };
+}
+
+const CURVE_SIZE: Record<number, string> = { 1.5: 'small', 2.5: 'medium', 3.5: 'large' };
+
+function shapeOf(spec: Spec): PieceShape {
+  const h = spec.horizontal;
+  const side = (h.kind !== 'straight' && h.side === 1 ? 'Right' : 'Left') as 'Left' | 'Right';
+  switch (h.kind) {
+    case 'straight':
+      return spec.flags !== undefined && spec.flags & PieceFlag.Station ? 'station' : 'straight';
+    case 'arc':
+      return `${CURVE_SIZE[h.radiusTiles]}${side}` as PieceShape;
+    case 'loop':
+      return `loop${side}`;
+    case 'sBend':
+      return `sBend${side}`;
+    case 'corkscrew':
+      return `corkscrew${side}`;
+    case 'helix':
+      return `${h.radiusTiles < 2 ? 'small' : 'large'}Helix${side}${h.rise > 0 ? 'Up' : 'Down'}` as PieceShape;
+  }
 }
 
 function exitTile(ex: number, ey: number, heading: number): [number, number] {
@@ -312,7 +478,7 @@ function build(spec: Spec): Built {
     out.tx.push(Math.round((v.x / m) * TANGENT_ONE));
     out.ty.push(Math.round((v.y / m) * TANGENT_ONE));
     out.tz.push(Math.round((v.z / m) * TANGENT_ONE));
-    out.bank.push(Math.round(smoothBank(b0, b1, u)));
+    out.bank.push(Math.round(curve.bank ? curve.bank(u) : smoothBank(b0, b1, u)));
   }
 
   let length = 0;
@@ -342,6 +508,7 @@ function build(spec: Spec): Built {
   const [tdx, tdy] = exitTile(out.x[n], out.y[n], headingDelta);
   out.def = {
     name: spec.name,
+    shape: shapeOf(spec),
     flags: spec.flags ?? 0,
     entrySlope: spec.entrySlope ?? Slope.Flat,
     exitSlope: spec.exitSlope ?? Slope.Flat,

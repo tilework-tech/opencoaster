@@ -14,6 +14,8 @@ export interface Vec3 {
 export interface Curve {
   pos(u: number): Vec3;
   vel(u: number): Vec3;
+  /** Roll in degrees at u; when absent the piece's end bank classes are blended instead. */
+  bank?(u: number): number;
 }
 
 /** Cubic Bezier control-point constant for a quarter circle. */
@@ -90,6 +92,92 @@ export function loopCurve(radius: number, drift: number, lateral: number, y: num
         z: 4 * bezD(c[1], c[3], c[5], c[7], t),
       };
     },
+  };
+}
+
+const HALF_PI = 1.5707963267948966;
+const TWO_PI = 6.283185307179586;
+
+/**
+ * Sine and cosine of a fraction `turns` of a full revolution, from Taylor series on the first
+ * quadrant using only + - * / so the result is bit-identical on every engine (Math.sin is not).
+ */
+export function sinCosTurns(turns: number): { sin: number; cos: number } {
+  const q4 = turns * 4;
+  const quadrant = Math.floor(q4);
+  const a = (q4 - quadrant) * HALF_PI;
+  const a2 = a * a;
+  let sin = 0;
+  let cos = 0;
+  let sinTerm = a;
+  let cosTerm = 1;
+  for (let n = 0; n < 12; n++) {
+    sin += sinTerm;
+    cos += cosTerm;
+    sinTerm = (-sinTerm * a2) / ((2 * n + 2) * (2 * n + 3));
+    cosTerm = (-cosTerm * a2) / ((2 * n + 1) * (2 * n + 2));
+  }
+  switch (((quadrant % 4) + 4) % 4) {
+    case 0:
+      return { sin, cos };
+    case 1:
+      return { sin: cos, cos: -sin };
+    case 2:
+      return { sin: -sin, cos: -cos };
+    default:
+      return { sin: -cos, cos: sin };
+  }
+}
+
+/** S-bend: a smoothstep lateral shift of `lateral` (signed) over `length`, heading unchanged. */
+export function sBendCurve(length: number, lateral: number, y: number): Curve {
+  return {
+    pos: (u) => ({ x: length * u, y: y + lateral * (u * u * (3 - 2 * u)), z: 0 }),
+    vel: (u) => ({ x: length, y: lateral * 6 * u * (1 - u), z: 0 }),
+  };
+}
+
+/**
+ * One full horizontal circle of `radius` turning toward `side`, drifting forward by `drift` so the
+ * exit lies on the entry line, heading unchanged.
+ */
+export function helixCurve(radius: number, drift: number, side: 1 | -1, y: number): Curve {
+  return {
+    pos: (u) => {
+      const { sin, cos } = sinCosTurns(u);
+      return { x: radius * sin + drift * u, y: y + side * radius * (1 - cos), z: 0 };
+    },
+    vel: (u) => {
+      const { sin, cos } = sinCosTurns(u);
+      return { x: TWO_PI * radius * cos + drift, y: side * TWO_PI * radius * sin, z: 0 };
+    },
+  };
+}
+
+/**
+ * Corkscrew: the track winds once around a forward axis while the rider rolls a full turn toward
+ * `side`; up always points at the axis, so the rider is inverted at the top. The winding radius
+ * rises from zero at the entry to `radius` mid-piece and back to zero, so both ends run straight
+ * along the entry line.
+ */
+export function corkscrewCurve(length: number, radius: number, side: 1 | -1, y: number): Curve {
+  return {
+    pos: (u) => {
+      const { sin, cos } = sinCosTurns(u);
+      const amp = radius * 16 * u * u * (1 - u) * (1 - u);
+      return { x: length * u, y: y - side * amp * sin, z: amp * (1 - cos) };
+    },
+    vel: (u) => {
+      const { sin, cos } = sinCosTurns(u);
+      const amp = radius * 16 * u * u * (1 - u) * (1 - u);
+      const ampD = radius * 32 * u * (1 - u) * (1 - 2 * u);
+      return {
+        x: length,
+        y: -side * (ampD * sin + amp * TWO_PI * cos),
+        z: ampD * (1 - cos) + amp * TWO_PI * sin,
+      };
+    },
+    bank: (u) => side * 360 * u,
   };
 }
 

@@ -1,6 +1,6 @@
 import type { World } from '../core/world';
 import { circuitStatus } from '../track/construction';
-import { removeRideTrains, spawnRideTrain } from '../vehicles/ride-trains';
+import { removeRideTrains, rideTrainSlots, spawnRideTrain } from '../vehicles/ride-trains';
 import { VehicleState } from '../vehicles/vehicle-store';
 import { RidePhase, RideState } from './ride-store';
 import { RIDE_CATALOG } from './ride-types';
@@ -19,15 +19,25 @@ function inActiveCycle(phase: number): boolean {
   );
 }
 
+/** Trips currently out with riders aboard, one per loaded train. */
+export function loadedTrips(world: World, rideId: number): number {
+  let trips = 0;
+  for (const train of rideTrainSlots(world, rideId)) {
+    if (world.vehicles.cols.passengers[train] > 0) trips++;
+  }
+  return trips;
+}
+
 /**
- * Ends the current cycle without a train coming home (track edited, train lost, ride reset):
- * riders still get off because their ride is marked completed, but no wear or breakdown roll
- * happens.
+ * Ends the current cycle without trains coming home (track edited, train lost, ride reset):
+ * riders still get off because every outstanding trip is marked completed, but no wear or
+ * breakdown roll happens. Call it before the ride's trains are removed so loaded trips are seen.
  */
 export function abortCycle(world: World, slot: number): void {
   const ride = world.rides.cols;
-  if (inActiveCycle(ride.phase[slot])) {
-    ride.cyclesCompleted[slot]++;
+  const trips = loadedTrips(world, world.rides.slotToId[slot]);
+  if (trips > 0 || inActiveCycle(ride.phase[slot])) {
+    ride.cyclesCompleted[slot] += Math.max(1, trips);
     ride.guestsServed[slot] += ride.boarded[slot];
   }
   ride.boarded[slot] = 0;
@@ -39,9 +49,9 @@ export function abortCycle(world: World, slot: number): void {
 /** Takes the ride out of service because its train stalled, crashed or never came back. */
 export function breakDownRide(world: World, slot: number): void {
   const ride = world.rides.cols;
-  removeRideTrains(world, world.rides.slotToId[slot]);
   ride.state[slot] = RideState.Broken;
   abortCycle(world, slot);
+  removeRideTrains(world, world.rides.slotToId[slot]);
   ride.breakdownCounter[slot]++;
 }
 
@@ -53,9 +63,9 @@ export function invalidateRideTest(world: World, rideId: number): void {
   if (!isTrackRide(world, rideId)) return;
   const slot = world.rides.idToSlot[rideId];
   const ride = world.rides.cols;
-  removeRideTrains(world, rideId);
   if (ride.state[slot] !== RideState.Broken) ride.state[slot] = RideState.Closed;
   abortCycle(world, slot);
+  removeRideTrains(world, rideId);
   ride.tested[slot] = 0;
 }
 
@@ -75,7 +85,7 @@ export function startRideTest(world: World, rideId: number): RideResult {
   }
   if (!circuitStatus(world, rideId).complete) return RideResult.TrackIncomplete;
   removeRideTrains(world, rideId);
-  if (spawnRideTrain(world, rideId, VehicleState.Testing, 0) < 0) {
+  if (spawnRideTrain(world, rideId, VehicleState.Testing, ride.capacity[slot]) < 0) {
     return RideResult.TrackIncomplete;
   }
   ride.tested[slot] = 0;

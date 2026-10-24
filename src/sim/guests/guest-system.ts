@@ -67,6 +67,15 @@ export interface GuestAdmission {
 
 export type GuestAdmissionProvider = (world: World) => GuestAdmission;
 
+/**
+ * A guest holds the number of trips that must finish before theirs does; trips on one ride end in
+ * the order they left, so theirs is done once the completed count has moved past it.
+ */
+function tripFinished(completed: number, tag: number): boolean {
+  const passed = ((completed & 0xffff) - tag) & 0xffff;
+  return passed >= 1 && passed < 0x8000;
+}
+
 function admissionFromEconomy(world: World): GuestAdmission {
   return {
     parkRating: world.economy.parkRating,
@@ -425,7 +434,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
 
   if (state === GuestState.Riding) {
     const ride = targetRideSlot(world, slot);
-    if (ride < 0 || (world.rides.cols.cyclesCompleted[ride] & 0xffff) !== g.activityTicks[slot]) {
+    if (ride < 0 || tripFinished(world.rides.cols.cyclesCompleted[ride], g.activityTicks[slot])) {
       finishRide(world, slot, ride);
     }
     return false;

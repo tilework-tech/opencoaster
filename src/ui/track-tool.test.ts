@@ -3,7 +3,9 @@ import { PIECES, PieceId } from '../sim/track/catalog';
 import { Bank, PieceMode, Slope, TrackResult } from '../sim/track/track-types';
 import { RideType } from '../sim/rides/ride-types';
 import {
+  TURN_LABELS,
   allowedModes,
+  classifyPiece,
   feedbackMessage,
   footprintTiles,
   previewStatus,
@@ -61,18 +63,7 @@ describe('resolvePiece', () => {
 
   it('can reach every piece in the catalog from some cursor', () => {
     const reachable = new Set<number>();
-    const turns = [
-      'station',
-      'straight',
-      'smallLeft',
-      'smallRight',
-      'mediumLeft',
-      'mediumRight',
-      'largeLeft',
-      'largeRight',
-      'loopLeft',
-      'loopRight',
-    ] as const;
+    const turns = TURN_LABELS.map(([turn]) => turn);
     for (const piece of PIECES) {
       for (const turn of turns) {
         const found = resolvePiece(
@@ -83,6 +74,21 @@ describe('resolvePiece', () => {
       }
     }
     expect(reachable.size).toBe(PIECES.length);
+  });
+
+  it('gives every piece a unique place in the build controls', () => {
+    const seen = new Map<string, string>();
+    for (const piece of PIECES) {
+      const key = [
+        classifyPiece(piece),
+        piece.entrySlope,
+        piece.entryBank,
+        piece.exitSlope,
+        piece.exitBank,
+      ].join('/');
+      expect(seen.get(key), `${piece.name} collides with ${seen.get(key)}`).toBeUndefined();
+      seen.set(key, piece.name);
+    }
   });
 });
 
