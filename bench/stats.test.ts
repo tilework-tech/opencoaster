@@ -13,8 +13,8 @@ describe('benchmark statistics', () => {
   });
 
   it('accepts a p99 at the budget and rejects one above it', () => {
-    expect(withinBudget(8, 8)).toBe(true);
-    expect(withinBudget(8.001, 8)).toBe(false);
+    expect(withinBudget(3, 3)).toBe(true);
+    expect(withinBudget(3.001, 3)).toBe(false);
   });
 
   it('rejects a non-finite percentile', () => {
