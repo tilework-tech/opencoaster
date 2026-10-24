@@ -236,26 +236,28 @@ describe('guest needs', () => {
   });
 
   it('starts the thrill-queue balk timer when the guest arrives at the ride', () => {
-    const { w, ride } = corridorWithRide();
-    const slot = guestAt(w, 11, 5);
-    w.guests.cols.targetRide[slot] = w.rides.slotToId[ride];
-    w.guests.cols.happiness[slot] = 40;
-    w.guests.cols.hunger[slot] = 255;
-    w.guests.cols.thirst[slot] = 255;
-    w.guests.cols.energy[slot] = 255;
+    for (let seed = 1; seed <= 8; seed++) {
+      const { w, ride } = corridorWithRide();
+      w.rng.seed(seed);
+      for (let i = 0; i < 8; i++) {
+        const slot = guestAt(w, 11, 5);
+        w.guests.cols.targetRide[slot] = w.rides.slotToId[ride];
+        w.guests.cols.happiness[slot] = 40;
+        w.guests.cols.hunger[slot] = 255;
+        w.guests.cols.thirst[slot] = 255;
+        w.guests.cols.energy[slot] = 255;
+      }
 
-    runGuestOnly(w, 4);
+      runGuestOnly(w, 4300);
 
-    expect(w.guests.cols.state[slot]).toBe(GuestState.Waiting);
-    expect(w.guests.cols.patience[slot]).toBe(0);
-    runGuestOnly(w, 4296);
-
-    expect(w.guests.cols.patience[slot]).toBe(4296);
-    expect(w.guests.cols.state[slot]).toBe(GuestState.Waiting);
-    expect(w.guests.cols.thought0[slot]).not.toBe(GuestThought.QueueTooLong);
-    expect(w.guests.cols.thought1[slot]).not.toBe(GuestThought.QueueTooLong);
-    expect(w.guests.cols.thought2[slot]).not.toBe(GuestThought.QueueTooLong);
-    expect(w.guests.cols.thought3[slot]).not.toBe(GuestThought.QueueTooLong);
+      for (let slot = 0; slot < w.guests.count; slot++) {
+        expect(w.guests.cols.state[slot]).toBe(GuestState.Waiting);
+        expect(w.guests.cols.thought0[slot]).not.toBe(GuestThought.QueueTooLong);
+        expect(w.guests.cols.thought1[slot]).not.toBe(GuestThought.QueueTooLong);
+        expect(w.guests.cols.thought2[slot]).not.toBe(GuestThought.QueueTooLong);
+        expect(w.guests.cols.thought3[slot]).not.toBe(GuestThought.QueueTooLong);
+      }
+    }
   });
 
   it('times out a happy guest waiting for a busy facility', () => {

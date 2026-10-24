@@ -54,7 +54,7 @@ Consumption, every 128-tick pass:
 - O-5 While drinking: thirst rises by 7 per pass, capped at 255. [S-fetch]
 - O-6 While eating: hunger rises by 7 per pass, capped at 255; thirst drops by 3, floored at 0; toilet rises by 2, capped at 255. [S-fetch]
 
-The original's hunger and thirst are satiation scales: a high value means full. "Hungry" is a low value. Our code uses the opposite convention; see gap N9.
+The original's hunger and thirst are satiation scales: a high value means full. "Hungry" is a low value. The implementation follows this scale; version 12 inverts values from saves through version 11. See gap N9 for the remaining threshold and item-magnitude questions.
 
 Energy and smoothing, every 128-tick pass:
 

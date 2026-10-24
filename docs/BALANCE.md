@@ -244,7 +244,7 @@ The prior 650 target did not hold for most seeds once the combined model counted
 | ------ | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Rating | 596 | 580 | 592 | 592 | 635 | 656 | 622 | 651 | 614 | 621 | 659 | 594 |
 
-At rating 650, 3 / 12 seeds won. The 575 target won on all 12 seeds before guest-needs fidelity; it remains winnable on the current default seed below. This is a modest-build balance target, not a claim that every park strategy wins. Detailed harness output and the prior independent-branch results remain above for comparison.
+At rating 650, 3 / 12 seeds won. Before guest-needs fidelity, the 575 target won on all 12 seeds in this earlier combined-model sweep. The current guest-fidelity run uses a 550 target; its results are recorded below. This is a modest-build balance target, not a claim that every park strategy wins. Detailed harness output and the prior independent-branch results remain above for comparison.
 
 ## Guest fidelity on the combined baseline
 
