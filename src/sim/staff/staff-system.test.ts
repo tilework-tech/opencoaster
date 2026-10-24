@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { TICKS_PER_WEEK } from '../economy/calendar';
 import { LedgerCategory } from '../economy/ledger';
-import { placePath } from '../map/paths';
+import { placePath, setPathAddition, PathAddition } from '../map/paths';
 import { RidePhase, RideState } from '../rides/ride-store';
 import { createRide, triggerRideBreakdown } from '../rides/ride-operations';
 import { RideType } from '../rides/ride-types';
@@ -78,6 +78,30 @@ describe('staff commands and work', () => {
     expect(world.litter.count).toBe(1);
     expect(world.litter.cols.x[0]).toBe(5 * 256 + 128);
     expect(world.litter.cols.y[0]).toBe(8 * 256 + 128);
+  });
+
+  it('empties a reachable bin instead of getting stuck on a closer disconnected bin', () => {
+    const sim = new Simulation({ seed: 35, width: 16, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    for (let x = 4; x <= 10; x++) placePath(world.map, { x, y: 6, z: 2 });
+    placePath(world.map, { x: 5, y: 8, z: 2 });
+    expect(setPathAddition(world.map, 5, 8, PathAddition.Bin)).toBe(true);
+    expect(setPathAddition(world.map, 8, 6, PathAddition.Bin)).toBe(true);
+    const disconnectedBin = world.map.pathElement(world.map.index(5, 8), -1);
+    const reachableBin = world.map.pathElement(world.map.index(8, 6), -1);
+    expect(isReachable(world, world.map.index(4, 6), world.map.index(5, 8))).toBe(false);
+    expect(isReachable(world, world.map.index(4, 6), world.map.index(8, 6))).toBe(true);
+    world.map.elData[disconnectedBin] = 4;
+    world.map.elData[reachableBin] = 4;
+    spawnStaff(world, StaffKind.Handyman);
+    world.staff.cols.x[0] = 4 * 256 + 128;
+    world.staff.cols.y[0] = 6 * 256 + 128;
+
+    staffSystem.update(world);
+
+    expect(world.staff.cols.targetX[0]).toBe(8);
+    expect(world.staff.cols.targetY[0]).toBe(6);
   });
 
   it('sends a mechanic to a broken ride and restores its operation', () => {
