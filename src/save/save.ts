@@ -6,7 +6,8 @@ import { restoreResearch, saveResearch } from '../sim/research/research';
 import type { ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
+const PRE_RIDES_SAVE_VERSION = 3;
 const MAGIC = 0x56534f43; // "COSV" little-endian
 
 type StoreName = 'guests' | 'staff' | 'vehicles' | 'litter' | 'rides';
@@ -38,6 +39,55 @@ function views(world: World): ArrayBufferView[] {
   for (const n of STORE_NAMES) out.push(...(world[n] as EntityStore<Schema>).arrays());
   out.push(...world.track.pieces.arrays(), ...world.track.rideTables());
   return out;
+}
+
+function legacyRideViews(world: World): ArrayBufferView[] {
+  const [slotToId, idToSlot, freeIds] = world.rides.arrays();
+  const capacity = world.rides.capacity;
+  return [
+    slotToId,
+    idToSlot,
+    freeIds,
+    new Uint16Array(capacity),
+    new Uint8Array(capacity),
+    new Int16Array(capacity),
+    new Int16Array(capacity),
+    new Uint16Array(capacity),
+    new Uint16Array(capacity),
+    new Uint16Array(capacity),
+    new Uint16Array(capacity),
+    new Uint16Array(capacity),
+    new Uint8Array(capacity),
+    new Uint16Array(capacity),
+  ];
+}
+
+function migrateLegacyRides(world: World, arrays: ArrayBufferView[]): void {
+  const typeId = arrays[3] as Uint16Array;
+  const entranceX = arrays[5] as Int16Array;
+  const entranceY = arrays[6] as Int16Array;
+  const excitement = arrays[7] as Uint16Array;
+  const intensity = arrays[8] as Uint16Array;
+  const nausea = arrays[9] as Uint16Array;
+  const price = arrays[10] as Uint16Array;
+  const queueLength = arrays[11] as Uint16Array;
+  const reliability = arrays[12] as Uint8Array;
+  const breakdownCounter = arrays[13] as Uint16Array;
+  const rides = world.rides.cols;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    rides.typeId[slot] = typeId[slot];
+    rides.state[slot] = 0;
+    rides.phase[slot] = 0;
+    rides.entranceX[slot] = entranceX[slot];
+    rides.entranceY[slot] = entranceY[slot];
+    rides.excitement[slot] = excitement[slot];
+    rides.intensity[slot] = intensity[slot];
+    rides.nausea[slot] = nausea[slot];
+    rides.price[slot] = price[slot];
+    rides.queueLength[slot] = queueLength[slot];
+    rides.reliability[slot] = reliability[slot];
+    rides.breakdownCounter[slot] = breakdownCounter[slot];
+  }
 }
 
 /** Binary layout: [magic u32][headerLen u32][header JSON utf8][raw typed-array bytes...]. */
@@ -90,7 +140,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (dv.getUint32(0, true) !== MAGIC) throw new Error('Not an OpenCoaster save');
   const headerLen = dv.getUint32(4, true);
   const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLen))) as Header;
-  if (header.version !== SAVE_VERSION) {
+  if (header.version !== SAVE_VERSION && header.version !== PRE_RIDES_SAVE_VERSION) {
     throw new Error(`Unsupported save version ${header.version}`);
   }
   const world = new World({
@@ -102,7 +152,16 @@ export function deserialize(bytes: Uint8Array): World {
   world.tick = header.tick;
   world.rng.state.set(header.rng);
   let off = 8 + headerLen;
-  for (const v of views(world)) {
+  const allViews = views(world);
+  const legacyViews = header.version === PRE_RIDES_SAVE_VERSION ? legacyRideViews(world) : [];
+  const trackViews = [...world.track.pieces.arrays(), ...world.track.rideTables()];
+  const rideViewEnd = allViews.length - trackViews.length;
+  const rideViewStart = rideViewEnd - world.rides.arrays().length;
+  const serializedViews =
+    header.version === PRE_RIDES_SAVE_VERSION
+      ? [...allViews.slice(0, rideViewStart), ...legacyViews, ...allViews.slice(rideViewEnd)]
+      : allViews;
+  for (const v of serializedViews) {
     new Uint8Array(v.buffer, v.byteOffset, v.byteLength).set(
       bytes.subarray(off, off + v.byteLength),
     );
@@ -116,6 +175,7 @@ export function deserialize(bytes: Uint8Array): World {
   world.track.lastResult = header.track.lastResult;
   world.track.lastPiece = header.track.lastPiece;
   restoreLedger(world.economy, header.economy);
+  if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
   Object.assign(world.weather, header.weather);
   restoreResearch(world.research, header.research);
   Object.assign(world.scenario, header.scenario);

@@ -139,7 +139,7 @@ describe('save: map and economy together', () => {
     const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
     const headerLen = new DataView(bytes.buffer).getUint32(4, true);
     const header = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-    const old = header.replace(`"version":${SAVE_VERSION}`, `"version":${SAVE_VERSION - 1}`);
+    const old = header.replace(`"version":${SAVE_VERSION}`, `"version":${SAVE_VERSION - 2}`);
     expect(old).not.toBe(header);
     const patched = new Uint8Array(bytes);
     patched.set(new TextEncoder().encode(old), 8);
