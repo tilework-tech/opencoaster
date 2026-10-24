@@ -52,7 +52,7 @@ Responsibility: scenario definitions (starting finances, price mode, loan terms,
 - `MonthlyIncome` sums the masked categories for the most recently completed month. The economy rolls the month before scenarios evaluate, so a deadline on a month boundary judges the month that just ended.
 - The park entrance is laid on the owned-land edge on the requested side, with a straight path inward. The search runs outward from the edge midpoint and takes the first run of `length` tiles that is buildable, flat, dry and empty. It only depends on the terrain, so the same seed gives the same entrance. If no run qualifies, no path is placed.
 - The objective record and status are saved; the research catalogue is saved as part of research state. The scenario definition itself is not stored, and nothing about the scenario file is in the save format. A loaded game keeps its objective and outcome.
-- Starter objective: 100 live guests and park rating 650 by the end of year one. The target is calibrated with `pnpm balance`; see [docs/BALANCE.md](../../../docs/BALANCE.md#starter-objective).
+- Starter objective: 100 live guests and park rating 575 by the end of year one. The target is calibrated with `pnpm balance`; see [docs/BALANCE.md](../../../docs/BALANCE.md#starter-objective).
 - The scenario entrance registers the outermost path tile as the park gate. Guest arrivals and departures use this gate and its connected footpath network.
 
 ## Starter Objective Calibration

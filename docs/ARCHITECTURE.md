@@ -72,4 +72,4 @@ Target: **5000 guests at 40 ticks/s using at most 3 ms of sim per tick at p99** 
 
 ## Save/load
 
-`src/save` writes a versioned header (JSON) plus the raw typed-array columns (the map contributes everything in `TileMap.arrays()`). Loading rebuilds a `World` and continues bit-identically. Save version 8 adds per-ride gross receipt counters; version 7 and older saves migrate with those counters initialized to zero.
+`src/save` writes a versioned header (JSON) plus the raw typed-array columns (the map contributes everything in `TileMap.arrays()`). Loading rebuilds a `World` and continues bit-identically. Save version 8 adds per-ride gross receipt counters; version 10 adds fine-grained ride reliability, ride mode and mechanic-work columns, and older saves migrate with defaults (counters zero, reliability scaled from the stored percent).

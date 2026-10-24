@@ -19,7 +19,7 @@ describe('scenario catalog', () => {
     expect(SCENARIOS.map((s) => s.id)).toContain('starter');
     expect(starter?.objective.kind).toBe(ObjectiveKind.GuestsAndRating);
     expect(starter?.objective.target).toBe(100);
-    expect(starter?.objective.rating).toBe(650);
+    expect(starter?.objective.rating).toBe(575);
     expect(starter?.entrance).toEqual({ side: 'south', length: 4 });
   });
 

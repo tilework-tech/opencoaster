@@ -135,6 +135,30 @@ Modest profile, one year, mean guests served per ride over six seeds (11 - 16); 
 | Wooden coaster (35, opens month 3) | 219    | 261             | 362   |
 
 At the scenario seed the coaster goes 216 to 378, the ship 623 to 973 and the twist 468 to 649. Year-end crowd over the six seeds goes 148 to 198 and the rating 724 to 733; over the twelve objective seeds the modest build now wins 4 of 12 (was 6 of 12 on main, the table below predates that) with 185 - 206 guests and ratings 622 - 750 (was 135 - 158 and 675 - 755). The bigger crowd litters and sours faster than the fixed handyman crew copes with; the objective was not retuned.
+## Ride maintenance
+
+Rides now wear and fail on a clock rather than per completed cycle ([fidelity/rides.md](fidelity/rides.md), constants in [DECISIONS.md](DECISIONS.md)). `pnpm balance` prints each ride's reliability, breakdown count and downtime ticks.
+
+Starter scenario, modest build, scenario seed, one year. "Before" is main at 339fecc, "after" is this change on top of it.
+
+| Metric                                      | Before                      | After                                |
+| ------------------------------------------- | --------------------------- | ------------------------------------ |
+| Guests at month ends                        | 86 - 157                    | 98 - 165                             |
+| Park rating at month ends                   | 723 - 763                   | 707 - 771                            |
+| Year-end objective (100 guests, rating 730) | 157 guests, rating 760, won | 141 guests, rating 738, won          |
+| Cash at year end                            | $38,560                     | $39,019                              |
+| Shop sales (toilets now charge $0.20)       | $766                        | $1,146                               |
+| Ride reliability at year end                | not modelled (all at 100%)  | 86 - 93% for rides, 100% for stalls  |
+| Breakdowns in the year                      | 0                           | 1 (wooden coaster, 2,895 ticks down) |
+
+Starter objective across twelve seeds (11 - 16 and 21 - 26), year-end check:
+
+| Profile   | Wins before | Wins after |
+| --------- | ----------- | ---------- |
+| modest    | 6 / 12      | 7 / 12     |
+| ambitious | 12 / 12     | 12 / 12    |
+
+Both are within seed-to-seed noise: replacing the cycle-count wear changes how many random numbers each year draws, which reshuffles the guest dynamics. A broken ride in the last month costs rating directly (twice the downtime percentage) and a modest-profile seed that ends with its merry-go-round down scores about 570; a single mechanic can take 2,000 ticks to reach a ride, so the modest profile's one mechanic is the weak point. The starter objective is unchanged.
 
 ## Starter objective
 
@@ -181,6 +205,7 @@ The ledger is unchanged by design: monthly research funding equals the old weekl
 - The lost trigger and the park map's effect are placeholders (O-62 has no source); lost guests are rare in the scripted park (never more than one in the month-end samples).
 - Guests do not remember rides they have taken; variety comes from the per-epoch taste swing and from lines.
 - Stall demand is not weather-sensitive beyond the kiosk (economy.md describes hot/cold item values).
+- Per-type wear, the age schedule, repair times and stall prices are tuned for plausibility, not measured against RCT2 (see DECISIONS.md).
 - Ride prices and the admission fee are not tuned; the scripted park keeps the scenario's admission price and free rides.
 - Awards and research-driven novelty are not modelled. The casualties term uses one 100-point charge per casualty; the guide's per-type charges (25 per drowning, 200 per fatal crash, with decay) need per-type inputs that no system publishes yet.
 - Park value is still the ride-value-plus-$7-per-guest placeholder: the guide's five-minute rider counts, ride-type bonus and duplicate-type reduction need ride rider counters that the rides module does not keep.
