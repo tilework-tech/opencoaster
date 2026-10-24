@@ -1,5 +1,5 @@
 import type { Camera, MapData, Renderer } from './renderer';
-import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
+import { TILE_H, TILE_W, Z_PIXELS, project, viewSize } from './projection';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 
@@ -25,11 +25,19 @@ const GUEST_TINTS = [
 
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
 export class Canvas2DRenderer implements Renderer {
+  readonly backend = 'Canvas2D';
   private ctx: CanvasRenderingContext2D | null = null;
   private map: MapData | null = null;
   private cw = 1;
   private ch = 1;
+  private dpr = 1;
   private readonly tmp = new Float64Array(2);
+  private readonly tile = new Int32Array(2);
+  private visibleCount = 0;
+
+  get visibleSpriteCount(): number {
+    return this.visibleCount;
+  }
 
   attach(canvas: HTMLCanvasElement): void {
     const ctx = canvas.getContext('2d', { alpha: false });
@@ -38,6 +46,7 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   resize(width: number, height: number, dpr: number): void {
+    this.dpr = dpr;
     this.cw = width * dpr;
     this.ch = height * dpr;
     const c = this.ctx?.canvas;
@@ -55,17 +64,21 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx;
     const map = this.map;
     if (!ctx) return;
+    this.visibleCount = 0;
     ctx.fillStyle = '#10151b';
     ctx.fillRect(0, 0, this.cw, this.ch);
     if (!map) return;
 
     const z = cam.zoom;
-    ctx.setTransform(z, 0, 0, z, this.cw / 2 - cam.x * z, this.ch / 2 - cam.y * z);
+    const scale = z * this.dpr;
+    ctx.setTransform(scale, 0, 0, scale, this.cw / 2 - cam.x * scale, this.ch / 2 - cam.y * scale);
     this.drawTiles(ctx, map, cam);
     if (snapshot) {
+      if (snapshot.tracks) this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
       this.drawLayer(ctx, snapshot.litter, map, cam, 2, '#6b4f2a');
       this.drawLayer(ctx, snapshot.vehicles, map, cam, 4, '#c0392b');
       this.drawLayer(ctx, snapshot.staff, map, cam, 3, '#f39c12');
+      this.drawLayer(ctx, snapshot.rides, map, cam, 8, '#6f75bd');
       this.drawGuests(ctx, snapshot.guests, map, cam);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -74,17 +87,19 @@ export class Canvas2DRenderer implements Renderer {
   private drawTiles(ctx: CanvasRenderingContext2D, map: MapData, cam: Camera): void {
     const [vw, vh] = viewSize(map.width, map.height, cam.rotation);
     const z = cam.zoom;
-    const minX = cam.x - this.cw / 2 / z - TILE_W;
-    const maxX = cam.x + this.cw / 2 / z + TILE_W;
-    const minY = cam.y - this.ch / 2 / z - TILE_H - 32 * Z_PIXELS;
-    const maxY = cam.y + this.ch / 2 / z + TILE_H;
+    const minX = cam.x - this.cw / 2 / (z * this.dpr) - TILE_W;
+    const maxX = cam.x + this.cw / 2 / (z * this.dpr) + TILE_W;
+    const minY = cam.y - this.ch / 2 / (z * this.dpr) - TILE_H - 32 * Z_PIXELS;
+    const maxY = cam.y + this.ch / 2 / (z * this.dpr) + TILE_H;
     // Painter's order in view space: far (small rx+ry) to near.
     for (let ry = 0; ry < vh; ry++) {
       for (let rx = 0; rx < vw; rx++) {
         const sx = (rx - ry) * (TILE_W / 2);
         const sy = (rx + ry) * (TILE_H / 2);
         if (sx < minX || sx > maxX || sy < minY || sy > maxY) continue;
-        const [x, y] = unrotateTile(rx, ry, map.width, map.height, cam.rotation);
+        unrotateForDraw(rx, ry, map.width, map.height, cam.rotation, this.tile);
+        const x = this.tile[0];
+        const y = this.tile[1];
         const i = y * map.width + x;
         const lift = map.heights[i] * Z_PIXELS;
         // View-space top/right/bottom/left vertices are tile corners starting at (4 - rot) & 3.
@@ -102,6 +117,7 @@ export class Canvas2DRenderer implements Renderer {
         ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
         ctx.closePath();
         ctx.fill();
+        this.visibleCount++;
       }
     }
   }
@@ -119,7 +135,9 @@ export class Canvas2DRenderer implements Renderer {
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
+      if (!this.isVisible(t[0], t[1], cam, r * 2)) continue;
       ctx.fillRect(t[0] - r, t[1] - r, r * 2, r * 2);
+      this.visibleCount++;
     }
   }
 
@@ -131,18 +149,51 @@ export class Canvas2DRenderer implements Renderer {
   ): void {
     const d = layer.data;
     const t = this.tmp;
-    for (let c = 0; c < GUEST_TINTS.length; c++) {
-      ctx.fillStyle = GUEST_TINTS[c];
-      for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
-        if ((d[o + 3] & 0xff) !== c) continue;
-        project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
-        ctx.fillRect(t[0] - 1.5, t[1] - 1.5, 3, 3);
-      }
+    for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
+      project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
+      if (!this.isVisible(t[0], t[1], cam, 3)) continue;
+      ctx.fillStyle = GUEST_TINTS[(d[o + 3] & 0xff) % GUEST_TINTS.length];
+      ctx.fillRect(t[0] - 1.5, t[1] - 1.5, 3, 3);
+      this.visibleCount++;
     }
+  }
+
+  private isVisible(x: number, y: number, cam: Camera, margin: number): boolean {
+    const halfWidth = this.cw / (cam.zoom * this.dpr) / 2 + margin;
+    const halfHeight = this.ch / (cam.zoom * this.dpr) / 2 + margin;
+    return Math.abs(x - cam.x) <= halfWidth && Math.abs(y - cam.y) <= halfHeight;
   }
 
   dispose(): void {
     this.ctx = null;
     this.map = null;
+  }
+}
+
+function unrotateForDraw(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: Camera['rotation'],
+  out: Int32Array,
+): void {
+  switch (rotation) {
+    case 0:
+      out[0] = x;
+      out[1] = y;
+      break;
+    case 1:
+      out[0] = y;
+      out[1] = height - 1 - x;
+      break;
+    case 2:
+      out[0] = width - 1 - x;
+      out[1] = height - 1 - y;
+      break;
+    case 3:
+      out[0] = width - 1 - y;
+      out[1] = x;
+      break;
   }
 }

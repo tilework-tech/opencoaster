@@ -36,7 +36,7 @@ export class SimClient {
 
   private send(msg: ToWorker, recycled?: Snapshot): void {
     const transfer = recycled
-      ? [recycled.guests, recycled.staff, recycled.vehicles, recycled.litter].map(
+      ? [recycled.guests, recycled.staff, recycled.vehicles, recycled.litter, recycled.rides].map(
           (l) => l.data.buffer,
         )
       : [];

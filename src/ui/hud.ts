@@ -1,4 +1,5 @@
 import type { Stats } from '../worker/protocol';
+import type { Snapshot } from '../worker/snapshot';
 
 const BUDGET_MS = 8;
 
@@ -12,7 +13,14 @@ export class Hud {
     parent.appendChild(this.el);
   }
 
-  update(stats: Stats | null, fps: number, rotation: number): void {
+  update(
+    stats: Stats | null,
+    fps: number,
+    rotation: number,
+    renderMs = 0,
+    visibleSprites = 0,
+    backend = 'Renderer',
+  ): void {
     if (!stats) {
       this.el.textContent = 'starting…';
       return;
@@ -22,6 +30,18 @@ export class Hud {
       `tick ${stats.tick}  guests ${stats.guests}\n` +
       `sim ${stats.msPerTick.toFixed(2)}ms/tick (max ${stats.maxMsPerTick.toFixed(2)})${over}\n` +
       `dropped ticks ${stats.droppedTicks}  fps ${fps.toFixed(0)}  rot ${rotation}\n` +
-      `keys: WASD/drag pan, wheel zoom, Q/E rotate, G +1000 guests, space pause`;
+      `${backend}  frame ${renderMs.toFixed(2)}ms  sprites ${visibleSprites}`;
   }
+}
+
+export function financePanelText(snapshot: Snapshot): string {
+  return `Cash  ${formatCents(snapshot.park.cash)}\nLoan  ${formatCents(snapshot.park.loan)}`;
+}
+
+function formatCents(cents: number): string {
+  const value = (cents / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `$${value}`;
 }

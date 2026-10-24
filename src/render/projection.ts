@@ -90,3 +90,48 @@ export function project(
   out[0] = (rx - ry) * (TILE_W / 2);
   out[1] = (rx + ry) * (TILE_H / 2) - (fz / Z_STEP) * Z_PIXELS;
 }
+
+/** Returns the highest tile diamond under a viewport-local point, or null outside the map. */
+export function pickTile(
+  screenX: number,
+  screenY: number,
+  map: { width: number; height: number; heights: Uint8Array },
+  camera: { x: number; y: number; zoom: number; rotation: Rotation },
+  viewport: { width: number; height: number },
+): [number, number] | null {
+  if (!Number.isFinite(camera.zoom) || camera.zoom <= 0) return null;
+
+  const worldX = camera.x + (screenX - viewport.width / 2) / camera.zoom;
+  const worldY = camera.y + (screenY - viewport.height / 2) / camera.zoom;
+  const axisX = worldX / (TILE_W / 2);
+  const axisY = worldY / (TILE_H / 2) - 1;
+  const centerRx = (axisX + axisY) / 2;
+  const centerRy = (axisY - axisX) / 2;
+  const [viewW, viewH] = viewSize(map.width, map.height, camera.rotation);
+  const estimatedRx = Math.round(centerRx);
+  const estimatedRy = Math.round(centerRy);
+  let selected: [number, number] | null = null;
+  let selectedDistance = Number.POSITIVE_INFINITY;
+  let selectedHeight = -1;
+
+  // Elevation can shift the projected tile by at most half the 31-level map range.
+  for (let ry = estimatedRy - 16; ry <= estimatedRy + 16; ry++) {
+    for (let rx = estimatedRx - 16; rx <= estimatedRx + 16; rx++) {
+      if (rx < 0 || ry < 0 || rx >= viewW || ry >= viewH) continue;
+      const [x, y] = unrotateTile(rx, ry, map.width, map.height, camera.rotation);
+      const height = map.heights[y * map.width + x];
+      const centerX = (rx - ry) * (TILE_W / 2);
+      const centerY = (rx + ry) * (TILE_H / 2) + TILE_H / 2 - height * Z_PIXELS;
+      const dx = Math.abs(worldX - centerX) / (TILE_W / 2);
+      const dy = Math.abs(worldY - centerY) / (TILE_H / 2);
+      const distance = dx + dy;
+      if (distance > 1 || distance > selectedDistance) continue;
+      if (distance === selectedDistance && height < selectedHeight) continue;
+      selected = [x, y];
+      selectedDistance = distance;
+      selectedHeight = height;
+    }
+  }
+
+  return selected;
+}
