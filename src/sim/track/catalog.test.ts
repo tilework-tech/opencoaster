@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BANK_DEG, PIECES, PieceId, SAMPLES, TANGENT_ONE, pieceByName } from './catalog';
-import { Slope } from './track-types';
+import { Bank, PieceFlag, Slope } from './track-types';
+import { sinCosTurns } from './geometry';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 
 function sampleRange(id: number): [number, number] {
@@ -128,7 +129,7 @@ describe('track catalog', () => {
         const pa = SAMPLES.tz[ea] / Math.hypot(SAMPLES.tx[ea], SAMPLES.ty[ea]);
         const pb = SAMPLES.tz[sb] / Math.hypot(SAMPLES.tx[sb], SAMPLES.ty[sb]);
         expect(Math.abs(pa - pb), `${a.name}->${b.name}`).toBeLessThan(0.05);
-        expect(SAMPLES.bank[ea], `${a.name}->${b.name}`).toBe(SAMPLES.bank[sb]);
+        expect(Math.abs(SAMPLES.bank[ea] - SAMPLES.bank[sb]) % 360, `${a.name}->${b.name}`).toBe(0);
       }
     }
     expect(connections).toBeGreaterThan(100);
@@ -237,5 +238,90 @@ describe('PieceId', () => {
     );
     expect(byId.size).toBe(PIECES.length);
     for (const p of PIECES) expect(byId.get(p.id)).toBe(p.name.toLowerCase());
+  });
+});
+
+describe('corkscrew, helix, S-bend and banked slope pieces', () => {
+  const sampled = (name: string) => {
+    const p = pieceByName(name)!;
+    const [a, b] = sampleRange(p.id);
+    return { p, a, b };
+  };
+
+  it('keeps piece ids stable: new pieces are appended after the original 34', () => {
+    expect(PieceId.VerticalLoopRight).toBe(33);
+    expect(PieceId.SBendLeft).toBe(34);
+    expect(PIECES.length).toBe(66);
+  });
+
+  it('evaluates sine and cosine without Math.sin so tables match on every engine', () => {
+    for (let i = 0; i <= 64; i++) {
+      const turns = i / 64;
+      const { sin, cos } = sinCosTurns(turns);
+      expect(sin).toBeCloseTo(Math.sin(2 * Math.PI * turns), 12);
+      expect(cos).toBeCloseTo(Math.cos(2 * Math.PI * turns), 12);
+    }
+  });
+
+  it('shifts an S-bend one tile sideways without turning the heading', () => {
+    for (const [name, sign] of [
+      ['sBendLeft', -1],
+      ['sBendRight', 1],
+    ] as const) {
+      const { p, b } = sampled(name);
+      expect(p.headingDelta).toBe(0);
+      expect(p.dy).toBe(sign);
+      expect(SAMPLES.y[b] - TILE_UNITS / 2).toBe(sign * TILE_UNITS);
+      expect(SAMPLES.ty[b]).toBe(0);
+    }
+  });
+
+  it('rolls the rider a full turn in a corkscrew, upside down at the top, and flags it inverted', () => {
+    for (const [name, sign] of [
+      ['corkscrewLeft', -1],
+      ['corkscrewRight', 1],
+    ] as const) {
+      const { p, a, b } = sampled(name);
+      expect(p.flags & PieceFlag.Inverted).not.toBe(0);
+      expect(p.entryBank).toBe(Bank.None);
+      expect(p.exitBank).toBe(Bank.None);
+      expect(SAMPLES.bank[b]).toBe(sign * 360);
+      let top = a;
+      for (let i = a; i <= b; i++) if (SAMPLES.z[i] > SAMPLES.z[top]) top = i;
+      expect(Math.abs(SAMPLES.bank[top])).toBeGreaterThanOrEqual(170);
+      expect(Math.abs(SAMPLES.bank[top])).toBeLessThanOrEqual(190);
+      expect(SAMPLES.z[top]).toBeGreaterThanOrEqual(Z_STEP);
+      expect(SAMPLES.z[b]).toBe(0);
+    }
+  });
+
+  it('winds helices a full circle, banked on entry and exit, changing height smoothly', () => {
+    for (const p of PIECES.filter((q) => q.name.includes('Helix'))) {
+      const up = p.name.endsWith('Up');
+      expect(p.dz, p.name).toBe((up ? 1 : -1) * (p.name.startsWith('small') ? 4 : 6));
+      expect(p.entryBank).toBe(p.name.includes('Left') ? Bank.Left : Bank.Right);
+      expect(p.exitBank).toBe(p.entryBank);
+      expect(p.entrySlope).toBe(Slope.Flat);
+      expect(p.exitSlope).toBe(Slope.Flat);
+      expect(p.dy).toBe(0);
+      const xs = Array.from({ length: p.sampleCount }, (_, i) => SAMPLES.x[p.sampleStart + i]);
+      expect(Math.min(...xs), p.name).toBeGreaterThanOrEqual(0);
+      expect(p.footprint.every((c) => c.i >= 0)).toBe(true);
+    }
+  });
+
+  it('lets every slope be banked and every bank change happen on a slope', () => {
+    const edges = new Set(
+      PIECES.map((q) => `${q.entrySlope}/${q.entryBank}>${q.exitSlope}/${q.exitBank}`),
+    );
+    for (const bank of [Bank.Left, Bank.Right]) {
+      for (const slope of [Slope.Up25, Slope.Down25]) {
+        expect(edges.has(`${slope}/${bank}>${slope}/${bank}`)).toBe(true);
+        expect(edges.has(`${slope}/${Bank.None}>${slope}/${bank}`)).toBe(true);
+        expect(edges.has(`${slope}/${bank}>${slope}/${Bank.None}`)).toBe(true);
+        expect(edges.has(`${Slope.Flat}/${bank}>${slope}/${bank}`)).toBe(true);
+        expect(edges.has(`${slope}/${bank}>${Slope.Flat}/${bank}`)).toBe(true);
+      }
+    }
   });
 });

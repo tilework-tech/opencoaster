@@ -7,6 +7,10 @@ export const enum VehicleState {
   TestComplete = 3,
   Stalled = 4,
   Crashed = 5,
+  /** Braking into the station after a lap. */
+  Arriving = 6,
+  /** Stopped in the station while riders get off. */
+  Unloading = 7,
 }
 
 export interface SpawnTrainOptions {

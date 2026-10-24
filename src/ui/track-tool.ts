@@ -5,19 +5,9 @@ import type { RideType } from '../sim/rides/ride-types';
 import { PIECES } from '../sim/track/catalog';
 import { rotateTile } from '../sim/track/construction';
 import { Bank, PieceFlag, PieceMode, Slope, TrackResult } from '../sim/track/track-types';
-import type { TrackPieceDef } from '../sim/track/track-types';
+import type { PieceShape, TrackPieceDef } from '../sim/track/track-types';
 
-export type TurnKind =
-  | 'station'
-  | 'straight'
-  | 'smallLeft'
-  | 'smallRight'
-  | 'mediumLeft'
-  | 'mediumRight'
-  | 'largeLeft'
-  | 'largeRight'
-  | 'loopLeft'
-  | 'loopRight';
+export type TurnKind = PieceShape;
 
 /** What the player has dialled in: horizontal shape, exit slope and exit bank. */
 export interface PieceChoice {
@@ -39,15 +29,9 @@ export interface Placement {
   dir: number;
 }
 
-const CURVE_SIZES = ['', '', 'small', 'medium', 'large'] as const;
-
 /** The horizontal shape a catalog piece has, in the vocabulary of the build controls. */
 export function classifyPiece(piece: TrackPieceDef): TurnKind {
-  if (piece.flags & PieceFlag.Station) return 'station';
-  if (piece.flags & PieceFlag.Inverted) return piece.dy < 0 ? 'loopLeft' : 'loopRight';
-  if (piece.headingDelta === 0) return 'straight';
-  const size = CURVE_SIZES[Math.abs(piece.dy)];
-  return `${size}${piece.headingDelta === 1 ? 'Right' : 'Left'}` as TurnKind;
+  return piece.shape;
 }
 
 const PIECE_TURNS: readonly TurnKind[] = PIECES.map(classifyPiece);
@@ -106,6 +90,18 @@ export const TURN_LABELS: ReadonlyArray<readonly [TurnKind, string]> = [
   ['largeRight', 'Right large'],
   ['loopLeft', 'Loop left'],
   ['loopRight', 'Loop right'],
+  ['sBendLeft', 'S-bend left'],
+  ['sBendRight', 'S-bend right'],
+  ['corkscrewLeft', 'Corkscrew left'],
+  ['corkscrewRight', 'Corkscrew right'],
+  ['smallHelixLeftDown', 'Small helix left, down'],
+  ['smallHelixLeftUp', 'Small helix left, up'],
+  ['smallHelixRightDown', 'Small helix right, down'],
+  ['smallHelixRightUp', 'Small helix right, up'],
+  ['largeHelixLeftDown', 'Large helix left, down'],
+  ['largeHelixLeftUp', 'Large helix left, up'],
+  ['largeHelixRightDown', 'Large helix right, down'],
+  ['largeHelixRightUp', 'Large helix right, up'],
 ];
 
 /** Tiles a piece placed at `placement` covers. */

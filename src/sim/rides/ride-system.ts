@@ -7,27 +7,22 @@ import type { RideType } from './ride-types';
 const RELIABILITY_WEAR_CYCLES = 32;
 const BREAKDOWN_RELIABILITY_THRESHOLD = 10;
 
-/** Ends a ride cycle: counts served guests, wears reliability and may cause a breakdown. */
-export function finishCycle(world: Parameters<System['update']>[0], slot: number): void {
+/**
+ * Books one finished trip carrying `riders` guests: counts it, wears reliability and may cause a
+ * breakdown. Several trips can be out at once on a multi-train coaster.
+ */
+export function completeCycle(
+  world: Parameters<System['update']>[0],
+  slot: number,
+  riders: number,
+): void {
   const ride = world.rides.cols;
   ride.cyclesCompleted[slot]++;
   if (ride.cyclesCompleted[slot] % RELIABILITY_WEAR_CYCLES === 0 && ride.reliability[slot] > 0) {
     ride.reliability[slot]--;
   }
-  ride.waitTicks[slot] = 0;
-  ride.phaseTicks[slot] = 0;
-  ride.guestsServed[slot] += ride.boarded[slot];
-  ride.boarded[slot] = 0;
-  if (ride.state[slot] === RideState.Broken) {
-    ride.phase[slot] = RidePhase.Broken;
-    return;
-  }
-  if (ride.state[slot] === RideState.Open) {
-    ride.phase[slot] = RidePhase.Waiting;
-  } else {
-    ride.phase[slot] = RidePhase.Closed;
-  }
-
+  ride.guestsServed[slot] += riders;
+  ride.boarded[slot] = Math.max(0, ride.boarded[slot] - riders);
   if (
     ride.state[slot] === RideState.Open &&
     ride.reliability[slot] <= BREAKDOWN_RELIABILITY_THRESHOLD &&
@@ -36,6 +31,22 @@ export function finishCycle(world: Parameters<System['update']>[0], slot: number
     ride.state[slot] = RideState.Broken;
     ride.phase[slot] = RidePhase.Broken;
     ride.breakdownCounter[slot]++;
+  }
+}
+
+/** Ends a ride cycle: counts served guests, wears reliability and may cause a breakdown. */
+export function finishCycle(world: Parameters<System['update']>[0], slot: number): void {
+  const ride = world.rides.cols;
+  completeCycle(world, slot, ride.boarded[slot]);
+  ride.waitTicks[slot] = 0;
+  ride.phaseTicks[slot] = 0;
+  ride.boarded[slot] = 0;
+  if (ride.state[slot] === RideState.Broken) {
+    ride.phase[slot] = RidePhase.Broken;
+  } else if (ride.state[slot] === RideState.Open) {
+    ride.phase[slot] = RidePhase.Waiting;
+  } else {
+    ride.phase[slot] = RidePhase.Closed;
   }
 }
 

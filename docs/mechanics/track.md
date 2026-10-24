@@ -215,7 +215,7 @@ MVP
 4. Test run recording max speed, length, drops, vertical/lateral G, airtime.
 5. Ratings pipeline (2.7 terms, default coefficients), intensity penalty.
 6. Crash-on-crest/drop and train-train collision thresholds.
-Next
+Next (status: 7 to 9 and 12 are implemented in `src/sim/track` and `src/sim/vehicles`, with the tuning noted in their docs; boosters, shuttle mode and per-type constants are not)
 7. Banking and banked turns; lateral G calibration vs table in 2.5.
 8. Block brakes/sections, multiple trains, shuttle mode, boosters/launch.
 9. Loops, corkscrews, helixes, barrel rolls, twists; inversion count.

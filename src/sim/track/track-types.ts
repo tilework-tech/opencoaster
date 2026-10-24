@@ -58,10 +58,36 @@ export const enum TrackResult {
   PieceNotAllowed = 15,
 }
 
+/** The horizontal shape of a piece in the vocabulary of the build controls. */
+export type PieceShape =
+  | 'station'
+  | 'straight'
+  | 'smallLeft'
+  | 'smallRight'
+  | 'mediumLeft'
+  | 'mediumRight'
+  | 'largeLeft'
+  | 'largeRight'
+  | 'loopLeft'
+  | 'loopRight'
+  | 'sBendLeft'
+  | 'sBendRight'
+  | 'corkscrewLeft'
+  | 'corkscrewRight'
+  | 'smallHelixLeftDown'
+  | 'smallHelixRightDown'
+  | 'smallHelixLeftUp'
+  | 'smallHelixRightUp'
+  | 'largeHelixLeftDown'
+  | 'largeHelixRightDown'
+  | 'largeHelixLeftUp'
+  | 'largeHelixRightUp';
+
 /** A placeable track piece type; geometry lives in the shared sample table (see catalog.ts). */
 export interface TrackPieceDef {
   id: number;
   name: string;
+  shape: PieceShape;
   flags: number;
   entrySlope: Slope;
   exitSlope: Slope;

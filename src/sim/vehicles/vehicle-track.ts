@@ -23,6 +23,11 @@ export interface VehicleTrackInput {
   /** World-space integer x/y/z triples; one line segment connects each adjacent pair. */
   points: Int32Array;
   segmentFlags: Uint16Array;
+  /**
+   * Extra fractional bits of the curvature arrays below: a value is `curvature * 256 * 2^shift`.
+   * Path-built tracks use finer curvature so gentle curves are not rounded to zero.
+   */
+  curvatureShift?: number;
   /** Signed Q8 curvature (1 / world unit) for force estimation. */
   lateralCurvatureQ8?: Int16Array;
   verticalCurvatureQ8?: Int16Array;
@@ -52,7 +57,24 @@ export interface VehicleTrack extends Required<VehicleTrackInput> {
   blockSectionStart: Uint32Array;
   /** First segment carrying the `Station` flag, or -1. */
   stationSegment: number;
+  /** End of the contiguous station drive segments, in Q8 arclength; -1 without a station. */
+  stationEndQ8: number;
+  /** Segment index just past the station, or -1. */
+  stationEndSegment: number;
+  /**
+   * Block-section boundaries of a loop, ascending Q8 arclength: the end of the station and of each
+   * block-brake run. Zone k spans (boundary k-1, boundary k]; a zone holds one train at a time.
+   */
+  boundariesQ8: Int32Array;
 }
+
+/** Fewer than two boundaries cannot separate trains. */
+export function maxTrainsOnTrack(track: VehicleTrack): number {
+  return track.boundariesQ8.length >= 2 ? track.boundariesQ8.length - 1 : 1;
+}
+
+const PATH_CURVATURE_SHIFT = 6;
+const CURVATURE_SCALE = 256 << PATH_CURVATURE_SHIFT;
 
 function boundedQ8(value: number): number {
   return Math.max(-0x8000, Math.min(0x7fff, value));
@@ -119,14 +141,14 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     const horizontalCross =
       path.tx[segment] * path.ty[tangentOffset] - path.ty[segment] * path.tx[tangentOffset];
     lateralCurvatureQ8[segment] = boundedQ8(
-      Math.trunc((horizontalCross * 256) / (TANGENT_ONE * TANGENT_ONE * distance)),
+      Math.trunc((horizontalCross * CURVATURE_SCALE) / (TANGENT_ONE * TANGENT_ONE * distance)),
     );
     const horizontalStart = Math.round(Math.hypot(path.tx[segment], path.ty[segment]));
     const horizontalEnd = Math.round(Math.hypot(path.tx[tangentOffset], path.ty[tangentOffset]));
     const verticalCross =
       horizontalStart * path.tz[tangentOffset] - path.tz[segment] * horizontalEnd;
     verticalCurvatureQ8[segment] = boundedQ8(
-      Math.trunc((verticalCross * 256) / (TANGENT_ONE * TANGENT_ONE * distance)),
+      Math.trunc((verticalCross * CURVATURE_SCALE) / (TANGENT_ONE * TANGENT_ONE * distance)),
     );
   }
 
@@ -139,6 +161,7 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     bankSinQ8,
     bankCosQ8,
     invertedSegments,
+    curvatureShift: PATH_CURVATURE_SHIFT,
     loop: path.closed,
     sourceVersion: path.version,
   });
@@ -232,10 +255,36 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     }
     dropHeights[segment] = Math.min(0xffff, Math.max(0, peakZ - lowZ));
   }
+  const stationSegment = input.segmentFlags.findIndex(
+    (flags) => (flags & VehicleSegmentFlag.Station) !== 0,
+  );
+  let stationEndSegment = -1;
+  if (stationSegment >= 0) {
+    stationEndSegment = stationSegment;
+    while (
+      stationEndSegment < segmentCount &&
+      input.segmentFlags[stationEndSegment] & VehicleSegmentFlag.StationDrive
+    ) {
+      stationEndSegment++;
+    }
+  }
+  const ends: number[] = [];
+  if (input.loop) {
+    if (stationEndSegment >= 0) ends.push(cumulativeLengthsQ8[stationEndSegment]);
+    for (let segment = 0; segment < segmentCount; segment++) {
+      if (!(input.segmentFlags[segment] & VehicleSegmentFlag.Block)) continue;
+      const next = segment + 1;
+      if (next < segmentCount && input.segmentFlags[next] & VehicleSegmentFlag.Block) continue;
+      ends.push(cumulativeLengthsQ8[next]);
+    }
+  }
+  const boundariesQ8 = Int32Array.from(ends);
+  boundariesQ8.sort();
   return {
     rideId: input.rideId,
     points: input.points,
     segmentFlags: input.segmentFlags,
+    curvatureShift: input.curvatureShift ?? 0,
     lateralCurvatureQ8: normalize(input.lateralCurvatureQ8, Int16Array),
     verticalCurvatureQ8: normalize(input.verticalCurvatureQ8, Int16Array),
     bankSinQ8,
@@ -253,9 +302,10 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     dropHeights,
     blockOccupiedBy: new Int32Array(segmentCount).fill(-1),
     blockSectionStart,
-    stationSegment: input.segmentFlags.findIndex(
-      (flags) => (flags & VehicleSegmentFlag.Station) !== 0,
-    ),
+    stationSegment,
+    stationEndQ8: stationEndSegment >= 0 ? cumulativeLengthsQ8[stationEndSegment] : -1,
+    stationEndSegment,
+    boundariesQ8,
   };
 }
 

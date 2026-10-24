@@ -1,11 +1,24 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
-import { findRideTrain, removeRideTrains, spawnRideTrain } from '../vehicles/ride-trains';
+import {
+  findRideTrain,
+  removeRideTrains,
+  rideTrainSlots,
+  spawnRideTrain,
+} from '../vehicles/ride-trains';
 import { VehicleState } from '../vehicles/vehicle-store';
-import { abortCycle, breakDownRide } from './coaster';
+import {
+  maxTrainsOnTrack,
+  stationDepartureClear,
+  stationZoneClear,
+  trainHeldAtBoundary,
+} from '../vehicles/vehicle-system';
+import type { VehicleTrack } from '../vehicles/vehicle-track';
+import { abortCycle, breakDownRide, loadedTrips } from './coaster';
 import { recordRideTestMeasurements } from './ride-operations';
-import { finishCycle } from './ride-system';
+import { completeCycle } from './ride-system';
+import { seatQueuedGuests } from './queue-system';
 import { RidePhase, RideState } from './ride-store';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType, RideTypeDef } from './ride-types';
@@ -66,57 +79,115 @@ function runTest(world: World, slot: number, rideId: number, def: RideTypeDef): 
   }
 }
 
-/**
- * Dispatches the waiting train by the same rules as flat rides: minimum wait, then a full-enough
- * queue or the maximum wait. The guests leave the queue count here; the queue system seats the
- * `boarded` head-of-queue guests on the tick after the ride enters its loading phase.
- */
-function dispatchIfReady(world: World, slot: number, train: number): void {
-  const ride = world.rides.cols;
-  const v = world.vehicles.cols;
-  v.dispatchTicks[train] = 0;
-  ride.phase[slot] = RidePhase.Waiting;
-  if (ride.queueLength[slot] === 0) {
-    ride.waitTicks[slot] = 0;
-    return;
-  }
-  if (ride.waitTicks[slot] < 0xffff) ride.waitTicks[slot]++;
-  const waited = ride.waitTicks[slot];
-  if (waited < ride.minWaitTicks[slot]) return;
-  const loaded = ride.queueLength[slot] * 255 >= ride.capacity[slot] * ride.loadThreshold[slot];
-  if (!loaded && waited < ride.maxWaitTicks[slot]) return;
-
-  const boarding = Math.min(ride.capacity[slot], ride.queueLength[slot]);
-  ride.queueLength[slot] -= boarding;
-  ride.boarded[slot] = boarding;
-  v.passengers[train] = boarding;
-  v.state[train] = VehicleState.Running;
-  ride.waitTicks[slot] = 0;
-  if (ride.loadTicks[slot] > 0) {
-    ride.phase[slot] = RidePhase.Loading;
-    ride.phaseTicks[slot] = ride.loadTicks[slot];
-  } else {
-    ride.phase[slot] = RidePhase.Running;
-    ride.phaseTicks[slot] = ride.runTicks[slot];
-  }
-}
-
 /** A lap takes well under a minute; a train still out after this many ticks is stuck. */
 const OPERATING_TIMEOUT_TICKS = 20_000;
+/** Most trains a coaster runs at once, however many block sections it has. */
+const MAX_TRAINS = 4;
 
 /** Tracks how long the train has been out; true once it is overdue. */
 function trainOverdue(world: World, train: number): boolean {
   const v = world.vehicles.cols;
+  const track = world.vehicleTracks?.get(v.rideId[train]);
+  if (track && trainHeldAtBoundary(world, track, train)) return false;
   if (v.dispatchTicks[train] < 0xffff) v.dispatchTicks[train]++;
   return v.dispatchTicks[train] >= OPERATING_TIMEOUT_TICKS;
 }
 
+/**
+ * Loads the train standing in the station: once the queue is long enough (or the maximum wait is
+ * over) the riders are seated and counted off the queue; the train leaves after `loadTicks` when
+ * the block zone ahead is clear.
+ */
+function loadAndDispatch(
+  world: World,
+  slot: number,
+  train: number,
+  track: VehicleTrack,
+  trains: readonly number[],
+): void {
+  const ride = world.rides.cols;
+  const v = world.vehicles.cols;
+  if (v.passengers[train] === 0) {
+    v.dispatchTicks[train] = 0;
+    if (ride.queueLength[slot] === 0) {
+      ride.waitTicks[slot] = 0;
+      // An empty train makes room for a loaded one waiting behind it.
+      const blocking = trains.some((t) => t !== train && v.passengers[t] > 0);
+      if (blocking && stationDepartureClear(world, track, train)) {
+        v.state[train] = VehicleState.Running;
+      }
+      return;
+    }
+    if (ride.waitTicks[slot] < 0xffff) ride.waitTicks[slot]++;
+    const waited = ride.waitTicks[slot];
+    if (waited < ride.minWaitTicks[slot]) return;
+    const loaded = ride.queueLength[slot] * 255 >= ride.capacity[slot] * ride.loadThreshold[slot];
+    if (!loaded && waited < ride.maxWaitTicks[slot]) return;
+
+    const wanted = Math.min(ride.capacity[slot], ride.queueLength[slot]);
+    const tag = ride.cyclesCompleted[slot] + loadedTrips(world, world.rides.slotToId[slot]);
+    const seated = seatQueuedGuests(world, slot, wanted, tag);
+    ride.queueLength[slot] -= wanted;
+    ride.boarded[slot] += seated;
+    v.passengers[train] = seated;
+    ride.waitTicks[slot] = 0;
+    return;
+  }
+  if (v.dispatchTicks[train] < 0xffff) v.dispatchTicks[train]++;
+  if (
+    v.dispatchTicks[train] >= ride.loadTicks[slot] &&
+    stationDepartureClear(world, track, train)
+  ) {
+    v.state[train] = VehicleState.Running;
+    v.dispatchTicks[train] = 0;
+  }
+}
+
+/** Lets the riders off a train stopped in the station once `unloadTicks` have passed. */
+function unloadTrain(world: World, slot: number, train: number): void {
+  const ride = world.rides.cols;
+  const v = world.vehicles.cols;
+  if (v.dispatchTicks[train] < 0xffff) v.dispatchTicks[train]++;
+  if (v.dispatchTicks[train] < ride.unloadTicks[slot]) return;
+  const riders = v.passengers[train];
+  v.passengers[train] = 0;
+  v.state[train] = VehicleState.Waiting;
+  v.dispatchTicks[train] = 0;
+  if (riders > 0) completeCycle(world, slot, riders);
+}
+
+/** Phase shown for the ride as a whole, from where its trains are. */
+function showPhase(world: World, slot: number, trains: readonly number[]): void {
+  const ride = world.rides.cols;
+  const v = world.vehicles.cols;
+  if (ride.phase[slot] === RidePhase.Broken || ride.state[slot] === RideState.Broken) return;
+  let phase: RidePhase = ride.state[slot] === RideState.Open ? RidePhase.Waiting : RidePhase.Closed;
+  for (const train of trains) {
+    const state = v.state[train];
+    if (state === VehicleState.Running || state === VehicleState.Arriving) {
+      phase = RidePhase.Running;
+      break;
+    }
+    if (state === VehicleState.Unloading) phase = RidePhase.Unloading;
+    else if (
+      state === VehicleState.Waiting &&
+      v.passengers[train] > 0 &&
+      phase !== RidePhase.Unloading
+    ) {
+      phase = RidePhase.Loading;
+    }
+  }
+  ride.phase[slot] = phase;
+  ride.phaseTicks[slot] = 0;
+}
+
 function operate(world: World, slot: number, rideId: number): void {
   const ride = world.rides.cols;
-  let train = findRideTrain(world, rideId);
-  if (train < 0) {
-    train = spawnRideTrain(world, rideId, VehicleState.Waiting, ride.capacity[slot]);
-    if (train < 0) {
+  const v = world.vehicles.cols;
+  let trains = rideTrainSlots(world, rideId);
+  if (trains.length === 0) {
+    const first = spawnRideTrain(world, rideId, VehicleState.Waiting, ride.capacity[slot]);
+    if (first < 0) {
       ride.state[slot] = RideState.Closed;
       abortCycle(world, slot);
       reportFeedback(world.feedback, FeedbackDomain.Ride, RideResult.TrackIncomplete, rideId);
@@ -124,48 +195,63 @@ function operate(world: World, slot: number, rideId: number): void {
     }
     ride.phase[slot] = RidePhase.Waiting;
     ride.waitTicks[slot] = 0;
+    trains = [first];
   }
-  switch (world.vehicles.cols.state[train]) {
-    case VehicleState.Waiting:
-      dispatchIfReady(world, slot, train);
-      break;
-    case VehicleState.Running:
-      ride.phase[slot] = RidePhase.Running;
-      ride.phaseTicks[slot] = 0;
-      if (trainOverdue(world, train)) breakDownRide(world, slot);
-      break;
-    default:
-      breakDownRide(world, slot);
-  }
-}
-
-/** A ride that is not open: its train finishes the lap, then is removed. */
-function standDown(world: World, slot: number, rideId: number): void {
-  const ride = world.rides.cols;
-  const train = findRideTrain(world, rideId);
-  if (train >= 0 && world.vehicles.cols.state[train] === VehicleState.Running) {
-    ride.phase[slot] = RidePhase.Running;
-    ride.phaseTicks[slot] = 0;
-    if (trainOverdue(world, train)) breakDownRide(world, slot);
-    return;
-  }
-  removeRideTrains(world, rideId);
-  abortCycle(world, slot);
-}
-
-/** Handles a train that has come back to the station: guests get off and the cycle ends. */
-function unloadIfArrived(world: World, slot: number, rideId: number): void {
-  const ride = world.rides.cols;
-  const train = findRideTrain(world, rideId);
+  const track = world.vehicleTracks?.get(rideId);
   if (
-    train < 0 ||
-    ride.phase[slot] !== RidePhase.Running ||
-    world.vehicles.cols.state[train] !== VehicleState.Waiting
+    track &&
+    trains.length < Math.min(MAX_TRAINS, maxTrainsOnTrack(track)) &&
+    stationZoneClear(world, track)
   ) {
+    const next = spawnRideTrain(world, rideId, VehicleState.Waiting, ride.capacity[slot]);
+    if (next >= 0) trains.push(next);
+  }
+  for (const train of trains) {
+    switch (v.state[train]) {
+      case VehicleState.Waiting:
+        if (track) loadAndDispatch(world, slot, train, track, trains);
+        break;
+      case VehicleState.Running:
+      case VehicleState.Arriving:
+        if (trainOverdue(world, train)) return breakDownRide(world, slot);
+        break;
+      case VehicleState.Unloading:
+        unloadTrain(world, slot, train);
+        break;
+      default:
+        return breakDownRide(world, slot);
+    }
+    if (ride.state[slot] !== RideState.Open) return;
+  }
+  showPhase(world, slot, trains);
+}
+
+/** A ride that is not open: trains finish their lap and unload, then are removed. */
+function standDown(world: World, slot: number, rideId: number): void {
+  const v = world.vehicles.cols;
+  const trains = rideTrainSlots(world, rideId);
+  let out = false;
+  for (const train of trains) {
+    switch (v.state[train]) {
+      case VehicleState.Running:
+      case VehicleState.Arriving:
+        out = true;
+        if (trainOverdue(world, train)) return breakDownRide(world, slot);
+        break;
+      case VehicleState.Unloading:
+        unloadTrain(world, slot, train);
+        if (v.state[train] === VehicleState.Unloading) out = true;
+        break;
+      default:
+        break;
+    }
+  }
+  if (out) {
+    showPhase(world, slot, trains);
     return;
   }
-  world.vehicles.cols.passengers[train] = 0;
-  finishCycle(world, slot);
+  abortCycle(world, slot);
+  removeRideTrains(world, rideId);
 }
 
 /**
@@ -185,7 +271,6 @@ export const coasterSystem: System = {
         runTest(world, slot, rideId, def);
         continue;
       }
-      unloadIfArrived(world, slot, rideId);
       if (ride.state[slot] === RideState.Open) operate(world, slot, rideId);
       else standDown(world, slot, rideId);
     }
