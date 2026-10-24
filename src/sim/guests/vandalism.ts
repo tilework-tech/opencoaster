@@ -2,7 +2,7 @@ import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
 import { PathFlag } from '../map/tile-map';
-import { StaffKind } from '../staff/staff-store';
+import { StaffKind, StaffOrder } from '../staff/staff-store';
 import { GuestState } from './guest-store';
 
 const CHECK_INTERVAL = 32;
@@ -15,7 +15,11 @@ export const SECURITY_RADIUS = 6;
 function securityNearby(world: World, tileX: number, tileY: number): boolean {
   const staff = world.staff.cols;
   for (let slot = 0; slot < world.staff.count; slot++) {
-    if (staff.kind[slot] !== StaffKind.Security) continue;
+    if (
+      staff.kind[slot] !== StaffKind.Security ||
+      (staff.orderFlags[slot] & (1 << StaffOrder.WatchForVandalism)) === 0
+    )
+      continue;
     const guardX = (staff.x[slot] / TILE_UNITS) | 0;
     const guardY = (staff.y[slot] / TILE_UNITS) | 0;
     if (Math.abs(guardX - tileX) <= SECURITY_RADIUS && Math.abs(guardY - tileY) <= SECURITY_RADIUS)

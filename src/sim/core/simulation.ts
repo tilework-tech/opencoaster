@@ -8,6 +8,7 @@ import {
   fireStaff,
   hireStaff,
   renameStaff,
+  setStaffOrder,
   setStaffKindPatrolTile,
   setStaffPatrolTile,
   spawnStaff,
@@ -175,6 +176,9 @@ export class Simulation {
         break;
       case 'renameStaff':
         renameStaff(w, c.staffId, c.name);
+        break;
+      case 'setStaffOrder':
+        setStaffOrder(w, c.staffId, c.order, c.enabled);
         break;
       case 'setFlowerBed':
         setFlowerBed(w, c.x, c.y, c.enabled);

@@ -34,6 +34,7 @@ describe('parseScenarioFile', () => {
     expect(def).toEqual({
       id: 'test-park',
       name: 'Test Park',
+      category: 'beginner',
       description: 'A park for tests.',
       seed: 7,
       mapWidth: 48,
@@ -56,6 +57,11 @@ describe('parseScenarioFile', () => {
         byTick: TICKS_PER_YEAR,
       },
     });
+  });
+
+  it('accepts the difficulty category used by scenario selection', () => {
+    expect(parseScenarioFile({ ...valid, category: 'expert' }).category).toBe('expert');
+    expect(() => parseScenarioFile({ ...valid, category: 'impossible' })).toThrow(/category/);
   });
 
   it('defaults difficultRating to off and accepts it as a boolean', () => {

@@ -10,6 +10,7 @@ import { flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/f
 import { RideType } from '../sim/rides/ride-types';
 import { LedgerCategory, PriceMode } from '../sim/economy/ledger';
 import { Funding } from '../sim/research/research';
+import { StaffKind, StaffOrder } from '../sim/staff/staff-store';
 import {
   RideInfo,
   RIDE_INFO_STRIDE,
@@ -20,6 +21,27 @@ import {
 } from './snapshot';
 
 describe('render snapshot', () => {
+  it('publishes each worker task-order mask by stable staff id', () => {
+    const simulation = new Simulation({ seed: 19, width: 8, height: 8 });
+    simulation.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    simulation.step();
+    const staffId = simulation.world.staff.slotToId[0];
+    simulation.enqueue({
+      type: 'setStaffOrder',
+      staffId,
+      order: 'sweep-paths',
+      enabled: false,
+    });
+    simulation.step();
+    const snapshot = createSnapshot({ guests: 0, staff: 1, vehicles: 0, litter: 0 });
+
+    writeSnapshot(simulation.world, snapshot);
+
+    expect(snapshot.staffIds[0]).toBe(staffId);
+    expect(snapshot.staffOrders[0] & (1 << StaffOrder.SweepPaths)).toBe(0);
+    expect(snapshot.staffOrders[0] & (1 << StaffOrder.EmptyBins)).not.toBe(0);
+  });
+
   it('publishes the whole line for a ride, not just its head of queue', () => {
     const world = flatWorld(24, 8);
     layPath(world, row(5, 3, 15));
@@ -255,6 +277,6 @@ describe('staff and ground state in the snapshot', () => {
     expect(snapshot.grounds[sim.world.map.index(2, 2)]).toBe(
       sim.world.grounds[sim.world.map.index(2, 2)],
     );
-    expect(snapshotBuffers(snapshot)).toHaveLength(11);
+    expect(snapshotBuffers(snapshot)).toHaveLength(14);
   });
 });

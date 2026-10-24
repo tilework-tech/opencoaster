@@ -3,7 +3,7 @@ import { createVandalismSystem } from './vandalism';
 import { PathAddition, setPathAddition } from '../map/paths';
 import { PathFlag } from '../map/tile-map';
 import { flatWorld, guestAt, layPath, row } from '../integration/fixtures';
-import { StaffKind, spawnStaff } from '../staff/staff-store';
+import { setStaffOrder, StaffKind, spawnStaff } from '../staff/staff-store';
 import { TILE_UNITS } from '../core/constants';
 import { dropLitter, LitterKind } from './litter-store';
 import { hashWorld } from '../core/hash';
@@ -85,6 +85,19 @@ describe('vandalism', () => {
     runChecks(w, 400);
 
     expect(w.map.elFlags[benchElement(w)] & PathFlag.Bench).toBe(PathFlag.Bench);
+  });
+
+  it('does not treat a guard with vandalism duty disabled as a deterrent', () => {
+    const w = benchWorld(20);
+    spawnStaff(w, StaffKind.Security);
+    const staffId = w.staff.slotToId[0];
+    setStaffOrder(w, staffId, 'watch-for-vandalism', false);
+    w.staff.cols.x[0] = 9 * TILE_UNITS + 128;
+    w.staff.cols.y[0] = 8 * TILE_UNITS + 128;
+
+    runChecks(w, 400);
+
+    expect(w.map.elFlags[benchElement(w)] & PathFlag.Bench).toBe(0);
   });
 
   it('ignores a security guard farther away than six tiles', () => {

@@ -38,6 +38,7 @@ export interface ScenarioObjective {
 }
 
 export type EntranceSide = 'north' | 'east' | 'south' | 'west';
+export type ScenarioCategory = 'beginner' | 'challenging' | 'expert' | 'real' | 'other';
 
 /** Gate on the owned edge facing `side`, with a straight path of `length` tiles leading inward. */
 export interface ScenarioEntrance {
@@ -48,6 +49,7 @@ export interface ScenarioEntrance {
 export interface ScenarioDef {
   id: string;
   name: string;
+  category?: ScenarioCategory;
   description?: string;
   seed: number;
   mapWidth: number;

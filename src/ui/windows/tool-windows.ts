@@ -12,6 +12,7 @@ interface ToolTab {
   alternate?: string;
   /** Offers the 1×1 to 5×5 brush size selector. */
   brush?: boolean;
+  path?: boolean;
 }
 
 interface ToolWindowSpec {
@@ -89,6 +90,7 @@ export const PATH_WINDOW: ToolWindowSpec = {
       icon: 'paths',
       tool: 'path',
       help: 'Tap tiles to lay footpath. Connect it to the park entrance and to each ride entrance and exit.',
+      path: true,
     },
   ],
 };
@@ -111,6 +113,8 @@ export const WATER_WINDOW: ToolWindowSpec = {
 export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowController {
   const byId = new Map(spec.tabs.map((tab) => [tab.id, tab]));
   const toggles: HTMLButtonElement[] = [];
+  let queue = false;
+  let slopeDirection = -1;
   const select = (tab: ToolTab | undefined): void => {
     if (!tab) return;
     ctx.actions.setAlternate(false);
@@ -126,6 +130,7 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
     onTab: (id) => select(byId.get(id)),
     onClose: () => {
       ctx.actions.setAlternate(false);
+      ctx.actions.setPathOptions(false, -1);
       ctx.actions.setBrush(1);
       ctx.chooseTool('select');
     },
@@ -156,6 +161,49 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
         toggles.push(toggle);
         toggle.setAttribute('aria-pressed', 'false');
         pane.append(toggle);
+      }
+      if (tab.path) {
+        const queueToggle = button(
+          'Queue line',
+          () => {
+            queue = !queue;
+            queueToggle.setAttribute('aria-pressed', String(queue));
+            ctx.actions.setPathOptions(queue, slopeDirection);
+          },
+          'ui-button',
+        );
+        queueToggle.setAttribute('aria-pressed', 'false');
+        const slopeToggle = button(
+          'Follow terrain slope',
+          () => {
+            slopeDirection = slopeDirection < 0 ? 0 : -1;
+            slopeToggle.setAttribute('aria-pressed', String(slopeDirection >= 0));
+            direction.hidden = slopeDirection < 0;
+            ctx.actions.setPathOptions(queue, slopeDirection);
+          },
+          'ui-button',
+        );
+        slopeToggle.setAttribute('aria-pressed', 'false');
+        const direction = element('select', 'path-slope-direction');
+        direction.setAttribute('aria-label', 'Slope direction');
+        for (const [value, label] of ['North', 'East', 'South', 'West'].entries())
+          direction.append(new Option(label, String(value)));
+        direction.hidden = true;
+        direction.addEventListener('change', () => {
+          slopeDirection = Number(direction.value);
+          ctx.actions.setPathOptions(queue, slopeDirection);
+        });
+        const removeToggle = button(
+          'Remove footpath',
+          () => {
+            const on = removeToggle.getAttribute('aria-pressed') !== 'true';
+            removeToggle.setAttribute('aria-pressed', String(on));
+            ctx.actions.setAlternate(on);
+          },
+          'ui-button',
+        );
+        removeToggle.setAttribute('aria-pressed', 'false');
+        pane.append(queueToggle, slopeToggle, direction, removeToggle);
       }
     }
     if (spec.tabs.length === 1) select(spec.tabs[0]);

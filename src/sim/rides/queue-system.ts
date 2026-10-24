@@ -3,7 +3,7 @@ import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
 import { earn, ridePricingEnabled } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
-import { GuestState } from '../guests/guest-store';
+import { GuestState, recordRideHistory } from '../guests/guest-store';
 import { RidePhase } from './ride-store';
 import { addRideIncome } from './ride-operations';
 import { RIDE_CATALOG } from './ride-types';
@@ -45,6 +45,7 @@ export function seatQueuedGuests(world: World, slot: number, count: number, tag:
       addRideIncome(world, slot, fare);
     }
     guests.state[g] = GuestState.Riding;
+    recordRideHistory(world, g, id);
     guests.activityTicks[g] = tag & 0xffff;
     guests.x[g] = ride.rideX[slot] * TILE_UNITS + (TILE_UNITS >> 1);
     guests.y[g] = ride.rideY[slot] * TILE_UNITS + (TILE_UNITS >> 1);

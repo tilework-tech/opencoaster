@@ -8,6 +8,7 @@ Path: @/src/ui
 - Displays worker snapshots and timing statistics; authoritative game state remains in the simulation worker.
 - Below 700 px width windows become stacked bottom sheets (only the front sheet is expanded; tapping a title collapses/expands) and the toolbar becomes one horizontally scrolling row. Controls have 44 px minimum touch targets (checked by `e2e/mobile.spec.ts`).
 - Hosts the game shell: a title screen, an in-game menu (reached from Game options), and a one-time scenario outcome dialog.
+- Title and scenario selection use the same bevelled window chrome as the in-game interface. New Game groups scenarios under the five manual-listed categories and shows a park illustration, objective and starting details for the selected park; scenario JSON defaults to Beginner Parks unless `category` is set.
 
 ### How it fits into the larger codebase
 
@@ -31,7 +32,13 @@ Path: @/src/ui
 
 ### Things to Know
 
-- Deferred from docs/fidelity/ui.md: Clear scenery, Water and view overlays (underground, see-through, height marks; keys 1, 3-6, 8-0, H, V) have placeholder windows because the sim and renderer have no support; individual guest/worker windows opened from lists with locate/follow; Rides tab data in the guest window; worker orders and colours; footpath queue-line and slope modes; right-click removal; resizable windows; Ctrl+S screenshot; Options categories and shortcut reassignment; audio; ticker timing/colours beyond the three categories (unresolved in the spec). Enter rotates the view, so building a track piece uses the Build piece button; Delete demolishes the last piece.
+- The guest roster supports thought, tile, and recent-ride summaries. Individual guest windows show View, Stats, Rides, Cash Info, Recent Thoughts, and Carrying; the simulation records the four most recent ride IDs.
+- Staff windows list workers by role and open individual worker details, with role-specific task-order controls and worker statistics. Patrol masks are shared by staff role and shown as a map overlay while editing.
+- The footpath panel supports queue-line and slope-direction placement. Footpaths can be removed with the tool toggle, alternate click, context click, or a 550 ms touch hold.
+- Desktop windows can be resized. Mobile uses bottom sheets and keeps touch targets at least 44 px. Options are grouped into Game, Sound, Display, and Controls; audio playback, view-filter effects, and shortcut reassignment remain unimplemented. Ctrl+S downloads the canvas as a PNG.
+- The UI specification leaves exact message colors and display durations unresolved; current values are not claimed as exact RCT2 behavior.
+
+- Deferred from docs/fidelity/ui.md: Clear scenery, Water and view overlays (underground, see-through, height marks; keys 1, 3-6, 8-0, H, V) have placeholder windows because the sim and renderer have no support; individual guest/worker locate and follow behavior; guest ride-summary details beyond four recent rides; worker uniform colors; shortcut reassignment; audio; and exact ticker colors/timing because those values are unresolved in the spec. Enter rotates the view, so building a track piece uses the Build piece button; Delete demolishes the last piece.
 
 - Tool status text reports that a placement was requested. The authoritative outcome arrives in `Snapshot.feedback`, which the panel shows via `feedbackMessage` when `seq` changes. Map-command rejections remain silent.
 - The placement preview is a client-side approximation using the snapshot (bounds, ownership via `buildable`, funds); the simulation result is authoritative and may differ.
@@ -43,7 +50,7 @@ Path: @/src/ui
 - Session lifecycle lives in `main.ts`. A new game, sandbox start, save load or import replaces the worker's game and clears the session's outcome state. Quitting to title clears the session. Loading a save reads only its header first (`summarizeSave`), so a bad file leaves the current game running.
 - Scenario outcome: when a snapshot's scenario status leaves Active, the outcome dialog shows once per game. It offers keep playing (sandbox), the menu, or back to title. The objective strip ([objective.ts](objective.ts)) shows progress and the deadline. Until the first rating refresh (tick 512) the rating reads as pending.
 - The park panel shows guest and ride counts, simulation tick and park rating. The finance panel shows cash and loan. Guest details remain a point-in-time selection until another selection replaces or clears them.
-- Title and menu actions are asynchronous and their failures are shown in the overlay (for example a save that cannot be read, or storage that is unavailable; the title falls back to an in-memory store when IndexedDB cannot be opened, and says so).
+- Title and menu actions are asynchronous and their failures are shown in the overlay (for example a save that cannot be read, or storage that is unavailable; the title falls back to an in-memory store when IndexedDB cannot be opened, and says so). The scenario preview is newly authored interface art and descriptive scenario metadata, not a capture of original game assets.
 - Guest spawning from the toolbar is a development control that sends the existing `spawnGuests` command.
 
 Created and maintained by Nori.

@@ -41,6 +41,7 @@ export interface GameUIActions {
   setAlternate(on: boolean): void;
   /** Land brush edge length in tiles (1-5). */
   setBrush(size: number): void;
+  setPathOptions(queue: boolean, slopeDirection: number): void;
   /** Centres the camera on a tile. */
   locate(x: number, y: number): void;
   /** Selects the ride type the Ride tool places. */
@@ -53,6 +54,7 @@ export interface GameUIActions {
 
 /** Structured guest selection; a point-in-time copy of the guest's snapshot values. */
 export interface GuestSelection {
+  id: number;
   number: number;
   tileX: number;
   tileY: number;
@@ -76,6 +78,8 @@ export interface UiContext {
   selectedGuest(): GuestSelection | null;
   series: { cash: SampleSeries; value: SampleSeries; profit: SampleSeries; guests: SampleSeries };
   openRide(rideId: number): void;
+  openGuest(guestId: number): void;
+  openWorker(staffId: number): void;
   openWindow(id: string): void;
   chooseTool(tool: ToolMode): void;
   currentTool(): ToolMode;

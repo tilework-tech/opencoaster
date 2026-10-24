@@ -15,7 +15,8 @@ import { ScenarioDialog } from './ui/scenario-dialog';
 import { downloadBytes } from './ui/dom';
 import { loadSettings, saveSettings } from './ui/settings';
 import type { GameSpeed } from './ui/settings';
-import { DEFAULT_MAP_SIZE, TILE_UNITS } from './sim/core/constants';
+import { DEFAULT_MAP_SIZE, TILE_UNITS, Z_STEP } from './sim/core/constants';
+import { PathFlag } from './sim/map/tile-map';
 import { PathAddition } from './sim/map/paths';
 import { CoasterPanel } from './ui/coaster-panel';
 import { RIDE_CATALOG } from './sim/rides/ride-types';
@@ -33,6 +34,7 @@ import { capDevicePixelRatio, zoomCameraAt } from './input/camera-controls';
 import { PointerInput } from './input/pointer-input';
 import type { PointerSample } from './input/pointer-input';
 import { findRideIdAtTile } from './input/object-picking';
+import { GUEST_DETAIL_STRIDE } from './worker/snapshot';
 
 const root = document.getElementById('app') as HTMLElement;
 const selection = createRenderer(document.getElementById('game') as HTMLCanvasElement);
@@ -78,6 +80,8 @@ let selectedGuest: GuestSelection | null = null;
 let ridePlacement: { rideId: number; part: 'entrance' | 'exit' } | null = null;
 let patrolKind: number | null = null;
 let alternate = false;
+let pathQueue = false;
+let pathSlope = -1;
 let brush = 1;
 const windows = new WindowManager(root);
 const coasterPanel = new CoasterPanel(windows, {
@@ -87,6 +91,11 @@ const coasterPanel = new CoasterPanel(windows, {
   map: () => sim.map,
   status: (text) => gameUi.setToolStatus(text),
 });
+const patrolOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+patrolOverlay.classList.add('patrol-overlay');
+patrolOverlay.setAttribute('aria-hidden', 'true');
+root.append(patrolOverlay);
+let patrolOverlaySignature = '';
 const trackPreview = new TrackPreviewOverlay(root);
 const gameUi = new GameUI(root, windows, {
   setPaused(value) {
@@ -113,6 +122,10 @@ const gameUi = new GameUI(root, windows, {
   },
   setBrush(size) {
     brush = Math.max(1, Math.min(5, Math.round(size)));
+  },
+  setPathOptions(queue, slope) {
+    pathQueue = queue;
+    pathSlope = slope;
   },
   locate(x, y) {
     centreOnTile(x, y);
@@ -371,6 +384,17 @@ document.addEventListener('visibilitychange', () => {
 });
 
 const keys = new Set<string>();
+function downloadScreenshot(): void {
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `opencoaster-screenshot-${Date.now()}.png`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
 window.addEventListener('keydown', (event) => {
   const typing =
     event.target instanceof HTMLInputElement ||
@@ -379,6 +403,11 @@ window.addEventListener('keydown', (event) => {
   const onButton = event.target instanceof HTMLButtonElement;
   keys.add(event.key.toLowerCase());
   if (!session || overlayOpen()) return;
+  if (event.ctrlKey && event.key.toLowerCase() === 's' && !typing) {
+    event.preventDefault();
+    downloadScreenshot();
+    return;
+  }
   if (event.key === 'Delete' && selectedTool === 'track' && !typing) {
     event.preventDefault();
     coasterPanel.removeLast();
@@ -476,7 +505,8 @@ const pointerInput = new PointerInput({
     handleCanvasClick(x, y, shiftKey);
   },
   hold(x, y) {
-    handleCanvasClick(x, y, false, true);
+    if (selectedTool === 'path') removePathAt(x, y);
+    else handleCanvasClick(x, y, false, true);
   },
   paint(x, y, shiftKey) {
     const map = sim.map;
@@ -516,6 +546,24 @@ canvas.addEventListener('pointerup', (event) => {
   pointerInput.pointerUp(pointerSample(event));
 });
 canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
+canvas.addEventListener('contextmenu', (event) => {
+  if (selectedTool !== 'path') return;
+  event.preventDefault();
+  removePathAt(event.clientX, event.clientY);
+});
+
+function removePathAt(clientX: number, clientY: number): void {
+  const rect = canvas.getBoundingClientRect();
+  const map = sim.map;
+  if (!map) return;
+  const tile = pickTile(clientX - rect.left, clientY - rect.top, map, camera, {
+    width: rect.width,
+    height: rect.height,
+  });
+  if (!tile) return;
+  sim.command({ type: 'removePath', x: tile[0], y: tile[1] });
+  gameUi.setToolStatus(`Path removal requested at ${tile[0]}, ${tile[1]}.`);
+}
 
 function handleCanvasClick(
   clientX: number,
@@ -549,8 +597,13 @@ function handleCanvasClick(
       });
       gameUi.setToolStatus(`${lower ? 'Lowering' : 'Raising'} land at ${x}, ${y}.`);
     } else if (selectedTool === 'path') {
-      sim.command({ type: 'placePath', x, y });
-      gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
+      if (alternate) {
+        sim.command({ type: 'removePath', x, y });
+        gameUi.setToolStatus(`Path removal requested at ${x}, ${y}.`);
+      } else {
+        sim.command({ type: 'placePath', x, y, queue: pathQueue, slope: pathSlope });
+        gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
+      }
     } else if (
       selectedTool === 'bin' ||
       selectedTool === 'bench' ||
@@ -666,11 +719,12 @@ function findGuestAt(
   const state = layer.data[offset + 3] >>> 8;
   const tileX = Math.floor(x / TILE_UNITS);
   const tileY = Math.floor(y / TILE_UNITS);
-  const detailOffset = nearest * 12;
+  const detailOffset = nearest * GUEST_DETAIL_STRIDE;
   const snapshot = sim.latest;
   const details = snapshot?.guestDetails;
   if (!snapshot || !details) return null;
   return {
+    id: snapshot.guestIds[nearest],
     number: nearest + 1,
     tileX,
     tileY,
@@ -700,6 +754,72 @@ function guestState(state: number): string {
 let last = performance.now();
 let fps = 60;
 let renderMs = 0;
+function drawPatrolOverlay(): void {
+  if (!session || selectedTool !== 'patrol' || patrolKind === null || !sim.map || !sim.latest) {
+    patrolOverlay.setAttribute('hidden', '');
+    patrolOverlaySignature = '';
+    return;
+  }
+  patrolOverlay.removeAttribute('hidden');
+  const map = sim.map;
+  const snapshot = sim.latest;
+  const mapSize = map.width * map.height;
+  const start = patrolKind * mapSize;
+  const mask = snapshot.patrolAreas;
+  const rect = canvas.getBoundingClientRect();
+  const signature = [
+    snapshot.tick,
+    patrolKind,
+    camera.x,
+    camera.y,
+    camera.zoom,
+    camera.rotation,
+    rect.width,
+    rect.height,
+  ].join(':');
+  if (signature === patrolOverlaySignature) return;
+  patrolOverlaySignature = signature;
+  const polygons: SVGPolygonElement[] = [];
+  const point = new Float64Array(2);
+  const surfaceHeights = Float32Array.from(map.heights, (height) => height * Z_STEP);
+  const hasPath = new Uint8Array(mapSize);
+  for (let path = 0; path < map.pathCount; path++) {
+    const offset = path * 5;
+    const x = map.pathElements[offset]!;
+    const y = map.pathElements[offset + 1]!;
+    const tile = y * map.width + x;
+    if (hasPath[tile]) continue;
+    const flags = map.pathElements[offset + 3]!;
+    surfaceHeights[tile] =
+      map.pathElements[offset + 2]! * Z_STEP + ((flags & PathFlag.Sloped) !== 0 ? Z_STEP / 2 : 0);
+    hasPath[tile] = 1;
+  }
+  for (let tile = 0; tile < mapSize; tile++) {
+    if (mask[start + tile] !== 1) continue;
+    const x = tile % map.width;
+    const y = Math.floor(tile / map.width);
+    project(
+      x * TILE_UNITS + TILE_UNITS / 2,
+      y * TILE_UNITS + TILE_UNITS / 2,
+      surfaceHeights[tile]!,
+      map.width,
+      map.height,
+      camera.rotation,
+      point,
+    );
+    const cx = rect.width / 2 + (point[0] - camera.x) * camera.zoom;
+    const cy = rect.height / 2 + (point[1] - camera.y) * camera.zoom;
+    const halfX = 32 * camera.zoom;
+    const halfY = 16 * camera.zoom;
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute(
+      'points',
+      `${cx},${cy - halfY} ${cx + halfX},${cy} ${cx},${cy + halfY} ${cx - halfX},${cy}`,
+    );
+    polygons.push(polygon);
+  }
+  patrolOverlay.replaceChildren(...polygons);
+}
 function frame(now: number): void {
   const dt = now - last;
   last = now;
@@ -723,6 +843,7 @@ function frame(now: number): void {
   syncPause();
   const renderStart = performance.now();
   renderer.draw(sim.latest, camera);
+  drawPatrolOverlay();
   renderMs = performance.now() - renderStart;
   hud.update(
     sim.stats,

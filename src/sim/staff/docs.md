@@ -28,6 +28,8 @@ Path: @/src/sim/staff
 
 ### Things to Know
 
+- Task orders are stored per worker and persisted from save version 13. Older saves initialize the available orders for each worker's role. Disabled orders prevent the corresponding litter, garden, bin, ride-inspection, repair, vandalism-watch, or entertainment work.
+
 - `patrolArea` is an area id, not an entity id. Each role has one mask; `setStaffPatrolTile` edits the mask of the person's role, so per-person commands and role painting share the same area. Removing the last marked tile returns that role's staff to unrestricted movement. Per-person masks would need storage beyond the four areas.
 - Movement falls back to a direct relocation onto the nearest walkable marked tile when pathfinding cannot return a direction. Patrol masks constrain staff destinations and pathfinding, but are not a generic job-assignment system.
 - Staff wages are named per-week integer-cent rates. They are OpenCoaster tuning values; the handyman rate is a weekly conversion of the cited $50 monthly reference, while unsupported role salaries remain provisional.

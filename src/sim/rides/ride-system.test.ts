@@ -74,7 +74,7 @@ function preRidesSave(w: World): Uint8Array {
   const oldArrays = [
     ...w.map.arrays(),
     ...legacyGuestArrays(w),
-    ...w.staff.arrays(),
+    ...w.staff.arrays().slice(0, -1),
     ...w.vehicles.arrays(),
     ...w.litter.arrays(),
     slotToId,

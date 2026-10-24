@@ -10,17 +10,107 @@ import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import type { World } from '../sim/core/world';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
-import { StaffKind, spawnStaff } from '../sim/staff/staff-store';
+import { StaffKind, StaffOrder, staffOrderEnabled, spawnStaff } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { WeatherKind } from '../sim/weather/weather';
 
 describe('save', () => {
-  it('writes the combined guest and ride format as version 12', () => {
-    expect(SAVE_VERSION).toBe(12);
+  it('writes the version 13 guest-history and worker-order format', () => {
+    expect(SAVE_VERSION).toBe(13);
     const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(12);
+    expect(header.version).toBe(13);
+  });
+
+  it('round-trips individual worker task orders', () => {
+    const sim = new Simulation({ seed: 14, width: 8, height: 8 });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Mechanic });
+    sim.step();
+    const staffId = sim.world.staff.slotToId[0];
+    sim.enqueue({ type: 'setStaffOrder', staffId, order: 'inspect-rides', enabled: false });
+    sim.step();
+
+    const loaded = deserialize(serialize(sim.world));
+
+    expect(staffOrderEnabled(loaded, staffId, StaffOrder.InspectRides)).toBe(false);
+    expect(staffOrderEnabled(loaded, staffId, StaffOrder.RepairRides)).toBe(true);
+  });
+
+  it('migrates version 11 saves with workers using their role defaults', () => {
+    const sim = new Simulation({ seed: 15, width: 8, height: 8 });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Entertainer });
+    sim.step();
+    const staffId = sim.world.staff.slotToId[0];
+    const current = serialize(sim.world);
+    const views = [
+      ...sim.world.map.arrays(),
+      ...sim.world.guests.arrays(),
+      ...sim.world.staff.arrays(),
+      ...sim.world.vehicles.arrays(),
+      ...sim.world.litter.arrays(),
+      ...sim.world.rides.arrays(),
+      ...sim.world.track.pieces.arrays(),
+      ...sim.world.track.rideTables(),
+    ];
+    const legacy = withoutColumns(current, 11, views, [
+      sim.world.guests.cols.visitTicks,
+      sim.world.guests.cols.ridesTaken,
+      sim.world.guests.cols.lastRide,
+      sim.world.guests.cols.rideHistoryCursor,
+      sim.world.guests.cols.rideHistory0,
+      sim.world.guests.cols.rideHistory1,
+      sim.world.guests.cols.rideHistory2,
+      sim.world.guests.cols.rideHistory3,
+      sim.world.staff.cols.orderFlags,
+    ]);
+
+    const loaded = deserialize(legacy);
+
+    expect(staffOrderEnabled(loaded, staffId, StaffOrder.EntertainGuests)).toBe(true);
+    expect(staffOrderEnabled(loaded, staffId, StaffOrder.InspectRides)).toBe(false);
+  });
+
+  it('migrates version 12 guest stats and initializes ride history and staff orders', () => {
+    const sim = new Simulation({ seed: 16, width: 8, height: 8 });
+    sim.enqueue({ type: 'spawnGuests', count: 1 });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Entertainer });
+    sim.step();
+    const guestId = sim.world.guests.slotToId[0];
+    const guestSlot = sim.world.guests.idToSlot[guestId];
+    const staffId = sim.world.staff.slotToId[0];
+    sim.world.guests.cols.visitTicks[guestSlot] = 2345;
+    sim.world.guests.cols.ridesTaken[guestSlot] = 7;
+    sim.world.guests.cols.lastRide[guestSlot] = 42;
+    const views = [
+      ...sim.world.map.arrays(),
+      ...sim.world.guests.arrays(),
+      ...sim.world.staff.arrays(),
+      ...sim.world.vehicles.arrays(),
+      ...sim.world.litter.arrays(),
+      ...sim.world.rides.arrays(),
+      ...sim.world.track.pieces.arrays(),
+      ...sim.world.track.rideTables(),
+    ];
+    const legacy = withoutColumns(serialize(sim.world), 12, views, [
+      sim.world.guests.cols.rideHistoryCursor,
+      sim.world.guests.cols.rideHistory0,
+      sim.world.guests.cols.rideHistory1,
+      sim.world.guests.cols.rideHistory2,
+      sim.world.guests.cols.rideHistory3,
+      sim.world.staff.cols.orderFlags,
+    ]);
+
+    const loaded = deserialize(legacy);
+    const loadedGuest = loaded.guests.idToSlot[guestId];
+
+    expect(loaded.guests.cols.visitTicks[loadedGuest]).toBe(2345);
+    expect(loaded.guests.cols.ridesTaken[loadedGuest]).toBe(7);
+    expect(loaded.guests.cols.lastRide[loadedGuest]).toBe(42);
+    expect(loaded.guests.cols.rideHistoryCursor[loadedGuest]).toBe(0);
+    expect(loaded.guests.cols.rideHistory0[loadedGuest]).toBe(0);
+    expect(staffOrderEnabled(loaded, staffId, StaffOrder.EntertainGuests)).toBe(true);
+    expect(staffOrderEnabled(loaded, staffId, StaffOrder.InspectRides)).toBe(false);
   });
 
   it('round-trips world state exactly', () => {
@@ -284,6 +374,19 @@ function navigationColumns(world: World): ArrayBufferView[] {
   return [c.navGoal, c.navGap, c.navSteps, c.lostTicks, c.hasMap];
 }
 
+/** Version 11 did not contain guest history or per-worker task orders. */
+function v12Columns(world: World): ArrayBufferView[] {
+  const guests = world.guests.cols;
+  return [
+    guests.rideHistoryCursor,
+    guests.rideHistory0,
+    guests.rideHistory1,
+    guests.rideHistory2,
+    guests.rideHistory3,
+    world.staff.cols.orderFlags,
+  ];
+}
+
 /**
  * Rewrites a current save as `version` would have written it: the header carries that version and
  * the listed columns, which that version did not have, are removed from the body.
@@ -446,6 +549,7 @@ describe('save: version 4 migration', () => {
       world.guests.cols.lastRide,
       world.guests.cols.approachGap,
       ...navigationColumns(world),
+      ...v12Columns(world),
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,
       ...reliabilityColumns(world),
@@ -480,6 +584,7 @@ describe('save: version 4 migration', () => {
       world.guests.cols.visitTicks,
       world.guests.cols.ridesTaken,
       world.guests.cols.lastRide,
+      ...v12Columns(world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -517,6 +622,7 @@ describe('save: version 4 migration', () => {
       world.guests.cols.visitTicks,
       world.guests.cols.ridesTaken,
       world.guests.cols.lastRide,
+      ...v12Columns(world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -553,6 +659,12 @@ describe('save: version 4 migration', () => {
       world.guests.cols.lastRide,
       world.guests.cols.approachGap,
       ...navigationColumns(world),
+      world.guests.cols.rideHistoryCursor,
+      world.guests.cols.rideHistory0,
+      world.guests.cols.rideHistory1,
+      world.guests.cols.rideHistory2,
+      world.guests.cols.rideHistory3,
+      world.staff.cols.orderFlags,
       world.rides.cols.incomeCents,
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,

@@ -1,7 +1,7 @@
 import { TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { IMPORTED_ID, ObjectiveKind, SANDBOX_ID } from './scenario';
-import type { EntranceSide, ScenarioDef, ScenarioEntrance } from './scenario';
+import type { EntranceSide, ScenarioCategory, ScenarioDef, ScenarioEntrance } from './scenario';
 
 type Json = Record<string, unknown>;
 
@@ -18,6 +18,14 @@ const PRICE_MODES: Record<string, PriceMode> = {
   free: PriceMode.Free,
   admission: PriceMode.Admission,
   perRide: PriceMode.PerRide,
+};
+
+const SCENARIO_CATEGORIES: Record<string, ScenarioCategory> = {
+  beginner: 'beginner',
+  challenging: 'challenging',
+  expert: 'expert',
+  real: 'real',
+  other: 'other',
 };
 
 const LEDGER_CATEGORIES: Record<string, LedgerCategory> = {
@@ -85,6 +93,7 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
   const def: ScenarioDef = {
     id,
     name,
+    category: check(() => oneOf(root.category ?? 'beginner', 'category', SCENARIO_CATEGORIES)),
     ...(description === undefined ? {} : { description }),
     seed: check(() => integer(root.seed, 'seed', 0, 0xffffffff)),
     mapWidth: check(() => integer(map.width, 'map.width', MIN_MAP_SIZE, MAX_MAP_SIZE)),

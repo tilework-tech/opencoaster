@@ -72,7 +72,23 @@ export const GUEST_SCHEMA = {
   visitTicks: Uint32Array,
   ridesTaken: Uint16Array,
   lastRide: Int32Array,
+  /** Cursor for the next write in the guest's recent ride history. */
+  rideHistoryCursor: Uint8Array,
+  rideHistory0: Int32Array,
+  rideHistory1: Int32Array,
+  rideHistory2: Int32Array,
+  rideHistory3: Int32Array,
 } as const;
+
+export function recordRideHistory(w: World, slot: number, rideId: number): void {
+  const guests = w.guests.cols;
+  const cursor = guests.rideHistoryCursor[slot] & 3;
+  if (cursor === 0) guests.rideHistory0[slot] = rideId;
+  else if (cursor === 1) guests.rideHistory1[slot] = rideId;
+  else if (cursor === 2) guests.rideHistory2[slot] = rideId;
+  else guests.rideHistory3[slot] = rideId;
+  guests.rideHistoryCursor[slot] = (cursor + 1) & 3;
+}
 
 export function recordThought(w: World, slot: number, thought: GuestThought): void {
   if (thought === GuestThought.None) return;

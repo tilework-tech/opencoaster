@@ -5,7 +5,7 @@ import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/n
 import type { NavOptions } from '../pathfinding/navigate';
 import { isRideInspectionDue } from '../rides/ride-operations';
 import { rideServiceX, rideServiceY, serviceRide } from '../rides/ride-maintenance';
-import { StaffKind } from './staff-store';
+import { StaffKind, StaffOrder } from './staff-store';
 import { DIR_DX, DIR_DY, ElementType, PathFlag } from '../map/tile-map';
 import { RideState } from '../rides/ride-store';
 import {
@@ -188,6 +188,7 @@ export function createStaffSystem(): System {
       }
       for (let slot = 0; slot < world.staff.count; slot++) {
         if ((world.tick + world.staff.slotToId[slot]) % STAFF_UPDATE_STRIDE !== 0) continue;
+        const orders = staff.orderFlags[slot];
         const area = staff.patrolArea[slot];
         const activePatrol = area > 0 ? patrolMasks[area - 1] : unrestricted;
         const x = (staff.x[slot] / TILE_UNITS) | 0;
@@ -198,7 +199,7 @@ export function createStaffSystem(): System {
             continue;
           }
           const nearest =
-            world.litter.count > 0
+            (orders & (1 << StaffOrder.SweepPaths)) !== 0 && world.litter.count > 0
               ? nearestLitterSlot(
                   world,
                   x,
@@ -226,7 +227,10 @@ export function createStaffSystem(): System {
             gardenWorld = world;
             gardenTick = world.tick;
           }
-          const site = findGardenSite(world, x, y, patrolOrNull, gardenSites, gardenSiteCount);
+          const site =
+            (orders & (1 << StaffOrder.WaterGardens)) !== 0
+              ? findGardenSite(world, x, y, patrolOrNull, gardenSites, gardenSiteCount)
+              : -1;
           const stand = site >= 0 ? standTileFor(world, site, map.index(x, y), patrolOrNull) : -1;
           if (stand >= 0) {
             staff.targetX[slot] = stand % map.width;
@@ -240,7 +244,7 @@ export function createStaffSystem(): System {
           let bin = -1;
           let binDistance = 0x7fffffff;
           const staffTile = map.index(x, y);
-          for (let i = 0; i < binCount; i++) {
+          for (let i = 0; (orders & (1 << StaffOrder.EmptyBins)) !== 0 && i < binCount; i++) {
             const tile = binTiles[i];
             if (area > 0 && activePatrol[tile] === 0) continue;
             const element = binElements[i];
@@ -296,8 +300,12 @@ export function createStaffSystem(): System {
           const canCheckRoute = map.isWalkable(staffTile);
           for (let i = 0; i < world.rides.count; i++) {
             const rideId = world.rides.slotToId[i];
-            const broken = world.rides.cols.state[i] === RideState.Broken;
-            if (!broken && !isRideInspectionDue(world, rideId)) continue;
+            const broken =
+              (orders & (1 << StaffOrder.RepairRides)) !== 0 &&
+              world.rides.cols.state[i] === RideState.Broken;
+            const inspectionDue =
+              (orders & (1 << StaffOrder.InspectRides)) !== 0 && isRideInspectionDue(world, rideId);
+            if (!broken && !inspectionDue) continue;
             const rideX = rideServiceX(world, i);
             const rideY = rideServiceY(world, i);
             let serviceTile = -1;
@@ -333,11 +341,23 @@ export function createStaffSystem(): System {
             moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             const nx = (staff.x[slot] / TILE_UNITS) | 0;
             const ny = (staff.y[slot] / TILE_UNITS) | 0;
-            if (nx === staff.targetX[slot] && ny === staff.targetY[slot])
+            const currentState = world.rides.cols.state[targetRide];
+            const shouldService =
+              (currentState === RideState.Broken &&
+                (orders & (1 << StaffOrder.RepairRides)) !== 0) ||
+              (currentState !== RideState.Broken &&
+                (orders & (1 << StaffOrder.InspectRides)) !== 0 &&
+                isRideInspectionDue(world, rideId));
+            if (nx === staff.targetX[slot] && ny === staff.targetY[slot] && shouldService)
               serviceRide(world, rideId, world.staff.slotToId[slot]);
           }
         }
-        if (staff.kind[slot] === StaffKind.Entertainer || staff.kind[slot] === StaffKind.Security) {
+        if (
+          (staff.kind[slot] === StaffKind.Entertainer &&
+            (orders & (1 << StaffOrder.EntertainGuests)) !== 0) ||
+          (staff.kind[slot] === StaffKind.Security &&
+            (orders & (1 << StaffOrder.WatchForVandalism)) !== 0)
+        ) {
           const workTick = (world.tick + world.staff.slotToId[slot]) % WANDER_STRIDE === 0;
           const target = mapIndex(world, staff.targetX[slot], staff.targetY[slot]);
           if (workTick || target < 0 || !activePatrol[target] || !map.isWalkable(target)) {

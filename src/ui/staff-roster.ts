@@ -10,6 +10,7 @@ export interface RosterEntry {
 }
 
 export interface StaffRosterActions {
+  open(staffId: number): void;
   rename(staffId: number, name: string): void;
   /** Opens the role's patrol area for editing; patrol masks are kept per role. */
   patrol(kind: number): void;
@@ -60,8 +61,15 @@ export class StaffRoster {
     item.dataset.staffId = String(entry.id);
     const label = document.createElement('span');
     label.textContent = `${entry.name} · ${entry.role}`;
+    const inspect = this.button(
+      'View worker',
+      () => this.actions.open(entry.id),
+      `open-staff-${entry.id}`,
+    );
+    inspect.setAttribute('aria-label', `Open ${entry.name} details`);
     item.append(
       label,
+      inspect,
       this.button('Rename', () => this.promptRename(entry), `rename-staff-${entry.id}`),
       this.button('Patrol', () => this.actions.patrol(entry.kind), `patrol-role-of-${entry.id}`),
       this.button('Fire', () => this.actions.fire(entry.id), `fire-staff-${entry.id}`),
