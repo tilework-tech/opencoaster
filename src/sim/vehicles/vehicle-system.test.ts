@@ -5,6 +5,7 @@ import { PieceId } from '../track/catalog';
 import { getConstructionCursor, placeTrack } from '../track/construction';
 import { getTrackPath } from '../track/track-path';
 import { PieceMode, TrackResult } from '../track/track-types';
+import { CREST_CRASH_SPEED_Q8 } from './speed-units';
 import { calculateTrackedRideRatings } from './vehicle-ratings';
 import {
   createVehicleTrack,
@@ -50,7 +51,7 @@ function track(
       : undefined,
     blockOpen: options.blockOpen ? Uint8Array.from(options.blockOpen) : undefined,
     loop: options.loop ?? false,
-    crashable: options.crashable,
+    crashable: options.crashable ?? false,
     crestCrashSpeedQ8: options.crestCrashSpeedQ8,
     dropCrashSpeedQ8: options.dropCrashSpeedQ8,
     invertedSegments: options.invertedSegments
@@ -411,13 +412,13 @@ describe('vehicle simulation', () => {
     const thresholdWorld = world();
     const atThreshold = spawnTrain(thresholdWorld, {
       rideId: 0,
-      speed: 50 * 256,
+      speed: CREST_CRASH_SPEED_Q8,
       state: VehicleState.Testing,
     });
     const aboveThreshold = spawnTrain(thresholdWorld, {
       rideId: 0,
       trackPos: 1,
-      speed: 50 * 256 + 1,
+      speed: CREST_CRASH_SPEED_Q8 + 1,
       state: VehicleState.Testing,
     });
     stepVehicles(thresholdWorld, crashTrack);

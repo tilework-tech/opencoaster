@@ -167,9 +167,9 @@ Historical pre-stack calibration: **100 guests and rating 650** in year one (it 
 
 | Profile   | Guests    | Rating    | Wins    |
 | --------- | --------- | --------- | ------- |
-| minimal   | 46 - 71   | 156 - 309 | 0 / 12  |
-| modest    | 116 - 153 | 668 - 752 | 3 / 12  |
-| ambitious | 156 - 178 | 728 - 858 | 11 / 12 |
+| minimal   | 26 - 77   | 157 - 327 | 0 / 12  |
+| modest    | 133 - 153 | 623 - 758 | 5 / 12  |
+| ambitious | 152 - 180 | 699 - 829 | 10 / 12 |
 
 So a player who builds the full set of stalls and staff but few attractions can still scrape it, and one who keeps adding attractions nearly always wins. Year-end ratings move about 40 points between seeds, which is why the target sits between the profiles rather than at the ambitious floor.
 
@@ -199,6 +199,20 @@ Starter scenario, one year, default seed (2026), scripted modest build, `pnpm ba
 | Ledger: interest, wages, construction | -1,750, -1,717, -11,162 | unchanged              |
 
 The ledger is unchanged by design: monthly research funding equals the old weekly charge times four, and the scripted park runs no research or campaign. The moves come from the rating's happiness term and the starter target.
+
+## Coaster fidelity on the combined tree (PR #32)
+
+Rebased on main at `f0c48a6` (PR #36, save v11), so this includes guest navigation, ride reliability and the coaster fidelity changes (crash defaults, turn/helix/shelter/scenery terms, multiplicative base ratings, requirements). Twelve seeds per profile (11 - 16 and 21 - 26), `pnpm balance --profile P --seed N`, scored against the scenario's 575-rating target:
+
+| Build (wins / 12) | main `f0c48a6` | this PR |
+| ----------------- | -------------- | ------- |
+| minimal           | 0              | 0       |
+| modest            | 12             | 10      |
+| ambitious         | 2              | 3       |
+
+Modest rating ranges: main 580 - 659, this PR 558 - 688. The starter objective stays winnable for the modest build on most seeds (10 / 12).
+
+**Default seed (2026), scripted modest build:** main ends year one at rating 636 and wins; this PR ends at 550 and loses (189 guests, target 100). The coaster rating change moves this one run across the 575 line. The seed-sweep result above is the number to trust; the default run is a near miss in the other direction. Do not retune the target from this PR alone.
 
 ## Known gaps
 

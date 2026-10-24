@@ -2,6 +2,8 @@ import { BreakdownReason } from './breakdown-reasons';
 import type { BreakdownWeight } from './breakdown-reasons';
 import { FERRIS_BACKWARD_EXCITEMENT, RideMode, modeDef } from './ride-modes';
 import type { RideModeDef } from './ride-modes';
+import { kmhToSpeedQ8 } from '../vehicles/speed-units';
+import type { RatingProfile } from '../vehicles/vehicle-ratings';
 
 export enum RideType {
   MerryGoRound = 1,
@@ -26,6 +28,10 @@ export interface TrackRules {
   steepSlopes: boolean;
   inversions: boolean;
   launch: boolean;
+  /** Whether trains of the ride can collide. */
+  crashable: boolean;
+  /** Cars not fixed to the track crash above the crest and drop speed limits. */
+  unattachedCars: boolean;
 }
 
 /** Static, data-driven ride definition. Values are original OpenCoaster tuning data. */
@@ -63,6 +69,8 @@ export interface RideTypeDef {
   inspectionIntervalTicks: number;
   /** Present on ride types that set `usesTrack`. */
   trackRules?: TrackRules;
+  /** Rating base values, multipliers and requirements for track rides. */
+  ratingProfile?: RatingProfile;
 }
 
 /** One minute of the original game's inspection clock, at 40 ticks a second. */
@@ -295,7 +303,24 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     breakdowns: COASTER_BREAKDOWNS,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
-    trackRules: { maxLevel: 40, steepSlopes: false, inversions: false, launch: false },
+    trackRules: {
+      maxLevel: 40,
+      steepSlopes: false,
+      inversions: false,
+      launch: false,
+      crashable: true,
+      unattachedCars: true,
+    },
+    ratingProfile: {
+      base: { excitement: 120, intensity: 60, nausea: 30 },
+      multiplierPercent: { excitement: 100, intensity: 100, nausea: 100 },
+      requirements: {
+        minLength: 1024,
+        minDropHeight: 128,
+        minMaxSpeedQ8: kmhToSpeedQ8(30),
+        minDropCount: 1,
+      },
+    },
   },
   [RideType.SteelLoopingCoaster]: {
     id: RideType.SteelLoopingCoaster,
@@ -317,6 +342,23 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
     breakdowns: COASTER_BREAKDOWNS,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
-    trackRules: { maxLevel: 80, steepSlopes: true, inversions: true, launch: true },
+    trackRules: {
+      maxLevel: 80,
+      steepSlopes: true,
+      inversions: true,
+      launch: true,
+      crashable: true,
+      unattachedCars: false,
+    },
+    ratingProfile: {
+      base: { excitement: 160, intensity: 90, nausea: 45 },
+      multiplierPercent: { excitement: 110, intensity: 105, nausea: 100 },
+      requirements: {
+        minLength: 1536,
+        minDropHeight: 192,
+        minMaxSpeedQ8: kmhToSpeedQ8(40),
+        minDropCount: 1,
+      },
+    },
   },
 };

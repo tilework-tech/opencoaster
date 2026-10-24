@@ -1,8 +1,13 @@
 import type { World } from '../core/world';
 import type { System } from '../core/system';
+import { RIDE_CATALOG } from '../rides/ride-types';
+import type { RideType } from '../rides/ride-types';
+import { countSceneryNear } from './track-elements';
 import { calculateTrackedRideRatings } from './vehicle-ratings';
+import { TILE_SHIFT, Z_STEP } from '../core/constants';
 import { setRideRatings, VehicleState } from './vehicle-store';
 import { syncVehicleTracks, VehicleSegmentFlag, VehicleTrackRegistry } from './vehicle-track';
+import { COLLISION_SPEED_Q8 } from './speed-units';
 import type { VehicleTrack } from './vehicle-track';
 
 export { VehicleState } from './vehicle-store';
@@ -37,7 +42,6 @@ const BRAKE_SPEED_Q8 = 512;
 const STATION_DRIVE_Q8 = 512;
 const BRAKE_DECEL_Q8 = 160;
 const OPEN_BLOCK_SPEED_Q8 = 4 * Q8;
-const COLLISION_SPEED_Q8 = 48 * Q8;
 const STALL_TICKS = 80;
 
 function integerSqrt(value: number): number {
@@ -335,24 +339,47 @@ function enterSegment(
   return true;
 }
 
-function updateRideTestStats(world: World, slot: number): void {
+/** Scenery near the station and whether the station sits below the terrain. */
+function stationSurroundings(world: World, track: VehicleTrack) {
+  if (track.stationSegment < 0) return { sceneryItems: 0, undergroundStation: false };
+  const point = track.stationSegment * 3;
+  const tileX = track.points[point] >> TILE_SHIFT;
+  const tileY = track.points[point + 1] >> TILE_SHIFT;
+  const map = world.map;
+  const underground =
+    map.inBounds(tileX, tileY) &&
+    track.points[point + 2] < map.heights[map.index(tileX, tileY)] * Z_STEP;
+  return { sceneryItems: countSceneryNear(world, tileX, tileY), undergroundStation: underground };
+}
+
+function updateRideTestStats(world: World, track: VehicleTrack, slot: number): void {
   const cols = world.vehicles.cols;
   cols.rideLength[slot] = cols.distanceTravelled[slot];
   cols.averageSpeed[slot] = cols.elapsedTicks[slot]
     ? Math.trunc(cols.speedTotal[slot] / cols.elapsedTicks[slot])
     : 0;
-  const rating = calculateTrackedRideRatings({
-    maxSpeed: cols.maxSpeed[slot],
-    averageSpeed: cols.averageSpeed[slot],
-    dropCount: cols.dropCount[slot],
-    highestDrop: cols.highestDrop[slot],
-    inversionCount: cols.inversionCount[slot],
-    maxVerticalGQ8: cols.maxVerticalGQ8[slot],
-    minVerticalGQ8: cols.minVerticalGQ8[slot],
-    maxLateralGQ8: cols.maxLateralGQ8[slot],
-    rideLength: cols.rideLength[slot],
-    airtimeTicks: cols.airtimeTicks[slot],
-  });
+  const rideSlot = world.rides.idToSlot[cols.rideId[slot]];
+  const profile =
+    rideSlot >= 0
+      ? RIDE_CATALOG[world.rides.cols.typeId[rideSlot] as RideType]?.ratingProfile
+      : undefined;
+  const rating = calculateTrackedRideRatings(
+    {
+      maxSpeed: cols.maxSpeed[slot],
+      averageSpeed: cols.averageSpeed[slot],
+      dropCount: cols.dropCount[slot],
+      highestDrop: cols.highestDrop[slot],
+      inversionCount: cols.inversionCount[slot],
+      maxVerticalGQ8: cols.maxVerticalGQ8[slot],
+      minVerticalGQ8: cols.minVerticalGQ8[slot],
+      maxLateralGQ8: cols.maxLateralGQ8[slot],
+      rideLength: cols.rideLength[slot],
+      airtimeTicks: cols.airtimeTicks[slot],
+      elements: track.elements,
+      ...stationSurroundings(world, track),
+    },
+    profile,
+  );
   cols.excitement[slot] = rating.excitement;
   cols.intensity[slot] = rating.intensity;
   cols.nausea[slot] = rating.nausea;
@@ -376,7 +403,7 @@ function completeTestAtStation(
   cols.lastSegment[slot] = segment;
   cols.dispatchTicks[slot] = 0;
   cols.state[slot] = VehicleState.TestComplete;
-  updateRideTestStats(world, slot);
+  updateRideTestStats(world, track, slot);
 }
 
 function applyStationDispatch(world: World, track: VehicleTrack, slot: number): boolean {
@@ -564,7 +591,7 @@ function advanceTrain(world: World, track: VehicleTrack, slot: number): void {
     cols.completedCircuits[slot]++;
     if (testing && !(track.loop && track.stationSegment > 0)) {
       cols.state[slot] = VehicleState.TestComplete;
-      updateRideTestStats(world, slot);
+      updateRideTestStats(world, track, slot);
     } else if (track.loop) {
       cols.trackPos[slot] = 0;
       cols.lastSegment[slot] = 0xffff;

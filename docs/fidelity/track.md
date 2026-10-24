@@ -176,6 +176,10 @@ Each item is one PR. Items marked "needs source" are blocked on research and sho
 
 ---
 
+### Implementation status
+
+Implemented (choices in [DECISIONS.md](../DECISIONS.md#coaster-fidelity-docsfidelitytrackmd)): G-01, G-02, G-03, G-15 (PR-A); G-05 (PR-B, unsourced multipliers); G-04 (PR-C); G-10 (PR-D); G-06 (PR-E, unsourced thresholds); G-07 for station scenery and the underground station only (PR-F); G-09 resolved without a coefficient change (PR-G); G-13; G-14 kept as halving. Still open: G-08, G-11, G-12, G-16 to G-19, the remaining proximity terms, and the R1 to R3 research items.
+
 ## 4. Verification
 
 This PR is a document; no code or tests change. The only file touched is this one. Tests and CI are unaffected. Before any PR-A to PR-J item lands, its numbers should be checked against a playtest of the original or against the source it cites.
