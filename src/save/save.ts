@@ -1,7 +1,12 @@
 import { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
+import { restoreLedger, saveLedger } from '../sim/economy/ledger';
+import type { LedgerSave } from '../sim/economy/ledger';
+import { restoreResearch, saveResearch } from '../sim/research/research';
+import type { ResearchSave } from '../sim/research/research';
+import type { ScenarioState } from '../sim/scenario/scenario';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 const MAGIC = 0x56534f43; // "COSV" little-endian
 
 type StoreName = 'guests' | 'staff' | 'vehicles' | 'litter' | 'rides';
@@ -15,14 +20,10 @@ interface Header {
   tick: number;
   rng: number[];
   stores: Record<string, { capacity: number; count: number; freeTop: number }>;
-  economy: { cash: number; loan: number; monthly: number[] };
+  economy: LedgerSave;
   weather: { kind: number; temperature: number; ticksUntilChange: number };
-  research: {
-    funding: number;
-    progress: number;
-    currentItemId: number;
-    unlocked: number[];
-  };
+  research: ResearchSave;
+  scenario: ScenarioState;
 }
 
 function views(world: World): ArrayBufferView[] {
@@ -46,18 +47,10 @@ export function serialize(world: World): Uint8Array {
     tick: world.tick,
     rng: Array.from(world.rng.state),
     stores,
-    economy: {
-      cash: world.economy.cash,
-      loan: world.economy.loan,
-      monthly: Array.from(world.economy.monthlyTotals),
-    },
+    economy: saveLedger(world.economy),
     weather: { ...world.weather },
-    research: {
-      funding: world.research.funding,
-      progress: world.research.progress,
-      currentItemId: world.research.currentItemId,
-      unlocked: Array.from(world.research.unlocked),
-    },
+    research: saveResearch(world.research),
+    scenario: { ...world.scenario },
   };
   const headerBytes = new TextEncoder().encode(JSON.stringify(header));
   const vs = views(world);
@@ -102,13 +95,9 @@ export function deserialize(bytes: Uint8Array): World {
     const h = header.stores[n];
     (world[n] as EntityStore<Schema>).restore(h.count, h.freeTop);
   }
-  world.economy.cash = header.economy.cash;
-  world.economy.loan = header.economy.loan;
-  world.economy.monthlyTotals.set(header.economy.monthly);
+  restoreLedger(world.economy, header.economy);
   Object.assign(world.weather, header.weather);
-  world.research.funding = header.research.funding;
-  world.research.progress = header.research.progress;
-  world.research.currentItemId = header.research.currentItemId;
-  world.research.unlocked = new Set(header.research.unlocked);
+  restoreResearch(world.research, header.research);
+  Object.assign(world.scenario, header.scenario);
   return world;
 }

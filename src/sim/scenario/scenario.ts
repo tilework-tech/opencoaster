@@ -1,7 +1,37 @@
-export type ScenarioObjective =
-  | { kind: 'guests'; target: number; byTick: number }
-  | { kind: 'parkValue'; target: number; byTick: number }
-  | { kind: 'rideRating'; target: number; count: number; byTick: number };
+import type { World } from '../core/world';
+import type { LedgerCategory, PriceMode } from '../economy/ledger';
+import type { ResearchInvention } from '../research/research';
+
+export enum ObjectiveKind {
+  /** Guest count reaches target by byTick. */
+  Guests,
+  /** Park value reaches target by byTick. */
+  ParkValue,
+  /** Guest count reaches target and park rating reaches rating by byTick. */
+  GuestsAndRating,
+  /** Loan balance is zero and park value reaches target by byTick. */
+  RepayLoanAndParkValue,
+  /** Net of the categories in categoryMask for the last completed month reaches target. */
+  MonthlyIncome,
+  /** Qualifying ride count reaches target by byTick. */
+  QualifyingRides,
+}
+
+export enum ScenarioStatus {
+  Active,
+  Won,
+  Lost,
+}
+
+/** Flat numeric record so it hashes and saves like other sim state. */
+export interface ScenarioObjective {
+  kind: ObjectiveKind;
+  target: number;
+  rating: number;
+  /** Bit per LedgerCategory, used by MonthlyIncome. */
+  categoryMask: number;
+  byTick: number;
+}
 
 export interface ScenarioDef {
   id: string;
@@ -10,5 +40,46 @@ export interface ScenarioDef {
   mapWidth: number;
   mapHeight: number;
   startingCash: number;
+  startingLoan: number;
+  maxLoan: number;
+  annualInterestBps: number;
+  priceMode: PriceMode;
+  admissionPrice: number;
+  availableItemIds: number[];
+  inventions: ResearchInvention[];
   objective: ScenarioObjective;
+}
+
+export interface ScenarioState {
+  objective: ScenarioObjective | null;
+  status: ScenarioStatus;
+}
+
+export function createScenarioState(): ScenarioState {
+  return { objective: null, status: ScenarioStatus.Active };
+}
+
+/** Sets starting finances, research catalogue and objective. Call once, before stepping. */
+export function applyScenario(world: World, def: ScenarioDef): void {
+  const l = world.economy;
+  l.cash = def.startingCash;
+  l.loan = def.startingLoan;
+  l.maxLoan = def.maxLoan;
+  l.annualInterestBps = def.annualInterestBps;
+  l.priceMode = def.priceMode;
+  l.admissionPrice = def.admissionPrice;
+
+  const r = world.research;
+  r.inventions = def.inventions.map((inv) => ({ ...inv }));
+  r.unlocked = new Set(def.availableItemIds);
+  r.currentIndex = -1;
+  r.progress = 0;
+
+  world.scenario.objective = { ...def.objective };
+  world.scenario.status = ScenarioStatus.Active;
+}
+
+/** Bitmask helper for MonthlyIncome objectives. */
+export function categoryBit(category: LedgerCategory): number {
+  return 1 << category;
 }

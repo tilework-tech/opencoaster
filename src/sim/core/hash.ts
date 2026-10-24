@@ -19,6 +19,38 @@ export function hashWorld(world: World): number {
     }
   }
   for (let i = 0; i < world.map.heights.length; i++) mix(world.map.heights[i]);
-  mix(world.economy.cash);
+  const e = world.economy;
+  for (const v of [
+    e.cash,
+    e.loan,
+    e.maxLoan,
+    e.annualInterestBps,
+    e.priceMode,
+    e.admissionPrice,
+    e.historyHead,
+    e.monthsCompleted,
+    e.campaignId,
+    e.campaignWeeksLeft,
+    e.parkValue,
+    e.parkRating,
+    ...Object.values(e.inputs),
+  ]) {
+    mix(v);
+  }
+  for (const v of e.monthlyTotals) mix(v);
+  for (const v of e.history) mix(v);
+  const r = world.research;
+  for (const v of [r.funding, r.enabledCategoryMask, r.currentIndex, r.progress, r.unlocked.size]) {
+    mix(v);
+  }
+  for (const inv of r.inventions) {
+    mix(inv.itemId);
+    mix(inv.category);
+    mix(inv.costCents);
+  }
+  for (const id of r.unlocked) mix(id);
+  const s = world.scenario;
+  mix(s.status);
+  if (s.objective) for (const v of Object.values(s.objective)) mix(v);
   return h >>> 0;
 }
