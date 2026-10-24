@@ -4,6 +4,8 @@ import { Simulation } from '../sim/core/simulation';
 import { hashWorld } from '../sim/core/hash';
 import { PieceId } from '../sim/track/catalog';
 import { SAVE_VERSION, deserialize, serialize } from './save';
+import { RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import type { World } from '../sim/core/world';
@@ -13,6 +15,14 @@ import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { WeatherKind } from '../sim/weather/weather';
 
 describe('save', () => {
+  it('writes the combined guest and ride format as version 11', () => {
+    expect(SAVE_VERSION).toBe(11);
+    const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
+    const headerLength = new DataView(bytes.buffer).getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
+    expect(header.version).toBe(11);
+  });
+
   it('round-trips world state exactly', () => {
     const sim = new Simulation({ seed: 11, width: 32, height: 32, maxGuests: 500 });
     sim.enqueue({ type: 'spawnGuests', count: 200 });
@@ -233,6 +243,18 @@ function withoutColumns(
   return out;
 }
 
+/** Ride columns that saves before version 11 did not have. */
+function reliabilityColumns(world: ReturnType<typeof flatWorld>): ArrayBufferView[] {
+  const cols = world.rides.cols;
+  return [
+    cols.reliabilityRaw,
+    cols.mode,
+    cols.breakdownReason,
+    cols.serviceTicks,
+    cols.serviceLastTick,
+  ];
+}
+
 describe('save: version 4 migration', () => {
   function versionFourSave(world: ReturnType<typeof flatWorld>): Uint8Array {
     const current = serialize(world);
@@ -251,7 +273,7 @@ describe('save: version 4 migration', () => {
         world.staff.arrays(),
         world.vehicles.arrays(),
         world.litter.arrays(),
-        world.rides.arrays().slice(0, -3),
+        world.rides.arrays().slice(0, -3 - RIDE_COLUMNS_ADDED_IN_V10),
         world.track.pieces.arrays(),
         world.track.rideTables(),
       );
@@ -344,6 +366,7 @@ describe('save: version 4 migration', () => {
       ...navigationColumns(world),
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,
+      ...reliabilityColumns(world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -379,6 +402,44 @@ describe('save: version 4 migration', () => {
     expect(loaded.guests.cols.lostTicks[slot]).toBe(0);
   });
 
+  it('migrates version 10 saves while preserving guest navigation and research units', () => {
+    const world = flatWorld(16);
+    layPath(world, row(5, 2, 8));
+    const guestSlot = guestAt(world, 2, 5);
+    world.guests.cols.navGoal[guestSlot] = 3;
+    world.guests.cols.navGap[guestSlot] = 2;
+    world.guests.cols.navSteps[guestSlot] = 7;
+    world.guests.cols.lostTicks[guestSlot] = 500;
+    world.guests.cols.hasMap[guestSlot] = 1;
+    world.research.inventions = [{ itemId: 8, category: 0, workUnits: 21 }];
+    const rideSlot = world.rides.spawn();
+    world.rides.cols.typeId[rideSlot] = RideType.FerrisWheel;
+    world.rides.cols.reliability[rideSlot] = 64;
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const legacy = withoutColumns(serialize(world), 10, views, reliabilityColumns(world));
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.guests.cols.navGoal[guestSlot]).toBe(3);
+    expect(loaded.guests.cols.navGap[guestSlot]).toBe(2);
+    expect(loaded.guests.cols.navSteps[guestSlot]).toBe(7);
+    expect(loaded.guests.cols.lostTicks[guestSlot]).toBe(500);
+    expect(loaded.guests.cols.hasMap[guestSlot]).toBe(1);
+    expect(loaded.research.inventions).toEqual([{ itemId: 8, category: 0, workUnits: 21 }]);
+    expect(loaded.rides.cols.reliabilityRaw[rideSlot]).toBe(64 * 256);
+    expect(loaded.rides.cols.mode[rideSlot]).toBe(RIDE_CATALOG[RideType.FerrisWheel].modes[0].mode);
+    expect(deserialize(serialize(loaded)).rides.cols.reliabilityRaw[rideSlot]).toBe(64 * 256);
+  });
+
   it.each([6, 7])('migrates version %s ride records with zeroed lifetime income', (version) => {
     const world = flatWorld(16);
     const rideSlot = world.rides.spawn();
@@ -400,6 +461,7 @@ describe('save: version 4 migration', () => {
       world.rides.cols.incomeCents,
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,
+      ...reliabilityColumns(world),
     ]);
 
     const loaded = deserialize(legacy);
