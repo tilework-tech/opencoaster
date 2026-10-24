@@ -40,7 +40,9 @@ export function fundingControls(ctx: UiContext): FundingControls {
   const levelRow = element('div', 'button-row');
   for (const [level, label] of FUNDING_LABELS) {
     const caption =
-      level === Funding.None ? label : `${label} ${formatMoney(FUNDING_MONTHLY_CENTS[level])}/month`;
+      level === Funding.None
+        ? label
+        : `${label} ${formatMoney(FUNDING_MONTHLY_CENTS[level])}/month`;
     const b = button(
       caption,
       () => ctx.actions.command({ type: 'research', action: { type: 'setFunding', level } }),
