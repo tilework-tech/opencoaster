@@ -7,6 +7,7 @@ import { recountRideLines } from '../sim/guests/ride-lines';
 import { getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
+import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/ledger';
 import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
 
@@ -16,7 +17,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 22;
+export const RIDE_INFO_STRIDE = 24;
 export const GUEST_DETAIL_STRIDE = 12;
 
 export const enum RideInfo {
@@ -45,6 +46,9 @@ export const enum RideInfo {
   ExitY = 19,
   Reliability = 20,
   IncomeCents = 21,
+  /** Tile the ride (or its first footprint tile) was built on. */
+  RideX = 22,
+  RideY = 23,
 }
 
 export const enum RideFlag {
@@ -104,6 +108,33 @@ export interface Snapshot {
   grounds: Uint8Array;
   park: { cash: number; loan: number; rides: number; entranceX: number; entranceY: number };
   scenario: SnapshotScenario;
+  economy: SnapshotEconomy;
+  research: SnapshotResearch;
+}
+
+/** Pricing and ledger figures for the finance window. Arrays are indexed by `LedgerCategory`, in cents. */
+export interface SnapshotEconomy {
+  priceMode: PriceMode;
+  admissionPrice: number;
+  maxLoan: number;
+  parkValue: number;
+  annualInterestBps: number;
+  campaignId: number;
+  campaignWeeksLeft: number;
+  wageBillPerWeek: number;
+  thisMonth: number[];
+  lastMonth: number[];
+  monthsCompleted: number;
+}
+
+export interface SnapshotResearch {
+  funding: number;
+  enabledCategoryMask: number;
+  /** Work done on the current invention and the work it needs; cost is -1 when nothing is eligible. */
+  progress: number;
+  currentCost: number;
+  inventionCount: number;
+  unlockedCount: number;
 }
 
 export interface SnapshotScenario {
@@ -148,6 +179,27 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     grounds: new Uint8Array(caps.mapTiles ?? 0),
     park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1 },
     scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
+    economy: {
+      priceMode: PriceMode.Free,
+      admissionPrice: 0,
+      maxLoan: 0,
+      parkValue: 0,
+      annualInterestBps: 0,
+      campaignId: -1,
+      campaignWeeksLeft: 0,
+      wageBillPerWeek: 0,
+      thisMonth: new Array<number>(LedgerCategory.COUNT).fill(0),
+      lastMonth: new Array<number>(LedgerCategory.COUNT).fill(0),
+      monthsCompleted: 0,
+    },
+    research: {
+      funding: 0,
+      enabledCategoryMask: 0,
+      progress: 0,
+      currentCost: -1,
+      inventionCount: 0,
+      unlockedCount: 0,
+    },
   };
 }
 
@@ -211,6 +263,8 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.ExitY] = r.exitY[slot];
   info[o + RideInfo.Reliability] = r.reliability[slot];
   info[o + RideInfo.IncomeCents] = r.incomeCents[slot];
+  info[o + RideInfo.RideX] = r.rideX[slot];
+  info[o + RideInfo.RideY] = r.rideY[slot];
   if (!RIDE_CATALOG[r.typeId[slot] as RideType]?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;
@@ -300,4 +354,27 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.scenario.objective = scenario.objective ? { ...scenario.objective } : null;
   out.scenario.metric = scenario.objective ? objectiveMetric(world, scenario.objective) : 0;
   out.scenario.parkRating = world.economy.parkRating;
+  const ledger = world.economy;
+  const economy = out.economy;
+  economy.priceMode = ledger.priceMode;
+  economy.admissionPrice = ledger.admissionPrice;
+  economy.maxLoan = ledger.maxLoan;
+  economy.parkValue = ledger.parkValue;
+  economy.annualInterestBps = ledger.annualInterestBps;
+  economy.campaignId = ledger.campaignId;
+  economy.campaignWeeksLeft = ledger.campaignWeeksLeft;
+  economy.wageBillPerWeek = ledger.inputs.wageBillPerWeek;
+  economy.monthsCompleted = ledger.monthsCompleted;
+  for (let c = 0; c < LedgerCategory.COUNT; c++) {
+    economy.thisMonth[c] = ledger.monthlyTotals[c];
+    economy.lastMonth[c] = completedMonthTotal(ledger, c);
+  }
+  const research = world.research;
+  const current = research.inventions[research.currentIndex];
+  out.research.funding = research.funding;
+  out.research.enabledCategoryMask = research.enabledCategoryMask;
+  out.research.progress = research.progress;
+  out.research.currentCost = current ? current.costCents : -1;
+  out.research.inventionCount = research.inventions.length;
+  out.research.unlockedCount = research.unlocked.size;
 }

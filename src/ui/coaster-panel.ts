@@ -7,7 +7,11 @@ import { Bank, PieceMode, Slope } from '../sim/track/track-types';
 import type { TrackPieceDef, TrackResult } from '../sim/track/track-types';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE, decodeCursor } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
-import type { ToolMode } from './game-ui';
+import type { ToolMode } from './ui-types';
+import { element as el } from './dom';
+import { icon } from './icons';
+import type { IconName } from './icons';
+import type { UiWindow, WindowManager } from './window-manager';
 import {
   BANK_LABELS,
   MODE_LABELS,
@@ -65,10 +69,6 @@ const PHASE_NAMES: Record<number, string> = {
   [RidePhase.Loading]: 'loading',
 };
 
-const BUILDABLE_RIDES = Object.values(RIDE_CATALOG).filter(
-  (def) => def.category !== 'stall' && def.category !== 'facility',
-);
-
 export function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -77,16 +77,50 @@ function rating(hundredths: number): string {
   return (hundredths / 100).toFixed(2);
 }
 
+const TURN_ICONS: Record<string, IconName> = {
+  straight: 'straight',
+  smallLeft: 'curveLeftSmall',
+  mediumLeft: 'curveLeftMedium',
+  largeLeft: 'curveLeftLarge',
+  smallRight: 'curveRightSmall',
+  mediumRight: 'curveRightMedium',
+  largeRight: 'curveRightLarge',
+};
+const SLOPE_ICONS: Record<number, IconName> = {
+  [Slope.Down60]: 'slopeDownSteep',
+  [Slope.Down25]: 'slopeDown',
+  [Slope.Flat]: 'slopeLevel',
+  [Slope.Up25]: 'slopeUp',
+  [Slope.Up60]: 'slopeUpSteep',
+};
+const BANK_ICONS: Record<number, IconName> = {
+  [Bank.Left]: 'bankLeft',
+  [Bank.None]: 'bankNone',
+  [Bank.Right]: 'bankRight',
+};
+const MAIN_TURNS: readonly TurnKind[] = [
+  'smallLeft',
+  'mediumLeft',
+  'largeLeft',
+  'straight',
+  'smallRight',
+  'mediumRight',
+  'largeRight',
+];
+const SPECIAL_TURNS = TURN_LABELS.filter(([turn]) => !MAIN_TURNS.includes(turn));
+
 export class CoasterPanel {
   private readonly root: HTMLElement;
-  private readonly rideTypeSelect: HTMLSelectElement;
+  private window: UiWindow | null = null;
+  private readonly specialSelect: HTMLSelectElement;
+  private readonly turnButtons = new Map<TurnKind, HTMLButtonElement>();
+  private readonly slopeButtons = new Map<Slope, HTMLButtonElement>();
+  private readonly bankButtons = new Map<Bank, HTMLButtonElement>();
   private readonly rideSelect: HTMLSelectElement;
   private readonly trackControls: HTMLElement;
-  private readonly turnSelect: HTMLSelectElement;
-  private readonly slopeSelect: HTMLSelectElement;
-  private readonly bankSelect: HTMLSelectElement;
   private readonly modeSelect: HTMLSelectElement;
   private readonly placeButton: HTMLButtonElement;
+  private rideTypeValue: RideType = RideType.WoodenCoaster;
   private readonly directionButton: HTMLButtonElement;
   private readonly modeButtons = new Map<BuildMode, HTMLButtonElement>();
   private readonly costLine: HTMLElement;
@@ -106,49 +140,43 @@ export class CoasterPanel {
   private rideCount = 0;
 
   constructor(
-    parent: HTMLElement,
+    private readonly windows: WindowManager,
     private readonly actions: CoasterPanelActions,
   ) {
-    this.root = document.createElement('aside');
+    this.root = document.createElement('div');
     this.root.className = 'coaster-panel';
-    this.root.hidden = true;
-
-    const title = document.createElement('strong');
-    title.textContent = 'Rides';
-    this.rideTypeSelect = this.select(
-      BUILDABLE_RIDES.map((def) => [String(def.id), `${def.name} · ${dollars(def.cost)}`]),
-      (value) => {
-        this.rideType = Number(value) as RideType;
-      },
-    );
-    this.rideTypeSelect.value = String(RideType.WoodenCoaster);
-    const typeRow = this.row('New ride', this.rideTypeSelect);
 
     this.rideSelect = this.select([], (value) => {
       this.activeRideId = Number(value);
     });
     const rideRow = this.row('Coaster', this.rideSelect);
 
-    this.turnSelect = this.select(
-      TURN_LABELS.map(([turn, label]) => [turn, label]),
+    const turns = el('div', 'build-grid turn-grid');
+    for (const turn of MAIN_TURNS) {
+      const label = TURN_LABELS.find(([t]) => t === turn)?.[1] ?? turn;
+      const b = this.glyphButton(TURN_ICONS[turn], label, () => (this.choice.turn = turn));
+      this.turnButtons.set(turn, b);
+      turns.append(b);
+    }
+    this.specialSelect = this.select(
+      [['', 'Special elements…'], ...SPECIAL_TURNS.map(([turn, label]) => [turn, label] as const)],
       (value) => {
-        this.choice.turn = value as TurnKind;
+        if (value) this.choice.turn = value as TurnKind;
       },
     );
-    this.slopeSelect = this.select(
-      SLOPE_LABELS.map(([slope, label]) => [String(slope), label]),
-      (value) => {
-        this.choice.slope = Number(value) as Slope;
-      },
-    );
-    this.slopeSelect.value = String(Slope.Flat);
-    this.bankSelect = this.select(
-      BANK_LABELS.map(([bank, label]) => [String(bank), label]),
-      (value) => {
-        this.choice.bank = Number(value) as Bank;
-      },
-    );
-    this.bankSelect.value = String(Bank.None);
+    this.specialSelect.setAttribute('aria-label', 'Special elements');
+    const slopes = el('div', 'build-grid');
+    for (const [slope, label] of SLOPE_LABELS) {
+      const b = this.glyphButton(SLOPE_ICONS[slope], label, () => (this.choice.slope = slope));
+      this.slopeButtons.set(slope, b);
+      slopes.append(b);
+    }
+    const banks = el('div', 'build-grid');
+    for (const [bank, label] of BANK_LABELS) {
+      const b = this.glyphButton(BANK_ICONS[bank], label, () => (this.choice.bank = bank));
+      this.bankButtons.set(bank, b);
+      banks.append(b);
+    }
     this.modeSelect = this.select([], (value) => {
       this.mode = Number(value) as PieceMode;
     });
@@ -156,8 +184,9 @@ export class CoasterPanel {
     this.directionButton = this.button('Start direction: +x', () => {
       this.startDir = (this.startDir + 1) & 3;
     });
-    this.placeButton = this.button('Place piece', () => this.placeAtCursor());
-    const removeButton = this.button('Remove last', () => this.removeLast());
+    this.placeButton = this.button('Build piece', () => this.placeAtCursor());
+    this.placeButton.classList.add('primary');
+    const removeButton = this.button('Demolish last piece', () => this.removeLast());
     this.costLine = document.createElement('div');
     this.costLine.className = 'coaster-cost';
 
@@ -185,17 +214,18 @@ export class CoasterPanel {
 
     this.trackControls = document.createElement('div');
     this.trackControls.className = 'coaster-section';
+    const buildRow = document.createElement('div');
+    buildRow.className = 'coaster-row';
+    buildRow.append(this.placeButton, removeButton);
     this.trackControls.append(
-      modes,
-      this.row('Shape', this.turnSelect),
-      this.row('Slope', this.slopeSelect),
-      this.row('Bank', this.bankSelect),
+      turns,
+      this.specialSelect,
+      slopes,
+      banks,
       this.row('Drive', this.modeSelect),
       this.directionButton,
       this.costLine,
-      this.placeButton,
-      removeButton,
-      actionsRow,
+      buildRow,
     );
 
     this.rideInfo = document.createElement('pre');
@@ -204,22 +234,51 @@ export class CoasterPanel {
     this.feedbackLine.className = 'coaster-feedback';
     this.feedbackLine.setAttribute('role', 'status');
 
-    this.root.append(title, typeRow, rideRow, this.trackControls, this.rideInfo, this.feedbackLine);
-    parent.append(this.root);
+    this.root.append(
+      rideRow,
+      modes,
+      this.trackControls,
+      actionsRow,
+      this.rideInfo,
+      this.feedbackLine,
+    );
   }
 
   get rideType(): RideType {
-    return Number(this.rideTypeSelect.value) as RideType;
+    return this.rideTypeValue;
   }
 
   set rideType(type: RideType) {
-    this.rideTypeSelect.value = String(type);
+    this.rideTypeValue = type;
   }
 
+  /** Shows the construction window while the track tool is active and hides it otherwise. */
   setTool(tool: ToolMode): void {
     this.tool = tool;
-    this.root.hidden = tool !== 'ride' && tool !== 'track';
-    this.trackControls.hidden = tool !== 'track';
+    if (tool === 'track' && !this.window) {
+      const { window: win } = this.windows.open({
+        id: 'construction',
+        title: 'Ride construction',
+        kind: 'build',
+        width: 320,
+        onClose: () => {
+          this.window = null;
+          if (this.tool === 'track') this.actions.selectTool('select');
+        },
+      });
+      win.pane().append(this.root);
+      this.window = win;
+      this.windows.close('ride-select');
+    } else if (tool !== 'track' && this.window) {
+      const win = this.window;
+      this.window = null;
+      this.windows.close(win.spec.id);
+    }
+  }
+
+  /** Makes a track ride the one the construction controls act on. */
+  setActiveRide(rideId: number): void {
+    this.activeRideId = rideId;
   }
 
   setHover(tile: [number, number] | null): void {
@@ -289,9 +348,10 @@ export class CoasterPanel {
 
   update(): void {
     const snapshot = this.actions.snapshot();
-    if (!snapshot || this.root.hidden) return;
+    if (!snapshot) return;
     this.refreshRides(snapshot);
     this.consumeFeedback(snapshot);
+    if (!this.window) return;
     const ride = this.activeRide();
     this.refreshControls(ride, snapshot);
     this.rideInfo.textContent = ride ? this.describeRide(ride) : 'No coaster selected.';
@@ -299,6 +359,7 @@ export class CoasterPanel {
 
   dispose(): void {
     this.root.remove();
+    if (this.window) this.windows.close(this.window.spec.id);
   }
 
   private place(ride: RideSummary): string {
@@ -398,6 +459,13 @@ export class CoasterPanel {
     for (const [mode, button] of this.modeButtons) {
       button.setAttribute('aria-pressed', String(mode === this.buildMode));
     }
+    for (const [turn, button] of this.turnButtons)
+      button.setAttribute('aria-pressed', String(turn === this.choice.turn));
+    for (const [slope, button] of this.slopeButtons)
+      button.setAttribute('aria-pressed', String(slope === this.choice.slope));
+    for (const [bank, button] of this.bankButtons)
+      button.setAttribute('aria-pressed', String(bank === this.choice.bank));
+    this.specialSelect.value = MAIN_TURNS.includes(this.choice.turn) ? '' : this.choice.turn;
     this.directionButton.textContent = `Start direction: ${['+x', '+y', '-x', '-y'][this.startDir]}`;
     if (!ride) {
       this.costLine.textContent = '';
@@ -462,6 +530,15 @@ export class CoasterPanel {
     for (const [value, label] of options) select.append(new Option(label, value));
     select.addEventListener('change', () => change(select.value));
     return select;
+  }
+
+  private glyphButton(name: IconName, label: string, click: () => void): HTMLButtonElement {
+    const button = this.button('', click);
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.classList.add('glyph-button');
+    button.append(icon(name));
+    return button;
   }
 
   private button(label: string, click: () => void): HTMLButtonElement {

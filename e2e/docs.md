@@ -15,8 +15,8 @@ Path: @/e2e
 
 ### Core Implementation
 
-- The test starts from the title screen, opens Starter Park, hires a handyman and mechanic, requests path placement, builds a flat ride, and closes one 13-piece steel coaster circuit containing a station, chain lift, and vertical loop.
-- The test opens the finance panel to inspect the current UI and captures its state; it does not change prices because price controls are not exposed there.
+- The test starts from the title screen, opens Starter Park, hires a handyman and mechanic, closes all windows with Shift+Backspace, requests path placement, builds a flat ride and a food stall from the New attraction window, and closes one 13-piece steel coaster circuit containing a station, chain lift, and vertical loop.
+- The test opens the Finances window, then sets pay-to-enter mode and a park admission price in the Park window.
 - It creates a named save slot, exports the save file, imports that file, and loads the saved game before continuing the scenario.
 - The final stage runs the game at 4× speed until the year-one outcome dialog appears, then captures whether the objective was met or missed.
 - The playtest exposed a camera offset that left 64×64 Starter Park mis-centered in the default 128×128 view. The map callback now centers the camera from the loaded map dimensions.
@@ -28,3 +28,5 @@ Path: @/e2e
 - Screenshot filenames encode the sequence and are stored under Playwright’s test output directory rather than committed as repository assets.
 
 Created and maintained by Nori.
+
+- `mobile.spec.ts` runs at a 390 px phone viewport with touch: it checks the scrolling toolbar, stacked bottom sheets, a 44 px minimum for every visible control, and tap-to-build.

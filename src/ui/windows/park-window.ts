@@ -1,0 +1,114 @@
+import { PriceMode } from '../../sim/economy/ledger';
+import type { Stats } from '../../worker/protocol';
+import type { Snapshot } from '../../worker/snapshot';
+import { button, element, gauge, setText, statRow } from '../dom';
+import { drawChart, formatMoney } from '../format';
+import { objectiveLines } from '../objective';
+import type { TabSpec } from '../window-manager';
+import type { UiContext, WindowController } from '../ui-types';
+import { priceControl } from './price-control';
+
+const TABS: readonly TabSpec[] = [
+  { id: 'entrance', label: 'View', icon: 'entrance' },
+  { id: 'rating', label: 'Park rating', icon: 'park' },
+  { id: 'guests', label: 'Guests', icon: 'guests' },
+  { id: 'price', label: 'Admission', icon: 'cash' },
+  { id: 'stats', label: 'Park statistics', icon: 'info' },
+  { id: 'objective', label: 'Objectives', icon: 'news' },
+  { id: 'awards', label: 'Awards', icon: 'park' },
+];
+
+export const MAX_PARK_RATING = 999;
+
+const MODE_LABELS: ReadonlyArray<readonly [PriceMode, string]> = [
+  [PriceMode.Free, 'Free entry'],
+  [PriceMode.Admission, 'Pay to enter'],
+  [PriceMode.PerRide, 'Pay per ride'],
+];
+
+/** Park window: entrance, rating, guest graph, admission pricing, statistics and objective. */
+export function openParkWindow(ctx: UiContext): WindowController {
+  const { window: win, created } = ctx.windows.open({
+    id: 'park',
+    title: 'Park',
+    kind: 'park',
+    width: 340,
+    tabs: TABS,
+  });
+  const entrance = {
+    guests: statRow('Guests in park'),
+    rides: statRow('Attractions'),
+    value: statRow('Park value'),
+  };
+  const rating = gauge('Park rating');
+  const guestChart = element('canvas', 'chart');
+  guestChart.width = 300;
+  guestChart.height = 110;
+  const modeButtons = new Map<PriceMode, HTMLButtonElement>();
+  const modeRow = element('div', 'button-row');
+  for (const [mode, label] of MODE_LABELS) {
+    const b = button(
+      label,
+      () => ctx.actions.command({ type: 'economy', action: { type: 'setPriceMode', mode } }),
+      'ui-button',
+    );
+    b.dataset.priceMode = String(mode);
+    modeButtons.set(mode, b);
+    modeRow.append(b);
+  }
+  const admission = priceControl('Park admission', (cents) =>
+    ctx.actions.command({ type: 'economy', action: { type: 'setAdmissionPrice', cents } }),
+  );
+  const admissionBlock = element('div', 'price-block');
+  admissionBlock.append(element('p', 'ui-help', 'Admission price'), admission.root);
+  const stats = {
+    tick: statRow('Simulation tick'),
+    rides: statRow('Rides'),
+    staff: statRow('Staff'),
+    litter: statRow('Litter on paths'),
+  };
+  const objective = element('pre', 'ui-pre');
+
+  if (created) {
+    win.pane('entrance').append(entrance.guests.row, entrance.rides.row, entrance.value.row);
+    win
+      .pane('rating')
+      .append(
+        rating.row,
+        element(
+          'p',
+          'ui-help',
+          'Rating rises with happy guests, exciting rides and a tidy, well-run park.',
+        ),
+      );
+    win.pane('guests').append(element('p', 'ui-help', 'Guests in the park'), guestChart);
+    win.pane('price').append(element('p', 'ui-help', 'How guests pay'), modeRow, admissionBlock);
+    win.pane('stats').append(stats.tick.row, stats.rides.row, stats.staff.row, stats.litter.row);
+    win.pane('objective').append(objective);
+    win.pane('awards').append(element('p', 'ui-help', 'No awards have been won yet.'));
+  }
+  return {
+    update(snapshot: Snapshot | null, simStats: Stats | null) {
+      if (!snapshot) return;
+      const guests = simStats?.guests ?? snapshot.guests.count;
+      setText(entrance.guests.value, String(guests));
+      setText(entrance.rides.value, String(snapshot.park.rides));
+      setText(entrance.value.value, formatMoney(snapshot.economy.parkValue));
+      rating.set(
+        snapshot.scenario.parkRating / MAX_PARK_RATING,
+        String(snapshot.scenario.parkRating),
+      );
+      if (win.activeTab === 'guests') drawChart(guestChart, ctx.series.guests.values(), '#8fd3ff');
+      for (const [mode, b] of modeButtons)
+        b.setAttribute('aria-pressed', String(snapshot.economy.priceMode === mode));
+      admissionBlock.hidden = snapshot.economy.priceMode !== PriceMode.Admission;
+      admission.show(snapshot.economy.admissionPrice);
+      setText(stats.tick.value, String(snapshot.tick));
+      setText(stats.rides.value, String(snapshot.park.rides));
+      setText(stats.staff.value, String(snapshot.staff.count));
+      setText(stats.litter.value, String(snapshot.litter.count));
+      const lines = objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick);
+      setText(objective, lines.length ? lines.join('\n') : 'Sandbox: no objective.');
+    },
+  };
+}

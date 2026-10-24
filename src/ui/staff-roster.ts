@@ -37,6 +37,7 @@ export class StaffRoster {
   constructor(
     parent: HTMLElement,
     private readonly actions: StaffRosterActions,
+    private readonly kind?: number,
   ) {
     this.list = document.createElement('ul');
     this.list.className = 'staff-roster';
@@ -45,7 +46,9 @@ export class StaffRoster {
   }
 
   update(snapshot: Snapshot | null): void {
-    const entries = rosterEntries(snapshot);
+    const entries = rosterEntries(snapshot).filter(
+      (entry) => this.kind === undefined || entry.kind === this.kind,
+    );
     const signature = JSON.stringify(entries);
     if (signature === this.signature) return;
     this.signature = signature;
