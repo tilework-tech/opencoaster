@@ -56,6 +56,7 @@ export interface ScenarioDef {
   startingLoan: number;
   maxLoan: number;
   annualInterestBps: number;
+  difficultRating: boolean;
   priceMode: PriceMode;
   admissionPrice: number;
   availableItemIds: number[];
@@ -80,6 +81,7 @@ export function applyScenario(world: World, def: ScenarioDef): void {
   l.loan = def.startingLoan;
   l.maxLoan = def.maxLoan;
   l.annualInterestBps = def.annualInterestBps;
+  l.difficultRating = def.difficultRating;
   l.priceMode = def.priceMode;
   l.admissionPrice = def.admissionPrice;
 

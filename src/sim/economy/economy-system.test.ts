@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
-import { TICKS_PER_FORTNIGHT, TICKS_PER_MONTH, TICKS_PER_WEEK } from './calendar';
+import {
+  RATING_REFRESH_TICKS,
+  TICKS_PER_FORTNIGHT,
+  TICKS_PER_MONTH,
+  TICKS_PER_WEEK,
+} from './calendar';
+import { DIFFICULT_RATING_BASE, RATING_BASE } from './park-rating';
 import { LedgerCategory } from './ledger';
 import { setEconomyInputs } from './api';
 import { RIDE_UPKEEP_DIVISOR } from './park-inputs';
@@ -107,5 +113,18 @@ describe('park rating and value refresh', () => {
     const rideValue = getRideValueCents(s.world, s.world.rides.slotToId[0]);
     expect(rideValue).toBeGreaterThan(0);
     expect(s.world.economy.parkValue).toBe(rideValue + 3 * 700);
+  });
+});
+
+describe('economy rating base', () => {
+  it('uses the difficult-rating base when the scenario turns it on', () => {
+    const easy = simWithRide();
+    const hard = simWithRide();
+    hard.world.economy.difficultRating = true;
+    runUntil(easy, RATING_REFRESH_TICKS);
+    runUntil(hard, RATING_REFRESH_TICKS);
+    expect(easy.world.economy.parkRating - hard.world.economy.parkRating).toBe(
+      RATING_BASE - DIFFICULT_RATING_BASE,
+    );
   });
 });

@@ -95,6 +95,7 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
     annualInterestBps: check(() =>
       integer(finance.annualInterestBps, 'finance.annualInterestBps', 0, 10_000),
     ),
+    difficultRating: check(() => flag(root.difficultRating, 'difficultRating')),
     priceMode: check(() => oneOf(pricing.mode, 'pricing.mode', PRICE_MODES)),
     admissionPrice: check(() =>
       pricing.admissionPrice === undefined
@@ -117,7 +118,7 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
             0,
             MAX_INVENTION_CATEGORY,
           ),
-          costCents: integer(inv.costCents, `research.inventions[${i}].costCents`, 0, MAX_MONEY),
+          workUnits: integer(inv.workUnits, `research.inventions[${i}].workUnits`, 0, MAX_SAFE),
         };
       }),
     ),
@@ -188,6 +189,12 @@ function integer(v: unknown, path: string, min: number, max: number): number {
   if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < min || v > max) {
     throw new Error(`${path} must be an integer from ${min} to ${max}`);
   }
+  return v;
+}
+
+function flag(v: unknown, path: string): boolean {
+  if (v === undefined) return false;
+  if (typeof v !== 'boolean') throw new Error(`${path} must be true or false`);
   return v;
 }
 

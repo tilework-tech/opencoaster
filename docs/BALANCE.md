@@ -40,21 +40,23 @@ Related retunes found while tuning: guests' needs now age every 8th update (was 
 
 ### Rating
 
-`rating = 1150 + guests/13 - 150 - penalties`, clamped to 0-999 (unchanged base and guest term). Penalties:
+`rating = base + guests/13 - 150 - penalties`, clamped to 0-999 (guest term unchanged). `base` is 1,150, or 1,050 when the scenario sets `difficultRating`. Penalties:
 
-| Term               | Value                                         |
-| ------------------ | --------------------------------------------- |
-| Average excitement | `min(50, abs(avg - 3.68) / 4 hundredths)`     |
-| Average intensity  | `min(50, abs(avg - 5.20) / 4 hundredths)`     |
-| Total excitement   | `100 - 100 x total / 80.00`, floored at 0     |
-| Total intensity    | same                                          |
-| Unhappy guests     | `(unhappy% - 50) x 10`, up to 500 (unchanged) |
-| Lost guests        | 7 each beyond 25 (unchanged)                  |
-| Ride downtime      | `2 x %`, up to 200 (unchanged)                |
-| Litter             | 4 each, up to 600 (unchanged)                 |
-| Casualties         | 100 each, up to 1000 (unchanged)              |
+| Term               | Value                                                                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Average excitement | `min(50, abs(avg - 3.68) / 4 hundredths)`                                                                                                                         |
+| Average intensity  | `min(50, abs(avg - 5.20) / 4 hundredths)`                                                                                                                         |
+| Total excitement   | `100 - 100 x total / 80.00`, floored at 0                                                                                                                         |
+| Total intensity    | same                                                                                                                                                              |
+| Unhappy guests     | `500 - 2 x min(250, 3 x happy%)`: 500 with no happy guest, 200 at 50% happy, none from about 84% happy (an empty park has none). Replaces `(unhappy% - 50) x 10`. |
+| Lost guests        | 7 each beyond 25 (unchanged)                                                                                                                                      |
+| Ride downtime      | `2 x %`, up to 200 (unchanged)                                                                                                                                    |
+| Litter             | 4 each, up to 600 (unchanged)                                                                                                                                     |
+| Casualties         | 100 each, up to 1000 (unchanged)                                                                                                                                  |
 
 Averages and totals cover open attractions (rides, not stalls). With no open attraction both proximity terms are at their caps.
+
+Effect of the happiness term: the old term forgave everything until half the guests were unhappy, the rating-formula guide's term starts charging as soon as guests are below 84% happy. Mid-game happiness swings, so the scripted park's rating moves by hundreds of points between samples (see [Starter objective](#starter-objective)).
 
 Effect: before, only penalties could move the rating off the clamp, so a clean park sat at 999; now the same scripted park sits near 700 and climbing toward 900 needs about a dozen varied attractions _and_ a clean, happy park.
 
@@ -108,7 +110,7 @@ Year-end crowd and rating by profile at the scenario seed: minimal 70 guests and
 
 ## Starter objective
 
-Was 50 guests and rating 900 in year one. 50 guests is reached by even the minimal park, and 900 was unreachable once the rating became honest: the ambitious build (fifteen attractions, twelve stalls, $23,000 of rides) peaks around 850 and ends near 800 because the rating floats with litter, rain and breakdowns. It is now **100 guests and rating 730**. Twelve seeds per profile (11 - 16 and 21 - 26), scored at the year-end check:
+Now **100 guests and rating 650** in year one (was 730, see below). Was 50 guests and rating 900 in year one. 50 guests is reached by even the minimal park, and 900 was unreachable once the rating became honest: the ambitious build (fifteen attractions, twelve stalls, $23,000 of rides) peaks around 850 and ends near 800 because the rating floats with litter, rain and breakdowns. It was **100 guests and rating 730**, which the difficulty-pass rating term (see [Rating](#rating)) made unreachable for most modest builds. Twelve seeds per profile (11 - 16 and 21 - 26), scored at the year-end check, on this tree:
 
 | Profile   | Guests    | Rating    | Wins    |
 | --------- | --------- | --------- | ------- |
@@ -118,11 +120,40 @@ Was 50 guests and rating 900 in year one. 50 guests is reached by even the minim
 
 So a player who builds the full set of stalls and staff but few attractions can still scrape it, and one who keeps adding attractions nearly always wins. Year-end ratings move about 40 points between seeds, which is why the target sits between the profiles rather than at the ambitious floor.
 
+Difficulty-pass rating (happiness term above), same seeds, same tree, wins out of 12 at each target:
+
+| Profile   | Guests    | Rating (min - max) | Wins @ 730 | Wins @ 670 | Wins @ 650 |
+| --------- | --------- | ------------------ | ---------- | ---------- | ---------- |
+| minimal   | 27 - 67   | 0 - 364            | 0 / 12     | 0 / 12     | 0 / 12     |
+| modest    | 134 - 153 | 598 - 762          | 2 / 12     | 9 / 12     | 10 / 12    |
+| ambitious | 137 - 169 | 662 - 759          | 3 / 12     | 9 / 12     | 12 / 12    |
+
+Before this pass (main, same seeds): minimal 26 - 77 guests and 157 - 327 rating; modest 134 - 158 and 675 - 755 (6 / 12 at 730, 12 / 12 at 650); ambitious 159 - 183 and 738 - 840 (12 / 12 at 730). The happiness term punishes the unhappiness every build shares, so the rating separates the profiles less. 650 keeps both attraction-heavy builds winning at least 10 of 12 seeds; 670 is the highest target that keeps both at 9 of 12.
+
+**Default seed:** the scenario's own seed (2026) with the scripted modest build ends year one at rating 653, which clears 650 by three points. A small change to the rating or to the build can flip it, so treat that run as a near miss rather than a comfortable win.
+
+## Results: economy fidelity pass
+
+Starter scenario, one year, default seed (2026), scripted modest build, `pnpm balance`, both on main at 339fecc:
+
+| Metric                                | Before (main)           | After                  |
+| ------------------------------------- | ----------------------- | ---------------------- |
+| Guests at month ends                  | 86 - 157                | 130 - 153              |
+| Park rating at month ends             | 723 - 763               | 415 - 742              |
+| Rating range after month 1            | 647 - 790               | 439 - 772              |
+| Year-end rating / objective           | 760 / Won (target 730)  | 653 / Won (target 650) |
+| Cash at year end                      | $38,560                 | $38,385                |
+| Ledger: interest, wages, construction | -1,750, -1,717, -11,162 | unchanged              |
+
+The ledger is unchanged by design: monthly research funding equals the old weekly charge times four, and the scripted park runs no research or campaign. The moves come from the rating's happiness term and the starter target.
+
 ## Known gaps
 
 - Rides far from the gate are seldom visited: guest navigation searches a limited number of path junctions, so a long straight spine with many branches loses guests beyond the sixth or so. This is pathfinding behaviour, not choice scoring.
 - Guests do not remember rides they have taken; variety comes from the per-epoch taste swing and from lines.
 - Stall demand is not weather-sensitive beyond the kiosk (economy.md describes hot/cold item values).
 - Ride prices and the admission fee are not tuned; the scripted park keeps the scenario's admission price and free rides.
-- Awards, research-driven novelty and the casualties term are not modelled, so the 1,150 base is reachable only by leaving out penalties no current system produces.
+- Awards and research-driven novelty are not modelled. The casualties term uses one 100-point charge per casualty; the guide's per-type charges (25 per drowning, 200 per fatal crash, with decay) need per-type inputs that no system publishes yet.
+- Park value is still the ride-value-plus-$7-per-guest placeholder: the guide's five-minute rider counts, ride-type bonus and duplicate-type reduction need ride rider counters that the rides module does not keep.
+- Marketing: the six campaigns carry their target, but targeted campaigns (free ride vouchers, selected-ride advertising, free food or drink) still give the park-wide attraction bonus. Per-target effects and voucher fulfilment belong to the guests workstream.
 - Constants follow community descriptions but were tuned against this harness, not against the original game.

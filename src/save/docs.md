@@ -20,7 +20,7 @@ Path: @/src/save
 - [save.ts](save.ts) writes a magic value, header length, UTF-8 JSON header, then each typed-array view in deterministic order.
 - [game-saves.ts](game-saves.ts) saves a running game into a slot record and defines the default slot name and export filename. [slot-store.ts](slot-store.ts) provides `SlotStore`, IndexedDB storage, and an in-memory fallback; slot metadata such as scenario id and display name stays outside the simulation bytes.
 - Deserialization restores raw views, entity counts/free lists, legacy guest headings and ride data where needed, then restores economy, weather, research, scenario, and park state.
-- Versions 3 through 8 are accepted. Version 3 uses a legacy ride layout; versions 3 and 4 omit guest headings and migrate guests to the current representation; version 5 has the current array layout but no patrol or umbrella fields; version 6 has no grounds or staff names; version 7 has no ride income column, so it loads with zeroed income counters.
+- Versions 3 through 10 are accepted. Versions 9 and older store research invention costs and progress in cents; version 10 stores work units. Older research is converted at the old minimum rate on load (see [research.ts](../sim/research/research.ts)). Economy `difficultRating` and `campaignTarget`, and research `priority`, are additive fields that default when absent. Version 3 uses a legacy ride layout; versions 3 and 4 omit guest headings and migrate guests to the current representation; version 5 has the current array layout but no patrol or umbrella fields; version 6 has no grounds or staff names; version 7 has no ride income column, so it loads with zeroed income counters.
 - Derived track paths are not serialized independently.
 
 ### Things to Know

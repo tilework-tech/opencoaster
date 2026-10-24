@@ -26,6 +26,7 @@ export enum PriceMode {
 export const BASIS_POINTS = 10_000;
 export const HISTORY_MONTHS = 5;
 export const NO_CAMPAIGN = -1;
+export const NO_TARGET = -1;
 
 /** Values reported by other systems (rides, staff, guests) that the economy reads each refresh. */
 export interface EconomyInputs {
@@ -57,6 +58,8 @@ export interface Ledger {
   loan: number;
   maxLoan: number;
   annualInterestBps: number;
+  /** Scenario option: the park rating starts from the lower difficult-rating base. */
+  difficultRating: boolean;
   priceMode: PriceMode;
   admissionPrice: number;
   inputs: EconomyInputs;
@@ -68,6 +71,8 @@ export interface Ledger {
   monthsCompleted: number;
   campaignId: number;
   campaignWeeksLeft: number;
+  /** Ride or item the running campaign targets, or NO_TARGET. */
+  campaignTarget: number;
   parkValue: number;
   parkRating: number;
 }
@@ -78,6 +83,7 @@ export function createLedger(): Ledger {
     loan: 0,
     maxLoan: 0,
     annualInterestBps: 0,
+    difficultRating: false,
     priceMode: PriceMode.Free,
     admissionPrice: 0,
     inputs: {
@@ -100,6 +106,7 @@ export function createLedger(): Ledger {
     monthsCompleted: 0,
     campaignId: NO_CAMPAIGN,
     campaignWeeksLeft: 0,
+    campaignTarget: NO_TARGET,
     parkValue: 0,
     parkRating: 0,
   };
@@ -129,6 +136,7 @@ export interface LedgerSave {
   loan: number;
   maxLoan: number;
   annualInterestBps: number;
+  difficultRating?: boolean;
   priceMode: PriceMode;
   admissionPrice: number;
   inputs: EconomyInputs;
@@ -138,6 +146,7 @@ export interface LedgerSave {
   monthsCompleted: number;
   campaignId: number;
   campaignWeeksLeft: number;
+  campaignTarget?: number;
   parkValue: number;
   parkRating: number;
 }
@@ -148,6 +157,7 @@ export function saveLedger(l: Ledger): LedgerSave {
     loan: l.loan,
     maxLoan: l.maxLoan,
     annualInterestBps: l.annualInterestBps,
+    difficultRating: l.difficultRating,
     priceMode: l.priceMode,
     admissionPrice: l.admissionPrice,
     inputs: { ...l.inputs },
@@ -157,6 +167,7 @@ export function saveLedger(l: Ledger): LedgerSave {
     monthsCompleted: l.monthsCompleted,
     campaignId: l.campaignId,
     campaignWeeksLeft: l.campaignWeeksLeft,
+    campaignTarget: l.campaignTarget,
     parkValue: l.parkValue,
     parkRating: l.parkRating,
   };
@@ -167,6 +178,7 @@ export function restoreLedger(l: Ledger, s: LedgerSave): void {
   l.loan = s.loan;
   l.maxLoan = s.maxLoan;
   l.annualInterestBps = s.annualInterestBps;
+  l.difficultRating = s.difficultRating ?? false;
   l.priceMode = s.priceMode;
   l.admissionPrice = s.admissionPrice;
   l.inputs = { ...createLedger().inputs, ...s.inputs };
@@ -176,6 +188,7 @@ export function restoreLedger(l: Ledger, s: LedgerSave): void {
   l.monthsCompleted = s.monthsCompleted;
   l.campaignId = s.campaignId;
   l.campaignWeeksLeft = s.campaignWeeksLeft;
+  l.campaignTarget = s.campaignTarget ?? NO_TARGET;
   l.parkValue = s.parkValue;
   l.parkRating = s.parkRating;
 }

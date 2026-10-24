@@ -51,6 +51,8 @@ export function hashWorld(world: World): number {
     e.monthsCompleted,
     e.campaignId,
     e.campaignWeeksLeft,
+    e.campaignTarget,
+    e.difficultRating ? 1 : 0,
     e.parkValue,
     e.parkRating,
     ...Object.values(e.inputs),
@@ -66,8 +68,9 @@ export function hashWorld(world: World): number {
   for (const inv of r.inventions) {
     mix(inv.itemId);
     mix(inv.category);
-    mix(inv.costCents);
+    mix(inv.workUnits);
   }
+  for (const id of r.priority) mix(id);
   for (const id of r.unlocked) mix(id);
   const s = world.scenario;
   mix(s.status);
