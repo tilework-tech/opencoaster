@@ -16,6 +16,7 @@ export function hashWorld(world: World): number {
     world.staff,
     world.vehicles,
     world.litter,
+    world.rides,
     world.track.pieces,
     world.rides,
   ]) {

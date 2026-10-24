@@ -17,6 +17,7 @@ import { createScenarioState } from '../scenario/scenario';
 import type { ScenarioState } from '../scenario/scenario';
 import { RIDE_SCHEMA } from '../rides/ride-store';
 import { TrackState } from '../track/track-store';
+import type { VehicleTrackRegistry } from '../vehicles/vehicle-track';
 
 export interface WorldOptions {
   seed: number;
@@ -34,6 +35,8 @@ export class World {
   readonly guests: EntityStore<typeof GUEST_SCHEMA>;
   readonly staff: EntityStore<typeof STAFF_SCHEMA>;
   readonly vehicles: EntityStore<typeof VEHICLE_SCHEMA>;
+  /** Runtime track geometry is rebuilt by the track subsystem and consumed by vehicles. */
+  vehicleTracks?: VehicleTrackRegistry;
   readonly litter: EntityStore<typeof LITTER_SCHEMA>;
   readonly rides: EntityStore<typeof RIDE_SCHEMA>;
   readonly economy: Ledger;
