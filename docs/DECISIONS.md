@@ -9,7 +9,7 @@ Resolutions of the cross-spec conflicts listed in `docs/mechanics/README.md`. Co
 | Calendar           | 16,384 ticks per month, 8 months per year (March-October). Tunable.                                                                         |
 | Wages              | Accrue weekly; reported monthly in the finance report.                                                                                      |
 | Excitement penalty | ×0.75 per intensity threshold exceeded. Tunable.                                                                                            |
-| Park rating        | Integer, clamped 0-999. Formula per economy spec; calibrate later.                                                                          |
+| Park rating        | Integer, clamped 0-999. Formula per economy spec including the ride terms; calibrated in [BALANCE.md](BALANCE.md).                          |
 | Food/drink seeking | A hungry/thirsty guest heads to a known stall if it has seen one; otherwise wanders and buys on encounter.                                  |
 | Capacities         | 8,192 guest slots; ride and entity ids are 32-bit. The 5,000-guest mixed-staff-and-litter benchmark must stay at or under 3 ms/tick at p99. |
 

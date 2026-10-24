@@ -37,6 +37,11 @@ export interface EconomyInputs {
   rideValue: number;
   /** Count of rides meeting the scenario's qualifying criteria. */
   qualifyingRideCount: number;
+  /** Open attractions (rides, not stalls). */
+  openAttractionCount: number;
+  /** Sum of open attractions' excitement and intensity, in 1/100 units. */
+  excitementTotal: number;
+  intensityTotal: number;
   /** Guests currently leaving after being lost. */
   lostGuests: number;
   /** Guests who are unhappy, as a whole percent (0-100). */
@@ -80,6 +85,9 @@ export function createLedger(): Ledger {
       rideUpkeepPerFortnight: 0,
       rideValue: 0,
       qualifyingRideCount: 0,
+      openAttractionCount: 0,
+      excitementTotal: 0,
+      intensityTotal: 0,
       lostGuests: 0,
       unhappyPercent: 0,
       rideDowntimePercent: 0,
@@ -161,7 +169,7 @@ export function restoreLedger(l: Ledger, s: LedgerSave): void {
   l.annualInterestBps = s.annualInterestBps;
   l.priceMode = s.priceMode;
   l.admissionPrice = s.admissionPrice;
-  l.inputs = { ...s.inputs };
+  l.inputs = { ...createLedger().inputs, ...s.inputs };
   l.monthlyTotals.set(s.monthlyTotals);
   l.history.set(s.history);
   l.historyHead = s.historyHead;

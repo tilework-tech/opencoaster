@@ -8,6 +8,8 @@ import { STAFF_SCHEMA } from '../staff/staff-store';
 import { VEHICLE_SCHEMA } from '../vehicles/vehicle-store';
 import { LITTER_SCHEMA } from '../guests/litter-store';
 import { createParkState } from '../guests/park';
+import { createRideLines } from '../guests/ride-lines';
+import type { RideLines } from '../guests/ride-lines';
 import type { ParkState } from '../guests/park';
 import { createLedger } from '../economy/ledger';
 import type { Ledger } from '../economy/ledger';
@@ -57,6 +59,8 @@ export class World {
   readonly scenario: ScenarioState;
   readonly track: TrackState;
   readonly park: ParkState;
+  /** Guests lining up for each ride; derived every tick, not hashed or saved. */
+  readonly rideLines: RideLines;
   /** Outcome of the latest command, for UI display; not hashed or saved. */
   readonly feedback: CommandFeedback = createFeedback();
 
@@ -73,6 +77,7 @@ export class World {
     this.vehicles = new EntityStore(VEHICLE_SCHEMA, MAX_VEHICLES);
     this.litter = new EntityStore(LITTER_SCHEMA, MAX_LITTER);
     this.rides = new EntityStore(RIDE_SCHEMA, 256);
+    this.rideLines = createRideLines(this.rides.capacity);
     this.economy = createLedger();
     this.weather = createWeather();
     this.research = createResearch();

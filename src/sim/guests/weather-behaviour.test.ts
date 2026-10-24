@@ -17,10 +17,10 @@ function chooseRide(weather: WeatherKind, umbrella: boolean) {
   world.guests.cols.nauseaTolerance[guest] = 255;
   const gentle = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
   const thrill = openRide(world, RideType.SwingingShip, [12, 4], [12, 5], [12, 3], [[11, 5]]);
-  world.rides.cols.excitement[gentle] = 100;
-  world.rides.cols.excitement[thrill] = 110;
-  world.rides.cols.intensity[gentle] = 100;
-  world.rides.cols.intensity[thrill] = 100;
+  world.rides.cols.excitement[gentle] = 500;
+  world.rides.cols.excitement[thrill] = 650;
+  world.rides.cols.intensity[gentle] = 450;
+  world.rides.cols.intensity[thrill] = 450;
   world.rides.cols.nausea[gentle] = 0;
   world.rides.cols.nausea[thrill] = 0;
   world.weather.kind = weather;
@@ -45,24 +45,29 @@ describe('weather guest behaviour', () => {
     expect(sheltered.selected).toBe(sheltered.thrillId);
   });
 
-  it('sells one umbrella only to a nearby wandering guest at an open kiosk', () => {
+  it('sells one umbrella to a wet guest who walks up to an open kiosk', () => {
     const world = flatWorld(16, 7);
-    layPath(world, [[8, 8]]);
-    const guest = guestAt(world, 8, 8);
-    const kioskId = createRide(world, RideType.InformationKiosk, 8, 7);
+    layPath(world, row(8, 4, 10));
+    const guest = guestAt(world, 4, 8);
+    const kioskId = createRide(world, RideType.InformationKiosk, 10, 7);
     const kiosk = world.rides.idToSlot[kioskId];
     world.rides.cols.state[kiosk] = RideState.Open;
     world.rides.cols.entrancePlaced[kiosk] = 1;
-    world.rides.cols.entranceX[kiosk] = 8;
+    world.rides.cols.entranceX[kiosk] = 10;
     world.rides.cols.entranceY[kiosk] = 8;
     world.rides.cols.price[kiosk] = 75;
     world.weather.kind = WeatherKind.Rain;
     const cash = world.guests.cols.cash[guest];
     const update = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));
 
-    update.update(world);
-    update.update(world);
+    const startX = world.guests.cols.x[guest];
+    for (let tick = 0; tick < 1200; tick++) {
+      update.update(world);
+      world.tick++;
+    }
 
+    expect(world.guests.cols.x[guest]).toBeGreaterThan(startX);
+    expect(world.rides.cols.guestsServed[kiosk]).toBe(1);
     expect(world.guests.cols.state[guest]).toBe(GuestState.Wandering);
     expect(world.umbrellas[world.guests.slotToId[guest]]).toBe(1);
     expect(world.guests.cols.cash[guest]).toBe(cash - 75);

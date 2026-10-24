@@ -14,6 +14,7 @@ import {
   setRidePrice,
 } from '../rides/ride-operations';
 import { deserialize, serialize } from '../../save/save';
+import { StaffKind } from '../staff/staff-store';
 
 const TICKS_PER_DAY = Math.floor(TICKS_PER_MONTH / 31);
 
@@ -82,6 +83,9 @@ describe('small park integration', () => {
   it('admits guests who ride, shop, and move money through the ledger', () => {
     const sim = buildPark();
     const w = sim.world;
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    sim.step();
     const cashBefore = w.economy.cash;
     runDays(sim, 40);
 

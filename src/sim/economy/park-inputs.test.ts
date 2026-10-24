@@ -91,4 +91,22 @@ describe('economy inputs from the park', () => {
     };
     expect(rate(250)).toBeGreaterThan(rate(20));
   });
+
+  it('totals the excitement and intensity of open attractions only', () => {
+    const s = park();
+    const slot = 0;
+    s.world.rides.cols.excitement[slot] = 360;
+    s.world.rides.cols.intensity[slot] = 120;
+    refresh(s);
+
+    const inputs = s.world.economy.inputs;
+    expect(inputs.openAttractionCount).toBe(1);
+    expect(inputs.excitementTotal).toBe(360);
+    expect(inputs.intensityTotal).toBe(120);
+
+    setRideOpen(s.world, s.world.rides.slotToId[slot], false);
+    refresh(s);
+    expect(s.world.economy.inputs.openAttractionCount).toBe(0);
+    expect(s.world.economy.inputs.excitementTotal).toBe(0);
+  });
 });

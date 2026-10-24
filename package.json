@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "tsx bench/bench.ts",
+    "balance": "tsx bench/balance.ts",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "smoke": "playwright test --config=playwright.config.ts"
   },
