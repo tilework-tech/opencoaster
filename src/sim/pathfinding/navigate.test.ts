@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { Prng } from '../core/prng';
 import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
-import { Surface } from '../map/tile-map';
+import { OWNED } from '../map/tile-map';
+import { placePath } from '../map/paths';
 import { GridPathGraph } from './fixture';
 import {
   DEFAULT_GUEST_OPTS,
@@ -13,7 +14,6 @@ import {
   DIR_S,
   DIR_W,
   isReachable,
-  markPathsChanged,
   nextDirection,
   oppositeDir,
 } from './index';
@@ -145,11 +145,13 @@ describe('nextDirection', () => {
     expect(a).toEqual(b);
   });
 
-  it('works on a real World map using Surface.Path tiles', () => {
+  it('works on a real World map with placed paths', () => {
     const sim = new Simulation({ seed: 3, width: 16, height: 16 });
     const m = sim.world.map;
-    for (let x = 2; x < 10; x++) m.surface[m.index(x, 4)] = Surface.Path;
-    markPathsChanged(m);
+    m.waterLevel.fill(0);
+    m.ownership.fill(OWNED);
+    m.fillFlat(4);
+    for (let x = 2; x < 10; x++) placePath(m, { x, y: 4 });
     const d = nextDirection(sim.world, m.index(2, 4), m.index(9, 4), new Prng(1));
     expect(d).toBe(DIR_E);
     expect(isReachable(sim.world, m.index(2, 4), m.index(9, 4))).toBe(true);
@@ -236,12 +238,14 @@ describe('determinism', () => {
     const run = (): number => {
       const sim = new Simulation({ seed: 9, width: 24, height: 24 });
       const m = sim.world.map;
+      m.waterLevel.fill(0);
+      m.ownership.fill(OWNED);
+      m.fillFlat(4);
       for (let i = 0; i < 24; i++) {
-        m.surface[m.index(i, 5)] = Surface.Path;
-        m.surface[m.index(5, i)] = Surface.Path;
-        m.surface[m.index(i, 18)] = Surface.Path;
+        placePath(m, { x: i, y: 5 });
+        placePath(m, { x: 5, y: i });
+        placePath(m, { x: i, y: 18 });
       }
-      markPathsChanged(m);
       let acc = 0;
       const rng = sim.world.rng;
       let t = m.index(5, 5);

@@ -106,6 +106,8 @@ export class TileMap {
 
   /** Bumped by every change a renderer could see; not part of saved state. */
   revision = 0;
+  /** Bumped whenever a path element or its edges change; lets the pathfinder drop caches. */
+  pathVersion = 0;
 
   readonly elementCapacity: number;
 
@@ -266,6 +268,7 @@ export class TileMap {
     if (prev < 0) this.tileHead[i] = e;
     else this.elNext[prev] = e;
     meta[META_COUNT]++;
+    if (type === ElementType.Path) this.pathVersion++;
     this.refreshTile(i);
     return e;
   }
@@ -280,6 +283,7 @@ export class TileMap {
     if (cur < 0) return;
     if (prev < 0) this.tileHead[i] = this.elNext[e];
     else this.elNext[prev] = this.elNext[e];
+    if (this.elType[e] === ElementType.Path) this.pathVersion++;
     this.elType[e] = 0;
     this.elNext[e] = this.meta[META_FREE];
     this.meta[META_FREE] = e;
@@ -319,9 +323,15 @@ export class TileMap {
     return e < 0 ? 0 : this.pathEdgesOf(e);
   }
 
+  /** `PathGraph` view for the pathfinder: the tile's lowest path element's edges. */
+  edgeMask(i: number): number {
+    return this.pathEdges(i);
+  }
+
   /** Marks edges of a path element as connected to something that is not a path. */
   setForcedEdges(e: number, mask: number): void {
     this.elFlags[e] = (this.elFlags[e] & ~PathFlag.Forced) | ((mask & 0xf) << 4);
+    this.pathVersion++;
     this.revision++;
   }
 

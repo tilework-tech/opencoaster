@@ -137,3 +137,19 @@ describe('forced edges', () => {
     expect(m.pathEdges(I(m, 3, 3))).toBe(0b0101);
   });
 });
+
+describe('pathfinder integration', () => {
+  it('exposes edges as a PathGraph and bumps pathVersion on path edits', async () => {
+    const { resolveGraph } = await import('../pathfinding/graph');
+    const m = ownedMap();
+    expect(resolveGraph(m)).toBe(m);
+    const v0 = m.pathVersion;
+    placePath(m, { x: 3, y: 3 });
+    placePath(m, { x: 4, y: 3 });
+    expect(m.pathVersion).toBeGreaterThan(v0);
+    expect(m.edgeMask(I(m, 3, 3))).toBe(0b0001);
+    const v1 = m.pathVersion;
+    removePath(m, { x: 4, y: 3 });
+    expect(m.pathVersion).toBeGreaterThan(v1);
+  });
+});

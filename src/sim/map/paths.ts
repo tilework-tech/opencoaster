@@ -59,6 +59,7 @@ export function recomputePathEdges(m: TileMap, i: number): void {
     const n = m.neighbor(i, d);
     if (n >= 0) recomputeTileEdges(m, n);
   }
+  m.pathVersion++;
   m.revision++;
 }
 
