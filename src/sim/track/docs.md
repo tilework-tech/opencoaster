@@ -12,7 +12,7 @@ Responsibility: track piece catalog and geometry, construction (cursor, validati
 | `track-store.ts`    | `TrackState` (`world.track`): `pieces` EntityStore plus per-ride `head/tail/count/closed/length/version`.                                                                         |
 | `construction.ts`   | Cursor, `validatePlacement`, `placeTrack`, `removeTrack`, `removeRideTrack`, `circuitStatus`.                                                                                     |
 | `track-path.ts`     | `getTrackPath(world, rideId)`: cached world-space polyline for vehicles.                                                                                                          |
-| `track-commands.ts` | `applyTrackCommand` for the `placeTrack` / `removeTrack` commands.                                                                                                                |
+| `track-commands.ts` | `applyTrackCommand`: place/remove with ride rules, ownership, funds.                                                                                                              |
 | `track-system.ts`   | Per-tick upkeep: removes the track of rides that no longer exist.                                                                                                                 |
 
 ## Piece model
@@ -25,7 +25,7 @@ Catalog: station; flat; slopes 25 and 60 up/down with all flat<->25<->60 transit
 
 Slope classes: 25 = 0.5 rise/run (26.6 degrees), 60 = 2.0 rise/run (63.4 degrees), so every piece rises a whole number of height levels. Bank is 45 degrees (`BANK_DEG`); left banks are negative.
 
-Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and upward slopes), Brake and BlockBrake (flag `BrakeOk`: flat only). Stations take no mode.
+Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and upward slopes), Brake and BlockBrake (flag `BrakeOk`: flat only), Launch (`PieceMode.Launch`, flag `LaunchOk`: flat pieces only). Stations take no mode.
 
 ## Sample table (what vehicles consume)
 
@@ -45,15 +45,25 @@ Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and up
 
 `removeTrack(world, rideId, pieceId)`: `-1` removes the tail. An open chain only loses an end piece (`NotAtEnd` otherwise); any piece of a closed circuit can go and reopens it. `circuitStatus` reports pieces, closed, station count, `complete` (closed with a station) and length.
 
-Commands: `{ type: 'placeTrack', rideId, pieceType, x, y, z, dir, mode }` and `{ type: 'removeTrack', rideId, pieceId }`. Invalid commands are dropped; the outcome is in `world.track.lastResult` / `lastPiece`. UIs call `validatePlacement` first for hover feedback.
+## Commands
+
+Commands: `{ type: 'placeTrack', rideId, pieceType, x, y, z, dir, mode }` and `{ type: 'removeTrack', rideId, pieceId }`. `applyTrackCommand` owns the whole command, including charging; the core dispatcher no longer pre-checks funds. The outcome goes to `world.track.lastResult` / `lastPiece` (saved) and to `world.feedback` with `FeedbackDomain.Track` (see [core](../core/docs.md)). `TrackResult` includes `NotOwned`, `InsufficientFunds` and `PieceNotAllowed` for the command-only checks.
+
+`validatePlaceCommand` checks, in order:
+
+1. Ride-type rules from `RideTypeDef.trackRules` (`maxLevel`, `steepSlopes`, `inversions`, `launch`) -> `PieceNotAllowed`.
+2. Geometry via `validatePlacement`.
+3. Ownership of every footprint tile via `map.canBuild` -> `NotOwned`.
+4. Funds -> `InsufficientFunds`.
+
+A valid piece is placed and charged through the economy `charge`, then `invalidateRideTest` clears the ride's tested state. Removal also invalidates the test. Direct `placeTrack()` / `removeTrack()` calls (tests, fixtures) skip ownership, ride rules and charging; only commands enforce them. UIs call `validatePlacement` first for hover feedback, but the command result is authoritative.
 
 ## Determinism and state
 
-All stored state is integers (`TRACK_SCHEMA`, per-ride tables); both are in `hashWorld`. Catalog floats exist only at module load and use correctly-rounded operations. `paths` is derived and not hashed.
+All stored state is integers (`TRACK_SCHEMA`, per-ride tables); both are in `hashWorld` and written by `src/save` (`pieces.arrays()` + `rideTables()` plus `lastResult`/`lastPiece`). Catalog floats exist only at module load and use correctly-rounded operations. `paths` is derived and not hashed.
 
 ## Known limits / follow-ups
 
-- `world.track` is not yet written by `src/save` (needs `pieces.arrays()` + `rideTables()` and a version bump).
-- No per-ride-type limits (max slope/height, allowed pieces) yet; `rides` should pass a capability table into `validatePlacement`.
-- Supports, tunnel portals, and collision with paths/scenery (tile `flags`) are not modelled. Piece `cost` is exposed but not charged.
+- `validatePlacement` itself is rule-agnostic; ride-type limits and ownership live only in the command path.
+- Supports, tunnel portals, and collision with paths/scenery (tile `flags`) are not modelled.
 - Corkscrews, helixes, barrel rolls, S-bends, diagonal pieces, slope+bank combinations and half-tile grid positions are not in the catalog; pieces are whole-tile.

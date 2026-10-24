@@ -40,7 +40,7 @@ Same seed + same ordered commands ⇒ bit-identical state, on every machine.
 
 Chosen: **transferable snapshot buffers**, three pooled per run.
 
-- After ticks run, the worker writes positions into a pooled `Snapshot` (4 Int32 per entity: x, y, z, state/variant) and transfers its `ArrayBuffer`s to the main thread (zero copy). The main thread returns the previous snapshot with a `recycle` message. If no buffer is free the worker skips publishing, which gives natural backpressure.
+- After ticks run, the worker writes positions into a pooled `Snapshot` (4 Int32 per entity: x, y, z, state/variant, plus a per-ride `rideInfo` table and the latest command `feedback`) and transfers its `ArrayBuffer`s to the main thread (zero copy). The main thread returns the previous snapshot with a `recycle` message. If no buffer is free the worker skips publishing, which gives natural backpressure.
 - Cost: ~16 B per entity, so 5000 guests ≈ 80 KB per snapshot; the copy-out loop is a tight typed-array loop (a few hundred µs at most).
 - Why not SharedArrayBuffer: it requires cross-origin isolation (COOP/COEP), which static hosts like GitHub Pages cannot set, and shared mutable memory invites torn reads without extra synchronisation. The renderer only needs a consistent frame, which snapshots give for free.
 - Headers: `vite.config.ts` serves COOP `same-origin` and COEP `require-corp` in dev/preview anyway, so a later SAB upgrade (e.g. a double-buffered shared position array with an atomic frame index) does not hit surprises. Nothing depends on them today; production hosting does not need to set them.

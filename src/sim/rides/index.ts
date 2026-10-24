@@ -3,3 +3,7 @@ export * from './ride-types';
 export * from './ride-operations';
 export * from './ride-system';
 export * from './queue-system';
+export * from './ride-results';
+export * from './ride-commands';
+export * from './coaster';
+export * from './coaster-system';

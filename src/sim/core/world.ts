@@ -20,6 +20,8 @@ import type { ScenarioState } from '../scenario/scenario';
 import { RIDE_SCHEMA } from '../rides/ride-store';
 import { TrackState } from '../track/track-store';
 import type { VehicleTrackRegistry } from '../vehicles/vehicle-track';
+import { createFeedback } from './feedback';
+import type { CommandFeedback } from './feedback';
 
 export interface WorldOptions {
   seed: number;
@@ -47,6 +49,8 @@ export class World {
   readonly scenario: ScenarioState;
   readonly track: TrackState;
   readonly park: ParkState;
+  /** Outcome of the latest command, for UI display; not hashed or saved. */
+  readonly feedback: CommandFeedback = createFeedback();
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;

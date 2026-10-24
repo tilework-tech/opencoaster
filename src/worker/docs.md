@@ -22,12 +22,15 @@ Path: @/src/worker
 - Ride entries are positioned at their entrances and carry the stable ride ID in the fourth value. Track entries carry tile-centered position and height; their fourth value packs ride ID in the high 16 bits, direction in the next 8 bits, and piece type in the low 8 bits.
 - The snapshot also includes a park summary with cash, loan, and ride count. Static map dimensions, heights, surface classes, and slope masks travel in a separate map message. Periodic statistics report tick, guest count, smoothed and peak simulation cost, and dropped ticks.
 - `buildable` is a `Uint8Array` indexed by map tile. Each snapshot fills it from the map's `canBuild` result, representing owned land or construction rights for that tile.
+- `rideInfo` carries `RIDE_INFO_STRIDE` ints per ride (same order as the ride layer), indexed by the `RideInfo` enum: id, type, state, phase, ratings, queue length, `RideFlag` bits (entrance/exit placed, queue connected, tested, circuit closed), guests served, price, track piece count, and the construction cursor. The cursor's tile and height are plain fields; direction, slope, bank and has-track are packed with `encodeCursor` / `decodeCursor`.
+- `feedback` copies `world.feedback` (`seq`, `domain`, `code`, `subject`) so the UI can show the outcome of its latest command.
 
 ### Things to Know
 
 - Snapshot buffers, including the track-piece layer and per-tile `buildable` array, are transferred rather than copied. After transfer, the sender's typed-array backing buffers are detached until the client returns them in a recycle message.
 - Three snapshots are pooled per run. If none is free after simulation ticks advance, publication is skipped so the simulation can continue while the main thread catches up.
 - Ride rendering entries expose stable IDs rather than ride state or type. The UI uses these IDs to associate track pieces with a ride; ride type and operating state remain in the simulation state.
+- `rideInfo` is transferred and recycled like the other buffers; `feedback` is a plain object that travels with the snapshot message.
 - Ride and track layer counts are capped by their output-buffer capacities, while the park summary's ride count reflects the full simulation count. The track layer and `buildable` array follow the same pooled transfer and recycle lifecycle as the other snapshot buffers.
 
 Created and maintained by Nori.

@@ -1,0 +1,23 @@
+/** Outcome of a ride command or ride event, published as `FeedbackDomain.Ride`. */
+export const enum RideResult {
+  Ok = 0,
+  NoSuchRide = 1,
+  NotTrackRide = 2,
+  /** The track is not a closed circuit with a station. */
+  TrackIncomplete = 3,
+  /** A cycle, test run or open ride prevents the change. */
+  Busy = 4,
+  Broken = 5,
+  NotTested = 6,
+  NoEntrance = 7,
+  NoExit = 8,
+  NoQueue = 9,
+  NotAdjacentToStation = 10,
+  NotOwned = 11,
+  Blocked = 12,
+  InsufficientFunds = 13,
+  OutOfBounds = 14,
+  /** The test train stalled, crashed or did not finish in time. */
+  TestFailed = 15,
+  TestPassed = 16,
+}

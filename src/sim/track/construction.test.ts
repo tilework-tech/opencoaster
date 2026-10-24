@@ -3,6 +3,7 @@ import { World } from '../core/world';
 import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
 import { Z_STEP } from '../core/constants';
+import { OWNED } from '../map/tile-map';
 import { PIECES, PieceId, pieceByName } from './catalog';
 import {
   circuitStatus,
@@ -329,6 +330,7 @@ describe('track commands', () => {
   function run(withTrack: boolean): number {
     const sim = new Simulation({ seed: 5, width: 64, height: 64, maxGuests: 64 });
     sim.world.map.heights.fill(2);
+    sim.world.map.ownership.fill(OWNED);
     const rideId = sim.world.rides.slotToId[sim.world.rides.spawn()];
     if (withTrack) {
       sim.enqueue({

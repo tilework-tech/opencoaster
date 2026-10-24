@@ -26,7 +26,7 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   land: 'Land',
   path: 'Path',
   ride: 'Ride',
-  track: 'Track prototype',
+  track: 'Coaster',
 };
 
 export class GameUI {
@@ -114,6 +114,11 @@ export class GameUI {
           `Guests in park  ${stats?.guests ?? 0}\nSelect a guest in the park to inspect them.`,
       );
     }
+  }
+
+  /** Switches tools as if the player had pressed the toolbar button. */
+  selectTool(tool: ToolMode): void {
+    this.chooseTool(tool);
   }
 
   get selectedTool(): ToolMode {

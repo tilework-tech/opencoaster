@@ -3,6 +3,7 @@ import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
 import { Prng } from '../core/prng';
 import type { World } from '../core/world';
+import { OWNED } from '../map/tile-map';
 import { PIECES, getConstructionCursor, getTrackPath } from './index';
 
 function checkInvariants(w: World): void {
@@ -39,6 +40,7 @@ function checkInvariants(w: World): void {
 function fuzz(seed: number): { hash: number; sim: Simulation } {
   const sim = new Simulation({ seed, width: 32, height: 32, maxGuests: 16 });
   sim.world.map.heights.fill(3);
+  sim.world.map.ownership.fill(OWNED);
   const rides = [0, 1, 2].map(() => sim.world.rides.slotToId[sim.world.rides.spawn()]);
   const rng = new Prng(seed * 7 + 1);
   for (let i = 0; i < 1500; i++) {

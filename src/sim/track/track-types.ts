@@ -23,6 +23,7 @@ export const enum PieceMode {
   ChainLift = 1,
   Brake = 2,
   BlockBrake = 3,
+  Launch = 4,
 }
 
 /** Static per-piece-type capability flags. */
@@ -34,6 +35,7 @@ export const enum PieceFlag {
   Inverted = 1 << 4,
   Crest = 1 << 5,
   DropStart = 1 << 6,
+  LaunchOk = 1 << 7,
 }
 
 /** Outcome of validating or applying a track edit. */
@@ -51,6 +53,9 @@ export const enum TrackResult {
   CircuitClosed = 10,
   NotAtEnd = 11,
   StoreFull = 12,
+  NotOwned = 13,
+  InsufficientFunds = 14,
+  PieceNotAllowed = 15,
 }
 
 /** A placeable track piece type; geometry lives in the shared sample table (see catalog.ts). */

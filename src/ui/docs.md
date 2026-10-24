@@ -6,7 +6,8 @@ Path: @/src/ui
 
 - Builds the park toolbar, information windows, selection feedback, and performance HUD with DOM elements.
 - Displays worker snapshots and timing statistics; authoritative game state remains in the simulation worker.
-- Exposes selection, land, path, ride, and track tools, with placement behavior wired by the main thread.
+- Exposes selection, land, path, ride, and coaster (track) tools, with placement behavior wired by the main thread.
+- Provides a coaster panel for building, testing and operating coasters, with command feedback from snapshots.
 
 ### How it fits into the larger codebase
 
@@ -19,16 +20,18 @@ Path: @/src/ui
 
 - [game-ui.ts](game-ui.ts) creates the toolbar and togglable park, finance, and guest windows, updates their text from snapshots, and tracks selected tool and pause state.
 - [src/main.ts](../main.ts) handles keyboard and pointer input: WASD and drag pan, wheel zooms around the pointer, Q/E rotate, Space toggles pause, and canvas clicks select guests or issue the active build command.
-- A land click enqueues a one-tile raise; holding Shift enqueues a one-tile lower. Path clicks enqueue `placePath`. Ride clicks enqueue `createRide` for a Merry-Go-Round.
-- The toolbar labels this mode `Track prototype`. Clicks use the first ride in the latest snapshot and pass the clicked tile through the snapshot's per-tile `buildable` gate before enqueueing. The tool places a station followed by flat segments at terrain height with direction and mode set to zero.
+- A land click enqueues a one-tile raise; holding Shift enqueues a one-tile lower. Path clicks enqueue `placePath`. Ride clicks enqueue `createRide` for the ride type chosen in the panel.
+- The track tool is labelled `Coaster` and `selectTool` is public so the panel can switch to it. In track mode, clicks/Enter place the piece resolved by the panel at the selected ride's construction cursor; Backspace removes the last piece. In entrance/exit modes clicks enqueue `placeRideEntrance` / `placeRideExit`.
+- [track-tool.ts](track-tool.ts) is pure logic: `classifyPiece` / `resolvePiece` map the shape, slope and bank controls to a catalog piece connectable at the cursor, plus `allowedModes`, `previewStatus`, `footprintTiles`, and `feedbackMessage`, which has text for every `TrackResult` and `RideResult`.
+- [coaster-panel.ts](coaster-panel.ts) is the DOM panel: ride-type selector with cost, coaster selector, track/entrance/exit modes, shape/slope/bank/drive controls, start direction for the first piece, cost display, place/remove-last, Test/Open/Close buttons, ratings and status readout, and the command feedback line. Creating a ride selects it and switches to the track tool. It reads `Snapshot.rideInfo` (cursor decoded with `decodeCursor`).
+- [track-preview.ts](track-preview.ts) draws an overlay canvas outlining the footprint of the piece about to be placed, green when `previewStatus` passes and red otherwise.
 - Tool selection uses [projection.ts](../render/projection.ts) for screen-to-tile picking. [hud.ts](hud.ts) formats finance values from integer cents to dollars and displays render and simulation performance data.
 
 ### Things to Know
 
-- Tool status text reports that a placement was requested; it is not confirmation that the worker accepted the command. Invalid map and track commands are silently ignored by their simulation command handlers.
-- The track ownership check is a UI-level gate on the clicked tile, using the latest worker snapshot. Direct simulation track commands do not pass through this check.
-- Current ride catalog entries all set `usesTrack` to false, so these station and flat segments are decorative geometry attached to the first ride; they do not create an operational coaster. The toolbar and selected-tool status identify this flow as a prototype.
-- The build controls are intentionally narrow: there is no ride catalog selector, track direction or mode picker, entrance/exit placement tool, or command-result feedback yet.
+- Tool status text reports that a placement was requested. The authoritative outcome arrives in `Snapshot.feedback`, which the panel shows via `feedbackMessage` when `seq` changes. Map-command rejections remain silent.
+- The placement preview is a client-side approximation using the snapshot (bounds, ownership via `buildable`, funds); the simulation result is authoritative and may differ.
+- Ownership, ride-type rules and funds are enforced by the simulation's track command handler, not by the UI.
 - Game speed and pause controls affect the worker scheduler through [SimClient](../worker/sim-client.ts); rendering and panel refresh continue on the browser animation frame loop.
 - The park panel shows guest and ride counts and simulation tick; park rating is unavailable. The finance panel shows cash and loan. Guest details remain unchanged as newer snapshots arrive until another selection replaces or clears them.
 - Guest spawning from the toolbar is a development control that sends the existing `spawnGuests` command.

@@ -24,6 +24,7 @@ const LIFT_SPEED_Q8 = 1280;
 const LAUNCH_SPEED_Q8 = 4096;
 const LAUNCH_ACCEL_Q8 = 96;
 const BRAKE_SPEED_Q8 = 512;
+const STATION_DRIVE_Q8 = 512;
 const BRAKE_DECEL_Q8 = 160;
 const OPEN_BLOCK_SPEED_Q8 = 4 * Q8;
 const COLLISION_SPEED_Q8 = 48 * Q8;
@@ -97,6 +98,7 @@ function sampleForces(
 
 function controlSpeed(track: VehicleTrack, segment: number, speed: number, timeQ8 = Q8): number {
   const flags = track.segmentFlags[segment];
+  if (flags & VehicleSegmentFlag.StationDrive) return Math.max(speed, STATION_DRIVE_Q8);
   if (flags & VehicleSegmentFlag.ChainLift) return Math.max(speed, LIFT_SPEED_Q8);
   if (flags & VehicleSegmentFlag.Launch) {
     return Math.min(LAUNCH_SPEED_Q8, speed + Math.trunc((LAUNCH_ACCEL_Q8 * timeQ8) / Q8));
@@ -158,6 +160,16 @@ function enterSegment(
     cols.state[slot] = VehicleState.Crashed;
     return false;
   }
+  if (
+    flags & VehicleSegmentFlag.Station &&
+    track.loop &&
+    cols.lastSegment[slot] !== 0xffff &&
+    (cols.state[slot] === VehicleState.Running || cols.state[slot] === VehicleState.Testing)
+  ) {
+    cols.completedCircuits[slot]++;
+    arriveAtStation(world, track, slot, segment);
+    return false;
+  }
   if (cols.state[slot] === VehicleState.Testing) {
     if (flags & VehicleSegmentFlag.DropStart) {
       cols.dropCount[slot] = Math.min(0xff, cols.dropCount[slot] + 1);
@@ -193,6 +205,25 @@ function updateRideTestStats(world: World, slot: number): void {
   cols.intensity[slot] = rating.intensity;
   cols.nausea[slot] = rating.nausea;
   setRideRatings(world, cols.rideId[slot], rating.excitement, rating.intensity, rating.nausea);
+}
+
+/** Stops a train at the start of a station segment; a finished test run records its ratings. */
+function arriveAtStation(world: World, track: VehicleTrack, slot: number, segment: number): void {
+  const cols = world.vehicles.cols;
+  const point = segment * 3;
+  cols.x[slot] = track.points[point];
+  cols.y[slot] = track.points[point + 1];
+  cols.z[slot] = track.points[point + 2];
+  cols.trackPos[slot] = track.cumulativeLengthsQ8[segment];
+  cols.speed[slot] = 0;
+  cols.lastSegment[slot] = segment;
+  cols.dispatchTicks[slot] = 0;
+  if (cols.state[slot] === VehicleState.Testing) {
+    cols.state[slot] = VehicleState.TestComplete;
+    updateRideTestStats(world, slot);
+  } else {
+    cols.state[slot] = VehicleState.Waiting;
+  }
 }
 
 function applyStationDispatch(world: World, track: VehicleTrack, slot: number): boolean {
@@ -330,12 +361,13 @@ function advanceTrain(world: World, track: VehicleTrack, slot: number): void {
 
   if (nextPosition >= track.totalLengthQ8) {
     cols.completedCircuits[slot]++;
-    if (testing) {
+    if (testing && !(track.loop && track.stationSegment > 0)) {
       cols.state[slot] = VehicleState.TestComplete;
       updateRideTestStats(world, slot);
     } else if (track.loop) {
       cols.trackPos[slot] = 0;
       cols.lastSegment[slot] = 0xffff;
+      if (!testing && track.stationSegment === 0) arriveAtStation(world, track, slot, 0);
     } else {
       cols.state[slot] = VehicleState.Waiting;
       cols.trackPos[slot] = 0;
