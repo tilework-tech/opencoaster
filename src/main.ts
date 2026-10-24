@@ -32,6 +32,7 @@ import { registerPwa } from './pwa/register';
 import { capDevicePixelRatio, zoomCameraAt } from './input/camera-controls';
 import { PointerInput } from './input/pointer-input';
 import type { PointerSample } from './input/pointer-input';
+import { findRideIdAtTile } from './input/object-picking';
 
 const root = document.getElementById('app') as HTMLElement;
 const selection = createRenderer(document.getElementById('game') as HTMLCanvasElement);
@@ -612,8 +613,16 @@ function handleCanvasClick(
   }
   const guest = findGuestAt(localX, localY, rect.width, rect.height, map, camera);
   selectedGuest = guest;
+  let selectionStatus = tile ? `Tile ${tile[0]}, ${tile[1]}` : 'Outside the park map.';
   if (guest) gameUi.openGuestPanel();
-  gameUi.setToolStatus(tile ? `Tile ${tile[0]}, ${tile[1]}` : 'Outside the park map.');
+  else if (forceSelect && tile) {
+    const rideId = sim.latest ? findRideIdAtTile(sim.latest, tile[0], tile[1]) : null;
+    if (rideId !== null) {
+      gameUi.openRide(rideId);
+      selectionStatus = `Ride ${rideId} information opened.`;
+    }
+  }
+  gameUi.setToolStatus(selectionStatus);
   gameUi.update(sim.latest, sim.stats, selectedGuest);
 }
 

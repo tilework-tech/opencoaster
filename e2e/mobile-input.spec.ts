@@ -164,7 +164,7 @@ for (const { name, device } of mobileProfiles) {
     await dispatchTouches(cdp, 'touchStart', pinchStart);
     await dispatchTouches(cdp, 'touchMove', [
       { id: 3, x: center.x - 120, y: center.y - 40 },
-      { id: 4, x: center.x + 20, y: center.y - 40 },
+      { id: 4, x: center.x + 60, y: center.y - 40 },
     ]);
     await dispatchTouches(cdp, 'touchEnd', []);
     const afterZoom = tileAt(await placePath(zoomProbe));
