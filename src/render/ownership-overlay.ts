@@ -73,7 +73,8 @@ export class OwnershipOverlay {
         ctx.strokeStyle = 'rgba(35, 38, 42, 0.75)';
         ctx.stroke();
         ctx.setLineDash([]);
-        if (ownership & (SALE_LAND | SALE_RIGHTS)) this.drawSaleMarker(ctx, x, y, z, map, camera);
+        if (ownership & (SALE_LAND | SALE_RIGHTS))
+          this.drawSaleMarker(ctx, x, y, z, ownership, map, camera);
       }
     }
   }
@@ -87,6 +88,7 @@ export class OwnershipOverlay {
     x: number,
     y: number,
     z: number,
+    ownership: number,
     map: MapData,
     camera: Camera,
   ): void {
@@ -101,7 +103,7 @@ export class OwnershipOverlay {
     );
     const sx = this.width / 2 + (this.point[0] - camera.x) * camera.zoom;
     const sy = this.height / 2 + (this.point[1] - camera.y) * camera.zoom - 5;
-    ctx.fillStyle = map.ownership?.[y * map.width + x]! & SALE_RIGHTS ? '#4d91d0' : '#f7f0c8';
+    ctx.fillStyle = ownership & SALE_RIGHTS ? '#4d91d0' : '#f7f0c8';
     ctx.fillRect(sx - 3, sy - 5, 6, 7);
     ctx.strokeStyle = '#393a34';
     ctx.strokeRect(sx - 3, sy - 5, 6, 7);

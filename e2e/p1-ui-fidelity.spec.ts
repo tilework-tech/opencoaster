@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-async function startStarterPark(page: import('@playwright/test').Page): Promise<void> {
+async function startStarterPark(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'New game' }).click();
   await page
@@ -10,7 +10,7 @@ async function startStarterPark(page: import('@playwright/test').Page): Promise<
     .click();
 }
 
-async function placeCoaster(page: import('@playwright/test').Page): Promise<void> {
+async function placeCoaster(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Map', exact: true }).click();
   const minimap = page.locator('.minimap');
   const bounds = await minimap.boundingBox();
