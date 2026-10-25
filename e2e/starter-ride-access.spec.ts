@@ -259,8 +259,8 @@ async function playStarterRideAccess(
   await page.getByRole('button', { name: 'Close Ride #2' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   await page.getByRole('button', { name: 'Close Ride construction' }).click();
-  await page.getByRole('button', { name: 'Zoom in' }).click();
-  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await toolbarAction(page, 'Zoom in', mobile);
+  await toolbarAction(page, 'Zoom in', mobile);
   await screenshot(
     page,
     testInfo,
@@ -269,7 +269,7 @@ async function playStarterRideAccess(
       : 'starter-ride-access-desktop-guests-riding',
   );
   for (let rotation = 1; rotation < 4; rotation++) {
-    await page.getByRole('button', { name: 'Rotate view', exact: true }).click();
+    await toolbarAction(page, 'Rotate view', mobile);
     await expect(page.locator('.hud')).toContainText(`rot ${rotation}`);
     await screenshot(
       page,

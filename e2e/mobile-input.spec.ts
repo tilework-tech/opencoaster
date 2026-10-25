@@ -132,10 +132,8 @@ for (const { name, device } of mobileProfiles) {
     await toolbarAction(page, 'Park');
     const selectPathTool = async () => {
       const paths = page.locator('[data-panel="paths"]');
-      await expect(async () => {
-        await toolbarAction(page, 'Footpaths');
-        await expect(paths).toBeVisible({ timeout: 1500 });
-      }).toPass({ timeout: 10_000 });
+      if (!(await paths.isVisible())) await toolbarAction(page, 'Footpaths');
+      await expect(paths).toBeVisible({ timeout: 10_000 });
       if (!(await paths.evaluate((window) => window.classList.contains('collapsed'))))
         await paths.locator('.ui-titlebar').click();
     };
