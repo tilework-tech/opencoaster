@@ -49,7 +49,7 @@ Chosen: **transferable snapshot buffers**, three pooled per run.
 
 ## Rendering
 
-`Renderer` interface (`src/render/renderer.ts`) with `WebGL2Renderer` as the primary backend and `Canvas2DRenderer` as a fallback. The WebGL2 path loads the generated world-art atlas and draws instanced quads fed from snapshot layers; a small procedural atlas supplies missing-sprite fallback cells. Both renderers use the isometric 2:1 projection (64×32 px tiles), integer height levels, four view rotations via `rotateTile`/`unrotateTile`, and renderer-side viewport culling. The renderer reads only `Snapshot` and `MapData`; the DOM UI loads its separate generated icon sheet.
+`Renderer` interface (`src/render/renderer.ts`) with `WebGL2Renderer` as the primary backend and `Canvas2DRenderer` as a fallback. The WebGL2 path loads the generated world-art atlas and draws instanced quads fed from snapshot layers; a small procedural atlas supplies missing-sprite fallback cells. Both renderers use the isometric 2:1 projection (64×32 px tiles), integer height levels, four view rotations via `rotateTile`/`unrotateTile`, and renderer-side viewport culling. Flat-ride sprites are selected by ride type, view rotation, phase, and simulation tick; both renderers use the shared atlas and align each frame by its manifest anchor. The renderer reads only `Snapshot` and `MapData`; the DOM UI loads its separate generated icon sheet.
 
 The Playwright smoke run launches Chromium with SwiftShader, checks the game's active canvas and HUD report WebGL2, exercises the Rides window, verifies there are no browser console or page errors, and writes a screenshot. A capability check on a separate canvas is not sufficient because startup can fall back to Canvas2D after a shader error.
 
