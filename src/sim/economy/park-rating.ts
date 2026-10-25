@@ -2,8 +2,11 @@ import type { EconomyInputs, ParkValueRide } from './ledger';
 
 export const MAX_RATING = 999;
 /** Starting rating before penalties; a difficult-rating scenario starts lower. */
-export const RATING_BASE = 1150;
-export const DIFFICULT_RATING_BASE = 1050;
+export const RATING_BASE = 700;
+export const DIFFICULT_RATING_BASE = 600;
+/** New attractions gradually restore the points removed from the starting base. */
+const DEVELOPMENT_BONUS_MAX = 480;
+const DEVELOPMENT_BONUS_ATTRACTIONS = 6;
 /** Happiness penalty when no guest is happy; each happiness point removed lowers it by 2. */
 const HAPPINESS_PENALTY_START = 500;
 /** Happy share, in 300ths of the guest count, beyond which the happiness penalty is fully removed. */
@@ -78,9 +81,14 @@ export function computeParkRating(
     proximityPenalty(inputs.intensityTotal, count, IDEAL_INTENSITY) +
     varietyPenalty(inputs.excitementTotal) +
     varietyPenalty(inputs.intensityTotal);
+  const developmentBonus = Math.floor(
+    (Math.min(count, DEVELOPMENT_BONUS_ATTRACTIONS) * DEVELOPMENT_BONUS_MAX) /
+      DEVELOPMENT_BONUS_ATTRACTIONS,
+  );
   const raw =
     base +
-    guestTerm -
+    guestTerm +
+    developmentBonus -
     happinessPenalty -
     lostPenalty -
     uptimePenalty -

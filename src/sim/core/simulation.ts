@@ -41,7 +41,7 @@ import { weatherSystem } from '../weather/weather-system';
 import { researchSystem } from '../research/research-system';
 import { scenarioSystem } from '../scenario/scenario-system';
 import { applyEconomyCommand } from '../economy/actions';
-import { applyResearchAction } from '../research/research';
+import { applyResearchAction, isUnlocked } from '../research/research';
 
 /**
  * Fixed execution order. Adding a system means adding one line here; ordering is part of the
@@ -70,6 +70,7 @@ function applyCreateRide(w: World, type: RideType, x: number, y: number): void {
   const definition = RIDE_CATALOG[type];
   if (!definition || !Number.isInteger(x) || !Number.isInteger(y))
     return report(RideResult.OutOfBounds);
+  if (!isUnlocked(w, type)) return report(RideResult.ResearchRequired);
   if (w.economy.cash < definition.cost) return report(RideResult.InsufficientFunds);
 
   for (const [dx, dy] of definition.footprint) {

@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { TICKS_PER_MONTH, TICKS_PER_YEAR } from '../sim/economy/calendar';
 import { ObjectiveKind, ScenarioStatus } from '../sim/scenario/scenario';
 import type { SnapshotScenario } from '../worker/snapshot';
-import { objectiveLines } from './objective';
+import { deadlineLabel, objectiveLines } from './objective';
 
 function scenario(
   overrides: Partial<SnapshotScenario> & { byTick?: number; kind?: ObjectiveKind } = {},
 ): SnapshotScenario {
-  const { byTick = TICKS_PER_YEAR, kind = ObjectiveKind.GuestsAndRating, ...rest } = overrides;
+  const { byTick = TICKS_PER_YEAR - 1, kind = ObjectiveKind.GuestsAndRating, ...rest } = overrides;
   return {
     status: ScenarioStatus.Active,
     objective: { kind, target: 10, rating: 600, categoryMask: 0, byTick },
@@ -21,7 +21,7 @@ describe('objectiveLines', () => {
   it('shows guest and rating progress against the targets and the deadline', () => {
     expect(objectiveLines(scenario(), 0, 1024)).toEqual([
       'Objective: 4 / 10 guests · rating 512 / 600',
-      'Deadline: end of year 1 (8 months left)',
+      'Deadline: end of October, year 1 (8 months left)',
     ]);
   });
 
@@ -79,12 +79,19 @@ describe('objectiveLines', () => {
 
   it('counts down the months left until the deadline', () => {
     const lines = objectiveLines(scenario(), 0, TICKS_PER_YEAR - 2 * TICKS_PER_MONTH);
-    expect(lines[1]).toBe('Deadline: end of year 1 (2 months left)');
+    expect(lines[1]).toBe('Deadline: end of October, year 1 (2 months left)');
+  });
+
+  it('keeps the strip and the title card on the same deadline date', () => {
+    expect(deadlineLabel(TICKS_PER_YEAR - 1)).toBe('end of October, year 1');
+    expect(objectiveLines(scenario(), 0, TICKS_PER_YEAR - TICKS_PER_MONTH / 2)[1]).toBe(
+      'Deadline: end of October, year 1 (this month)',
+    );
   });
 
   it('shows the calendar day for an in-year deadline', () => {
     expect(objectiveLines(scenario({ byTick: TICKS_PER_MONTH }), 0, 0)[1]).toBe(
-      'Deadline: March 31, year 1 (1 months left)',
+      'Deadline: April 1, year 1 (1 months left)',
     );
   });
 

@@ -1,10 +1,20 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { devices, expect, test } from '@playwright/test';
 import type { Browser, Page, TestInfo } from '@playwright/test';
+import { World } from '../src/sim/core/world';
+import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
+import { prepareScenario } from '../src/sim/scenario/scenario-layout';
+import { serialize } from '../src/save/save';
 import sharp from 'sharp';
 
 const MAP_CENTER: readonly [number, number] = [28, 43];
+const starterScenario = parseScenarioFile(
+  JSON.parse(
+    readFileSync(new URL('../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
+  ),
+);
 
 interface Shot {
   data: Buffer;
@@ -52,6 +62,27 @@ async function startStarterPark(page: Page): Promise<void> {
   await expect(page.locator('.hud')).toContainText('tick');
 }
 
+async function importRideUnlockedStarterPark(
+  page: Page,
+  testInfo: TestInfo,
+  rideType: number,
+  mobile: boolean,
+): Promise<void> {
+  const world = new World({
+    seed: starterScenario.seed,
+    width: starterScenario.mapWidth,
+    height: starterScenario.mapHeight,
+  });
+  prepareScenario(world, starterScenario);
+  world.research.unlocked.add(rideType);
+  const savePath = testInfo.outputPath(`ride-${rideType}-unlocked.park`);
+  await writeFile(savePath, serialize(world));
+  await toolbarAction(page, 'Save / Load', mobile);
+  await page.getByRole('button', { name: 'Import save file' }).click();
+  await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
+  await expect(page.locator('.hud')).toContainText('tick');
+}
+
 async function toolbarAction(page: Page, name: string, mobile: boolean): Promise<void> {
   const toolbar = page.locator('.game-toolbar');
   if (mobile) {
@@ -90,6 +121,25 @@ async function clickTile(page: Page, x: number, y: number, mobile: boolean): Pro
   await expect(page.locator('.tool-status')).toContainText(new RegExp(`${x}, ${y}`));
 }
 
+async function placeStationPart(
+  page: Page,
+  expected: string,
+  mobile: boolean,
+  at?: readonly [number, number],
+): Promise<void> {
+  await centerMapOnTile(page, ...MAP_CENTER, mobile);
+  const part = expected === 'Place exit' ? 'entrance' : 'exit';
+  const exact = at
+    ? page.getByRole('button', { name: `Place ${part} at tile ${at[0]}, ${at[1]}` })
+    : null;
+  const target =
+    exact && (await exact.count()) > 0
+      ? exact
+      : page.getByRole('button', { name: new RegExp(`Place ${part} at tile`) }).first();
+  await target.click();
+  await expect(page.locator('.tool-status')).toContainText(expected);
+}
+
 for (const profile of ['desktop', 'pixel-8'] as const) {
   const mobile = profile === 'pixel-8';
   test.describe(`art scale on ${profile}`, () => {
@@ -102,10 +152,24 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         const page = await openPage(browser, mobile);
         page.setDefaultTimeout(8_000);
         await startStarterPark(page);
+        await importRideUnlockedStarterPark(page, testInfo, ride.type, mobile);
         const viewport = (await page.locator('#game').boundingBox())!;
         await toolbarAction(page, 'Pause', mobile);
         await centerMapOnTile(page, ...MAP_CENTER, mobile);
 
+        await toolbarAction(page, 'Resume', mobile);
+        await toolbarAction(page, 'Footpaths', mobile);
+        for (const [x, y] of [
+          [26, 43],
+          [27, 43],
+          [28, 43],
+          [28, 42],
+          [28, 41],
+          [28, 40],
+        ])
+          await clickTile(page, x, y, mobile);
+        await toolbarAction(page, 'Pause', mobile);
+        await centerMapOnTile(page, ...MAP_CENTER, mobile);
         await toolbarAction(page, 'Resume', mobile);
         await toolbarAction(page, 'New ride', mobile);
         await page.getByRole('tab', { name: ride.tab }).click();
@@ -113,11 +177,10 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await clickTile(page, 27, 42, mobile);
         const candidates = page.getByRole('button', { name: /Place entrance at tile/ });
         await expect(candidates).toHaveCount(4);
-        await toolbarAction(page, 'Pause', mobile);
         const boxes = await candidates.evaluateAll((nodes) =>
           nodes.map((node) => {
             const r = node.getBoundingClientRect();
-            return { x: r.x + r.width / 2, y: r.y + r.height / 2, width: r.width };
+            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
           }),
         );
         const cx = boxes.reduce((sum, b) => sum + b.x, 0) / boxes.length;
@@ -133,8 +196,6 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
           testInfo,
           `${profile}-${ride.type}-without-preview`,
         );
-        await page.context().close();
-
         const scale = withPreview.width / viewport.width;
         let area = 0;
         const cropArea = 80 * 90;
@@ -146,6 +207,21 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
           cropFraction,
           `${ride.name} visible area as a share of its screen crop`,
         ).toBeGreaterThan(0.16);
+
+        await placeStationPart(page, 'Place exit', mobile, [27, 43]);
+        await placeStationPart(page, 'Ride setup complete', mobile);
+        await toolbarAction(page, 'Rides', mobile);
+        const rideRow = page
+          .locator('[data-panel="ride-list"] .list-row')
+          .filter({ hasText: ride.name });
+        await rideRow.click();
+        const rideWindow = page.locator('[data-panel="ride-0"]');
+        await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
+        await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
+        await page.getByRole('button', { name: 'Close Ride #0' }).click();
+        await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
+        await toolbarAction(page, 'Pause', mobile);
+        await page.context().close();
       });
     }
   });

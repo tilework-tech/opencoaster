@@ -56,7 +56,10 @@ export function rideIcon(type: number): IconName {
   return RIDE_ICONS[type as RideType] ?? 'rides';
 }
 
-/** The "new ride" window: category tabs of ride and stall cards. Picking one arms the Ride tool. */
+/**
+ * The "new ride" window: category tabs of ride and stall cards. Picking one arms the Ride tool.
+ * A card is offered only once research has unlocked its ride type, as the snapshot reports it.
+ */
 export function openRideSelect(ctx: UiContext): WindowController {
   const { window: win, created } = ctx.windows.open({
     id: 'ride-select',
@@ -74,6 +77,10 @@ export function openRideSelect(ctx: UiContext): WindowController {
       pane.append(
         element('p', 'ui-help', 'Choose an attraction, then tap a tile you own to build it.'),
       );
+      const empty = element('p', 'ui-help', 'Nothing in this group is unlocked yet.');
+      empty.dataset.empty = '';
+      empty.hidden = true;
+      pane.append(empty);
       const grid = element('div', 'card-grid');
       const defs = ridesInTab(tab);
       if (defs.length === 0)
@@ -100,5 +107,19 @@ export function openRideSelect(ctx: UiContext): WindowController {
     const list = button('Ride list', () => ctx.openWindow('ride-list'), 'ui-button');
     win.body.append(list);
   }
-  return { update() {} };
+  return {
+    update(snapshot) {
+      if (!snapshot) return;
+      const unlocked = snapshot.research.unlockedRides;
+      for (const card of win.root.querySelectorAll<HTMLElement>('[data-ride-type]')) {
+        card.hidden = unlocked[Number(card.dataset.rideType)] !== 1;
+      }
+      for (const tab of RIDE_TABS) {
+        const pane = win.pane(tab.id);
+        const anyUnlocked = pane.querySelector('[data-ride-type]:not([hidden])') !== null;
+        const empty = pane.querySelector<HTMLElement>('[data-empty]');
+        if (empty) empty.hidden = anyUnlocked;
+      }
+    },
+  };
 }

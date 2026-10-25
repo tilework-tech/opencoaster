@@ -121,7 +121,6 @@ async function playStarterRideAccess(
   page: Page,
   mobile: boolean,
   testInfo: TestInfo,
-  coasterName = 'Steel Looping Coaster',
 ): Promise<void> {
   test.setTimeout(600_000);
   page.setDefaultTimeout(8_000);
@@ -186,55 +185,22 @@ async function playStarterRideAccess(
 
   await toolbarAction(page, 'New ride', mobile);
   await page.getByRole('tab', { name: 'Roller Coasters' }).click();
-  await page.getByRole('button', { name: new RegExp(`^${coasterName}`) }).click();
-  await mapTileClick(page, 28, 39, mapCenter, mobile);
-  const construction = page.locator('[data-panel="construction"]');
-  await expect(construction).toBeVisible();
-  let trackPieces = 0;
-  const placePiece = async (shape: string, slope: string, drive = 'Normal') => {
-    if (['Station', 'Loop right'].includes(shape))
-      await construction.getByLabel('Special elements').selectOption({ label: shape });
-    else await construction.getByRole('button', { name: shape, exact: true }).click();
-    await construction.getByRole('button', { name: slope, exact: true }).click();
-    await construction.getByLabel('Drive').selectOption({ label: drive });
-    await construction.getByRole('button', { name: 'Build piece' }).click();
-    trackPieces++;
-    await expect(page.locator('.coaster-info')).toContainText(`Track ${trackPieces} pieces`);
-  };
-  await placePiece('Station', 'Level');
-  await placePiece('Straight', 'Up', 'Chain lift');
-  await placePiece('Straight', 'Up', 'Chain lift');
-  await placePiece('Straight', 'Level', 'Chain lift');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Down');
-  await placePiece('Straight', 'Down');
-  await placePiece('Straight', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await expect(page.locator('.coaster-info')).toContainText('closed circuit');
-  await expect(page.locator('.tool-status')).toContainText('Place entrance');
-  await placeStationPart(page, 'Place exit', mobile, mapCenter, [28, 40]);
-  await placeStationPart(page, 'Test ride', mobile, mapCenter, [28, 38]);
-  await expect(page.locator('.tool-status')).toContainText('Test ride');
+  await expect(
+    page.getByRole('group', { name: 'New attraction' }).locator('.ui-pane.active'),
+  ).toContainText('Nothing in this group is unlocked yet.');
+  await page.locator('[data-panel="ride-select"] [data-action="close-ride-select"]').click();
   await toolbarAction(page, 'Rides', mobile);
-  await page.locator('[data-panel="ride-list"] .list-row').filter({ hasText: coasterName }).click();
-  const coasterDetail = page.locator('[data-panel="ride-2"]');
-  await expect(coasterDetail.locator('.ride-checklist')).toContainText('Untested');
-  await expect(coasterDetail.locator('.ride-checklist')).not.toContainText(
-    'Entrance not connected to a path',
-  );
+  await page
+    .locator('[data-panel="ride-list"] .list-row')
+    .filter({ hasText: 'Merry-Go-Round' })
+    .click();
+  const rideDetail = page.locator('[data-panel="ride-0"]');
   await toolbarAction(page, 'Game options', mobile);
   await page.getByRole('button', { name: '4×' }).click();
   await page.getByRole('button', { name: 'Close Options' }).click();
-  await coasterDetail.locator('.ui-titlebar').click();
-  await coasterDetail.getByRole('button', { name: 'Test ride' }).click();
-  await expect(coasterDetail.locator('.ride-checklist')).toBeEmpty({ timeout: 120_000 });
-  await coasterDetail.getByRole('button', { name: 'Open', exact: true }).click();
-  await expect(coasterDetail.locator('.ride-status')).toHaveText('Open');
+  await rideDetail.locator('.ui-titlebar').click();
+  await rideDetail.getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(rideDetail.locator('.ride-status')).toHaveText('Open');
   await screenshot(
     page,
     testInfo,
@@ -242,7 +208,7 @@ async function playStarterRideAccess(
   );
 
   const tickAtStart = Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
-  const served = coasterDetail
+  const served = rideDetail
     .locator('.stat-row')
     .filter({ hasText: 'Guests served' })
     .locator('.stat-value')
@@ -259,10 +225,9 @@ async function playStarterRideAccess(
       { timeout: 120_000 },
     )
     .toBeGreaterThan(0);
-  await coasterDetail.getByRole('button', { name: 'Locate' }).click();
-  await page.getByRole('button', { name: 'Close Ride #2' }).click();
+  await rideDetail.getByRole('button', { name: 'Locate' }).click();
+  await page.getByRole('button', { name: 'Close Ride #0' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
-  await page.getByRole('button', { name: 'Close Ride construction' }).click();
   await toolbarAction(page, 'Zoom in', mobile);
   await toolbarAction(page, 'Zoom in', mobile);
   await screenshot(
@@ -272,33 +237,6 @@ async function playStarterRideAccess(
       ? 'starter-ride-access-pixel-8-guests-riding'
       : 'starter-ride-access-desktop-guests-riding',
   );
-  for (let rotation = 1; rotation < 4; rotation++) {
-    await toolbarAction(page, 'Rotate view', mobile);
-    await expect(page.locator('.hud')).toContainText(`rot ${rotation}`);
-    await toolbarAction(page, 'Rides', mobile);
-    await page
-      .locator('[data-panel="ride-list"] .list-row')
-      .filter({ hasText: coasterName })
-      .click();
-    const rideDetail = page.locator('[data-panel="ride-2"]');
-    const titlebar = rideDetail.locator('.ui-titlebar');
-    if (!mobile) {
-      const titlebarBounds = await titlebar.boundingBox();
-      if (!titlebarBounds) throw new Error('Ride details title bar is missing');
-      await page.mouse.move(titlebarBounds.x + 24, titlebarBounds.y + 16);
-      await page.mouse.down();
-      await page.mouse.move(74, 66, { steps: 6 });
-      await page.mouse.up();
-    }
-    await rideDetail.getByRole('button', { name: 'Locate' }).click({ force: mobile });
-    await page.getByRole('button', { name: 'Close Ride #2' }).click();
-    await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
-    await screenshot(
-      page,
-      testInfo,
-      `${coasterName.toLowerCase().replaceAll(' ', '-')}-view-${rotation}`,
-    );
-  }
 }
 
 test('new Starter Park builds and opens rides and a stall before guests ride (desktop)', async ({
@@ -318,116 +256,13 @@ test('new Starter Park builds and opens rides and a stall before guests ride (Pi
   await context.close();
 });
 
-for (const coasterName of ['Wooden Coaster', 'Junior Roller Coaster', 'Wild Mouse Coaster'])
-  test(`Starter Park builds, tests and opens the ${coasterName} with guests riding in all four views`, async ({
-    page,
-  }, testInfo) => {
-    await playStarterRideAccess(page, false, testInfo, coasterName);
-  });
-
-test('Starter Park builds and opens a Log Flume with guests riding its water track', async ({
-  page,
-}, testInfo) => {
-  test.setTimeout(600_000);
-  page.setDefaultTimeout(8_000);
+test('new Starter Park keeps water rides locked until researched', async ({ page }) => {
   await startStarterPark(page, false);
-  const mapCenter: readonly [number, number] = [28, 43];
-  await toolbarAction(page, 'Footpaths', false);
-  for (const [x, y] of [
-    [26, 43],
-    [27, 43],
-    [28, 43],
-    [28, 42],
-    [28, 41],
-  ])
-    await mapTileClick(page, x, y, mapCenter, false);
-
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Water rides' }).click();
-  await page.getByRole('button', { name: /^Log Flume/ }).click();
-  await mapTileClick(page, 28, 39, mapCenter, false);
-  const construction = page.locator('[data-panel="construction"]');
-  await expect(construction).toBeVisible();
-  let trackPieces = 0;
-  const placePiece = async (shape: string, slope: string, drive = 'Normal') => {
-    if (['Station', 'Water splash drop'].includes(shape))
-      await construction.getByLabel('Special elements').selectOption({ label: shape });
-    else await construction.getByRole('button', { name: shape, exact: true }).click();
-    await construction.getByRole('button', { name: slope, exact: true }).click();
-    await construction.getByLabel('Drive').selectOption({ label: drive });
-    await construction.getByRole('button', { name: 'Build piece' }).click();
-    trackPieces++;
-    await expect(page.locator('.coaster-info')).toContainText(`Track ${trackPieces} pieces`);
-  };
-  await placePiece('Station', 'Level');
-  await placePiece('Straight', 'Up', 'Powered climb');
-  await placePiece('Straight', 'Up', 'Powered climb');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Water splash drop', 'Down');
-  await placePiece('Straight', 'Down');
-  await placePiece('Straight', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await expect(page.locator('.coaster-info')).toContainText('closed circuit');
-  await expect(page.locator('.tool-status')).toContainText('Place entrance');
-  const header = construction.locator('.ui-titlebar');
-  const headerBounds = await header.boundingBox();
-  if (!headerBounds) throw new Error('Ride construction title bar is missing');
-  await page.mouse.move(headerBounds.x + 24, headerBounds.y + 16);
-  await page.mouse.down();
-  await page.mouse.move(74, 66, { steps: 6 });
-  await page.mouse.up();
-  await placeStationPart(page, 'Place exit', false, mapCenter, [28, 40]);
-  await placeStationPart(page, 'Test ride', false, mapCenter, [28, 38]);
-
-  await toolbarAction(page, 'Rides', false);
-  await page.locator('[data-panel="ride-list"] .list-row').filter({ hasText: 'Log Flume' }).click();
-  const waterRide = page.locator('[data-panel="ride-0"]');
-  await toolbarAction(page, 'Game options', false);
-  await page.getByRole('button', { name: '4×' }).click();
-  await page.getByRole('button', { name: 'Close Options' }).click();
-  await waterRide.locator('.ui-titlebar').click();
-  await waterRide.getByRole('button', { name: 'Test ride' }).click();
-  await expect(waterRide.locator('.ride-checklist')).toBeEmpty({ timeout: 120_000 });
-  await waterRide.getByRole('button', { name: 'Open', exact: true }).click();
-  await expect(waterRide.locator('.ride-status')).toHaveText('Open');
-
-  const tickAtStart = Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
-  const served = waterRide
-    .locator('.stat-row')
-    .filter({ hasText: 'Guests served' })
-    .locator('.stat-value')
-    .first();
-  await expect
-    .poll(
-      async () => {
-        const hud = await page.locator('.hud').innerText();
-        const tick = Number(hud.match(/\btick (\d+)\b/)?.[1]);
-        if (tick > tickAtStart + 32_768)
-          throw new Error('No guests rode within two in-game months');
-        return Number((await served.textContent()) ?? 0);
-      },
-      { timeout: 120_000 },
-    )
-    .toBeGreaterThan(0);
-  const rideWindow = await waterRide.boundingBox();
-  if (!rideWindow) throw new Error('Log Flume detail window is missing');
-  await page.mouse.move(rideWindow.x + 24, rideWindow.y + 16);
-  await page.mouse.down();
-  await page.mouse.move(74, 66, { steps: 6 });
-  await page.mouse.up();
-  await waterRide.getByRole('button', { name: 'Locate' }).click();
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
-  await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
-  await page.getByRole('button', { name: 'Close Ride construction' }).click();
-  await page.getByRole('button', { name: 'Zoom in' }).click();
-  await page.getByRole('button', { name: 'Zoom in' }).click();
-  await screenshot(page, testInfo, 'starter-log-flume-guests-riding');
+  await expect(
+    page.getByRole('group', { name: 'New attraction' }).locator('.ui-pane.active'),
+  ).toContainText('Nothing in this group is unlocked yet.');
 });
 
 test('starts entrance setup on the newly created ride when ride types repeat', async ({ page }) => {

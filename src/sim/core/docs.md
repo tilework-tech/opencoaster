@@ -21,7 +21,7 @@ Path: @/src/sim/core
 - [commands.ts](commands.ts) defines the `Command` union for guest and staff spawning, staff hiring/firing, staff renaming, role and per-person patrol tiles, flower beds, `setParkEntrance` (the gate must stand on a footpath), ride creation, `RideCommand` (entrance/exit placement, ride status and price), map edits, economy, research, and track placement or removal.
 - [feedback.ts](feedback.ts) holds `world.feedback` (`seq`, `domain`, `code`, `subject`). `reportFeedback` is called by command handlers with a `FeedbackDomain` (`Track` -> `TrackResult`, `Ride` -> `RideResult`) so the UI learns the outcome through snapshots. `seq` increments on every report so repeated identical outcomes are distinguishable. It is neither hashed nor saved.
 - `Simulation.enqueue` appends commands to a pending queue. At the next `step`, the queue is drained before systems update; each command is dispatched to the owning domain operation.
-- The additive `createRide` command carries a ride type and tile coordinates. Core checks affordability, build rights and supported surfaces across the catalog footprint, and overlap with existing ride or track footprints before calling the ride creation operation. It charges the catalog cost to `RideConstruction` only when ride creation succeeds.
+- The additive `createRide` command carries a ride type and tile coordinates. Core checks that the catalog type is unlocked by research before affordability, build rights and supported surfaces across the catalog footprint, and overlap with existing ride or track footprints. A locked type reports `RideResult.ResearchRequired` through simulation feedback; successful creation calls the ride operation and charges the catalog cost to `RideConstruction`.
 - `placeTrack` and `removeTrack` are handled entirely by `applyTrackCommand` in the [track command handler](../track/track-commands.ts), including ride-type rules, ownership, funds and charging. A successful `createRide` also reports the new ride id as the feedback subject.
 - [EntityStore](entity-store.ts) stores entities in typed-array columns with stable IDs and dense slot reuse. World schemas supply the domain fields, and [hash.ts](hash.ts) incorporates store arrays into the state hash.
 - [constants.ts](constants.ts) centralizes simulation scale, tick rate, and capacities; [prng.ts](prng.ts) provides seeded random values used by simulation systems.
@@ -31,7 +31,7 @@ Path: @/src/sim/core
 - Simulation state uses integer values and seeded randomness; do not introduce wall-clock reads, `Math.random`, or floating-point stored state into the kernel.
 - System ordering and command application order affect outcomes and are part of the deterministic replay behavior.
 - Entity storage uses dense swap-remove while IDs remain stable, so a slot index is not an entity identity.
-- Rejected commands leave state unchanged, but track and ride commands report their outcome in `world.feedback`; map and other commands still give no result. Feedback holds only the latest outcome.
+- Rejected commands leave state unchanged, but track and ride commands report their outcome in `world.feedback`; map and other commands still give no result. Ride creation reports research, funds, map and obstruction failures through the ride result channel. Feedback holds only the latest outcome.
 - `coasterSystem` must stay right after `vehicleSystem`: it consumes train state the vehicle system just advanced.
 
 Created and maintained by Nori.

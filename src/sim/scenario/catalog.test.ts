@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LedgerCategory } from '../economy/ledger';
 import { IMPORTED_ID, SANDBOX_ID, ObjectiveKind } from './scenario';
 import { SCENARIOS, buildCatalog, findScenario, scenarioDisplayName } from './catalog';
+import { RIDE_CATALOG } from '../rides/ride-types';
 
 const minimal = (id: string) => ({
   id,
@@ -109,5 +110,18 @@ describe('scenario catalog', () => {
         expect(s.availableItemIds.length, s.id).toBeGreaterThan(0);
       }
     });
+  });
+});
+
+describe('ride unlocks per scenario', () => {
+  it('lets every scenario build every ride type, from its starting rides or by research', () => {
+    for (const def of SCENARIOS) {
+      const reachable = new Set([
+        ...def.availableItemIds,
+        ...def.inventions.map((invention) => invention.itemId),
+      ]);
+      const missing = Object.keys(RIDE_CATALOG).filter((id) => !reachable.has(Number(id)));
+      expect(missing, def.id).toEqual([]);
+    }
   });
 });

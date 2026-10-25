@@ -22,6 +22,8 @@ export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
 export const RIDE_INFO_STRIDE = 24;
+/** One slot per ride type id, plus slot 0 which no type uses. */
+export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
 
 export const enum RideInfo {
@@ -158,6 +160,8 @@ export interface SnapshotResearch {
   currentCost: number;
   inventionCount: number;
   unlockedCount: number;
+  /** 1 for each ride type the player may build, indexed by ride type id. */
+  unlockedRides: Uint8Array;
 }
 
 export interface SnapshotScenario {
@@ -231,6 +235,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
       currentCost: -1,
       inventionCount: 0,
       unlockedCount: 0,
+      unlockedRides: new Uint8Array(RIDE_TYPE_SLOTS),
     },
   };
 }
@@ -470,4 +475,6 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.research.currentCost = current ? current.workUnits : -1;
   out.research.inventionCount = research.inventions.length;
   out.research.unlockedCount = research.unlocked.size;
+  out.research.unlockedRides.fill(0);
+  for (const id of research.unlocked) if (id < RIDE_TYPE_SLOTS) out.research.unlockedRides[id] = 1;
 }

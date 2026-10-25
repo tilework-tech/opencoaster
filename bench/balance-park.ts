@@ -2,7 +2,7 @@ import { Simulation } from '../src/sim/core/simulation';
 import { readFileSync } from 'node:fs';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
-import { RideType } from '../src/sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../src/sim/rides/ride-types';
 import { RideState } from '../src/sim/rides/ride-store';
 import { StaffKind } from '../src/sim/staff/staff-store';
 import { buildCircuit, GROUND, SMALL_CIRCUIT } from '../src/sim/rides/coaster-fixtures';
@@ -157,6 +157,8 @@ export function createBalancePark(options: BalanceOptions = {}): BalancePark {
   map.waterLevel.fill(0);
   map.fillFlat(GROUND);
   prepareScenario(sim.world, def);
+  // The rating harness isolates park balance from research pacing.
+  sim.world.research.unlocked = new Set(Object.keys(RIDE_CATALOG).map(Number));
   SPINE_X = sim.world.park.entranceX;
 
   for (let y = SPINE_TOP + 1; y <= SPINE_BOTTOM; y++) {

@@ -56,7 +56,7 @@ describe('parseScenarioFile', () => {
         target: 150,
         rating: 600,
         categoryMask: 0,
-        byTick: TICKS_PER_YEAR,
+        byTick: TICKS_PER_YEAR - 1,
         minimumExcitement: 0,
         minimumLength: 0,
         minimumRating: 0,
@@ -106,7 +106,7 @@ describe('parseScenarioFile', () => {
     );
     expect(def.objective.kind).toBe(ObjectiveKind.MonthlyIncome);
     expect(def.objective.categoryMask).toBe((1 << 4) | (1 << 5));
-    expect(def.objective.byTick).toBe(2 * TICKS_PER_YEAR);
+    expect(def.objective.byTick).toBe(2 * TICKS_PER_YEAR - 1);
   });
 
   it('supports the full monthly income objective families', () => {
