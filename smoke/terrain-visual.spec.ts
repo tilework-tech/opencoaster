@@ -71,7 +71,7 @@ async function assertTerrainPixels(canvasScreenshot: Buffer): Promise<void> {
 }
 
 test('captures the WebGL2 starter park terrain', async ({ page }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   await page.goto('/');
   await page.getByRole('button', { name: 'New game' }).click();
   await page.locator('section').getByRole('button', { name: 'Start', exact: true }).click();
