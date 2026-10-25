@@ -57,6 +57,11 @@ export default defineConfig(({ command }) => ({
   build: { target: 'es2022' },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'bench/**/*.test.ts', 'tools/art/**/*.test.ts'],
+    include: [
+      'src/**/*.test.ts',
+      'bench/**/*.test.ts',
+      'tools/art/**/*.test.ts',
+      'tools/sprites/**/*.test.ts',
+    ],
   },
 }));

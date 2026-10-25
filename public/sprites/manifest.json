@@ -5,15 +5,15 @@
     "paths/crazy-paving/connection-00": {
       "frames": [
         {
-          "x": 871,
-          "y": 949,
-          "width": 96,
-          "height": 77
+          "x": 64,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -23,15 +23,15 @@
     "paths/crazy-paving/connection-01": {
       "frames": [
         {
-          "x": 564,
-          "y": 1535,
-          "width": 96,
-          "height": 68
+          "x": 128,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 68
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -41,15 +41,15 @@
     "paths/crazy-paving/connection-02": {
       "frames": [
         {
-          "x": 253,
-          "y": 1407,
-          "width": 96,
-          "height": 72
+          "x": 192,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 72
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -59,15 +59,15 @@
     "paths/crazy-paving/connection-03": {
       "frames": [
         {
-          "x": 637,
-          "y": 1407,
-          "width": 96,
-          "height": 70
+          "x": 128,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 70
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
@@ -77,15 +77,15 @@
     "paths/crazy-paving/connection-04": {
       "frames": [
         {
-          "x": 682,
-          "y": 734,
-          "width": 96,
-          "height": 83
+          "x": 256,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -95,15 +95,15 @@
     "paths/crazy-paving/connection-05": {
       "frames": [
         {
-          "x": 594,
-          "y": 1333,
-          "width": 96,
-          "height": 74
+          "x": 320,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 74
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -113,15 +113,15 @@
     "paths/crazy-paving/connection-06": {
       "frames": [
         {
-          "x": 0,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 384,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -131,15 +131,15 @@
     "paths/crazy-paving/connection-07": {
       "frames": [
         {
-          "x": 778,
-          "y": 734,
-          "width": 96,
-          "height": 83
+          "x": 192,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
@@ -149,15 +149,15 @@
     "paths/crazy-paving/connection-08": {
       "frames": [
         {
-          "x": 297,
-          "y": 1183,
-          "width": 96,
-          "height": 75
+          "x": 448,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -167,195 +167,195 @@
     "paths/crazy-paving/connection-09": {
       "frames": [
         {
-          "x": 195,
-          "y": 1106,
-          "width": 96,
-          "height": 76
+          "x": 512,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 76
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/connection-10": {
+    "paths/crazy-paving/connection-0a": {
       "frames": [
         {
-          "x": 393,
-          "y": 1183,
-          "width": 96,
-          "height": 75
+          "x": 576,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/connection-11": {
+    "paths/crazy-paving/connection-0b": {
       "frames": [
         {
-          "x": 288,
-          "y": 949,
-          "width": 96,
-          "height": 78
+          "x": 256,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 78
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/connection-12": {
+    "paths/crazy-paving/connection-0c": {
       "frames": [
         {
-          "x": 291,
-          "y": 1106,
-          "width": 96,
-          "height": 76
+          "x": 320,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 76
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/connection-13": {
+    "paths/crazy-paving/connection-0d": {
       "frames": [
         {
-          "x": 0,
-          "y": 1613,
-          "width": 96,
-          "height": 66
+          "x": 384,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 66
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/connection-14": {
+    "paths/crazy-paving/connection-0e": {
       "frames": [
         {
-          "x": 96,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 448,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/connection-15": {
+    "paths/crazy-paving/connection-0f": {
       "frames": [
         {
-          "x": 840,
-          "y": 862,
-          "width": 96,
-          "height": 80
+          "x": 448,
+          "y": 1225,
+          "width": 64,
+          "height": 32
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 80
+        "x": 32,
+        "y": 17
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/ramp-00": {
+    "paths/crazy-paving/ramp-0": {
       "frames": [
         {
-          "x": 489,
-          "y": 1183,
-          "width": 96,
-          "height": 75
+          "x": 640,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/ramp-01": {
+    "paths/crazy-paving/ramp-1": {
       "frames": [
         {
-          "x": 585,
-          "y": 1183,
-          "width": 96,
-          "height": 75
+          "x": 704,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/ramp-02": {
+    "paths/crazy-paving/ramp-2": {
       "frames": [
         {
-          "x": 0,
-          "y": 1535,
-          "width": 95,
-          "height": 70
+          "x": 829,
+          "y": 935,
+          "width": 64,
+          "height": 52
         }
       ],
       "anchor": {
-        "x": 47,
-        "y": 70
+        "x": 32,
+        "y": 36
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/crazy-paving/ramp-03": {
+    "paths/crazy-paving/ramp-3": {
       "frames": [
         {
-          "x": 480,
-          "y": 862,
-          "width": 90,
-          "height": 87
+          "x": 893,
+          "y": 935,
+          "width": 64,
+          "height": 52
         }
       ],
       "anchor": {
-        "x": 45,
-        "y": 87
+        "x": 32,
+        "y": 36
       },
       "footprint": {
         "width": 1,
@@ -365,15 +365,15 @@
     "paths/dirt/connection-00": {
       "frames": [
         {
-          "x": 192,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 768,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -383,15 +383,15 @@
     "paths/dirt/connection-01": {
       "frames": [
         {
-          "x": 660,
-          "y": 1535,
-          "width": 96,
-          "height": 68
+          "x": 832,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 68
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -401,15 +401,15 @@
     "paths/dirt/connection-02": {
       "frames": [
         {
-          "x": 349,
-          "y": 1407,
-          "width": 96,
-          "height": 72
+          "x": 896,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 72
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -419,15 +419,15 @@
     "paths/dirt/connection-03": {
       "frames": [
         {
-          "x": 733,
-          "y": 1407,
-          "width": 96,
-          "height": 70
+          "x": 512,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 70
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
@@ -437,15 +437,15 @@
     "paths/dirt/connection-04": {
       "frames": [
         {
-          "x": 874,
-          "y": 734,
-          "width": 96,
-          "height": 83
+          "x": 960,
+          "y": 1115,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -455,15 +455,15 @@
     "paths/dirt/connection-05": {
       "frames": [
         {
-          "x": 690,
-          "y": 1333,
-          "width": 96,
-          "height": 74
+          "x": 0,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 74
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -473,15 +473,15 @@
     "paths/dirt/connection-06": {
       "frames": [
         {
-          "x": 288,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 64,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -491,15 +491,15 @@
     "paths/dirt/connection-07": {
       "frames": [
         {
-          "x": 0,
-          "y": 862,
-          "width": 96,
-          "height": 83
+          "x": 576,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
@@ -509,15 +509,15 @@
     "paths/dirt/connection-08": {
       "frames": [
         {
-          "x": 681,
-          "y": 1183,
-          "width": 96,
-          "height": 75
+          "x": 128,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -527,195 +527,195 @@
     "paths/dirt/connection-09": {
       "frames": [
         {
-          "x": 387,
-          "y": 1106,
-          "width": 96,
-          "height": 76
+          "x": 192,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 76
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/dirt/connection-10": {
+    "paths/dirt/connection-0a": {
       "frames": [
         {
-          "x": 777,
-          "y": 1183,
-          "width": 96,
-          "height": 75
+          "x": 256,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/dirt/connection-11": {
+    "paths/dirt/connection-0b": {
+      "frames": [
+        {
+          "x": 640,
+          "y": 1189,
+          "width": 64,
+          "height": 34
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 19
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/dirt/connection-0c": {
+      "frames": [
+        {
+          "x": 704,
+          "y": 1189,
+          "width": 64,
+          "height": 34
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 18
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/dirt/connection-0d": {
+      "frames": [
+        {
+          "x": 768,
+          "y": 1189,
+          "width": 64,
+          "height": 34
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 18
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/dirt/connection-0e": {
+      "frames": [
+        {
+          "x": 832,
+          "y": 1189,
+          "width": 64,
+          "height": 34
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 18
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/dirt/connection-0f": {
+      "frames": [
+        {
+          "x": 512,
+          "y": 1225,
+          "width": 64,
+          "height": 32
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 17
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/dirt/ramp-0": {
+      "frames": [
+        {
+          "x": 320,
+          "y": 1153,
+          "width": 64,
+          "height": 36
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 20
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/dirt/ramp-1": {
       "frames": [
         {
           "x": 384,
-          "y": 949,
-          "width": 96,
-          "height": 78
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 78
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/dirt/connection-12": {
+    "paths/dirt/ramp-2": {
       "frames": [
         {
-          "x": 483,
-          "y": 1106,
-          "width": 96,
-          "height": 76
+          "x": 957,
+          "y": 935,
+          "width": 64,
+          "height": 52
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 76
+        "x": 32,
+        "y": 36
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/dirt/connection-13": {
-      "frames": [
-        {
-          "x": 96,
-          "y": 1613,
-          "width": 96,
-          "height": 66
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 66
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/dirt/connection-14": {
-      "frames": [
-        {
-          "x": 384,
-          "y": 1029,
-          "width": 96,
-          "height": 77
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 77
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/dirt/connection-15": {
+    "paths/dirt/ramp-3": {
       "frames": [
         {
           "x": 0,
-          "y": 949,
-          "width": 96,
-          "height": 80
+          "y": 1063,
+          "width": 64,
+          "height": 52
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 80
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/dirt/ramp-00": {
-      "frames": [
-        {
-          "x": 873,
-          "y": 1183,
-          "width": 96,
-          "height": 75
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 75
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/dirt/ramp-01": {
-      "frames": [
-        {
-          "x": 0,
-          "y": 1258,
-          "width": 96,
-          "height": 75
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 75
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/dirt/ramp-02": {
-      "frames": [
-        {
-          "x": 95,
-          "y": 1535,
-          "width": 95,
-          "height": 70
-        }
-      ],
-      "anchor": {
-        "x": 47,
-        "y": 70
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/dirt/ramp-03": {
-      "frames": [
-        {
-          "x": 570,
-          "y": 862,
-          "width": 90,
-          "height": 87
-        }
-      ],
-      "anchor": {
-        "x": 45,
-        "y": 87
+        "x": 32,
+        "y": 36
       },
       "footprint": {
         "width": 1,
@@ -725,15 +725,15 @@
     "paths/queue/connection-00": {
       "frames": [
         {
-          "x": 480,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 192,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
@@ -743,15 +743,15 @@
     "paths/queue/connection-01": {
       "frames": [
         {
-          "x": 756,
-          "y": 1535,
-          "width": 96,
-          "height": 68
+          "x": 256,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 68
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
@@ -761,15 +761,15 @@
     "paths/queue/connection-02": {
       "frames": [
         {
-          "x": 445,
-          "y": 1407,
-          "width": 96,
-          "height": 72
+          "x": 320,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 72
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
@@ -779,15 +779,15 @@
     "paths/queue/connection-03": {
       "frames": [
         {
-          "x": 829,
-          "y": 1407,
-          "width": 96,
-          "height": 70
+          "x": 896,
+          "y": 1063,
+          "width": 64,
+          "height": 38
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 70
+        "x": 32,
+        "y": 23
       },
       "footprint": {
         "width": 1,
@@ -797,15 +797,15 @@
     "paths/queue/connection-04": {
       "frames": [
         {
-          "x": 96,
-          "y": 862,
-          "width": 96,
-          "height": 83
+          "x": 384,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
@@ -815,15 +815,15 @@
     "paths/queue/connection-05": {
       "frames": [
         {
-          "x": 786,
-          "y": 1333,
-          "width": 96,
-          "height": 74
+          "x": 448,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 74
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
@@ -833,15 +833,15 @@
     "paths/queue/connection-06": {
       "frames": [
         {
-          "x": 576,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 512,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
@@ -851,15 +851,15 @@
     "paths/queue/connection-07": {
       "frames": [
         {
-          "x": 192,
-          "y": 862,
-          "width": 96,
-          "height": 83
+          "x": 960,
+          "y": 1063,
+          "width": 64,
+          "height": 38
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 23
       },
       "footprint": {
         "width": 1,
@@ -869,15 +869,15 @@
     "paths/queue/connection-08": {
       "frames": [
         {
-          "x": 96,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 576,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
@@ -887,195 +887,195 @@
     "paths/queue/connection-09": {
       "frames": [
         {
-          "x": 579,
-          "y": 1106,
-          "width": 96,
-          "height": 76
+          "x": 640,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 76
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/connection-10": {
+    "paths/queue/connection-0a": {
       "frames": [
         {
-          "x": 192,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 704,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/connection-11": {
+    "paths/queue/connection-0b": {
       "frames": [
         {
-          "x": 480,
-          "y": 949,
-          "width": 96,
-          "height": 78
+          "x": 0,
+          "y": 1115,
+          "width": 64,
+          "height": 38
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 78
+        "x": 32,
+        "y": 23
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/connection-12": {
+    "paths/queue/connection-0c": {
       "frames": [
         {
-          "x": 675,
-          "y": 1106,
-          "width": 96,
-          "height": 76
+          "x": 896,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 76
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/connection-13": {
+    "paths/queue/connection-0d": {
       "frames": [
         {
-          "x": 192,
-          "y": 1613,
-          "width": 96,
-          "height": 66
+          "x": 960,
+          "y": 1189,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 66
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/connection-14": {
+    "paths/queue/connection-0e": {
       "frames": [
         {
-          "x": 672,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 0,
+          "y": 1225,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/connection-15": {
+    "paths/queue/connection-0f": {
       "frames": [
         {
-          "x": 96,
-          "y": 949,
-          "width": 96,
-          "height": 80
+          "x": 576,
+          "y": 1225,
+          "width": 64,
+          "height": 32
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 80
+        "x": 32,
+        "y": 17
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/ramp-00": {
+    "paths/queue/ramp-0": {
       "frames": [
         {
-          "x": 288,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 768,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/ramp-01": {
+    "paths/queue/ramp-1": {
       "frames": [
         {
-          "x": 384,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 832,
+          "y": 1063,
+          "width": 64,
+          "height": 40
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 24
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/ramp-02": {
+    "paths/queue/ramp-2": {
       "frames": [
         {
-          "x": 190,
-          "y": 1535,
-          "width": 95,
-          "height": 70
+          "x": 701,
+          "y": 935,
+          "width": 64,
+          "height": 54
         }
       ],
       "anchor": {
-        "x": 47,
-        "y": 70
+        "x": 32,
+        "y": 38
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/queue/ramp-03": {
+    "paths/queue/ramp-3": {
       "frames": [
         {
-          "x": 660,
-          "y": 862,
-          "width": 90,
-          "height": 87
+          "x": 765,
+          "y": 935,
+          "width": 64,
+          "height": 54
         }
       ],
       "anchor": {
-        "x": 45,
-        "y": 87
+        "x": 32,
+        "y": 38
       },
       "footprint": {
         "width": 1,
@@ -1085,15 +1085,15 @@
     "paths/tarmac/connection-00": {
       "frames": [
         {
-          "x": 768,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 448,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -1103,15 +1103,15 @@
     "paths/tarmac/connection-01": {
       "frames": [
         {
-          "x": 852,
-          "y": 1535,
-          "width": 96,
-          "height": 68
+          "x": 512,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 68
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -1121,15 +1121,15 @@
     "paths/tarmac/connection-02": {
       "frames": [
         {
-          "x": 541,
-          "y": 1407,
-          "width": 96,
-          "height": 72
+          "x": 576,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 72
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -1139,15 +1139,15 @@
     "paths/tarmac/connection-03": {
       "frames": [
         {
-          "x": 925,
-          "y": 1407,
-          "width": 96,
-          "height": 70
+          "x": 64,
+          "y": 1225,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 70
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
@@ -1157,15 +1157,15 @@
     "paths/tarmac/connection-04": {
       "frames": [
         {
-          "x": 288,
-          "y": 862,
-          "width": 96,
-          "height": 83
+          "x": 640,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -1175,15 +1175,15 @@
     "paths/tarmac/connection-05": {
       "frames": [
         {
-          "x": 882,
-          "y": 1333,
-          "width": 96,
-          "height": 74
+          "x": 704,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 74
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -1193,15 +1193,15 @@
     "paths/tarmac/connection-06": {
       "frames": [
         {
-          "x": 864,
-          "y": 1029,
-          "width": 96,
-          "height": 77
+          "x": 768,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 77
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -1211,15 +1211,15 @@
     "paths/tarmac/connection-07": {
       "frames": [
         {
-          "x": 384,
-          "y": 862,
-          "width": 96,
-          "height": 83
+          "x": 128,
+          "y": 1225,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 83
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
@@ -1229,15 +1229,15 @@
     "paths/tarmac/connection-08": {
       "frames": [
         {
-          "x": 480,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 832,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
@@ -1247,195 +1247,195 @@
     "paths/tarmac/connection-09": {
       "frames": [
         {
-          "x": 771,
-          "y": 1106,
-          "width": 96,
-          "height": 76
+          "x": 896,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 76
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/tarmac/connection-10": {
+    "paths/tarmac/connection-0a": {
       "frames": [
         {
-          "x": 576,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 960,
+          "y": 1153,
+          "width": 64,
+          "height": 36
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 20
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/tarmac/connection-11": {
-      "frames": [
-        {
-          "x": 576,
-          "y": 949,
-          "width": 96,
-          "height": 78
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 78
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/tarmac/connection-12": {
-      "frames": [
-        {
-          "x": 867,
-          "y": 1106,
-          "width": 96,
-          "height": 76
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 76
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/tarmac/connection-13": {
-      "frames": [
-        {
-          "x": 288,
-          "y": 1613,
-          "width": 96,
-          "height": 66
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 66
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/tarmac/connection-14": {
-      "frames": [
-        {
-          "x": 0,
-          "y": 1106,
-          "width": 96,
-          "height": 77
-        }
-      ],
-      "anchor": {
-        "x": 48,
-        "y": 77
-      },
-      "footprint": {
-        "width": 1,
-        "height": 1
-      }
-    },
-    "paths/tarmac/connection-15": {
+    "paths/tarmac/connection-0b": {
       "frames": [
         {
           "x": 192,
-          "y": 949,
-          "width": 96,
-          "height": 80
+          "y": 1225,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 80
+        "x": 32,
+        "y": 19
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/tarmac/ramp-00": {
+    "paths/tarmac/connection-0c": {
       "frames": [
         {
-          "x": 672,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 256,
+          "y": 1225,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/tarmac/ramp-01": {
+    "paths/tarmac/connection-0d": {
       "frames": [
         {
-          "x": 768,
-          "y": 1258,
-          "width": 96,
-          "height": 75
+          "x": 320,
+          "y": 1225,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 48,
-        "y": 75
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/tarmac/ramp-02": {
+    "paths/tarmac/connection-0e": {
       "frames": [
         {
-          "x": 285,
-          "y": 1535,
-          "width": 95,
-          "height": 70
+          "x": 384,
+          "y": 1225,
+          "width": 64,
+          "height": 34
         }
       ],
       "anchor": {
-        "x": 47,
-        "y": 70
+        "x": 32,
+        "y": 18
       },
       "footprint": {
         "width": 1,
         "height": 1
       }
     },
-    "paths/tarmac/ramp-03": {
+    "paths/tarmac/connection-0f": {
       "frames": [
         {
-          "x": 750,
-          "y": 862,
-          "width": 90,
-          "height": 87
+          "x": 640,
+          "y": 1225,
+          "width": 64,
+          "height": 32
         }
       ],
       "anchor": {
-        "x": 45,
-        "y": 87
+        "x": 32,
+        "y": 17
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/tarmac/ramp-0": {
+      "frames": [
+        {
+          "x": 0,
+          "y": 1189,
+          "width": 64,
+          "height": 36
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 20
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/tarmac/ramp-1": {
+      "frames": [
+        {
+          "x": 64,
+          "y": 1189,
+          "width": 64,
+          "height": 36
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 20
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/tarmac/ramp-2": {
+      "frames": [
+        {
+          "x": 64,
+          "y": 1063,
+          "width": 64,
+          "height": 52
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 36
+      },
+      "footprint": {
+        "width": 1,
+        "height": 1
+      }
+    },
+    "paths/tarmac/ramp-3": {
+      "frames": [
+        {
+          "x": 128,
+          "y": 1063,
+          "width": 64,
+          "height": 52
+        }
+      ],
+      "anchor": {
+        "x": 32,
+        "y": 36
       },
       "footprint": {
         "width": 1,
@@ -1680,7 +1680,7 @@
       "frames": [
         {
           "x": 0,
-          "y": 1407,
+          "y": 935,
           "width": 55,
           "height": 128
         }
@@ -1751,8 +1751,8 @@
     "terrain/dirt/shape-03": {
       "frames": [
         {
-          "x": 0,
-          "y": 1333,
+          "x": 397,
+          "y": 862,
           "width": 99,
           "height": 72
         }
@@ -1985,8 +1985,8 @@
     "terrain/dirt/surface": {
       "frames": [
         {
-          "x": 776,
-          "y": 1613,
+          "x": 960,
+          "y": 1225,
           "width": 16,
           "height": 16
         }
@@ -2075,8 +2075,8 @@
     "terrain/grass/shape-00": {
       "frames": [
         {
-          "x": 564,
-          "y": 1613,
+          "x": 617,
+          "y": 935,
           "width": 84,
           "height": 68
         }
@@ -2094,7 +2094,7 @@
       "frames": [
         {
           "x": 154,
-          "y": 1407,
+          "y": 935,
           "width": 99,
           "height": 70
         }
@@ -2219,8 +2219,8 @@
     "terrain/grass/shape-08": {
       "frames": [
         {
-          "x": 96,
-          "y": 1106,
+          "x": 881,
+          "y": 734,
           "width": 99,
           "height": 74
         }
@@ -2238,7 +2238,7 @@
       "frames": [
         {
           "x": 55,
-          "y": 1407,
+          "y": 935,
           "width": 99,
           "height": 71
         }
@@ -2363,8 +2363,8 @@
     "terrain/grass/surface": {
       "frames": [
         {
-          "x": 792,
-          "y": 1613,
+          "x": 976,
+          "y": 1225,
           "width": 16,
           "height": 16
         }
@@ -2382,7 +2382,7 @@
       "frames": [
         {
           "x": 0,
-          "y": 1183,
+          "y": 862,
           "width": 99,
           "height": 73
         }
@@ -2417,8 +2417,8 @@
     "terrain/rock/cliff-face-2": {
       "frames": [
         {
-          "x": 672,
-          "y": 949,
+          "x": 682,
+          "y": 734,
           "width": 99,
           "height": 75
         }
@@ -2435,8 +2435,8 @@
     "terrain/rock/cliff-face-3": {
       "frames": [
         {
-          "x": 479,
-          "y": 1535,
+          "x": 352,
+          "y": 935,
           "width": 85,
           "height": 78
         }
@@ -2453,8 +2453,8 @@
     "terrain/rock/shape-00": {
       "frames": [
         {
-          "x": 483,
-          "y": 1613,
+          "x": 536,
+          "y": 935,
           "width": 81,
           "height": 72
         }
@@ -2471,8 +2471,8 @@
     "terrain/rock/shape-01": {
       "frames": [
         {
-          "x": 99,
-          "y": 1333,
+          "x": 496,
+          "y": 862,
           "width": 99,
           "height": 72
         }
@@ -2490,7 +2490,7 @@
       "frames": [
         {
           "x": 99,
-          "y": 1183,
+          "y": 862,
           "width": 99,
           "height": 73
         }
@@ -2507,8 +2507,8 @@
     "terrain/rock/shape-03": {
       "frames": [
         {
-          "x": 380,
-          "y": 1535,
+          "x": 253,
+          "y": 935,
           "width": 99,
           "height": 67
         }
@@ -2525,8 +2525,8 @@
     "terrain/rock/shape-04": {
       "frames": [
         {
-          "x": 384,
-          "y": 1613,
+          "x": 437,
+          "y": 935,
           "width": 99,
           "height": 64
         }
@@ -2544,7 +2544,7 @@
       "frames": [
         {
           "x": 198,
-          "y": 1183,
+          "y": 862,
           "width": 99,
           "height": 73
         }
@@ -2561,8 +2561,8 @@
     "terrain/rock/shape-06": {
       "frames": [
         {
-          "x": 864,
-          "y": 1258,
+          "x": 297,
+          "y": 862,
           "width": 100,
           "height": 72
         }
@@ -2579,8 +2579,8 @@
     "terrain/rock/shape-07": {
       "frames": [
         {
-          "x": 198,
-          "y": 1333,
+          "x": 595,
+          "y": 862,
           "width": 99,
           "height": 72
         }
@@ -2597,8 +2597,8 @@
     "terrain/rock/shape-08": {
       "frames": [
         {
-          "x": 297,
-          "y": 1333,
+          "x": 694,
+          "y": 862,
           "width": 99,
           "height": 72
         }
@@ -2651,8 +2651,8 @@
     "terrain/rock/shape-0b": {
       "frames": [
         {
-          "x": 396,
-          "y": 1333,
+          "x": 793,
+          "y": 862,
           "width": 99,
           "height": 72
         }
@@ -2669,8 +2669,8 @@
     "terrain/rock/shape-0c": {
       "frames": [
         {
-          "x": 495,
-          "y": 1333,
+          "x": 892,
+          "y": 862,
           "width": 99,
           "height": 72
         }
@@ -2687,8 +2687,8 @@
     "terrain/rock/shape-0d": {
       "frames": [
         {
-          "x": 771,
-          "y": 949,
+          "x": 781,
+          "y": 734,
           "width": 100,
           "height": 74
         }
@@ -2741,8 +2741,8 @@
     "terrain/rock/surface": {
       "frames": [
         {
-          "x": 808,
-          "y": 1613,
+          "x": 992,
+          "y": 1225,
           "width": 16,
           "height": 16
         }
@@ -3119,8 +3119,8 @@
     "terrain/sand/surface": {
       "frames": [
         {
-          "x": 824,
-          "y": 1613,
+          "x": 1008,
+          "y": 1225,
           "width": 16,
           "height": 16
         }
@@ -3245,33 +3245,57 @@
     "water/surface": {
       "frames": [
         {
-          "x": 648,
-          "y": 1613,
+          "x": 704,
+          "y": 1225,
           "width": 32,
           "height": 32
         },
         {
-          "x": 680,
-          "y": 1613,
+          "x": 736,
+          "y": 1225,
           "width": 32,
           "height": 32
         },
         {
-          "x": 712,
-          "y": 1613,
+          "x": 768,
+          "y": 1225,
           "width": 32,
           "height": 32
         },
         {
-          "x": 744,
-          "y": 1613,
+          "x": 800,
+          "y": 1225,
+          "width": 32,
+          "height": 32
+        },
+        {
+          "x": 832,
+          "y": 1225,
+          "width": 32,
+          "height": 32
+        },
+        {
+          "x": 864,
+          "y": 1225,
+          "width": 32,
+          "height": 32
+        },
+        {
+          "x": 896,
+          "y": 1225,
+          "width": 32,
+          "height": 32
+        },
+        {
+          "x": 928,
+          "y": 1225,
           "width": 32,
           "height": 32
         }
       ],
       "anchor": {
-        "x": 16,
-        "y": 32
+        "x": 0,
+        "y": 0
       },
       "footprint": {
         "width": 1,
