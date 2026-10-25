@@ -271,6 +271,24 @@ async function playStarterRideAccess(
   for (let rotation = 1; rotation < 4; rotation++) {
     await toolbarAction(page, 'Rotate view', mobile);
     await expect(page.locator('.hud')).toContainText(`rot ${rotation}`);
+    await toolbarAction(page, 'Rides', mobile);
+    await page
+      .locator('[data-panel="ride-list"] .list-row')
+      .filter({ hasText: coasterName })
+      .click();
+    const rideDetail = page.locator('[data-panel="ride-2"]');
+    const titlebar = rideDetail.locator('.ui-titlebar');
+    if (!mobile) {
+      const titlebarBounds = await titlebar.boundingBox();
+      if (!titlebarBounds) throw new Error('Ride details title bar is missing');
+      await page.mouse.move(titlebarBounds.x + 24, titlebarBounds.y + 16);
+      await page.mouse.down();
+      await page.mouse.move(74, 66, { steps: 6 });
+      await page.mouse.up();
+    } else await titlebar.click();
+    await rideDetail.getByRole('button', { name: 'Locate' }).click({ force: mobile });
+    await page.getByRole('button', { name: 'Close Ride #2' }).click();
+    await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
     await screenshot(
       page,
       testInfo,
