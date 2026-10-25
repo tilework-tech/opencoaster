@@ -1,4 +1,5 @@
 import { devices, expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { OWNED } from '../src/sim/map/tile-map';
 import type { World } from '../src/sim/core/world';
 import {
@@ -52,7 +53,7 @@ function findUnownedTile(world: World): Tile {
   return nearestTile(world, CENTRE, (index) => (map.ownership[index]! & OWNED) === 0);
 }
 
-async function openScenery(page: import('@playwright/test').Page): Promise<void> {
+async function openScenery(page: Page): Promise<void> {
   await toolbarTool(page, 'Scenery');
   await expect(
     page.getByRole('button', { name: 'Rotate scenery piece', exact: true }),
@@ -110,6 +111,7 @@ test.describe('scenery placement preview', () => {
 
 test.describe('scenery placement preview on Pixel 8', () => {
   const { defaultBrowserType: _browserType, ...pixel8 } = devices['Pixel 8'];
+  void _browserType;
   test.use(pixel8);
 
   test('shows the ghost label under the pointer on a touch device', async ({ page }) => {
