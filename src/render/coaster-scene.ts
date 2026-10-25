@@ -173,7 +173,7 @@ export class CoasterScene {
       const y = cars.data[o + 1];
       this.push(
         family
-          ? carSpriteKey(family, pose.heading, pose.pitch, pose.bank, rotation)
+          ? carSpriteKey(family, pose.heading, pose.pitch, pose.bank, rotation, pose.passengers)
           : transportCarSpriteKey(transport!, pose.heading, pose.pitch, rotation),
         x,
         y,

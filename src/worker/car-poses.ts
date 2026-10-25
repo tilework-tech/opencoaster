@@ -21,12 +21,18 @@ export interface CarPose {
   heading: number;
   pitch: number;
   bank: CarBank;
+  /** Number of riders assigned to this car, capped at seven for the packed pose. */
+  passengers?: number;
 }
 
 /** Word 3 of a car row: ride id in the high half, then bank, pitch and heading bit fields. */
 export function encodeCarPose(pose: CarPose): number {
   return (
-    (pose.rideId << 16) | (pose.bank << 7) | ((pose.pitch + CAR_PITCH_MAX) << 3) | pose.heading
+    (pose.rideId << 16) |
+    (pose.bank << 7) |
+    ((pose.pitch + CAR_PITCH_MAX) << 3) |
+    ((Math.min(7, pose.passengers ?? 0) & 7) << 9) |
+    pose.heading
   );
 }
 
@@ -35,6 +41,7 @@ export function decodeCarPose(word: number): CarPose {
     rideId: word >>> 16,
     bank: ((word >> 7) & 3) as CarBank,
     pitch: ((word >> 3) & 15) - CAR_PITCH_MAX,
+    passengers: (word >> 9) & 7,
     heading: word & 7,
   };
 }
@@ -98,7 +105,10 @@ export function writeCarPoses(world: World, out: SnapshotLayer): void {
   for (let slot = 0; tracks && slot < world.vehicles.count; slot++) {
     const track = tracks.get(cols.rideId[slot]);
     if (!track) continue;
-    for (let car = 0; car < Math.max(1, cols.carCount[slot]); car++) {
+    const carCount = Math.max(1, cols.carCount[slot]);
+    const passengersPerCar = Math.floor(cols.passengers[slot] / carCount);
+    const extraPassengers = cols.passengers[slot] % carCount;
+    for (let car = 0; car < carCount; car++) {
       if (count === capacity) break;
       let at = cols.trackPos[slot] - Math.round((car + 0.5) * CAR_LENGTH_Q8);
       if (at < 0) at = track.loop ? at + track.totalLengthQ8 : 0;
@@ -117,6 +127,7 @@ export function writeCarPoses(world: World, out: SnapshotLayer): void {
         heading: headingOf(track, segment),
         pitch: pitchOf(track, segment),
         bank: bankOf(track, segment),
+        passengers: Math.min(7, passengersPerCar + Number(car < extraPassengers)),
       });
       count++;
     }

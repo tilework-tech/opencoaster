@@ -184,10 +184,11 @@ export function carSpriteKey(
   pitch: number,
   bank: number,
   rotation: number,
+  passengers = 0,
 ): string {
   const view = (heading + 2 * (((rotation % 4) + 4) % 4)) & 7;
   return family === 'log-flume' || family === 'river-rapids'
-    ? `rides/water/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/heading-${view}`
+    ? `rides/water/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/heading-${view}/passengers-${Math.min(7, passengers)}`
     : `rides/coaster/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/${BANK_NAMES[bank]}/heading-${view}`;
 }
 
