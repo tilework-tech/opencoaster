@@ -76,75 +76,51 @@
   "categories": {
     "coaster-junior": {
       "lazy": true,
-      "pages": [
-        0
-      ]
+      "pages": [0]
     },
     "coaster-mouse": {
       "lazy": true,
-      "pages": [
-        1
-      ]
+      "pages": [1]
     },
     "coaster-steel": {
       "lazy": true,
-      "pages": [
-        2
-      ]
+      "pages": [2]
     },
     "coaster-wood": {
       "lazy": true,
-      "pages": [
-        3
-      ]
+      "pages": [3]
     },
     "flat-rides": {
       "lazy": true,
-      "pages": [
-        4
-      ]
+      "pages": [4]
     },
     "stalls": {
       "lazy": true,
-      "pages": [
-        5
-      ]
+      "pages": [5]
     },
     "track-chairlift": {
       "lazy": true,
-      "pages": [
-        6
-      ]
+      "pages": [6]
     },
     "track-miniature-railway": {
       "lazy": true,
-      "pages": [
-        7
-      ]
+      "pages": [7]
     },
     "track-monorail": {
       "lazy": true,
-      "pages": [
-        8
-      ]
+      "pages": [8]
     },
     "transport": {
       "lazy": true,
-      "pages": [
-        9
-      ]
+      "pages": [9]
     },
     "vehicles": {
       "lazy": true,
-      "pages": [
-        10
-      ]
+      "pages": [10]
     },
     "world": {
       "lazy": false,
-      "pages": [
-        11
-      ]
+      "pages": [11]
     }
   },
   "sprites": {
