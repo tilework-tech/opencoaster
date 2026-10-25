@@ -147,6 +147,19 @@ describe('Canvas2D fallback map art', () => {
     expect(render(map).fills).toContain('#a9a193');
   });
 
+  it('renders a roofed shelter on a path tile from the world sprite atlas', async () => {
+    const map = flatMap();
+    map.pathElements = Int32Array.of(2, 2, 0, PathFlag.Shelter, 0, PathStyle.Tarmac);
+    map.pathCount = 1;
+
+    const context = await renderWithAtlas(map, [
+      'paths/tarmac/connection-00',
+      'scenery/shelter/view-0',
+    ]);
+
+    expect(context.spriteSources).toEqual(expect.arrayContaining([1, 2]));
+  });
+
   it('draws placeable trees as visible scenery elements', () => {
     const map = flatMap();
     map.sceneryElements = Int32Array.of(2, 2, 0, 0, SceneryItem.OakTree);

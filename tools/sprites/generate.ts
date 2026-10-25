@@ -6,6 +6,7 @@ import { coasterSprites } from './models/coaster/sprites';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
+import type { RideCategory } from '../../src/sim/rides/ride-types';
 import { rideSpriteName } from '../../src/render/world-art';
 import { RIDE_MODELS } from './models/ride-catalog';
 import { rideMesh } from './models/rides';
@@ -27,6 +28,13 @@ import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
 import { personMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
+import {
+  brokenBenchMesh,
+  brokenBinMesh,
+  brokenLampMesh,
+  shelterMesh,
+} from './models/path-additions';
+import { trashMesh, vomitMesh } from './models/litter';
 import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
 import {
   WATER_CAR_PITCHES,
@@ -190,11 +198,13 @@ function facilitySprites(): SpriteDef[] {
 
 function stationSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
-  const combinations = STATION_CATEGORIES.flatMap((category) =>
-    category === 'coaster'
-      ? ['wood', 'steel', 'junior', 'mouse'].map((family) => ({ category, family }))
-      : [{ category, family: '' }],
-  );
+  const combinations: { category: RideCategory; family: string }[] = [];
+  for (const category of STATION_CATEGORIES) {
+    if (category === 'coaster') {
+      for (const family of ['wood', 'steel', 'junior', 'mouse'])
+        combinations.push({ category, family });
+    } else combinations.push({ category, family: '' });
+  }
   for (const { category, family } of combinations) {
     const group = category === 'transport' || category === 'water' ? 'transport' : 'rides/flat';
     for (const part of ['entrance', 'exit'] as const)
@@ -240,6 +250,36 @@ function parkEntranceSprites(): SpriteDef[] {
     frames: [renderMesh(rotateMesh(physicalToLevels(parkEntranceMesh(0)), view))],
     footprint: ONE_TILE,
   }));
+}
+
+function pathAdditionSprites(): SpriteDef[] {
+  const models: readonly (readonly [string, () => Mesh])[] = [
+    ['scenery/shelter', shelterMesh],
+    ['scenery/bench-broken', brokenBenchMesh],
+    ['scenery/bin-broken', brokenBinMesh],
+    ['scenery/lamp-broken', brokenLampMesh],
+  ] as const;
+  return models.flatMap(([key, build]) =>
+    Array.from({ length: 4 }, (_, view) => ({
+      key: `${key}/view-${view}`,
+      frames: [renderMesh(rotateMesh(physicalToLevels(build()), view))],
+      footprint: ONE_TILE,
+    })),
+  );
+}
+
+function litterSprites(): SpriteDef[] {
+  const models: readonly (readonly [string, () => Mesh])[] = [
+    ['litter/trash', trashMesh],
+    ['litter/vomit', vomitMesh],
+  ];
+  return models.flatMap(([key, build]) =>
+    Array.from({ length: 4 }, (_, view) => ({
+      key: `${key}/view-${view}`,
+      frames: [renderMesh(rotateMesh(physicalToLevels(build()), view))],
+      footprint: ONE_TILE,
+    })),
+  );
 }
 
 function transportRideSprites(): SpriteDef[] {
@@ -364,6 +404,8 @@ export function buildSprites(): SpriteDef[] {
     ...facilitySprites(),
     ...stationSprites(),
     ...parkEntranceSprites(),
+    ...pathAdditionSprites(),
+    ...litterSprites(),
     ...treeSprites(),
     ...coasterSprites(),
     ...waterTrackSprites(),

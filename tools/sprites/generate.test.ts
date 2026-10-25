@@ -11,6 +11,51 @@ import { PALETTE } from './palette';
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
 describe('generated sprite catalogue', () => {
+  it('renders a roofed path shelter and damaged path furniture in four views', () => {
+    for (const key of [
+      'scenery/shelter',
+      'scenery/bench-broken',
+      'scenery/bin-broken',
+      'scenery/lamp-broken',
+      'litter/trash',
+      'litter/vomit',
+    ]) {
+      const views = [];
+      for (let view = 0; view < 4; view++) {
+        const sprite = sprites.get(`${key}/view-${view}`);
+        expect(sprite, `${key}, view ${view}`).toBeDefined();
+        if (key === 'scenery/shelter')
+          expect(sprite?.footprint, `${key}, view ${view} footprint`).toEqual({
+            width: 1,
+            height: 1,
+          });
+        const frame = sprite?.frames[0];
+        const minimumWidth = key.startsWith('litter/') || key.includes('lamp-broken') ? 10 : 24;
+        const minimumHeight = key.startsWith('litter/') ? 6 : 16;
+        expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
+        expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
+        expect(frame?.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+        views.push(Buffer.from(frame!.pixels).toString('base64'));
+      }
+      expect(new Set(views).size, `${key} distinct camera views`).toBe(4);
+    }
+  });
+
+  it('renders the shelter canopy wider than its support posts near the top of the sprite', () => {
+    const { width, height, pixels } = sprites.get('scenery/shelter/view-0')!.frames[0];
+    const widestUpperRow = Math.max(
+      ...Array.from(
+        { length: Math.ceil(height * 0.45) },
+        (_, y) =>
+          Array.from(pixels.subarray(y * width, (y + 1) * width)).filter(
+            (pixel) => pixel !== TRANSPARENT,
+          ).length,
+      ),
+    );
+
+    expect(widestUpperRow).toBeGreaterThan(width * 0.5);
+  });
+
   it('has all 16 connection masks and 4 ramp directions for each path style', () => {
     for (const style of ['tarmac', 'crazy-paving', 'dirt', 'queue']) {
       for (let mask = 0; mask < 16; mask++)

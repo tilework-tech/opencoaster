@@ -2,7 +2,7 @@ import { Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RidePhase } from '../sim/rides/ride-store';
-import { PathFlag } from '../sim/map/tile-map';
+import { PathFlag, PATH_ADDITION_BROKEN } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
 import { Z_PIXELS } from './projection';
 
@@ -182,6 +182,23 @@ export const WATER_BANK = {
 
 export function scenerySpriteName(name: string): string {
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
+}
+
+export function pathAdditionSpriteName(flags: number, rotation: number, data: number): string {
+  const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
+  if (flags & PathFlag.Shelter) return `scenery/shelter/view-${view}`;
+  if (flags & PathFlag.Bench)
+    return data & PATH_ADDITION_BROKEN ? `scenery/bench-broken/view-${view}` : 'scenery/bench';
+  if (flags & PathFlag.Bin)
+    return data & PATH_ADDITION_BROKEN ? `scenery/bin-broken/view-${view}` : 'scenery/bin';
+  if (flags & PathFlag.Lamp)
+    return data & PATH_ADDITION_BROKEN ? `scenery/lamp-broken/view-${view}` : 'scenery/lamp';
+  return '';
+}
+
+export function litterSpriteName(kind: number, rotation: number): string {
+  const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
+  return `litter/${kind === 1 ? 'vomit' : 'trash'}/view-${view}`;
 }
 
 export function spriteAnchorWorldOffset(

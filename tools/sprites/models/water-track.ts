@@ -1,5 +1,5 @@
 import { box, beam, material, orientedBox, quad } from '../mesh';
-import type { Mesh } from '../mesh';
+import type { Mesh, Vec3 } from '../mesh';
 import { ramp } from '../palette';
 import type { TrackPieceDef } from '../../../src/sim/track/track-types';
 import { offsetPoint, pieceFrames, toLevels } from './coaster/frames';
@@ -87,12 +87,13 @@ export function waterCarMesh(family: string, heading: number, pitch: number, pas
       mesh.push(...box([x - 0.015, y - 0.015, 0.19], [x + 0.015, y + 0.015, 0.27], SKIN));
     }
   }
-  return mesh.map((triangle) => ({
-    material: triangle.material,
-    v: triangle.v.map(([x, y, z]) => [
-      x,
-      y,
-      z + (x * Math.cos(angle) + y * Math.sin(angle)) * pitch * 0.08,
-    ]) as typeof triangle.v,
-  }));
+  const shift = ([x, y, z]: Vec3): Vec3 => [
+    x,
+    y,
+    z + (x * Math.cos(angle) + y * Math.sin(angle)) * pitch * 0.08,
+  ];
+  return mesh.map((triangle) => {
+    const [a, b, c] = triangle.v.map(shift);
+    return { material: triangle.material, v: [a!, b!, c!] };
+  });
 }
