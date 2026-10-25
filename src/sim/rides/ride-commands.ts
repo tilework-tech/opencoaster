@@ -122,6 +122,12 @@ function connectQueueFromEntrance(world: World, slot: number): void {
   ride.queueConnected[slot] = reachesPath ? 1 : 0;
 }
 
+export function refreshRideQueueConnections(world: World): void {
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    if (world.rides.cols.entrancePlaced[slot]) connectQueueFromEntrance(world, slot);
+  }
+}
+
 function placeBoardingTile(
   world: World,
   rideId: number,

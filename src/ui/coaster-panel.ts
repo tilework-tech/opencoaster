@@ -286,9 +286,17 @@ export class CoasterPanel {
     this.hover = tile;
   }
 
+  boardingPlacement(): { rideId: number; part: 'entrance' | 'exit' } | null {
+    const ride = this.activeRide();
+    return ride && (this.buildMode === 'entrance' || this.buildMode === 'exit')
+      ? { rideId: ride.id, part: this.buildMode }
+      : null;
+  }
+
   /** Sends the create command for the selected ride type; selects the new ride on success. */
   createRideAt(x: number, y: number): string {
     const def = RIDE_CATALOG[this.rideType];
+    this.hover = [x, y];
     this.awaitingCreate = true;
     this.actions.command({ type: 'createRide', rideType: this.rideType, x, y });
     return `Building ${def.name} at ${x}, ${y}…`;
@@ -474,7 +482,24 @@ export class CoasterPanel {
       return;
     }
     const info = this.infoAt(ride);
-    const closed = (info[RideInfo.Flags] & RideFlag.CircuitClosed) !== 0;
+    const flags = info[RideInfo.Flags];
+    const closed = (flags & RideFlag.CircuitClosed) !== 0;
+    const hasEntrance = (flags & RideFlag.EntrancePlaced) !== 0;
+    const hasExit = (flags & RideFlag.ExitPlaced) !== 0;
+    const tested = (flags & RideFlag.Tested) !== 0;
+    if (closed && !hasEntrance && this.buildMode !== 'entrance') {
+      this.buildMode = 'entrance';
+      this.actions.status('Place entrance next to the station.');
+    } else if (closed && hasEntrance && !hasExit && this.buildMode !== 'exit') {
+      this.buildMode = 'exit';
+      this.actions.status('Place exit next to the station.');
+    } else if (closed && hasEntrance && hasExit && !tested && this.buildMode !== 'track') {
+      this.buildMode = 'track';
+      this.actions.status('Test ride to finish setup.');
+    } else if (closed && hasEntrance && hasExit && tested && this.buildMode !== 'track') {
+      this.buildMode = 'track';
+      this.actions.status('Ride setup complete.');
+    }
     const cursor = decodeCursor(info[RideInfo.Cursor]);
     this.directionButton.hidden = cursor.hasTrack;
     const piece = resolvePiece(cursor, this.choice, ride.type);
@@ -490,7 +515,13 @@ export class CoasterPanel {
     if (!modes.includes(this.mode)) this.mode = PieceMode.Normal;
     this.modeSelect.value = String(this.mode);
     this.costLine.textContent = closed
-      ? 'Circuit complete. Remove a piece to change the layout.'
+      ? !hasEntrance
+        ? 'Circuit complete. Place an entrance next to the station.'
+        : !hasExit
+          ? 'Place an exit next to the station.'
+          : !tested
+            ? 'Test the ride before opening it.'
+            : 'Circuit complete. Remove a piece to change the layout.'
       : piece
         ? `${piece.name}: ${dollars(piece.cost)} of ${dollars(snapshot.park.cash)} cash`
         : 'No piece fits those controls here.';

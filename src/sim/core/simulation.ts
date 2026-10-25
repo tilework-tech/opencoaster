@@ -23,7 +23,7 @@ import { rideSystem } from '../rides/ride-system';
 import { FeedbackDomain, reportFeedback } from './feedback';
 import { RideResult } from '../rides/ride-results';
 import { coasterSystem } from '../rides/coaster-system';
-import { applyRideCommand } from '../rides/ride-commands';
+import { applyRideCommand, refreshRideQueueConnections } from '../rides/ride-commands';
 import { createRide } from '../rides/ride-operations';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
 import { trackSystem } from '../track/track-system';
@@ -210,6 +210,7 @@ export class Simulation {
         break;
       default:
         applyMapCommand(w, c);
+        if (c.type === 'placePath' || c.type === 'removePath') refreshRideQueueConnections(w);
         break;
       case 'economy':
         reportFeedback(w.feedback, FeedbackDomain.Economy, applyEconomyCommand(w, c.action));
