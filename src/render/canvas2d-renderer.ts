@@ -1,5 +1,8 @@
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, viewSize } from './projection';
+import { CoasterScene } from './coaster-scene';
+import { loadSpriteAtlas } from './sprite-atlas';
+import type { SpriteAtlas } from './sprite-atlas';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
@@ -43,6 +46,8 @@ export class Canvas2DRenderer implements Renderer {
   private pathOffsets = new Int32Array(0);
   private pathIndices = new Int32Array(0);
   private visibleCount = 0;
+  private atlas: SpriteAtlas | null = null;
+  private readonly coasterScene = new CoasterScene();
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
@@ -52,6 +57,13 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('2D canvas unavailable');
     this.ctx = ctx;
+    if (typeof fetch === 'function')
+      void loadSpriteAtlas().then(
+        (atlas) => {
+          this.atlas = atlas;
+        },
+        () => undefined,
+      );
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -101,9 +113,19 @@ export class Canvas2DRenderer implements Renderer {
     this.drawTiles(ctx, map, cam);
     if (snapshot) {
       this.drawRideMarkers(ctx, snapshot, map, cam);
-      if (snapshot.tracks) this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
+      const coasterSprites = this.drawCoasters(ctx, snapshot, map, cam);
+      if (snapshot.tracks && !coasterSprites)
+        this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
       this.drawLayer(ctx, snapshot.litter, map, cam, 2, ['#6b4f2a', '#9fc35b']);
-      this.drawLayer(ctx, snapshot.vehicles, map, cam, 4, '#c0392b');
+      this.drawLayer(
+        ctx,
+        snapshot.vehicles,
+        map,
+        cam,
+        4,
+        '#c0392b',
+        coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
+      );
       this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
         '#4ca95b',
         '#397cb3',
@@ -295,6 +317,44 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
+  /** Draws coaster track, supports and cars from the atlas in painter order; false without art. */
+  private drawCoasters(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): boolean {
+    const atlas = this.atlas;
+    if (!atlas?.sprites['track/wood/station/view-0/cell-0']) return false;
+    const scene = this.coasterScene;
+    scene.build(snapshot, map, cam.rotation);
+    const items = scene.items.slice(0, scene.length);
+    items.sort((a, b) => a.depth - b.depth);
+    const t = this.tmp;
+    ctx.imageSmoothingEnabled = false;
+    for (const item of items) {
+      const hash = item.key.indexOf('#');
+      const entry = atlas.sprites[hash < 0 ? item.key : item.key.slice(0, hash)];
+      const frame = entry?.frames[hash < 0 ? 0 : Number(item.key.slice(hash + 1))] ?? entry?.frames[0];
+      if (!entry || !frame) continue;
+      project(item.x, item.y, item.z, map.width, map.height, cam.rotation, t);
+      if (!this.isVisible(t[0], t[1], cam, Math.max(frame.width, frame.height))) continue;
+      ctx.drawImage(
+        atlas.image,
+        frame.x,
+        frame.y,
+        frame.width,
+        frame.height,
+        Math.round(t[0] - entry.anchor.x),
+        Math.round(t[1] - entry.anchor.y),
+        frame.width,
+        frame.height,
+      );
+      this.visibleCount++;
+    }
+    return true;
+  }
+
   private drawLayer(
     ctx: CanvasRenderingContext2D,
     layer: SnapshotLayer,
@@ -302,10 +362,12 @@ export class Canvas2DRenderer implements Renderer {
     cam: Camera,
     r: number,
     color: string | readonly string[],
+    skip?: (word: number) => boolean,
   ): void {
     const d = layer.data;
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
+      if (skip?.(d[o + 3])) continue;
       ctx.fillStyle = typeof color === 'string' ? color : (color[d[o + 3] & 0xff] ?? color[0]);
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
       if (!this.isVisible(t[0], t[1], cam, r * 2)) continue;

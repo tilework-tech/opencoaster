@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import sharp from 'sharp';
 
-const MAX_ATLAS_WIDTH = 2048;
+const MAX_ATLAS_WIDTH = 3072;
 const MAX_ATLAS_HEIGHT = 4096;
 
 export interface SpriteFrame {

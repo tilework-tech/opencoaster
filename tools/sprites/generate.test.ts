@@ -69,7 +69,7 @@ describe('generated sprite catalogue', () => {
     }
   });
 
-  it('renders every catalog track piece for wood and steel in 4 rotations, with a sprite on its centre cell', () => {
+  it('renders every catalog track piece in the wood and steel styles in 4 rotations, with a sprite on its centre cell', () => {
     for (const style of ['wood', 'steel'])
       for (const piece of PIECES)
         for (let view = 0; view < 4; view++) {
@@ -82,17 +82,29 @@ describe('generated sprite catalogue', () => {
         }
   });
 
-  it('has support segments and base for both styles in 4 rotations', () => {
-    for (const style of ['wood', 'steel'])
-      for (const part of ['column', 'base'])
+  it('has support segments, quarter caps and a base for every family in 4 rotations', () => {
+    for (const family of ['wood', 'steel', 'junior', 'mouse'])
+      for (const part of ['column', 'cap1', 'cap2', 'cap3', 'base'])
         for (let view = 0; view < 4; view++)
-          expect(sprites.has(`track/${style}/support-${part}/view-${view}`)).toBe(true);
+          expect(sprites.has(`track/${family}/support-${part}/view-${view}`)).toBe(true);
   });
 
-  it('has train cars at 8 headings for flat, up and down pitches', () => {
-    for (const style of ['wood', 'steel'])
-      for (const pitch of ['flat', 'up25', 'up60', 'down25', 'down60'])
-        for (let heading = 0; heading < 8; heading++)
-          expect(sprites.has(`vehicles/${style}/car/${pitch}/heading-${heading}`)).toBe(true);
+  it('has chain, brake and block-brake art for lift- and brake-capable pieces', () => {
+    for (const art of ['wood', 'steel'])
+      for (const variant of ['chain', 'brake', 'block'])
+        for (let view = 0; view < 4; view++)
+          expect(sprites.has(`track/${art}/flat+${variant}/view-${view}/cell-0`)).toBe(true);
+    expect(sprites.get('track/wood/flat+chain/view-0/cell-0')?.frames).toHaveLength(2);
+    expect(sprites.has('track/wood/smallLeft+chain/view-0/cell-0')).toBe(false);
+  });
+
+  it('has cars at 8 headings for every pitch and bank class of every family', () => {
+    for (const family of ['wood', 'steel', 'junior', 'mouse'])
+      for (const pitch of ['down90', 'down60', 'down25', 'flat', 'up25', 'up60', 'up90'])
+        for (const bank of ['level', 'left', 'right', 'inverted'])
+          for (let heading = 0; heading < 8; heading++)
+            expect(sprites.has(`vehicles/${family}/car/${pitch}/${bank}/heading-${heading}`)).toBe(
+              true,
+            );
   });
 });

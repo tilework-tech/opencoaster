@@ -1,10 +1,6 @@
 import { Z_STEP } from '../sim/core/constants';
-import { PIECES } from '../sim/track/catalog';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { Z_PIXELS } from './projection';
-
-export type CoasterStyle = 'wood' | 'steel';
-export type CarPitch = 'flat' | 'up25' | 'up60' | 'down25' | 'down60';
 
 /** Simulation ticks each flat-ride animation frame is shown for. */
 export const TICKS_PER_ANIMATION_FRAME = 8;
@@ -31,54 +27,6 @@ export function rideSpriteKey(type: RideType, rotation: number): string {
 
 export function frameForTick(tick: number, frameCount: number): number {
   return Math.floor(Math.max(0, tick) / TICKS_PER_ANIMATION_FRAME) % Math.max(1, frameCount);
-}
-
-export function trackStyleForRide(type: RideType): CoasterStyle {
-  switch (type) {
-    case RideType.SteelLoopingCoaster:
-    case RideType.JuniorRollerCoaster:
-    case RideType.MiniatureRailway:
-    case RideType.Monorail:
-      return 'steel';
-    default:
-      return 'wood';
-  }
-}
-
-export interface TrackCellSprite {
-  /** Atlas key of the cell's sprite. */
-  key: string;
-  /** Tile offset of the cell from the piece's origin tile, in world coordinates. */
-  dx: number;
-  dy: number;
-}
-
-/** Per-tile sprites of a placed track piece for the given piece direction and camera rotation. */
-export function trackCells(
-  pieceType: number,
-  dir: number,
-  rotation: number,
-  style: CoasterStyle,
-): TrackCellSprite[] {
-  const piece = PIECES[pieceType];
-  if (!piece) return [];
-  const turns = ((dir % 4) + 4) % 4;
-  const view = (turns + (((rotation % 4) + 4) % 4)) & 3;
-  return piece.footprint.map((cell, index) => {
-    const [dx, dy] = (
-      [
-        [cell.i, cell.j],
-        [-cell.j, cell.i],
-        [-cell.i, -cell.j],
-        [cell.j, -cell.i],
-      ] as const
-    )[turns];
-    return { key: `track/${style}/${piece.name}/view-${view}/cell-${index}`, dx, dy };
-  });
-}
-
-export function carSpriteKey(style: CoasterStyle, heading: number, pitch: CarPitch): string {
-  return `vehicles/${style}/car/${pitch}/heading-${((heading % 8) + 8) % 8}`;
 }
 
 /**

@@ -6,6 +6,8 @@ import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
+import { CoasterScene } from './coaster-scene';
+import { nativeSpriteWorldOffset } from './sprite-art';
 import type { Rotation } from './projection';
 import {
   pathSpriteName,
@@ -16,6 +18,9 @@ import {
 } from './world-art';
 
 const CELL = 64;
+/** Key present in the atlas only when the generated coaster art has been packed. */
+const COASTER_PROBE_KEY = 'track/wood/station/view-0/cell-0';
+
 const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 5;
 const INSTANCE_FLOATS = 11;
@@ -172,6 +177,7 @@ export class WebGL2Renderer implements Renderer {
   private fallbackAtlas: HTMLCanvasElement | null = null;
   private generatedAtlas: { image: ImageBitmap; manifest: SpriteAtlasManifest } | null = null;
   private atlasFrames: Record<string, SpriteEntry> = {};
+  private readonly coasterScene = new CoasterScene();
   private atlasWidth = CELL * ATLAS_COLUMNS;
   private atlasHeight = CELL * ATLAS_ROWS;
   private atlasRequestStarted = false;
@@ -246,7 +252,8 @@ export class WebGL2Renderer implements Renderer {
       this.appendPathElements(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
-      if (snapshot.tracks)
+      const coasterSprites = this.appendCoasters(snapshot, map, camera, viewportWidth, viewportHeight);
+      if (snapshot.tracks && !coasterSprites)
         this.appendLayer(
           snapshot.tracks,
           27,
@@ -269,7 +276,18 @@ export class WebGL2Renderer implements Renderer {
         7,
         8,
       );
-      this.appendLayer(snapshot.vehicles, 23, map, camera, viewportWidth, viewportHeight, 12, 12);
+      this.appendLayer(
+        snapshot.vehicles,
+        23,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        12,
+        12,
+        0,
+        coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
+      );
       this.appendVariantLayer(
         snapshot.staff,
         staffSpriteIndex,
@@ -753,6 +771,51 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  /** Draws coaster track, supports and cars from the atlas; false when the atlas has none. */
+  private appendCoasters(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): boolean {
+    if (!this.atlasFrames[COASTER_PROBE_KEY]) return false;
+    const scene = this.coasterScene;
+    scene.build(snapshot, map, camera.rotation);
+    for (let i = 0; i < scene.length; i++) {
+      const item = scene.items[i];
+      const hash = item.key.indexOf('#');
+      const frame = this.atlasFrames[hash < 0 ? item.key : item.key.slice(0, hash)]?.frames[0];
+      if (!frame) continue;
+      project(item.x, item.y, item.z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          frame.width,
+          frame.height,
+        )
+      )
+        continue;
+      this.append(
+        item.x,
+        item.y,
+        item.z,
+        frame.width,
+        frame.height,
+        item.key,
+        item.depth,
+        0,
+        false,
+        true,
+      );
+    }
+    return true;
+  }
+
   private appendLayer(
     layer: SnapshotLayer,
     sprite: number,
@@ -763,9 +826,11 @@ export class WebGL2Renderer implements Renderer {
     width: number,
     height: number,
     offset = 0,
+    skip?: (word: number) => boolean,
   ): void {
     for (let i = 0; i < layer.count; i++) {
       const dataOffset = i * SNAPSHOT_STRIDE;
+      if (skip?.(layer.data[dataOffset + 3])) continue;
       const depth =
         2 *
           rotatedPositionSum(
@@ -863,6 +928,7 @@ export class WebGL2Renderer implements Renderer {
     depth: number,
     slopeMask = 0,
     terrain = false,
+    native = false,
   ): void {
     if (this.count === this.depths.length) this.grow();
     const offset = this.count * INSTANCE_FLOATS;
@@ -888,7 +954,9 @@ export class WebGL2Renderer implements Renderer {
       v0 = 1 - (frame.y + frame.height) / this.atlasHeight;
       u1 = (frame.x + frame.width) / this.atlasWidth;
       v1 = 1 - frame.y / this.atlasHeight;
-      if (!terrain && entry) z += (entry.anchor.y / frame.height - 0.5) * height * (Z_PIXELS / 64);
+      if (native && entry) z += nativeSpriteWorldOffset(frame.height, entry.anchor.y);
+      else if (!terrain && entry)
+        z += (entry.anchor.y / frame.height - 0.5) * height * (Z_PIXELS / 64);
     } else {
       if (fallbackIndex < 0) {
         fallbackIndex = terrain ? 0 : 0;

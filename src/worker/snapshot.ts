@@ -97,6 +97,7 @@ export interface Snapshot {
   staffOrders: Uint8Array;
   /** Player-given staff names by staff id. */
   staffNames: ReadonlyMap<number, string>;
+  /** Train head positions; word 3 is the ride id in the high half over the train state. */
   vehicles: SnapshotLayer;
   /** One row per car of every train: x, y, z and a packed pose (see car-poses.ts). */
   cars: SnapshotLayer;
@@ -347,6 +348,9 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   const patrolCount = Math.min(world.patrolAreas.length, out.patrolAreas.length);
   out.patrolAreas.set(world.patrolAreas.subarray(0, patrolCount));
   writeLayer(out.vehicles, world.vehicles, world.vehicles.cols.state, null);
+  const vehicleCols = world.vehicles.cols;
+  for (let i = 0; i < out.vehicles.count; i++)
+    out.vehicles.data[i * SNAPSHOT_STRIDE + 3] |= vehicleCols.rideId[i] << 16;
   writeCarPoses(world, out.cars);
   writeLayer(out.litter, world.litter, world.litter.cols.kind, null);
   const rides = world.rides;

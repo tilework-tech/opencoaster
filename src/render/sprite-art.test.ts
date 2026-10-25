@@ -1,14 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PIECES } from '../sim/track/catalog';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import {
-  carSpriteKey,
   frameForTick,
   nativeSpriteWorldOffset,
   rideSpriteKey,
   rotatePathEdges,
-  trackCells,
-  trackStyleForRide,
 } from './sprite-art';
 
 describe('path views', () => {
@@ -34,29 +30,6 @@ describe('ride sprites', () => {
     expect(frameForTick(8, 4)).toBe(1);
     expect(frameForTick(32, 4)).toBe(0);
     expect(frameForTick(-5, 4)).toBe(0);
-  });
-});
-
-describe('coaster sprites', () => {
-  it('uses wood for the wooden-family rides and steel otherwise', () => {
-    expect(trackStyleForRide(RideType.WoodenCoaster)).toBe('wood');
-    expect(trackStyleForRide(RideType.SteelLoopingCoaster)).toBe('steel');
-  });
-
-  it('turns local footprint cells by the piece direction and picks the combined view', () => {
-    const turn = PIECES.find((p) => p.name === 'smallRight')!;
-    const upright = trackCells(turn.id, 0, 0, 'steel');
-    expect(upright).toHaveLength(turn.footprint.length);
-    expect(upright[0].key).toBe(`track/steel/smallRight/view-0/cell-0`);
-    const east = trackCells(turn.id, 1, 0, 'steel');
-    expect(east[0].key).toContain('view-1');
-    const cell = turn.footprint[1];
-    expect([east[1].dx, east[1].dy]).toEqual([-cell.j, cell.i]);
-    expect(trackCells(turn.id, 1, 3, 'steel')[0].key).toContain('view-0');
-  });
-
-  it('names car sprites by heading octant and pitch', () => {
-    expect(carSpriteKey('wood', 3, 'up25')).toBe('vehicles/wood/car/up25/heading-3');
   });
 });
 

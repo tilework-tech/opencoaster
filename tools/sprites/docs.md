@@ -27,6 +27,6 @@ Path: @/tools/sprites
 - Sprites are 1:1 pixel art at the game's native scale; the renderer must draw them at their atlas frame size and align `anchor` to the projected point rather than stretching them into a fixed quad.
 - Water animation is a palette cycle: all eight frames share one ripple pattern and differ only by which palette slot each pixel shows.
 - Clipping a swept beam to a tile column leaves the cut open; the neighbouring cell's sprite covers the join.
-- The atlas is capped at 2048x4096 (the runtime adds a 512px fallback strip, so the combined texture needs `MAX_TEXTURE_SIZE >= 4096`); the packer stores identical frames once.
+- The atlas is capped at 3072x4096 (the runtime adds a 512px fallback strip, so the combined texture needs `MAX_TEXTURE_SIZE >= 4096`); the packer stores identical frames once.
 
 Created and maintained by Nori.
