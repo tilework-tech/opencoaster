@@ -7,6 +7,8 @@ import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 /** Art families of the track rides; each has its own track, supports and cars. */
 export const COASTER_FAMILIES = ['wood', 'steel', 'junior', 'mouse'] as const;
 export type CoasterFamily = (typeof COASTER_FAMILIES)[number];
+export type WaterRideFamily = 'log-flume' | 'river-rapids';
+export type TrackRideFamily = CoasterFamily | WaterRideFamily;
 
 /** Animation frames of a chain lift, and ticks each is shown for. */
 export const CHAIN_FRAMES = 2;
@@ -56,6 +58,17 @@ export function coasterFamily(type: RideType): CoasterFamily | undefined {
     default:
       return undefined;
   }
+}
+
+export function trackedRideFamily(type: RideType): TrackRideFamily | undefined {
+  return (
+    coasterFamily(type) ??
+    (type === RideType.LogFlume
+      ? 'log-flume'
+      : type === RideType.RiverRapids
+        ? 'river-rapids'
+        : undefined)
+  );
 }
 
 export type TransportFamily = 'chairlift' | 'miniature-railway' | 'monorail';
@@ -112,6 +125,7 @@ export function transportCarSpriteKey(
 /** Key suffix of the art a piece shows in a drive mode; empty when the piece has only plain art. */
 export function trackVariant(piece: TrackPieceDef, mode: number): string {
   if (mode === PieceMode.ChainLift && piece.flags & PieceFlag.LiftOk) return '+chain';
+  if (mode === PieceMode.WaterLift && piece.flags & PieceFlag.LiftOk) return '+water-lift';
   if (mode === PieceMode.Brake && piece.flags & PieceFlag.BrakeOk) return '+brake';
   if (mode === PieceMode.BlockBrake && piece.flags & PieceFlag.BrakeOk) return '+block';
   return '';
@@ -130,7 +144,7 @@ export function trackCellSprites(
   pieceType: number,
   dir: number,
   rotation: number,
-  family: CoasterFamily,
+  family: TrackRideFamily,
   mode: number,
   tick: number,
 ): TrackCellSprite[] {
@@ -153,7 +167,10 @@ export function trackCellSprites(
       ] as const
     )[turns];
     return {
-      key: `rides/coaster/${trackArt(family)}/track/${piece.name}${variant}/view-${view}/cell-${index}${frame}`,
+      key:
+        family === 'log-flume' || family === 'river-rapids'
+          ? `rides/water/${family}/track/${piece.name}${variant}/view-${view}/cell-${index}${frame}`
+          : `rides/coaster/${trackArt(family)}/track/${piece.name}${variant}/view-${view}/cell-${index}${frame}`,
       dx,
       dy,
     };
@@ -162,14 +179,16 @@ export function trackCellSprites(
 
 /** Atlas key of a car; `heading` is the world eighth-turn heading, `pitch` runs -3..3. */
 export function carSpriteKey(
-  family: CoasterFamily,
+  family: TrackRideFamily,
   heading: number,
   pitch: number,
   bank: number,
   rotation: number,
 ): string {
   const view = (heading + 2 * (((rotation % 4) + 4) % 4)) & 7;
-  return `rides/coaster/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/${BANK_NAMES[bank]}/heading-${view}`;
+  return family === 'log-flume' || family === 'river-rapids'
+    ? `rides/water/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/heading-${view}`
+    : `rides/coaster/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/${BANK_NAMES[bank]}/heading-${view}`;
 }
 
 /** Height levels between the track centre line and the underside of its bed. */

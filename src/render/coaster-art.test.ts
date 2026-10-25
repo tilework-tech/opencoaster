@@ -6,6 +6,7 @@ import {
   CHAIN_FRAMES,
   carSpriteKey,
   coasterFamily,
+  trackedRideFamily,
   artPieces,
   familyPieces,
   trackArt,
@@ -24,6 +25,12 @@ describe('coaster families', () => {
     expect(coasterFamily(RideType.JuniorRollerCoaster)).toBe('junior');
     expect(coasterFamily(RideType.WildMouseCoaster)).toBe('mouse');
     expect(coasterFamily(RideType.MerryGoRound)).toBeUndefined();
+  });
+
+  it('maps tracked water rides to their own render families', () => {
+    expect(trackedRideFamily(RideType.LogFlume)).toBe('log-flume');
+    expect(trackedRideFamily(RideType.RiverRapids)).toBe('river-rapids');
+    expect(trackedRideFamily(RideType.WildMouseCoaster)).toBe('mouse');
   });
 });
 

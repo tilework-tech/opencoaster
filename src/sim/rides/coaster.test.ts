@@ -51,6 +51,61 @@ describe('coaster catalog', () => {
     expect(RIDE_CATALOG[RideType.SteelLoopingCoaster].usesTrack).toBe(true);
     expect(RIDE_CATALOG[RideType.WoodenCoaster].category).toBe('coaster');
   });
+
+  it.each([RideType.LogFlume, RideType.RiverRapids])('%s is a tracked water ride', (type) => {
+    expect(RIDE_CATALOG[type].category).toBe('water');
+    expect(RIDE_CATALOG[type].usesTrack).toBe(true);
+    expect(RIDE_CATALOG[type].trackRules?.allowedPieces).toContain(PieceId.Station);
+  });
+});
+
+describe('tracked water rides', () => {
+  const waterCircuit: ReadonlyArray<readonly [string, PieceMode]> = [
+    ['station', PieceMode.Normal],
+    ['flatToUp25', 5 as PieceMode],
+    ['up25', 5 as PieceMode],
+    ['up25ToFlat', 5 as PieceMode],
+    ['smallRight', PieceMode.Normal],
+    ['flat', PieceMode.Normal],
+    ['smallRight', PieceMode.Normal],
+    ['waterSplashDrop', PieceMode.Normal],
+    ['down25', PieceMode.Normal],
+    ['down25ToFlat', PieceMode.Normal],
+    ['flat', PieceMode.Normal],
+    ['smallRight', PieceMode.Normal],
+    ['flat', PieceMode.Normal],
+    ['smallRight', PieceMode.Normal],
+  ];
+
+  it.each([RideType.LogFlume, RideType.RiverRapids])(
+    '%s tests its built circuit, measures it, and serves queued guests',
+    (type) => {
+      const sim = flatOwnedSim(42);
+      const rideId = createCoaster(sim, type);
+      buildCircuit(sim, rideId, waterCircuit);
+      connectStation(sim, rideId);
+
+      expect(circuitStatus(sim.world, rideId).complete).toBe(true);
+      sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
+      run(sim, TEST_RUN_TICKS);
+      expect(isRideTested(sim.world, rideId)).toBe(true);
+      expect(getRideTestMeasurements(sim.world, rideId)!.maxSpeed).toBeGreaterThan(0);
+
+      queueGuests(sim, rideId, 12);
+      sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+      const phases = new Set<number>();
+      for (let tick = 0; tick < TEST_RUN_TICKS * 3; tick++) {
+        sim.step();
+        phases.add(sim.world.rides.cols.phase[sim.world.rides.idToSlot[rideId]]);
+      }
+
+      const slot = sim.world.rides.idToSlot[rideId];
+      expect(sim.world.rides.cols.guestsServed[slot]).toBeGreaterThan(0);
+      expect(sim.world.vehicles.count).toBeGreaterThan(0);
+      expect(phases.has(RidePhase.Loading)).toBe(true);
+      expect(phases.has(RidePhase.Unloading)).toBe(true);
+    },
+  );
 });
 
 describe('coaster test run', () => {
