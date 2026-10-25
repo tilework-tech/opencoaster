@@ -37,8 +37,8 @@ export function openLandWindow(ctx: UiContext): WindowController {
     sizeLabel.setAttribute('aria-label', 'Tool size');
     const modeButtons = new Map<LandMode, HTMLButtonElement>();
     const cornerToggle = element('input', 'land-corners') as HTMLInputElement;
-    let smaller: HTMLButtonElement;
-    let larger: HTMLButtonElement;
+    const smaller = button('−', () => resize(-1), 'ui-button');
+    const larger = button('+', () => resize(1), 'ui-button');
     const sync = (): void => {
       sizeLabel.textContent = `${settings.size}×${settings.size}`;
       for (const [mode, node] of modeButtons)
@@ -57,9 +57,7 @@ export function openLandWindow(ctx: UiContext): WindowController {
       sync();
     };
     const sizeRow = element('div', 'land-size-row');
-    smaller = button('−', () => resize(-1), 'ui-button');
     smaller.setAttribute('aria-label', 'Smaller tool size');
-    larger = button('+', () => resize(1), 'ui-button');
     larger.setAttribute('aria-label', 'Larger tool size');
     sizeRow.append(element('span', '', 'Tool size'), smaller, sizeLabel, larger);
     const modeRow = element('div', 'land-mode-row');

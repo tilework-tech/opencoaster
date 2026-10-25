@@ -83,7 +83,7 @@ export async function bootstrap(): Promise<void> {
   let alternate = false;
   const pathState = createPathState();
   let sceneryItem = SceneryItem.OakTree;
-  let landControllerRef: LandController | undefined;
+  const landHolder: { controller?: LandController } = {};
   const windows = new WindowManager(root);
   const coasterPanel = new CoasterPanel(windows, {
     command: (command) => sim.command(command),
@@ -143,7 +143,7 @@ export async function bootstrap(): Promise<void> {
       alternate = on;
     },
     setLand(settings) {
-      landControllerRef?.configure(settings);
+      landHolder.controller?.configure(settings);
     },
     footpath: pathTool,
     setSceneryItem(item) {
@@ -304,7 +304,7 @@ export async function bootstrap(): Promise<void> {
     active: () => selectedTool === 'land',
     paused: () => userPaused || hiddenPaused,
   });
-  landControllerRef = landController;
+  landHolder.controller = landController;
   const toolController = createToolController({
     canvas,
     sim,

@@ -273,7 +273,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       cal = await openLandTool(setup.page, mobile);
     });
 
-    test.afterEach(async ({}, testInfo) => {
+    test.afterEach(async (_fixtures, testInfo) => {
       if (testInfo.status !== testInfo.expectedStatus)
         await setup.page.screenshot({ path: testInfo.outputPath('failure.png') });
       await setup.page.context().close();
