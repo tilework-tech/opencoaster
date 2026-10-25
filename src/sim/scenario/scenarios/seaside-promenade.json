@@ -1,0 +1,86 @@
+{
+  "id": "seaside-promenade",
+  "name": "Seaside Promenade",
+  "category": "real",
+  "climate": "warm",
+  "description": "A traditional seaside pier park built on a strip of reclaimed beach. Net $360 a month from food and drink by the end of year three.",
+  "seed": 4101,
+  "map": {
+    "width": 80,
+    "height": 80
+  },
+  "finance": {
+    "startingCash": 4000000,
+    "startingLoan": 2000000,
+    "maxLoan": 6000000,
+    "annualInterestBps": 800
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "free"
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "south",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 4,
+    "baseLevel": 6,
+    "relief": 2,
+    "cell": 10,
+    "surface": "sand",
+    "buildLevel": 7,
+    "buildLength": 30,
+    "buildWidth": 25,
+    "lakes": [
+      {
+        "x": 50,
+        "y": 4,
+        "rx": 40,
+        "ry": 8,
+        "depth": 3
+      }
+    ],
+    "hills": []
+  },
+  "land": {
+    "ownedMarginPercent": 22,
+    "saleMarginPercent": 3
+  },
+  "trees": {
+    "count": 40,
+    "groves": 3
+  },
+  "prebuilt": [
+    {
+      "type": "merryGoRound",
+      "row": 4,
+      "lateral": 6
+    },
+    {
+      "type": "toilets",
+      "row": 6,
+      "lateral": -2
+    }
+  ],
+  "objective": {
+    "kind": "monthlyFoodProfit",
+    "target": 36000,
+    "byYear": 3
+  }
+}

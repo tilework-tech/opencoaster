@@ -2,7 +2,10 @@ import { parseScenarioFile } from './scenario-file';
 import { SANDBOX_ID } from './scenario';
 import type { ScenarioDef } from './scenario';
 
-/** Every `scenarios/*.json` file is a scenario. Adding a file adds a playable scenario. */
+/**
+ * Every `scenarios/*.json` file is a scenario. Adding a file adds a playable scenario; the title
+ * screen groups them into tabs by each file's `category`.
+ */
 const files = import.meta.glob<unknown>('./scenarios/*.json', { eager: true, import: 'default' });
 
 /** Parsed, validated scenarios in file-name order. Throws on a malformed file or duplicate id. */

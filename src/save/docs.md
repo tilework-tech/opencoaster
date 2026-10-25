@@ -31,6 +31,7 @@ Path: @/src/save
 - Array ordering returned by map, entity-store, and track helpers is part of the binary format.
 - Deterministic continuation depends on restoring PRNG state, tick, weather countdown, persistent masks, entities, and economy/research/scenario state together.
 - The serializer expects a structurally valid header and does not provide a general corruption-recovery layer.
+- Scenario completion is kept in browser `localStorage` under `opencoaster.scenarioProgress.v1` ([scenario-progress.ts](scenario-progress.ts)): a map from scenario id to the time of the first win. Malformed entries are dropped, and an unavailable store reads as no progress. `main.ts` records a win when a scenario game's status becomes Won (including a loaded save that is already won) and the title screen reads it back.
 - Player settings such as speed and pause are kept in browser `localStorage`; they are not part of save files. Import and load validate the save header before replacing the active simulation.
 
 Created and maintained by Nori.

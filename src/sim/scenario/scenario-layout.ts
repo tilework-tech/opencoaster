@@ -2,6 +2,9 @@ import type { World } from '../core/world';
 import { placePath } from '../map/paths';
 import type { TileMap } from '../map/tile-map';
 import { applyScenario } from './scenario';
+import { DEFAULT_LAND, generateScenarioMap, ownedBounds } from './scenario-map';
+import type { TileRect } from './scenario-map';
+import { placePrebuilt } from './scenario-prebuilt';
 import type { EntranceSide, ScenarioDef, ScenarioEntrance } from './scenario';
 import { setParkEntrance } from '../guests/park';
 
@@ -19,12 +22,16 @@ const INWARD: Record<EntranceSide, readonly [number, number]> = {
  * tile is buildable, flat, dry and empty, so the result depends only on the terrain. Returns
  * the number of path pieces placed, or 0 when no such run exists.
  */
-export function layOutEntrance(world: World, entrance: ScenarioEntrance): number {
+export function layOutEntrance(
+  world: World,
+  entrance: ScenarioEntrance,
+  owned: TileRect = ownedBounds(world.map.width, world.map.height, DEFAULT_LAND),
+): number {
   const m = world.map;
-  const x0 = m.width >> 2;
-  const x1 = m.width - x0;
-  const y0 = m.height >> 2;
-  const y1 = m.height - y0;
+  const x0 = owned.x0;
+  const x1 = owned.x1 + 1;
+  const y0 = owned.y0;
+  const y1 = owned.y1 + 1;
   const horizontal = entrance.side === 'north' || entrance.side === 'south';
   const [lo, hi] = horizontal ? [x0, x1 - 1] : [y0, y1 - 1];
   const mid = (lo + hi) >> 1;
@@ -77,10 +84,18 @@ function isRunClear(
 }
 
 /**
- * Applies a scenario definition to a freshly created world: finances, research catalogue,
- * objective and the park entrance. Call once, before stepping.
+ * Applies a scenario definition to a freshly created world: its terrain recipe, finances,
+ * research catalogue, objective, the park entrance and any standing rides. Call once, before
+ * stepping.
  */
 export function prepareScenario(world: World, def: ScenarioDef): void {
+  generateScenarioMap(world.map, def, world.seed);
+  const economy = world.economy;
+  economy.cash = Number.MAX_SAFE_INTEGER;
+  if (def.entrance) {
+    layOutEntrance(world, def.entrance, ownedBounds(world.map.width, world.map.height, def.land));
+    if (def.prebuilt) placePrebuilt(world, def.entrance.side, def.prebuilt);
+  }
   applyScenario(world, def);
-  if (def.entrance) layOutEntrance(world, def.entrance);
+  economy.monthlyTotals.fill(0);
 }

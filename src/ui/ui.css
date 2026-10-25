@@ -1065,3 +1065,13 @@
   min-height: 28px;
   box-sizing: border-box;
 }
+.scenario-card.completed {
+  border-left: 4px solid #3f7d2c;
+}
+#app .scenario-status {
+  margin: 0;
+  font-weight: 700;
+}
+.scenario-card.completed .scenario-status {
+  color: #2e6320;
+}

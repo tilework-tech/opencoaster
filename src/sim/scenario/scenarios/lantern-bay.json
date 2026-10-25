@@ -1,0 +1,100 @@
+{
+  "id": "lantern-bay",
+  "name": "Lantern Bay",
+  "category": "beginner",
+  "climate": "hotAndDry",
+  "description": "A sandy bay with a long sheltered shore. Lift the park's value above $7,000 within three years.",
+  "seed": 1202,
+  "map": {
+    "width": 80,
+    "height": 80
+  },
+  "finance": {
+    "startingCash": 5000000,
+    "startingLoan": 1000000,
+    "maxLoan": 6000000,
+    "annualInterestBps": 700
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "perRide"
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "east",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 4,
+    "baseLevel": 6,
+    "relief": 3,
+    "cell": 10,
+    "surface": "sand",
+    "buildLevel": 7,
+    "buildLength": 30,
+    "buildWidth": 25,
+    "lakes": [
+      {
+        "x": 12,
+        "y": 50,
+        "rx": 10,
+        "ry": 30,
+        "depth": 3
+      },
+      {
+        "x": 50,
+        "y": 92,
+        "rx": 24,
+        "ry": 8,
+        "depth": 2
+      }
+    ],
+    "hills": [
+      {
+        "x": 78,
+        "y": 22,
+        "radius": 8,
+        "height": 3
+      }
+    ]
+  },
+  "land": {
+    "ownedMarginPercent": 24,
+    "saleMarginPercent": 2
+  },
+  "trees": {
+    "count": 70,
+    "groves": 4
+  },
+  "prebuilt": [
+    {
+      "type": "drinkStall",
+      "row": 4,
+      "lateral": -2
+    },
+    {
+      "type": "swingingShip",
+      "row": 6,
+      "lateral": 6
+    }
+  ],
+  "objective": {
+    "kind": "parkValueByDate",
+    "target": 700000,
+    "byYear": 3
+  }
+}

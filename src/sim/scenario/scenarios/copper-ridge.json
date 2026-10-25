@@ -1,0 +1,88 @@
+{
+  "id": "copper-ridge",
+  "name": "Copper Ridge",
+  "category": "challenging",
+  "climate": "hotAndDry",
+  "description": "Dry red hills with a mine-cart past. Build five coasters rated 4.60 excitement or better before the end of the first year.",
+  "seed": 2101,
+  "map": {
+    "width": 96,
+    "height": 96
+  },
+  "finance": {
+    "startingCash": 3000000,
+    "startingLoan": 2500000,
+    "maxLoan": 9000000,
+    "annualInterestBps": 900
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "perRide"
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "south",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 3,
+    "baseLevel": 8,
+    "relief": 5,
+    "cell": 10,
+    "surface": "dirt",
+    "buildLevel": 9,
+    "buildLength": 48,
+    "buildWidth": 35,
+    "lakes": [
+      {
+        "x": 15,
+        "y": 20,
+        "rx": 9,
+        "ry": 7,
+        "depth": 2
+      }
+    ],
+    "hills": [
+      {
+        "x": 80,
+        "y": 25,
+        "radius": 12,
+        "height": 5
+      },
+      {
+        "x": 20,
+        "y": 70,
+        "radius": 10,
+        "height": 4
+      }
+    ]
+  },
+  "land": {
+    "ownedMarginPercent": 22,
+    "saleMarginPercent": 3
+  },
+  "trees": {
+    "count": 150,
+    "groves": 8
+  },
+  "objective": {
+    "kind": "completeCoasters",
+    "target": 5,
+    "minimumExcitement": 460,
+    "byYear": 1
+  }
+}

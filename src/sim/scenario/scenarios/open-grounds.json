@@ -1,0 +1,74 @@
+{
+  "id": "open-grounds",
+  "name": "Open Grounds",
+  "category": "other",
+  "climate": "warm",
+  "description": "No deadline and no targets: a large flat estate to build anything you like. Have fun.",
+  "seed": 5001,
+  "map": {
+    "width": 96,
+    "height": 96
+  },
+  "finance": {
+    "startingCash": 8000000,
+    "startingLoan": 0,
+    "maxLoan": 10000000,
+    "annualInterestBps": 600
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "admission",
+    "admissionPrice": 300
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "south",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 3,
+    "baseLevel": 6,
+    "relief": 2,
+    "cell": 12,
+    "surface": "grass",
+    "buildLevel": 7,
+    "buildLength": 32,
+    "buildWidth": 37,
+    "lakes": [
+      {
+        "x": 85,
+        "y": 25,
+        "rx": 10,
+        "ry": 8,
+        "depth": 2
+      }
+    ],
+    "hills": []
+  },
+  "land": {
+    "ownedMarginPercent": 22,
+    "saleMarginPercent": 0
+  },
+  "trees": {
+    "count": 120,
+    "groves": 6
+  },
+  "objective": {
+    "kind": "haveFun",
+    "target": 0
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "id": "riverside-fairground",
+  "name": "Riverside Fairground",
+  "category": "real",
+  "climate": "warm",
+  "description": "A county fairground on a river bend with a big annual crowd. Attract 625 guests by the end of year three.",
+  "seed": 4202,
+  "map": {
+    "width": 88,
+    "height": 88
+  },
+  "finance": {
+    "startingCash": 5000000,
+    "startingLoan": 2500000,
+    "maxLoan": 8000000,
+    "annualInterestBps": 900
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "admission",
+    "admissionPrice": 300
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "north",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 3,
+    "baseLevel": 6,
+    "relief": 3,
+    "cell": 8,
+    "surface": "grass",
+    "buildLevel": 7,
+    "buildLength": 30,
+    "buildWidth": 25,
+    "lakes": [
+      {
+        "x": 8,
+        "y": 50,
+        "rx": 8,
+        "ry": 45,
+        "depth": 2
+      }
+    ],
+    "hills": [
+      {
+        "x": 70,
+        "y": 70,
+        "radius": 10,
+        "height": 3
+      }
+    ]
+  },
+  "land": {
+    "ownedMarginPercent": 23,
+    "saleMarginPercent": 3
+  },
+  "trees": {
+    "count": 150,
+    "groves": 7
+  },
+  "prebuilt": [
+    {
+      "type": "twist",
+      "row": 4,
+      "lateral": -6
+    },
+    {
+      "type": "foodStall",
+      "row": 6,
+      "lateral": 2
+    },
+    {
+      "type": "drinkStall",
+      "row": 8,
+      "lateral": -2
+    }
+  ],
+  "objective": {
+    "kind": "guestsByDate",
+    "target": 625,
+    "minimumRating": 600,
+    "byYear": 3
+  }
+}
