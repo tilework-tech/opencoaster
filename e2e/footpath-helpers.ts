@@ -8,12 +8,6 @@ import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { planPathPlacement, PathResult } from '../src/sim/map/paths';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 
-const starterScenario = parseScenarioFile(
-  JSON.parse(
-    readFileSync(new URL('../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
-  ),
-);
-
 export interface Tile {
   x: number;
   y: number;
@@ -21,13 +15,32 @@ export interface Tile {
 
 /** The Starter Park world as the browser's worker builds it, for reading tile heights and ownership. */
 export function createStarterWorld(): World {
+  return createScenarioWorld('starter');
+}
+
+export function createScenarioWorld(id: 'starter' | 'open-grounds'): World {
+  const scenario = parseScenarioFile(
+    JSON.parse(
+      readFileSync(new URL(`../src/sim/scenario/scenarios/${id}.json`, import.meta.url), 'utf8'),
+    ),
+  );
   const world = new World({
-    seed: starterScenario.seed,
-    width: starterScenario.mapWidth,
-    height: starterScenario.mapHeight,
+    seed: scenario.seed,
+    width: scenario.mapWidth,
+    height: scenario.mapHeight,
   });
-  prepareScenario(world, starterScenario);
+  prepareScenario(world, scenario);
   return world;
+}
+
+/** Lists the four tiles that can connect a ride entrance to the public path network. */
+export function adjacentPathTiles(entrance: Tile): Tile[] {
+  return [
+    { x: entrance.x - 1, y: entrance.y },
+    { x: entrance.x + 1, y: entrance.y },
+    { x: entrance.x, y: entrance.y - 1 },
+    { x: entrance.x, y: entrance.y + 1 },
+  ];
 }
 
 /** The HUD cash readout in the bottom-left corner. */

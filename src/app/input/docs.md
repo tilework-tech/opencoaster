@@ -5,7 +5,7 @@ Path: @/src/app/input
 ### Overview
 
 - Wires browser resize, visibility, keyboard, wheel and pointer events to camera and game actions.
-- Adapts the reusable gesture recognizer to the app's camera, UI and tool callbacks.
+- Adapts the reusable gesture recognizer to the app's camera, UI and tool callbacks, including forced ride selection from desktop context-clicks and touch holds.
 
 ### How it fits into the larger codebase
 
@@ -15,7 +15,7 @@ Path: @/src/app/input
 
 ### Core Implementation
 
-- `connectCameraInput` installs DOM event handlers, tracks held keys, updates render dimensions, and connects pointer gestures to pan, zoom, rotation, selection and paint callbacks. Pointer twist and the keyboard shortcuts resolve rotation through the shared camera helper using the current map and latest track snapshot, so elevated surfaces can define the viewport-centre focus.
+- `connectCameraInput` installs DOM event handlers, tracks held keys, updates render dimensions, and connects pointer gestures to pan, zoom, rotation, selection and paint callbacks. Pointer twist and the keyboard shortcuts resolve rotation through the shared camera helper using the current map and latest track snapshot, so elevated surfaces can define the viewport-centre focus. A desktop context click prevents the browser menu and forces canvas selection except while Footpaths is active, when it removes a path. A touch hold forces selection except while Footpaths is active, when it removes a path.
 - `centreOnTile` projects a map tile into camera coordinates for locate actions.
 - Input is gated by active-game and overlay callbacks; visibility changes update app pause state.
 

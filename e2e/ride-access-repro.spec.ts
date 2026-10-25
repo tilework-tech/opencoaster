@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
+import { adjacentPathTiles, clickGameTile, createScenarioWorld } from './footpath-helpers';
 
 async function toolbarAction(page: Page, name: string): Promise<void> {
   await page.locator('.game-toolbar').getByRole('button', { name, exact: true }).click();
@@ -48,6 +49,31 @@ async function clickViewportCenter(page: Page): Promise<void> {
   await game.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
 }
 
+async function connectEntranceWithPath(
+  page: Page,
+  world: ReturnType<typeof createScenarioWorld>,
+  entrance: { x: number; y: number },
+): Promise<void> {
+  const surfaceControl = page.getByRole('button', { name: 'Tarmac', exact: true });
+  if (!(await surfaceControl.isVisible())) await toolbarAction(page, 'Footpaths');
+  const titlebar = page.locator('[data-panel="paths"] .ui-titlebar');
+  const bounds = await titlebar.boundingBox();
+  if (!bounds) throw new Error('Footpaths window is missing its title bar');
+  await page.mouse.move(bounds.x + 40, bounds.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(80, 52, { steps: 6 });
+  await page.mouse.up();
+  for (const tile of adjacentPathTiles(entrance)) {
+    await surfaceControl.click();
+    await clickGameTile(page, world, tile);
+    const status = page.locator('.tool-status');
+    await expect(status).not.toContainText('Surface: Tarmac');
+    const result = await status.innerText();
+    if (result.startsWith('Laid footpath at') || result.startsWith('A footpath is already at'))
+      return;
+  }
+}
+
 async function screenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   const path = testInfo.outputPath(`${name}.png`);
   await mkdir(dirname(path), { recursive: true });
@@ -81,8 +107,14 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
   const entrances = page.getByRole('button', { name: /Place entrance at tile/ });
   const entranceCount = await entrances.count();
   expect(entranceCount).toBeGreaterThan(0);
-  const entranceBounds = await entrances.first().boundingBox();
-  if (!entranceBounds) throw new Error('Ferris Wheel entrance candidate is missing');
+  const entranceLabel = await entrances.first().getAttribute('aria-label');
+  const entranceCoordinates = entranceLabel?.match(/tile (\d+), (\d+)/);
+  if (!entranceCoordinates) throw new Error('Ferris Wheel entrance candidate is missing its tile');
+  const entranceTile = {
+    x: Number(entranceCoordinates[1]),
+    y: Number(entranceCoordinates[2]),
+  };
+  const world = createScenarioWorld('starter');
   await entrances.first().click();
   await expect(page.locator('.tool-status')).toContainText('Place exit');
   await screenshot(page, testInfo, 'p0-3-ferris-before-exit');
@@ -102,10 +134,7 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
   await expect(page.locator('.tool-status')).toContainText('Ride setup complete');
 
   await toolbarAction(page, 'Footpaths');
-  await page.mouse.click(
-    entranceBounds.x + entranceBounds.width / 2 - 32,
-    entranceBounds.y + entranceBounds.height / 2 - 16,
-  );
+  await connectEntranceWithPath(page, world, entranceTile);
 
   await toolbarAction(page, 'Rides');
   const ferrisRow = page
@@ -145,6 +174,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
     .getByRole('button', { name: 'Start', exact: true })
     .click();
   await expect(page.locator('.hud')).toContainText('WebGL2');
+  await page.getByRole('button', { name: 'Close Park' }).click();
 
   const coasterCenter: readonly [number, number] = [47, 66];
   await toolbarAction(page, 'New ride');
@@ -193,8 +223,14 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   await screenshot(page, testInfo, 'p0-4-looping-coaster-before-access');
   const coasterEntrance = page.getByRole('button', { name: /Place entrance at tile/ }).first();
   await expect(coasterEntrance).toBeVisible();
-  const entranceBounds = await coasterEntrance.boundingBox();
-  if (!entranceBounds) throw new Error('Coaster entrance candidate is missing');
+  const entranceLabel = await coasterEntrance.getAttribute('aria-label');
+  const entranceCoordinates = entranceLabel?.match(/tile (\d+), (\d+)/);
+  if (!entranceCoordinates) throw new Error('Coaster entrance candidate is missing its tile');
+  const entranceTile = {
+    x: Number(entranceCoordinates[1]),
+    y: Number(entranceCoordinates[2]),
+  };
+  const world = createScenarioWorld('open-grounds');
   await coasterEntrance.click();
   await expect(page.locator('.tool-status')).toContainText('Place exit');
   await toolbarAction(page, 'Rides');
@@ -213,10 +249,13 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
     .locator('.ride-checklist')
     .getByRole('button', { name: 'Build path' })
     .click();
-  await page.mouse.click(
-    entranceBounds.x + entranceBounds.width / 2 - 32,
-    entranceBounds.y + entranceBounds.height / 2 - 16,
-  );
+  await page.getByRole('button', { name: `Close Ride #${coasterId}` }).click();
+  await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
+  const closeConstruction = page.getByRole('button', { name: 'Close Ride construction' });
+  if ((await closeConstruction.count()) > 0) await closeConstruction.click();
+  await connectEntranceWithPath(page, world, entranceTile);
+  await toolbarAction(page, 'Rides');
+  await coasterRow.click();
   await expect(coasterWindow.locator('.ride-checklist')).not.toContainText(
     'Entrance not connected to a path',
   );

@@ -212,7 +212,8 @@ export class Simulation {
         break;
       default:
         applyMapCommand(w, c);
-        if (c.type === 'placePath' || c.type === 'removePath') refreshRideQueueConnections(w);
+        if (c.type === 'placePath' || c.type === 'placePathRun' || c.type === 'removePath')
+          refreshRideQueueConnections(w);
         break;
       case 'economy':
         reportFeedback(w.feedback, FeedbackDomain.Economy, applyEconomyCommand(w, c.action));

@@ -137,17 +137,20 @@ export function createToolController(deps: ToolControllerDependencies) {
       else deps.gameUi.setToolStatus(deps.coasterPanel.handleTileClick(x, y));
       return;
     }
-    const guest = findGuestAt(localX, localY, rect.width, rect.height, map, deps.camera, deps.sim);
+    const rideId =
+      forceSelect && tile && deps.sim.latest
+        ? findRideIdAtTile(deps.sim.latest, tile[0], tile[1])
+        : null;
+    const guest =
+      rideId === null
+        ? findGuestAt(localX, localY, rect.width, rect.height, map, deps.camera, deps.sim)
+        : null;
     deps.setSelectedGuest(guest);
     let selectionStatus = tile ? `Tile ${tile[0]}, ${tile[1]}` : 'Outside the park map.';
-    if (guest) deps.gameUi.openGuestPanel();
-    else if (forceSelect && tile) {
-      const rideId = deps.sim.latest ? findRideIdAtTile(deps.sim.latest, tile[0], tile[1]) : null;
-      if (rideId !== null) {
-        deps.gameUi.openRide(rideId);
-        selectionStatus = `Ride ${rideId} information opened.`;
-      }
-    }
+    if (rideId !== null) {
+      deps.gameUi.openRide(rideId);
+      selectionStatus = `Ride ${rideId} information opened.`;
+    } else if (guest) deps.gameUi.openGuestPanel();
     deps.gameUi.setToolStatus(selectionStatus);
     deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
   }

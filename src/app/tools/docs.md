@@ -24,7 +24,7 @@ Path: @/src/app/tools
 
 ### Things to Know
 
-- A forced selection from a hold bypasses the active build tool; guest details are preferred, then ride hit testing is used for ride tiles.
+- A forced selection from a hold or desktop context click bypasses the active build tool. Ride footprint and track hit testing runs before guest hit testing, so a ride window opens when both overlap; otherwise a hit guest opens its detail window.
 - Tool status text reports requests, while command acceptance and resulting state remain authoritative in the simulation worker.
 
 Created and maintained by Nori.

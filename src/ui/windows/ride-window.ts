@@ -2,7 +2,7 @@ import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import { MAX_CARS, MAX_TRAINS_PER_RIDE } from '../../sim/vehicles/ride-trains';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
-import { button, element, gauge, setText, statRow } from '../dom';
+import { button, element, gauge, iconButton, setText, statRow } from '../dom';
 import { SampleSeries, drawChart, formatMoney } from '../format';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
@@ -46,6 +46,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const status = element('div', 'ride-status');
   let rideX: number | null = null;
   let rideY: number | null = null;
+  let rideName = `Ride #${rideId}`;
+  let refund = 0;
   status.setAttribute('role', 'status');
   const excitement = gauge('Excitement');
   const intensity = gauge('Intensity');
@@ -58,13 +60,15 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     button('Close', setStatus('close'), 'ui-button'),
     button('Test', setStatus('test'), 'ui-button'),
   );
-  const demolish = button(
+  const demolish = iconButton(
+    'demolish',
     'Demolish ride',
     () => {
-      if (window.confirm('Demolish this ride and receive its construction refund?'))
+      if (window.confirm(`Demolish ${rideName}? Refund: ${formatMoney(refund)}`))
         ctx.actions.demolishRide(rideId);
     },
     'ui-button danger',
+    'Demolish',
   );
   const partButtons = element('div', 'button-row');
   partButtons.append(
@@ -225,8 +229,9 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       const type = info[o + RideInfo.Type];
       const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
       const flags = info[o + RideInfo.Flags];
-      const name = `${def?.name ?? 'Ride'} #${rideId}`;
-      win.setTitle(name);
+      refund = info[o + RideInfo.DemolitionRefund];
+      rideName = `${def?.name ?? 'Ride'} #${rideId}`;
+      win.setTitle(rideName);
       const tested = (flags & RideFlag.Tested) !== 0;
       const state = info[o + RideInfo.State];
       setText(status, `${RIDE_STATE_NAMES[state] ?? ''}`);
@@ -253,7 +258,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
                 label: 'No path access',
                 action: 'Build path',
                 onClick: () => {
-                  ctx.actions.setPathQueue(false);
+                  ctx.actions.footpath.setQueue(false);
                   ctx.chooseTool('path');
                 },
               }

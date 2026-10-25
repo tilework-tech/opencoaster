@@ -14,6 +14,8 @@ import { applyScenario } from '../sim/scenario/scenario';
 import { findScenario } from '../sim/scenario/catalog';
 import { Funding } from '../sim/research/research';
 import { prepareFlat } from '../sim/integration/fixtures';
+import { PIECES } from '../sim/track/catalog';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import { StaffKind, StaffOrder } from '../sim/staff/staff-store';
 import {
   RideInfo,
@@ -257,6 +259,14 @@ describe('render snapshot', () => {
     expect(info[o + RideInfo.Type]).toBe(RideType.SteelLoopingCoaster);
     expect(info[o + RideInfo.State]).toBe(RideState.Closed);
     expect(info[o + RideInfo.TrackPieces]).toBe(1);
+    const constructionCost = RIDE_CATALOG[RideType.SteelLoopingCoaster].cost + PIECES[0].cost;
+    expect(info[o + RideInfo.DemolitionRefund]).toBe(constructionCost);
+    const rideSlot = sim.world.rides.idToSlot[rideId];
+    sim.world.rides.cols.guestsServed[rideSlot] = 1;
+    writeSnapshot(sim.world, snapshot);
+    expect(snapshot.rideInfo[o + RideInfo.DemolitionRefund]).toBe(
+      Math.floor((constructionCost * 70) / 100),
+    );
     expect(decodeCursor(info[o + RideInfo.Cursor])).toEqual({
       hasTrack: true,
       dir: 0,

@@ -23,6 +23,7 @@ import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
 import { RideResult } from './ride-results';
+import { demolitionRefund } from './ride-refund';
 
 export type RideCommand =
   | { type: 'placeRideEntrance'; rideId: number; x: number; y: number }
@@ -307,15 +308,7 @@ function demolishRide(world: World, rideId: number): RideResult {
   if (!world.rides.isAlive(rideId)) return RideResult.NoSuchRide;
   const slot = world.rides.idToSlot[rideId];
   const ride = world.rides.cols;
-  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-  const constructionCost = Array.from({ length: world.track.pieces.count }, (_, index) => index)
-    .filter((index) => world.track.pieces.cols.rideId[index] === rideId)
-    .reduce(
-      (total, index) => total + PIECES[world.track.pieces.cols.pieceType[index]].cost,
-      def.cost,
-    );
-  const refund =
-    ride.guestsServed[slot] === 0 ? constructionCost : Math.floor((constructionCost * 70) / 100);
+  const refund = demolitionRefund(world, rideId);
   const disembarkTile = findDisembarkTile(world, slot);
 
   if (ride.state[slot] === RideState.Testing) abortRideTest(world, rideId);

@@ -284,9 +284,9 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     if (deps.selectedTool() === 'land' && event.buttons === 0) deps.land.leave();
   });
   canvas.addEventListener('contextmenu', (event) => {
-    if (deps.selectedTool() !== 'path') return;
     event.preventDefault();
-    deps.removePathAt(event.clientX, event.clientY);
+    if (deps.selectedTool() === 'path') deps.removePathAt(event.clientX, event.clientY);
+    else deps.handleCanvasClick(event.clientX, event.clientY, false, true);
   });
 
   return keys;
