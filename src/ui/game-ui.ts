@@ -131,7 +131,22 @@ export class GameUI {
       { id: 'options', icon: 'options', label: 'Game options', onClick: open('options') },
       { id: 'zoom-out', icon: 'zoomOut', label: 'Zoom out', onClick: () => actions.zoom(-1) },
       { id: 'zoom-in', icon: 'zoomIn', label: 'Zoom in', onClick: () => actions.zoom(1) },
-      { id: 'rotate', icon: 'rotateRight', label: 'Rotate view', onClick: () => actions.rotate(1) },
+      {
+        id: 'rotate-clockwise',
+        icon: 'rotateRight',
+        label: 'Rotate clockwise',
+        caption: 'Enter / Z',
+        tooltip: 'Rotate clockwise (Enter or Z)',
+        onClick: () => actions.rotate(1),
+      },
+      {
+        id: 'rotate-anticlockwise',
+        icon: 'rotateLeft',
+        label: 'Rotate anticlockwise',
+        caption: 'Shift+Enter / X',
+        tooltip: 'Rotate anticlockwise (Shift+Enter or X)',
+        onClick: () => actions.rotate(-1),
+      },
       { id: 'view', icon: 'view', label: 'View options', onClick: open('view') },
       { id: 'map', icon: 'map', label: 'Map', onClick: open('map') },
     ];
@@ -258,6 +273,10 @@ export class GameUI {
     this.speed = speed;
   }
 
+  syncRotation(rotation: number): void {
+    this.toolbar.setRotation(rotation);
+  }
+
   /** Runs a default keyboard shortcut; returns true when the key was handled. */
   handleShortcut(event: KeyLike): boolean {
     const action = shortcutFor(event);
@@ -277,7 +296,7 @@ export class GameUI {
         this.setToolStatus(this.paused ? 'Simulation paused.' : 'Simulation resumed.');
         return true;
       case 'rotate':
-        this.actions.rotate(1);
+        this.actions.rotate(action.direction);
         return true;
       case 'zoom':
         this.actions.zoom(action.direction);
@@ -533,7 +552,7 @@ export class GameUI {
         element(
           'p',
           'ui-help',
-          'Esc cancels a tool · Enter rotates view · Ctrl+S saves a screenshot.',
+          'Esc cancels a tool · Enter / Z rotate clockwise · Shift+Enter / X rotate anticlockwise · Ctrl+S saves a screenshot.',
         ),
         element('p', 'ui-help', 'Page Up / Page Down zoom · Backspace closes a window.'),
       );

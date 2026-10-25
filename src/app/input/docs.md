@@ -15,13 +15,13 @@ Path: @/src/app/input
 
 ### Core Implementation
 
-- `connectCameraInput` installs DOM event handlers, tracks held keys, updates render dimensions, and connects pointer gestures to pan, zoom, rotation, selection and paint callbacks.
+- `connectCameraInput` installs DOM event handlers, tracks held keys, updates render dimensions, and connects pointer gestures to pan, zoom, rotation, selection and paint callbacks. Pointer twist and the keyboard shortcuts resolve rotation through the shared camera helper using the current map and latest track snapshot, so elevated surfaces can define the viewport-centre focus.
 - `centreOnTile` projects a map tile into camera coordinates for locate actions.
 - Input is gated by active-game and overlay callbacks; visibility changes update app pause state.
 
 ### Things to Know
 
-- Pointer and wheel positions use CSS-pixel coordinates, while the renderer applies a capped device-pixel ratio to its backing buffer.
+- Pointer and wheel positions use CSS-pixel coordinates, while the renderer applies a capped device-pixel ratio to its backing buffer. Rotation controls are independent of the active map tool and floating windows; they update the shared camera state used by the renderer.
 - The returned key set is read by bootstrap's frame loop for continuous WASD panning.
 
 Created and maintained by Nori.

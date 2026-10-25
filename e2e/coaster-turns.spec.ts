@@ -27,6 +27,6 @@ test('a steel looping coaster draws connected track and supports in all four vie
     const path = testInfo.outputPath(`steel-looping-view-${rotation}.png`);
     await page.screenshot({ path, timeout: 60_000 });
     await testInfo.attach(`steel-looping-view-${rotation}`, { path, contentType: 'image/png' });
-    await toolbar.getByRole('button', { name: 'Rotate view', exact: true }).click();
+    await toolbar.getByRole('button', { name: 'Rotate clockwise', exact: true }).click();
   }
 });

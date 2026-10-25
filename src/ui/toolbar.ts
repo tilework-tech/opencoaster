@@ -6,6 +6,7 @@ export interface ToolbarButton {
   icon: IconName;
   label: string;
   caption?: string;
+  tooltip?: string;
   onClick(): void;
 }
 
@@ -15,6 +16,7 @@ export class Toolbar {
   private readonly buttons = new Map<string, HTMLButtonElement>();
   private readonly actionsButton: HTMLButtonElement;
   private readonly menu: HTMLElement;
+  private readonly compass: HTMLElement;
 
   constructor(
     parent: HTMLElement,
@@ -44,6 +46,7 @@ export class Toolbar {
           'toolbar-button',
           item.caption ?? item.label,
         );
+        if (item.tooltip) b.title = item.tooltip;
         b.dataset.action = item.id;
         b.setAttribute('aria-pressed', 'false');
         this.buttons.set(item.id, b);
@@ -52,7 +55,14 @@ export class Toolbar {
       }
     }
     this.menu.append(leftGroup, rightGroup);
-    this.root.append(this.actionsButton, this.menu);
+    this.compass = element('div', 'camera-compass');
+    this.compass.setAttribute('role', 'img');
+    this.compass.setAttribute('aria-label', 'North is up');
+    this.compass.append(
+      element('span', 'camera-compass-arrow', '↑'),
+      element('span', undefined, 'N'),
+    );
+    this.root.append(this.actionsButton, this.menu, this.compass);
     parent.append(this.root);
   }
 
@@ -69,6 +79,15 @@ export class Toolbar {
 
   setPressed(id: string, pressed: boolean): void {
     this.buttons.get(id)?.setAttribute('aria-pressed', String(pressed));
+  }
+
+  setRotation(rotation: number): void {
+    const direction = ((rotation % 4) + 4) % 4;
+    const names = ['up', 'right', 'down', 'left'];
+    this.compass.setAttribute('aria-label', `North is ${names[direction]}`);
+    this.compass.dataset.rotation = String(direction);
+    const arrow = this.compass.firstElementChild as HTMLElement | null;
+    if (arrow) arrow.style.transform = `rotate(${direction * 90}deg)`;
   }
 
   /** Replaces a button's icon and name, e.g. Pause ↔ Resume. */
