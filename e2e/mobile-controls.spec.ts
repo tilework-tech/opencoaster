@@ -13,6 +13,11 @@ test('keeps map camera controls reachable on a phone-sized screen', async ({ pag
 
   const zoomIn = page.getByRole('button', { name: 'Zoom in' });
   const zoomOut = page.getByRole('button', { name: 'Zoom out' });
+  const openActions = async () => {
+    if (await zoomIn.isVisible()) return;
+    await page.locator('.game-toolbar').getByRole('button', { name: 'Actions', exact: true }).tap();
+  };
+  await openActions();
   await expect(zoomIn).toBeVisible();
   await expect(zoomOut).toBeVisible();
 
@@ -28,11 +33,13 @@ test('keeps map camera controls reachable on a phone-sized screen', async ({ pag
   }
 
   const initialFrame = await page.locator('#game').screenshot();
+  await openActions();
   await zoomIn.tap();
   const zoomedFrame = await page.locator('#game').screenshot();
   expect(createHash('sha256').update(zoomedFrame).digest('hex')).not.toBe(
     createHash('sha256').update(initialFrame).digest('hex'),
   );
+  await openActions();
   await zoomOut.tap();
 
   const beforePinch = await page.locator('#game').screenshot();
