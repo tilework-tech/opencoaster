@@ -1,7 +1,9 @@
 import { writeSpriteDef } from './output';
 import type { SpriteDef } from './output';
 import { renderMesh } from './raster';
+import { rotateMesh } from './mesh';
 import type { Mesh } from './mesh';
+import { RIDE_MODELS, rideMesh } from './models/rides';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { SHORE_FRAMES, WATER_FRAMES, shoreMesh, waterMesh } from './models/water';
 
@@ -52,9 +54,23 @@ function waterSprites(): SpriteDef[] {
   return out;
 }
 
+function rideSprites(): SpriteDef[] {
+  const out: SpriteDef[] = [];
+  for (const model of RIDE_MODELS)
+    for (let view = 0; view < 4; view++)
+      out.push({
+        key: `${model.key}/view-${view}`,
+        frames: Array.from({ length: model.frames }, (_, frame) =>
+          renderMesh(rotateMesh(rideMesh(model, frame), view)),
+        ),
+        footprint: ONE_TILE,
+      });
+  return out;
+}
+
 /** Every sprite this tool renders, keyed as in the atlas manifest. */
 export function buildSprites(): SpriteDef[] {
-  return [...pathSprites(), ...waterSprites()];
+  return [...pathSprites(), ...waterSprites(), ...rideSprites()];
 }
 
 export async function renderSprites(outputDir: string): Promise<SpriteDef[]> {

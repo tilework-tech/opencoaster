@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import sharp from 'sharp';
 
 const MAX_ATLAS_WIDTH = 1024;
-const MAX_ATLAS_HEIGHT = 2048;
+const MAX_ATLAS_HEIGHT = 4096;
 
 export interface SpriteFrame {
   x: number;
@@ -140,7 +141,35 @@ export async function packSprites(inputDir: string, outputDir: string): Promise<
   const { frames: sourceFrames, metadata: sourceMetadata } = await loadSprites(inputDir);
   if (sourceFrames.length === 0) throw new Error(`No PNG sprites found in ${inputDir}`);
 
-  const sorted = [...sourceFrames].sort((left, right) => {
+  const pixels = await Promise.all(
+    sourceFrames.map((frame) =>
+      sharp(frame.sourcePath)
+        .extract({
+          left: frame.region.x,
+          top: frame.region.y,
+          width: frame.region.width,
+          height: frame.region.height,
+        })
+        .ensureAlpha()
+        .raw()
+        .toBuffer(),
+    ),
+  );
+  // Frames with identical pixels share one atlas region.
+  const representative = new Map<string, SourceFrame>();
+  const representativeOf = new Map<string, SourceFrame>();
+  sourceFrames.forEach((frame, index) => {
+    const digest = createHash('sha1')
+      .update(`${frame.region.width}x${frame.region.height}:`)
+      .update(pixels[index])
+      .digest('hex');
+    const first = representative.get(digest) ?? frame;
+    representative.set(digest, first);
+    representativeOf.set(frame.key, first);
+  });
+  const uniqueFrames = [...representative.values()];
+
+  const sorted = [...uniqueFrames].sort((left, right) => {
     const areaOrder =
       right.region.height * right.region.width - left.region.height * left.region.width;
     return (
@@ -211,13 +240,15 @@ export async function packSprites(inputDir: string, outputDir: string): Promise<
 
   const atlasFrames = new Map<string, SpriteFrame>();
   for (const frame of packed) {
-    atlasFrames.set(`${frame.spriteKey}\u0000${String(frame.frameIndex).padStart(6, '0')}`, {
+    atlasFrames.set(frame.key, {
       x: frame.x,
       y: frame.y,
       width: frame.region.width,
       height: frame.region.height,
     });
   }
+  for (const frame of sourceFrames)
+    atlasFrames.set(frame.key, atlasFrames.get(representativeOf.get(frame.key)!.key)!);
 
   const sprites = Object.fromEntries(
     [...sourceMetadata.keys()]

@@ -179,3 +179,101 @@ export function rotateMesh(mesh: Mesh, quarterTurns: number): Mesh {
     v: t.v.map((p) => rotatePoint(p, quarterTurns)) as unknown as Triangle['v'],
   }));
 }
+
+/**
+ * Model-space z for models authored in physical tile units: a height level is 16px while a tile is
+ * 64px wide, so one tile of physical height spans this many levels in the dimetric view.
+ */
+export const PHYSICAL_Z = 39.19 / 16;
+
+export function mapMesh(mesh: Mesh, fn: (p: Vec3) => Vec3): Mesh {
+  return mesh.map((t) => ({
+    material: t.material,
+    v: t.v.map(fn) as unknown as Triangle['v'],
+  }));
+}
+
+/** Converts a mesh authored in physical tile units to height levels. */
+export function physicalToLevels(mesh: Mesh): Mesh {
+  return mapMesh(mesh, (p) => [p[0], p[1], p[2] * PHYSICAL_Z]);
+}
+
+/** Rotates by `angle` radians around the vertical axis through (cx, cy). */
+export function rotateZ(mesh: Mesh, angle: number, cx = 0, cy = 0): Mesh {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return mapMesh(mesh, (p) => {
+    const x = p[0] - cx;
+    const y = p[1] - cy;
+    return [cx + x * c - y * s, cy + x * s + y * c, p[2]];
+  });
+}
+
+/** Rotates in the x-z plane (around an axis parallel to y) through (cx, cz). */
+export function rotateY(mesh: Mesh, angle: number, cx: number, cz: number): Mesh {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return mapMesh(mesh, (p) => {
+    const x = p[0] - cx;
+    const z = p[2] - cz;
+    return [cx + x * c + z * s, p[1], cz - x * s + z * c];
+  });
+}
+
+/** Bar with a rectangular cross-section running from `a` to `b`. */
+export function beam(a: Vec3, b: Vec3, width: number, mat: Material, depth = width): Mesh {
+  const d: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const length = Math.hypot(...d);
+  const dir: Vec3 = [d[0] / length, d[1] / length, d[2] / length];
+  const reference: Vec3 = Math.abs(dir[2]) > 0.95 ? [1, 0, 0] : [0, 0, 1];
+  const cross = (p: Vec3, q: Vec3): Vec3 => [
+    p[1] * q[2] - p[2] * q[1],
+    p[2] * q[0] - p[0] * q[2],
+    p[0] * q[1] - p[1] * q[0],
+  ];
+  const norm = (p: Vec3): Vec3 => {
+    const l = Math.hypot(...p);
+    return [p[0] / l, p[1] / l, p[2] / l];
+  };
+  const u = norm(cross(dir, reference));
+  const v = norm(cross(dir, u));
+  const corner = (base: Vec3, su: number, sv: number): Vec3 => [
+    base[0] + (u[0] * su * width + v[0] * sv * depth) / 2,
+    base[1] + (u[1] * su * width + v[1] * sv * depth) / 2,
+    base[2] + (u[2] * su * width + v[2] * sv * depth) / 2,
+  ];
+  const ring = (base: Vec3): Vec3[] => [
+    corner(base, -1, -1),
+    corner(base, 1, -1),
+    corner(base, 1, 1),
+    corner(base, -1, 1),
+  ];
+  const ra = ring(a);
+  const rb = ring(b);
+  const out: Mesh = [];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    out.push(...quad([ra[i], ra[j], rb[j], rb[i]], mat));
+  }
+  out.push(...quad([ra[0], ra[1], ra[2], ra[3]], mat), ...quad([rb[0], rb[1], rb[2], rb[3]], mat));
+  return out;
+}
+
+/** Box centred at (cx, cy) with a footprint of `length` x `width`, rotated by `heading`. */
+export function orientedBox(
+  cx: number,
+  cy: number,
+  z0: number,
+  length: number,
+  width: number,
+  height: number,
+  heading: number,
+  mat: Material | BoxMaterials,
+): Mesh {
+  return rotateZ(
+    box([cx - length / 2, cy - width / 2, z0], [cx + length / 2, cy + width / 2, z0 + height], mat),
+    heading,
+    cx,
+    cy,
+  );
+}

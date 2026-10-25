@@ -117,7 +117,28 @@ describe('world art atlas packing', () => {
 
     const manifest = await packSprites(source, output);
     expect(manifest.width).toBeLessThanOrEqual(1024);
-    expect(manifest.height).toBeLessThanOrEqual(2048);
+    expect(manifest.height).toBeLessThanOrEqual(4096);
     expect(manifest.sprites.sheet.frames).toHaveLength(65);
+  });
+
+  it('stores frames with identical pixels once', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'opencoaster-art-dedupe-'));
+    temporaryDirectories.push(root);
+    const source = join(root, 'source');
+    await mkdir(source, { recursive: true });
+    for (const name of ['a', 'b']) {
+      await sharp({
+        create: {
+          width: 6,
+          height: 6,
+          channels: 4,
+          background: { r: 200, g: 60, b: 20, alpha: 1 },
+        },
+      })
+        .png()
+        .toFile(join(source, `${name}.png`));
+    }
+    const manifest = await packSprites(source, join(root, 'output'));
+    expect(manifest.sprites.a.frames[0]).toEqual(manifest.sprites.b.frames[0]);
   });
 });
