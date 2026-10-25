@@ -17,8 +17,8 @@ Path: @/src/audio
 ### Core Implementation
 
 - `AudioEngine.unlock()` lazily creates and resumes one `AudioContext` in response to pointer or keyboard input. It synthesizes noise beds, short oscillator envelopes, and per-ride tones without game audio assets.
-- Snapshot updates scale the crowd bed by the guest count published in the snapshot, adjust rain ambience, detect cash, weather, and ride-phase changes, consume successful construction cues, and start or stop panned music for active rides inside the camera viewport.
-- Ride state transitions produce station bells and intensity-scaled coaster screams; open tracked rides can also produce periodic chain-lift clanks. Park cash increases produce a register cue, while weather transitions can produce thunder.
+- Snapshot updates scale the crowd bed by the guest count, adjust rain ambience, consume purchase and construction cues, detect weather and station-phase changes, and start or stop panned music for active rides inside the camera viewport.
+- Actual vehicle drop and chain-lift segment events produce intensity-scaled screams and ride-specific clanks. Purchases are coalesced to one register event per simulation tick and rate-limited by the audio engine; recurring park income does not produce purchase sounds. Storm transitions can produce thunder.
 - UI callbacks provide click, window open/close, and ticker chime cues. Each ride's procedural tone changes with simulation tick and is positioned from its projected screen location.
 - Shared gain nodes control sound and music levels. Audio nodes for completed effects are disconnected, and ride voices stop when their ride leaves view or the engine is disposed.
 - `bench:audio` measures the main-thread snapshot update with a warmed synthetic park and reports p50/p95/p99; `--strict` enforces p99 below 0.5 ms.

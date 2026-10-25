@@ -68,18 +68,15 @@ interface Session extends GameInfo {
 
 const settings = loadSettings();
 const audio = new AudioEngine(settings);
-document.addEventListener(
-  'pointerdown',
-  () => {
-    void audio
-      .unlock()
-      .then(() => audio.playUi('click'))
-      .catch(() => undefined);
-  },
-  {
-    passive: true,
-  },
-);
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof Element) || !target.closest('button, [role="button"], input, select, a'))
+    return;
+  void audio
+    .unlock()
+    .then(() => audio.playUi('click'))
+    .catch(() => undefined);
+});
 document.addEventListener('keydown', () => void audio.unlock().catch(() => undefined), {
   passive: true,
 });
@@ -276,6 +273,7 @@ function syncPause(): void {
 }
 
 function begin(game: GameInfo, resumed: boolean): void {
+  audio.reset();
   session = { ...game, outcomeShown: false, resumed };
   selectedGuest = null;
   root.classList.remove('title-open');

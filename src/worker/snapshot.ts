@@ -90,7 +90,7 @@ export interface Snapshot {
   /** Successful construction commands produced since the previous simulation tick. */
   audioEvents: Array<{
     id: number;
-    type: 'build' | 'demolish' | 'scream' | 'clank';
+    type: 'build' | 'demolish' | 'scream' | 'clank' | 'register';
     rideId?: number;
     intensity?: number;
   }>;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AudioEngine, crowdLevel, rideMusicGain, soundLevels } from './audio';
 import { DEFAULT_SETTINGS } from '../ui/settings';
-import { createSnapshot } from '../worker/snapshot';
+import { createSnapshot, RideInfo } from '../worker/snapshot';
 
 class RecordingParam {
   value = 0;
@@ -17,6 +17,7 @@ class RecordingParam {
 }
 
 class RecordingNode {
+  static stopped = 0;
   gain = new RecordingParam();
   pan = new RecordingParam();
   frequency = new RecordingParam();
@@ -29,7 +30,9 @@ class RecordingNode {
   start(): void {
     RecordingContext.started++;
   }
-  stop(): void {}
+  stop(): void {
+    RecordingNode.stopped++;
+  }
 }
 
 class RecordingContext {
@@ -114,6 +117,62 @@ describe('audio level controls', () => {
       { x: 0, y: 0, zoom: 1, rotation: 0 },
     );
     expect(RecordingContext.started).toBe(ambienceSources + 1);
+    engine.dispose();
+  });
+
+  it('stops positional ride music when the camera moves while the simulation is paused', async () => {
+    RecordingNode.stopped = 0;
+    const engine = new AudioEngine(
+      DEFAULT_SETTINGS,
+      () => new RecordingContext() as unknown as AudioContext,
+    );
+    await engine.unlock();
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0, rides: 1 });
+    snapshot.rides.count = 1;
+    snapshot.rideInfo[RideInfo.Id] = 4;
+    snapshot.rideInfo[RideInfo.State] = 1;
+    snapshot.rideInfo[RideInfo.RideX] = 4;
+    snapshot.rideInfo[RideInfo.RideY] = 4;
+    engine.update(
+      snapshot,
+      { width: 800, height: 600, mapWidth: 8, mapHeight: 8 },
+      { x: 0, y: 0, zoom: 1, rotation: 0 },
+    );
+    expect(RecordingNode.stopped).toBe(0);
+    engine.update(
+      snapshot,
+      { width: 800, height: 600, mapWidth: 8, mapHeight: 8 },
+      { x: 1000, y: 1000, zoom: 1, rotation: 0 },
+    );
+    expect(RecordingNode.stopped).toBe(1);
+    engine.dispose();
+  });
+
+  it('resets event IDs and ride state when a different game starts', async () => {
+    RecordingContext.started = 0;
+    const engine = new AudioEngine(
+      DEFAULT_SETTINGS,
+      () => new RecordingContext() as unknown as AudioContext,
+    );
+    await engine.unlock();
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+    snapshot.tick = 80;
+    snapshot.audioEvents = [{ id: 5, type: 'build' }];
+    engine.update(
+      snapshot,
+      { width: 800, height: 600, mapWidth: 8, mapHeight: 8 },
+      { x: 0, y: 0, zoom: 1, rotation: 0 },
+    );
+    const startedBeforeReset = RecordingContext.started;
+    engine.reset();
+    snapshot.tick = 90;
+    snapshot.audioEvents = [{ id: 1, type: 'build' }];
+    engine.update(
+      snapshot,
+      { width: 800, height: 600, mapWidth: 8, mapHeight: 8 },
+      { x: 0, y: 0, zoom: 1, rotation: 0 },
+    );
+    expect(RecordingContext.started).toBe(startedBeforeReset + 1);
     engine.dispose();
   });
 });

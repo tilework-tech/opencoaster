@@ -1,6 +1,7 @@
 import type { World } from '../core/world';
 import { PriceMode, post } from './ledger';
-import type { EconomyInputs, LedgerCategory } from './ledger';
+import { LedgerCategory } from './ledger';
+import type { EconomyInputs } from './ledger';
 import { marketingAttractionBps as attractionBps } from './marketing';
 
 function assertAmount(cents: number): void {
@@ -13,6 +14,17 @@ function assertAmount(cents: number): void {
 export function earn(world: World, category: LedgerCategory, cents: number): void {
   assertAmount(cents);
   post(world.economy, category, cents);
+  if (
+    cents > 0 &&
+    (category === LedgerCategory.Admission ||
+      category === LedgerCategory.RideTickets ||
+      category === LedgerCategory.ShopSales ||
+      category === LedgerCategory.FoodDrinkSales) &&
+    world.audioRegisterTick !== world.tick
+  ) {
+    world.audioRegisterTick = world.tick;
+    world.audioEvents.push({ id: ++world.audioEventSequence, type: 'register' });
+  }
 }
 
 /** Money spent: cash down, category total down. Cash may go negative. */

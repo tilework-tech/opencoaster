@@ -48,14 +48,15 @@ export class AudioEngine {
   private ambience: GainNode | null = null;
   private rain: GainNode | null = null;
   private lastTick = -1;
-  private lastCash = 0;
   private lastWeather = 0;
   private lastAudioEvent = 0;
+  private lastRegisterTime = Number.NEGATIVE_INFINITY;
   private lastRideCount = 0;
+  private updateFrame = 0;
   private readonly rideStates = new Map<number, number>();
   private readonly musicVoices = new Map<
     number,
-    { gain: GainNode; panner: StereoPannerNode; oscillator: OscillatorNode; visibleTick: number }
+    { gain: GainNode; panner: StereoPannerNode; oscillator: OscillatorNode; visibleFrame: number }
   >();
   private readonly projected = new Float64Array(2);
 
@@ -69,6 +70,22 @@ export class AudioEngine {
     const levels = soundLevels(settings);
     this.effects?.gain.setTargetAtTime(levels.sound, this.context!.currentTime, 0.04);
     this.music?.gain.setTargetAtTime(levels.music, this.context!.currentTime, 0.04);
+  }
+
+  reset(): void {
+    for (const voice of this.musicVoices.values()) {
+      voice.gain.disconnect();
+      voice.panner.disconnect();
+      voice.oscillator.stop();
+    }
+    this.musicVoices.clear();
+    this.rideStates.clear();
+    this.lastTick = -1;
+    this.lastWeather = 0;
+    this.lastAudioEvent = 0;
+    this.lastRegisterTime = Number.NEGATIVE_INFINITY;
+    this.lastRideCount = 0;
+    this.updateFrame = 0;
   }
 
   async unlock(): Promise<void> {
@@ -99,11 +116,12 @@ export class AudioEngine {
   ): void {
     const ctx = this.context;
     if (!ctx || ctx.state !== 'running') return;
+    this.updateFrame++;
     if (snapshot.tick < this.lastTick) {
       this.lastTick = -1;
-      this.lastCash = 0;
       this.lastWeather = 0;
       this.lastAudioEvent = 0;
+      this.lastRegisterTime = Number.NEGATIVE_INFINITY;
       this.rideStates.clear();
       this.lastRideCount = 0;
     }
@@ -114,15 +132,20 @@ export class AudioEngine {
     this.rain!.gain.setTargetAtTime(raining ? 0.16 : 0, now, 0.6);
     if (snapshot.tick !== this.lastTick) {
       if (snapshot.weather.kind === 3 && this.lastWeather !== 3) this.play('thunder');
-      if (snapshot.park.cash > this.lastCash && this.lastTick >= 0) this.play('register');
       for (const event of snapshot.audioEvents) {
         if (event.id <= this.lastAudioEvent) continue;
+        if (event.type === 'register') {
+          if (now - this.lastRegisterTime < 0.16) {
+            this.lastAudioEvent = event.id;
+            continue;
+          }
+          this.lastRegisterTime = now;
+        }
         this.play(event.type, Math.min(1, (event.intensity ?? 100) / 100));
         this.lastAudioEvent = event.id;
       }
       this.lastTick = snapshot.tick;
       this.lastWeather = snapshot.weather.kind;
-      this.lastCash = snapshot.park.cash;
     }
     for (let i = 0; i < snapshot.rides.count; i++) {
       const o = i * RIDE_INFO_STRIDE;
@@ -168,7 +191,7 @@ export class AudioEngine {
       this.lastRideCount = snapshot.rides.count;
     }
     for (const [id, voice] of this.musicVoices) {
-      if (voice.visibleTick !== snapshot.tick) {
+      if (voice.visibleFrame !== this.updateFrame) {
         voice.gain.gain.setTargetAtTime(0, now, 0.18);
         voice.gain.disconnect();
         voice.panner.disconnect();
@@ -227,10 +250,10 @@ export class AudioEngine {
       noteGain.connect(panner);
       osc.start();
       osc.onended = () => osc.disconnect();
-      voice = { gain, panner, oscillator: osc, visibleTick: tick };
+      voice = { gain, panner, oscillator: osc, visibleFrame: this.updateFrame };
       this.musicVoices.set(id, voice);
     }
-    voice.visibleTick = tick;
+    voice.visibleFrame = this.updateFrame;
     voice.oscillator.frequency.setTargetAtTime(
       MELODY[Math.floor(tick / 20 + id) % MELODY.length]!,
       ctx.currentTime,

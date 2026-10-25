@@ -65,12 +65,13 @@ export class World {
   readonly feedback: CommandFeedback = createFeedback();
   readonly audioEvents: Array<{
     id: number;
-    type: 'build' | 'demolish' | 'scream' | 'clank';
+    type: 'build' | 'demolish' | 'scream' | 'clank' | 'register';
     rideId?: number;
     intensity?: number;
   }> = [];
   readonly audioClankTick = new Map<number, number>();
   audioEventSequence = 0;
+  audioRegisterTick = -1;
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;
