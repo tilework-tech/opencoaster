@@ -1,5 +1,16 @@
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, viewSize } from './projection';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import {
+  facilityFacingFromPaths,
+  facilitySpriteKey,
+  frameForTick,
+  rideHutFacing,
+  rideHutSpriteKey,
+  rideSpriteKey,
+} from './sprite-art';
+import { drawAtlasSprite, loadSpriteAtlas } from './sprite-atlas';
+import type { SpriteAtlas } from './sprite-atlas';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
@@ -43,6 +54,7 @@ export class Canvas2DRenderer implements Renderer {
   private pathOffsets = new Int32Array(0);
   private pathIndices = new Int32Array(0);
   private visibleCount = 0;
+  private atlas: SpriteAtlas | null = null;
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
@@ -52,6 +64,13 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('2D canvas unavailable');
     this.ctx = ctx;
+    void loadSpriteAtlas()
+      .then((atlas) => {
+        this.atlas = atlas;
+      })
+      .catch(() => {
+        this.atlas = null;
+      });
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -100,6 +119,7 @@ export class Canvas2DRenderer implements Renderer {
     ctx.setTransform(scale, 0, 0, scale, this.cw / 2 - cam.x * scale, this.ch / 2 - cam.y * scale);
     this.drawTiles(ctx, map, cam);
     if (snapshot) {
+      this.drawParkGate(ctx, snapshot, map, cam);
       this.drawRideMarkers(ctx, snapshot, map, cam);
       if (snapshot.tracks) this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
       this.drawLayer(ctx, snapshot.litter, map, cam, 2, ['#6b4f2a', '#9fc35b']);
@@ -110,7 +130,7 @@ export class Canvas2DRenderer implements Renderer {
         '#855ea8',
         '#de8840',
       ]);
-      this.drawLayer(ctx, snapshot.rides, map, cam, 8, '#6f75bd');
+      this.drawRideSprites(ctx, snapshot, map, cam);
       this.drawGuests(ctx, snapshot.guests, map, cam);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -256,8 +276,47 @@ export class Canvas2DRenderer implements Renderer {
         ctx.arc(this.tmp[0], this.tmp[1] - 13, 3, 0, Math.PI * 2);
         ctx.fill();
       }
+      if ((flags & PathFlag.Queue) !== 0) this.drawQueueRails(ctx, map, cam, x, y, z, flags);
       this.visibleCount++;
     }
+  }
+
+  private drawQueueRails(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    z: number,
+    flags: number,
+  ): void {
+    const edgeMask = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
+    const corners = [
+      [x, y],
+      [x + 1, y],
+      [x + 1, y + 1],
+      [x, y + 1],
+    ] as const;
+    const projected: Array<[number, number]> = [];
+    for (const [cx, cy] of corners) {
+      project(cx * TILE_UNITS, cy * TILE_UNITS, z, map.width, map.height, cam.rotation, this.tmp);
+      projected.push([this.tmp[0], this.tmp[1]]);
+    }
+    ctx.save();
+    ctx.strokeStyle = '#644733';
+    ctx.fillStyle = '#7a593f';
+    ctx.lineWidth = 1.5;
+    for (let edge = 0; edge < 4; edge++) {
+      if ((edgeMask & (1 << edge)) !== 0) continue;
+      const a = projected[edge];
+      const b = projected[(edge + 1) & 3];
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1] - 5);
+      ctx.lineTo(b[0], b[1] - 5);
+      ctx.stroke();
+      for (const [px, py] of [a, b]) ctx.fillRect(px - 1, py - 7, 2, 5);
+    }
+    ctx.restore();
   }
 
   private drawRideMarkers(
@@ -266,14 +325,16 @@ export class Canvas2DRenderer implements Renderer {
     map: MapData,
     cam: Camera,
   ): void {
-    const colors = [
-      [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, '#46ae72'],
-      [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, '#d36355'],
-    ] as const;
     for (let i = 0; i < snapshot.rides.count; i++) {
       const o = i * RIDE_INFO_STRIDE;
       const flags = snapshot.rideInfo[o + RideInfo.Flags];
-      for (const [flag, xField, yField, color] of colors) {
+      const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
+      const category = RIDE_CATALOG[type]?.category;
+      if (!category || ['shop', 'stall', 'facility'].includes(category)) continue;
+      for (const [flag, xField, yField, color, part] of [
+        [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, '#46ae72', 'entrance'],
+        [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, '#d36355', 'exit'],
+      ] as const) {
         if ((flags & flag) === 0) continue;
         const x = snapshot.rideInfo[o + xField];
         const y = snapshot.rideInfo[o + yField];
@@ -287,11 +348,101 @@ export class Canvas2DRenderer implements Renderer {
           this.tmp,
         );
         if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 8)) continue;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(this.tmp[0], this.tmp[1] - 4, 5, 0, Math.PI * 2);
-        ctx.fill();
+        const facing = rideHutFacing(
+          snapshot.rideInfo[o + RideInfo.RideX],
+          snapshot.rideInfo[o + RideInfo.RideY],
+          x,
+          y,
+        );
+        const key = rideHutSpriteKey(type, part, facing, cam.rotation);
+        if (!this.atlas || !drawAtlasSprite(ctx, this.atlas, key, 0, this.tmp[0], this.tmp[1])) {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(this.tmp[0], this.tmp[1] - 4, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
+    }
+  }
+
+  private drawRideSprites(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const o = i * RIDE_INFO_STRIDE;
+      const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
+      const def = RIDE_CATALOG[type];
+      if (!def || def.usesTrack) continue;
+      const x = snapshot.rideInfo[o + RideInfo.RideX];
+      const y = snapshot.rideInfo[o + RideInfo.RideY];
+      if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
+      project(
+        x * TILE_UNITS + 128,
+        y * TILE_UNITS + 128,
+        map.heights[y * map.width + x] * Z_STEP + 1,
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      const key = ['shop', 'stall', 'facility'].includes(def.category)
+        ? facilitySpriteKey(
+            type,
+            facilityFacingFromPaths(x, y, map.pathElements, map.pathCount ?? 0),
+            cam.rotation,
+          )
+        : rideSpriteKey(type, cam.rotation);
+      const frameCount = this.atlas?.sprites[key]?.frames.length ?? 1;
+      if (
+        this.atlas &&
+        drawAtlasSprite(
+          ctx,
+          this.atlas,
+          key,
+          frameForTick(snapshot.tick, frameCount),
+          this.tmp[0],
+          this.tmp[1],
+        )
+      )
+        continue;
+      ctx.fillStyle = '#6f75bd';
+      ctx.fillRect(this.tmp[0] - 5, this.tmp[1] - 5, 10, 10);
+    }
+  }
+
+  private drawParkGate(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const { entranceX: x, entranceY: y } = snapshot.park;
+    if (x < 0 || y < 0 || x >= map.width || y >= map.height) return;
+    project(
+      x * TILE_UNITS + 128,
+      y * TILE_UNITS + 128,
+      map.heights[y * map.width + x] * Z_STEP + 1,
+      map.width,
+      map.height,
+      cam.rotation,
+      this.tmp,
+    );
+    if (
+      !this.atlas ||
+      !drawAtlasSprite(
+        ctx,
+        this.atlas,
+        `scenery/park-entrance/view-${cam.rotation}`,
+        0,
+        this.tmp[0],
+        this.tmp[1],
+      )
+    ) {
+      ctx.fillStyle = '#b76346';
+      ctx.fillRect(this.tmp[0] - 12, this.tmp[1] - 18, 24, 16);
     }
   }
 
@@ -340,6 +491,7 @@ export class Canvas2DRenderer implements Renderer {
   dispose(): void {
     this.ctx = null;
     this.map = null;
+    this.atlas = null;
   }
 }
 

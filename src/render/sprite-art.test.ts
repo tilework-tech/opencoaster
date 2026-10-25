@@ -4,7 +4,11 @@ import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import {
   carSpriteKey,
   frameForTick,
+  facilityFacingFromPaths,
+  facilitySpriteKey,
   nativeSpriteWorldOffset,
+  rideHutFacing,
+  rideHutSpriteKey,
   rideSpriteKey,
   rotatePathEdges,
   trackCells,
@@ -34,6 +38,26 @@ describe('ride sprites', () => {
     expect(frameForTick(8, 4)).toBe(1);
     expect(frameForTick(32, 4)).toBe(0);
     expect(frameForTick(-5, 4)).toBe(0);
+  });
+
+  it('selects distinct facility views from the nearest adjacent path', () => {
+    expect(facilitySpriteKey(RideType.FoodStall, 1, 3)).toBe(
+      'facilities/food-stall/facing-1/view-3',
+    );
+    expect(facilityFacingFromPaths(4, 5, new Int32Array([5, 5, 0, 0, 0]), 1)).toBe(0);
+    expect(facilityFacingFromPaths(4, 5, new Int32Array([4, 6, 0, 0, 0]), 1)).toBe(1);
+    expect(facilityFacingFromPaths(4, 5, new Int32Array([4, 4, 0, 0, 0]), 1)).toBe(3);
+    expect(facilityFacingFromPaths(4, 5, new Int32Array([5, 5, 0, 0x100, 0]), 1)).toBe(1);
+  });
+
+  it('selects category-matched entrance and exit sprite views', () => {
+    expect(rideHutSpriteKey(RideType.FerrisWheel, 'entrance', 1, 2)).toBe(
+      'stations/gentle/entrance/facing-1/view-2',
+    );
+    expect(rideHutSpriteKey(RideType.JuniorRollerCoaster, 'exit', 3, 0)).toBe(
+      'stations/coaster/exit/facing-3/view-0',
+    );
+    expect(rideHutFacing(8, 8, 8, 7)).toBe(3);
   });
 });
 

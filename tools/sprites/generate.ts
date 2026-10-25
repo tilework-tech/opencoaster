@@ -101,12 +101,20 @@ function stationSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
   for (const category of STATION_CATEGORIES)
     for (const part of ['entrance', 'exit'] as const)
-      for (let view = 0; view < 4; view++)
-        out.push({
-          key: `stations/${category}/${part}/view-${view}`,
-          frames: [renderMesh(rotateMesh(physicalToLevels(stationHutMesh(category, part)), view))],
-          footprint: ONE_TILE,
-        });
+      for (let facing = 0; facing < 4; facing++)
+        for (let view = 0; view < 4; view++)
+          out.push({
+            key: `stations/${category}/${part}/facing-${facing}/view-${view}`,
+            frames: [
+              renderMesh(
+                rotateMesh(
+                  rotateMesh(physicalToLevels(stationHutMesh(category, part)), (facing + 3) & 3),
+                  view,
+                ),
+              ),
+            ],
+            footprint: ONE_TILE,
+          });
   return out;
 }
 

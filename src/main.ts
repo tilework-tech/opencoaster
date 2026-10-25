@@ -21,6 +21,8 @@ import { PathAddition } from './sim/map/paths';
 import { CoasterPanel } from './ui/coaster-panel';
 import { RIDE_CATALOG } from './sim/rides/ride-types';
 import { TrackPreviewOverlay } from './ui/track-preview';
+import type { RidePlacementGhost } from './ui/track-preview';
+import { facilityFacingFromPaths } from './render/sprite-art';
 import { SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
 import { IMPORTED_ID, SANDBOX_ID } from './sim/scenario/scenario';
 import { ScenarioStatus } from './sim/scenario/scenario';
@@ -78,6 +80,7 @@ const hud = new Hud(root);
 let selectedTool: ToolMode = 'select';
 let selectedGuest: GuestSelection | null = null;
 let ridePlacement: { rideId: number; part: 'entrance' | 'exit' } | null = null;
+let rideHover: [number, number] | null = null;
 let patrolKind: number | null = null;
 let alternate = false;
 let pathQueue = false;
@@ -133,6 +136,7 @@ const gameUi = new GameUI(root, windows, {
   chooseRideType(type) {
     coasterPanel.rideType = type;
     ridePlacement = null;
+    rideHover = null;
     gameUi.selectTool('ride');
     gameUi.setToolStatus(`${RIDE_CATALOG[type].name} selected. Tap a tile you own to build it.`);
   },
@@ -531,14 +535,14 @@ canvas.addEventListener('pointerdown', (event) => {
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', (event) => {
-  if (selectedTool === 'track' && sim.map) {
+  if ((selectedTool === 'track' || selectedTool === 'ride') && sim.map) {
     const rect = canvas.getBoundingClientRect();
-    coasterPanel.setHover(
-      pickTile(event.clientX - rect.left, event.clientY - rect.top, sim.map, camera, {
-        width: rect.width,
-        height: rect.height,
-      }),
-    );
+    const tile = pickTile(event.clientX - rect.left, event.clientY - rect.top, sim.map, camera, {
+      width: rect.width,
+      height: rect.height,
+    });
+    if (selectedTool === 'track') coasterPanel.setHover(tile);
+    else rideHover = tile;
   }
   pointerInput.pointerMove(pointerSample(event));
 });
@@ -856,12 +860,29 @@ function frame(now: number): void {
   gameUi.update(sim.latest, sim.stats, selectedGuest);
   coasterPanel.update();
   const rect = canvas.getBoundingClientRect();
+  const rideGhost: RidePlacementGhost | null =
+    selectedTool === 'ride' && !ridePlacement && rideHover && sim.map && latest
+      ? {
+          type: coasterPanel.rideType,
+          x: rideHover[0],
+          y: rideHover[1],
+          facing: facilityFacingFromPaths(
+            rideHover[0],
+            rideHover[1],
+            sim.map.pathElements,
+            sim.map.pathCount ?? 0,
+          ),
+          valid: latest.buildable[rideHover[1] * sim.map.width + rideHover[0]] !== 0,
+          tick: latest.tick,
+        }
+      : null;
   trackPreview.draw(
     sim.map ? coasterPanel.ghost() : null,
     sim.map ?? { width: 0, height: 0 },
     camera,
     { width: rect.width, height: rect.height },
     capDevicePixelRatio(window.devicePixelRatio || 1),
+    rideGhost,
   );
   requestAnimationFrame(frame);
 }
