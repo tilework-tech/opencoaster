@@ -329,7 +329,7 @@ export class CoasterPanel {
     const info = this.infoAt(ride);
     if (info[RideInfo.Flags] & RideFlag.CircuitClosed) return null;
     const cursor = decodeCursor(info[RideInfo.Cursor]);
-    const piece = resolvePiece(cursor, this.choice);
+    const piece = resolvePiece(cursor, this.choice, ride.type);
     if (!piece) return null;
     let placement: Placement;
     let level: number;
@@ -366,7 +366,7 @@ export class CoasterPanel {
     const map = this.actions.map();
     const info = this.infoAt(ride);
     const cursor = decodeCursor(info[RideInfo.Cursor]);
-    const piece = resolvePiece(cursor, this.choice);
+    const piece = resolvePiece(cursor, this.choice, ride.type);
     if (!piece) return 'No track piece matches those controls.';
     let command: Command;
     if (cursor.hasTrack) {
@@ -476,7 +476,7 @@ export class CoasterPanel {
     const closed = (info[RideInfo.Flags] & RideFlag.CircuitClosed) !== 0;
     const cursor = decodeCursor(info[RideInfo.Cursor]);
     this.directionButton.hidden = cursor.hasTrack;
-    const piece = resolvePiece(cursor, this.choice);
+    const piece = resolvePiece(cursor, this.choice, ride.type);
     this.placeButton.disabled = !piece || closed;
     const modes = piece ? allowedModes(piece, ride.type) : [PieceMode.Normal];
     const current = this.modeSelect.dataset.options;

@@ -133,12 +133,6 @@ describe('ride catalog and placement', () => {
         'Toilets',
       ]),
     );
-    expect(
-      rides.filter((ride) => ride.category === 'gentle' || ride.category === 'thrill'),
-    ).toHaveLength(4);
-    expect(
-      rides.filter((ride) => ride.category === 'stall' || ride.category === 'facility'),
-    ).toHaveLength(4);
   });
 
   it('opens only after entrance, exit, and a connected queue line are placed', () => {

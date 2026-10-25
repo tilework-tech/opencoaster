@@ -16,10 +16,24 @@ export enum RideType {
   Toilets,
   WoodenCoaster,
   SteelLoopingCoaster,
+  HauntedHouse,
+  SpiralSlide,
+  TopSpin,
+  Enterprise,
+  GoKarts,
+  LogFlume,
+  RiverRapids,
+  MiniatureRailway,
+  Monorail,
+  Chairlift,
+  JuniorRollerCoaster,
+  WildMouseCoaster,
+  ObservationTower,
+  BurgerStall,
 }
 
 export type RideCategory =
-  'gentle' | 'thrill' | 'coaster' | 'water' | 'shop' | 'stall' | 'facility';
+  'transport' | 'gentle' | 'thrill' | 'coaster' | 'water' | 'shop' | 'stall' | 'facility';
 
 /** What a track-based ride type may be built from. */
 export interface TrackRules {
@@ -32,6 +46,8 @@ export interface TrackRules {
   crashable: boolean;
   /** Cars not fixed to the track crash above the crest and drop speed limits. */
   unattachedCars: boolean;
+  /** Exact piece IDs offered by the family in the current shared track vocabulary. */
+  allowedPieces?: readonly number[];
 }
 
 /** Static, data-driven ride definition. Values are original OpenCoaster tuning data. */
@@ -71,6 +87,12 @@ export interface RideTypeDef {
   trackRules?: TrackRules;
   /** Rating base values, multipliers and requirements for track rides. */
   ratingProfile?: RatingProfile;
+  /** Authored starter-scenario discovery ordering; RCT2's order varies by scenario. */
+  researchOrder?: number;
+  researchCategory?: number;
+  researchWorkUnits?: number;
+  /** Fortnightly open-ride running cost in cents. */
+  runningCostPerFortnightCents?: number;
 }
 
 /** One minute of the original game's inspection clock, at 40 ticks a second. */
@@ -108,8 +130,134 @@ const COASTER_BREAKDOWNS: readonly BreakdownWeight[] = [
 const NO_VALUE: RideTypeDef['valueWeights'] = [0, 0, 0];
 const SHOP_MODES = [modeDef(RideMode.Shop, 'Shop')];
 const COASTER_MODES = [modeDef(RideMode.ContinuousCircuit, 'Continuous circuit')];
+const TRACK_MODES = [
+  ...COASTER_MODES,
+  modeDef(RideMode.ContinuousCircuitBlockSectioned, 'Continuous circuit block sectioned'),
+];
 
-export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
+function addedRide(
+  id: RideType,
+  name: string,
+  category: RideCategory,
+  cost: number,
+  capacity: number,
+  ratings: readonly [number, number, number],
+  modes: readonly RideModeDef[],
+  runningCostPerFortnightCents: number,
+  researchCategory: number,
+  researchOrder: number,
+  unreliability: number,
+  opts: {
+    usesTrack?: boolean;
+    allowedPieces?: readonly number[];
+    maxLevel?: number;
+    steep?: boolean;
+    inversions?: boolean;
+  } = {},
+): RideTypeDef {
+  const usesTrack = opts.usesTrack ?? false;
+  return {
+    id,
+    name,
+    category,
+    cost,
+    footprint: usesTrack ? [] : [[0, 0]],
+    usesTrack,
+    capacity,
+    loadTicks: usesTrack ? 120 : 80,
+    runTicks: usesTrack ? 1 : 400,
+    unloadTicks: usesTrack ? 80 : 80,
+    baseExcitement: ratings[0],
+    baseIntensity: ratings[1],
+    baseNausea: ratings[2],
+    valueWeights: category === 'stall' ? NO_VALUE : [51, 32, 10],
+    modes,
+    unreliability,
+    breakdowns: category === 'stall' ? [] : FLAT_WITH_RESTRAINTS,
+    defaultPriceCents: category === 'stall' ? 120 : 0,
+    inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
+    runningCostPerFortnightCents,
+    researchCategory,
+    researchOrder,
+    researchWorkUnits: 180 + researchOrder * 45,
+    ...(usesTrack
+      ? {
+          trackRules: {
+            maxLevel: opts.maxLevel ?? 40,
+            steepSlopes: opts.steep ?? false,
+            inversions: opts.inversions ?? false,
+            launch: false,
+            crashable: true,
+            unattachedCars: false,
+            allowedPieces: opts.allowedPieces,
+          },
+          ratingProfile: {
+            base: { excitement: ratings[0], intensity: ratings[1], nausea: ratings[2] },
+            multiplierPercent: { excitement: 100, intensity: 100, nausea: 100 },
+            requirements: {
+              minLength: 768,
+              minDropHeight: 64,
+              minMaxSpeedQ8: kmhToSpeedQ8(20),
+              minDropCount: 1,
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+const JUNIOR_PIECES = [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 34, 35];
+const WILD_MOUSE_PIECES = [
+  ...JUNIOR_PIECES,
+  4,
+  5,
+  10,
+  11,
+  12,
+  13,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30,
+  31,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+  49,
+  50,
+  51,
+  52,
+  53,
+  54,
+  55,
+  56,
+  57,
+  58,
+  59,
+  60,
+  61,
+  62,
+  63,
+  64,
+  65,
+];
+
+const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
   [RideType.MerryGoRound]: {
     id: RideType.MerryGoRound,
     name: 'Merry-Go-Round',
@@ -361,4 +509,236 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = {
       },
     },
   },
+  [RideType.HauntedHouse]: addedRide(
+    RideType.HauntedHouse,
+    'Haunted House',
+    'thrill',
+    420_000,
+    16,
+    [520, 390, 300],
+    [modeDef(RideMode.HauntedHouse, 'Haunted house')],
+    8_400,
+    3,
+    11,
+    6,
+  ),
+  [RideType.SpiralSlide]: addedRide(
+    RideType.SpiralSlide,
+    'Spiral Slide',
+    'gentle',
+    33_000,
+    5,
+    [150, 140, 90],
+    [
+      modeDef(RideMode.SpiralSlideSingle, 'Single ride per admission'),
+      modeDef(RideMode.SpiralSlideUnlimited, 'Unlimited rides per admission'),
+    ],
+    660,
+    1,
+    12,
+    4,
+  ),
+  [RideType.TopSpin]: addedRide(
+    RideType.TopSpin,
+    'Top Spin',
+    'thrill',
+    560_000,
+    40,
+    [650, 820, 620],
+    [modeDef(RideMode.Swing, 'Swing')],
+    11_200,
+    3,
+    13,
+    8,
+  ),
+  [RideType.Enterprise]: addedRide(
+    RideType.Enterprise,
+    'Enterprise',
+    'thrill',
+    480_000,
+    24,
+    [700, 650, 500],
+    [modeDef(RideMode.Rotation, 'Rotation')],
+    9_600,
+    3,
+    14,
+    7,
+  ),
+  [RideType.GoKarts]: addedRide(
+    RideType.GoKarts,
+    'Go-Karts',
+    'thrill',
+    760_000,
+    8,
+    [620, 580, 450],
+    [modeDef(RideMode.Race, 'Race')],
+    15_200,
+    3,
+    15,
+    5,
+  ),
+  [RideType.LogFlume]: addedRide(
+    RideType.LogFlume,
+    'Log Flume',
+    'water',
+    132_000,
+    20,
+    [620, 420, 320],
+    [
+      modeDef(RideMode.ContinuousCircuit, 'Continuous circuit'),
+      modeDef(RideMode.BoatHire, 'Boat hire'),
+    ],
+    30_000,
+    4,
+    16,
+    8,
+  ),
+  [RideType.RiverRapids]: addedRide(
+    RideType.RiverRapids,
+    'River Rapids',
+    'water',
+    155_000,
+    36,
+    [680, 500, 480],
+    [modeDef(RideMode.ContinuousCircuit, 'Continuous circuit')],
+    24_000,
+    4,
+    17,
+    10,
+  ),
+  [RideType.MiniatureRailway]: addedRide(
+    RideType.MiniatureRailway,
+    'Miniature Railway',
+    'transport',
+    450_000,
+    16,
+    [450, 180, 80],
+    COASTER_MODES,
+    24_000,
+    0,
+    18,
+    5,
+    { usesTrack: true, maxLevel: 30 },
+  ),
+  [RideType.Monorail]: addedRide(
+    RideType.Monorail,
+    'Monorail',
+    'transport',
+    800_000,
+    24,
+    [520, 220, 100],
+    [
+      modeDef(RideMode.ContinuousCircuit, 'Continuous circuit'),
+      modeDef(RideMode.Shuttle, 'Shuttle'),
+    ],
+    40_000,
+    0,
+    19,
+    7,
+    { usesTrack: true, maxLevel: 50 },
+  ),
+  [RideType.Chairlift]: addedRide(
+    RideType.Chairlift,
+    'Chairlift',
+    'transport',
+    500_000,
+    40,
+    [500, 120, 50],
+    [modeDef(RideMode.StationToStation, 'Station to station')],
+    25_000,
+    0,
+    20,
+    6,
+    { usesTrack: true, maxLevel: 40 },
+  ),
+  [RideType.JuniorRollerCoaster]: addedRide(
+    RideType.JuniorRollerCoaster,
+    'Junior Roller Coaster',
+    'coaster',
+    132_000,
+    8,
+    [120, 60, 30],
+    TRACK_MODES,
+    26_000,
+    2,
+    21,
+    8,
+    { usesTrack: true, maxLevel: 65, allowedPieces: JUNIOR_PIECES },
+  ),
+  [RideType.WildMouseCoaster]: addedRide(
+    RideType.WildMouseCoaster,
+    'Wild Mouse Coaster',
+    'coaster',
+    190_000,
+    16,
+    [150, 80, 60],
+    TRACK_MODES,
+    38_000,
+    2,
+    22,
+    12,
+    { usesTrack: true, maxLevel: 68, steep: true, allowedPieces: WILD_MOUSE_PIECES },
+  ),
+  [RideType.ObservationTower]: addedRide(
+    RideType.ObservationTower,
+    'Observation Tower',
+    'gentle',
+    250_000,
+    24,
+    [420, 140, 80],
+    [modeDef(RideMode.Rotation, 'Rotation')],
+    9_000,
+    1,
+    23,
+    4,
+  ),
+  [RideType.BurgerStall]: addedRide(
+    RideType.BurgerStall,
+    'Burger Stall',
+    'stall',
+    25_000,
+    1,
+    [0, 0, 0],
+    SHOP_MODES,
+    2_500,
+    5,
+    24,
+    0,
+  ),
 };
+
+const RESEARCH_CATEGORIES: Readonly<Record<RideCategory, number>> = {
+  transport: 0,
+  gentle: 1,
+  coaster: 2,
+  thrill: 3,
+  water: 4,
+  shop: 5,
+  stall: 5,
+  facility: 5,
+};
+export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = Object.fromEntries(
+  Object.values(RIDE_CATALOG_SOURCE).map((def) => [
+    def.id,
+    {
+      ...def,
+      researchOrder: def.researchOrder ?? def.id,
+      researchCategory: def.researchCategory ?? RESEARCH_CATEGORIES[def.category],
+      researchWorkUnits:
+        def.researchWorkUnits ??
+        (def.id === RideType.SwingingShip
+          ? 180
+          : def.id === RideType.FerrisWheel
+            ? 360
+            : 180 + def.id * 45),
+      runningCostPerFortnightCents:
+        def.runningCostPerFortnightCents ??
+        Math.floor(
+          def.cost /
+            (def.category === 'stall' || def.category === 'shop' || def.category === 'facility'
+              ? 100
+              : 50),
+        ),
+    },
+  ]),
+) as Record<RideType, RideTypeDef>;

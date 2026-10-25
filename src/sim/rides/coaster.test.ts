@@ -497,3 +497,57 @@ describe('coaster restraint failure', () => {
     expect(rideTrainSlots(sim.world, rideId)).toEqual([]);
   });
 });
+
+describe('family-specific coaster track sets', () => {
+  const typeByName = (name: string): RideType | undefined =>
+    Object.values(RIDE_CATALOG).find((ride) => ride.name === name)?.id;
+
+  const attempt = (name: string, pieceType: number): TrackResult => {
+    const sim = flatOwnedSim();
+    const rideType = typeByName(name);
+    if (rideType === undefined) return TrackResult.NoSuchRide;
+    const rideId = createCoaster(sim, rideType);
+    sim.enqueue({
+      type: 'placeTrack',
+      rideId,
+      pieceType,
+      x: STATION_X,
+      y: STATION_Y,
+      z: GROUND,
+      dir: 0,
+      mode: PieceMode.Normal,
+    });
+    sim.step();
+    return sim.world.feedback.code as TrackResult;
+  };
+
+  it('keeps junior coasters to gentle track and wild mouse coasters free of inversions', () => {
+    expect(typeByName('Junior Roller Coaster')).toBeDefined();
+    expect(typeByName('Wild Mouse Coaster')).toBeDefined();
+    expect(attempt('Junior Roller Coaster', PieceId.Station)).toBe(TrackResult.Ok);
+    expect(attempt('Wild Mouse Coaster', PieceId.Station)).toBe(TrackResult.Ok);
+    expect(attempt('Junior Roller Coaster', PieceId.Up25ToUp60)).toBe(TrackResult.PieceNotAllowed);
+    expect(attempt('Junior Roller Coaster', PieceId.VerticalLoopRight)).toBe(
+      TrackResult.PieceNotAllowed,
+    );
+    expect(attempt('Wild Mouse Coaster', PieceId.VerticalLoopRight)).toBe(
+      TrackResult.PieceNotAllowed,
+    );
+    expect(attempt('Wild Mouse Coaster', PieceId.Up25ToUp60)).not.toBe(TrackResult.PieceNotAllowed);
+  });
+
+  it.each([
+    ['Junior Roller Coaster', typeByName('Junior Roller Coaster')],
+    ['Wild Mouse Coaster', typeByName('Wild Mouse Coaster')],
+  ])('%s has deterministic tested ratings and simulation state', (_name, rideType) => {
+    expect(rideType).toBeDefined();
+    if (rideType === undefined) return;
+    const first = testedCoaster(281, rideType);
+    const replay = testedCoaster(281, rideType);
+    expect(isRideTested(first.sim.world, first.rideId)).toBe(true);
+    expect(ratings(first.sim, first.rideId)[0]).toBeGreaterThan(0);
+    expect(ratings(first.sim, first.rideId)[1]).toBeGreaterThan(0);
+    expect(ratings(first.sim, first.rideId)).toEqual(ratings(replay.sim, replay.rideId));
+    expect(hashWorld(first.sim.world)).toBe(hashWorld(replay.sim.world));
+  });
+});

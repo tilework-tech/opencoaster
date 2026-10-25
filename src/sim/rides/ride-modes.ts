@@ -10,6 +10,14 @@ export enum RideMode {
   Shop,
   /** Track rides: trains circulate and dispatch from the station. */
   ContinuousCircuit,
+  ContinuousCircuitBlockSectioned,
+  HauntedHouse,
+  SpiralSlideSingle,
+  SpiralSlideUnlimited,
+  Race,
+  BoatHire,
+  Shuttle,
+  StationToStation,
 }
 
 /** Rating change a mode applies on top of the ride type's base ratings, in hundredths. */

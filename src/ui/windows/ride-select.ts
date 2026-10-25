@@ -12,7 +12,7 @@ export interface RideTab extends TabSpec {
 }
 
 export const RIDE_TABS: readonly RideTab[] = [
-  { id: 'transport', label: 'Transport rides', icon: 'next', categories: [] },
+  { id: 'transport', label: 'Transport rides', icon: 'next', categories: ['transport'] },
   { id: 'coaster', label: 'Roller Coasters', icon: 'coaster', categories: ['coaster'] },
   { id: 'gentle', label: 'Gentle rides', icon: 'carousel', categories: ['gentle'] },
   { id: 'thrill', label: 'Thrill rides', icon: 'twist', categories: ['thrill'] },
@@ -36,6 +36,20 @@ const RIDE_ICONS: Partial<Record<RideType, IconName>> = {
   8: 'toilet',
   9: 'coaster',
   10: 'loop',
+  11: 'rides',
+  12: 'rides',
+  13: 'ship',
+  14: 'twist',
+  15: 'rides',
+  16: 'water',
+  17: 'water',
+  18: 'rides',
+  19: 'rides',
+  20: 'rides',
+  21: 'coaster',
+  22: 'coaster',
+  23: 'rides',
+  24: 'food',
 };
 
 export function rideIcon(type: number): IconName {

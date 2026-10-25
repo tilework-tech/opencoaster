@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PIECES, PieceId } from '../sim/track/catalog';
 import { Bank, PieceMode, Slope, TrackResult } from '../sim/track/track-types';
-import { RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import {
   TURN_LABELS,
   allowedModes,
@@ -155,5 +155,26 @@ describe('feedbackMessage', () => {
     expect(feedbackMessage(FeedbackDomain.Track, TrackResult.Ok).ok).toBe(true);
     expect(feedbackMessage(FeedbackDomain.Ride, RideResult.TestPassed).ok).toBe(true);
     expect(feedbackMessage(FeedbackDomain.Ride, RideResult.TestFailed).ok).toBe(false);
+  });
+});
+
+describe('family-specific piece selection', () => {
+  const typeByName = (name: string): RideType | undefined =>
+    Object.values(RIDE_CATALOG).find((ride) => ride.name === name)?.id;
+  it('hides steep slopes from junior coasters and inversions from wild mouse coasters', () => {
+    expect(
+      typeByName('Junior Roller Coaster'),
+      'Junior Roller Coaster catalog entry',
+    ).toBeDefined();
+    expect(typeByName('Wild Mouse Coaster'), 'Wild Mouse Coaster catalog entry').toBeDefined();
+    const junior = typeByName('Junior Roller Coaster');
+    const wildMouse = typeByName('Wild Mouse Coaster');
+    if (junior === undefined || wildMouse === undefined) return;
+    expect(resolvePiece(flatCursor, choice({}), junior)?.id).toBe(PieceId.Flat);
+    expect(resolvePiece(flatCursor, choice({}), wildMouse)?.id).toBe(PieceId.Flat);
+    expect(resolvePiece(flatCursor, choice({ slope: Slope.Up60 }), junior)).toBeUndefined();
+    expect(resolvePiece(flatCursor, choice({ turn: 'loopRight' }), wildMouse)).toBeUndefined();
+    const climbingCursor = { ...flatCursor, hasTrack: true, slope: Slope.Up25 };
+    expect(resolvePiece(climbingCursor, choice({ slope: Slope.Up60 }), wildMouse)).toBeDefined();
   });
 });
