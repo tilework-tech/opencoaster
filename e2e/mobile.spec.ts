@@ -27,7 +27,7 @@ async function undersizedTargets(page: Page): Promise<string[]> {
   });
 }
 
-test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, tap to build', async ({
+test('is playable on a phone: labeled actions menu, bottom sheets, 44px targets, tap to build', async ({
   page,
 }, testInfo) => {
   const screenshot = async (name: string) => {
@@ -50,11 +50,12 @@ test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, ta
   await screenshot('m1-park-sheet');
   expect(await undersizedTargets(page)).toEqual([]);
 
-  const scrollable = await toolbar.evaluate((el) => el.scrollWidth > el.clientWidth);
-  expect(scrollable).toBe(true);
+  const action = async (name: string) => {
+    await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
+    await toolbar.getByRole('button', { name, exact: true }).tap();
+  };
 
-  await toolbar.getByRole('button', { name: 'Finances', exact: true }).scrollIntoViewIfNeeded();
-  await toolbar.getByRole('button', { name: 'Finances', exact: true }).tap();
+  await action('Finances');
   await expect(page.locator('[data-panel="finance"]')).toBeVisible();
   await expect(page.locator('[data-panel="park"]')).toHaveClass(/collapsed/);
   expect(await undersizedTargets(page)).toEqual([]);
@@ -62,8 +63,7 @@ test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, ta
   expect(await undersizedTargets(page)).toEqual([]);
   await screenshot('m2-finance-sheet');
 
-  await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).scrollIntoViewIfNeeded();
-  await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).tap();
+  await action('Footpaths');
   await page.locator('#game').tap({ position: { x: 190, y: 200 } });
   await expect(page.locator('.tool-status')).toContainText('Path placement requested');
   const paths = page.locator('[data-panel="paths"]');
@@ -72,8 +72,7 @@ test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, ta
   await paths.getByRole('button', { name: 'Close Footpaths' }).tap();
   await expect(paths).toHaveCount(0);
 
-  await toolbar.getByRole('button', { name: 'New ride', exact: true }).scrollIntoViewIfNeeded();
-  await toolbar.getByRole('button', { name: 'New ride', exact: true }).tap();
+  await action('New ride');
   await page.getByRole('tab', { name: 'Shops & Stalls' }).tap();
   expect(await undersizedTargets(page)).toEqual([]);
   await screenshot('m3-ride-select');
@@ -84,7 +83,7 @@ test('guest and footpath controls stay reachable on a phone', async ({ page }) =
   await page.getByRole('button', { name: 'Sandbox' }).click();
 
   const toolbar = page.locator('.game-toolbar');
-  await toolbar.getByRole('button', { name: 'Guests', exact: true }).scrollIntoViewIfNeeded();
+  await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
   await toolbar.getByRole('button', { name: 'Guests', exact: true }).tap();
   const guests = page.locator('[data-panel="guests"]');
   await guests.getByRole('tab', { name: 'By location' }).tap();
@@ -100,7 +99,7 @@ test('guest and footpath controls stay reachable on a phone', async ({ page }) =
   await expect(page.locator('[data-panel^="guest-"]')).toBeVisible();
   expect(await undersizedTargets(page)).toEqual([]);
 
-  await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).scrollIntoViewIfNeeded();
+  await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
   await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).tap();
   const paths = page.locator('[data-panel="paths"]');
   await expect(paths.getByRole('button', { name: 'Queue line' })).toBeVisible();
