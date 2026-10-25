@@ -4,9 +4,9 @@ Path: @/tools/sprites
 
 ### Overview
 
-- Dev-time tool that renders game art from small 3D models, the way the original game's art was made: footpaths today, with flat rides, stalls and coaster track meant to build on the same pipeline. It runs headless in Node (no GPU, browser or image-generation service) and is deterministic: the same code always produces the same pixels.
+- Dev-time tool that renders game art from small 3D models, the way the original game's art was made: footpaths, water and the coaster families (track, supports, cars), with flat rides and stalls meant to build on the same pipeline. It runs headless in Node (no GPU, browser or image-generation service) and is deterministic: the same code always produces the same pixels.
 - Output is PNG/JSON pairs in the format [tools/art](../art/README.md) packs. `tools/art/prepare.ts` calls `renderSprites` after clearing `public/sprites/`, then `pack-cli.ts` packs everything into the shared atlas and `manifest.json`.
-- `pnpm sprites:render` writes review contact sheets to `docs/art/contact-sheet-*.png`, one per top-level key group (`paths`, `water`, and any new group).
+- `pnpm sprites:render` writes review contact sheets to `docs/art/contact-sheet-*.png`, one per key group (`paths`, `water`, and for coasters one sheet per `track-<art>` and `vehicles-<family>`; [cli.ts](cli.ts) shows only view 0 of track cells). [preview.ts](preview.ts) writes a magnified sheet for sprites matching regex arguments, for inspecting one model.
 
 ### How it fits into the larger codebase
 
@@ -21,7 +21,12 @@ Path: @/tools/sprites
 - [mesh.ts](mesh.ts) holds the primitives (`box`, `cylinder`, `beam`, `quad`, `polygon`, `loft`), transforms (`translateMesh`, `rotateZ`, `rotateY`, `rotateMesh` by camera quarter turns) and `clipMesh`.
 - [models/paths.ts](models/paths.ts): tarmac, crazy paving, dirt and queue (with rails). 16 connection masks and 4 ramps per style; kerbs are drawn only on unconnected sides and no end caps are drawn so neighbours join seamlessly; surface patterns are periodic per tile.
 - [models/water.ts](models/water.ts): `water/surface`, a square 32x32 tile-space texture in eight frames that differ only by palette cycle (the renderer maps it onto the terrain mesh). The renderer, not this tool, draws the bank: it lowers the surface by `WATER_BANK.surfaceInset`, clips water where terrain is above it and shades by depth below the surface (foam line, shallows, deep water).
-- Keys: `paths/<style>/connection-XX` (XX = hex connection mask, bit d = world direction d) and `paths/<style>/ramp-N` (rises toward direction N), `water/surface#frame`.
+- [models/coaster/](models/coaster/sprites.ts) renders four families (`wood`, `steel`, `junior`, `mouse`). Track art is generated per art (`wood`, `steel`, `junior`; Wild Mouse draws on the wood track art) and only for the catalog pieces its ride types can build, chosen by `familyPieces` / `artPieces` in [src/render/coaster-art.ts](../../src/render/coaster-art.ts) from the ride type's `trackRules`. The tool imports that module so sprite generation and runtime key lookup share one definition (a load-time check also fails if the chain frame count differs between them).
+  - Track: [track.ts](models/coaster/track.ts) builds each piece's mesh along the catalog sample centre line using rotation-minimising frames ([frames.ts](models/coaster/frames.ts)) rolled by the sampled bank; [families.ts](models/coaster/families.ts) holds the per-art and per-family looks. Every piece gets a plain sprite, stations include a roof, and lift-capable and brake-capable pieces also get `+chain` (two animation frames), `+brake` and `+block` (signal post) variants. A piece mesh is rotated per view, then clipped per footprint cell so the renderer can paint one tile at a time.
+  - Supports: [supports.ts](models/coaster/supports.ts) makes per-family `support-column` (one level), `support-cap1`..`3` (quarter-level cappings) and `support-base`, stacked by the renderer.
+  - Cars: [cars.ts](models/coaster/cars.ts) makes one sprite per family at 8 headings, 7 pitch classes and 4 bank classes (level, left, right, inverted). These class counts must match the packing in [src/worker/car-poses.ts](../../src/worker/car-poses.ts).
+  - `renderMesh`'s `continuedBy` option takes the unclipped model: outline pixels it covers are not drawn, so the cut edges of adjoining cells show no seam.
+- Keys: `paths/<style>/connection-XX` (XX = hex connection mask, bit d = world direction d) and `paths/<style>/ramp-N` (rises toward direction N), `water/surface#frame`, `track/<art>/<piece>[+variant]/view-V/cell-N` (animated variants use `#frame`), `track/<family>/support-<part>/view-V` and `vehicles/<family>/car/<pitch>/<bank>/heading-H`.
 
 ### How to add a new model
 
@@ -35,7 +40,7 @@ Path: @/tools/sprites
 
 ### Things to Know
 
-- Atlas size: `tools/art/pack.ts` caps the atlas at 1024x2048 and packs identical frames once; large sprite families must account for that budget.
+- Atlas size: `tools/art/pack.ts` caps the atlas at 1024x2048 and packs identical frames once. Coaster art (every piece x variant x view x cell, plus all car poses, roughly 4.5M pixels) does not fit that budget; it depends on the paged atlas work, which groups sprites by category (coaster families, vehicles, flat rides) onto separate lazily loaded pages.
 - The smoke test `smoke/terrain-visual.spec.ts` recognises water by colour (blue well above red and green), so the water ramp must stay saturated blue.
 - A rendered sprite with an outline is one pixel larger on each side than the geometry; ground tiles are not outlined.
 
