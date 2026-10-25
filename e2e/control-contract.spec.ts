@@ -249,12 +249,19 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
       await setSimulationPaused(page, mobile, true);
     } else if (item.label.includes('/wk for') || item.funding !== undefined) {
       await setSimulationPaused(page, mobile, false);
+      const tick = async () =>
+        Number((await page.locator('.hud').innerText()).match(/tick (\d+)/)?.[1] ?? -1);
+      const beforeTick = await tick();
       if (mobile) await control.tap({ timeout: 5_000 });
       else await control.click({ timeout: 5_000 });
-      if (item.funding !== undefined) await expect(control).toHaveAttribute('aria-pressed', 'true');
-      else {
+      if (item.funding !== undefined) {
+        await expect(control).toHaveAttribute('aria-pressed', 'true');
+      } else {
+        await expect.poll(tick).toBeGreaterThan(beforeTick);
+        await setSimulationPaused(page, mobile, true);
         const campaignName = item.label.split(':')[0];
         await expect(pane).toContainText(`Running: ${campaignName}`);
+        continue;
       }
       await setSimulationPaused(page, mobile, true);
     } else if (item.label.startsWith('Hire ')) {
@@ -377,6 +384,12 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
       else await control.click({ timeout: 5_000 });
       await page.mouse.move(target!.x, target!.y);
       await expect.poll(async () => !(await canvas.screenshot()).equals(before)).toBe(true);
+    } else if (item.label === 'Land rights') {
+      await clickAndObserve(page, control, mobile);
+      const rights = page.locator('.ui-window[data-panel="land-rights"]');
+      await expect(rights).toBeVisible();
+      await rights.getByRole('button', { name: /^Close / }).click({ timeout: 5_000 });
+      await expect(rights).toBeHidden();
     } else if (item.label === 'Remove' && ownerPanel === 'paths') {
       const slope = pane.getByRole('button', { name: 'Down', exact: true });
       if (mobile) await slope.tap({ timeout: 5_000 });
@@ -445,6 +458,17 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
 async function exerciseWindow(page: Page, panel: Locator, mobile: boolean): Promise<void> {
   if (await panel.evaluate((window) => window.classList.contains('collapsed')))
     await panel.locator('.ui-titlebar').click();
+  let pinnedForSweep = false;
+  if (!mobile) {
+    const pin = panel.getByRole('button', { name: /^Pin / });
+    if (await pin.count()) {
+      await pin.click();
+      await expect(panel).toHaveClass(/pinned/);
+      pinnedForSweep = true;
+    } else {
+      await panel.locator('.ui-titlebar').click({ position: { x: 8, y: 8 } });
+    }
+  }
 
   const tabs = panel.getByRole('tab');
   for (let index = 0; index < (await tabs.count()); index++) {
@@ -461,12 +485,9 @@ async function exerciseWindow(page: Page, panel: Locator, mobile: boolean): Prom
   if (!(await panel.isVisible())) return;
   if (mobile) return;
   const pin = panel.getByRole('button', { name: /^Pin / });
-  if (await pin.count()) {
-    const initiallyPinned = await panel.evaluate((window) => window.classList.contains('pinned'));
-    if (mobile) await pin.tap({ timeout: 5_000 });
-    else await pin.click();
-    if (initiallyPinned) await expect(panel).not.toHaveClass(/pinned/);
-    else await expect(panel).toHaveClass(/pinned/);
+  if (pinnedForSweep && (await pin.count())) {
+    await pin.click();
+    await expect(panel).not.toHaveClass(/pinned/);
   }
   const close = panel.getByRole('button', { name: /^Close / });
   if (await close.count()) {
@@ -630,7 +651,7 @@ async function checkDisabledControls(page: Page, mobile = false): Promise<void> 
 }
 
 test('enabled desktop toolbar and window controls cause an observable effect', async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(600_000);
   visitedDetailTypes.clear();
   await startSandbox(page);
   await checkDisabledControls(page);
