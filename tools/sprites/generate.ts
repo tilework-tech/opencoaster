@@ -295,12 +295,23 @@ function transportRideSprites(): SpriteDef[] {
 }
 
 function peopleSprites(): SpriteDef[] {
-  const out: SpriteDef[] = [];
+  const out: SpriteDef[] = [
+    {
+      key: 'people/guest-walk',
+      frames: Array.from({ length: 8 * 4 * 4 }, (_, index) => {
+        const tint = Math.floor(index / 16);
+        const direction = Math.floor(index / 4) % 4;
+        const frame = index % 4;
+        return renderMesh(personMesh(tint, direction, frame));
+      }),
+      footprint: ONE_TILE,
+    },
+  ];
   for (let kind = 0; kind < 4; kind++)
     for (let direction = 0; direction < 4; direction++)
       out.push({
         key: `people/staff/${kind}/direction-${direction}`,
-        frames: Array.from({ length: 2 }, (_, frame) =>
+        frames: Array.from({ length: 4 }, (_, frame) =>
           renderMesh(personMesh(kind, direction, frame, true)),
         ),
         footprint: ONE_TILE,

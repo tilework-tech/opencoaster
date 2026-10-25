@@ -77,6 +77,9 @@ describe('generated sprite catalogue', () => {
           expect(frame.height).toBeLessThanOrEqual(21);
           expect(frame.width / frame.height).toBeLessThan(0.65);
         }
+        expect(
+          new Set(staff?.frames.map((frame) => Buffer.from(frame.pixels).toString('base64'))).size,
+        ).toBe(4);
         if (direction === 0)
           staffSignatures.push(Buffer.from(staff!.frames[0]!.pixels).toString('base64'));
       }
@@ -85,8 +88,9 @@ describe('generated sprite catalogue', () => {
 
     for (let direction = 0; direction < 4; direction++) {
       const guestsFacing = guests?.frames.slice(direction * 4, direction * 4 + 4) ?? [];
-      expect(new Set(guestsFacing.map((frame) => Buffer.from(frame.pixels).toString('base64'))).size)
-        .toBe(4);
+      expect(
+        new Set(guestsFacing.map((frame) => Buffer.from(frame.pixels).toString('base64'))).size,
+      ).toBe(4);
     }
   });
 
@@ -270,7 +274,7 @@ describe('generated sprite catalogue', () => {
     for (let direction = 0; direction < 4; direction++) {
       for (let kind = 0; kind < 4; kind++) {
         const staff = sprites.get(`people/staff/${kind}/direction-${direction}`);
-        expect(staff?.frames, `staff ${kind}, direction ${direction}`).toHaveLength(2);
+        expect(staff?.frames, `staff ${kind}, direction ${direction}`).toHaveLength(4);
         expect(staff!.frames.every((frame) => frame.pixels.some((p) => p !== TRANSPARENT))).toBe(
           true,
         );

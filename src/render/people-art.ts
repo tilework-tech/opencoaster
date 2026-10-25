@@ -6,5 +6,5 @@ export function peopleSpriteKey(kind: number, direction: number, rotation: Rotat
 }
 
 export function walkingFrame(tick: number): number {
-  return (Math.floor(tick / 6) & 1) >>> 0;
+  return (Math.floor(tick / 6) & 3) >>> 0;
 }

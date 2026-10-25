@@ -10,6 +10,8 @@ describe('people sprite selection', () => {
     expect(walkingFrame(0)).toBe(0);
     expect(walkingFrame(5)).toBe(0);
     expect(walkingFrame(6)).toBe(1);
-    expect(walkingFrame(12)).toBe(0);
+    expect(walkingFrame(12)).toBe(2);
+    expect(walkingFrame(18)).toBe(3);
+    expect(walkingFrame(24)).toBe(0);
   });
 });
