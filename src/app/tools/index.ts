@@ -7,6 +7,7 @@ import type { CoasterPanel } from '../../ui/coaster-panel';
 import type { SceneryItem } from '../../sim/map/scenery';
 import {
   handleFlowerbedTool,
+  handleLandPurchase,
   handlePathAdditionTool,
   handlePathTool,
   handlePatrolTool,
@@ -124,6 +125,8 @@ export function createToolController(deps: ToolControllerDependencies) {
       }
       const [x, y] = tile;
       if (selectedTool === 'land') deps.land.tap(clientX, clientY, shiftKey);
+      else if (selectedTool === 'buy-land') handleLandPurchase(handlerDeps, x, y, false);
+      else if (selectedTool === 'buy-rights') handleLandPurchase(handlerDeps, x, y, true);
       else if (selectedTool === 'path') handlePathTool(handlerDeps, x, y);
       else if (selectedTool === 'scenery') handleSceneryTool(handlerDeps, x, y, shiftKey);
       else if (

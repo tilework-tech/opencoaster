@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MOBILE_MAX_WIDTH, cascadePosition, clampPosition, isMobileWidth } from './window-layout';
+import {
+  MOBILE_MAX_WIDTH,
+  cascadePosition,
+  clampPosition,
+  effectiveGameSpeed,
+  isMobileWidth,
+  positionAwayFromPoint,
+} from './window-layout';
 
 describe('window layout', () => {
   it('treats viewports narrower than 700px as mobile', () => {
@@ -23,6 +30,58 @@ describe('window layout', () => {
     expect(clampPosition(-900, -50, size, 1280, 800)).toEqual({ x: -260, y: 40 });
     const far = clampPosition(5000, 5000, size, 1280, 800);
     expect(far.x).toBe(1240);
-    expect(far.y).toBeLessThanOrEqual(800 - 30);
+    expect(far.y + size.height).toBeLessThanOrEqual(800 - 68);
+  });
+
+  it('places new windows away from the current pointer when there is room', () => {
+    const position = positionAwayFromPoint(
+      { x: 640, y: 400 },
+      { width: 340, height: 260 },
+      { x: 640, y: 400 },
+      1280,
+      800,
+    );
+
+    expect(position.x + 340).toBeLessThanOrEqual(640);
+  });
+
+  it('keeps new windows above the desktop status bar', () => {
+    const size = { width: 340, height: 260 };
+    const position = positionAwayFromPoint({ x: 640, y: 400 }, size, { x: 640, y: 20 }, 1280, 800);
+
+    expect(position.y + size.height).toBeLessThanOrEqual(800 - 68);
+  });
+
+  it('clamps the fallback position when no corner clears the pointer', () => {
+    const position = positionAwayFromPoint(
+      { x: 640, y: 700 },
+      { width: 900, height: 700 },
+      { x: 640, y: 400 },
+      1280,
+      800,
+    );
+
+    expect(position.y).toBe(40);
+  });
+
+  it('chooses another clear corner when a window already occupies the preferred one', () => {
+    const size = { width: 340, height: 260 };
+    const point = { x: 1180, y: 20 };
+    const first = positionAwayFromPoint({ x: 788, y: 162 }, size, point, 1280, 800);
+    const second = positionAwayFromPoint({ x: 760, y: 190 }, size, point, 1280, 800, [
+      { ...first, ...size },
+    ]);
+
+    const overlaps =
+      second.x < first.x + size.width &&
+      second.x + size.width > first.x &&
+      second.y < first.y + size.height &&
+      second.y + size.height > first.y;
+    expect(overlaps).toBe(false);
+  });
+
+  it('limits four-times speed to two-times while construction is active', () => {
+    expect(effectiveGameSpeed(4, true)).toBe(2);
+    expect(effectiveGameSpeed(4, false)).toBe(4);
   });
 });

@@ -21,6 +21,11 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
   await toolbar.getByRole('button', { name: 'Staff', exact: true }).click();
   const staff = page.locator('[data-panel="staff"]');
   await staff.getByRole('button', { name: 'Hire Handyman' }).click();
+  const mechanicsTab = staff.getByRole('tab', { name: 'Mechanics' });
+  await mechanicsTab.click();
+  await expect(mechanicsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(staff.getByRole('button', { name: 'Hire Mechanic' })).toBeVisible();
+  await staff.getByRole('tab', { name: 'Handymen' }).click();
   const openWorker = staff.getByRole('button', { name: /Open Handyman .* details/ });
   await expect(openWorker).toBeVisible();
   await openWorker.click();
@@ -44,6 +49,9 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
   const guests = toolbar.getByRole('button', { name: 'Guests', exact: true });
   await guests.click();
   const guestWindow = page.locator('[data-panel="guests"]');
+  const guestBounds = await guestWindow.boundingBox();
+  expect(guestBounds).not.toBeNull();
+  expect(guestBounds!.y + guestBounds!.height).toBeLessThanOrEqual(732);
   const beforeWidth = await guestWindow.evaluate((el) => el.getBoundingClientRect().width);
   const resize = guestWindow.getByRole('button', { name: 'Resize Guests window' });
   const resizeBox = await resize.boundingBox();

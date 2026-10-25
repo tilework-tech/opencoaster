@@ -86,7 +86,9 @@ test('guest and footpath controls stay reachable on a phone', async ({ page }) =
   await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
   await toolbar.getByRole('button', { name: 'Guests', exact: true }).tap();
   const guests = page.locator('[data-panel="guests"]');
-  await guests.getByRole('tab', { name: 'By location' }).tap();
+  const locationTab = guests.getByRole('tab', { name: 'By location' });
+  await locationTab.tap();
+  await expect(locationTab).toHaveAttribute('aria-selected', 'true');
   const locationFilter = guests.getByLabel('Filter guests by location');
   await expect(locationFilter).toBeVisible();
   const location = await locationFilter.locator('option').nth(1).getAttribute('value');

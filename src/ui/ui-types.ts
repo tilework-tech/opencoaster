@@ -22,6 +22,8 @@ export type ToolMode =
   | 'lamp'
   | 'ride'
   | 'track'
+  | 'buy-land'
+  | 'buy-rights'
   | 'patrol';
 
 /** Footpath construction as the Footpaths window drives it. */

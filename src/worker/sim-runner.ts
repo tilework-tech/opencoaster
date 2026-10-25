@@ -13,6 +13,7 @@ import type { ScenerySpot } from '../sim/map/map-commands';
 import { SceneryResult } from '../sim/map/scenery';
 import type { PathPlacement } from '../sim/map/paths';
 import type { Snapshot } from './snapshot';
+import type { Command } from '../sim/core/commands';
 import type { FromWorker, InitMessage, ToWorker } from './protocol';
 
 export interface Port {
@@ -21,6 +22,31 @@ export interface Port {
 
 const SNAPSHOT_POOL = 3;
 const STATS_INTERVAL_MS = 500;
+
+function isConstructionCommand(command: Command): boolean {
+  switch (command.type) {
+    case 'createRide':
+    case 'placeRideEntrance':
+    case 'placeRideExit':
+    case 'placeTrack':
+    case 'removeTrack':
+    case 'setTileHeight':
+    case 'raiseLand':
+    case 'lowerLand':
+    case 'setWater':
+    case 'paintLand':
+    case 'placePath':
+    case 'removePath':
+    case 'setPathAddition':
+    case 'placeScenery':
+    case 'removeScenery':
+    case 'buyLand':
+    case 'setFlowerBed':
+      return true;
+    default:
+      return false;
+  }
+}
 
 /**
  * Worker-side driver, kept free of `self`/DOM so it can run (and be tested) in plain Node.
@@ -40,6 +66,7 @@ export class SimRunner {
   private lastSnapshot = -Infinity;
   /** Ticks have advanced since the last published snapshot. */
   private snapshotDue = false;
+  private pausedCommands: Command[] = [];
 
   constructor(
     private readonly port: Port,
@@ -52,12 +79,26 @@ export class SimRunner {
         this.init(msg);
         break;
       case 'command':
-        this.sim?.enqueue(msg.command);
+        if (this.sim) {
+          if (this.sched.paused && !isConstructionCommand(msg.command)) {
+            this.pausedCommands.push(msg.command);
+            break;
+          }
+          this.sim.enqueue(msg.command);
+          if (this.sched.paused && this.sim.applyPendingCommands()) {
+            if (this.sim.world.map.revision !== this.mapRevision) this.postMap(this.sim);
+            this.snapshotDue = true;
+          }
+        }
         break;
       case 'setSpeed':
         this.sched.speed = msg.multiplier;
         break;
       case 'setPaused':
+        if (!msg.paused && this.sim && this.pausedCommands.length > 0) {
+          for (const command of this.pausedCommands) this.sim.enqueue(command);
+          this.pausedCommands = [];
+        }
         this.sched.paused = msg.paused;
         break;
       case 'setSnapshotInterval':
@@ -143,6 +184,7 @@ export class SimRunner {
   /** Makes `sim` the running game: sizes the snapshot pool to its map and publishes the map. */
   private start(sim: Simulation): void {
     this.sim = sim;
+    this.pausedCommands = [];
     this.ensurePool(sim.world.map.width * sim.world.map.height);
     this.postMap(sim);
   }
@@ -181,12 +223,13 @@ export class SimRunner {
         data.surface.buffer as ArrayBuffer,
         data.slope.buffer as ArrayBuffer,
         data.waterLevel.buffer as ArrayBuffer,
+        data.ownership.buffer as ArrayBuffer,
         data.pathElements.buffer as ArrayBuffer,
       ],
     );
   }
 
-  /** Runs due ticks and publishes a snapshot if any ran and a free buffer is available. */
+  /** Runs due ticks and publishes a snapshot if any state changed and a free buffer is available. */
   pump(): void {
     const sim = this.sim;
     if (!sim) return;

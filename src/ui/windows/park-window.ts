@@ -79,7 +79,12 @@ export function openParkWindow(ctx: UiContext): WindowController {
   const awards = element('pre', 'ui-pre');
 
   if (created) {
-    win.pane('entrance').append(entrance.guests.row, entrance.rides.row, entrance.value.row);
+    win.pane('entrance').append(
+      entrance.guests.row,
+      entrance.rides.row,
+      entrance.value.row,
+      button('Land rights', () => ctx.openWindow('land-rights'), 'ui-button'),
+    );
     win
       .pane('rating')
       .append(

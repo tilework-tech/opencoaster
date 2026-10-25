@@ -171,4 +171,34 @@ describe('SimRunner', () => {
       stats && stats.type === 'stats' ? stats.stats.tick : -1,
     );
   });
+
+  it('applies construction commands immediately while paused without advancing the tick', () => {
+    const out: FromWorker[] = [];
+    let now = 0;
+    const r = new SimRunner(
+      {
+        post: (m) => {
+          out.push(m);
+          if (m.type === 'snapshot') r.handle({ type: 'recycle', snapshot: m.snapshot });
+        },
+      },
+      () => now,
+    );
+    r.handle({ type: 'init', seed: 1, width: 16, height: 16, initialGuests: 0, maxGuests: 10 });
+    now = 25;
+    r.pump();
+    now = 50;
+    r.pump();
+    r.handle({ type: 'setPaused', paused: true });
+    r.handle({
+      type: 'command',
+      command: { type: 'createRide', rideType: 1, x: 4, y: 4 },
+    });
+    now += 25;
+    r.pump();
+
+    const snapshot = out.filter((m) => m.type === 'snapshot').at(-1);
+    expect(snapshot && snapshot.type === 'snapshot' ? snapshot.snapshot.tick : -1).toBe(1);
+    expect(snapshot && snapshot.type === 'snapshot' ? snapshot.snapshot.feedback.seq : -1).toBe(1);
+  });
 });
