@@ -105,7 +105,6 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         const viewport = (await page.locator('#game').boundingBox())!;
         await toolbarAction(page, 'Pause', mobile);
         await centerMapOnTile(page, ...MAP_CENTER, mobile);
-        const before = await capture(page, testInfo, `${profile}-${ride.type}-before`);
 
         await toolbarAction(page, 'Resume', mobile);
         await toolbarAction(page, 'New ride', mobile);
@@ -123,19 +122,25 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         );
         const cx = boxes.reduce((sum, b) => sum + b.x, 0) / boxes.length;
         const cy = boxes.reduce((sum, b) => sum + b.y, 0) / boxes.length;
+        // Both frames share the same UI (the ride panel and status text animate in), so the only
+        // difference between them is the preview sprite itself.
+        const withPreview = await capture(page, testInfo, `${profile}-${ride.type}-with-preview`);
         await page.addStyleTag({
-          content:
-            '.ride-placement-preview, .ride-placement-targets { visibility: hidden !important; }',
+          content: '.ride-placement-preview { visibility: hidden !important; }',
         });
-        const after = await capture(page, testInfo, `${profile}-${ride.type}-after`);
+        const withoutPreview = await capture(
+          page,
+          testInfo,
+          `${profile}-${ride.type}-without-preview`,
+        );
         await page.context().close();
 
-        const scale = after.width / viewport.width;
+        const scale = withPreview.width / viewport.width;
         let area = 0;
         const cropArea = 80 * 90;
         for (let y = Math.round((cy - 70) * scale); y < Math.round((cy + 20) * scale); y++)
           for (let x = Math.round((cx - 40) * scale); x < Math.round((cx + 40) * scale); x++)
-            if (changed(before, after, x, y)) area++;
+            if (changed(withPreview, withoutPreview, x, y)) area++;
         const cropFraction = area / (scale * scale * cropArea);
         expect(
           cropFraction,

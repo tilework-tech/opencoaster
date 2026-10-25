@@ -51,11 +51,13 @@ test('keeps map camera controls reachable on a phone-sized screen', async ({ pag
       { id: 2, x: 200, y: 400 },
     ],
   });
+  // Zoom snaps to the nearest level in log space, so the spread must grow past √2 (about 1.41×)
+  // to step from zoom 1 to 2; 100 → 180 px is 1.8×.
   await session.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
     touchPoints: [
-      { id: 1, x: 80, y: 400 },
-      { id: 2, x: 220, y: 400 },
+      { id: 1, x: 60, y: 400 },
+      { id: 2, x: 240, y: 400 },
     ],
   });
   const afterPinch = await page.locator('#game').screenshot();

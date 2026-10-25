@@ -3,6 +3,8 @@ import type { Camera } from '../../../render/renderer';
 import { TILE_UNITS, Z_STEP } from '../../../sim/core/constants';
 import type { PathPiecePreview } from '../../../sim/map/map-commands';
 import { PathResult } from '../../../sim/map/paths';
+import { PathFlag, SLOPE_DIR_SHIFT } from '../../../sim/map/tile-map';
+import type { PathPieceGhost } from '../../../render/renderer';
 import type { Tile } from './run';
 
 export type GhostTone = 'ok' | 'refused' | 'paved' | 'pending';
@@ -27,20 +29,50 @@ export interface GhostLabel {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+/**
+ * The footpath pieces to draw in the world for a preview: accepted pieces as the sim laid them out,
+ * refused tiles flat on the ground in the chosen surface. Paved and still-pending tiles are left out.
+ */
+export function pathPieceGhosts(
+  items: readonly GhostItem[],
+  map: GhostMap,
+  style: number,
+  queue = false,
+): PathPieceGhost[] {
+  const ghosts: PathPieceGhost[] = [];
+  for (const item of items) {
+    const { x, y } = item.tile;
+    if (item.tone === 'ok' && item.piece) {
+      const { piece } = item;
+      const slope = piece.dir >= 0 ? PathFlag.Sloped | (piece.dir << SLOPE_DIR_SHIFT) : 0;
+      ghosts.push({
+        x,
+        y,
+        level: piece.z,
+        flags: piece.edges | (piece.queue ? PathFlag.Queue : 0) | slope,
+        surface: piece.style,
+        tone: 'ok',
+      });
+    } else if (item.tone === 'refused') {
+      ghosts.push({
+        x,
+        y,
+        level: map.heights[y * map.width + x]!,
+        flags: queue ? PathFlag.Queue : 0,
+        surface: style,
+        tone: 'refused',
+      });
+    }
+  }
+  return ghosts;
+}
+
 /** Tile corners in order (x,y), (x+1,y), (x+1,y+1), (x,y+1), in tile units. */
 const CORNERS: ReadonlyArray<readonly [number, number]> = [
   [0, 0],
   [1, 0],
   [1, 1],
   [0, 1],
-];
-
-/** Edge midpoints by direction (0 = +x, 1 = +y, 2 = -x, 3 = -y), with the two corners each joins. */
-const EDGES: ReadonlyArray<{ mx: number; my: number; a: number; b: number }> = [
-  { mx: 1, my: 0.5, a: 1, b: 2 },
-  { mx: 0.5, my: 1, a: 2, b: 3 },
-  { mx: 0, my: 0.5, a: 3, b: 0 },
-  { mx: 0.5, my: 0, a: 0, b: 1 },
 ];
 
 /** Corner levels of a piece at base `z` rising toward `dir`; a flat piece has one level. */
@@ -60,9 +92,9 @@ export function pieceCornerLevels(z: number, dir: number): number[] {
 }
 
 /**
- * Draws the footpath preview over the map. Each previewed piece is drawn where the sim would put
- * it: its base level and slope, the edges it joins to its neighbours, and its queue rails. Tiles
- * without a piece get a flat outline on the ground.
+ * Outlines the footpath preview over the map. The piece art itself is drawn in the world by the
+ * renderer (see `pathPieceGhosts`); each outline sits where that art lands, so the ground tile it
+ * marks matches the piece that will be built.
  */
 export class PathGhost {
   private readonly svg = document.createElementNS(SVG_NS, 'svg');
@@ -156,33 +188,5 @@ export class PathGhost {
     }
     this.svg.append(shape);
     if (!piece) return;
-
-    const centre = toScreen(x + 0.5, y + 0.5, levels.reduce((sum, level) => sum + level, 0) / 4);
-    EDGES.forEach((edge, d) => {
-      if (!(piece.edges & (1 << d))) return;
-      const level = (levels[edge.a]! + levels[edge.b]!) / 2;
-      const [ex, ey] = toScreen(x + edge.mx, y + edge.my, level);
-      const line = document.createElementNS(SVG_NS, 'line');
-      line.setAttribute('class', 'path-ghost-edge');
-      line.setAttribute('x1', String(centre[0]));
-      line.setAttribute('y1', String(centre[1]));
-      line.setAttribute('x2', String(ex));
-      line.setAttribute('y2', String(ey));
-      line.dataset.dir = String(d);
-      this.svg.append(line);
-    });
-    if (piece.queue) {
-      for (const ry of [0.3, 0.7]) {
-        const [x1, y1] = toScreen(x + 0.15, y + ry, base);
-        const [x2, y2] = toScreen(x + 0.85, y + ry, base);
-        const rail = document.createElementNS(SVG_NS, 'line');
-        rail.setAttribute('class', 'path-ghost-rail');
-        rail.setAttribute('x1', String(x1));
-        rail.setAttribute('y1', String(y1));
-        rail.setAttribute('x2', String(x2));
-        rail.setAttribute('y2', String(y2));
-        this.svg.append(rail);
-      }
-    }
   }
 }

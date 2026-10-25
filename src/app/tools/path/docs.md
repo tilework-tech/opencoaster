@@ -5,7 +5,7 @@ Path: @/src/app/tools/path
 ### Overview
 
 - Builds footpaths for the Footpaths window in two modes: a dragged run or a hovered tile (line mode), and a piece at a cursor (piece mode).
-- Previews exactly what would be built before it is: the ghost draws each piece with the base level, slope, connections to neighbours and queue rails the sim computed. Green is accepted; red is refused, with the reason at the pointer.
+- Previews exactly what would be built before it is: the ghost draws each piece with the real footpath sprite at the base level and slope, connections to neighbours and queue rails the sim computed. Accepted pieces are translucent; refused tiles are tinted red, with the reason at the pointer.
 
 ### How it fits into the larger codebase
 
@@ -17,7 +17,8 @@ Path: @/src/app/tools/path
 
 - [run.ts](run.ts): `pathRunTiles` gives a straight line or one turn, along x first; `pieceSlope` maps Level/Up/Down to the sim's slope argument; `stepCursor` moves the piece cursor.
 - [controller.ts](controller.ts): `PathTool` previews the hovered tile, a dragged run, or the piece cursor, lays the run on release, and builds or removes a piece at the cursor. Tiles that already hold a footpath are shown as paved and skipped, so they are never charged twice.
-- [ghost.ts](ghost.ts): `PathGhost` draws the preview as an SVG overlay positioned with the camera. Each piece is drawn at its base level and slope (`pieceCornerLevels`), with connector lines for its edges and rails for queue lines. Polygons carry `data-*` attributes with the piece's level, direction, style, queue flag and edges, which the e2e tests read.
+- [ghost.ts](ghost.ts): `pathPieceGhosts` turns the preview into `PathPieceGhost` entries that the renderer draws in the world with the real footpath sprites: accepted pieces at the base level and slope the sim chose, refused tiles flat on the ground in the chosen surface. `PathGhost` draws only a thin SVG outline over each tile, positioned with the camera (`pieceCornerLevels`); its polygons carry `data-*` attributes with the piece's level, direction, style, queue flag and edges, which the e2e tests read.
+- The renderers draw the ghosts translucently in their depth-sorted sprite pass ([render](../../../render/docs.md)); refused pieces are tinted red. `PathTool` clears them whenever the preview hides.
 - [state.ts](state.ts): the tool's settings (mode, surface, queue, piece direction and slope, cursor) and the once-only Footpaths hint.
 
 ### Things to Know

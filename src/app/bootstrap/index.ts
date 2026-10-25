@@ -102,6 +102,7 @@ export async function bootstrap(): Promise<void> {
     sim,
     state: pathState,
     camera,
+    renderer,
     canvas,
     overlay: root,
     setStatus: (text) => gameUi.setToolStatus(text),

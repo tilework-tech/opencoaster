@@ -712,42 +712,21 @@
   overflow: visible;
 }
 .path-ghost-tile {
-  stroke-width: 1.5;
+  fill: none;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
 }
 .path-ghost-ok {
-  fill: rgba(120, 220, 120, 0.42);
   stroke: #b8f0b0;
 }
-.path-ghost-ok[data-style='0'] {
-  fill: rgba(150, 160, 150, 0.7);
-}
-.path-ghost-ok[data-style='1'] {
-  fill: rgba(200, 180, 130, 0.7);
-}
-.path-ghost-ok[data-style='2'] {
-  fill: rgba(150, 100, 55, 0.7);
-}
-.path-ghost-edge {
-  stroke: #fff0bd;
-  stroke-width: 2;
-  pointer-events: none;
-}
-.path-ghost-rail {
-  stroke: #f5f5f0;
-  stroke-width: 1.5;
-  stroke-dasharray: 3 2;
-  pointer-events: none;
-}
 .path-ghost-refused {
-  fill: rgba(232, 40, 32, 0.6);
   stroke: #ff8a7d;
+  stroke-width: 1.5;
 }
 .path-ghost-paved {
-  fill: rgba(255, 255, 255, 0.18);
   stroke: #e8e2c8;
 }
 .path-ghost-pending {
-  fill: rgba(255, 240, 189, 0.22);
   stroke: #fff0bd;
 }
 .path-ghost-label {
