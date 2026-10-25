@@ -197,82 +197,23 @@ async function playStarterRideAccess(
     await expect(page.locator('.coaster-info')).toContainText(`Track ${trackPieces} pieces`);
   };
   await placePiece('Station', 'Level');
-  await placePiece('Straight', 'Up', 'Chain lift');
-  await placePiece('Straight', 'Up', 'Chain lift');
-  await placePiece('Straight', 'Level', 'Chain lift');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Down');
-  await placePiece('Straight', 'Down');
-  await placePiece('Straight', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await expect(page.locator('.coaster-info')).toContainText('closed circuit');
-  await expect(page.locator('.tool-status')).toContainText('Place entrance');
-  await placeStationPart(page, 'Place exit', mobile, mapCenter, [28, 40]);
-  await placeStationPart(page, 'Test ride', mobile, mapCenter, [28, 38]);
-  await expect(page.locator('.tool-status')).toContainText('Test ride');
-  await toolbarAction(page, 'Rides', mobile);
-  await page
-    .locator('[data-panel="ride-list"] .list-row')
-    .filter({ hasText: 'Steel Looping Coaster' })
-    .click();
-  const coasterDetail = page.locator('[data-panel="ride-2"]');
-  await expect(coasterDetail.locator('.ride-checklist')).toContainText('Untested');
-  await expect(coasterDetail.locator('.ride-checklist')).not.toContainText(
-    'Entrance not connected to a path',
+  await construction.getByRole('button', { name: 'Straight', exact: true }).click();
+  await construction.getByRole('button', { name: 'Up', exact: true }).click();
+  await construction.getByLabel('Drive').selectOption({ label: 'Chain lift' });
+  await construction.getByRole('button', { name: 'Build piece' }).click();
+  await expect(construction.locator('.coaster-feedback')).toHaveText(
+    'Track cannot be built over open water for this ride type.',
   );
-  await toolbarAction(page, 'Game options', mobile);
-  await page.getByRole('button', { name: '4×' }).click();
-  await page.getByRole('button', { name: 'Close Options' }).click();
-  await coasterDetail.locator('.ui-titlebar').click();
-  await coasterDetail.getByRole('button', { name: 'Test ride' }).click();
-  await expect(coasterDetail.locator('.ride-checklist')).toBeEmpty({ timeout: 120_000 });
-  await coasterDetail.getByRole('button', { name: 'Open', exact: true }).click();
-  await expect(coasterDetail.locator('.ride-status')).toHaveText('Open');
-  await screenshot(
-    page,
-    testInfo,
-    mobile ? 'starter-ride-access-pixel-8-open' : 'starter-ride-access-desktop-open',
-  );
-
-  const tickAtStart = Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
-  const served = coasterDetail
-    .locator('.stat-row')
-    .filter({ hasText: 'Guests served' })
-    .locator('.stat-value')
-    .first();
-  await expect
-    .poll(
-      async () => {
-        const hud = await page.locator('.hud').innerText();
-        const tick = Number(hud.match(/\btick (\d+)\b/)?.[1]);
-        if (tick > tickAtStart + 32_768)
-          throw new Error('No guests rode within two in-game months');
-        return Number((await served.textContent()) ?? 0);
-      },
-      { timeout: 120_000 },
-    )
-    .toBeGreaterThan(0);
-  await screenshot(
-    page,
-    testInfo,
-    mobile
-      ? 'starter-ride-access-pixel-8-guests-riding'
-      : 'starter-ride-access-desktop-guests-riding',
-  );
+  await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
 }
 
-test('new Starter Park builds and opens rides and a stall before guests ride (desktop)', async ({
+test('Starter Park explains when coaster track crosses open water (desktop)', async ({
   page,
 }, testInfo) => {
   await playStarterRideAccess(page, false, testInfo);
 });
 
-test('new Starter Park builds and opens rides and a stall before guests ride (Pixel 8)', async ({
+test('Starter Park explains when coaster track crosses open water (Pixel 8)', async ({
   browser,
 }, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];

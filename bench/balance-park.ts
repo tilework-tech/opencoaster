@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { RideType } from '../src/sim/rides/ride-types';
+import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import { RideState } from '../src/sim/rides/ride-store';
 import { StaffKind } from '../src/sim/staff/staff-store';
 import { buildCircuit, GROUND, SMALL_CIRCUIT } from '../src/sim/rides/coaster-fixtures';
@@ -98,7 +99,9 @@ function place(sim: Simulation, p: Placement): number {
   const nearSpine = SPINE_X + dir;
   const lo = Math.min(nearSpine, entranceX);
   const hi = Math.max(nearSpine, entranceX);
-  pathRun(sim, lo, hi, p.y, true);
+  const category = RIDE_CATALOG[p.type].category;
+  const serviceRide = category === 'stall' || category === 'facility';
+  pathRun(sim, lo, hi, p.y, !serviceRide);
   pathRun(sim, Math.min(nearSpine, rideX), Math.max(nearSpine, rideX), p.y + 1);
   sim.enqueue({ type: 'createRide', rideType: p.type, x: rideX, y: p.y });
   sim.step();

@@ -4,17 +4,12 @@ import { Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { charge } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
+import { Surface } from '../map/tile-map';
 import { invalidateRideTest } from '../rides/coaster';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
 import { PIECES } from './catalog';
-import {
-  circuitStatus,
-  placeTrack,
-  removeTrack,
-  rotateTile,
-  validatePlacement,
-} from './construction';
+import { placeTrack, removeTrack, rotateTile, validatePlacement } from './construction';
 import type { PlaceRequest } from './construction';
 import { MAX_TRACK_RIDES } from './track-store';
 import { PieceFlag, PieceMode, Slope, TrackResult, TrackWarning } from './track-types';
@@ -40,9 +35,6 @@ function checkRideRules(world: World, req: PlaceRequest): TrackResult {
   if (steep && !rules.steepSlopes) return TrackResult.PieceNotAllowed;
   if (def.flags & PieceFlag.Inverted && !rules.inversions) return TrackResult.PieceNotAllowed;
   if (req.mode === PieceMode.Launch && !rules.launch) return TrackResult.PieceNotAllowed;
-  if (def.flags & PieceFlag.Station && circuitStatus(world, req.rideId).stations > 0) {
-    return TrackResult.PieceNotAllowed;
-  }
   let top = 0;
   for (const cell of def.footprint) top = Math.max(top, cell.zMax);
   if (req.z * Z_STEP + top > rules.maxLevel * Z_STEP) return TrackResult.TooHigh;
@@ -67,6 +59,19 @@ export function validatePlaceCommand(world: World, req: PlaceRequest): TrackResu
   if (rules !== TrackResult.Ok) return rules;
   const geometry = validatePlacement(world, req);
   if (geometry !== TrackResult.Ok) return geometry;
+  const rideSlot = world.rides.idToSlot[req.rideId];
+  const rideType = world.rides.cols.typeId[rideSlot] as RideType;
+  if (!RIDE_CATALOG[rideType]?.allowsWater) {
+    for (const cell of PIECES[req.pieceType].footprint) {
+      const [rx, ry] = rotateTile(cell.i, cell.j, req.dir);
+      const tile = world.map.index(req.x + rx, req.y + ry);
+      if (
+        world.map.surface[tile] === Surface.Water &&
+        world.map.waterLevel[tile] > world.map.heights[tile]
+      )
+        return TrackResult.OverWater;
+    }
+  }
   if (!ownsFootprint(world, req)) return TrackResult.NotOwned;
   if (world.economy.cash < PIECES[req.pieceType].cost) return TrackResult.InsufficientFunds;
   return TrackResult.Ok;

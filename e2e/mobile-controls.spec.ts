@@ -43,6 +43,7 @@ test('keeps map camera controls reachable on a phone-sized screen', async ({ pag
   await zoomOut.tap();
 
   const beforePinch = await page.locator('#game').screenshot();
+  const beforePinchHash = createHash('sha256').update(beforePinch).digest('hex');
   const session = await page.context().newCDPSession(page);
   await session.send('Input.dispatchTouchEvent', {
     type: 'touchStart',
@@ -58,10 +59,13 @@ test('keeps map camera controls reachable on a phone-sized screen', async ({ pag
       { id: 2, x: 220, y: 400 },
     ],
   });
-  const afterPinch = await page.locator('#game').screenshot();
-  expect(createHash('sha256').update(afterPinch).digest('hex')).not.toBe(
-    createHash('sha256').update(beforePinch).digest('hex'),
-  );
+  await expect
+    .poll(async () =>
+      createHash('sha256')
+        .update(await page.locator('#game').screenshot())
+        .digest('hex'),
+    )
+    .not.toBe(beforePinchHash);
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await session.detach();
 });

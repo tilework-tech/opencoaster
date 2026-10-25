@@ -1,7 +1,7 @@
 import type { World } from '../core/world';
-import { Z_STEP } from '../core/constants';
+import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
-import { charge } from '../economy/api';
+import { charge, earn } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
 import { PATH_COST_CENTS, Surface } from '../map/tile-map';
 import { placePath } from '../map/paths';
@@ -9,6 +9,8 @@ import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { PieceFlag } from '../track/track-types';
 import { abortRideTest, isTrackRide, startRideTest } from './coaster';
+import { GuestState, HEADING_NONE } from '../guests/guest-store';
+import { removeRideTrains } from '../vehicles/ride-trains';
 import {
   setRideInspectionInterval,
   setRideMode,
@@ -30,7 +32,8 @@ export type RideCommand =
   | { type: 'setRideTrains'; rideId: number; trains: number; cars: number }
   | { type: 'setRideMode'; rideId: number; mode: RideMode }
   /** `minutes` is one of `INSPECTION_INTERVAL_MINUTES`, or 0 for never. */
-  | { type: 'setRideInspection'; rideId: number; minutes: number };
+  | { type: 'setRideInspection'; rideId: number; minutes: number }
+  | { type: 'demolishRide'; rideId: number };
 
 /** Tiles the ride's guests board and leave from: station tiles for track rides. */
 function boardingTiles(world: World, rideId: number, slot: number): Array<[number, number]> {
@@ -124,8 +127,71 @@ function connectQueueFromEntrance(world: World, slot: number): void {
 
 export function refreshRideQueueConnections(world: World): void {
   for (let slot = 0; slot < world.rides.count; slot++) {
-    if (world.rides.cols.entrancePlaced[slot]) connectQueueFromEntrance(world, slot);
+    const ride = world.rides.cols;
+    const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
+    if (def?.category === 'stall' || def?.category === 'facility') {
+      const access = findAdjacentPath(world, slot, def.footprint);
+      if (access) {
+        ride.entranceX[slot] = access[0];
+        ride.entranceY[slot] = access[1];
+        ride.entrancePlaced[slot] = 1;
+      } else if (ride.entrancePlaced[slot]) {
+        ride.entrancePlaced[slot] = 0;
+        if (ride.state[slot] === RideState.Open)
+          setRideOpen(world, world.rides.slotToId[slot], false);
+      }
+    } else if (ride.entrancePlaced[slot]) {
+      connectQueueFromEntrance(world, slot);
+    }
   }
+}
+
+function findDisembarkTile(world: World, slot: number): [number, number] | null {
+  const ride = world.rides.cols;
+  const map = world.map;
+  const candidates: [number, number][] = [];
+  if (ride.exitPlaced[slot]) candidates.push([ride.exitX[slot], ride.exitY[slot]]);
+  if (ride.entrancePlaced[slot]) candidates.push([ride.entranceX[slot], ride.entranceY[slot]]);
+  for (const [x, y] of candidates)
+    if (map.inBounds(x, y) && map.isWalkable(map.index(x, y))) return [x, y];
+
+  let nearest: [number, number] | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      if (!map.isWalkable(map.index(x, y))) continue;
+      const candidateDistance = Math.abs(ride.rideX[slot] - x) + Math.abs(ride.rideY[slot] - y);
+      if (candidateDistance < distance) {
+        nearest = [x, y];
+        distance = candidateDistance;
+      }
+    }
+  }
+  return nearest;
+}
+
+function findAdjacentPath(
+  world: World,
+  slot: number,
+  footprint: readonly (readonly [number, number])[],
+): [number, number] | null {
+  const ride = world.rides.cols;
+  for (const [dx, dy] of footprint) {
+    const x = ride.rideX[slot] + dx;
+    const y = ride.rideY[slot] + dy;
+    for (const [ox, oy] of [
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1],
+    ] as const) {
+      const px = x + ox;
+      const py = y + oy;
+      if (world.map.inBounds(px, py) && world.map.surface[world.map.index(px, py)] === Surface.Path)
+        return [px, py];
+    }
+  }
+  return null;
 }
 
 function placeBoardingTile(
@@ -146,11 +212,26 @@ function placeBoardingTile(
   );
   if (!adjacent) return RideResult.NotAdjacentToStation;
   const ride = world.rides.cols;
+  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  const directAccess = def.category === 'stall' || def.category === 'facility';
+  const tile = world.map.index(x, y);
+  if (directAccess) {
+    if (
+      kind !== 'entrance' ||
+      world.map.surface[tile] !== Surface.Path ||
+      !world.map.canBuild(tile) ||
+      trackAtGround(world, x, y)
+    )
+      return RideResult.Blocked;
+    ride.entranceX[slot] = x;
+    ride.entranceY[slot] = y;
+    ride.entrancePlaced[slot] = 1;
+    return RideResult.Ok;
+  }
   const otherPlaced = kind === 'entrance' ? ride.exitPlaced[slot] : ride.entrancePlaced[slot];
   const otherX = kind === 'entrance' ? ride.exitX[slot] : ride.entranceX[slot];
   const otherY = kind === 'entrance' ? ride.exitY[slot] : ride.entranceY[slot];
   if (otherPlaced && otherX === x && otherY === y) return RideResult.Blocked;
-  const tile = world.map.index(x, y);
   if (!world.map.canBuild(tile)) return RideResult.NotOwned;
   if (trackAtGround(world, x, y) || rideFootprintAt(world, x, y)) return RideResult.Blocked;
 
@@ -209,6 +290,57 @@ function closeRide(world: World, rideId: number): RideResult {
   return setRideOpen(world, rideId, false) ? RideResult.Ok : RideResult.NoSuchRide;
 }
 
+function startFlatRideTest(world: World, rideId: number): RideResult {
+  if (!world.rides.isAlive(rideId)) return RideResult.NoSuchRide;
+  const slot = world.rides.idToSlot[rideId];
+  const ride = world.rides.cols;
+  if (ride.state[slot] === RideState.Broken) return RideResult.Broken;
+  if (isBusy(world, slot)) return RideResult.Busy;
+  ride.tested[slot] = 0;
+  ride.state[slot] = RideState.Testing;
+  ride.phase[slot] = RidePhase.Running;
+  ride.phaseTicks[slot] = ride.runTicks[slot];
+  return RideResult.Ok;
+}
+
+function demolishRide(world: World, rideId: number): RideResult {
+  if (!world.rides.isAlive(rideId)) return RideResult.NoSuchRide;
+  const slot = world.rides.idToSlot[rideId];
+  const ride = world.rides.cols;
+  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  const constructionCost = Array.from({ length: world.track.pieces.count }, (_, index) => index)
+    .filter((index) => world.track.pieces.cols.rideId[index] === rideId)
+    .reduce(
+      (total, index) => total + PIECES[world.track.pieces.cols.pieceType[index]].cost,
+      def.cost,
+    );
+  const refund =
+    ride.guestsServed[slot] === 0 ? constructionCost : Math.floor((constructionCost * 70) / 100);
+  const disembarkTile = findDisembarkTile(world, slot);
+
+  if (ride.state[slot] === RideState.Testing) abortRideTest(world, rideId);
+  removeRideTrains(world, rideId);
+  for (let guest = 0; guest < world.guests.count; guest++) {
+    if (world.guests.cols.targetRide[guest] !== rideId) continue;
+    const access = disembarkTile ?? [ride.rideX[slot], ride.rideY[slot]];
+    const guests = world.guests.cols;
+    guests.x[guest] = access[0]! * TILE_UNITS + (TILE_UNITS >> 1);
+    guests.y[guest] = access[1]! * TILE_UNITS + (TILE_UNITS >> 1);
+    guests.z[guest] = world.map.heightAt(guests.x[guest], guests.y[guest]);
+    guests.heading[guest] = HEADING_NONE;
+    guests.targetRide[guest] = -1;
+    guests.targetX[guest] = access[0]!;
+    guests.targetY[guest] = access[1]!;
+    guests.navGoal[guest] = 0;
+    guests.navGap[guest] = 0;
+    guests.navSteps[guest] = 0;
+    guests.state[guest] = GuestState.Wandering;
+  }
+  earn(world, LedgerCategory.RideConstruction, refund);
+  world.rides.despawnId(rideId);
+  return RideResult.Ok;
+}
+
 export function applyRideCommand(world: World, c: RideCommand): RideResult {
   let result: RideResult;
   switch (c.type) {
@@ -224,7 +356,9 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
           ? openRide(world, c.rideId)
           : c.status === 'close'
             ? closeRide(world, c.rideId)
-            : startRideTest(world, c.rideId);
+            : isTrackRide(world, c.rideId)
+              ? startRideTest(world, c.rideId)
+              : startFlatRideTest(world, c.rideId);
       break;
     case 'setRidePrice':
       result = setRidePrice(world, c.rideId, c.priceCents) ? RideResult.Ok : RideResult.Blocked;
@@ -247,6 +381,9 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
         : setRideInspectionInterval(world, c.rideId, c.minutes)
           ? RideResult.Ok
           : RideResult.Blocked;
+      break;
+    case 'demolishRide':
+      result = demolishRide(world, c.rideId);
       break;
   }
   reportFeedback(world.feedback, FeedbackDomain.Ride, result, c.rideId);

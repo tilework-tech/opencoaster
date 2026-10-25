@@ -56,6 +56,7 @@ export const enum TrackResult {
   NotOwned = 13,
   InsufficientFunds = 14,
   PieceNotAllowed = 15,
+  OverWater = 16,
 }
 
 /**

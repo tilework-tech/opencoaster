@@ -54,6 +54,8 @@ Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and up
 4. Footprint (tiles touched by the centre line, rasterised in the local frame and rotated): inside the map, lowest point at or above height 0, above terrain unless the piece has `TunnelOk` (then it is a tunnel), highest point at most `MAX_TRACK_LEVEL` (96) levels.
 5. Clearance: each footprint cell occupies `[zMin, zMax + CLEARANCE_UNITS]` (3 levels) on its tile; overlap with any cell of any ride is `Blocked`.
 
+Consecutive station pieces are allowed; each station piece contributes its complete footprint to the station tiles used for boarding access. Command validation also rejects track footprints over open water unless the ride type declares `allowsWater`.
+
 `removeTrack(world, rideId, pieceId)`: `-1` removes the tail. An open chain only loses an end piece (`NotAtEnd` otherwise); any piece of a closed circuit can go and reopens it. `circuitStatus` reports pieces, closed, station count, `complete` (closed with a station) and length.
 
 ## Commands
@@ -64,10 +66,11 @@ Commands: `{ type: 'placeTrack', rideId, pieceType, x, y, z, dir, mode }` and `{
 
 1. Ride-type rules from `RideTypeDef.trackRules` (`maxLevel`, `steepSlopes`, `inversions`, `launch`, and optional `allowedPieces`) -> `PieceNotAllowed`. The Junior and Wild Mouse family lists are approximations and their full vanilla piece sets remain unverified.
 2. Geometry via `validatePlacement`.
-3. Ownership of every footprint tile via `map.canBuild` -> `NotOwned`.
-4. Funds -> `InsufficientFunds`.
+3. For rides without `allowsWater`, check every rotated footprint tile and return `OverWater` when open water lies above terrain.
+4. Ownership of every footprint tile via `map.canBuild` -> `NotOwned`.
+5. Funds -> `InsufficientFunds`.
 
-A valid piece is placed and charged through the economy `charge`, then `invalidateRideTest` clears the ride's tested state. Removal also invalidates the test. Direct `placeTrack()` / `removeTrack()` calls (tests, fixtures) skip ownership, ride rules and charging; only commands enforce them. UIs call `validatePlacement` first for hover feedback, but the command result is authoritative.
+A valid piece is placed and charged through the economy `charge`, then `invalidateRideTest` clears the ride's tested state. Removal also invalidates the test. Direct `placeTrack()` / `removeTrack()` calls (tests, fixtures) skip ownership, ride rules, water checks and charging; only commands enforce them. UIs call `validatePlacement` first for hover feedback, but the command result is authoritative.
 
 ## Determinism and state
 

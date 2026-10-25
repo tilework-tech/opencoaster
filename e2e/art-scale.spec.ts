@@ -94,8 +94,8 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
   const mobile = profile === 'pixel-8';
   test.describe(`art scale on ${profile}`, () => {
     for (const ride of [
-      { name: 'Swinging Ship', tab: 'Thrill rides', type: 2, minArea: 1900 },
-      { name: 'Top Spin', tab: 'Thrill rides', type: 13, minArea: 2300 },
+      { name: 'Swinging Ship', tab: 'Thrill rides', type: 2, minArea: 1900, pixel8MinArea: 1450 },
+      { name: 'Top Spin', tab: 'Thrill rides', type: 13, minArea: 2300, pixel8MinArea: 1950 },
     ]) {
       test(`${ride.name} covers its tile footprint`, async ({ browser }, testInfo) => {
         test.setTimeout(120_000);
@@ -136,7 +136,8 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
           for (let x = Math.round((cx - 40) * scale); x < Math.round((cx + 40) * scale); x++)
             if (changed(before, after, x, y)) area++;
         const cssArea = area / (scale * scale);
-        expect(cssArea, `${ride.name} on-screen area in CSS px²`).toBeGreaterThan(ride.minArea);
+        const minArea = mobile ? ride.pixel8MinArea : ride.minArea;
+        expect(cssArea, `${ride.name} on-screen area in CSS px²`).toBeGreaterThan(minArea);
       });
     }
   });

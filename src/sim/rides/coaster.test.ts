@@ -320,7 +320,7 @@ describe('coaster failure handling', () => {
     expect(isRideTested(sim.world, rideId)).toBe(true);
   });
 
-  it('refuses a second station on a coaster', () => {
+  it('allows a second station segment on a coaster', () => {
     const sim = flatOwnedSim();
     const rideId = createCoaster(sim);
     buildCircuit(sim, rideId, [
@@ -328,8 +328,8 @@ describe('coaster failure handling', () => {
       ['flat', PieceMode.Normal],
     ]);
     buildCircuit(sim, rideId, [['station', PieceMode.Normal]]);
-    expect(sim.world.feedback.code).toBe(TrackResult.PieceNotAllowed);
-    expect(sim.world.track.count[rideId]).toBe(2);
+    expect(sim.world.feedback.code).toBe(TrackResult.Ok);
+    expect(sim.world.track.count[rideId]).toBe(3);
   });
 });
 

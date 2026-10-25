@@ -206,6 +206,7 @@ export class Simulation {
       case 'setRideTrains':
       case 'setRideMode':
       case 'setRideInspection':
+      case 'demolishRide':
         applyRideCommand(w, c);
         break;
       default:
