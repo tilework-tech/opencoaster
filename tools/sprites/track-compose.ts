@@ -5,7 +5,8 @@ import type { TrackPieceDef } from '../../src/sim/track/track-types';
 import { PieceMode } from '../../src/sim/track/track-types';
 import { artPieces, trackCellSprites, transportTrackCells } from '../../src/render/coaster-art';
 import type { TrackArt, TrackRideFamily, TransportFamily } from '../../src/render/coaster-art';
-import { project } from '../../src/render/projection';
+import { project, Z_PIXELS } from '../../src/render/projection';
+import { nativeSpriteAnchorShift, nativeSpriteWorldOffset } from '../../src/render/world-art';
 import type { Rotation } from '../../src/render/projection';
 import { rotateMesh, translateMesh } from './mesh';
 import type { Mesh } from './mesh';
@@ -108,6 +109,10 @@ export function newCanvas(left: number, top: number, width: number, height: numb
 function blit(canvas: Canvas, sprite: Sprite, originX: number, originY: number): void {
   const ox = originX - sprite.anchor.x - canvas.left;
   const oy = originY - sprite.anchor.y - canvas.top;
+  blitAt(canvas, sprite, ox, oy);
+}
+
+function blitAt(canvas: Canvas, sprite: Sprite, ox: number, oy: number): void {
   for (let y = 0; y < sprite.height; y++)
     for (let x = 0; x < sprite.width; x++) {
       const p = sprite.pixels[y * sprite.width + x];
@@ -147,14 +152,55 @@ export interface SpriteLookup {
   get(key: string): SpriteDef | undefined;
 }
 
-const alignedCache = new WeakMap<SpriteDef, Sprite>();
+/** A frame as the atlas stores it: transparent borders trimmed, anchor moved with the trim. */
+function packedFrame(def: SpriteDef): Sprite {
+  const frames = alignFrames(def.frames);
+  const { width, height } = frames[0];
+  let left = width;
+  let top = height;
+  let right = -1;
+  let bottom = -1;
+  for (const frame of frames)
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++)
+        if (frame.pixels[y * width + x] !== TRANSPARENT) {
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+  const trimmedWidth = right - left + 1;
+  const trimmedHeight = bottom - top + 1;
+  const pixels = new Uint8Array(trimmedWidth * trimmedHeight);
+  for (let y = 0; y < trimmedHeight; y++)
+    for (let x = 0; x < trimmedWidth; x++)
+      pixels[y * trimmedWidth + x] = frames[0].pixels[(y + top) * width + x + left];
+  return {
+    width: trimmedWidth,
+    height: trimmedHeight,
+    anchor: { x: frames[0].anchor.x - left, y: frames[0].anchor.y - top },
+    pixels,
+  };
+}
+
+const packedCache = new WeakMap<SpriteDef, Sprite>();
 function frameOf(def: SpriteDef): Sprite {
-  let sprite = alignedCache.get(def);
+  let sprite = packedCache.get(def);
   if (!sprite) {
-    sprite = alignFrames(def.frames)[0];
-    alignedCache.set(def, sprite);
+    sprite = packedFrame(def);
+    packedCache.set(def, sprite);
   }
   return sprite;
+}
+
+/**
+ * Top-left pixel of a packed sprite whose quad the renderer centres on the projected point and
+ * then moves by the anchor shift and height offset.
+ */
+function placedOrigin(sprite: Sprite, x: number, y: number): [number, number] {
+  const centreX = x + nativeSpriteAnchorShift(sprite.width, sprite.anchor.x);
+  const centreY = y - nativeSpriteWorldOffset(sprite.height, sprite.anchor.y) * (Z_PIXELS / Z_STEP);
+  return [Math.round(centreX - sprite.width / 2), Math.round(centreY - sprite.height / 2)];
 }
 
 export interface Bounds {
@@ -195,10 +241,11 @@ function paint(
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const d of drawn) {
-    minX = Math.min(minX, d.x - d.sprite.anchor.x);
-    minY = Math.min(minY, d.y - d.sprite.anchor.y);
-    maxX = Math.max(maxX, d.x - d.sprite.anchor.x + d.sprite.width);
-    maxY = Math.max(maxY, d.y - d.sprite.anchor.y + d.sprite.height);
+    const [x, y] = placedOrigin(d.sprite, d.x, d.y);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + d.sprite.width);
+    maxY = Math.max(maxY, y + d.sprite.height);
   }
   const left = Math.floor(minX) - margin;
   const top = Math.floor(minY) - margin;
@@ -209,7 +256,10 @@ function paint(
     Math.ceil(maxY) + margin - top,
   );
   drawn.sort((a, b) => a.depth - b.depth);
-  for (const d of drawn) blit(canvas, d.sprite, Math.round(d.x), Math.round(d.y));
+  for (const d of drawn) {
+    const [x, y] = placedOrigin(d.sprite, d.x, d.y);
+    blitAt(canvas, d.sprite, x - canvas.left, y - canvas.top);
+  }
   return canvas;
 }
 
@@ -251,12 +301,12 @@ export function viewTile(tx: number, ty: number, rotation: Rotation): [number, n
 
 export { PIECES };
 
-/** Straight pieces that continue a piece's entry and exit slope and bank classes. */
-export function neighbours(piece: TrackPieceDef): {
-  before?: TrackPieceDef;
-  after?: TrackPieceDef;
-} {
-  const straights = PIECES.filter((p) => p.shape === 'straight' && p.dx === 1 && p.dy === 0);
+/** Straight pieces of `pool` that continue a piece's entry and exit slope and bank classes. */
+export function neighbours(
+  piece: TrackPieceDef,
+  pool: readonly TrackPieceDef[] = PIECES,
+): { before?: TrackPieceDef; after?: TrackPieceDef } {
+  const straights = pool.filter((p) => p.shape === 'straight' && p.dx === 1 && p.dy === 0);
   return {
     before: straights.find(
       (p) => p.exitSlope === piece.entrySlope && p.exitBank === piece.entryBank,

@@ -37,6 +37,7 @@ Path: @/e2e
 - Screenshot filenames encode the sequence and are stored under Playwright’s test output directory rather than committed as repository assets. The Starter Park ride-access runs attach their screenshots to the Playwright report for review.
 - Mobile profiles and SwiftShader are browser emulation; their screenshots and FPS samples verify the browser integration path but do not characterize physical phone GPU performance.
 
+- `coaster-turns.spec.ts` imports a generated save of a closed steel looping coaster ([support/steel-showcase.ts](support/steel-showcase.ts): lift, banked and flat turns of several radii, drop, vertical loop, corkscrew, S-bend) and screenshots it in all four camera rotations.
 - `mobile.spec.ts` runs at a 390 px phone viewport with touch: it checks the scrolling toolbar, stacked bottom sheets, a 44 px minimum for every visible control, and tap-to-build.
 
 Created and maintained by Nori.

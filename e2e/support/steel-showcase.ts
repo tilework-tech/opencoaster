@@ -1,5 +1,10 @@
 import { RideType } from '../../src/sim/rides/ride-types';
-import { buildCircuit, createCoaster, flatOwnedSim, run } from '../../src/sim/rides/coaster-fixtures';
+import {
+  buildCircuit,
+  createCoaster,
+  flatOwnedSim,
+  run,
+} from '../../src/sim/rides/coaster-fixtures';
 import { PieceMode } from '../../src/sim/track/track-types';
 import { serialize } from '../../src/save/save';
 
@@ -18,8 +23,6 @@ export const STEEL_SHOWCASE: ReadonlyArray<readonly [string, PieceMode]> = [
   ...rep(3, 'up25', L),
   ['up25ToFlat', L],
   ['flat', N],
-  ['verticalLoopLeft', N],
-  ['flat', N],
   ['flatToRightBank', N],
   ['mediumRightBanked', N],
   ['mediumRightBanked', N],
@@ -27,11 +30,12 @@ export const STEEL_SHOWCASE: ReadonlyArray<readonly [string, PieceMode]> = [
   ['flatToDown25', N],
   ...rep(3, 'down25'),
   ['down25ToFlat', N],
+  ['verticalLoopRight', N],
   ['corkscrewRight', N],
   ['sBendLeft', N],
   ['smallRight', N],
   ['largeRight', N],
-  ...rep(4, 'flat'),
+  ...rep(7, 'flat'),
 ];
 
 /** Save file bytes of a 48x48 park holding the showcase coaster, tested and running. */
@@ -40,6 +44,6 @@ export function steelShowcaseSave(): Uint8Array {
   const rideId = createCoaster(sim, RideType.SteelLoopingCoaster, 20, 10);
   buildCircuit(sim, rideId, STEEL_SHOWCASE);
   sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
-  run(sim, 600);
+  run(sim, 1500);
   return serialize(sim.world);
 }

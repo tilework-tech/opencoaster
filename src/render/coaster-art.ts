@@ -195,21 +195,54 @@ export function carSpriteKey(
 /** Height levels between the track centre line and the underside of its bed. */
 const BED_LEVELS = 0.25;
 
-/** Centre-line height (world z units) of the sample nearest the middle of a footprint cell. */
-function centreHeight(piece: TrackPieceDef, cell: number): number {
+/**
+ * Sample inside a footprint cell closest to the cell centre: where a support column stands, so it
+ * is under the rails even where a turn runs along the tile edge.
+ */
+function supportSample(piece: TrackPieceDef, cell: number): number {
   const { i, j } = piece.footprint[cell] ?? { i: 0, j: 0 };
   let best = piece.sampleStart;
   let bestDistance = Infinity;
   for (let k = 0; k < piece.sampleCount; k++) {
     const at = piece.sampleStart + k;
-    const distance =
-      (SAMPLES.x[at] / TILE_UNITS - 0.5 - i) ** 2 + (SAMPLES.y[at] / TILE_UNITS - 0.5 - j) ** 2;
+    const dx = SAMPLES.x[at] / TILE_UNITS - 0.5 - i;
+    const dy = SAMPLES.y[at] / TILE_UNITS - 0.5 - j;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) continue;
+    const distance = dx * dx + dy * dy;
     if (distance < bestDistance) {
       bestDistance = distance;
       best = at;
     }
   }
-  return SAMPLES.z[best];
+  return best;
+}
+
+/** Centre-line height (world z units) at the support position of a footprint cell. */
+function centreHeight(piece: TrackPieceDef, cell: number): number {
+  return SAMPLES.z[supportSample(piece, cell)];
+}
+
+/**
+ * Offset in world units from a cell's tile centre to its support column, for a piece placed with
+ * `dir` quarter turns.
+ */
+export function supportOffset(pieceType: number, cell: number, dir: number): [number, number] {
+  const piece = PIECES[pieceType];
+  const def = piece?.footprint[cell];
+  if (!piece || !def) return [0, 0];
+  const at = supportSample(piece, cell);
+  const x = SAMPLES.x[at] - (def.i + 0.5) * TILE_UNITS;
+  const y = SAMPLES.y[at] - (def.j + 0.5) * TILE_UNITS;
+  switch (dir & 3) {
+    case 0:
+      return [x, y];
+    case 1:
+      return [-y, x];
+    case 2:
+      return [-x, -y];
+    default:
+      return [y, -x];
+  }
 }
 
 export interface SupportStack {
