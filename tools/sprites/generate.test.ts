@@ -277,6 +277,26 @@ describe('generated sprite catalogue', () => {
     }
   });
 
+  it('generates a textured rock top and four shaded, textured cliff faces', () => {
+    const surface = sprites.get('terrain/rock/surface');
+    expect(surface?.raw).toBe(true);
+    const top = surface?.frames[0];
+    expect(top?.width).toBe(16);
+    expect(top?.height).toBe(16);
+    expect(new Set(top?.pixels ?? []).size).toBeGreaterThan(3);
+
+    const cliffs = [0, 1, 2, 3].map((direction) => {
+      const face = sprites.get(`terrain/rock/cliff-face-${direction}`);
+      expect(face?.raw).toBe(true);
+      const frame = face?.frames[0];
+      expect(frame?.width).toBe(64);
+      expect(frame?.height).toBe(16);
+      expect(new Set(frame?.pixels ?? []).size).toBeGreaterThan(3);
+      return Buffer.from(frame?.pixels ?? []).toString('base64');
+    });
+    expect(new Set(cliffs).size).toBe(4);
+  });
+
   it('generates transport track and vehicle keys matching the runtime family names', () => {
     for (const { style } of TRANSPORT_STYLES) {
       expect(sprites.has(`track/${style}/flat/view-0/cell-0`), style).toBe(true);

@@ -4,6 +4,9 @@ import { hashWorld } from '../core/hash';
 import { ElementType, OWNED, SALE_LAND, Surface } from '../map/tile-map';
 import { SceneryItem } from '../map/scenery';
 import { RideState } from '../rides/ride-store';
+import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { project } from '../../render/projection';
+import { SCENARIOS } from './catalog';
 import { buildApron, ownedBounds } from './scenario-map';
 import { parseScenarioFile } from './scenario-file';
 import { prepareScenario } from './scenario-layout';
@@ -205,6 +208,77 @@ describe('scenario ground and trees', () => {
       const nearGate =
         t.x >= apron.x0 - 2 && t.x <= apron.x1 + 2 && t.y >= apron.y0 - 2 && t.y <= apron.y1 + 2;
       expect(nearGate).toBe(false);
+    }
+  });
+
+  it('gives Starter Park its configured groves and shrubs without filling the entrance apron', () => {
+    const starter = SCENARIOS.find((scenario) => scenario.id === 'starter');
+    if (!starter?.trees) throw new Error('Starter Park tree recipe missing');
+    const m = world(starter).map;
+    const placed = trees(m);
+    const treeItems = placed.filter((item) => item.item !== SceneryItem.Shrub);
+    const shrubs = placed.filter((item) => item.item === SceneryItem.Shrub);
+
+    expect(treeItems).toHaveLength(starter.trees.count);
+    expect(shrubs).toHaveLength(starter.trees.shrubs ?? 0);
+    expect(new Set(treeItems.map((tree) => tree.item)).size).toBeGreaterThanOrEqual(3);
+    const apron = buildApron(m, starter.entrance!);
+    for (const tree of placed) {
+      expect(m.terrain[m.index(tree.x, tree.y)]).toBe(Surface.Grass);
+      expect(apron[m.index(tree.x, tree.y)]).toBe(0);
+    }
+    expect(
+      treeItems.some((first) =>
+        treeItems.some(
+          (second) =>
+            first !== second &&
+            first.item === second.item &&
+            Math.abs(first.x - second.x) <= 2 &&
+            Math.abs(first.y - second.y) <= 2,
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps beach water inside the projected opening viewport of shoreline scenarios', () => {
+    for (const scenario of SCENARIOS.filter((entry) =>
+      ['lantern-bay', 'seaside-promenade'].includes(entry.id),
+    )) {
+      const park = world(scenario);
+      const { map } = park;
+      const entrance = scenario.entrance!;
+      const inward = { north: [0, 1], east: [-1, 0], south: [0, -1], west: [1, 0] }[entrance.side];
+      const pathCentre = (entrance.length - 1) / 2;
+      const camera = new Float64Array(2);
+      project(
+        (park.park.entranceX + 0.5 + inward[0] * pathCentre) * TILE_UNITS,
+        (park.park.entranceY + 0.5 + inward[1] * pathCentre) * TILE_UNITS,
+        map.heights[map.index(park.park.entranceX, park.park.entranceY)]! * Z_STEP,
+        map.width,
+        map.height,
+        0,
+        camera,
+      );
+      let visibleWater = 0;
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          const index = map.index(x, y);
+          if (map.waterLevel[index] <= map.heights[index]) continue;
+          const screen = new Float64Array(2);
+          project(
+            (x + 0.5) * TILE_UNITS,
+            (y + 0.5) * TILE_UNITS,
+            map.heights[index]! * Z_STEP,
+            map.width,
+            map.height,
+            0,
+            screen,
+          );
+          if (Math.abs(screen[0]! - camera[0]!) <= 640 && Math.abs(screen[1]! - camera[1]!) <= 400)
+            visibleWater++;
+        }
+      }
+      expect(visibleWater, scenario.name).toBeGreaterThan(0);
     }
   });
 });
