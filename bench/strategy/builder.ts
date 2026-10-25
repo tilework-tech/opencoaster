@@ -106,18 +106,6 @@ export class ParkBuilder {
     return null;
   }
 
-  slotsLeft(): number {
-    let n = 0;
-    const saved = new Set(this.occupied);
-    for (let s = this.nextSlot(); s; s = this.nextSlot()) {
-      this.occupy(s.row, s.lateral);
-      n++;
-    }
-    this.occupied.clear();
-    for (const k of saved) this.occupied.add(k);
-    return n;
-  }
-
   private extendSpine(row: number): void {
     for (let r = this.spineRow + 1; r <= row; r++) {
       const [x, y] = this.grid.tile(r, 0);
