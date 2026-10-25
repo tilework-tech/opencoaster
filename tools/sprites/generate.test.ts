@@ -58,12 +58,15 @@ describe('generated sprite catalogue', () => {
     expect(used.size).toBeLessThanOrEqual(5);
   });
 
-  it('renders every non-track ride and stall type in 4 rotations with at least 4 frames', () => {
-    for (const def of Object.values(RIDE_CATALOG).filter((ride) => !ride.usesTrack)) {
+  it('renders every non-track ride type in its atlas category with 4 rotations and 4 frames', () => {
+    for (const def of Object.values(RIDE_CATALOG).filter(
+      (ride) => !ride.usesTrack && !['shop', 'stall', 'facility'].includes(ride.category),
+    )) {
       const slug = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const category = def.category === 'transport' ? 'transport' : 'flat-rides';
       for (let view = 0; view < 4; view++)
         expect(
-          sprites.get(`rides/${slug}/view-${view}`)?.frames.length ?? 0,
+          sprites.get(`${category}/${slug}/view-${view}`)?.frames.length ?? 0,
           `${def.name} view ${view}`,
         ).toBeGreaterThanOrEqual(4);
     }
@@ -78,7 +81,7 @@ describe('generated sprite catalogue', () => {
       for (let facing = 0; facing < 4; facing++)
         for (let view = 0; view < 4; view++)
           expect(
-            sprites.get(`facilities/${key}/facing-${facing}/view-${view}`)?.frames.length ?? 0,
+            sprites.get(`stalls/${key}/facing-${facing}/view-${view}`)?.frames.length ?? 0,
           ).toBeGreaterThanOrEqual(4);
     }
   });
@@ -93,8 +96,14 @@ describe('generated sprite catalogue', () => {
       for (const part of ['entrance', 'exit'])
         for (let facing = 0; facing < 4; facing++)
           for (let view = 0; view < 4; view++) {
+            const page =
+              category === 'transport'
+                ? 'transport'
+                : category === 'coaster'
+                  ? 'coaster-steel'
+                  : 'flat-rides';
             const sprite = sprites.get(
-              `stations/${category}/${part}/facing-${facing}/view-${view}`,
+              `${page}/stations/${category}/${part}/facing-${facing}/view-${view}`,
             );
             expect(sprite).toBeDefined();
             expect(sprite!.frames[0].pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
@@ -129,7 +138,7 @@ describe('generated sprite catalogue', () => {
         for (let view = 0; view < 4; view++) {
           const cells = piece.footprint
             .map((_, index) =>
-              sprites.has(`track/${style}/${piece.name}/view-${view}/cell-${index}`),
+              sprites.has(`coaster-${style}/${piece.name}/view-${view}/cell-${index}`),
             )
             .filter(Boolean);
           expect(cells.length, `${style} ${piece.name} view ${view}`).toBeGreaterThan(0);
@@ -140,7 +149,7 @@ describe('generated sprite catalogue', () => {
     for (const style of ['wood', 'steel'])
       for (const part of ['column', 'base'])
         for (let view = 0; view < 4; view++)
-          expect(sprites.has(`track/${style}/support-${part}/view-${view}`)).toBe(true);
+          expect(sprites.has(`coaster-${style}/support-${part}/view-${view}`)).toBe(true);
   });
 
   it('has train cars at 8 headings for flat, up and down pitches', () => {

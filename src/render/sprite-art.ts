@@ -27,13 +27,14 @@ function slug(name: string): string {
 /** Atlas key of a non-track ride for camera rotation `rotation`; animation frames are `#n`. */
 export function rideSpriteKey(type: RideType, rotation: number): string {
   const def = RIDE_CATALOG[type];
-  return `rides/${slug(def.name)}/view-${((rotation % 4) + 4) % 4}`;
+  const category = def.category === 'transport' ? 'transport' : 'flat-rides';
+  return `${category}/${slug(def.name)}/view-${((rotation % 4) + 4) % 4}`;
 }
 
 /** Atlas key for a facility whose customer-facing side points toward `facing`. */
 export function facilitySpriteKey(type: RideType, facing: number, rotation: number): string {
   const def = RIDE_CATALOG[type];
-  return `facilities/${slug(def.name)}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+  return `stalls/${slug(def.name)}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
 }
 
 /** Selects the path-facing side for a facility from the five-value path element records. */
@@ -68,7 +69,13 @@ export function rideHutSpriteKey(
   rotation: number,
 ): string {
   const category = RIDE_CATALOG[type].category;
-  return `stations/${category}/${part}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+  const group =
+    category === 'transport'
+      ? 'transport'
+      : category === 'coaster'
+        ? 'coaster-steel'
+        : 'flat-rides';
+  return `${group}/stations/${category}/${part}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
 }
 
 /** The outward direction from a ride footprint to its entrance or exit tile. */
@@ -126,7 +133,7 @@ export function trackCells(
         [cell.j, -cell.i],
       ] as const
     )[turns];
-    return { key: `track/${style}/${piece.name}/view-${view}/cell-${index}`, dx, dy };
+    return { key: `coaster-${style}/${piece.name}/view-${view}/cell-${index}`, dx, dy };
   });
 }
 

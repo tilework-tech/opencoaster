@@ -24,6 +24,7 @@ import { RIDE_CATALOG } from './sim/rides/ride-types';
 import { TrackPreviewOverlay } from './ui/track-preview';
 import type { RidePlacementGhost } from './ui/track-preview';
 import { facilityFacingFromPaths } from './render/sprite-art';
+import { ridePlacementValid } from './render/placement-art';
 import { SCENARIOS, scenarioDisplayName } from './sim/scenario/catalog';
 import { IMPORTED_ID, SANDBOX_ID } from './sim/scenario/scenario';
 import { ScenarioStatus } from './sim/scenario/scenario';
@@ -933,7 +934,13 @@ function frame(now: number): void {
             sim.map.pathElements,
             sim.map.pathCount ?? 0,
           ),
-          valid: latest.buildable[rideHover[1] * sim.map.width + rideHover[0]] !== 0,
+          valid: ridePlacementValid(
+            coasterPanel.rideType,
+            rideHover[0],
+            rideHover[1],
+            sim.map,
+            latest,
+          ),
           tick: latest.tick,
         }
       : null;

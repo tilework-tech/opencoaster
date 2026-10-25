@@ -12,7 +12,8 @@ import {
   viewTerrainCornerHeights,
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
-import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import type { Rotation } from './projection';

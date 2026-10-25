@@ -5,7 +5,8 @@ import type { Camera } from '../render/renderer';
 import { TrackResult } from '../sim/track/track-types';
 import type { TrackGhost } from './coaster-panel';
 import { footprintTiles } from './track-tool';
-import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import {
   facilitySpriteKey,
   frameForTick,

@@ -27,10 +27,11 @@ describe('path views', () => {
 
 describe('ride sprites', () => {
   it('names every non-track ride after its catalog name with a camera view', () => {
-    expect(rideSpriteKey(RideType.MerryGoRound, 2)).toBe('rides/merry-go-round/view-2');
-    expect(rideSpriteKey(RideType.GoKarts, 0)).toBe('rides/go-karts/view-0');
+    expect(rideSpriteKey(RideType.MerryGoRound, 2)).toBe('flat-rides/merry-go-round/view-2');
+    expect(rideSpriteKey(RideType.GoKarts, 0)).toBe('flat-rides/go-karts/view-0');
     for (const def of Object.values(RIDE_CATALOG))
-      if (!def.usesTrack) expect(rideSpriteKey(def.id, 1)).toMatch(/^rides\/[a-z-]+\/view-1$/);
+      if (!def.usesTrack && !['shop', 'stall', 'facility'].includes(def.category))
+        expect(rideSpriteKey(def.id, 1)).toMatch(/^(flat-rides|transport)\/[a-z-]+\/view-1$/);
   });
 
   it('advances animation frames every eight ticks and wraps', () => {
@@ -41,9 +42,7 @@ describe('ride sprites', () => {
   });
 
   it('selects distinct facility views from the nearest adjacent path', () => {
-    expect(facilitySpriteKey(RideType.FoodStall, 1, 3)).toBe(
-      'facilities/food-stall/facing-1/view-3',
-    );
+    expect(facilitySpriteKey(RideType.FoodStall, 1, 3)).toBe('stalls/food-stall/facing-1/view-3');
     expect(facilityFacingFromPaths(4, 5, new Int32Array([5, 5, 0, 0, 0]), 1)).toBe(0);
     expect(facilityFacingFromPaths(4, 5, new Int32Array([4, 6, 0, 0, 0]), 1)).toBe(1);
     expect(facilityFacingFromPaths(4, 5, new Int32Array([4, 4, 0, 0, 0]), 1)).toBe(3);
@@ -52,10 +51,10 @@ describe('ride sprites', () => {
 
   it('selects category-matched entrance and exit sprite views', () => {
     expect(rideHutSpriteKey(RideType.FerrisWheel, 'entrance', 1, 2)).toBe(
-      'stations/gentle/entrance/facing-1/view-2',
+      'flat-rides/stations/gentle/entrance/facing-1/view-2',
     );
     expect(rideHutSpriteKey(RideType.JuniorRollerCoaster, 'exit', 3, 0)).toBe(
-      'stations/coaster/exit/facing-3/view-0',
+      'coaster-steel/stations/coaster/exit/facing-3/view-0',
     );
     expect(rideHutFacing(8, 8, 8, 7)).toBe(3);
   });
@@ -71,7 +70,7 @@ describe('coaster sprites', () => {
     const turn = PIECES.find((p) => p.name === 'smallRight')!;
     const upright = trackCells(turn.id, 0, 0, 'steel');
     expect(upright).toHaveLength(turn.footprint.length);
-    expect(upright[0].key).toBe(`track/steel/smallRight/view-0/cell-0`);
+    expect(upright[0].key).toBe(`coaster-steel/smallRight/view-0/cell-0`);
     const east = trackCells(turn.id, 1, 0, 'steel');
     expect(east[0].key).toContain('view-1');
     const cell = turn.footprint[1];

@@ -2,8 +2,8 @@ import { writeSpriteDef } from './output';
 import type { SpriteDef } from './output';
 import { renderMesh } from './raster';
 import { clipMesh, physicalToLevels, rotateMesh, rotatePoint, translateMesh } from './mesh';
-import type { Mesh } from './mesh';
 import { PIECES } from '../../src/sim/track/catalog';
+import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import {
   CAR_HEADINGS,
   CAR_PITCHES,
@@ -14,7 +14,7 @@ import {
 } from './models/coaster';
 import { RIDE_MODELS, rideMesh } from './models/rides';
 import { PATH_STYLES, pathMesh } from './models/paths';
-import { SHORE_FRAMES, WATER_FRAMES, shoreMesh, waterMesh } from './models/water';
+import { WATER_FRAMES, waterTexture } from './models/water';
 import { FACILITY_MODELS } from './models/facilities';
 import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
 import { parkEntranceMesh } from './models/park-entrance';
@@ -48,35 +48,32 @@ function waterSprites(): SpriteDef[] {
   const out: SpriteDef[] = [
     {
       key: 'water/surface',
-      frames: Array.from({ length: WATER_FRAMES }, (_, f) =>
-        renderMesh(waterMesh(f), { outline: false }),
-      ),
+      frames: Array.from({ length: WATER_FRAMES }, (_, f) => waterTexture(f)),
       footprint: ONE_TILE,
+      raw: true,
     },
   ];
-  for (let mask = 0; mask < 16; mask++) {
-    const frames = Array.from({ length: SHORE_FRAMES }, (_, f): Mesh => shoreMesh(mask, f));
-    if (frames[0].length === 0) continue;
-    out.push({
-      key: `water/shore/shape-${hex2(mask)}`,
-      frames: frames.map((mesh) => renderMesh(mesh, { outline: false })),
-      footprint: ONE_TILE,
-    });
-  }
   return out;
 }
 
 function rideSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
-  for (const model of RIDE_MODELS)
+  for (const model of RIDE_MODELS) {
+    const slug = model.key.slice(model.key.indexOf('/') + 1);
+    const ride = Object.values(RIDE_CATALOG).find(
+      (definition) => definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === slug,
+    );
+    if (ride && ['shop', 'stall', 'facility'].includes(ride.category)) continue;
+    const group = ride?.category === 'transport' ? 'transport' : 'flat-rides';
     for (let view = 0; view < 4; view++)
       out.push({
-        key: `${model.key}/view-${view}`,
+        key: `${group}/${slug}/view-${view}`,
         frames: Array.from({ length: model.frames }, (_, frame) =>
           renderMesh(rotateMesh(rideMesh(model, frame), view)),
         ),
         footprint: ONE_TILE,
       });
+  }
   return out;
 }
 
@@ -86,7 +83,7 @@ function facilitySprites(): SpriteDef[] {
     for (let facing = 0; facing < 4; facing++)
       for (let view = 0; view < 4; view++)
         out.push({
-          key: `${model.key}/facing-${facing}/view-${view}`,
+          key: `${model.key.replace(/^facilities\//, 'stalls/')}/facing-${facing}/view-${view}`,
           frames: Array.from({ length: model.frames }, (_, frame) =>
             renderMesh(
               rotateMesh(rotateMesh(physicalToLevels(model.build(frame)), (facing + 3) & 3), view),
@@ -99,12 +96,18 @@ function facilitySprites(): SpriteDef[] {
 
 function stationSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
-  for (const category of STATION_CATEGORIES)
+  for (const category of STATION_CATEGORIES) {
+    const group =
+      category === 'transport'
+        ? 'transport'
+        : category === 'coaster'
+          ? 'coaster-steel'
+          : 'flat-rides';
     for (const part of ['entrance', 'exit'] as const)
       for (let facing = 0; facing < 4; facing++)
         for (let view = 0; view < 4; view++)
           out.push({
-            key: `stations/${category}/${part}/facing-${facing}/view-${view}`,
+            key: `${group}/stations/${category}/${part}/facing-${facing}/view-${view}`,
             frames: [
               renderMesh(
                 rotateMesh(
@@ -115,6 +118,7 @@ function stationSprites(): SpriteDef[] {
             ],
             footprint: ONE_TILE,
           });
+  }
   return out;
 }
 
@@ -144,7 +148,7 @@ function coasterSprites(): SpriteDef[] {
           );
           if (clipped.length === 0) continue;
           out.push({
-            key: `track/${style}/${piece.name}/view-${view}/cell-${index}`,
+            key: `coaster-${style}/${piece.name}/view-${view}/cell-${index}`,
             frames: [renderMesh(translateMesh(clipped, -centre[0], -centre[1], 0))],
             footprint: ONE_TILE,
           });
@@ -154,7 +158,7 @@ function coasterSprites(): SpriteDef[] {
     for (const part of ['column', 'base'] as const)
       for (let view = 0; view < 4; view++)
         out.push({
-          key: `track/${style}/support-${part}/view-${view}`,
+          key: `coaster-${style}/support-${part}/view-${view}`,
           frames: [renderMesh(rotateMesh(supportSegmentMesh(style, part), view))],
           footprint: ONE_TILE,
         });

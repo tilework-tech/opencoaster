@@ -1,6 +1,7 @@
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, viewSize } from './projection';
-import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import {
   facilityFacingFromPaths,
   facilitySpriteKey,
@@ -8,6 +9,8 @@ import {
   rideHutFacing,
   rideHutSpriteKey,
   rideSpriteKey,
+  trackCells,
+  trackStyleForRide,
 } from './sprite-art';
 import { drawAtlasSprite, loadSpriteAtlas } from './sprite-atlas';
 import type { SpriteAtlas } from './sprite-atlas';
@@ -157,8 +160,8 @@ export class Canvas2DRenderer implements Renderer {
     this.drawTiles(ctx, map, cam);
     if (snapshot) {
       this.drawParkGate(ctx, snapshot, map, cam);
+      if (snapshot.tracks) this.drawTrackSprites(ctx, snapshot, map, cam);
       this.drawRideMarkers(ctx, snapshot, map, cam);
-      if (snapshot.tracks) this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
       this.drawLayer(ctx, snapshot.litter, map, cam, 2, ['#6b4f2a', '#9fc35b']);
       this.drawLayer(ctx, snapshot.vehicles, map, cam, 4, '#c0392b');
       this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
@@ -430,47 +433,59 @@ export class Canvas2DRenderer implements Renderer {
         ctx.fillStyle = SHRUB_COLOR;
         ctx.fillRect(this.tmp[0] - 10, this.tmp[1] - 7, 20, 8);
       }
-      if ((flags & PathFlag.Queue) !== 0) this.drawQueueRails(ctx, map, cam, x, y, z, flags);
       this.visibleCount++;
     }
   }
 
-  private drawQueueRails(
+  private drawTrackSprites(
     ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
     map: MapData,
     cam: Camera,
-    x: number,
-    y: number,
-    z: number,
-    flags: number,
   ): void {
-    const edgeMask = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
-    const corners = [
-      [x, y],
-      [x + 1, y],
-      [x + 1, y + 1],
-      [x, y + 1],
-    ] as const;
-    const projected: Array<[number, number]> = [];
-    for (const [cx, cy] of corners) {
-      project(cx * TILE_UNITS, cy * TILE_UNITS, z, map.width, map.height, cam.rotation, this.tmp);
-      projected.push([this.tmp[0], this.tmp[1]]);
+    if (!this.spriteAtlas) {
+      this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
+      return;
     }
-    ctx.save();
-    ctx.strokeStyle = '#644733';
-    ctx.fillStyle = '#7a593f';
-    ctx.lineWidth = 1.5;
-    for (let edge = 0; edge < 4; edge++) {
-      if ((edgeMask & (1 << edge)) !== 0) continue;
-      const a = projected[edge];
-      const b = projected[(edge + 1) & 3];
-      ctx.beginPath();
-      ctx.moveTo(a[0], a[1] - 5);
-      ctx.lineTo(b[0], b[1] - 5);
-      ctx.stroke();
-      for (const [px, py] of [a, b]) ctx.fillRect(px - 1, py - 7, 2, 5);
+    const rideTypes = new Map<number, RideType>();
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const offset = i * RIDE_INFO_STRIDE;
+      rideTypes.set(
+        snapshot.rideInfo[offset + RideInfo.Id],
+        snapshot.rideInfo[offset + RideInfo.Type] as RideType,
+      );
     }
-    ctx.restore();
+    for (let i = 0; i < snapshot.tracks.count; i++) {
+      const offset = i * SNAPSHOT_STRIDE;
+      const packed = snapshot.tracks.data[offset + 3];
+      const rideType = rideTypes.get(packed >>> 16);
+      if (rideType === undefined) continue;
+      const x = Math.floor(snapshot.tracks.data[offset] / TILE_UNITS);
+      const y = Math.floor(snapshot.tracks.data[offset + 1] / TILE_UNITS);
+      const z = snapshot.tracks.data[offset + 2];
+      for (const cell of trackCells(
+        packed & 0xff,
+        (packed >>> 8) & 0xff,
+        cam.rotation,
+        trackStyleForRide(rideType),
+      )) {
+        project(
+          (x + cell.dx) * TILE_UNITS + TILE_UNITS / 2,
+          (y + cell.dy) * TILE_UNITS + TILE_UNITS / 2,
+          z,
+          map.width,
+          map.height,
+          cam.rotation,
+          this.tmp,
+        );
+        if (
+          this.isVisible(this.tmp[0], this.tmp[1], cam, 64) &&
+          drawAtlasSprite(ctx, this.spriteAtlas, cell.key, 0, this.tmp[0], this.tmp[1])
+        ) {
+          this.visibleCount++;
+        }
+      }
+    }
   }
 
   private drawRideMarkers(
