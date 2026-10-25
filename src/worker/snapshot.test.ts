@@ -74,6 +74,16 @@ describe('render snapshot', () => {
     expect(snapshot.park.rides).toBe(world.rides.count);
   });
 
+  it('converts monthly staff wages to the weekly finance summary', () => {
+    const world = new World({ seed: 9, width: 8, height: 8 });
+    world.economy.inputs.wageBillPerMonth = 5_000;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.economy.wageBillPerWeek).toBe(1_154);
+  });
+
   it('publishes the park gate tile to renderers', () => {
     const world = new World({ seed: 9, width: 8, height: 8 });
     world.park.entranceX = 3;

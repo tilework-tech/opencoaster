@@ -76,7 +76,7 @@ export const parkInputsSystem: System = {
     }
 
     setEconomyInputs(world, {
-      wageBillPerWeek: calculateStaffWageBill(world),
+      wageBillPerMonth: calculateStaffWageBill(world),
       rideUpkeepPerFortnight: upkeep,
       rideValue: rideValueContribution(valueRides),
       qualifyingRideCount: qualifying,

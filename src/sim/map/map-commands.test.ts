@@ -3,6 +3,8 @@ import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
 import { OWNED, SALE_LAND, SALE_RIGHTS, RIGHTS_OWNED, LAND_PRICE_CENTS } from './tile-map';
 import { serialize, deserialize } from '../../save/save';
+import { dropLitter, LitterKind } from '../guests/litter-store';
+import { landEditCostCents } from './land';
 
 function sim(): Simulation {
   const s = new Simulation({ seed: 9, width: 32, height: 32, maxGuests: 100 });
@@ -38,6 +40,51 @@ describe('map commands', () => {
     s.enqueue({ type: 'lowerLand', x: 10, y: 10, width: 1, height: 1 });
     s.step();
     expect(s.world.map.heights[i]).toBe(h);
+  });
+
+  it('charges shared terrain corners once and water changes per tile', () => {
+    const s = sim();
+    const cash = s.world.economy.cash;
+    s.enqueue({ type: 'raiseLand', x: 10, y: 10, width: 2, height: 1 });
+    s.step();
+    expect(cash - s.world.economy.cash).toBe(3_000);
+
+    const afterRaise = s.world.economy.cash;
+    s.enqueue({ type: 'setWater', x: 12, y: 12, width: 2, height: 2, level: 31 });
+    s.step();
+    expect(afterRaise - s.world.economy.cash).toBe(1_000);
+  });
+
+  it('prices lowering from the highest corner of each selected tile', () => {
+    const s = sim();
+    const m = s.world.map;
+    const x = 10;
+    const y = 10;
+    m.vertexHeights[m.vertexIndex(x, y)] = 4;
+    m.vertexHeights[m.vertexIndex(x + 1, y)] = 4;
+    m.vertexHeights[m.vertexIndex(x, y + 1)] = 4;
+    m.vertexHeights[m.vertexIndex(x + 1, y + 1)] = 4;
+    m.vertexHeights[m.vertexIndex(x + 2, y)] = 5;
+    m.vertexHeights[m.vertexIndex(x + 2, y + 1)] = 5;
+    m.refreshTile(m.index(x, y));
+    m.refreshTile(m.index(x + 1, y));
+
+    expect(landEditCostCents(m, x, y, 2, 1, false)).toBe(2_000);
+  });
+
+  it('removes litter from tiles whose terrain is changed', () => {
+    const s = sim();
+    expect(s.world.map.pathElement(s.world.map.index(10, 10), -1)).toBe(-1);
+    expect(s.world.map.addElement(s.world.map.index(10, 10), 1, 6, 8, 0, 0)).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(dropLitter(s.world, 10, 10, LitterKind.Trash)).toBe(true);
+    expect(s.world.litter.count).toBe(1);
+
+    s.enqueue({ type: 'raiseLand', x: 10, y: 10, width: 1, height: 1 });
+    s.step();
+
+    expect(s.world.litter.count).toBe(0);
   });
 
   it('buys land and construction rights atomically against available cash', () => {

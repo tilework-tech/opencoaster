@@ -10,6 +10,8 @@ import type { TileMap } from './tile-map';
 
 /** Largest rectangle edge accepted by a single land command. */
 export const MAX_EDIT_SIZE = 64;
+/** The source's 2.50 charge per height unit, converted to one map height step. */
+export const LAND_HEIGHT_STEP_COST_CENTS = 500;
 
 /** Corner mask of the two high corners of a ramp rising toward `dir`. */
 export function rampMask(dir: number): number {
@@ -168,6 +170,10 @@ function rectOwned(m: TileMap, x: number, y: number, w: number, h: number): bool
   return true;
 }
 
+function tileExtremeHeight(m: TileMap, index: number, up: boolean): number {
+  return m.heights[index] + (!up && m.slope[index] !== 0 ? 1 : 0);
+}
+
 /** Tile corner offsets: corner `c` is at vertex (x + CORNER_DX[c], y + CORNER_DY[c]). */
 const CORNER_DX = [0, 1, 1, 0];
 const CORNER_DY = [0, 0, 1, 1];
@@ -191,15 +197,60 @@ function shiftLand(
     moveVertex(m, s, vx, vy, m.vertexHeights[m.vertexIndex(vx, vy)] + step, up);
     return commit(m, s);
   }
-  const targets: number[] = [];
-  for (let vy = y; vy <= y + h; vy++) {
-    for (let vx = x; vx <= x + w; vx++) targets.push(m.vertexHeights[m.vertexIndex(vx, vy)] + step);
-  }
-  let k = 0;
-  for (let vy = y; vy <= y + h; vy++) {
-    for (let vx = x; vx <= x + w; vx++) moveVertex(m, s, vx, vy, targets[k++], up);
+  let extreme = up ? MAX_HEIGHT : 0;
+  for (let ty = y; ty < y + h; ty++)
+    for (let tx = x; tx < x + w; tx++) {
+      const index = m.index(tx, ty);
+      const height = tileExtremeHeight(m, index, up);
+      extreme = up ? Math.min(extreme, height) : Math.max(extreme, height);
+    }
+  const selected = new Uint8Array((w + 1) * (h + 1));
+  for (let ty = y; ty < y + h; ty++) {
+    for (let tx = x; tx < x + w; tx++) {
+      const index = m.index(tx, ty);
+      if (tileExtremeHeight(m, index, up) !== extreme) continue;
+      for (let corner = 0; corner < 4; corner++) {
+        const vx = tx + CORNER_DX[corner];
+        const vy = ty + CORNER_DY[corner];
+        const local = (vy - y) * (w + 1) + (vx - x);
+        if (selected[local]) continue;
+        selected[local] = 1;
+        const vertex = m.vertexIndex(vx, vy);
+        moveVertex(m, s, vx, vy, m.vertexHeights[vertex] + step, up);
+      }
+    }
   }
   return commit(m, s);
+}
+
+/** Computes the named terrain charge from unique corners of the currently lowest/highest tiles. */
+export function landEditCostCents(
+  m: TileMap,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  up: boolean,
+  corner?: number,
+): number {
+  if (!rectOwned(m, x, y, w, h)) return 0;
+  if (corner !== undefined) return LAND_HEIGHT_STEP_COST_CENTS;
+  let extreme = up ? MAX_HEIGHT : 0;
+  for (let ty = y; ty < y + h; ty++)
+    for (let tx = x; tx < x + w; tx++) {
+      const index = m.index(tx, ty);
+      const height = tileExtremeHeight(m, index, up);
+      extreme = up ? Math.min(extreme, height) : Math.max(extreme, height);
+    }
+  const selected = new Set<number>();
+  for (let ty = y; ty < y + h; ty++) {
+    for (let tx = x; tx < x + w; tx++) {
+      const index = m.index(tx, ty);
+      if (tileExtremeHeight(m, index, up) !== extreme) continue;
+      for (let c = 0; c < 4; c++) selected.add(m.vertexIndex(tx + CORNER_DX[c], ty + CORNER_DY[c]));
+    }
+  }
+  return selected.size * LAND_HEIGHT_STEP_COST_CENTS;
 }
 
 /** Raises a rectangle of owned tiles one level (or one corner of a single tile). */

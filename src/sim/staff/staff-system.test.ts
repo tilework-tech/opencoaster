@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
-import { TICKS_PER_WEEK } from '../economy/calendar';
+import { hashWorld } from '../core/hash';
+import { TICKS_PER_MONTH } from '../economy/calendar';
+import { completedMonthTotal } from '../economy/ledger';
 import { LedgerCategory } from '../economy/ledger';
 import { placePath, setPathAddition, PathAddition } from '../map/paths';
 import { RidePhase, RideState } from '../rides/ride-store';
@@ -11,6 +13,7 @@ import { StaffKind, setStaffKindPatrolTile, spawnStaff } from './staff-store';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { staffSystem } from './staff-system';
 import { isReachable } from '../pathfinding';
+import { OWNED } from '../map/tile-map';
 
 /** Runs staff updates on their 16-tick stride until `done`, standing in for the game loop. */
 function workStaffUntil(world: Simulation['world'], done: () => boolean): void {
@@ -21,30 +24,138 @@ function workStaffUntil(world: Simulation['world'], done: () => boolean): void {
 }
 
 describe('staff commands and work', () => {
-  it('hires and fires staff while updating the weekly wage bill', () => {
+  it('uses the manual monthly salary and charges it at the month boundary', () => {
+    const sim = new Simulation({ seed: 17, width: 16, height: 16 });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    sim.step();
+    expect(sim.world.economy.inputs.wageBillPerMonth).toBe(5_000);
+
+    const beforePayday = sim.world.economy.cash;
+    sim.world.tick = TICKS_PER_MONTH;
+    sim.step();
+
+    expect(sim.world.economy.cash).toBe(beforePayday - 5_000);
+  });
+
+  it('does not dispatch a handyman to litter outside the three-tile sweep radius', () => {
+    const sim = new Simulation({ seed: 18, width: 16, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    world.map.ownership.fill(OWNED);
+    for (let x = 8; x <= 12; x++) placePath(world.map, { x, y: 8, z: 2 });
+    spawnStaff(world, StaffKind.Handyman);
+    world.staff.cols.x[0] = 8 * 256 + 128;
+    world.staff.cols.y[0] = 8 * 256 + 128;
+    world.staff.cols.z[0] = world.map.heightAt(world.staff.cols.x[0], world.staff.cols.y[0]);
+    world.staff.cols.targetX[0] = 8;
+    world.staff.cols.targetY[0] = 8;
+    dropLitter(world, 12, 8, LitterKind.Trash);
+    expect(world.litter.count).toBe(1);
+
+    for (let tick = 0; tick < 2_000; tick++) {
+      world.tick = tick;
+      staffSystem.update(world);
+    }
+
+    expect(world.litter.count).toBe(1);
+  });
+
+  it('sweeps reachable litter inside the three-tile radius', () => {
+    const sim = new Simulation({ seed: 21, width: 16, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    world.map.ownership.fill(OWNED);
+    for (let x = 8; x <= 10; x++) placePath(world.map, { x, y: 8, z: 2 });
+    spawnStaff(world, StaffKind.Handyman);
+    world.staff.cols.x[0] = 8 * 256 + 128;
+    world.staff.cols.y[0] = 8 * 256 + 128;
+    world.staff.cols.z[0] = world.map.heightAt(world.staff.cols.x[0], world.staff.cols.y[0]);
+    dropLitter(world, 10, 8, LitterKind.Trash);
+
+    for (let tick = 0; tick < 2_000 && world.litter.count > 0; tick++) {
+      world.tick = tick;
+      staffSystem.update(world);
+    }
+
+    expect(world.litter.count).toBe(0);
+  });
+
+  it('treats vertical distance as four tiles per height level when finding litter', () => {
+    const sim = new Simulation({ seed: 19, width: 16, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    world.map.ownership.fill(OWNED);
+    placePath(world.map, { x: 8, y: 8, z: 2 });
+    spawnStaff(world, StaffKind.Handyman);
+    world.staff.cols.x[0] = 7 * 256 + 128;
+    world.staff.cols.y[0] = 8 * 256 + 128;
+    placePath(world.map, { x: 7, y: 8, z: 2 });
+    world.staff.cols.z[0] = world.map.heightAt(world.staff.cols.x[0], world.staff.cols.y[0]);
+    world.staff.cols.targetX[0] = 7;
+    world.staff.cols.targetY[0] = 8;
+    dropLitter(world, 8, 8, LitterKind.Trash);
+    world.litter.cols.z[0] += 4 * 64;
+
+    for (let tick = 0; tick < 2_000; tick++) {
+      world.tick = tick;
+      staffSystem.update(world);
+    }
+
+    expect(world.litter.count).toBe(1);
+  });
+
+  it('counts completed sweeps and repeats the same seeded work sequence', () => {
+    const run = () => {
+      const sim = new Simulation({ seed: 20, width: 16, height: 16 });
+      const world = sim.world;
+      world.map.fillFlat(2);
+      world.map.ownership.fill(OWNED);
+      placePath(world.map, { x: 8, y: 8, z: 2 });
+      spawnStaff(world, StaffKind.Handyman);
+      world.staff.cols.x[0] = 8 * 256 + 128;
+      world.staff.cols.y[0] = 8 * 256 + 128;
+      world.staff.cols.z[0] = world.map.heightAt(world.staff.cols.x[0], world.staff.cols.y[0]);
+      dropLitter(world, 8, 8, LitterKind.Trash);
+      for (let tick = 0; tick < 1600 && world.litter.count > 0; tick += 16) {
+        world.tick = tick;
+        staffSystem.update(world);
+      }
+      return sim;
+    };
+    const first = run();
+    const second = run();
+
+    expect(first.world.litter.count).toBe(0);
+    expect(first.world.staff.cols.sweeps[0]).toBe(1);
+    expect(hashWorld(first.world)).toBe(hashWorld(second.world));
+  });
+
+  it('hires and fires staff while updating the monthly wage bill', () => {
     const sim = new Simulation({ seed: 8, width: 16, height: 16 });
     sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
     sim.step();
 
     expect(sim.world.staff.count).toBe(1);
-    expect(sim.world.economy.inputs.wageBillPerWeek).toBeGreaterThan(0);
+    expect(sim.world.economy.inputs.wageBillPerMonth).toBeGreaterThan(0);
 
     const beforePayday = sim.world.economy.cash;
-    sim.world.tick = TICKS_PER_WEEK;
+    sim.world.economy.loan = 0;
+    sim.world.tick = TICKS_PER_MONTH;
     sim.step();
     expect(sim.world.economy.cash).toBeLessThan(beforePayday);
-    expect(sim.world.economy.monthlyTotals[LedgerCategory.Wages]).toBeLessThan(0);
+    expect(completedMonthTotal(sim.world.economy, LedgerCategory.Wages)).toBe(-5_000);
 
     sim.enqueue({ type: 'fireStaff', staffId: sim.world.staff.slotToId[0] });
     sim.step();
     expect(sim.world.staff.count).toBe(0);
-    expect(sim.world.economy.inputs.wageBillPerWeek).toBe(0);
+    expect(sim.world.economy.inputs.wageBillPerMonth).toBe(0);
   });
 
   it('uses a patrol area to keep a handyman on its connected paths', () => {
     const sim = new Simulation({ seed: 2, width: 16, height: 16 });
     const w = sim.world;
     w.map.fillFlat(2);
+    w.map.ownership.fill(OWNED);
     for (let x = 4; x <= 10; x++) sim.enqueue({ type: 'placePath', x, y: 6, z: 2 });
     sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
     sim.step();
@@ -54,6 +165,7 @@ describe('staff commands and work', () => {
     sim.step();
     w.staff.cols.x[0] = 4 * 256 + 128;
     w.staff.cols.y[0] = 6 * 256 + 128;
+    w.staff.cols.z[0] = w.map.heightAt(w.staff.cols.x[0], w.staff.cols.y[0]);
     dropLitter(w, 7, 6, LitterKind.Trash);
     dropLitter(w, 10, 6, LitterKind.Trash);
     for (let i = 0; i < 300; i++) {
@@ -73,14 +185,16 @@ describe('staff commands and work', () => {
     const sim = new Simulation({ seed: 9, width: 16, height: 16 });
     const world = sim.world;
     world.map.fillFlat(2);
+    world.map.ownership.fill(OWNED);
     for (let x = 4; x <= 10; x++) placePath(world.map, { x, y: 6, z: 2 });
     placePath(world.map, { x: 5, y: 8, z: 2 });
     placePath(world.map, { x: 5, y: 9, z: 2 });
     spawnStaff(world, StaffKind.Handyman);
     world.staff.cols.x[0] = 4 * 256 + 128;
     world.staff.cols.y[0] = 6 * 256 + 128;
+    world.staff.cols.z[0] = world.map.heightAt(world.staff.cols.x[0], world.staff.cols.y[0]);
     dropLitter(world, 5, 8, LitterKind.Trash);
-    dropLitter(world, 8, 6, LitterKind.Trash);
+    dropLitter(world, 7, 6, LitterKind.Trash);
 
     for (let tick = 0; tick < 500; tick++) sim.step();
 
@@ -115,7 +229,7 @@ describe('staff commands and work', () => {
     for (let tick = 0; tick < 500; tick++) sim.step();
 
     expect(world.map.elData[disconnectedBin]).toBe(4);
-    expect(world.map.elData[reachableBin]).toBe(0);
+    expect(world.map.elData[reachableBin]).toBe(0xff);
   });
 
   it('sends a mechanic to a broken ride and restores its operation', () => {

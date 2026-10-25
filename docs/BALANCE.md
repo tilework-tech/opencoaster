@@ -252,6 +252,20 @@ Modest rating ranges: main 580 - 659, this PR 558 - 688. The starter objective s
 
 **Default seed (2026), scripted modest build:** main ends year one at rating 636 and wins; this PR ends at 550 and loses (189 guests, target 100). The coaster rating change moves this one run across the 575 line. The seed-sweep result above is the number to trust; the default run is a near miss in the other direction. Do not retune the target from this PR alone.
 
+## World fidelity pass
+
+Default seed 2026, modest harness, one year on flattened terrain. The first world-fidelity run was recorded before rebasing onto the newer guest-navigation and ride-reliability changes. Those mainline changes materially alter the guest and rating trajectory, so the current starter target is calibrated against the rebased tree.
+
+| Metric                 | First world-fidelity run | Rebased current tree |
+| ---------------------- | -----------------------: | -------------------: |
+| Year-end guests        |                      115 |                  261 |
+| Year-end rating        |                      456 |                  208 |
+| Objective              |         Won (target 450) |     Won (target 200) |
+| Cash                   |                  $37,090 |              $34,016 |
+| Staff wages, whole run |                   $2,360 |               $2,360 |
+
+The rating target is an OpenCoaster balance decision based on the default seed: 200 leaves an 8-point margin in this scripted run. It is not a claim about original-game difficulty or a guarantee across seeds. Terrain edits, staff hiring and park layout can change the result.
+
 ## Known gaps
 
 - Far rides still cost a long walk: after the change the wooden coaster (a 35-tile walk, open for the last two thirds of the year) serves 362 guests against 905 for the merry-go-round next to the gate, and it is capped by what its single train carries. Energy is a placeholder until the target-based needs model lands ([fidelity/guests.md](fidelity/guests.md) F2).

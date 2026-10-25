@@ -393,7 +393,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   economy.annualInterestBps = ledger.annualInterestBps;
   economy.campaignId = ledger.campaignId;
   economy.campaignWeeksLeft = ledger.campaignWeeksLeft;
-  economy.wageBillPerWeek = ledger.inputs.wageBillPerWeek;
+  economy.wageBillPerWeek = Math.round((ledger.inputs.wageBillPerMonth * 12) / 52);
   economy.monthsCompleted = ledger.monthsCompleted;
   for (let c = 0; c < LedgerCategory.COUNT; c++) {
     economy.thisMonth[c] = ledger.monthlyTotals[c];

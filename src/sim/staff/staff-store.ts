@@ -1,12 +1,15 @@
 import type { World } from '../core/world';
-import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { TILE_UNITS } from '../core/constants';
 
-export const STAFF_WAGE_CENTS_PER_WEEK = [1154, 1846, 1385, 1269] as const;
+export const STAFF_WAGE_CENTS_PER_MONTH = [5_000, 8_000, 6_000, 5_500] as const;
+export const STAFF_WAGE_CENTS_PER_WEEK = STAFF_WAGE_CENTS_PER_MONTH.map((monthly) =>
+  Math.round((monthly * 12) / 52),
+);
 
 export function calculateStaffWageBill(w: World): number {
   let total = 0;
   for (let i = 0; i < w.staff.count; i++)
-    total += STAFF_WAGE_CENTS_PER_WEEK[w.staff.cols.kind[i]] ?? 0;
+    total += STAFF_WAGE_CENTS_PER_MONTH[w.staff.cols.kind[i]] ?? 0;
   return total;
 }
 
@@ -71,6 +74,7 @@ export const STAFF_SCHEMA = {
   state: Uint8Array,
   patrolArea: Uint16Array,
   orderFlags: Uint8Array,
+  sweeps: Uint16Array,
 } as const;
 
 export function spawnStaff(w: World, kind: number): boolean {
@@ -83,12 +87,13 @@ export function spawnStaff(w: World, kind: number): boolean {
   const ty = w.rng.int(w.map.height);
   s.cols.x[slot] = tx * TILE_UNITS + (TILE_UNITS >> 1);
   s.cols.y[slot] = ty * TILE_UNITS + (TILE_UNITS >> 1);
-  s.cols.z[slot] = w.map.heights[w.map.index(tx, ty)] * Z_STEP;
+  s.cols.z[slot] = w.map.heightAt(s.cols.x[slot], s.cols.y[slot]);
   s.cols.targetX[slot] = tx;
   s.cols.targetY[slot] = ty;
   s.cols.kind[slot] = kind;
   s.cols.state[slot] = 0;
   s.cols.orderFlags[slot] = defaultStaffOrderFlags(kind);
+  s.cols.sweeps[slot] = 0;
   const patrolOffset = kind * w.map.width * w.map.height;
   for (let tile = 0; tile < w.map.width * w.map.height; tile++) {
     if (w.patrolAreas[patrolOffset + tile] !== 0) {
@@ -96,7 +101,7 @@ export function spawnStaff(w: World, kind: number): boolean {
       break;
     }
   }
-  w.economy.inputs.wageBillPerWeek += STAFF_WAGE_CENTS_PER_WEEK[kind] ?? 0;
+  w.economy.inputs.wageBillPerMonth += STAFF_WAGE_CENTS_PER_MONTH[kind] ?? 0;
   return true;
 }
 
@@ -128,7 +133,7 @@ export function hireStaff(w: World, kind: number): boolean {
 export function fireStaff(w: World, staffId: number): boolean {
   const slot = w.staff.idToSlot[staffId] ?? -1;
   if (slot < 0) return false;
-  w.economy.inputs.wageBillPerWeek -= STAFF_WAGE_CENTS_PER_WEEK[w.staff.cols.kind[slot]] ?? 0;
+  w.economy.inputs.wageBillPerMonth -= STAFF_WAGE_CENTS_PER_MONTH[w.staff.cols.kind[slot]] ?? 0;
   w.staff.despawnSlot(slot);
   w.staffNames.delete(staffId);
   return true;

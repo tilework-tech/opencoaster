@@ -23,7 +23,7 @@ describe('map render data', () => {
       4,
       8,
       world.map.elFlags[pathIndex],
-      0,
+      0xff,
     ]);
     expect(world.map.elType[pathIndex]).toBe(ElementType.Path);
     expect(data.pathElements[3] & (PathFlag.Queue | PathFlag.Bin)).toBe(

@@ -4,7 +4,7 @@ Path: @/src/sim/weather
 
 ### Overview
 
-- Holds the park's current weather kind, temperature, and ticks remaining before a transition.
+- Holds the park's current weather kind, temperature, and ticks remaining before a transition; weather is not yet selected from a scenario climate or calendar month.
 - Seeds weather transitions from the world's shared pseudo-random generator so replays and saves preserve the same sequence.
 - Guest ride scoring reads weather state to model a provisional rain preference effect.
 
@@ -25,6 +25,7 @@ Path: @/src/sim/weather
 ### Things to Know
 
 - Transition durations, temperature ranges, and ride-score penalty are provisional OpenCoaster values. The reachable sources do not establish exact state durations, transition probabilities, or numeric demand effects.
+- Transitions do not read the in-game month and there is no monthly climate table yet. The current four-state model and partial rain effects do not implement the full reference weather behavior.
 - An umbrella flag belongs to the guest's stable id in [World](../core/world.ts), not its dense store slot. This keeps ownership attached to a guest when entity slots are swap-removed. The guest system deducts cash for a successful kiosk purchase and posts the price to `ShopSales`; nearby kiosks the guest cannot afford are skipped.
 - This module only advances weather state. Kiosk purchases and ride preference effects are implemented by the guest system; rendering weather visuals and shelter behavior are not part of this module.
 

@@ -9,9 +9,10 @@ import {
 } from './calendar';
 import { DIFFICULT_RATING_BASE, RATING_BASE } from './park-rating';
 import { LedgerCategory } from './ledger';
+import { completedMonthTotal } from './ledger';
 import { setEconomyInputs } from './api';
 import { RIDE_UPKEEP_DIVISOR } from './park-inputs';
-import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
+import { STAFF_WAGE_CENTS_PER_MONTH } from '../staff/staff-store';
 import { layPath, openRide, prepareFlat, row } from '../integration/fixtures';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { getRideValueCents } from '../rides/ride-operations';
@@ -52,18 +53,21 @@ function simWithRide(): Simulation {
 }
 
 describe('economy clock', () => {
-  it('pays staff wages weekly and ride upkeep fortnightly', () => {
+  it('pays staff wages monthly and ride upkeep fortnightly', () => {
     const s = simWithRide();
     s.enqueue({ type: 'spawnStaff', count: 2, kind: 0 });
-    const wages = 2 * STAFF_WAGE_CENTS_PER_WEEK[0];
+    const wages = 2 * STAFF_WAGE_CENTS_PER_MONTH[0];
     const upkeep = Math.floor(RIDE_CATALOG[RideType.MerryGoRound].cost / RIDE_UPKEEP_DIVISOR);
+    s.world.economy.loan = 0;
     const start = s.world.economy.cash;
     runUntil(s, TICKS_PER_WEEK);
-    expect(s.world.economy.cash).toBe(start - wages);
+    expect(s.world.economy.cash).toBe(start);
     runUntil(s, TICKS_PER_FORTNIGHT);
-    expect(s.world.economy.cash).toBe(start - wages * 2 - upkeep);
-    expect(s.world.economy.monthlyTotals[LedgerCategory.Wages]).toBe(-wages * 2);
-    expect(s.world.economy.monthlyTotals[LedgerCategory.RideRunning]).toBe(-upkeep);
+    expect(s.world.economy.cash).toBe(start - upkeep);
+    runUntil(s, TICKS_PER_MONTH);
+    expect(s.world.economy.cash).toBe(start - wages - upkeep * 2);
+    expect(completedMonthTotal(s.world.economy, LedgerCategory.Wages)).toBe(-wages);
+    expect(completedMonthTotal(s.world.economy, LedgerCategory.RideRunning)).toBe(-upkeep * 2);
   });
 
   it('reports the completed month and resets the running month at the boundary', () => {
@@ -104,7 +108,7 @@ describe('economy clock', () => {
     ];
     const replay = (): number => {
       const s = sim();
-      setEconomyInputs(s.world, { wageBillPerWeek: 250, rideUpkeepPerFortnight: 900 });
+      setEconomyInputs(s.world, { wageBillPerMonth: 250, rideUpkeepPerFortnight: 900 });
       for (let t = 0; t < TICKS_PER_MONTH + 1; t++) {
         for (const c of cmds) if (c.tick === t) s.enqueue({ type: 'economy', action: c.action });
         s.step();

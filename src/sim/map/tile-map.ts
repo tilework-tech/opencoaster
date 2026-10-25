@@ -45,7 +45,10 @@ export const SALE_RIGHTS = 8;
 /** Tunable prices in cents. */
 export const LAND_PRICE_CENTS = 10_000;
 export const RIGHTS_PRICE_CENTS = 4_000;
-export const LAND_EDIT_COST_CENTS = 2_000;
+/** Water terrain changes cost $2.50 per affected tile and height action. */
+export const WATER_TILE_ACTION_COST_CENTS = 250;
+/** Surface painting has no supported source price in the clean-room spec; keep it free. */
+export const LAND_SURFACE_COST_CENTS = 0;
 export const PATH_COST_CENTS = 1_000;
 
 /** Edge directions: 0 = +x, 1 = +y, 2 = -x, 3 = -y. An edge mask has bit `1 << dir`. */
@@ -67,6 +70,24 @@ export const enum PathFlag {
   /** Covers guests standing on or beside it from rain. */
   Shelter = 0x4000,
   Lamp = 0x8000,
+}
+/** High payload bit marks a broken path addition without destroying its contents. */
+export const PATH_ADDITION_BROKEN = 0x40000000;
+
+export function isPathElementBroken(map: TileMap, element: number): boolean {
+  return element >= 0 && (map.elData[element] & PATH_ADDITION_BROKEN) !== 0;
+}
+
+export function markPathElementBroken(map: TileMap, element: number): void {
+  if (element < 0) return;
+  map.elData[element] |= PATH_ADDITION_BROKEN;
+  map.revision++;
+}
+
+export function repairPathElement(map: TileMap, element: number): void {
+  if (element < 0 || !isPathElementBroken(map, element)) return;
+  map.elData[element] = 0;
+  map.revision++;
 }
 export const SLOPE_DIR_SHIFT = 10;
 

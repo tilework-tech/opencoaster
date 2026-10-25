@@ -643,6 +643,10 @@ function downgradeToVersion9(w: World): Uint8Array {
     guestColumns.rideHistory2,
     guestColumns.rideHistory3,
     w.staff.cols.orderFlags,
+    guestColumns.litterMemory,
+    guestColumns.angriness,
+    w.staff.cols.sweeps,
+    w.litter.cols.birthOrder,
   ]);
   const head = current.subarray(headerEnd);
   const sections: Uint8Array[] = [];
