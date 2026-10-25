@@ -309,6 +309,6 @@ describe('staff and ground state in the snapshot', () => {
     expect(snapshot.grounds[sim.world.map.index(2, 2)]).toBe(
       sim.world.grounds[sim.world.map.index(2, 2)],
     );
-    expect(snapshotBuffers(snapshot)).toHaveLength(14);
+    expect(snapshotBuffers(snapshot)).toHaveLength(15);
   });
 });

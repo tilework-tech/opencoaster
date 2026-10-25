@@ -2,17 +2,23 @@ import type { SpritePages } from './sprite-pages';
 
 export type CanvasAtlas = SpritePages;
 
-/** Draws a native-size sprite frame with its anchor pixel on (x, y) in the current transform. */
+/**
+ * Draws a native-size sprite frame with its anchor pixel on (x, y) in the current transform.
+ * A key ending in `#n` selects animation frame n.
+ */
 export function drawAnchoredSprite(
   ctx: CanvasRenderingContext2D,
   atlas: CanvasAtlas,
   key: string,
   x: number,
   y: number,
-  frameIndex = 0,
+  frameIndex?: number,
 ): boolean {
-  const entry = atlas.resolve(key);
-  const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
+  const hash = key.lastIndexOf('#');
+  const spriteName = hash < 0 ? key : key.slice(0, hash);
+  const selectedFrame = frameIndex ?? (hash < 0 ? 0 : Number(key.slice(hash + 1)));
+  const entry = atlas.resolve(spriteName);
+  const frame = entry?.frames[selectedFrame] ?? entry?.frames[0];
   const image = frame && atlas.pageImage(frame.page);
   if (!entry || !frame || !image) return false;
   ctx.drawImage(

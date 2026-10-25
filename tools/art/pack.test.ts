@@ -144,8 +144,10 @@ describe('world art atlas packing', () => {
       'rides/transport/log-flume',
       'transport/river-rapids',
       'track/chairlift/flat/view-0/cell-0',
+      'rides/coaster/wood/track/flat/view-0/cell-0',
       'rides/coaster/steel/track',
-      'rides/coaster/wooden/track',
+      'rides/coaster/junior/track/flat/view-0/cell-0',
+      'rides/coaster/mouse/track/flat/view-0/cell-0',
       'vehicles/car',
     ];
     for (const key of keys) {
@@ -165,11 +167,22 @@ describe('world art atlas packing', () => {
     expect(manifest.sprites['rides/transport/log-flume'].category).toBe('transport');
     expect(manifest.sprites['transport/river-rapids'].category).toBe('transport');
     expect(manifest.sprites['track/chairlift/flat/view-0/cell-0'].category).toBe('track-chairlift');
+    expect(manifest.sprites['rides/coaster/wood/track/flat/view-0/cell-0'].category).toBe(
+      'coaster-wood',
+    );
     expect(manifest.sprites['rides/coaster/steel/track'].category).toBe('coaster-steel');
-    expect(manifest.sprites['rides/coaster/wooden/track'].category).toBe('coaster-wooden');
+    expect(manifest.sprites['rides/coaster/junior/track/flat/view-0/cell-0'].category).toBe(
+      'coaster-junior',
+    );
+    expect(manifest.sprites['rides/coaster/mouse/track/flat/view-0/cell-0'].category).toBe(
+      'coaster-mouse',
+    );
     expect(manifest.categories.world.lazy).toBe(false);
     expect(manifest.categories.people.lazy).toBe(false);
     expect(manifest.categories['coaster-steel'].lazy).toBe(true);
+    expect(manifest.categories['coaster-wood'].lazy).toBe(true);
+    expect(manifest.categories['coaster-junior'].lazy).toBe(true);
+    expect(manifest.categories['coaster-mouse'].lazy).toBe(true);
     expect(manifest.categories.vehicles.lazy).toBe(true);
     expect(manifest.categories.transport.lazy).toBe(true);
     expect(manifest.categories['track-chairlift'].lazy).toBe(true);

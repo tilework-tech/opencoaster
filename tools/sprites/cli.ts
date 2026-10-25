@@ -10,7 +10,10 @@ const sheetDirectory = new URL('../../docs/art/', import.meta.url).pathname;
 async function main(): Promise<void> {
   const groups = new Map<string, SpriteDef[]>();
   for (const def of buildSprites()) {
-    const group = def.key.split('/')[0];
+    const parts = def.key.split('/');
+    const group =
+      parts[0] === 'track' || parts[0] === 'vehicles' ? `${parts[0]}-${parts[1]}` : parts[0];
+    if (group.startsWith('track-') && !/view-0\/cell-/.test(def.key)) continue;
     groups.set(group, [...(groups.get(group) ?? []), def]);
   }
   await mkdir(sheetDirectory, { recursive: true });

@@ -8,15 +8,17 @@ import { footprintTiles } from './track-tool';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import {
+  drawAnchoredSprite,
+} from '../render/canvas-atlas';
+import { spritePages } from '../render/sprite-pages';
+import type { CanvasAtlas } from '../render/canvas-atlas';
+import {
   facilitySpriteKey,
-  frameForTick,
   rideHutSpriteKey,
+  rideSpriteFrame,
   rideSpriteKey,
-  trackCells,
-  trackStyleForRide,
-} from '../render/sprite-art';
-import { drawAtlasSprite, loadSpriteAtlas } from '../render/sprite-atlas';
-import type { SpriteAtlas } from '../render/sprite-atlas';
+} from '../render/world-art';
+import { trackPreviewSprites } from './track-preview-art';
 
 const VALID_FILL = 'rgba(90, 225, 130, 0.45)';
 const INVALID_FILL = 'rgba(235, 80, 70, 0.5)';
@@ -42,7 +44,7 @@ export class TrackPreviewOverlay {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly corner = new Float64Array(2);
-  private atlas: SpriteAtlas | null = null;
+  private atlas: CanvasAtlas | null = null;
 
   constructor(parent: HTMLElement) {
     this.canvas = document.createElement('canvas');
@@ -52,13 +54,8 @@ export class TrackPreviewOverlay {
     if (!ctx) throw new Error('2D canvas is unavailable');
     this.ctx = ctx;
     parent.append(this.canvas);
-    void loadSpriteAtlas()
-      .then((atlas) => {
-        this.atlas = atlas;
-      })
-      .catch(() => {
-        this.atlas = null;
-      });
+    this.atlas = spritePages;
+    spritePages.start();
   }
 
   draw(
@@ -102,35 +99,32 @@ export class TrackPreviewOverlay {
       ctx.stroke();
     }
     if (this.atlas) {
-      const cells = trackCells(
+      ctx.globalAlpha = 0.72;
+      const cells = trackPreviewSprites(
+        ghost.rideType,
         ghost.piece.id,
         ghost.placement.dir,
         camera.rotation,
-        trackStyleForRide(ghost.rideType),
+        0,
       );
-      ctx.globalAlpha = 0.72;
       for (const cell of cells) {
-        const x = ghost.placement.x + cell.dx;
-        const y = ghost.placement.y + cell.dy;
         project(
-          x * TILE_UNITS + TILE_UNITS / 2,
-          y * TILE_UNITS + TILE_UNITS / 2,
+          (ghost.placement.x + cell.dx) * TILE_UNITS + TILE_UNITS / 2,
+          (ghost.placement.y + cell.dy) * TILE_UNITS + TILE_UNITS / 2,
           z,
           map.width,
           map.height,
           camera.rotation,
           this.corner,
         );
-        drawAtlasSprite(
-          ctx,
-          this.atlas,
-          cell.key,
-          0,
+        ctx.save();
+        ctx.translate(
           viewport.width / 2 + (this.corner[0] - camera.x) * camera.zoom,
           viewport.height / 2 + (this.corner[1] - camera.y) * camera.zoom,
-          0.75,
-          camera.zoom,
         );
+        ctx.scale(camera.zoom * 0.75, camera.zoom * 0.75);
+        drawAnchoredSprite(ctx, this.atlas, cell.key, 0, 0);
+        ctx.restore();
       }
       ctx.globalAlpha = 1;
     }
@@ -156,7 +150,8 @@ export class TrackPreviewOverlay {
       : ['shop', 'stall', 'facility'].includes(def.category)
         ? facilitySpriteKey(ghost.type, ghost.facing, camera.rotation)
         : rideSpriteKey(ghost.type, camera.rotation);
-    const frameCount = this.atlas.sprites[key]?.frames.length ?? 1;
+    const entry = this.atlas.resolve(key);
+    const frameCount = entry?.frames.length ?? 1;
     project(
       x * TILE_UNITS + TILE_UNITS / 2,
       y * TILE_UNITS + TILE_UNITS / 2,
@@ -166,16 +161,21 @@ export class TrackPreviewOverlay {
       camera.rotation,
       this.corner,
     );
-    drawAtlasSprite(
+    this.ctx.save();
+    this.ctx.translate(
+      viewport.width / 2 + (this.corner[0] - camera.x) * camera.zoom,
+      viewport.height / 2 + (this.corner[1] - camera.y) * camera.zoom,
+    );
+    this.ctx.scale(camera.zoom * 0.62, camera.zoom * 0.62);
+    drawAnchoredSprite(
       this.ctx,
       this.atlas,
       key,
-      frameForTick(ghost.tick, frameCount),
-      viewport.width / 2 + (this.corner[0] - camera.x) * camera.zoom,
-      viewport.height / 2 + (this.corner[1] - camera.y) * camera.zoom,
-      0.62,
-      camera.zoom,
+      0,
+      0,
+      rideSpriteFrame(0, ghost.tick, frameCount),
     );
+    this.ctx.restore();
   }
 
   dispose(): void {

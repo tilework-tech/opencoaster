@@ -18,12 +18,19 @@ import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import { spritePages } from './sprite-pages';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
+import { CoasterScene } from './coaster-scene';
+import { buildTextureRuns } from './texture-runs';
 import type { Rotation } from './projection';
 import {
   pathSpriteName,
   type PathSurface,
   rideSpriteFrame,
   rideSpriteKey,
+  facilityFacingFromPaths,
+  facilitySpriteKey,
+  rideHutFacing,
+  rideHutSpriteKey,
+  spriteViewName,
   terrainCliffSpriteName,
   scenerySpriteName,
   terrainSurfaceSpriteName,
@@ -34,6 +41,7 @@ import {
 } from './world-art';
 
 const CELL = 64;
+/** Present in the atlas only once the generated coaster art has been packed. */
 const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 5;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
@@ -231,6 +239,7 @@ export class WebGL2Renderer implements Renderer {
   private readonly pageTextures = new Map<number, WebGLTexture>();
   private syncedPageVersion = -1;
   private attributeBase = 0;
+  private readonly coasterScene = new CoasterScene();
   private uniforms: {
     atlas: (WebGLUniformLocation | null)[];
     viewport: WebGLUniformLocation | null;
@@ -308,7 +317,14 @@ export class WebGL2Renderer implements Renderer {
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
-      if (snapshot.tracks)
+      const coasterSprites = this.appendCoasters(
+        snapshot,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+      );
+      if (snapshot.tracks && !coasterSprites)
         this.appendLayer(
           snapshot.tracks,
           27,
@@ -331,7 +347,18 @@ export class WebGL2Renderer implements Renderer {
         7,
         8,
       );
-      this.appendLayer(snapshot.vehicles, 23, map, camera, viewportWidth, viewportHeight, 12, 12);
+      this.appendLayer(
+        snapshot.vehicles,
+        23,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        12,
+        12,
+        0,
+        coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
+      );
       this.appendVariantLayer(
         snapshot.staff,
         staffSpriteIndex,
@@ -740,7 +767,15 @@ export class WebGL2Renderer implements Renderer {
         40,
       )
     )
-      this.append(worldX, worldY, z, 46, 40, scenerySpriteName('park-entrance'), depth);
+      this.append(
+        worldX,
+        worldY,
+        z,
+        46,
+        40,
+        spriteViewName(scenerySpriteName('park-entrance'), camera.rotation),
+        depth,
+      );
   }
 
   private appendPathElements(
@@ -867,10 +902,12 @@ export class WebGL2Renderer implements Renderer {
   ): void {
     for (let i = 0; i < snapshot.rides.count; i++) {
       const o = i * RIDE_INFO_STRIDE;
+      const category = RIDE_CATALOG[snapshot.rideInfo[o + RideInfo.Type] as RideType]?.category;
+      if (['shop', 'stall', 'facility'].includes(category ?? '')) continue;
       const flags = snapshot.rideInfo[o + RideInfo.Flags];
-      for (const [flag, xField, yField, sprite] of [
-        [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, 31],
-        [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, 32],
+      for (const [flag, xField, yField, part] of [
+        [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, 'entrance'],
+        [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, 'exit'],
       ]) {
         if ((flags & flag) === 0) continue;
         const x = snapshot.rideInfo[o + xField];
@@ -894,8 +931,24 @@ export class WebGL2Renderer implements Renderer {
             10,
             14,
           )
-        )
-          this.append(centerX, centerY, z, 10, 14, sprite, depth);
+        ) {
+        const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
+        const facing = rideHutFacing(
+          snapshot.rideInfo[o + RideInfo.RideX],
+          snapshot.rideInfo[o + RideInfo.RideY],
+          x,
+          y,
+        );
+        this.append(
+          centerX,
+          centerY,
+          z,
+          30,
+          28,
+          rideHutSpriteKey(type, part as 'entrance' | 'exit', facing, camera.rotation),
+          depth,
+        );
+        }
       }
     }
   }
@@ -927,6 +980,49 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  /** Draws coaster track, supports and cars from the atlas; false when the atlas has none. */
+  private appendCoasters(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): boolean {
+    const scene = this.coasterScene;
+    scene.build(snapshot, map, camera.rotation);
+    const hasSprite = scene.items
+      .slice(0, scene.length)
+      .some((item) => spritePages.resolve(item.key.split('#')[0]));
+    if (!hasSprite) return false;
+    for (let i = 0; i < scene.length; i++) {
+      const item = scene.items[i];
+      const hash = item.key.lastIndexOf('#');
+      const spriteName = hash < 0 ? item.key : item.key.slice(0, hash);
+      const entry = spritePages.resolve(spriteName);
+      const frameIndex = hash < 0 ? 0 : Number(item.key.slice(hash + 1));
+      const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
+      if (!frame) {
+        if (item.key.includes('/track/') || item.key.startsWith('track/'))
+          this.append(item.x, item.y, item.z, 12, 12, 27, item.depth);
+        continue;
+      }
+      project(item.x, item.y, item.z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          frame.width,
+          frame.height,
+        )
+      )
+        this.append(item.x, item.y, item.z, frame.width, frame.height, item.key, item.depth);
+    }
+    return true;
+  }
+
   private appendLayer(
     layer: SnapshotLayer,
     sprite: number,
@@ -937,9 +1033,11 @@ export class WebGL2Renderer implements Renderer {
     width: number,
     height: number,
     offset = 0,
+    skip?: (word: number) => boolean,
   ): void {
     for (let i = 0; i < layer.count; i++) {
       const dataOffset = i * SNAPSHOT_STRIDE;
+      if (skip?.(layer.data[dataOffset + 3])) continue;
       const depth =
         2 *
           rotatedPositionSum(
@@ -991,8 +1089,11 @@ export class WebGL2Renderer implements Renderer {
       const worldX = tileX * TILE_UNITS + TILE_UNITS / 2;
       const worldY = tileY * TILE_UNITS + TILE_UNITS / 2;
       const z = map.heights[tileY * map.width + tileX] * Z_STEP;
-      const key = rideSpriteKey(type, camera.rotation);
-      const entry = this.atlasFrames[key];
+      const isFacility = ['shop', 'stall', 'facility'].includes(definition.category);
+      const key = isFacility
+        ? facilitySpriteKey(type, facilityFacingFromPaths(tileX, tileY, map), camera.rotation)
+        : rideSpriteKey(type, camera.rotation);
+      const entry = spritePages.resolve(key);
       const frameIndex = rideSpriteFrame(
         snapshot.rideInfo[offset + RideInfo.Phase],
         snapshot.tick,
@@ -1208,25 +1309,20 @@ export class WebGL2Renderer implements Renderer {
     this.order.length = this.count;
     for (let i = 0; i < this.count; i++) this.order[i] = i;
     this.order.sort((a, b) => this.depths[a] - this.depths[b] || a - b);
-    this.runs.length = 0;
-    let run: { start: number; count: number; pages: number[] } | null = null;
+    const pageIds = new Array<number>(this.count);
     for (let i = 0; i < this.count; i++) {
       const source = this.order[i];
       const from = source * INSTANCE_FLOATS;
       const to = i * INSTANCE_FLOATS;
       for (let j = 0; j < INSTANCE_FLOATS - 1; j++)
         this.orderedData[to + j] = this.instanceData[from + j];
-      const page = this.pageIds[source];
-      let slot = run ? run.pages.indexOf(page) : -1;
-      if (!run || (slot < 0 && run.pages.length === TEXTURE_SLOTS)) {
-        run = { start: i, count: 0, pages: [] };
-        this.runs.push(run);
-        slot = -1;
-      }
-      if (slot < 0) slot = run.pages.push(page) - 1;
-      run.count++;
-      this.orderedData[to + INSTANCE_FLOATS - 1] = slot;
+      pageIds[i] = this.pageIds[source];
     }
+    const batches = buildTextureRuns(pageIds, TEXTURE_SLOTS);
+    this.runs.length = 0;
+    this.runs.push(...batches.runs);
+    for (let i = 0; i < this.count; i++)
+      this.orderedData[i * INSTANCE_FLOATS + INSTANCE_FLOATS - 1] = batches.slots[i];
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
