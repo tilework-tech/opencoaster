@@ -1,7 +1,7 @@
 import { writeSpriteDef } from './output';
 import type { SpriteDef } from './output';
 import { renderMesh } from './raster';
-import { clipMesh, rotateMesh, rotatePoint, translateMesh } from './mesh';
+import { clipMesh, physicalToLevels, rotateMesh, rotatePoint, translateMesh } from './mesh';
 import type { Mesh } from './mesh';
 import { PIECES } from '../../src/sim/track/catalog';
 import {
@@ -15,6 +15,9 @@ import {
 import { RIDE_MODELS, rideMesh } from './models/rides';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { SHORE_FRAMES, WATER_FRAMES, shoreMesh, waterMesh } from './models/water';
+import { FACILITY_MODELS } from './models/facilities';
+import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
+import { parkEntranceMesh } from './models/park-entrance';
 
 const ONE_TILE = { width: 1, height: 1 };
 
@@ -77,6 +80,44 @@ function rideSprites(): SpriteDef[] {
   return out;
 }
 
+function facilitySprites(): SpriteDef[] {
+  const out: SpriteDef[] = [];
+  for (const model of FACILITY_MODELS)
+    for (let facing = 0; facing < 4; facing++)
+      for (let view = 0; view < 4; view++)
+        out.push({
+          key: `${model.key}/facing-${facing}/view-${view}`,
+          frames: Array.from({ length: model.frames }, (_, frame) =>
+            renderMesh(
+              rotateMesh(rotateMesh(physicalToLevels(model.build(frame)), (facing + 3) & 3), view),
+            ),
+          ),
+          footprint: ONE_TILE,
+        });
+  return out;
+}
+
+function stationSprites(): SpriteDef[] {
+  const out: SpriteDef[] = [];
+  for (const category of STATION_CATEGORIES)
+    for (const part of ['entrance', 'exit'] as const)
+      for (let view = 0; view < 4; view++)
+        out.push({
+          key: `stations/${category}/${part}/view-${view}`,
+          frames: [renderMesh(rotateMesh(physicalToLevels(stationHutMesh(category, part)), view))],
+          footprint: ONE_TILE,
+        });
+  return out;
+}
+
+function parkEntranceSprites(): SpriteDef[] {
+  return Array.from({ length: 4 }, (_, view) => ({
+    key: `scenery/park-entrance/view-${view}`,
+    frames: [renderMesh(rotateMesh(physicalToLevels(parkEntranceMesh(0)), view))],
+    footprint: ONE_TILE,
+  }));
+}
+
 function coasterSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
   for (const style of COASTER_STYLES) {
@@ -122,7 +163,15 @@ function coasterSprites(): SpriteDef[] {
 
 /** Every sprite this tool renders, keyed as in the atlas manifest. */
 export function buildSprites(): SpriteDef[] {
-  return [...pathSprites(), ...waterSprites(), ...rideSprites(), ...coasterSprites()];
+  return [
+    ...pathSprites(),
+    ...waterSprites(),
+    ...rideSprites(),
+    ...facilitySprites(),
+    ...stationSprites(),
+    ...parkEntranceSprites(),
+    ...coasterSprites(),
+  ];
 }
 
 export async function renderSprites(outputDir: string): Promise<SpriteDef[]> {
