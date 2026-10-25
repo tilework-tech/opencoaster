@@ -89,7 +89,8 @@ describe('economy inputs from the park', () => {
     for (let i = 0; i < 4; i++) g.happiness[i] = i < 3 ? 40 : 250;
     g.x[3] = 14 * 256 + 128;
     g.y[3] = 14 * 256 + 128;
-    refresh(s);
+    s.world.tick = INPUT_REFRESH_TICKS;
+    parkInputsSystem.update(s.world);
     expect(s.world.economy.inputs.unhappyPercent).toBe(75);
     expect(s.world.economy.inputs.lostGuests).toBe(1);
   });

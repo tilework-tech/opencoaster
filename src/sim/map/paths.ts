@@ -1,5 +1,11 @@
 import { rampMask } from './land';
-import { ElementType, MAX_ELEMENT_BASE, PathFlag, SLOPE_DIR_SHIFT } from './tile-map';
+import {
+  ElementType,
+  MAX_ELEMENT_BASE,
+  PathFlag,
+  repairPathElement,
+  SLOPE_DIR_SHIFT,
+} from './tile-map';
 import type { TileMap } from './tile-map';
 
 /** Levels of headroom above a flat path; ramps add one for their raised end. */
@@ -46,7 +52,7 @@ export function setPathAddition(m: TileMap, x: number, y: number, addition: Path
   if (element < 0) return false;
   m.elFlags[element] &= ~(PathFlag.Bin | PathFlag.Bench | PathFlag.Shelter | PathFlag.Lamp);
   m.elFlags[element] |= PATH_ADDITION_FLAGS[addition] ?? 0;
-  if (addition !== PathAddition.Bin) m.elData[element] = 0;
+  m.elData[element] = addition === PathAddition.Bin ? 0xff : 0;
   m.revision++;
   return true;
 }
@@ -116,6 +122,7 @@ export function placePath(m: TileMap, p: PathPlacement): boolean {
   for (let e = m.firstElement(i); e >= 0; e = m.nextElement(e)) {
     if (e !== existing && m.elBase[e] < clear && z < m.elClear[e]) return false;
   }
+  repairPathElement(m, existing);
 
   const flags =
     (p.queue ? PathFlag.Queue : 0) | (ramp ? PathFlag.Sloped | (dir << SLOPE_DIR_SHIFT) : 0);

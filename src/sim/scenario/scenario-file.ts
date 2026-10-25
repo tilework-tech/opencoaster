@@ -1,5 +1,6 @@
 import { TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
+import { Climate } from '../weather/weather';
 import { IMPORTED_ID, ObjectiveKind, SANDBOX_ID } from './scenario';
 import type { EntranceSide, ScenarioCategory, ScenarioDef, ScenarioEntrance } from './scenario';
 
@@ -35,6 +36,13 @@ const SCENARIO_CATEGORIES: Record<string, ScenarioCategory> = {
   expert: 'expert',
   real: 'real',
   other: 'other',
+};
+
+const CLIMATES: Record<string, Climate> = {
+  cold: Climate.Cold,
+  coolAndWet: Climate.CoolAndWet,
+  hotAndDry: Climate.HotAndDry,
+  warm: Climate.Warm,
 };
 
 const LEDGER_CATEGORIES: Record<string, LedgerCategory> = {
@@ -104,6 +112,9 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
     name,
     category: check(() => oneOf(root.category ?? 'beginner', 'category', SCENARIO_CATEGORIES)),
     ...(description === undefined ? {} : { description }),
+    ...(root.climate === undefined
+      ? {}
+      : { climate: check(() => oneOf(root.climate, 'climate', CLIMATES)) }),
     seed: check(() => integer(root.seed, 'seed', 0, 0xffffffff)),
     mapWidth: check(() => integer(map.width, 'map.width', MIN_MAP_SIZE, MAX_MAP_SIZE)),
     mapHeight: check(() => integer(map.height, 'map.height', MIN_MAP_SIZE, MAX_MAP_SIZE)),

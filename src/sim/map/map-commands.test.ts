@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
-import { OWNED, SALE_LAND, SALE_RIGHTS, RIGHTS_OWNED, LAND_PRICE_CENTS } from './tile-map';
+import {
+  OWNED,
+  SALE_LAND,
+  SALE_RIGHTS,
+  RIGHTS_OWNED,
+  LAND_PRICE_CENTS,
+  MAX_HEIGHT,
+} from './tile-map';
 import { serialize, deserialize } from '../../save/save';
+import { dropLitter, LitterKind } from '../guests/litter-store';
+import { landEditCostCents } from './land';
+import { placePath, removePath } from './paths';
 
 function sim(): Simulation {
   const s = new Simulation({ seed: 9, width: 32, height: 32, maxGuests: 100 });
@@ -38,6 +48,126 @@ describe('map commands', () => {
     s.enqueue({ type: 'lowerLand', x: 10, y: 10, width: 1, height: 1 });
     s.step();
     expect(s.world.map.heights[i]).toBe(h);
+  });
+
+  it('charges shared terrain corners once and water changes per tile', () => {
+    const s = sim();
+    const cash = s.world.economy.cash;
+    s.enqueue({ type: 'raiseLand', x: 10, y: 10, width: 2, height: 1 });
+    s.step();
+    expect(cash - s.world.economy.cash).toBe(3_000);
+
+    const afterRaise = s.world.economy.cash;
+    s.enqueue({ type: 'setWater', x: 12, y: 12, width: 2, height: 2, level: 31 });
+    s.step();
+    expect(afterRaise - s.world.economy.cash).toBe(1_000);
+  });
+
+  it('prices every height unit changed by propagated lowering', () => {
+    const s = sim();
+    const m = s.world.map;
+    const x = 10;
+    const y = 10;
+    m.vertexHeights[m.vertexIndex(x, y)] = 4;
+    m.vertexHeights[m.vertexIndex(x + 1, y)] = 4;
+    m.vertexHeights[m.vertexIndex(x, y + 1)] = 4;
+    m.vertexHeights[m.vertexIndex(x + 1, y + 1)] = 4;
+    m.vertexHeights[m.vertexIndex(x + 2, y)] = 5;
+    m.vertexHeights[m.vertexIndex(x + 2, y + 1)] = 5;
+    m.refreshTile(m.index(x, y));
+    m.refreshTile(m.index(x + 1, y));
+
+    expect(landEditCostCents(m, x, y, 2, 1, false)).toBe(3_000);
+  });
+
+  it('charges only selected vertices that can move in the requested direction', () => {
+    const s = sim();
+    const m = s.world.map;
+    const x = 10;
+    const y = 10;
+    const northWest = m.vertexIndex(x, y);
+    m.vertexHeights[northWest] = MAX_HEIGHT;
+    m.refreshTile(m.index(x, y));
+
+    expect(landEditCostCents(m, x, y, 1, 1, true)).toBe(1_500);
+
+    m.vertexHeights[northWest] = 0;
+    m.refreshTile(m.index(x, y));
+    expect(landEditCostCents(m, x, y, 1, 1, false)).toBe(1_500);
+  });
+
+  it('does not charge a saturated corner raise or lower', () => {
+    const s = sim();
+    const m = s.world.map;
+    const x = 10;
+    const y = 10;
+    m.vertexHeights[m.vertexIndex(x, y)] = MAX_HEIGHT;
+    m.refreshTile(m.index(x, y));
+    expect(landEditCostCents(m, x, y, 1, 1, true, 0)).toBe(0);
+
+    m.vertexHeights[m.vertexIndex(x, y)] = 0;
+    m.refreshTile(m.index(x, y));
+    expect(landEditCostCents(m, x, y, 1, 1, false, 0)).toBe(0);
+  });
+
+  it('removes litter from tiles whose terrain is changed', () => {
+    const s = sim();
+    expect(s.world.map.pathElement(s.world.map.index(10, 10), -1)).toBe(-1);
+    expect(s.world.map.addElement(s.world.map.index(10, 10), 1, 6, 8, 0, 0)).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(dropLitter(s.world, 10, 10, LitterKind.Trash)).toBe(true);
+    expect(s.world.litter.count).toBe(1);
+
+    s.enqueue({ type: 'raiseLand', x: 10, y: 10, width: 1, height: 1 });
+    s.step();
+
+    expect(s.world.litter.count).toBe(0);
+  });
+
+  it('charges and clears every tile affected by propagated corner changes', () => {
+    const s = sim();
+    const m = s.world.map;
+    expect(placePath(m, { x: 10, y: 9, z: 4 })).toBe(true);
+    expect(dropLitter(s.world, 10, 9, LitterKind.Trash)).toBe(true);
+    expect(removePath(m, { x: 10, y: 9, z: 4 })).toBe(true);
+    expect(placePath(m, { x: 9, y: 9, z: 4 })).toBe(true);
+    expect(dropLitter(s.world, 9, 9, LitterKind.Trash)).toBe(true);
+    expect(removePath(m, { x: 9, y: 9, z: 4 })).toBe(true);
+    m.vertexHeights[m.vertexIndex(11, 10)] = 3;
+    for (let y = 9; y <= 10; y++) for (let x = 9; x <= 11; x++) m.refreshTile(m.index(x, y));
+    const cash = s.world.economy.cash;
+
+    s.enqueue({ type: 'raiseLand', x: 10, y: 10, width: 1, height: 1, corner: 0 });
+    s.step();
+
+    expect(m.vertexHeights[m.vertexIndex(11, 10)]).toBe(4);
+    expect(cash - s.world.economy.cash).toBe(1_000);
+    expect(s.world.litter.count).toBe(0);
+  });
+
+  it('rejects absolute terrain edits outside owned land and beyond available cash', () => {
+    const unowned = sim();
+    unowned.world.map.ownership[unowned.world.map.index(10, 10)] = 0;
+    const unownedCash = unowned.world.economy.cash;
+    unowned.enqueue({ type: 'setTileHeight', x: 10, y: 10, height: 5 });
+    unowned.step();
+    expect(unowned.world.map.heights[unowned.world.map.index(10, 10)]).toBe(4);
+    expect(unowned.world.economy.cash).toBe(unownedCash);
+
+    const unaffordable = sim();
+    unaffordable.world.economy.cash = 0;
+    unaffordable.enqueue({ type: 'setTileHeight', x: 10, y: 10, height: 5 });
+    unaffordable.step();
+    expect(unaffordable.world.map.heights[unaffordable.world.map.index(10, 10)]).toBe(4);
+    expect(unaffordable.world.economy.cash).toBe(0);
+
+    const affordable = sim();
+    const affordableCash = affordable.world.economy.cash;
+    affordable.enqueue({ type: 'setTileHeight', x: 10, y: 10, height: 5 });
+    affordable.step();
+    expect(affordable.world.map.heights[affordable.world.map.index(10, 10)]).toBe(5);
+    expect(affordableCash - affordable.world.economy.cash).toBe(2_000);
   });
 
   it('buys land and construction rights atomically against available cash', () => {

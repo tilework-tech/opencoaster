@@ -1,19 +1,26 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
-import { PathFlag } from '../map/tile-map';
+import { isPathElementBroken, markPathElementBroken, PathFlag } from '../map/tile-map';
 import { StaffKind, StaffOrder } from '../staff/staff-store';
 import { GuestState } from './guest-store';
 
 const CHECK_INTERVAL = 32;
-/** Each eligible walking guest has a 5% chance to vandalise on a check. */
-const VANDAL_ODDS = 20;
+/** Guests at or below this happiness are angry enough to vandalise. */
+export const ANGRY_HAPPINESS = 48;
+/** How long a recent litter or vomit sighting remains in guest memory. */
+export const GUEST_LITTER_MEMORY_TICKS = 2_048;
+/** Duration stored after a successful vandalism, in simulation ticks. */
+export const VANDAL_ANGER_TICKS = 512;
 /** Chebyshev tiles within which a security guard deters vandalism. */
-export const SECURITY_RADIUS = 6;
-/** Each check of an angry guest on a bench or bin breaks it with probability 1 / this. */
+export const SECURITY_RADIUS = 7;
+export const VANDAL_SUCCESS_ROLL = 3276;
 
-function securityNearby(world: World, tileX: number, tileY: number): boolean {
+function securityGuardNearby(world: World, tileX: number, tileY: number): number {
   const staff = world.staff.cols;
+  let nearest = -1;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  let nearestId = Number.POSITIVE_INFINITY;
   for (let slot = 0; slot < world.staff.count; slot++) {
     if (
       staff.kind[slot] !== StaffKind.Security ||
@@ -22,36 +29,74 @@ function securityNearby(world: World, tileX: number, tileY: number): boolean {
       continue;
     const guardX = (staff.x[slot] / TILE_UNITS) | 0;
     const guardY = (staff.y[slot] / TILE_UNITS) | 0;
-    if (Math.abs(guardX - tileX) <= SECURITY_RADIUS && Math.abs(guardY - tileY) <= SECURITY_RADIUS)
-      return true;
+    const distance = Math.max(Math.abs(guardX - tileX), Math.abs(guardY - tileY));
+    const staffId = world.staff.slotToId[slot];
+    if (
+      distance <= SECURITY_RADIUS &&
+      (distance < nearestDistance || (distance === nearestDistance && staffId < nearestId))
+    ) {
+      nearest = slot;
+      nearestDistance = distance;
+      nearestId = staffId;
+    }
   }
-  return false;
+  return nearest;
 }
 
 /**
- * Angry guests break the bench or bin they stand on, which reverts to plain path. Security
- * guards within reach stop it.
+ * Angry guests may break a path addition they stand on. Security guards within reach stop it.
  */
 export function createVandalismSystem(): System {
+  let litterCountByTile = new Uint16Array(0);
   return {
     name: 'vandalism',
     update(world: World) {
       if (world.tick % CHECK_INTERVAL !== 0) return;
       const guests = world.guests.cols;
       const map = world.map;
+      const mapSize = map.width * map.height;
+      if (litterCountByTile.length !== mapSize) litterCountByTile = new Uint16Array(mapSize);
+      litterCountByTile.fill(0);
+      for (let slot = 0; slot < world.litter.count; slot++) {
+        const tileX = world.litter.cols.x[slot] >> 8;
+        const tileY = world.litter.cols.y[slot] >> 8;
+        if (map.inBounds(tileX, tileY)) litterCountByTile[map.index(tileX, tileY)]++;
+      }
       for (let slot = 0; slot < world.guests.count; slot++) {
-        if (guests.happiness[slot] >= 48 || guests.energy[slot] < 85) continue;
-        if (guests.state[slot] !== GuestState.Wandering || world.litter.count === 0) continue;
+        guests.angriness[slot] = Math.max(0, guests.angriness[slot] - CHECK_INTERVAL);
+        guests.litterMemory[slot] = Math.max(0, guests.litterMemory[slot] - CHECK_INTERVAL);
+        if (guests.state[slot] !== GuestState.Wandering) continue;
+        const angry = guests.angriness[slot] > 0;
         const tileX = guests.x[slot] >> 8;
         const tileY = guests.y[slot] >> 8;
         if (!map.inBounds(tileX, tileY)) continue;
-        const element = map.pathElement(map.index(tileX, tileY), -1);
-        if (element < 0 || (map.elFlags[element] & (PathFlag.Bench | PathFlag.Bin)) === 0) continue;
-        if (world.rng.int(VANDAL_ODDS) !== 0) continue;
-        if (securityNearby(world, tileX, tileY)) continue;
-        map.elFlags[element] &= ~(PathFlag.Bench | PathFlag.Bin);
-        map.elData[element] = 0;
-        map.revision++;
+        const tile = map.index(tileX, tileY);
+        if (litterCountByTile[tile] > 0) guests.litterMemory[slot] = GUEST_LITTER_MEMORY_TICKS;
+        if (
+          !angry &&
+          (guests.happiness[slot] >= ANGRY_HAPPINESS ||
+            guests.energy[slot] < 85 ||
+            guests.litterMemory[slot] === 0)
+        )
+          continue;
+        const element = map.pathElement(tile, -1);
+        if (
+          element < 0 ||
+          (map.elFlags[element] & (PathFlag.Bench | PathFlag.Bin | PathFlag.Lamp)) === 0 ||
+          isPathElementBroken(map, element)
+        )
+          continue;
+        if (world.rng.int(0x10000) > VANDAL_SUCCESS_ROLL) continue;
+        const guard = securityGuardNearby(world, tileX, tileY);
+        if (guard >= 0) {
+          world.staff.cols.vandalsStopped[guard] = Math.min(
+            0xffff,
+            world.staff.cols.vandalsStopped[guard] + 1,
+          );
+          continue;
+        }
+        markPathElementBroken(map, element);
+        guests.angriness[slot] = VANDAL_ANGER_TICKS;
       }
     },
   };

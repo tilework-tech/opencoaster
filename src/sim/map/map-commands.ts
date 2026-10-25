@@ -1,18 +1,28 @@
 import type { World } from '../core/world';
 import { LedgerCategory, post } from '../economy/ledger';
-import { lowerLand, paintLand, raiseLand, setTileHeight, setWaterLevel } from './land';
+import {
+  lowerLand,
+  paintLand,
+  planLandEdit,
+  planSetTileHeight,
+  raiseLand,
+  setTileHeight,
+  setWaterLevel,
+} from './land';
 import { placePath, removePath, setPathAddition, type PathAddition } from './paths';
 import {
-  LAND_EDIT_COST_CENTS,
+  LAND_SURFACE_COST_CENTS,
   LAND_PRICE_CENTS,
   OWNED,
   PATH_COST_CENTS,
   RIGHTS_OWNED,
   RIGHTS_PRICE_CENTS,
+  WATER_TILE_ACTION_COST_CENTS,
   SALE_LAND,
   SALE_RIGHTS,
 } from './tile-map';
 import type { TileMap } from './tile-map';
+import { TILE_UNITS } from '../core/constants';
 
 /** Map-owned player commands; the core `Command` union includes this type. */
 export type MapCommand =
@@ -61,32 +71,75 @@ function applyBuy(m: TileMap, x: number, y: number, w: number, h: number, rights
   m.revision++;
 }
 
+function removeLitterOnTerrainTiles(w: World, affected: Uint8Array): void {
+  for (let slot = w.litter.count - 1; slot >= 0; slot--) {
+    const x = (w.litter.cols.x[slot] / TILE_UNITS) | 0;
+    const y = (w.litter.cols.y[slot] / TILE_UNITS) | 0;
+    if (w.map.inBounds(x, y) && affected[w.map.index(x, y)]) w.litter.despawnSlot(slot);
+  }
+}
+
 /** Applies one map command to the world; invalid or unaffordable commands are ignored. */
 export function applyMapCommand(w: World, c: MapCommand): void {
   const m = w.map;
   switch (c.type) {
-    case 'setTileHeight':
-      setTileHeight(m, c.x | 0, c.y | 0, c.height | 0);
-      break;
-    case 'raiseLand':
-    case 'lowerLand': {
-      const cost = (c.width | 0) * (c.height | 0) * LAND_EDIT_COST_CENTS;
-      if (!canAfford(w, cost)) break;
-      const edit = c.type === 'raiseLand' ? raiseLand : lowerLand;
-      const corner = c.corner === undefined ? undefined : c.corner | 0;
-      if (edit(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, corner))
-        charge(w, LedgerCategory.Landscaping, cost);
+    case 'setTileHeight': {
+      const x = c.x | 0;
+      const y = c.y | 0;
+      const height = c.height | 0;
+      const plan = planSetTileHeight(m, x, y, height);
+      if (!plan.succeeds || !canAfford(w, plan.costCents)) break;
+      if (setTileHeight(m, x, y, height)) {
+        charge(w, LedgerCategory.Landscaping, plan.costCents);
+        removeLitterOnTerrainTiles(w, plan.affectedTiles);
+      }
       break;
     }
-    case 'setWater':
-      if (canAfford(w, LAND_EDIT_COST_CENTS)) {
-        if (setWaterLevel(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, c.level | 0)) {
-          charge(w, LedgerCategory.Landscaping, LAND_EDIT_COST_CENTS);
+    case 'raiseLand':
+    case 'lowerLand': {
+      const x = c.x | 0;
+      const y = c.y | 0;
+      const width = c.width | 0;
+      const height = c.height | 0;
+      const corner = c.corner === undefined ? undefined : c.corner | 0;
+      const plan = planLandEdit(m, x, y, width, height, c.type === 'raiseLand', corner);
+      if (!plan.succeeds || !canAfford(w, plan.costCents)) break;
+      const edit = c.type === 'raiseLand' ? raiseLand : lowerLand;
+      if (edit(m, x, y, width, height, corner)) {
+        charge(w, LedgerCategory.Landscaping, plan.costCents);
+        removeLitterOnTerrainTiles(w, plan.affectedTiles);
+      }
+      break;
+    }
+    case 'setWater': {
+      const x = c.x | 0;
+      const y = c.y | 0;
+      const width = c.width | 0;
+      const height = c.height | 0;
+      const level = c.level | 0;
+      let changed = 0;
+      if (
+        width > 0 &&
+        height > 0 &&
+        m.inBounds(x, y) &&
+        m.inBounds(x + width - 1, y + height - 1)
+      ) {
+        const boundedLevel = Math.max(0, Math.min(31, level));
+        for (let ty = y; ty < y + height; ty++)
+          for (let tx = x; tx < x + width; tx++)
+            if (m.waterLevel[m.index(tx, ty)] !== boundedLevel) changed++;
+      }
+      const cost = changed * WATER_TILE_ACTION_COST_CENTS;
+      if (canAfford(w, cost)) {
+        if (setWaterLevel(m, x, y, width, height, level)) {
+          charge(w, LedgerCategory.Landscaping, cost);
         }
       }
       break;
+    }
     case 'paintLand':
-      paintLand(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, c.surface | 0);
+      if (canAfford(w, LAND_SURFACE_COST_CENTS))
+        paintLand(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, c.surface | 0);
       break;
     case 'placePath':
       if (canAfford(w, PATH_COST_CENTS) && placePath(m, c))

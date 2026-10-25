@@ -33,6 +33,7 @@ Path: @/src/worker
 - A new game or a load replaces the running `Simulation` in the same worker. The pool and the scheduler's speed and pause state carry over, so the player's settings survive a new game.
 - Ride rendering entries expose stable IDs rather than ride state or type. The UI uses these IDs to associate track pieces with a ride; ride type and operating state remain in the simulation state.
 - `economy` (price mode, admission price, loan limit, park value, this-month and last-month ledger totals by `LedgerCategory`) and `research` (funding, category mask, progress) are plain objects that travel with the snapshot message for the Park, Finances and Research windows.
+- The snapshot publishes `wageBillPerWeek` directly from the economy ledger. Staff salary constants retain the manual's monthly amounts, converted to rounded weekly cents when staff are hired. On load, pre-v16 saves rebuild the weekly input from the current staff roster; v16 saves retain the serialized weekly ledger input.
 - `rideInfo` is transferred and recycled like the other buffers; `feedback` is a plain object that travels with the snapshot message.
 - Ride and track layer counts are capped by their output-buffer capacities, while the park summary's ride count reflects the full simulation count. The track layer and `buildable` array follow the same pooled transfer and recycle lifecycle as the other snapshot buffers.
 

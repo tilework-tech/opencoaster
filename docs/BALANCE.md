@@ -36,7 +36,7 @@ The park is scripted in [bench/balance-park.ts](../bench/balance-park.ts) on fla
 | Far rides starve (the wooden coaster, a 35-tile walk from the gate, served a quarter of the merry-go-round's guests) | The old 220-255 spawn energy and 32-tick walk drain made guests run out of energy en route; earlier pathfinding work separately changed route selection.  | Current guest cadence is one need update every 128 ticks, and guests spawn with 65-128 energy. On the combined navigation/ride baseline, the current starter run served 408 coaster guests and 819 merry-go-round guests. See [guest fidelity](fidelity/guests.md) and the current balance below. |
 | Guests who cannot find a target never knew it                                                                        | The lost branch never ran, and a leaving guest with no route to the gate was despawned silently.                                                          | Lost state, park maps and visible leaving guests ([guests docs](../src/sim/guests/docs.md)).                                                                                                                                                                                                      |
 
-Related guest changes: needs decay every 128 world ticks and happiness motives run every 512 ticks, matching the audited cadence; ride happiness grows with ride excitement; guests drop trash at one in 48 litter checks (was one in 8, enough to push litter past the penalty cap in any park).
+Related guest changes: needs decay every 128 world ticks and happiness motives run every 512 ticks, matching the audited cadence; ride happiness grows with ride excitement; guests drop trash at one in 96 litter checks (calibrated from one in 48 to keep the rebased starter winnable).
 
 ## Constants
 
@@ -82,7 +82,7 @@ Effect: before, only penalties could move the rating off the clamp, so a clean p
 | Repeat ride         | last-ride gate                                                                        | Requires the audited ride, happiness, energy, nausea, hunger/thirst and toilet checks plus a random roll.                                                        |
 | Ride happiness      | `8 + excitement / 40`                                                                 |                                                                                                                                                                  |
 | Stall line limit    | 8 guests                                                                              | Guests look for another stall past this.                                                                                                                         |
-| Trash               | one in 48 checks per guest                                                            | A check is every 160 ticks.                                                                                                                                      |
+| Trash               | one in 96 checks per guest                                                            | A check is every 160 ticks; this simplified rate is calibrated because the checked-in source evidence does not establish the original chance.                    |
 
 ### Navigation
 
@@ -204,7 +204,7 @@ Starter scenario, one year (131,072 ticks), scripted modest build, default seed 
 | Park value at year end         |              not in baseline |                        $4,803 |
 | Rides                          |              not in baseline |                            14 |
 
-The compared runs use the same default seed and modest scripted build on main and after the economy change. The final food-award correction increases natural arrivals enough to lower the year-end rating from the earlier pre-review result of 628 to 554. At the prior 550 target the corrected build still wins the default seed, but only 7 of 12 calibration seeds win, so the starter target is recalibrated to 450. The older PR #33 figures above belong to a different target and simulation baseline. Exact award predicates and park-value type bonus remain compatibility assumptions (see [DECISIONS.md](DECISIONS.md)).
+The compared runs use the same default seed and modest scripted build on main and after the economy change. The final food-award correction increases natural arrivals enough to lower the year-end rating from the earlier pre-review result of 628 to 554. At the prior 550 target the corrected build still wins the default seed, but only 7 of 12 calibration seeds win, so the starter target is recalibrated to 450. The subsequent world-fidelity pass, including litter calibration, ends at rating 474 on the default seed. The older PR #33 figures above belong to a different target and simulation baseline. Exact award predicates and park-value type bonus remain compatibility assumptions (see [DECISIONS.md](DECISIONS.md)).
 
 On the established 12-seed calibration set (11–16, 21–26), the corrected food-award behavior produced ratings from 386 to 688, and every seed exceeded the 100-guest target. At 550, 7 of 12 seeds won; at the current 450 target, 10 of 12 win, with seeds 22 and 26 missing on rating (412 and 386). The default scenario seed wins with 554 rating. This leaves a few deterministic seeds below target while keeping the default and most calibration seeds winnable.
 
@@ -251,6 +251,20 @@ Rebased on main at `f0c48a6` (PR #36, save v11), so this includes guest navigati
 Modest rating ranges: main 580 - 659, this PR 558 - 688. The starter objective stays winnable for the modest build on most seeds (10 / 12).
 
 **Default seed (2026), scripted modest build:** main ends year one at rating 636 and wins; this PR ends at 550 and loses (189 guests, target 100). The coaster rating change moves this one run across the 575 line. The seed-sweep result above is the number to trust; the default run is a near miss in the other direction. Do not retune the target from this PR alone.
+
+## World fidelity pass
+
+Default seed 2026, modest harness, one year on flattened terrain. The first world-fidelity run was recorded before rebasing onto the newer guest-navigation and ride-reliability changes. Those mainline changes materially alter the guest and rating trajectory; the current run also includes a lower simplified litter rate to keep the starter scenario winnable at its 450 rating target.
+
+| Metric                 | First world-fidelity run | Rebased current tree |
+| ---------------------- | -----------------------: | -------------------: |
+| Year-end guests        |                      115 |                  290 |
+| Year-end rating        |                      456 |                  474 |
+| Objective              |         Won (target 450) |     Won (target 450) |
+| Cash                   |                  $37,090 |              $34,406 |
+| Staff wages, whole run |                   $2,360 |               $2,179 |
+
+The intervening rebased runs before the final litter calibration ended at 261 guests, rating 208, and $34,016, then 278 guests, rating 269, and $34,320 after monthly base temperatures and scenery/cleanliness effects. The final one-in-96 litter rate brings the default run to a win. The rating target is an OpenCoaster balance decision, not a claim about original-game difficulty or a guarantee across seeds. Terrain edits, staff hiring and park layout can change the result.
 
 ## Known gaps
 

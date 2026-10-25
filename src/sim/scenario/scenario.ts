@@ -1,6 +1,8 @@
 import type { World } from '../core/world';
 import type { LedgerCategory, PriceMode } from '../economy/ledger';
 import type { ResearchInvention } from '../research/research';
+import { DEFAULT_CLIMATE } from '../weather/weather';
+import type { Climate } from '../weather/weather';
 
 /** Save-slot ids for games that are not scenarios: the development sandbox, and imported files. */
 export const SANDBOX_ID = 'sandbox';
@@ -77,6 +79,7 @@ export interface ScenarioDef {
   availableItemIds: number[];
   inventions: ResearchInvention[];
   entrance?: ScenarioEntrance;
+  climate?: Climate;
   objective: ScenarioObjective;
 }
 
@@ -108,6 +111,7 @@ export function applyScenario(world: World, def: ScenarioDef): void {
 
   world.scenario.objective = { ...def.objective };
   world.scenario.status = ScenarioStatus.Active;
+  world.weather.climate = def.climate ?? DEFAULT_CLIMATE;
 }
 
 /** Bitmask helper for MonthlyIncome objectives. */

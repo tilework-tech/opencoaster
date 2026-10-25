@@ -6,7 +6,7 @@ import type { NavOptions } from '../pathfinding/navigate';
 import { isRideInspectionDue } from '../rides/ride-operations';
 import { rideServiceX, rideServiceY, serviceRide } from '../rides/ride-maintenance';
 import { StaffKind, StaffOrder } from './staff-store';
-import { DIR_DX, DIR_DY, ElementType, PathFlag } from '../map/tile-map';
+import { DIR_DX, DIR_DY, ElementType, isPathElementBroken, PathFlag } from '../map/tile-map';
 import { RideState } from '../rides/ride-store';
 import {
   collectGardenSites,
@@ -21,6 +21,9 @@ const STAFF_UPDATE_STRIDE = 16;
 const STAFF_SPEED = 48;
 const GARDEN_SEARCH_RADIUS = 10;
 const WANDER_STRIDE = 80;
+export const HANDYMAN_SWEEP_RADIUS_TILES = 3;
+const HANDYMAN_IGNORE_NORMAL_PATH_ROLL = 6553;
+const HANDYMAN_IGNORE_QUEUE_ROLL = 58982;
 
 function moveStaff(
   world: World,
@@ -57,16 +60,17 @@ function moveStaff(
     const by = (best / map.width) | 0;
     staff.x[slot] = bx * TILE_UNITS + (TILE_UNITS >> 1);
     staff.y[slot] = by * TILE_UNITS + (TILE_UNITS >> 1);
-    staff.z[slot] = map.heights[best] * Z_STEP;
+    staff.z[slot] = map.heightAt(
+      bx * TILE_UNITS + (TILE_UNITS >> 1),
+      by * TILE_UNITS + (TILE_UNITS >> 1),
+    );
     return;
   }
   const dx = dir === 0 ? STAFF_SPEED : dir === 2 ? -STAFF_SPEED : 0;
   const dy = dir === 1 ? STAFF_SPEED : dir === 3 ? -STAFF_SPEED : 0;
   staff.x[slot] += dx;
   staff.y[slot] += dy;
-  staff.z[slot] =
-    map.heights[map.index((staff.x[slot] / TILE_UNITS) | 0, (staff.y[slot] / TILE_UNITS) | 0)] *
-    Z_STEP;
+  staff.z[slot] = map.heightAt(staff.x[slot], staff.y[slot]);
 }
 
 export function createStaffSystem(): System {
@@ -204,6 +208,7 @@ export function createStaffSystem(): System {
                   world,
                   x,
                   y,
+                  staff.z[slot],
                   area > 0 ? activePatrol : null,
                   litterHeadByTile,
                   litterStampByTile,
@@ -211,14 +216,16 @@ export function createStaffSystem(): System {
                   litterNextById,
                 )
               : -1;
-          if (nearest >= 0) {
+          if (nearest >= 0 && !shouldIgnoreLitter(world, map.isQueue(map.index(x, y)))) {
             staff.targetX[slot] = (world.litter.cols.x[nearest] / TILE_UNITS) | 0;
             staff.targetY[slot] = (world.litter.cols.y[nearest] / TILE_UNITS) | 0;
             moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             const nx = (staff.x[slot] / TILE_UNITS) | 0;
             const ny = (staff.y[slot] / TILE_UNITS) | 0;
-            if (nx === staff.targetX[slot] && ny === staff.targetY[slot])
+            if (nx === staff.targetX[slot] && ny === staff.targetY[slot]) {
               world.litter.despawnSlot(nearest);
+              staff.sweeps[slot] = Math.min(0xffff, staff.sweeps[slot] + 1);
+            }
             continue;
           }
           const patrolOrNull = area > 0 ? activePatrol : null;
@@ -248,7 +255,8 @@ export function createStaffSystem(): System {
             const tile = binTiles[i];
             if (area > 0 && activePatrol[tile] === 0) continue;
             const element = binElements[i];
-            if (map.elData[element] === 0) continue;
+            if ((map.elData[element] & 0xff) === 0xff || isPathElementBroken(map, element))
+              continue;
             if (
               tile !== staffTile &&
               !isReachable(world, staffTile, tile, area > 0 ? activePatrol : null)
@@ -266,7 +274,7 @@ export function createStaffSystem(): System {
             moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             if (x === staff.targetX[slot] && y === staff.targetY[slot]) {
               const element = map.pathElement(bin, -1);
-              if (element >= 0 && map.elData[element] > 0) map.elData[element] = 0;
+              if (element >= 0 && !isPathElementBroken(map, element)) map.elData[element] = 0xff;
             }
             continue;
           }
@@ -459,6 +467,7 @@ function nearestLitterSlot(
   world: World,
   x: number,
   y: number,
+  z: number,
   patrol: Uint8Array | null,
   headByTile: Int32Array,
   stampByTile: Uint32Array,
@@ -467,34 +476,39 @@ function nearestLitterSlot(
 ): number {
   const map = world.map;
   const from = map.index(x, y);
-  for (let distance = 0; distance < map.width + map.height; distance++) {
-    for (let dy = -distance; dy <= distance; dy++) {
-      const dx = distance - Math.abs(dy);
-      for (let side = 0; side < (dx === 0 ? 1 : 2); side++) {
-        const tileX = x + (side === 0 ? -dx : dx);
-        const tileY = y + dy;
-        if (!map.inBounds(tileX, tileY)) continue;
-        const tile = map.index(tileX, tileY);
-        if (!map.isWalkable(tile) || (patrol !== null && patrol[tile] === 0)) continue;
-        let nearest = -1;
-        for (
-          let id = stampByTile[tile] === indexVersion ? headByTile[tile] : -1;
-          id >= 0;
-          id = nextById[id]
-        ) {
-          const slot = world.litter.idToSlot[id];
-          if (slot >= 0) {
-            nearest = slot;
-            break;
-          }
+  let best = -1;
+  let bestDistance = HANDYMAN_SWEEP_RADIUS_TILES + 1;
+  for (let dy = -HANDYMAN_SWEEP_RADIUS_TILES; dy <= HANDYMAN_SWEEP_RADIUS_TILES; dy++) {
+    for (let dx = -HANDYMAN_SWEEP_RADIUS_TILES; dx <= HANDYMAN_SWEEP_RADIUS_TILES; dx++) {
+      const tileX = x + dx;
+      const tileY = y + dy;
+      if (!map.inBounds(tileX, tileY)) continue;
+      const tile = map.index(tileX, tileY);
+      if (!map.isWalkable(tile) || (patrol !== null && patrol[tile] === 0)) continue;
+      if (tile !== from && !isReachable(world, from, tile, patrol)) continue;
+      for (
+        let id = stampByTile[tile] === indexVersion ? headByTile[tile] : -1;
+        id >= 0;
+        id = nextById[id]
+      ) {
+        const slot = world.litter.idToSlot[id];
+        if (slot < 0) continue;
+        const horizontal = Math.max(Math.abs(dx), Math.abs(dy));
+        const vertical = (Math.abs(world.litter.cols.z[slot] - z) / Z_STEP) * 4;
+        const distance = horizontal + vertical;
+        if (distance <= HANDYMAN_SWEEP_RADIUS_TILES && distance < bestDistance) {
+          best = slot;
+          bestDistance = distance;
         }
-        if (nearest < 0) continue;
-        if (tile !== from && !isReachable(world, from, tile, patrol)) continue;
-        return nearest;
       }
     }
   }
-  return -1;
+  return best;
+}
+
+function shouldIgnoreLitter(world: World, queue: boolean): boolean {
+  const maximum = queue ? HANDYMAN_IGNORE_QUEUE_ROLL : HANDYMAN_IGNORE_NORMAL_PATH_ROLL;
+  return world.rng.int(0x10000) <= maximum;
 }
 
 function mapIndex(world: World, x: number, y: number): number {

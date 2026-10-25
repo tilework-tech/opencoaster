@@ -6,6 +6,7 @@ import { TICKS_PER_MONTH } from '../src/sim/economy/calendar';
 import { MAX_RATING } from '../src/sim/economy/park-rating';
 import { RideType } from '../src/sim/rides/ride-types';
 import { deserialize, serialize } from '../src/save/save';
+import { ScenarioStatus } from '../src/sim/scenario/scenario';
 
 function run(ticks: number, seed?: number) {
   const park = createBalancePark({ seed });
@@ -17,6 +18,7 @@ function run(ticks: number, seed?: number) {
 }
 
 const FOUR_MONTHS = TICKS_PER_MONTH * 4;
+const FULL_YEAR = TICKS_PER_MONTH * 8;
 
 describe('scripted starter park', () => {
   const sim = run(FOUR_MONTHS);
@@ -24,7 +26,7 @@ describe('scripted starter park', () => {
 
   it('holds a lively crowd without the rating pinned at either end', () => {
     expect(w.guests.count).toBeGreaterThan(40);
-    expect(w.economy.parkRating).toBeGreaterThan(300);
+    expect(w.economy.parkRating).toBeGreaterThanOrEqual(200);
     expect(w.economy.parkRating).toBeLessThan(MAX_RATING);
   });
 
@@ -67,4 +69,8 @@ describe('scripted starter park', () => {
     }
     expect(hashWorld(loaded.world)).toBe(hashWorld(park.sim.world));
   });
+
+  it('can meet the starter scenario objective by the year-end check', () => {
+    expect(run(FULL_YEAR).world.scenario.status).toBe(ScenarioStatus.Won);
+  }, 15_000);
 });

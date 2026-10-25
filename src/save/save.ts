@@ -8,17 +8,27 @@ import type { LedgerSave } from '../sim/economy/ledger';
 import { restoreResearch, saveResearch, upgradeLegacyResearchSave } from '../sim/research/research';
 import type { LegacyResearchSave, ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
-import { calculateStaffWageBill, defaultStaffOrderFlags } from '../sim/staff/staff-store';
-import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
+import {
+  calculateStaffWageBill,
+  defaultStaffOrderFlags,
+  STAFF_SCHEMA,
+} from '../sim/staff/staff-store';
+import { LITTER_SCHEMA } from '../sim/guests/litter-store';
+import { RIDE_COLUMNS_ADDED_IN_V10, RIDER_HISTORY_WINDOWS } from '../sim/rides/ride-store';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 14;
-const PREVIOUS_SAVE_VERSION = 13;
-const PRE_STAFF_ORDER_SAVE_VERSION = 12;
+export const SAVE_VERSION = 16;
+const PREVIOUS_SAVE_VERSION = 15;
+const PRE_V15_SAVE_VERSION = 14;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
 const PRE_RIDE_HISTORY_SAVE_VERSION = 12;
+const STAFF_ORDER_SAVE_VERSION = 13;
+const GUEST_MEMORY_SAVE_VERSION = 15;
+const STAFF_SWEEP_SAVE_VERSION = 15;
+const LITTER_ORDER_SAVE_VERSION = 15;
+const RIDER_HISTORY_SAVE_VERSION = 14;
 /** First version whose research stores invention work units rather than cents. */
 const RESEARCH_UNITS_SAVE_VERSION = 10;
 const PRE_NAVIGATION_SAVE_VERSION = 9;
@@ -50,6 +60,8 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
         'rideHistory1',
         'rideHistory2',
         'rideHistory3',
+        'litterMemory',
+        'angriness',
       ].includes(name),
   ),
 ) as Omit<
@@ -69,7 +81,23 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
   | 'rideHistory1'
   | 'rideHistory2'
   | 'rideHistory3'
+  | 'litterMemory'
+  | 'angriness'
 >;
+const PRE_ORDER_STAFF_SCHEMA = Object.fromEntries(
+  Object.entries(STAFF_SCHEMA).filter(
+    ([name]) => name !== 'orderFlags' && name !== 'sweeps' && name !== 'vandalsStopped',
+  ),
+) as Omit<typeof STAFF_SCHEMA, 'orderFlags' | 'sweeps' | 'vandalsStopped'>;
+const PRE_SWEEP_STAFF_SCHEMA = Object.fromEntries(
+  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'sweeps' && name !== 'vandalsStopped'),
+) as Omit<typeof STAFF_SCHEMA, 'sweeps' | 'vandalsStopped'>;
+const PRE_VANDAL_STOP_STAFF_SCHEMA = Object.fromEntries(
+  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'vandalsStopped'),
+) as Omit<typeof STAFF_SCHEMA, 'vandalsStopped'>;
+const LEGACY_LITTER_SCHEMA = Object.fromEntries(
+  Object.entries(LITTER_SCHEMA).filter(([name]) => name !== 'birthOrder'),
+) as Omit<typeof LITTER_SCHEMA, 'birthOrder'>;
 const MAGIC = 0x56534f43; // "COSV" little-endian
 
 type StoreName = 'guests' | 'staff' | 'vehicles' | 'litter' | 'rides';
@@ -90,7 +118,7 @@ interface Header {
   rng: number[];
   stores: Record<string, StoreHeader>;
   economy: LedgerSave;
-  weather: { kind: number; temperature: number; ticksUntilChange: number };
+  weather: { kind: number; temperature: number; ticksUntilChange: number; climate?: number };
   research: ResearchSave;
   scenario: ScenarioState;
   park?: ParkState;
@@ -205,6 +233,71 @@ function migrateGuestHistory(world: World, count: number): void {
   guests.visitTicks.fill(0, 0, count);
   guests.ridesTaken.fill(0, 0, count);
   guests.lastRide.fill(-1, 0, count);
+  guests.litterMemory.fill(0, 0, count);
+  guests.angriness.fill(0, 0, count);
+}
+
+function copyStoreIndexArrays(target: EntityStore<Schema>, source: EntityStore<Schema>): void {
+  const [slotToId, idToSlot, freeIds] = target.arrays() as Uint32Array[];
+  const [sourceSlotToId, sourceIdToSlot, sourceFreeIds] = source.arrays() as Uint32Array[];
+  slotToId.set(sourceSlotToId);
+  idToSlot.set(sourceIdToSlot);
+  freeIds.set(sourceFreeIds);
+}
+
+function migratePreOrderStaff(
+  world: World,
+  legacy: EntityStore<typeof PRE_ORDER_STAFF_SCHEMA>,
+): void {
+  copyStoreIndexArrays(world.staff, legacy as EntityStore<Schema>);
+  for (const key of Object.keys(
+    PRE_ORDER_STAFF_SCHEMA,
+  ) as (keyof typeof PRE_ORDER_STAFF_SCHEMA)[]) {
+    world.staff.cols[key].set(legacy.cols[key]);
+  }
+  for (let slot = 0; slot < legacy.count; slot++)
+    world.staff.cols.orderFlags[slot] = defaultStaffOrderFlags(world.staff.cols.kind[slot]);
+  world.staff.cols.sweeps.fill(0);
+  world.staff.cols.vandalsStopped.fill(0);
+}
+
+function migrateVersion13Staff(
+  world: World,
+  legacy: EntityStore<typeof PRE_SWEEP_STAFF_SCHEMA>,
+): void {
+  copyStoreIndexArrays(world.staff, legacy as EntityStore<Schema>);
+  for (const key of Object.keys(
+    PRE_SWEEP_STAFF_SCHEMA,
+  ) as (keyof typeof PRE_SWEEP_STAFF_SCHEMA)[]) {
+    world.staff.cols[key].set(legacy.cols[key]);
+  }
+  world.staff.cols.sweeps.fill(0);
+  world.staff.cols.vandalsStopped.fill(0);
+}
+
+function migrateVersion15Staff(
+  world: World,
+  legacy: EntityStore<typeof PRE_VANDAL_STOP_STAFF_SCHEMA>,
+): void {
+  copyStoreIndexArrays(world.staff, legacy as EntityStore<Schema>);
+  for (const key of Object.keys(
+    PRE_VANDAL_STOP_STAFF_SCHEMA,
+  ) as (keyof typeof PRE_VANDAL_STOP_STAFF_SCHEMA)[]) {
+    world.staff.cols[key].set(legacy.cols[key]);
+  }
+  world.staff.cols.vandalsStopped.fill(0);
+}
+
+function migrateLegacyLitter(world: World, legacy: EntityStore<typeof LEGACY_LITTER_SCHEMA>): void {
+  copyStoreIndexArrays(world.litter, legacy as EntityStore<Schema>);
+  for (const key of Object.keys(LEGACY_LITTER_SCHEMA) as (keyof typeof LEGACY_LITTER_SCHEMA)[]) {
+    world.litter.cols[key].set(legacy.cols[key]);
+  }
+  const oldestFirst = Array.from({ length: legacy.count }, (_, slot) => slot);
+  oldestFirst.sort(
+    (a, b) => legacy.cols.age[b] - legacy.cols.age[a] || legacy.slotToId[a] - legacy.slotToId[b],
+  );
+  oldestFirst.forEach((slot, order) => (world.litter.cols.birthOrder[slot] = order + 1));
 }
 
 function migrateMissingApproachGap(world: World, count: number): void {
@@ -278,19 +371,15 @@ export function serialize(world: World): Uint8Array {
   return out;
 }
 
-/** Guest columns appended after a save's version: approach gap, navigation, stats, then ride history. */
+/** Guest columns appended after a save's version: approach, navigation, stats, history, then memory. */
 function guestColumnsAbsent(version: number): number {
   return (
     (version <= PRE_GUEST_STATS_SAVE_VERSION ? 3 : 0) +
     (version <= PRE_APPROACH_SAVE_VERSION ? 1 : 0) +
     (version <= PRE_NAVIGATION_SAVE_VERSION ? 5 : 0) +
-    (version <= PRE_RIDE_HISTORY_SAVE_VERSION ? 5 : 0)
+    (version <= PRE_RIDE_HISTORY_SAVE_VERSION ? 5 : 0) +
+    (version < GUEST_MEMORY_SAVE_VERSION ? 2 : 0)
   );
-}
-
-/** The worker-order bit field was appended to staff storage in version 13. */
-function staffColumnsAbsent(version: number): number {
-  return version <= PRE_STAFF_ORDER_SAVE_VERSION ? 1 : 0;
 }
 
 /** Ride columns appended after a save's version: income, the train layout, then reliability. */
@@ -299,7 +388,7 @@ function rideColumnsAbsent(version: number): number {
   if (version <= PRE_INCOME_SAVE_VERSION) absent += 1;
   if (version <= PRE_TRAIN_LAYOUT_SAVE_VERSION) absent += 2;
   if (version <= PRE_RELIABILITY_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V10;
-  if (version < SAVE_VERSION) absent += RIDER_HISTORY_WINDOWS;
+  if (version < RIDER_HISTORY_SAVE_VERSION) absent += RIDER_HISTORY_WINDOWS;
   return absent;
 }
 
@@ -320,7 +409,9 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_RELIABILITY_SAVE_VERSION,
     PRE_GUEST_STATS_SAVE_VERSION,
     PRE_RIDE_HISTORY_SAVE_VERSION,
+    STAFF_ORDER_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
+    PRE_V15_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -347,6 +438,22 @@ export function deserialize(bytes: Uint8Array): World {
     header.version <= PRE_HEADING_SAVE_VERSION
       ? new EntityStore(LEGACY_GUEST_SCHEMA, world.guests.capacity)
       : null;
+  const legacyStaff =
+    header.version < STAFF_ORDER_SAVE_VERSION
+      ? new EntityStore(PRE_ORDER_STAFF_SCHEMA, world.staff.capacity)
+      : null;
+  const version13Staff =
+    header.version >= STAFF_ORDER_SAVE_VERSION && header.version < STAFF_SWEEP_SAVE_VERSION
+      ? new EntityStore(PRE_SWEEP_STAFF_SCHEMA, world.staff.capacity)
+      : null;
+  const version15Staff =
+    header.version === PREVIOUS_SAVE_VERSION
+      ? new EntityStore(PRE_VANDAL_STOP_STAFF_SCHEMA, world.staff.capacity)
+      : null;
+  const legacyLitter =
+    header.version < LITTER_ORDER_SAVE_VERSION
+      ? new EntityStore(LEGACY_LITTER_SCHEMA, world.litter.capacity)
+      : null;
   const trackViews = [...world.track.pieces.arrays(), ...world.track.rideTables()];
   const rideViewEnd = allViews.length - trackViews.length;
   const rideViewStart = rideViewEnd - world.rides.arrays().length;
@@ -357,13 +464,24 @@ export function deserialize(bytes: Uint8Array): World {
         guestViewStart,
         guestViewStart + world.guests.arrays().length - guestColumnsAbsent(header.version),
       );
-  const staffViewStart = guestViewStart + world.guests.arrays().length;
+  const guestViewEnd = guestViewStart + world.guests.arrays().length;
+  const staffViewStart = guestViewEnd;
   const staffViewEnd = staffViewStart + world.staff.arrays().length;
+  const vehicleViewEnd = staffViewEnd + world.vehicles.arrays().length;
+  const litterViewEnd = vehicleViewEnd + world.litter.arrays().length;
   const serializedViews = [
     ...allViews.slice(0, guestViewStart),
     ...guestPayloadViews,
-    ...allViews.slice(staffViewStart, staffViewEnd - staffColumnsAbsent(header.version)),
-    ...allViews.slice(staffViewEnd, rideViewStart),
+    ...(legacyStaff
+      ? legacyStaff.arrays()
+      : version13Staff
+        ? version13Staff.arrays()
+        : version15Staff
+          ? version15Staff.arrays()
+          : allViews.slice(staffViewStart, staffViewEnd)),
+    ...allViews.slice(staffViewEnd, vehicleViewEnd),
+    ...(legacyLitter ? legacyLitter.arrays() : allViews.slice(vehicleViewEnd, litterViewEnd)),
+    ...allViews.slice(litterViewEnd, rideViewStart),
     ...(header.version === PRE_RIDES_SAVE_VERSION
       ? legacyViews
       : allViews.slice(rideViewStart, rideViewEnd - rideColumnsAbsent(header.version))),
@@ -379,15 +497,33 @@ export function deserialize(bytes: Uint8Array): World {
     const h = header.stores[n];
     (world[n] as EntityStore<Schema>).restore(h.count, h.freeTop);
   }
-  if (header.version <= PRE_STAFF_ORDER_SAVE_VERSION) {
-    for (let slot = 0; slot < world.staff.count; slot++) {
-      world.staff.cols.orderFlags[slot] = defaultStaffOrderFlags(world.staff.cols.kind[slot]);
-    }
+  if (legacyStaff) {
+    legacyStaff.restore(header.stores.staff.count, header.stores.staff.freeTop);
+    migratePreOrderStaff(world, legacyStaff);
+  }
+  if (version13Staff) {
+    version13Staff.restore(header.stores.staff.count, header.stores.staff.freeTop);
+    migrateVersion13Staff(world, version13Staff);
+  }
+  if (version15Staff) {
+    version15Staff.restore(header.stores.staff.count, header.stores.staff.freeTop);
+    migrateVersion15Staff(world, version15Staff);
+  }
+  if (legacyLitter) {
+    legacyLitter.restore(header.stores.litter.count, header.stores.litter.freeTop);
+    migrateLegacyLitter(world, legacyLitter);
   }
   world.track.pieces.restore(header.track.pieces.count, header.track.pieces.freeTop);
   world.track.lastResult = header.track.lastResult;
   world.track.lastPiece = header.track.lastPiece;
-  restoreLedger(world.economy, header.economy);
+  let economySave = header.economy;
+  if (header.version < SAVE_VERSION) {
+    economySave = header.economy;
+  }
+  restoreLedger(world.economy, economySave);
+  if (header.version < SAVE_VERSION) {
+    world.economy.inputs.wageBillPerWeek = calculateStaffWageBill(world);
+  }
   if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
   if (legacyGuests) migrateLegacyGuests(world, legacyGuests, header.stores.guests.count);
   if (header.version <= PRE_RELIABILITY_SAVE_VERSION) migratePreReliabilityRides(world);
@@ -403,9 +539,6 @@ export function deserialize(bytes: Uint8Array): World {
   restoreResearch(world.research, research);
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
-  if (header.version < SAVE_VERSION) {
-    world.economy.inputs.wageBillPerWeek = calculateStaffWageBill(world);
-  }
   return world;
 }
 

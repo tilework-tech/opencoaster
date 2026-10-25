@@ -26,6 +26,8 @@ export const enum GuestThought {
   QueueTooLong = 7,
   Leaving = 8,
   Lost = 9,
+  Scenery = 10,
+  VeryClean = 11,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */
@@ -78,6 +80,10 @@ export const GUEST_SCHEMA = {
   rideHistory1: Int32Array,
   rideHistory2: Int32Array,
   rideHistory3: Int32Array,
+  /** Ticks since this guest last saw litter or vomit. */
+  litterMemory: Uint16Array,
+  /** Ticks remaining before this guest stops being angry. */
+  angriness: Uint16Array,
 } as const;
 
 export function recordRideHistory(w: World, slot: number, rideId: number): void {
