@@ -39,6 +39,16 @@ describe('scenario catalog', () => {
     expect(catalog.map((s) => s.id)).toEqual(['a', 'b']);
   });
 
+  it('lists the starter scenario first whatever the file names sort to', () => {
+    const catalog = buildCatalog({
+      './scenarios/a.json': minimal('a'),
+      './scenarios/starter.json': minimal('starter'),
+      './scenarios/z.json': minimal('z'),
+    });
+    expect(catalog.map((s) => s.id)).toEqual(['starter', 'a', 'z']);
+    expect(SCENARIOS[0].id).toBe('starter');
+  });
+
   it('rejects two files that declare the same scenario id', () => {
     expect(() =>
       buildCatalog({ './scenarios/a.json': minimal('dup'), './scenarios/b.json': minimal('dup') }),
