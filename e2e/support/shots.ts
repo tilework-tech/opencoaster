@@ -34,8 +34,46 @@ export interface Box {
   height: number;
 }
 
+/**
+ * Pixels of the game canvas when it is a Canvas2D surface. Compositing a page screenshot over a
+ * software-rendered Canvas2D world can take far longer than a frame budget, whereas reading the
+ * canvas back is immediate; null when the canvas is WebGL.
+ */
+async function canvas2dShot(page: Page, clip?: Box): Promise<Shot | null> {
+  const grab = await page.evaluate(() => {
+    const canvas = document.querySelector('#game') as HTMLCanvasElement | null;
+    if (!canvas || canvas.getContext('2d') === null) return null;
+    const rect = canvas.getBoundingClientRect();
+    return { url: canvas.toDataURL('image/png'), x: rect.x, y: rect.y, width: rect.width };
+  });
+  if (!grab) return null;
+  const full = Buffer.from(grab.url.split(',')[1]!, 'base64');
+  const meta = await sharp(full).metadata();
+  const scale = meta.width! / grab.width;
+  const pipeline = sharp(full);
+  if (clip)
+    pipeline.extract({
+      left: Math.max(0, Math.round((clip.x - grab.x) * scale)),
+      top: Math.max(0, Math.round((clip.y - grab.y) * scale)),
+      width: Math.min(meta.width!, Math.round(clip.width * scale)),
+      height: Math.min(meta.height!, Math.round(clip.height * scale)),
+    });
+  const png = await pipeline.png().toBuffer();
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return {
+    png,
+    data,
+    width: info.width,
+    height: info.height,
+    scale,
+    origin: { x: clip?.x ?? grab.x, y: clip?.y ?? grab.y },
+  };
+}
+
 /** Screenshot of the viewport, or of `clip` alone, which renders much faster under SwiftShader. */
 export async function takeShot(page: Page, clip?: Box): Promise<Shot> {
+  const canvasShot = await canvas2dShot(page, clip);
+  if (canvasShot) return canvasShot;
   const png = await page.screenshot({ timeout: 30_000, ...(clip ? { clip } : {}) });
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const cssWidth = clip?.width ?? page.viewportSize()?.width ?? info.width;

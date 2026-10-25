@@ -8,6 +8,7 @@ import {
   footprintTiles,
   paintPaths,
   startStarterPark,
+  unlockRides,
   toolbarAction,
 } from './support/park';
 import type { Tile } from './support/park';
@@ -205,6 +206,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   const status = page.locator('.tool-status');
 
   await startStarterPark(page);
+  await unlockRides(page, testInfo, [ride.type]);
   if (options.canvas2d) await expect(page.locator('.hud')).toContainText('Canvas2D');
   await paintPaths(page, site.paths);
   await centerMapOnTile(page, MAP_CENTER);
@@ -216,7 +218,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   for (let turn = 0; turn < dir; turn++) {
     if (options.rotateWith === 'button')
       await page.getByRole('button', { name: 'Rotate ride (T)' }).click();
-    else await page.keyboard.press('z');
+    else await page.keyboard.press('t');
   }
   if (dir > 0) await expect(status).toContainText('rotated');
 
@@ -360,13 +362,16 @@ test.describe('flat ride footprints (Canvas2D)', () => {
   });
 });
 
-test('the Rotate ride button clears the phone HUD and docked windows', async ({ browser }) => {
+test('the Rotate ride button clears the phone HUD and docked windows', async ({
+  browser,
+}, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
   const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
   await startStarterPark(page, true);
+  await unlockRides(page, testInfo, [14], true);
   await chooseRide(page, 'Thrill rides', 14, true);
   const rotate = page.getByRole('button', { name: 'Rotate ride (T)' });
   await expect(rotate).toBeVisible();

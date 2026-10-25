@@ -1,9 +1,14 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import type { RideType } from '../../src/sim/rides/ride-types';
+import { World } from '../../src/sim/core/world';
+import { parseScenarioFile } from '../../src/sim/scenario/scenario-file';
+import { prepareScenario } from '../../src/sim/scenario/scenario-layout';
+import { serialize } from '../../src/save/save';
 import { rideFootprintTiles } from '../../src/sim/rides/ride-footprint';
 
 export type Tile = readonly [x: number, y: number];
@@ -92,6 +97,35 @@ export async function screenshot(page: Page, testInfo: TestInfo, name: string): 
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 
+const starterScenario = parseScenarioFile(
+  JSON.parse(
+    readFileSync(new URL('../../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
+  ),
+);
+
+/** Imports a fresh Starter Park save in which the given ride types are already researched. */
+export async function unlockRides(
+  page: Page,
+  testInfo: TestInfo,
+  types: readonly number[],
+  mobile = false,
+): Promise<void> {
+  const world = new World({
+    seed: starterScenario.seed,
+    width: starterScenario.mapWidth,
+    height: starterScenario.mapHeight,
+  });
+  prepareScenario(world, starterScenario);
+  for (const type of types) world.research.unlocked.add(type);
+  const savePath = testInfo.outputPath('starter-unlocked.park');
+  await mkdir(dirname(savePath), { recursive: true });
+  await writeFile(savePath, serialize(world));
+  await toolbarAction(page, 'Save / Load', mobile);
+  await page.getByRole('button', { name: 'Import save file' }).click();
+  await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
+  await expect(page.locator('.hud')).toContainText('tick');
+}
+
 export async function startStarterPark(page: Page, mobile = false): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'New game' }).click();
@@ -171,10 +205,10 @@ export async function clickTile(
   if (recenter) await centerMapOnTile(page, MAP_CENTER, mobile);
   const point = await tileScreenPoint(page, tile);
   await page.mouse.click(point.x, point.y);
-  const status = await page.locator('.tool-status').innerText();
-  const hit = status.match(/(?:requested at| at) (\d+), (\d+)/);
-  expect(hit, `Expected a tile coordinate in tool status: ${status}`).not.toBeNull();
-  expect([Number(hit![1]), Number(hit![2])]).toEqual([...tile]);
+  // Footpath laying answers after the sim previews it, so wait for the status to name this tile.
+  await expect
+    .poll(() => page.locator('.tool-status').innerText(), { timeout: 10_000 })
+    .toMatch(new RegExp(`(?:requested at| at) ${tile[0]}, ${tile[1]}\\b`));
 }
 
 /** Paints footpaths on the given tiles with the Footpaths tool. */
@@ -183,11 +217,18 @@ export async function paintPaths(
   tiles: readonly Tile[],
   mobile = false,
 ): Promise<void> {
+  const toolbar = page.locator('.game-toolbar');
+  if (mobile) await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
+  const resume = toolbar.getByRole('button', { name: 'Resume', exact: true });
+  const wasPaused = (await resume.count()) > 0;
+  if (mobile) await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
+  if (wasPaused) await toolbarAction(page, 'Resume', mobile);
   await toolbarAction(page, 'Footpaths', mobile);
   await centerMapOnTile(page, MAP_CENTER, mobile);
   for (const tile of tiles) await clickTile(page, tile, mobile, false);
   const closeFootpaths = page.getByRole('button', { name: 'Close Footpaths' });
   if (await closeFootpaths.count()) await closeFootpaths.click();
+  if (wasPaused) await toolbarAction(page, 'Pause', mobile);
 }
 
 /** Picks a ride card from the New attraction window (its tab and `data-ride-type`). */

@@ -202,7 +202,8 @@ async function playStarterRideAccess(
   await startStarterPark(page, mobile);
   await importUnlockedCoaster(page, testInfo, mobile);
   const mapCenter: readonly [number, number] = [28, 43];
-  const clickTile = (x: number, y: number) => mapTileClick(page, x, y, mapCenter, mobile);
+  const flatSite: readonly [number, number] = [23, 43];
+  const clickTile = (x: number, y: number) => mapTileClick(page, x, y, [x, y], mobile);
   await screenshot(
     page,
     testInfo,
@@ -210,12 +211,24 @@ async function playStarterRideAccess(
   );
 
   await toolbarAction(page, 'Footpaths', mobile);
-  for (let x = 26; x <= 28; x++) await clickTile(x, 43);
+  for (const [x, y] of [
+    [21, 44],
+    [22, 44],
+    [23, 44],
+    [24, 44],
+    [25, 44],
+    [21, 43],
+    [25, 43],
+    [26, 43],
+    [27, 43],
+    [28, 43],
+  ] as const)
+    await clickTile(x, y);
 
   await toolbarAction(page, 'New ride', mobile);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
   await page.locator('.ride-card[data-ride-type="1"]').click();
-  await clickTile(27, 42);
+  await clickTile(23, 42);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   await expect(page.locator('.ride-placement-preview')).toBeVisible();
   await screenshot(
@@ -224,8 +237,8 @@ async function playStarterRideAccess(
     mobile ? 'starter-ride-access-pixel-8-entrance' : 'starter-ride-access-desktop-entrance',
   );
 
-  await placeStationPart(page, 'Place exit', mobile, mapCenter, [27, 43]);
-  await placeStationPart(page, 'Ride setup complete', mobile, mapCenter);
+  await placeStationPart(page, 'Place exit', mobile, flatSite, [21, 43]);
+  await placeStationPart(page, 'Ride setup complete', mobile, flatSite, [25, 43]);
   await toolbarAction(page, 'Rides', mobile);
   const flatRide = page
     .locator('[data-panel="ride-list"] .list-row')
@@ -239,7 +252,7 @@ async function playStarterRideAccess(
   await toolbarAction(page, 'New ride', mobile);
   await page.getByRole('tab', { name: 'Shops & Stalls' }).click();
   await page.getByRole('button', { name: /^Food Stall/ }).click();
-  await clickTile(25, 43);
+  await clickTile(20, 44);
   await expect(page.locator('.tool-status')).toContainText('Food Stall is open');
   await expect(page.locator('.ride-stall-front-preview')).toBeVisible();
   await toolbarAction(page, 'Rides', mobile);
@@ -263,7 +276,7 @@ async function playStarterRideAccess(
     });
     await page.getByRole('button', { name: 'Close Ride #1' }).click();
     await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
-    await longPressAtTile(page, 25, 43, [28, 43], true);
+    await longPressAtTile(page, 20, 44, [20, 44], true);
     await expect(page.locator('[data-panel="ride-1"]')).toBeVisible();
     await page.getByRole('button', { name: 'Close Ride #1' }).click();
   }
@@ -469,7 +482,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
         await toolbarAction(page, 'Rotate view', false);
         await expect(page.locator('.hud')).toContainText(`rot ${(rotation + turn) % 4}`);
       }
-      await contextClickAtTile(page, 27, 42);
+      await contextClickAtTile(page, 23, 42);
       await expect(page.locator('.tool-status')).toContainText(`Ride ${rideId} information opened`);
     }
     await expect(rideWindow).toBeVisible();
@@ -503,25 +516,28 @@ test('starts entrance setup on the newly created ride when ride types repeat', a
   const mapCenter: readonly [number, number] = [28, 43];
   await toolbarAction(page, 'Footpaths', false);
   for (const [x, y] of [
-    [26, 43],
-    [27, 43],
-    [28, 43],
-    [29, 43],
-  ])
+    [21, 44],
+    [22, 44],
+    [23, 44],
+    [24, 44],
+    [25, 44],
+    [21, 43],
+    [25, 43],
+  ] as const)
     await mapTileClick(page, x, y, mapCenter, false);
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
   await page.locator('.ride-card[data-ride-type="1"]').click();
-  await mapTileClick(page, 27, 42, mapCenter, false);
-  await placeStationPart(page, 'Place exit', false, mapCenter, [27, 43]);
-  await placeStationPart(page, 'Ride setup complete', false, mapCenter);
+  await mapTileClick(page, 23, 42, mapCenter, false);
+  await placeStationPart(page, 'Place exit', false, mapCenter, [21, 43]);
+  await placeStationPart(page, 'Ride setup complete', false, mapCenter, [25, 43]);
   await page.getByRole('button', { name: 'Close Ride #0' }).click();
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
   await page.locator('.ride-card[data-ride-type="1"]').click();
-  await mapTileClick(page, 29, 42, mapCenter, false);
+  await mapTileClick(page, 26, 38, mapCenter, false);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
 
   await toolbarAction(page, 'Rides', false);
@@ -548,25 +564,28 @@ test('does not mark boarding tiles inside another ride as valid', async ({ page 
   const mapCenter: readonly [number, number] = [28, 43];
   await toolbarAction(page, 'Footpaths', false);
   for (const [x, y] of [
-    [26, 43],
-    [27, 43],
-    [28, 43],
-    [29, 43],
-  ])
+    [21, 44],
+    [22, 44],
+    [23, 44],
+    [24, 44],
+    [25, 44],
+    [21, 43],
+    [25, 43],
+  ] as const)
     await mapTileClick(page, x, y, mapCenter, false);
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
   await page.locator('.ride-card[data-ride-type="1"]').click();
-  await mapTileClick(page, 27, 42, mapCenter, false);
-  await placeStationPart(page, 'Place exit', false, mapCenter, [27, 43]);
-  await placeStationPart(page, 'Ride setup complete', false, mapCenter, [26, 42]);
+  await mapTileClick(page, 23, 42, mapCenter, false);
+  await placeStationPart(page, 'Place exit', false, mapCenter, [21, 43]);
+  await placeStationPart(page, 'Ride setup complete', false, mapCenter, [25, 43]);
   await page.getByRole('button', { name: 'Close Ride #0' }).click();
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
   await page.locator('.ride-card[data-ride-type="1"]').click();
-  await mapTileClick(page, 28, 42, mapCenter, false);
+  await mapTileClick(page, 26, 41, mapCenter, false);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
-  await expect(page.getByRole('button', { name: 'Place entrance at tile 27, 42' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Place entrance at tile 24, 42' })).toHaveCount(0);
 });
