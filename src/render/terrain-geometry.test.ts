@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clipTerrainTileBelowHeight,
   terrainEdgeFace,
   terrainLightFactor,
+  terrainShorelineSegments,
   terrainTileCorners,
   viewTerrainCornerHeights,
   waterCoversTerrainTile,
@@ -57,5 +59,51 @@ describe('terrain tile geometry', () => {
     expect(waterIntersectsTerrainTile(3, 0b0100, 2)).toBe(true);
     expect(waterIntersectsTerrainTile(2, 0b0100, 2)).toBe(false);
     expect(waterIntersectsTerrainTile(0, 0, 0)).toBe(false);
+  });
+
+  it('clips the water footprint to submerged terrain corners and interpolates the shoreline', () => {
+    const corners = terrainTileCorners(8, 12, 2, 0b0100);
+    const wet = clipTerrainTileBelowHeight(corners, 2.5);
+
+    expect(wet).toEqual([
+      { x: 8, y: 12, height: 2 },
+      { x: 9, y: 12, height: 2 },
+      { x: 9, y: 12.5, height: 2.5 },
+      { x: 8.5, y: 13, height: 2.5 },
+      { x: 8, y: 13, height: 2 },
+    ]);
+    expect(clipTerrainTileBelowHeight(corners, 1.5)).toEqual([]);
+    expect(clipTerrainTileBelowHeight(corners, 4)).toEqual(corners);
+  });
+
+  it('gives adjacent shoreline tiles identical intersections on their shared edge', () => {
+    const west = terrainTileCorners(8, 12, 2, 0b0010);
+    const east = terrainTileCorners(9, 12, 2, 0b0001);
+    const westWet = clipTerrainTileBelowHeight(west, 2.5);
+    const eastWet = clipTerrainTileBelowHeight(east, 2.5);
+
+    expect(westWet.filter((corner) => corner.x === 9)).toEqual(
+      eastWet.filter((corner) => corner.x === 9),
+    );
+  });
+
+  it('keeps every shoreline polygon finite and inside its terrain tile for all corner masks', () => {
+    for (let mask = 0; mask < 16; mask++) {
+      const clipped = clipTerrainTileBelowHeight(terrainTileCorners(8, 12, 2, mask), 2.5);
+      expect(clipped.every((corner) => corner.x >= 8 && corner.x <= 9)).toBe(true);
+      expect(clipped.every((corner) => corner.y >= 12 && corner.y <= 13)).toBe(true);
+      expect(
+        clipped.every((corner) => Number.isFinite(corner.height) && corner.height <= 2.5),
+      ).toBe(true);
+      expect(new Set(clipped.map(({ x, y }) => `${x},${y}`)).size).toBe(clipped.length);
+    }
+  });
+
+  it('forms one or two complete waterline segments at convex and concave corners', () => {
+    const corners = (mask: number) => terrainTileCorners(8, 12, 2, mask);
+    expect(terrainShorelineSegments(corners(0b0100), 2.5)).toHaveLength(1);
+    expect(terrainShorelineSegments(corners(0b0101), 2.5)).toHaveLength(2);
+    const atCorner = clipTerrainTileBelowHeight(corners(0b0100), 3);
+    expect(new Set(atCorner.map(({ x, y }) => `${x},${y}`)).size).toBe(atCorner.length);
   });
 });

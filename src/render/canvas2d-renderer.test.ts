@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { Canvas2DRenderer } from './canvas2d-renderer';
+import type { CanvasAtlas } from './canvas-atlas';
 import type { MapData } from './renderer';
 
 class RecordingContext {
   readonly canvas = { width: 1, height: 1 };
   readonly fills: string[] = [];
   readonly arcs: string[] = [];
+  readonly spriteSources: number[] = [];
   fillStyle = '#000';
   strokeStyle = '#000';
   lineWidth = 1;
@@ -37,6 +39,18 @@ class RecordingContext {
   }
 
   stroke(): void {}
+
+  save(): void {}
+
+  restore(): void {}
+
+  transform(): void {}
+
+  clip(): void {}
+
+  drawImage(_image: CanvasImageSource, x: number): void {
+    this.spriteSources.push(x);
+  }
 }
 
 function render(map: MapData): RecordingContext {
@@ -86,5 +100,35 @@ describe('Canvas2D fallback map art', () => {
     map.pathCount = 1;
 
     expect(render(map).fills).toContain('#d7bb65');
+  });
+
+  it('draws the generated flat grass and sand sprites when the atlas is available', () => {
+    const map = flatMap();
+    map.surface.fill(0);
+    map.surface[12] = 1;
+    const context = new RecordingContext();
+    const canvas = { getContext: () => context } as unknown as HTMLCanvasElement;
+    const renderer = new Canvas2DRenderer();
+    renderer.attach(canvas);
+    renderer.resize(800, 600, 1);
+    renderer.setMap(map);
+    (renderer as unknown as { atlas: CanvasAtlas }).atlas = {
+      image: {} as ImageBitmap,
+      sprites: {
+        'terrain/grass/surface': {
+          frames: [{ x: 10, y: 0, width: 64, height: 32 }],
+          anchor: { x: 32, y: 16 },
+        },
+        'terrain/sand/surface': {
+          frames: [{ x: 20, y: 0, width: 64, height: 32 }],
+          anchor: { x: 32, y: 16 },
+        },
+      },
+    };
+
+    renderer.draw(null, { x: 0, y: 0, zoom: 1, rotation: 0 });
+
+    expect(context.spriteSources).toContain(10);
+    expect(context.spriteSources).toContain(20);
   });
 });

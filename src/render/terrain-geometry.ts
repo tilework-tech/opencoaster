@@ -43,6 +43,53 @@ export function terrainTileCorners(
   ];
 }
 
+/** Returns the part of a terrain tile below a horizontal water plane in consistent world order. */
+export function clipTerrainTileBelowHeight(
+  corners: readonly TerrainCorner[],
+  waterHeight: number,
+): TerrainCorner[] {
+  if (corners.length < 3) return [];
+  const clipped: TerrainCorner[] = [];
+  let previous = corners[corners.length - 1]!;
+  let previousWet = previous.height <= waterHeight;
+  for (const current of corners) {
+    const currentWet = current.height <= waterHeight;
+    if (currentWet !== previousWet) {
+      const amount = (waterHeight - previous.height) / (current.height - previous.height);
+      if (amount > 0 && amount < 1)
+        clipped.push({
+          x: previous.x + (current.x - previous.x) * amount,
+          y: previous.y + (current.y - previous.y) * amount,
+          height: waterHeight,
+        });
+    }
+    if (currentWet) clipped.push(current);
+    previous = current;
+    previousWet = currentWet;
+  }
+  return clipped;
+}
+
+/** Returns the waterline segments inside a tile, excluding tile edges shared by neighboring water. */
+export function terrainShorelineSegments(
+  corners: readonly TerrainCorner[],
+  waterHeight: number,
+): [TerrainCorner, TerrainCorner][] {
+  const polygon = clipTerrainTileBelowHeight(corners, waterHeight);
+  const segments: [TerrainCorner, TerrainCorner][] = [];
+  for (let index = 0; index < polygon.length; index++) {
+    const start = polygon[index]!;
+    const end = polygon[(index + 1) % polygon.length]!;
+    if (
+      start.height === waterHeight &&
+      end.height === waterHeight &&
+      (start.x !== end.x || start.y !== end.y)
+    )
+      segments.push([start, end]);
+  }
+  return segments;
+}
+
 export function terrainEdgeFace(
   corners: readonly TerrainCorner[],
   direction: number,

@@ -1,19 +1,15 @@
 import { waterColor } from '../palette';
-import { hash2 } from '../noise';
 import type { Sprite } from '../raster';
 
 export const WATER_FRAMES = 8;
 
 /**
- * Ripple slot (0-7) of a water texel at cell (i, j) of the periodic 32x32 tile texture. Crests run
- * along lines of constant i + j (screen-horizontal in the dimetric view) and are broken into
- * dashes by a hash of the cell along i - j; the shimmer is this slot advancing through the cycle.
+ * Ripple shade (0-2) at a texel. Broad, low-amplitude waves avoid a checker pattern at close zoom;
+ * the palette frame advances these neighboring shades to give the surface a gentle shimmer.
  */
 export function waterSlot(i: number, j: number): number {
-  const band = (i + j) >> 2;
-  const dash = ((((i - j) % 32) + 32) % 32) >> 3;
-  const jitter = Math.floor(hash2(dash, band & 7, 21) * 2);
-  return (band + jitter) & 7;
+  const wave = Math.sin((i + j) * 0.2 + Math.sin((i - j) * 0.13) * 1.2);
+  return Math.max(0, Math.min(2, Math.round(1 + wave)));
 }
 
 export const WATER_TEXTURE_SIZE = 32;
