@@ -5,7 +5,7 @@ export type ShortcutAction =
   | { type: 'closeAll' }
   | { type: 'cancel' }
   | { type: 'pause' }
-  | { type: 'rotate' }
+  | { type: 'rotate'; direction: -1 | 1 }
   | { type: 'zoom'; direction: -1 | 1 }
   | { type: 'window'; id: string };
 
@@ -41,7 +41,7 @@ export function shortcutFor(event: KeyLike): ShortcutAction | null {
     case 'Escape':
       return { type: 'cancel' };
     case 'Enter':
-      return { type: 'rotate' };
+      return { type: 'rotate', direction: event.shiftKey ? -1 : 1 };
     case 'PageUp':
       return { type: 'zoom', direction: -1 };
     case 'PageDown':
@@ -50,6 +50,8 @@ export function shortcutFor(event: KeyLike): ShortcutAction | null {
     case 'Pause':
       return { type: 'pause' };
   }
+  if (event.key.toLowerCase() === 'z') return { type: 'rotate', direction: 1 };
+  if (event.key.toLowerCase() === 'x') return { type: 'rotate', direction: -1 };
   const id = WINDOW_KEYS[event.key] ?? WINDOW_KEYS[event.key.toLowerCase()];
   return id ? { type: 'window', id } : null;
 }

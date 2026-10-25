@@ -23,7 +23,7 @@ test('Canvas2D survives staff hires, two full view rotations and zoom changes wi
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const hud = page.locator('.hud');
   const toolbar = page.locator('.game-toolbar');
-  const rotate = toolbar.getByRole('button', { name: 'Rotate view', exact: true });
+  const rotate = toolbar.getByRole('button', { name: 'Rotate clockwise', exact: true });
   await expect(hud).toContainText('Canvas2D');
   await toolbar.getByRole('button', { name: 'Staff', exact: true }).click();
   const staff = page.locator('[data-panel="staff"]');

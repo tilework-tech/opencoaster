@@ -216,7 +216,7 @@ for (const { name, device } of mobileProfiles) {
     const initialRotation = Number(rotationMatch?.[1]);
     expect(initialRotation).toBeGreaterThanOrEqual(0);
     expect(initialRotation).toBeLessThanOrEqual(3);
-    await toolbarAction(page, 'Rotate view');
+    await toolbarAction(page, 'Rotate clockwise');
     await expect
       .poll(async () => {
         const text = await page.locator('.hud').innerText();

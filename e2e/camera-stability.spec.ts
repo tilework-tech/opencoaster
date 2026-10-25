@@ -67,7 +67,7 @@ test('clicking tiles never moves the camera unless the click is a drag', async (
   await clickManyTiles(page, 20, 'path tool');
 
   for (let turn = 1; turn <= 4; turn++) {
-    await toolbar.getByRole('button', { name: 'Rotate view', exact: true }).click();
+    await toolbar.getByRole('button', { name: 'Rotate clockwise', exact: true }).click();
     await clickManyTiles(page, 5, `rotation ${turn}`);
   }
 });

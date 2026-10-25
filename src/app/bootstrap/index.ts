@@ -2,7 +2,6 @@ import { SimClient } from '../../worker/sim-client';
 import { createRenderer } from '../../render/create-renderer';
 import type { Camera } from '../../render/renderer';
 import { project } from '../../render/projection';
-import type { Rotation } from '../../render/projection';
 import { Hud } from '../../ui/hud';
 import { GameUI } from '../../ui/game-ui';
 import type { GuestSelection, ToolMode } from '../../ui/game-ui';
@@ -23,7 +22,7 @@ import { SCENARIOS } from '../../sim/scenario/catalog';
 import { ScenarioStatus } from '../../sim/scenario/scenario';
 import { createSaveLoadController, openSlotStore, readScenarioProgress } from '../save-load';
 import { registerPwa } from '../../pwa/register';
-import { capDevicePixelRatio } from '../../input/camera-controls';
+import { capDevicePixelRatio, rotateCameraAtCenter } from '../../input/camera-controls';
 import { centreOnTile, connectCameraInput } from '../input';
 import { AudioEngine } from '../../audio/audio';
 import { createToolController } from '../tools';
@@ -45,6 +44,7 @@ export async function bootstrap(): Promise<void> {
   const sim = new SimClient();
   sim.onMap = (map, newGame) => {
     renderer.setMap(map);
+    if (import.meta.env.DEV) (window as unknown as { __map?: typeof map }).__map = map;
     if (!newGame) return;
     [camera.x, camera.y] = scenarioOpeningPosition(map, camera.rotation);
   };
@@ -131,7 +131,7 @@ export async function bootstrap(): Promise<void> {
       persistSettings();
     },
     rotate(direction) {
-      camera.rotation = ((camera.rotation + direction + 4) % 4) as Rotation;
+      rotateCameraAtCenter(camera, sim.map, direction, viewport, sim.latest ?? undefined);
     },
     zoom(direction) {
       camera.zoom = stepZoom(camera.zoom, direction);
@@ -468,6 +468,8 @@ export async function bootstrap(): Promise<void> {
     if (keys.has('w')) camera.y -= pan;
     if (keys.has('s')) camera.y += pan;
     const latest = sim.latest;
+    if (import.meta.env.DEV)
+      (window as unknown as { __snapshot?: typeof latest }).__snapshot = latest;
     const session = saveLoad.current();
     if (session && latest) {
       if (latest.scenario.status === ScenarioStatus.Won && !session.winRecorded) {
@@ -491,6 +493,7 @@ export async function bootstrap(): Promise<void> {
     renderMs = performance.now() - renderStart;
     if (now - lastHud >= HUD_INTERVAL_MS) {
       lastHud = now;
+      gameUi.syncRotation(camera.rotation);
       hud.update(
         sim.stats,
         fps,
