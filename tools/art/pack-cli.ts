@@ -2,4 +2,5 @@ import { resolve } from 'node:path';
 import { packSprites } from './pack';
 
 const spriteDirectory = resolve('public/sprites');
-await packSprites(spriteDirectory, spriteDirectory);
+const renderedDirectory = resolve('tools/sprites/.build');
+await packSprites([spriteDirectory, renderedDirectory], spriteDirectory);

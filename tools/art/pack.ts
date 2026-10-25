@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import sharp from 'sharp';
 
-const MAX_ATLAS_WIDTH = 1024;
+const MAX_ATLAS_WIDTH = 2048;
 const MAX_ATLAS_HEIGHT = 4096;
 
 export interface SpriteFrame {
@@ -145,9 +145,16 @@ async function loadSprites(inputDir: string): Promise<{
 }
 
 /** Pack PNG sprites and their authored JSON frame metadata into a deterministic atlas. */
-export async function packSprites(inputDir: string, outputDir: string): Promise<AtlasManifest> {
-  const { frames: sourceFrames, metadata: sourceMetadata } = await loadSprites(inputDir);
-  if (sourceFrames.length === 0) throw new Error(`No PNG sprites found in ${inputDir}`);
+export async function packSprites(
+  inputDirs: string | readonly string[],
+  outputDir: string,
+): Promise<AtlasManifest> {
+  const directories = typeof inputDirs === 'string' ? [inputDirs] : inputDirs;
+  const loaded = await Promise.all(directories.map((directory) => loadSprites(directory)));
+  const sourceFrames = loaded.flatMap((result) => result.frames);
+  const sourceMetadata = new Map(loaded.flatMap((result) => [...result.metadata]));
+  if (sourceFrames.length === 0)
+    throw new Error(`No PNG sprites found in ${directories.join(', ')}`);
 
   const pixels = await Promise.all(
     sourceFrames.map((frame) =>
