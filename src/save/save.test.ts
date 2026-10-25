@@ -20,7 +20,7 @@ import { PathStyle } from '../sim/map/tile-map';
 
 describe('save', () => {
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(19);
+    expect(SAVE_VERSION).toBe(20);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -28,7 +28,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(19);
+    expect(header.version).toBe(20);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);

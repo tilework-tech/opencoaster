@@ -2,7 +2,7 @@ import type { World } from '../core/world';
 import { applyMapCommand } from '../map/map-commands';
 import { applyRideCommand } from '../rides/ride-commands';
 import { createRide } from '../rides/ride-operations';
-import { RideType } from '../rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { ParkGrid, rideFrontage } from './park-grid';
 import type { EntranceSide, PrebuiltRide } from './scenario';
 
@@ -37,8 +37,8 @@ export function placePrebuilt(
     applyMapCommand(world, { type: 'placePath', x, y });
   }
   for (const spec of rides) {
-    const frontage = rideFrontage(grid, spec.row, spec.lateral);
     const rideType = PREBUILT_TYPES[spec.type];
+    const frontage = rideFrontage(grid, spec.row, spec.lateral, RIDE_CATALOG[rideType].footprint);
     const serviceRide =
       rideType === RideType.FoodStall ||
       rideType === RideType.DrinkStall ||
@@ -48,7 +48,7 @@ export function placePrebuilt(
       applyMapCommand(world, { type: 'placePath', x, y, queue: !serviceRide });
     }
     for (const [x, y] of frontage.exitPath) applyMapCommand(world, { type: 'placePath', x, y });
-    const rideId = createRide(world, rideType, frontage.ride[0], frontage.ride[1]);
+    const rideId = createRide(world, rideType, frontage.ride[0], frontage.ride[1], frontage.dir);
     if (rideId < 0) continue;
     applyRideCommand(world, {
       type: 'placeRideEntrance',

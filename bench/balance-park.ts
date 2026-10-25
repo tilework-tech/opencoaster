@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { RIDE_CATALOG, RideType } from '../src/sim/rides/ride-types';
+import { rideFootprintTiles } from '../src/sim/rides/ride-footprint';
 import { RideState } from '../src/sim/rides/ride-store';
 import { StaffKind } from '../src/sim/staff/staff-store';
 import { buildCircuit, GROUND, SMALL_CIRCUIT } from '../src/sim/rides/coaster-fixtures';
@@ -13,6 +14,8 @@ export const TICKS_PER_YEAR = TICKS_PER_MONTH * 8;
 const SPINE_TOP = 18;
 const SPINE_BOTTOM = 43;
 const COASTER_STATION = { x: 20, y: 20 };
+/** Last row beside the spine the coaster's track and paths reach on the west side. */
+const COASTER_CLEARANCE_BOTTOM = 27;
 const COASTER_TEST_TICKS = 6000;
 
 type Side = 'east' | 'west';
@@ -20,45 +23,43 @@ type Side = 'east' | 'west';
 interface Placement {
   type: RideType;
   side: Side;
-  /** Tile row of the ride; the exit path uses the next row. */
-  y: number;
-  /** Distance of the ride tile from the spine; the queue fills the gap. */
+  /** Distance of the ride's front tile from the spine; the queue fills the gap. */
   reach: number;
 }
 
 const FIRST_WAVE: Placement[] = [
-  { type: RideType.MerryGoRound, side: 'east', y: 41, reach: 6 },
-  { type: RideType.FerrisWheel, side: 'west', y: 41, reach: 6 },
-  { type: RideType.FoodStall, side: 'east', y: 39, reach: 2 },
-  { type: RideType.DrinkStall, side: 'west', y: 39, reach: 2 },
-  { type: RideType.Toilets, side: 'east', y: 37, reach: 2 },
+  { type: RideType.MerryGoRound, side: 'east', reach: 6 },
+  { type: RideType.FerrisWheel, side: 'west', reach: 6 },
+  { type: RideType.FoodStall, side: 'east', reach: 2 },
+  { type: RideType.DrinkStall, side: 'west', reach: 2 },
+  { type: RideType.Toilets, side: 'east', reach: 2 },
 ];
 
 const SECOND_WAVE: Placement[] = [
-  { type: RideType.SwingingShip, side: 'east', y: 29, reach: 6 },
-  { type: RideType.Twist, side: 'west', y: 29, reach: 6 },
-  { type: RideType.InformationKiosk, side: 'west', y: 37, reach: 2 },
-  { type: RideType.FoodStall, side: 'west', y: 33, reach: 2 },
-  { type: RideType.DrinkStall, side: 'east', y: 33, reach: 2 },
+  { type: RideType.SwingingShip, side: 'east', reach: 6 },
+  { type: RideType.Twist, side: 'west', reach: 6 },
+  { type: RideType.InformationKiosk, side: 'west', reach: 2 },
+  { type: RideType.FoodStall, side: 'west', reach: 2 },
+  { type: RideType.DrinkStall, side: 'east', reach: 2 },
 ];
 
 const THIRD_WAVE: Placement[] = [
-  { type: RideType.Toilets, side: 'west', y: 25, reach: 2 },
-  { type: RideType.FoodStall, side: 'east', y: 25, reach: 2 },
-  { type: RideType.DrinkStall, side: 'west', y: 21, reach: 2 },
+  { type: RideType.Toilets, side: 'west', reach: 2 },
+  { type: RideType.FoodStall, side: 'east', reach: 2 },
+  { type: RideType.DrinkStall, side: 'west', reach: 2 },
 ];
 
 /** Extra attractions a keen player adds in months 3 to 5. */
 const EXPANSION: Placement[] = [
-  { type: RideType.FerrisWheel, side: 'east', y: 35, reach: 6 },
-  { type: RideType.SwingingShip, side: 'west', y: 35, reach: 6 },
-  { type: RideType.Twist, side: 'east', y: 31, reach: 6 },
-  { type: RideType.MerryGoRound, side: 'west', y: 31, reach: 6 },
-  { type: RideType.SwingingShip, side: 'east', y: 27, reach: 6 },
-  { type: RideType.FerrisWheel, side: 'west', y: 27, reach: 6 },
-  { type: RideType.Twist, side: 'east', y: 23, reach: 6 },
-  { type: RideType.SwingingShip, side: 'west', y: 23, reach: 6 },
-  { type: RideType.MerryGoRound, side: 'east', y: 21, reach: 6 },
+  { type: RideType.FerrisWheel, side: 'east', reach: 6 },
+  { type: RideType.SwingingShip, side: 'west', reach: 6 },
+  { type: RideType.Twist, side: 'east', reach: 6 },
+  { type: RideType.MerryGoRound, side: 'west', reach: 6 },
+  { type: RideType.SwingingShip, side: 'east', reach: 6 },
+  { type: RideType.FerrisWheel, side: 'west', reach: 6 },
+  { type: RideType.Twist, side: 'east', reach: 6 },
+  { type: RideType.SwingingShip, side: 'west', reach: 6 },
+  { type: RideType.MerryGoRound, side: 'east', reach: 6 },
 ];
 
 /**
@@ -91,26 +92,90 @@ function pathRun(sim: Simulation, x0: number, x1: number, y: number, queue = fal
   for (let x = a; x <= b; x++) sim.enqueue({ type: 'placePath', x, y, queue });
 }
 
+/** Rows along the spine each side's paths and ride bodies already use. */
+interface SideRows {
+  paths: Set<number>;
+  bodies: Set<number>;
+}
+
+const sideRows: Record<Side, SideRows> = {
+  east: { paths: new Set(), bodies: new Set() },
+  west: { paths: new Set(), bodies: new Set() },
+};
+
+/** Orientation whose footprint reaches furthest across the spine, so rides use few rows. */
+function acrossSpine(type: RideType): { dir: number; rows: number } {
+  let best = { dir: 0, rows: Infinity, span: -1 };
+  for (let dir = 0; dir < 4; dir++) {
+    const cells = rideFootprintTiles(RIDE_CATALOG[type], 0, 0, dir);
+    const span = Math.max(...cells.map(([x]) => x)) - Math.min(...cells.map(([x]) => x)) + 1;
+    const rows = Math.max(...cells.map(([, y]) => y)) - Math.min(...cells.map(([, y]) => y)) + 1;
+    if (span > best.span) best = { dir, rows, span };
+  }
+  return best;
+}
+
+/**
+ * First row, counting from the gate, where the ride's queue, exit and body fit beside the rides
+ * already built on its side. Stalls sit by the spine and may stand beside a ride's body.
+ */
+function allocateRow(p: Placement, rows: number): number | null {
+  const used = sideRows[p.side];
+  const attraction = p.reach > 2;
+  for (let y = SPINE_BOTTOM - 2; y > SPINE_TOP; y--) {
+    const pathRows = [y, y + 1];
+    if (pathRows.some((r) => used.bodies.has(r) && attraction)) continue;
+    if (pathRows.some((r) => used.paths.has(r))) continue;
+    if (attraction) {
+      let clear = true;
+      for (let r = y; r > y - rows; r--) if (used.paths.has(r) || used.bodies.has(r)) clear = false;
+      if (!clear || y - rows + 1 <= SPINE_TOP) continue;
+      for (let r = y; r > y - rows; r--) used.bodies.add(r);
+    }
+    for (const r of pathRows) used.paths.add(r);
+    return y;
+  }
+  return null;
+}
+
+/** Builds the placement and returns the ride id, or -1 when the spine has no room left for it. */
 function place(sim: Simulation, p: Placement): number {
   const dir = p.side === 'east' ? 1 : -1;
-  const rideX = SPINE_X + dir * p.reach;
-  const entranceX = rideX - dir;
+  const attraction = p.reach > 2;
+  const turn = attraction ? acrossSpine(p.type) : { dir: 0, rows: 1 };
+  const y = allocateRow(p, turn.rows);
+  if (y === null) return -1;
+  const cells = rideFootprintTiles(RIDE_CATALOG[p.type], 0, 0, turn.dir);
+  const frontRow = Math.max(...cells.map(([, cy]) => cy));
+  const nearColumn =
+    dir > 0 ? Math.min(...cells.map(([cx]) => cx)) : Math.max(...cells.map(([cx]) => cx));
+  const frontCorner = cells.find(([cx, cy]) => cx === nearColumn && cy === frontRow) as [
+    number,
+    number,
+  ];
+  const frontX = SPINE_X + dir * p.reach;
+  const anchorX = frontX - frontCorner[0];
+  const anchorY = y - frontCorner[1];
+  const entranceX = frontX - dir;
   const nearSpine = SPINE_X + dir;
   const lo = Math.min(nearSpine, entranceX);
   const hi = Math.max(nearSpine, entranceX);
-  pathRun(sim, lo, hi, p.y, true);
-  pathRun(sim, Math.min(nearSpine, rideX), Math.max(nearSpine, rideX), p.y + 1);
-  sim.enqueue({ type: 'createRide', rideType: p.type, x: rideX, y: p.y });
+  pathRun(sim, lo, hi, y, true);
+  pathRun(sim, Math.min(nearSpine, frontX), Math.max(nearSpine, frontX), y + 1);
+  const before = sim.world.rides.count;
+  sim.enqueue({ type: 'createRide', rideType: p.type, x: anchorX, y: anchorY, dir: turn.dir });
   sim.step();
+  if (sim.world.rides.count !== before + 1)
+    throw new Error(`could not build ${RIDE_CATALOG[p.type].name} at ${anchorX},${anchorY}`);
   const rideId = sim.world.rides.slotToId[sim.world.rides.count - 1];
   const directAccess = ['stall', 'facility'].includes(RIDE_CATALOG[p.type].category);
   sim.enqueue({
     type: 'placeRideEntrance',
     rideId,
-    x: directAccess ? rideX : entranceX,
-    y: directAccess ? p.y + 1 : p.y,
+    x: directAccess ? frontX : entranceX,
+    y: directAccess ? y + 1 : y,
   });
-  if (!directAccess) sim.enqueue({ type: 'placeRideExit', rideId, x: rideX, y: p.y + 1 });
+  if (!directAccess) sim.enqueue({ type: 'placeRideExit', rideId, x: frontX, y: y + 1 });
   sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
   sim.step();
   return rideId;
@@ -166,6 +231,11 @@ export function createBalancePark(options: BalanceOptions = {}): BalancePark {
   // The rating harness isolates park balance from research pacing.
   sim.world.research.unlocked = new Set(Object.keys(RIDE_CATALOG).map(Number));
   SPINE_X = sim.world.park.entranceX;
+  for (const rows of Object.values(sideRows)) {
+    rows.paths.clear();
+    rows.bodies.clear();
+  }
+  for (let y = SPINE_TOP; y <= COASTER_CLEARANCE_BOTTOM; y++) sideRows.west.bodies.add(y);
 
   for (let y = SPINE_TOP + 1; y <= SPINE_BOTTOM; y++) {
     sim.enqueue({ type: 'placePath', x: SPINE_X, y });

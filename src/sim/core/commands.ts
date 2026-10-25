@@ -20,7 +20,8 @@ export type Command =
   | { type: 'renameStaff'; staffId: number; name: string }
   | { type: 'setStaffOrder'; staffId: number; order: StaffOrderId; enabled: boolean }
   | { type: 'setFlowerBed'; x: number; y: number; enabled: boolean }
-  | { type: 'createRide'; rideType: RideType; x: number; y: number }
+  /** `dir` is the quarter turns the footprint is rotated by; omitted means 0. */
+  | { type: 'createRide'; rideType: RideType; x: number; y: number; dir?: number }
   | MapCommand
   | RideCommand
   | { type: 'economy'; action: EconomyAction }

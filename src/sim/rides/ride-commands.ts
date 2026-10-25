@@ -20,6 +20,7 @@ import {
 } from './ride-operations';
 import type { RideMode } from './ride-modes';
 import { RIDE_CATALOG } from './ride-types';
+import { rideCoversTile, rideFootprintTiles } from './ride-footprint';
 import type { RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
 import { RideResult } from './ride-results';
@@ -42,8 +43,7 @@ function boardingTiles(world: World, rideId: number, slot: number): Array<[numbe
   const ride = world.rides.cols;
   const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
   if (!def.usesTrack) {
-    for (const [dx, dy] of def.footprint) out.push([ride.rideX[slot] + dx, ride.rideY[slot] + dy]);
-    return out;
+    return rideFootprintTiles(def, ride.rideX[slot], ride.rideY[slot], ride.dir[slot]);
   }
   const pieces = world.track.pieces;
   for (let s = 0; s < pieces.count; s++) {
@@ -74,12 +74,8 @@ function trackAtGround(world: World, x: number, y: number): boolean {
 }
 
 function rideFootprintAt(world: World, x: number, y: number): boolean {
-  const ride = world.rides.cols;
   for (let slot = 0; slot < world.rides.count; slot++) {
-    const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-    for (const [dx, dy] of def?.footprint ?? []) {
-      if (ride.rideX[slot] + dx === x && ride.rideY[slot] + dy === y) return true;
-    }
+    if (rideCoversTile(world, slot, x, y)) return true;
   }
   return false;
 }

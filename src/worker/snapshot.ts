@@ -2,6 +2,7 @@ import { writeCarPoses } from './car-poses';
 import { MAX_CARS } from '../sim/vehicles/ride-trains';
 import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
+import { rideBaseLevel } from '../sim/rides/ride-footprint';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
@@ -22,7 +23,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 25;
+export const RIDE_INFO_STRIDE = 27;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -53,10 +54,14 @@ export const enum RideInfo {
   ExitY = 19,
   Reliability = 20,
   IncomeCents = 21,
-  /** Tile the ride (or its first footprint tile) was built on. */
+  /** Anchor tile of the ride's footprint (the tile the footprint offsets are measured from). */
   RideX = 22,
   RideY = 23,
   DemolitionRefund = 24,
+  /** Quarter turns the footprint is rotated by. */
+  Dir = 25,
+  /** Height level of the floor of a flat ride: the highest ground corner under its footprint. */
+  BaseLevel = 26,
 }
 
 export const enum RideFlag {
@@ -327,7 +332,12 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.RideX] = r.rideX[slot];
   info[o + RideInfo.RideY] = r.rideY[slot];
   info[o + RideInfo.DemolitionRefund] = demolitionRefund(world, rideId);
-  if (!RIDE_CATALOG[r.typeId[slot] as RideType]?.usesTrack) {
+  info[o + RideInfo.Dir] = r.dir[slot];
+  const definition = RIDE_CATALOG[r.typeId[slot] as RideType];
+  info[o + RideInfo.BaseLevel] = definition
+    ? rideBaseLevel(world.map, definition, r.rideX[slot], r.rideY[slot], r.dir[slot])
+    : 0;
+  if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;
     info[o + RideInfo.CursorZ] = 0;

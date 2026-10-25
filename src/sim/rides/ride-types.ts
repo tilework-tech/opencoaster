@@ -57,9 +57,18 @@ export interface RideTypeDef {
   category: RideCategory;
   /** Build cost in cents. */
   cost: number;
+  /**
+   * Tiles the ride covers, as offsets from its anchor tile at orientation 0. Turning the ride
+   * rotates the offsets about the anchor (see `rideFootprintTiles`).
+   */
   footprint: ReadonlyArray<readonly [dx: number, dy: number]>;
   /** Track may be placed over open water for this ride type. */
   allowsWater?: boolean;
+  /**
+   * Most height levels the highest and lowest ground under the footprint may differ by; the ride
+   * floor sits at the highest ground and supports fill the gap. Defaults to `DEFAULT_SUPPORT_LEVELS`.
+   */
+  supportLevels?: number;
   /** Whether a track editor supplies the layout and ride test measurements. */
   usesTrack: boolean;
   /** Guests served in one dispatch; for stalls this is service capacity. */
@@ -105,6 +114,22 @@ export const INSPECTION_MINUTE_TICKS = 40 * 60;
 export const INSPECTION_INTERVAL_MINUTES = [10, 20, 30, 45, 60, 120] as const;
 /** New rides ask for a mechanic every 30 minutes. */
 const INSPECTION_INTERVAL_TICKS = 30 * INSPECTION_MINUTE_TICKS;
+
+/** Ground-height spread, in levels, a flat ride can be built across when its type sets none. */
+export const DEFAULT_SUPPORT_LEVELS = 3;
+
+/**
+ * Footprint of a ride `width` tiles across (x) and `length` tiles deep (y) at orientation 0,
+ * centred on the anchor tile (the extra tile of an even size lies on the positive side).
+ */
+export function rectFootprint(width: number, length: number): Array<[number, number]> {
+  const cells: Array<[number, number]> = [];
+  const x0 = -Math.floor((width - 1) / 2);
+  const y0 = -Math.floor((length - 1) / 2);
+  for (let dx = 0; dx < width; dx++)
+    for (let dy = 0; dy < length; dy++) cells.push([x0 + dx, y0 + dy]);
+  return cells;
+}
 
 const weights = (reason: BreakdownReason, weight: number): BreakdownWeight => ({ reason, weight });
 
@@ -737,11 +762,38 @@ const RESEARCH_CATEGORIES: Readonly<Record<RideCategory, number>> = {
   stall: 5,
   facility: 5,
 };
+/**
+ * Footprint sizes of the flat rides in tiles (`width` across x, `length` along y at orientation 0)
+ * and the ground-height spread each can be supported on, in levels. Sizes and sources are listed in
+ * docs/fidelity/rides.md; unlisted types cover one tile.
+ */
+const FLAT_RIDE_SIZES: Partial<
+  Record<RideType, { width: number; length: number; supportLevels?: number }>
+> = {
+  [RideType.MerryGoRound]: { width: 3, length: 3, supportLevels: 4 },
+  [RideType.SwingingShip]: { width: 1, length: 5 },
+  [RideType.FerrisWheel]: { width: 1, length: 4, supportLevels: 2 },
+  [RideType.Twist]: { width: 3, length: 3 },
+  [RideType.HauntedHouse]: { width: 3, length: 3, supportLevels: 3 },
+  [RideType.SpiralSlide]: { width: 2, length: 2, supportLevels: 3 },
+  [RideType.TopSpin]: { width: 3, length: 3 },
+  [RideType.Enterprise]: { width: 4, length: 4 },
+};
+
 export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = Object.fromEntries(
   Object.values(RIDE_CATALOG_SOURCE).map((def) => [
     def.id,
     {
       ...def,
+      ...(FLAT_RIDE_SIZES[def.id]
+        ? {
+            footprint: rectFootprint(
+              FLAT_RIDE_SIZES[def.id]!.width,
+              FLAT_RIDE_SIZES[def.id]!.length,
+            ),
+            supportLevels: FLAT_RIDE_SIZES[def.id]!.supportLevels,
+          }
+        : {}),
       researchOrder: def.researchOrder ?? def.id,
       researchCategory: def.researchCategory ?? RESEARCH_CATEGORIES[def.category],
       researchWorkUnits:

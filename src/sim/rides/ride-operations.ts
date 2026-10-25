@@ -4,6 +4,7 @@ import { MAX_CARS, MAX_TRAINS_PER_RIDE, RIDERS_PER_CAR } from '../vehicles/ride-
 import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
 import type { RideMode } from './ride-modes';
 import { RELIABILITY_MAX } from './ride-maintenance';
+import { rideFootprintTiles } from './ride-footprint';
 import {
   INSPECTION_INTERVAL_MINUTES,
   INSPECTION_MINUTE_TICKS,
@@ -79,7 +80,7 @@ function isRideInActiveCycle(phase: number): boolean {
   );
 }
 
-export function createRide(world: World, type: RideType, x: number, y: number): number {
+export function createRide(world: World, type: RideType, x: number, y: number, dir = 0): number {
   const definition = RIDE_CATALOG[type];
   if (!definition || !world.map.inBounds(x, y)) return -1;
   const slot = world.rides.spawn();
@@ -91,6 +92,7 @@ export function createRide(world: World, type: RideType, x: number, y: number): 
   ride.phase[slot] = RidePhase.Closed;
   ride.rideX[slot] = x;
   ride.rideY[slot] = y;
+  ride.dir[slot] = dir & 3;
   ride.capacity[slot] = definition.capacity;
   ride.loadTicks[slot] = definition.loadTicks;
   ride.runTicks[slot] = definition.runTicks;
@@ -133,12 +135,10 @@ export function placeRideEntranceExit(
 
   const ride = world.rides.cols;
   const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  const tiles = rideFootprintTiles(definition, ride.rideX[slot], ride.rideY[slot], ride.dir[slot]);
   const adjacentToFootprint = (position: TilePosition): boolean =>
-    definition.footprint.some(([dx, dy]) => {
-      const x = ride.rideX[slot] + dx;
-      const y = ride.rideY[slot] + dy;
-      return Math.abs(position.x - x) + Math.abs(position.y - y) === 1;
-    });
+    tiles.some(([x, y]) => Math.abs(position.x - x) + Math.abs(position.y - y) === 1) &&
+    !tiles.some(([x, y]) => position.x === x && position.y === y);
   if (!adjacentToFootprint(entrance) || !adjacentToFootprint(exit)) return false;
   ride.entranceX[slot] = entrance.x;
   ride.entranceY[slot] = entrance.y;

@@ -244,17 +244,15 @@ export function getRideReliabilityRaw(world: World, rideId: number): number {
 }
 
 /**
- * Tile a mechanic walks to for the ride. A flat ride sits on its own tile; a track ride has no
- * single tile, so its exit path serves instead.
+ * Tile a mechanic walks to for the ride: the exit path once placed, since a footprint's own tiles
+ * are not walkable. A stall has no exit and is served from its own tile.
  */
 export function rideServiceX(world: World, slot: number): number {
   const ride = world.rides.cols;
-  const tracked = RIDE_CATALOG[ride.typeId[slot] as RideType].usesTrack;
-  return tracked && ride.exitPlaced[slot] ? ride.exitX[slot] : ride.rideX[slot];
+  return ride.exitPlaced[slot] ? ride.exitX[slot] : ride.rideX[slot];
 }
 
 export function rideServiceY(world: World, slot: number): number {
   const ride = world.rides.cols;
-  const tracked = RIDE_CATALOG[ride.typeId[slot] as RideType].usesTrack;
-  return tracked && ride.exitPlaced[slot] ? ride.exitY[slot] : ride.rideY[slot];
+  return ride.exitPlaced[slot] ? ride.exitY[slot] : ride.rideY[slot];
 }

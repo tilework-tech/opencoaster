@@ -11,3 +11,4 @@ export * from './ride-results';
 export * from './ride-commands';
 export * from './coaster';
 export * from './coaster-system';
+export * from './ride-footprint';

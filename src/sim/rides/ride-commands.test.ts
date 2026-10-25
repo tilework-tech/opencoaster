@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
-import { flatWorld } from '../integration/fixtures';
+import { createRideAtCorner, flatWorld } from '../integration/fixtures';
 import { createRide } from './ride-operations';
 import { applyRideCommand } from './ride-commands';
 import type { RideCommand } from './ride-commands';
@@ -24,7 +24,7 @@ import { removePath } from '../map/paths';
 describe('ride commands', () => {
   it('opens a flat ride when its queue is connected after entrance and exit placement', () => {
     const world = flatWorld(16, 17);
-    const rideId = createRide(world, RideType.MerryGoRound, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.MerryGoRound, [4, 4]);
     const apply = (command: RideCommand) => applyRideCommand(world, command);
 
     expect(apply({ type: 'placeRideEntrance', rideId, x: 4, y: 5 })).toBe(RideResult.Ok);

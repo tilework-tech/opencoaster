@@ -47,7 +47,7 @@ function trapWorld(): { w: World; slot: number } {
     [east, 3],
   ]);
   layPath(w, row(4, 3, east));
-  layPath(w, [[4, 7]]);
+  layPath(w, [[5, 7]]);
   layPath(
     w,
     [
@@ -56,7 +56,7 @@ function trapWorld(): { w: World; slot: number } {
     ],
     true,
   );
-  openRide(w, RideType.MerryGoRound, [3, 7], [3, 6], [4, 7], [[3, 5]]);
+  openRide(w, RideType.MerryGoRound, [4, 9], [3, 6], [5, 7], [[3, 5]]);
   const slot = guestAt(w, 3, 1);
   return { w, slot };
 }

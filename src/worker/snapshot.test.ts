@@ -9,6 +9,7 @@ import { RideState } from '../sim/rides/ride-store';
 import { GuestState } from '../sim/guests/guest-store';
 import { flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/fixtures';
 import { RideType } from '../sim/rides/ride-types';
+import { createRide } from '../sim/rides/ride-operations';
 import { LedgerCategory, PriceMode } from '../sim/economy/ledger';
 import { applyScenario } from '../sim/scenario/scenario';
 import { findScenario } from '../sim/scenario/catalog';
@@ -100,7 +101,7 @@ describe('render snapshot', () => {
   it('publishes the whole line for a ride, not just its head of queue', () => {
     const world = flatWorld(24, 8);
     layPath(world, row(5, 3, 15));
-    const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
+    const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [9, 4], [[7, 5]]);
     const id = world.rides.slotToId[ride];
     for (let i = 0; i < 5; i++) {
       guestAt(world, 5, 5);
@@ -114,6 +115,26 @@ describe('render snapshot', () => {
     writeSnapshot(world, snapshot);
 
     expect(snapshot.rideInfo[ride * RIDE_INFO_STRIDE + RideInfo.QueueLength]).toBe(5);
+  });
+
+  it('publishes each flat ride orientation and the level its floor sits at', () => {
+    const world = flatWorld(24);
+    createRide(world, RideType.SwingingShip, 8, 6, 3);
+    const raised = world.map.vertexIndex(9, 6);
+    world.map.vertexHeights[raised] = world.map.vertexHeights[raised] + 2;
+    for (const [x, y] of [
+      [8, 5],
+      [9, 5],
+      [8, 6],
+      [9, 6],
+    ])
+      world.map.refreshTile(world.map.index(x, y));
+    const snapshot = createSnapshot({ guests: 1, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.rideInfo[RideInfo.Dir]).toBe(3);
+    expect(snapshot.rideInfo[RideInfo.BaseLevel]).toBe(6);
   });
 
   it('publishes finance values to the render snapshot', () => {

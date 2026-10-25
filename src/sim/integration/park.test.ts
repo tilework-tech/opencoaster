@@ -47,7 +47,7 @@ function buildPark(seed = 7): Simulation {
   path(14, 13, true);
   path(15, 11);
   sim.enqueue({ type: 'setParkEntrance', x: 12, y: 16 });
-  sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 14, y: 11 });
+  sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 13, y: 10 });
   sim.enqueue({ type: 'createRide', rideType: RideType.FoodStall, x: 9, y: 10 });
   sim.enqueue({ type: 'economy', action: { type: 'setPriceMode', mode: PriceMode.PerRide } });
   sim.step();

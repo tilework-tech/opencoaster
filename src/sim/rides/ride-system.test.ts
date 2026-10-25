@@ -3,7 +3,7 @@ import { hashWorld } from '../core/hash';
 import { Simulation } from '../core/simulation';
 import { World } from '../core/world';
 import { Surface } from '../map/tile-map';
-import { legacyGuestArrays } from '../integration/fixtures';
+import { createRideAtCorner, legacyGuestArrays } from '../integration/fixtures';
 import { StaffKind, spawnStaff } from '../staff/staff-store';
 import { deserialize, serialize } from '../../save/save';
 import {
@@ -13,7 +13,6 @@ import {
   calculateRideThroughputPerHour,
   connectRideQueue,
   configureRide,
-  createRide,
   getRideAgeMonths,
   getRideBoardedCount,
   getRideCapacity,
@@ -43,7 +42,7 @@ function world(): World {
 }
 
 function preparedRide(w: World, type = RideType.MerryGoRound): number {
-  const id = createRide(w, type, 4, 4);
+  const id = createRideAtCorner(w, type, [4, 4]);
   expect(placeRideEntranceExit(w, id, { x: 4, y: 5 }, { x: 5, y: 4 })).toBe(true);
   w.map.surface[w.map.index(3, 5)] = Surface.Path;
   w.map.surface[w.map.index(3, 6)] = Surface.Path;
@@ -137,7 +136,7 @@ describe('ride catalog and placement', () => {
 
   it('opens only after entrance, exit, and a connected queue line are placed', () => {
     const w = world();
-    const id = createRide(w, RideType.FerrisWheel, 4, 4);
+    const id = createRideAtCorner(w, RideType.FerrisWheel, [4, 4]);
 
     expect(setRideOpen(w, id, true)).toBe(false);
     expect(placeRideEntranceExit(w, id, { x: 10, y: 10 }, { x: 11, y: 10 })).toBe(false);
@@ -157,7 +156,7 @@ describe('ride catalog and placement', () => {
 
   it('rejects a queue line that is disconnected from the entrance or park path', () => {
     const w = world();
-    const id = createRide(w, RideType.MerryGoRound, 4, 4);
+    const id = createRideAtCorner(w, RideType.MerryGoRound, [4, 4]);
     expect(placeRideEntranceExit(w, id, { x: 4, y: 5 }, { x: 5, y: 4 })).toBe(true);
     w.map.surface[w.map.index(8, 8)] = Surface.Path;
 
@@ -177,7 +176,7 @@ describe('ride catalog and placement', () => {
 
   it('rejects queue chains that cross non-path tiles', () => {
     const w = world();
-    const id = createRide(w, RideType.MerryGoRound, 4, 4);
+    const id = createRideAtCorner(w, RideType.MerryGoRound, [4, 4]);
     expect(placeRideEntranceExit(w, id, { x: 4, y: 5 }, { x: 5, y: 4 })).toBe(true);
     w.map.surface[w.map.index(2, 5)] = Surface.Path;
 
@@ -562,7 +561,7 @@ describe('ride maintenance and determinism', () => {
 
   it('migrates version 3 ride columns and allocator state', () => {
     const w = world();
-    const id = createRide(w, RideType.MerryGoRound, 4, 4);
+    const id = createRideAtCorner(w, RideType.MerryGoRound, [4, 4]);
     setRidePrice(w, id, 175);
     const loaded = deserialize(preRidesSave(w));
     const slot = loaded.rides.idToSlot[id];
