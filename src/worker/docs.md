@@ -14,6 +14,7 @@ Path: @/src/worker
 - [SimRunner](sim-runner.ts) owns the [Simulation](../sim/core/simulation.ts) and advances it through [FixedStepScheduler](scheduler.ts). Its pump applies due ticks, updates timing statistics, and publishes a snapshot when a pooled buffer is available.
 - [snapshot.ts](snapshot.ts) translates simulation columns into render and UI data for [src/render](../render/docs.md) and [src/ui](../ui/docs.md). Along with buildability, it publishes per-tile ground care, stable staff IDs aligned with the staff render layer, staff names keyed by ID, guest details aligned with the guest layer, ride information for the UI and ride markers, track operating modes, and successful build/demolish audio cues.
 - The browser's [audio engine](../audio/docs.md) consumes these snapshot cues and ride/weather state on the main thread. Sound playback is an observer of snapshots and does not send commands to or gate the simulation.
+- `setSnapshotInterval` (sent by the main thread from its measured frame time) sets a minimum spacing between published snapshots; ticks still run at the fixed rate and stats are unaffected.
 - Snapshot buffers travel as transferable `ArrayBuffer`s. The client returns consumed buffers to the worker for reuse, keeping the simulation thread as the sole owner of live world state.
 
 ### Core Implementation

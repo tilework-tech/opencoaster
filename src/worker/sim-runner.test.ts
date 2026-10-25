@@ -46,4 +46,79 @@ describe('SimRunner', () => {
     r.pump();
     expect(out.filter((m) => m.type === 'snapshot').length).toBe(4);
   });
+
+  it('publishes snapshots no more often than the requested interval', () => {
+    const published = (intervalMs: number): number => {
+      const out: FromWorker[] = [];
+      let now = 0;
+      const r = new SimRunner(
+        {
+          post: (m) => {
+            out.push(m);
+            if (m.type === 'snapshot') r.handle({ type: 'recycle', snapshot: m.snapshot });
+          },
+        },
+        () => now,
+      );
+      r.handle({ type: 'init', seed: 1, width: 8, height: 8, initialGuests: 1, maxGuests: 10 });
+      r.handle({ type: 'setSnapshotInterval', ms: intervalMs });
+      for (let i = 0; i < 80; i++) {
+        now += 25;
+        r.pump();
+      }
+      return out.filter((m) => m.type === 'snapshot').length;
+    };
+    const everyTick = published(0);
+    const throttled = published(100);
+    expect(everyTick).toBeGreaterThanOrEqual(70);
+    expect(throttled).toBeGreaterThanOrEqual(18);
+    expect(throttled).toBeLessThanOrEqual(22);
+  });
+
+  it('still advances the simulation while snapshots are throttled', () => {
+    const out: FromWorker[] = [];
+    let now = 0;
+    const r = new SimRunner({ post: (m) => out.push(m) }, () => now);
+    r.handle({ type: 'init', seed: 1, width: 8, height: 8, initialGuests: 1, maxGuests: 10 });
+    r.handle({ type: 'setSnapshotInterval', ms: 1000 });
+    for (let i = 0; i < 40; i++) {
+      now += 25;
+      r.pump();
+    }
+    const stats = out.filter((m) => m.type === 'stats').at(-1);
+    expect(stats && stats.type === 'stats' && stats.stats.tick).toBeGreaterThan(30);
+  });
+
+  it('delivers the latest state after a throttled snapshot even when no ticks are due', () => {
+    const out: FromWorker[] = [];
+    let now = 0;
+    const r = new SimRunner(
+      {
+        post: (m) => {
+          out.push(m);
+          if (m.type === 'snapshot') r.handle({ type: 'recycle', snapshot: m.snapshot });
+        },
+      },
+      () => now,
+    );
+    r.handle({ type: 'init', seed: 1, width: 8, height: 8, initialGuests: 1, maxGuests: 10 });
+    r.handle({ type: 'setSnapshotInterval', ms: 200 });
+    for (let i = 0; i < 6; i++) {
+      now += 25;
+      r.pump();
+    }
+    r.handle({ type: 'setPaused', paused: true });
+    now += 25;
+    r.pump();
+    const publishedBefore = out.filter((m) => m.type === 'snapshot').length;
+    now += 500;
+    r.pump();
+    const snapshots = out.filter((m) => m.type === 'snapshot');
+    expect(snapshots.length).toBe(publishedBefore + 1);
+    const last = snapshots.at(-1);
+    const stats = out.filter((m) => m.type === 'stats').at(-1);
+    expect(last && last.type === 'snapshot' && last.snapshot.tick).toBe(
+      stats && stats.type === 'stats' ? stats.stats.tick : -1,
+    );
+  });
 });

@@ -29,6 +29,9 @@ import { spritePages } from './sprite-pages';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
 import { buildTextureRuns } from './texture-runs';
+import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
+import type { ChunkRange } from './ground-chunks';
+import { sortByDepth } from './painter-order';
 import type { Rotation } from './projection';
 import {
   pathSpriteName,
@@ -60,6 +63,10 @@ const INSTANCE_FLOATS = 17;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
 const TEXTURE_SLOTS = 8;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
+/** World pixels per side of a cached ground texture; one texel per world pixel. */
+const GROUND_CHUNK_SIZE = 512;
+const GROUND_CHUNK_CAPACITY = 48;
+const BACKGROUND = [0.06, 0.08, 0.1, 1] as const;
 const TREE_NAMES = [
   'tree-oak',
   'tree-conifer',
@@ -245,6 +252,56 @@ void main() {
   }
 }`;
 
+const groundVertexSource = `#version 300 es
+precision highp float;
+layout(location=0) in vec2 aCorner;
+uniform vec4 uRect;
+uniform vec2 uViewport;
+uniform vec2 uCamera;
+uniform float uZoom;
+out vec2 vUv;
+void main() {
+  vec2 world = mix(uRect.xy, uRect.zw, aCorner);
+  vec2 screen = (world - uCamera) * uZoom + uViewport * 0.5;
+  gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
+                     1.0 - screen.y / uViewport.y * 2.0, 0.0, 1.0);
+  vUv = vec2(aCorner.x, 1.0 - aCorner.y);
+}`;
+
+const groundFragmentSource = `#version 300 es
+precision mediump float;
+in vec2 vUv;
+uniform sampler2D uGround;
+out vec4 outColor;
+void main() {
+  outColor = texture(uGround, vUv);
+}`;
+
+interface TileLists {
+  map: MapData;
+  rotation: Rotation;
+  /** Tile indices whose water plane intersects their terrain. */
+  water: Int32Array;
+  /** Tile indices whose terrain rises above the tiles behind them and so must overdraw sprites. */
+  occluders: Int32Array;
+  waterX: Float32Array;
+  waterY: Float32Array;
+  occluderX: Float32Array;
+  occluderY: Float32Array;
+}
+
+interface GroundIndex {
+  map: MapData;
+  rotation: Rotation;
+  minCx: number;
+  minCy: number;
+  columns: number;
+  rows: number;
+  /** CSR offsets into `tiles` per chunk cell, row-major from (minCx, minCy). */
+  starts: Int32Array;
+  tiles: Int32Array;
+}
+
 /** WebGL2 renderer drawing atlas pages through an instanced quad batch in painter order. */
 export class WebGL2Renderer implements Renderer {
   readonly backend = 'WebGL2';
@@ -274,7 +331,25 @@ export class WebGL2Renderer implements Renderer {
   private orderedData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private readonly projected = new Float64Array(2);
   private readonly tileCoordinates = new Int32Array(2);
-  private readonly order: number[] = [];
+  private order = new Int32Array(INITIAL_INSTANCE_CAPACITY);
+  private orderedPages = new Int16Array(INITIAL_INSTANCE_CAPACITY);
+  private bufferCapacity = 0;
+  private groundProgram: WebGLProgram | null = null;
+  private groundUniforms: {
+    ground: WebGLUniformLocation | null;
+    rect: WebGLUniformLocation | null;
+    viewport: WebGLUniformLocation | null;
+    camera: WebGLUniformLocation | null;
+    zoom: WebGLUniformLocation | null;
+  } | null = null;
+  private groundFramebuffer: WebGLFramebuffer | null = null;
+  private readonly groundChunks = new LruCache<WebGLTexture>(GROUND_CHUNK_CAPACITY, (texture) =>
+    this.gl?.deleteTexture(texture),
+  );
+  private groundIndex: GroundIndex | null = null;
+  private groundRotation: Rotation = 0;
+  private groundArtReady = false;
+  private tileLists: TileLists | null = null;
   private count = 0;
   private visibleCount = 0;
   private gridlinesActive = false;
@@ -312,6 +387,7 @@ export class WebGL2Renderer implements Renderer {
   }
 
   setMap(map: MapData): void {
+    this.invalidateGroundFor(this.map, map);
     this.map = map;
   }
 
@@ -323,12 +399,16 @@ export class WebGL2Renderer implements Renderer {
       return;
 
     this.syncPageTextures();
-    this.count = 0;
     const viewportWidth = canvas.width / this.dpr;
     const viewportHeight = canvas.height / this.dpr;
-    gl.clearColor(0.06, 0.08, 0.1, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    this.appendTiles(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
+    this.prepareGroundCache(map, camera);
+    this.ensureGroundChunks(map, camera, viewportWidth, viewportHeight);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    this.drawGroundChunks(camera, viewportWidth, viewportHeight);
+
+    this.count = 0;
+    this.appendWaterAndOccluders(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
       this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
       this.appendGrounds(snapshot, map, camera, viewportWidth, viewportHeight);
@@ -392,16 +472,40 @@ export class WebGL2Renderer implements Renderer {
     }
     this.uploadInPainterOrder();
 
+    enableSpriteAlphaBlending(gl);
+    this.drawRuns(
+      viewportWidth,
+      viewportHeight,
+      map,
+      camera.x,
+      camera.y,
+      camera.zoom,
+      camera.rotation,
+    );
+    this.visibleCount = this.count;
+  }
+
+  /** Draws the uploaded instance runs, binding each run's atlas pages to the texture slots. */
+  private drawRuns(
+    viewportWidth: number,
+    viewportHeight: number,
+    map: MapData,
+    cameraX: number,
+    cameraY: number,
+    zoom: number,
+    rotation: number,
+  ): void {
+    const gl = this.gl;
+    const uniforms = this.uniforms;
+    if (!gl || !uniforms || !this.program || !this.vao || !this.fallbackTexture) return;
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
-    const uniforms = this.uniforms;
-    if (!uniforms) return;
     for (let slot = 0; slot < TEXTURE_SLOTS; slot++) gl.uniform1i(uniforms.atlas[slot], slot);
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
     gl.uniform2f(uniforms.mapSize, map.width, map.height);
-    gl.uniform2f(uniforms.camera, camera.x, camera.y);
-    gl.uniform1f(uniforms.zoom, camera.zoom);
-    gl.uniform1f(uniforms.rotation, camera.rotation);
+    gl.uniform2f(uniforms.camera, cameraX, cameraY);
+    gl.uniform1f(uniforms.zoom, zoom);
+    gl.uniform1f(uniforms.rotation, rotation);
     for (const run of this.runs) {
       for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
         const page = run.pages[slot];
@@ -415,14 +519,16 @@ export class WebGL2Renderer implements Renderer {
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, run.count);
     }
     if (this.attributeBase !== 0) this.pointInstanceAttributes(0);
-    this.visibleCount = this.count;
   }
 
   dispose(): void {
     this.canvas?.removeEventListener('webglcontextlost', this.onLost);
     this.canvas?.removeEventListener('webglcontextrestored', this.onRestored);
     const gl = this.gl;
+    this.groundChunks.clear();
     if (gl) {
+      if (this.groundProgram) gl.deleteProgram(this.groundProgram);
+      if (this.groundFramebuffer) gl.deleteFramebuffer(this.groundFramebuffer);
       this.deleteTextures();
       if (this.instanceBuffer) gl.deleteBuffer(this.instanceBuffer);
       if (this.vao) gl.deleteVertexArray(this.vao);
@@ -463,6 +569,11 @@ export class WebGL2Renderer implements Renderer {
       rotation: gl.getUniformLocation(shaderProgram, 'uRotation'),
     };
 
+    this.groundChunks.clear();
+    this.groundArtReady = false;
+    this.bufferCapacity = 0;
+    this.initializeGroundProgram();
+
     this.vao = gl.createVertexArray();
     this.instanceBuffer = gl.createBuffer();
     if (!this.vao || !this.instanceBuffer) throw new Error('Could not allocate sprite buffers');
@@ -475,6 +586,7 @@ export class WebGL2Renderer implements Renderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
+    this.bufferCapacity = this.depths.length;
     this.attributeBase = 0;
     this.pointInstanceAttributes(0);
     const fallbackAtlas = document.createElement('canvas');
@@ -546,6 +658,11 @@ export class WebGL2Renderer implements Renderer {
       canvas.width = 0;
     }
     this.syncedPageVersion = spritePages.version;
+    const ready = spritePages.isLoaded('world');
+    if (ready !== this.groundArtReady) {
+      this.groundArtReady = ready;
+      this.groundChunks.clear();
+    }
   }
 
   private compileShader(kind: number, source: string): WebGLShader {
@@ -581,134 +698,498 @@ export class WebGL2Renderer implements Renderer {
     return texture;
   }
 
-  private appendTiles(
+  private initializeGroundProgram(): void {
+    const gl = this.gl;
+    if (!gl) return;
+    const program = gl.createProgram();
+    if (!program) throw new Error('Could not allocate ground cache resources');
+    const vertex = this.compileShader(gl.VERTEX_SHADER, groundVertexSource);
+    const fragment = this.compileShader(gl.FRAGMENT_SHADER, groundFragmentSource);
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    gl.deleteShader(vertex);
+    gl.deleteShader(fragment);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      const reason = gl.getProgramInfoLog(program) ?? 'unknown program link error';
+      gl.deleteProgram(program);
+      throw new Error(reason);
+    }
+    const framebuffer = gl.createFramebuffer();
+    if (!framebuffer) throw new Error('Could not allocate ground cache resources');
+    this.groundProgram = program;
+    this.groundFramebuffer = framebuffer;
+    this.groundUniforms = {
+      ground: gl.getUniformLocation(program, 'uGround'),
+      rect: gl.getUniformLocation(program, 'uRect'),
+      viewport: gl.getUniformLocation(program, 'uViewport'),
+      camera: gl.getUniformLocation(program, 'uCamera'),
+      zoom: gl.getUniformLocation(program, 'uZoom'),
+    };
+  }
+
+  /** Drops cached ground whose orientation or appearance no longer matches the view. */
+  private prepareGroundCache(map: MapData, camera: Camera): void {
+    const gridlines = camera.showGridlines ?? false;
+    if (gridlines !== this.gridlinesActive) {
+      this.gridlinesActive = gridlines;
+      this.groundChunks.clear();
+    }
+    if (camera.rotation !== this.groundRotation) {
+      this.groundRotation = camera.rotation;
+      this.groundChunks.clear();
+    }
+    if (
+      this.groundIndex &&
+      (this.groundIndex.map !== map || this.groundIndex.rotation !== camera.rotation)
+    )
+      this.groundIndex = null;
+    if (
+      this.tileLists &&
+      (this.tileLists.map !== map || this.tileLists.rotation !== camera.rotation)
+    )
+      this.tileLists = null;
+  }
+
+  /** Invalidates only the chunks holding tiles whose terrain differs between two maps. */
+  private invalidateGroundFor(previous: MapData | null, next: MapData): void {
+    if (
+      !previous ||
+      previous.width !== next.width ||
+      previous.height !== next.height ||
+      previous.heights.length !== next.heights.length
+    ) {
+      this.groundChunks.clear();
+      return;
+    }
+    const { width, height } = next;
+    for (let index = 0; index < next.heights.length; index++) {
+      if (
+        previous.heights[index] === next.heights[index] &&
+        previous.surface[index] === next.surface[index] &&
+        previous.slope[index] === next.slope[index] &&
+        (previous.waterLevel?.[index] ?? 0) === (next.waterLevel?.[index] ?? 0)
+      )
+        continue;
+      const x = index % width;
+      const y = (index - x) / width;
+      this.dropChunksAround(x, y, previous.heights[index], width, height);
+      this.dropChunksAround(x, y, next.heights[index], width, height);
+    }
+  }
+
+  private dropChunksAround(
+    x: number,
+    y: number,
+    tileHeight: number,
+    width: number,
+    height: number,
+  ): void {
+    const range = this.tileChunkRange(x, y, tileHeight, width, height, this.groundRotation);
+    for (let cy = range.y0; cy <= range.y1; cy++)
+      for (let cx = range.x0; cx <= range.x1; cx++) this.groundChunks.delete(chunkKey(cx, cy));
+  }
+
+  private tileChunkRange(
+    x: number,
+    y: number,
+    tileHeight: number,
+    width: number,
+    height: number,
+    rotation: Rotation,
+  ): ChunkRange {
+    return tileChunkRange(
+      x,
+      y,
+      tileHeight,
+      width,
+      height,
+      rotation,
+      GROUND_CHUNK_SIZE,
+      this.projected,
+    );
+  }
+
+  private buildGroundIndex(map: MapData, rotation: Rotation): GroundIndex {
+    const tileCount = map.width * map.height;
+    const ranges = new Int16Array(tileCount * 4);
+    let minCx = Infinity;
+    let minCy = Infinity;
+    let maxCx = -Infinity;
+    let maxCy = -Infinity;
+    for (let index = 0; index < tileCount; index++) {
+      const x = index % map.width;
+      const y = (index - x) / map.width;
+      const r = this.tileChunkRange(x, y, map.heights[index], map.width, map.height, rotation);
+      ranges[index * 4] = r.x0;
+      ranges[index * 4 + 1] = r.y0;
+      ranges[index * 4 + 2] = r.x1;
+      ranges[index * 4 + 3] = r.y1;
+      if (r.x0 < minCx) minCx = r.x0;
+      if (r.y0 < minCy) minCy = r.y0;
+      if (r.x1 > maxCx) maxCx = r.x1;
+      if (r.y1 > maxCy) maxCy = r.y1;
+    }
+    const columns = maxCx - minCx + 1;
+    const rows = maxCy - minCy + 1;
+    const starts = new Int32Array(columns * rows + 1);
+    for (let index = 0; index < tileCount; index++)
+      for (let cy = ranges[index * 4 + 1]; cy <= ranges[index * 4 + 3]; cy++)
+        for (let cx = ranges[index * 4]; cx <= ranges[index * 4 + 2]; cx++)
+          starts[(cy - minCy) * columns + (cx - minCx) + 1]++;
+    for (let i = 1; i < starts.length; i++) starts[i] += starts[i - 1];
+    const fill = starts.slice(0, columns * rows);
+    const tiles = new Int32Array(starts[starts.length - 1]);
+    for (let index = 0; index < tileCount; index++)
+      for (let cy = ranges[index * 4 + 1]; cy <= ranges[index * 4 + 3]; cy++)
+        for (let cx = ranges[index * 4]; cx <= ranges[index * 4 + 2]; cx++)
+          tiles[fill[(cy - minCy) * columns + (cx - minCx)]++] = index;
+    return { map, rotation, minCx, minCy, columns, rows, starts, tiles };
+  }
+
+  private visibleChunkRange(camera: Camera, viewportWidth: number, viewportHeight: number) {
+    const halfWidth = viewportWidth / camera.zoom / 2;
+    const halfHeight = viewportHeight / camera.zoom / 2;
+    return chunkRange(
+      camera.x - halfWidth,
+      camera.y - halfHeight,
+      camera.x + halfWidth,
+      camera.y + halfHeight,
+      GROUND_CHUNK_SIZE,
+    );
+  }
+
+  /** Renders any visible ground chunk that is missing from the cache into its own texture. */
+  private ensureGroundChunks(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const range = this.visibleChunkRange(camera, viewportWidth, viewportHeight);
+    const visible = (range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1);
+    this.groundChunks.capacity = Math.max(GROUND_CHUNK_CAPACITY, visible + 8);
+    let index = this.groundIndex;
+    for (let cy = range.y0; cy <= range.y1; cy++) {
+      for (let cx = range.x0; cx <= range.x1; cx++) {
+        if (this.groundChunks.get(chunkKey(cx, cy))) continue;
+        index ??= this.groundIndex = this.buildGroundIndex(map, camera.rotation);
+        this.buildGroundChunk(map, index, cx, cy, camera.rotation);
+      }
+    }
+  }
+
+  private buildGroundChunk(
+    map: MapData,
+    index: GroundIndex,
+    cx: number,
+    cy: number,
+    rotation: Rotation,
+  ): void {
+    const gl = this.gl;
+    const framebuffer = this.groundFramebuffer;
+    if (!gl || !framebuffer) return;
+    const texture = gl.createTexture();
+    if (!texture) throw new Error('Could not allocate ground chunk texture');
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA8,
+      GROUND_CHUNK_SIZE,
+      GROUND_CHUNK_SIZE,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null,
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    this.count = 0;
+    const column = cx - index.minCx;
+    const row = cy - index.minCy;
+    if (column >= 0 && column < index.columns && row >= 0 && row < index.rows) {
+      const cell = row * index.columns + column;
+      for (let i = index.starts[cell]; i < index.starts[cell + 1]; i++)
+        this.appendGroundTile(map, index.tiles[i], rotation);
+    }
+    this.uploadInPainterOrder();
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.viewport(0, 0, GROUND_CHUNK_SIZE, GROUND_CHUNK_SIZE);
+    gl.clearColor(...BACKGROUND);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    enableSpriteAlphaBlending(gl);
+    this.drawRuns(
+      GROUND_CHUNK_SIZE,
+      GROUND_CHUNK_SIZE,
+      map,
+      cx * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
+      cy * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
+      1,
+      rotation,
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.count = 0;
+    this.groundChunks.set(chunkKey(cx, cy), texture);
+  }
+
+  /** Draws the visible cached chunks, clearing first only when one is still missing. */
+  private drawGroundChunks(camera: Camera, viewportWidth: number, viewportHeight: number): void {
+    const gl = this.gl;
+    const program = this.groundProgram;
+    const uniforms = this.groundUniforms;
+    if (!gl || !program || !uniforms || !this.vao) return;
+    const range = this.visibleChunkRange(camera, viewportWidth, viewportHeight);
+    let covered = true;
+    for (let cy = range.y0; cy <= range.y1 && covered; cy++)
+      for (let cx = range.x0; cx <= range.x1; cx++)
+        if (!this.groundChunks.get(chunkKey(cx, cy))) {
+          covered = false;
+          break;
+        }
+    if (!covered) {
+      gl.clearColor(...BACKGROUND);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+    gl.disable(gl.BLEND);
+    gl.useProgram(program);
+    gl.bindVertexArray(this.vao);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(uniforms.ground, 0);
+    gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
+    gl.uniform2f(uniforms.camera, camera.x, camera.y);
+    gl.uniform1f(uniforms.zoom, camera.zoom);
+    for (let cy = range.y0; cy <= range.y1; cy++) {
+      for (let cx = range.x0; cx <= range.x1; cx++) {
+        const texture = this.groundChunks.get(chunkKey(cx, cy));
+        if (!texture) continue;
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.uniform4f(
+          uniforms.rect,
+          cx * GROUND_CHUNK_SIZE,
+          cy * GROUND_CHUNK_SIZE,
+          (cx + 1) * GROUND_CHUNK_SIZE,
+          (cy + 1) * GROUND_CHUNK_SIZE,
+        );
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+    }
+  }
+
+  private buildTileLists(map: MapData, rotation: Rotation): TileLists {
+    const water: number[] = [];
+    const occluders: number[] = [];
+    const waterX: number[] = [];
+    const waterY: number[] = [];
+    const occluderX: number[] = [];
+    const occluderY: number[] = [];
+    const behind = new Int32Array(2);
+    const peak = (index: number): number => map.heights[index] + (map.slope[index] !== 0 ? 1 : 0);
+    for (let index = 0; index < map.width * map.height; index++) {
+      const x = index % map.width;
+      const y = (index - x) / map.width;
+      const level = map.waterLevel?.[index] ?? 0;
+      if (waterIntersectsTerrainTile(level, map.slope[index], map.heights[index])) {
+        project(
+          x * TILE_UNITS,
+          y * TILE_UNITS,
+          level * 64 - WATER_BANK.surfaceInset,
+          map.width,
+          map.height,
+          rotation,
+          this.projected,
+        );
+        water.push(index);
+        waterX.push(this.projected[0]);
+        waterY.push(this.projected[1]);
+      }
+      rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
+      const viewX = this.tileCoordinates[0];
+      const viewY = this.tileCoordinates[1];
+      let rises = false;
+      for (const [dx, dy] of [
+        [-1, 0],
+        [0, -1],
+      ] as const) {
+        const nx = viewX + dx;
+        const ny = viewY + dy;
+        const [vw, vh] = rotation % 2 === 0 ? [map.width, map.height] : [map.height, map.width];
+        if (nx < 0 || ny < 0 || nx >= vw || ny >= vh) continue;
+        unrotateForDraw(nx, ny, map.width, map.height, rotation, behind);
+        if (peak(index) > peak(behind[1] * map.width + behind[0])) rises = true;
+      }
+      if (!rises) continue;
+      project(
+        x * TILE_UNITS,
+        y * TILE_UNITS,
+        map.heights[index] * 64,
+        map.width,
+        map.height,
+        rotation,
+        this.projected,
+      );
+      occluders.push(index);
+      occluderX.push(this.projected[0]);
+      occluderY.push(this.projected[1]);
+    }
+    return {
+      map,
+      rotation,
+      water: Int32Array.from(water),
+      occluders: Int32Array.from(occluders),
+      waterX: Float32Array.from(waterX),
+      waterY: Float32Array.from(waterY),
+      occluderX: Float32Array.from(occluderX),
+      occluderY: Float32Array.from(occluderY),
+    };
+  }
+
+  /** Adds the on-screen water planes and the raised terrain that must hide sprites behind it. */
+  private appendWaterAndOccluders(
     map: MapData,
     camera: Camera,
     viewportWidth: number,
     viewportHeight: number,
     tick: number,
   ): void {
-    this.gridlinesActive = camera.showGridlines ?? false;
-    const [viewW, viewH] =
-      camera.rotation % 2 === 0 ? [map.width, map.height] : [map.height, map.width];
-    const left = camera.x - viewportWidth / camera.zoom / 2 - TILE_W;
-    const right = camera.x + viewportWidth / camera.zoom / 2 + TILE_W;
-    const top = camera.y - viewportHeight / camera.zoom / 2 - TILE_H - 31 * Z_PIXELS;
-    const bottom = camera.y + viewportHeight / camera.zoom / 2 + TILE_H;
-    for (let ry = 0; ry < viewH; ry++) {
-      for (let rx = 0; rx < viewW; rx++) {
-        unrotateForDraw(rx, ry, map.width, map.height, camera.rotation, this.tileCoordinates);
-        const x = this.tileCoordinates[0];
-        const y = this.tileCoordinates[1];
-        const index = y * map.width + x;
-        const height = map.heights[index];
-        project(
-          x * TILE_UNITS,
-          y * TILE_UNITS,
-          height * 64,
-          map.width,
-          map.height,
-          camera.rotation,
-          this.projected,
-        );
-        if (
-          this.projected[0] < left ||
-          this.projected[0] > right ||
-          this.projected[1] < top ||
-          this.projected[1] > bottom
-        )
-          continue;
-        const surface = map.surface[index];
-        const terrainSurface =
-          surface === 1 ? 'sand' : surface === 4 ? 'dirt' : surface === 5 ? 'rock' : 'grass';
-        const mask = map.slope[index];
-        const worldCorners = [
+    const lists = (this.tileLists ??= this.buildTileLists(map, camera.rotation));
+    const halfWidth = viewportWidth / camera.zoom / 2 + TILE_W;
+    const bottom = viewportHeight / camera.zoom / 2 + TILE_H + Z_PIXELS;
+    const top = bottom + 31 * Z_PIXELS;
+    for (let i = 0; i < lists.occluders.length; i++) {
+      if (Math.abs(lists.occluderX[i] - camera.x) > halfWidth) continue;
+      const dy = lists.occluderY[i] - camera.y;
+      if (dy < -top || dy > bottom) continue;
+      this.appendGroundTile(map, lists.occluders[i], camera.rotation);
+    }
+    const frame = waterSpriteName(waterFrameIndex(tick));
+    for (let i = 0; i < lists.water.length; i++) {
+      if (Math.abs(lists.waterX[i] - camera.x) > halfWidth) continue;
+      const dy = lists.waterY[i] - camera.y;
+      if (dy < -top || dy > bottom) continue;
+      const index = lists.water[i];
+      const x = index % map.width;
+      const y = (index - x) / map.width;
+      rotateForDraw(x, y, map.width, map.height, camera.rotation, this.tileCoordinates);
+      const level = map.waterLevel![index];
+      const mask = map.slope[index];
+      const height = map.heights[index];
+      const corners = viewTerrainCornerHeights(
+        [
           (height + (mask & 1)) * 64,
           (height + ((mask >> 1) & 1)) * 64,
           (height + ((mask >> 2) & 1)) * 64,
           (height + ((mask >> 3) & 1)) * 64,
-        ] as const;
-        const corners = viewTerrainCornerHeights(worldCorners, camera.rotation);
+        ],
+        camera.rotation,
+      );
+      this.append(
+        this.tileCoordinates[0] * TILE_UNITS,
+        this.tileCoordinates[1] * TILE_UNITS,
+        level * 64 - WATER_BANK.surfaceInset,
+        TILE_W,
+        TILE_H,
+        frame,
+        tileWaterDepth(this.tileCoordinates[0], this.tileCoordinates[1], level),
+        3,
+        corners,
+      );
+      const surface = map.surface[index];
+      const terrainSurface =
+        surface === 1 ? 'sand' : surface === 4 ? 'dirt' : surface === 5 ? 'rock' : 'grass';
+      const waterHeight = level - WATER_BANK.surfaceInset / 64;
+      const tileCorners = terrainTileCorners(x, y, height, mask);
+      for (const [start, end] of terrainShorelineSegments(
+        tileCorners,
+        waterHeight,
+        camera.rotation,
+      ))
         this.append(
-          rx * TILE_UNITS,
-          ry * TILE_UNITS,
-          height * 64,
-          TILE_W,
-          TILE_H,
-          terrainSurfaceSpriteName(terrainSurface),
-          2 * (rx + ry) - height,
-          1,
-          corners,
-          terrainLightFactor(corners),
+          start.x * TILE_UNITS,
+          start.y * TILE_UNITS,
+          waterHeight * 64,
+          (end.x - start.x) * TILE_UNITS,
+          (end.y - start.y) * TILE_UNITS,
+          terrainCliffSpriteName(terrainSurface, 0),
+          tileBankDepth(this.tileCoordinates[0], this.tileCoordinates[1], level),
+          5,
+          [level * 64, level * 64, level * 64, level * 64],
         );
-        const tileCorners = terrainTileCorners(x, y, height, mask);
-        for (let direction = 0; direction < 4; direction++) {
-          const onMapEdge =
-            (direction === 0 && x === map.width - 1) ||
-            (direction === 1 && y === map.height - 1) ||
-            (direction === 2 && x === 0) ||
-            (direction === 3 && y === 0);
-          if (!onMapEdge) continue;
-          const face = terrainEdgeFace(tileCorners, direction, 0);
-          if (!face) continue;
-          const top = Math.max(face.start.height, face.end.height);
-          const bottom = face.bottomHeight;
-          if (top <= bottom) continue;
-          this.append(
-            face.start.x * TILE_UNITS,
-            face.start.y * TILE_UNITS,
-            bottom * 64,
-            (face.end.x - face.start.x) * TILE_UNITS,
-            (face.end.y - face.start.y) * TILE_UNITS,
-            terrainCliffSpriteName(terrainSurface, (direction + camera.rotation) & 3),
-            2 * (rx + ry) - height - bottom + 0.25,
-            4,
-            [face.start.height * 64, face.end.height * 64, bottom * 64, bottom * 64],
-          );
-        }
-        const waterLevel = map.waterLevel?.[index] ?? 0;
-        if (waterIntersectsTerrainTile(waterLevel, mask, height)) {
-          const waterHeight = waterLevel - WATER_BANK.surfaceInset / 64;
-          for (const [start, end] of terrainShorelineSegments(
-            tileCorners,
-            waterHeight,
-            camera.rotation,
-          )) {
-            this.append(
-              start.x * TILE_UNITS,
-              start.y * TILE_UNITS,
-              waterHeight * 64,
-              (end.x - start.x) * TILE_UNITS,
-              (end.y - start.y) * TILE_UNITS,
-              terrainCliffSpriteName(terrainSurface, 0),
-              tileBankDepth(rx, ry, waterLevel),
-              5,
-              [waterLevel * 64, waterLevel * 64, waterLevel * 64, waterLevel * 64],
-            );
-          }
-          this.append(
-            rx * TILE_UNITS,
-            ry * TILE_UNITS,
-            map.waterLevel![index] * 64 - WATER_BANK.surfaceInset,
-            TILE_W,
-            TILE_H,
-            waterSpriteName(waterFrameIndex(tick)),
-            tileWaterDepth(rx, ry, map.waterLevel![index]),
-            3,
-            corners,
-          );
-        } else if (surface === 3 || surface === 6)
-          this.append(
-            (x + 0.5) * TILE_UNITS,
-            (y + 0.5) * TILE_UNITS,
-            height * 64 + 1,
-            44,
-            24,
-            pathSpriteName(surface === 6 ? 'queue' : 'tarmac', 0),
-            2 * (rx + ry) - height + 1,
-          );
-      }
     }
+  }
+
+  /** Appends one tile's terrain, boundary cliff faces and flat path fill. */
+  private appendGroundTile(map: MapData, index: number, rotation: Rotation): void {
+    const x = index % map.width;
+    const y = (index - x) / map.width;
+    rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
+    const rx = this.tileCoordinates[0];
+    const ry = this.tileCoordinates[1];
+    const height = map.heights[index];
+    const surface = map.surface[index];
+    const terrainSurface =
+      surface === 1 ? 'sand' : surface === 4 ? 'dirt' : surface === 5 ? 'rock' : 'grass';
+    const mask = map.slope[index];
+    const worldCorners = [
+      (height + (mask & 1)) * 64,
+      (height + ((mask >> 1) & 1)) * 64,
+      (height + ((mask >> 2) & 1)) * 64,
+      (height + ((mask >> 3) & 1)) * 64,
+    ] as const;
+    const corners = viewTerrainCornerHeights(worldCorners, rotation);
+    this.append(
+      rx * TILE_UNITS,
+      ry * TILE_UNITS,
+      height * 64,
+      TILE_W,
+      TILE_H,
+      terrainSurfaceSpriteName(terrainSurface),
+      2 * (rx + ry) - height,
+      1,
+      corners,
+      terrainLightFactor(corners),
+    );
+    const tileCorners = terrainTileCorners(x, y, height, mask);
+    for (let direction = 0; direction < 4; direction++) {
+      const onMapEdge =
+        (direction === 0 && x === map.width - 1) ||
+        (direction === 1 && y === map.height - 1) ||
+        (direction === 2 && x === 0) ||
+        (direction === 3 && y === 0);
+      if (!onMapEdge) continue;
+      const face = terrainEdgeFace(tileCorners, direction, 0);
+      if (!face) continue;
+      const top = Math.max(face.start.height, face.end.height);
+      const bottom = face.bottomHeight;
+      if (top <= bottom) continue;
+      this.append(
+        face.start.x * TILE_UNITS,
+        face.start.y * TILE_UNITS,
+        bottom * 64,
+        (face.end.x - face.start.x) * TILE_UNITS,
+        (face.end.y - face.start.y) * TILE_UNITS,
+        terrainCliffSpriteName(terrainSurface, (direction + rotation) & 3),
+        2 * (rx + ry) - height - bottom + 0.25,
+        4,
+        [face.start.height * 64, face.end.height * 64, bottom * 64, bottom * 64],
+      );
+    }
+    const waterLevel = map.waterLevel?.[index] ?? 0;
+    if (!waterIntersectsTerrainTile(waterLevel, mask, height) && (surface === 3 || surface === 6))
+      this.append(
+        (x + 0.5) * TILE_UNITS,
+        (y + 0.5) * TILE_UNITS,
+        height * 64 + 1,
+        44,
+        24,
+        pathSpriteName(surface === 6 ? 'queue' : 'tarmac', 0),
+        2 * (rx + ry) - height + 1,
+      );
   }
 
   private appendAmbientTrees(
@@ -1353,43 +1834,35 @@ export class WebGL2Renderer implements Renderer {
     const nextPages = new Int16Array(nextCapacity);
     nextPages.set(this.pageIds);
     this.pageIds = nextPages;
-    const nextOrdered = new Float32Array(nextCapacity * INSTANCE_FLOATS);
-    nextOrdered.set(this.orderedData);
-    this.orderedData = nextOrdered;
-    const gl = this.gl;
-    if (gl && this.instanceBuffer) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
-    }
+    this.orderedData = new Float32Array(nextCapacity * INSTANCE_FLOATS);
+    this.order = new Int32Array(nextCapacity);
+    this.orderedPages = new Int16Array(nextCapacity);
   }
 
   private uploadInPainterOrder(): void {
     const gl = this.gl;
     const buffer = this.instanceBuffer;
     if (!gl || !buffer) return;
-    this.order.length = this.count;
-    for (let i = 0; i < this.count; i++) this.order[i] = i;
-    this.order.sort((a, b) => this.depths[a] - this.depths[b] || a - b);
-    const pageIds = new Array<number>(this.count);
+    sortByDepth(this.depths, this.count, this.order);
     for (let i = 0; i < this.count; i++) {
       const source = this.order[i];
       const from = source * INSTANCE_FLOATS;
       const to = i * INSTANCE_FLOATS;
       for (let j = 0; j < INSTANCE_FLOATS - 1; j++)
         this.orderedData[to + j] = this.instanceData[from + j];
-      pageIds[i] = this.pageIds[source];
+      this.orderedPages[i] = this.pageIds[source];
     }
-    const batches = buildTextureRuns(pageIds, TEXTURE_SLOTS);
+    const batches = buildTextureRuns(this.orderedPages.subarray(0, this.count), TEXTURE_SLOTS);
     this.runs.length = 0;
     this.runs.push(...batches.runs);
     for (let i = 0; i < this.count; i++)
       this.orderedData[i * INSTANCE_FLOATS + INSTANCE_FLOATS - 1] = batches.slots[i];
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      this.orderedData.subarray(0, this.count * INSTANCE_FLOATS),
-      gl.DYNAMIC_DRAW,
-    );
+    if (this.depths.length > this.bufferCapacity) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
+      this.bufferCapacity = this.depths.length;
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.orderedData, 0, this.count * INSTANCE_FLOATS);
   }
 }
 
@@ -1630,6 +2103,39 @@ function drawRamp(ctx: CanvasRenderingContext2D, direction: number): void {
   ctx.moveTo(32 - offsets[0], 32 - offsets[1]);
   ctx.lineTo(32 + offsets[0], 32 + offsets[1]);
   ctx.stroke();
+}
+
+/** Maps a tile to its view-space coordinates for the given quarter-turn count. */
+function rotateForDraw(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: Rotation,
+  out: Int32Array,
+): void {
+  switch (rotation) {
+    case 0:
+      out[0] = x;
+      out[1] = y;
+      break;
+    case 1:
+      out[0] = height - 1 - y;
+      out[1] = x;
+      break;
+    case 2:
+      out[0] = width - 1 - x;
+      out[1] = height - 1 - y;
+      break;
+    case 3:
+      out[0] = y;
+      out[1] = width - 1 - x;
+      break;
+  }
+}
+
+function chunkKey(cx: number, cy: number): number {
+  return (cy + 4096) * 8192 + (cx + 4096);
 }
 
 function unrotateForDraw(

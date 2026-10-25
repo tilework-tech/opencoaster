@@ -51,7 +51,17 @@ Chosen: **transferable snapshot buffers**, three pooled per run.
 
 `Renderer` interface (`src/render/renderer.ts`) with `WebGL2Renderer` as the primary backend and `Canvas2DRenderer` as a fallback. The WebGL2 path loads the generated world-art atlas pages (eager world/people pages at start, ride and track pages on first use) and draws instanced quads fed from snapshot layers; a small procedural atlas supplies missing-sprite fallback cells. Both renderers use the isometric 2:1 projection (64×32 px tiles), integer height levels, four view rotations via `rotateTile`/`unrotateTile`, and renderer-side viewport culling. The renderer reads only `Snapshot` and `MapData`; the DOM UI loads its separate generated icon sheet.
 
-The Playwright smoke run launches Chromium with SwiftShader, checks the game's active canvas and HUD report WebGL2, exercises the Rides window, verifies there are no browser console or page errors, and writes a screenshot. A capability check on a separate canvas is not sufficient because startup can fall back to Canvas2D after a shader error.
+The WebGL2 frame is built in layers so per-frame cost tracks what actually changes:
+
+- **Ground cache.** Terrain surfaces, sloped corners, boundary cliff faces and flat path fill are painted once into 512×512 world-pixel textures (one texel per world pixel, rotation-specific) by running the normal instanced shader at zoom 1, and drawn as a handful of textured quads each frame. Chunks render lazily for the visible area into a shared framebuffer, live in an LRU cache sized to the visible chunk count, and are invalidated only for tiles whose height, surface, slope or water level changed when a new `MapData` arrives (everything on rotation, gridline toggle or atlas swap).
+- **Occluders.** Ground is painted beneath every sprite, so each frame also re-submits, in the depth-sorted pass, the visible terrain tiles that rise above the tiles behind them (found once per `(map, rotation)`). Raised terrain in front of guests, scenery and water therefore still hides them; flat ground never needs the extra draw.
+- **Per-frame water.** Water planes stay in the sorted pass (shader-clipped against their tile's corners), cached as a list per `(map, rotation)`.
+- **Dynamic sprites.** Guests, staff, litter, vehicles and rides are culled before they are appended, merged with the static entries, depth-sorted with an allocation-free counting sort (`painter-order.ts`) and uploaded with `bufferSubData`.
+- **Adaptive resolution.** `AdaptiveResolution` scales the backing-buffer DPR (1 → 0.3 of the capped DPR) when frames stay slow and cautiously restores it after sustained on-budget frames, backing off when a restored scale proves too slow. A drop that does not speed up a steady frame cadence (a display capped below 60 Hz) is undone and further drops are suspended for a minute. Pointer and picking math stay in CSS pixels.
+- **Snapshot rate.** The main thread tells the worker (`setSnapshotInterval`) not to publish snapshots faster than frames are drawn, so slow displays skip snapshot writes and transfers; the simulation keeps its fixed tick regardless.
+- **UI cost.** HUD text refreshes at 20 Hz, management panels at 10 Hz, the canvas rectangle is cached instead of read every frame, and the track preview canvas is hidden while idle.
+
+The Playwright smoke run launches Chromium with SwiftShader, checks the game's active canvas and HUD report WebGL2, exercises the Rides window, verifies there are no browser console or page errors, and writes a screenshot. A capability check on a separate canvas is not sufficient because startup can fall back to Canvas2D after a shader error. It also runs the mobile frame-rate cases described under [Performance budget](#frame-loop-performance-2026-10-25).
 
 ## Browser input and mobile runtime
 
@@ -59,7 +69,7 @@ The browser main thread owns UI, pointer gestures, camera state, rendering, and 
 
 The app shell uses a cover viewport and safe-area CSS offsets, resizes from canvas bounds and viewport/orientation changes, and pauses the worker while the document is hidden. [src/pwa](../src/pwa/docs.md) registers a service worker scoped to the deploy base (origin root in dev, `/opencoaster/` on GitHub Pages) and caches the app shell and same-origin resources for offline startup after an online install/load. Service-worker caches contain app assets; save data stays in the save subsystem.
 
-Playwright's iPhone 15 and Pixel 8 profiles use Chromium DevTools touch injection to exercise touch-driven path placement, pan, pinch zoom, rotation controls, guest-window access, viewport behavior, and offline reload. This is Chromium emulation, not WebKit/Safari or physical-device testing. The final post-rebase mobile FPS case ran headless Chromium with SwiftShader using Pixel 8 viewport emulation and 2,000 guests; it collected 100 HUD FPS samples with p50 23, p95 41, p99 47, and max 48 FPS. The final strict 5,000-guest simulation benchmark passed with p99 1.683 ms/tick; the WebGL2 smoke run collected 112 frames with p50 1.88 ms, p95 3.27 ms, p99 4.77 ms, and max 8.89 ms. Smoke frame timing is browser-emulated and is not directly comparable to simulation-tick timing or physical hardware performance.
+Playwright's iPhone 15 and Pixel 8 profiles use Chromium DevTools touch injection to exercise touch-driven path placement, pan, pinch zoom, rotation controls, guest-window access, viewport behavior, and offline reload. This is Chromium emulation, not WebKit/Safari or physical-device testing. Mobile frame rate is measured by `pnpm smoke` (see [Frame-loop performance](#frame-loop-performance-2026-10-25)); the e2e Pixel 8 case only records HUD FPS samples. The final strict 5,000-guest simulation benchmark passed with p99 1.683 ms/tick. Smoke frame timing is browser-emulated and is not directly comparable to simulation-tick timing or physical hardware performance.
 
 ## Performance budget
 
@@ -77,6 +87,21 @@ Target: **5000 guests at 40 ticks/s using at most 3 ms of sim per tick at p99** 
 - Playwright headless Chromium 156 with SwiftShader at 1280×800 and 5000 guests: five runs collected 157–159 `renderer.draw` measurements each. Across runs, p50 was 0.58–0.60 ms, p95 1.00–1.63 ms, p99 1.90–2.10 ms, and max 2.00–4.14 ms. This measures the renderer's synchronous draw call, not the full browser frame or GPU hardware performance.
 - SwiftShader confirms the WebGL2 startup and draw path work in headless Chromium. Its timings validate functionality and are not representative of a physical GPU.
 - Final Wave 4 verification against rebased `main` on the same Modal runtime: strict benchmark, 5000 guests, 100 staff, and 1498 litter over 200 ticks, p99 2.094 ms/tick versus 1.929 ms/tick on `main`; both passed the current 3 ms p99 budget. Playwright with 5000 guests collected 127 frame-HUD samples; p50 1.33 ms, p95 1.91 ms, p99 2.83 ms, max 2.93 ms, versus baseline p50 0.57 ms, p95 0.98 ms, p99 1.57 ms, max 1.73 ms. Smoke frame timings include more than the synchronous renderer draw call, so they are not directly comparable to the earlier renderer-only measurements above. These are single-run samples and can vary with runtime load.
+
+### Frame-loop performance (2026-10-25)
+
+`pnpm smoke` runs [smoke/mobile-fps.spec.ts](../smoke/mobile-fps.spec.ts): Pixel 8 profile, Chromium CPU throttling 4×, device scale factor 2.6 (the renderer caps DPR at 2 before adaptive scaling), 2,000 and 5,000 guests, 8 s warm-up for adaptive resolution to settle, then 6 s of `requestAnimationFrame` intervals. It prints median FPS, p95 frame time and the final render scale, and records a `soft-budget-miss` annotation (never a failure) when the median is below 55 FPS at 2,000 guests or 30 FPS at 5,000.
+
+Profiling the baseline (headless Chromium 156, SwiftShader, single vCPU) showed the renderer main thread mostly idle and the GPU process about 98% busy; skipping terrain alone took mobile emulation from 8.6 to 30 FPS, while guests were nearly free (2,000 and 5,000 guests measured the same). Per-frame terrain quads, full-screen fill and compositing were the cost, not JavaScript.
+
+| Scenario (rAF intervals, 6 s, 8–9 s warm-up) | Before median / mean FPS | After median / mean FPS |
+| -------------------------------------------- | ------------------------ | ----------------------- |
+| Desktop 1280×800, 2,000 guests               | 12 / 12.6                | 60 / 41.9               |
+| Desktop 1280×800, 5,000 guests               | 12 / 11.6                | 30 / 38.1               |
+| Mobile emulation, 2,000 guests               | 8.6 / 8.6                | 60 / 44.2               |
+| Mobile emulation, 5,000 guests               | 8.6 / 8.2                | 60 / 39.4               |
+
+"Before" is `main` at 1d8a847; "after" is this change. Median FPS is quantised to vsync multiples (60, 30, 20, …) and the after-runs are bimodal around 16.7 and 33 ms frames, so the mean is the more conservative figure; `pnpm smoke` runs of the mobile cases gave a 60 FPS median at 2,000 guests every time (6 of 6) and 30–60 at 5,000. Under this emulation adaptive resolution settles at its 0.3× floor, so the speedup is partly bought with resolution; on hardware that holds 60 FPS the scale stays at 1×. The headless SwiftShader harness is a pessimistic proxy for a physical phone GPU.
 
 ## Save/load
 

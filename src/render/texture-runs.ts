@@ -6,7 +6,7 @@ export interface TextureRun {
 
 /** Groups ordered atlas page IDs into draw runs with at most `maxPages` per run. */
 export function buildTextureRuns(
-  pageIds: readonly number[],
+  pageIds: ArrayLike<number>,
   maxPages: number,
 ): { runs: TextureRun[]; slots: number[] } {
   const runs: TextureRun[] = [];

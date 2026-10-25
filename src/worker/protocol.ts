@@ -18,6 +18,8 @@ export type ToWorker =
   | { type: 'command'; command: Command }
   | { type: 'setSpeed'; multiplier: number }
   | { type: 'setPaused'; paused: boolean }
+  /** Minimum time between published snapshots; 0 publishes after every batch of ticks. */
+  | { type: 'setSnapshotInterval'; ms: number }
   /** Hands a consumed snapshot's buffers back to the worker for reuse. */
   | { type: 'recycle'; snapshot: Snapshot }
   /** Serialises the running game; answered with `saved`. */
