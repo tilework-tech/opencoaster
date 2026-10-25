@@ -7,6 +7,12 @@ import type { UiContext, WindowController } from '../ui-types';
 
 export const RIDE_STATE_NAMES = ['Closed', 'Open', 'Testing', 'Broken down'] as const;
 
+interface RideListRow {
+  item: HTMLLIElement;
+  name: HTMLSpanElement;
+  meta: HTMLSpanElement;
+}
+
 const LIST_TABS = [
   {
     id: 'rides',
@@ -28,7 +34,7 @@ export function openRideList(ctx: UiContext): WindowController {
     tabs: LIST_TABS.map(({ id, label, icon }) => ({ id, label, icon })),
   });
   const lists = new Map<string, HTMLElement>();
-  const signatures = new Map<string, string>();
+  const renderedRows = new Map<string, Map<string, RideListRow>>();
   for (const tab of LIST_TABS) {
     const list = element('ul', 'ride-list');
     list.setAttribute('aria-label', tab.label);
@@ -38,64 +44,66 @@ export function openRideList(ctx: UiContext): WindowController {
     });
     win.pane(tab.id).append(list);
     lists.set(tab.id, list);
+    renderedRows.set(tab.id, new Map());
   }
   return {
     update(snapshot: Snapshot | null) {
       if (!snapshot) return;
-      const rows = new Map<string, string[]>(LIST_TABS.map((tab) => [tab.id, []]));
+      const rows = new Map<
+        string,
+        { id: string; name: string; state: string; queue: number; price: number }[]
+      >(LIST_TABS.map((tab) => [tab.id, []]));
       for (let i = 0; i < snapshot.rides.count; i++) {
         const o = i * RIDE_INFO_STRIDE;
         const i32 = snapshot.rideInfo;
+        const id = String(i32[o + RideInfo.Id]);
         const def = RIDE_CATALOG[i32[o + RideInfo.Type] as keyof typeof RIDE_CATALOG];
         const tab = LIST_TABS.find((t) =>
           (t.categories as readonly string[]).includes(def?.category ?? 'gentle'),
         );
-        rows
-          .get(tab?.id ?? 'rides')!
-          .push(
-            `${i32[o + RideInfo.Id]}|${def?.name ?? 'Ride'}|${RIDE_STATE_NAMES[i32[o + RideInfo.State]] ?? ''}|${i32[o + RideInfo.QueueLength]}|${i32[o + RideInfo.Price]}`,
-          );
+        rows.get(tab?.id ?? 'rides')!.push({
+          id,
+          name: def?.name ?? 'Ride',
+          state: RIDE_STATE_NAMES[i32[o + RideInfo.State]] ?? '',
+          queue: i32[o + RideInfo.QueueLength],
+          price: i32[o + RideInfo.Price],
+        });
       }
       for (const [tabId, tabRows] of rows) {
         const list = lists.get(tabId)!;
+        const rendered = renderedRows.get(tabId)!;
         if (tabRows.length === 0) {
+          for (const row of rendered.values()) row.item.remove();
+          rendered.clear();
           if (!list.querySelector('.ui-help'))
             list.replaceChildren(element('li', 'ui-help', 'None have been built yet.'));
-          signatures.set(tabId, '');
           continue;
         }
-        const ids = tabRows.map((row) => row.split('|')[0] ?? '').join(',');
-        const existing = new Map(
-          [...list.querySelectorAll<HTMLButtonElement>('.list-row')].map((button) => [
-            button.dataset.rideId,
-            button,
-          ]),
-        );
-        const buttons = tabRows.map((row) => {
-          const [id, name, state, queue, price] = row.split('|');
-          let open = existing.get(id);
-          if (!open) {
-            open = element('button', 'list-row');
+        list.querySelector('.ui-help')?.remove();
+        const present = new Set(tabRows.map((row) => row.id));
+        for (const [id, row] of rendered) {
+          if (present.has(id)) continue;
+          row.item.remove();
+          rendered.delete(id);
+        }
+        for (const [index, row] of tabRows.entries()) {
+          let nodes = rendered.get(row.id);
+          if (!nodes) {
+            const item = element('li');
+            const open = element('button', 'list-row');
             open.type = 'button';
-            open.dataset.rideId = id;
-            open.append(element('span', 'list-name'), element('span', 'list-meta'));
+            open.dataset.rideId = row.id;
+            const name = element('span', 'list-name');
+            const meta = element('span', 'list-meta');
+            open.append(name, meta);
+            item.append(open);
+            nodes = { item, name, meta };
+            rendered.set(row.id, nodes);
           }
-          setText(open.querySelector<HTMLElement>('.list-name')!, `${name} #${id}`);
-          setText(
-            open.querySelector<HTMLElement>('.list-meta')!,
-            `${state} · queue ${queue} · ${formatMoney(Number(price))}`,
-          );
-          return open;
-        });
-        if (ids !== signatures.get(tabId)) {
-          list.replaceChildren(
-            ...buttons.map((button) => {
-              const item = element('li');
-              item.append(button);
-              return item;
-            }),
-          );
-          signatures.set(tabId, ids);
+          setText(nodes.name, `${row.name} #${row.id}`);
+          setText(nodes.meta, `${row.state} · queue ${row.queue} · ${formatMoney(row.price)}`);
+          const atIndex = list.children[index] ?? null;
+          if (atIndex !== nodes.item) list.insertBefore(nodes.item, atIndex);
         }
       }
     },

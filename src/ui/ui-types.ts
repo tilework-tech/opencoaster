@@ -74,7 +74,6 @@ export interface GuestSelection {
 export interface UiContext {
   windows: WindowManager;
   actions: GameUIActions;
-  snapshot(): Snapshot | null;
   selectedGuest(): GuestSelection | null;
   series: { cash: SampleSeries; value: SampleSeries; profit: SampleSeries; guests: SampleSeries };
   openRide(rideId: number): void;
