@@ -27,7 +27,7 @@ test('plays the starter park shell and exercises save file round trips', async (
   await page.getByRole('button', { name: 'New game' }).click();
   const starterCard = page.locator('.scenario-card').filter({ hasText: 'Starter Park' });
   await expect(starterCard).toBeVisible();
-  await starterCard.getByRole('button', { name: 'Start' }).click();
+  await starterCard.getByRole('button', { name: 'Start', exact: true }).click();
   const toolbar = page.locator('.game-toolbar');
   const toolbarButton = (name: string) => toolbar.getByRole('button', { name, exact: true });
   await expect(toolbarButton('Game options')).toBeVisible();

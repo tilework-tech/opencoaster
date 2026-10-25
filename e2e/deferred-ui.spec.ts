@@ -12,7 +12,7 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
   await page
     .locator('.scenario-card')
     .filter({ hasText: 'Starter Park' })
-    .getByRole('button', { name: 'Start' })
+    .getByRole('button', { name: 'Start', exact: true })
     .click();
   await mkdir('docs/screenshots', { recursive: true });
   await page.screenshot({ path: 'docs/screenshots/deferred-ui-before.png' });

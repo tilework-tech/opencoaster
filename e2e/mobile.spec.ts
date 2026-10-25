@@ -43,7 +43,7 @@ test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, ta
   await page
     .locator('.scenario-card')
     .filter({ hasText: 'Starter Park' })
-    .getByRole('button', { name: 'Start' })
+    .getByRole('button', { name: 'Start', exact: true })
     .click();
   const toolbar = page.locator('.game-toolbar');
   await expect(page.locator('[data-panel="park"]')).toBeVisible();
