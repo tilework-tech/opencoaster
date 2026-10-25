@@ -14,7 +14,7 @@ Path: @/src/sim/scenario
 - [scenario-file.ts](scenario-file.ts) validates documents loaded by [catalog.ts](catalog.ts); errors identify the scenario and field, while duplicate IDs invalidate the catalog.
 - [scenario-system.ts](scenario-system.ts) runs after economy processing and reads current guest, ride, track, economy and ledger state when evaluating a deadline.
 - [scenario.ts](scenario.ts) owns the flat objective record and terminal status in `World`; [save.ts](../../save/save.ts) preserves those fields without storing the source scenario document.
-- In the latest headless balance sweep, the default seed (2026) wins at park rating 628 against the 550 target. The current 12-seed sweep had 10 wins, with ratings from 481 to 665; seeds 16 and 25 lost at 481 and 512. See [docs/BALANCE.md](../../../docs/BALANCE.md#starter-objective) for the harness and assumptions.
+- In the final headless balance sweep, the default seed (2026) wins at park rating 554 against the 450 target. At the calibrated target, 10 of 12 modest-build seeds win, with ratings from 386 to 688; seeds 22 and 26 miss at 412 and 386. See [docs/BALANCE.md](../../../docs/BALANCE.md#starter-objective) for the harness and assumptions.
 
 ### Core Implementation
 
