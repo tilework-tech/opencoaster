@@ -30,7 +30,6 @@ async function mapTileClick(
   const screenX = bounds.width / 2 + (dx - dy) * 32;
   const screenY = bounds.height / 2 + (dx + dy) * 16 - 2 * 16;
   await page.mouse.click(bounds.x + screenX, bounds.y + screenY);
-  await page.waitForTimeout(50);
   const status = await page.locator('.tool-status').innerText();
   const actual = status.match(/(?:requested at| at) (\d+), (\d+)/);
   expect(actual, `Expected a tile coordinate in tool status: ${status}`).not.toBeNull();

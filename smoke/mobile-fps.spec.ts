@@ -33,7 +33,11 @@ for (const { guests, medianFpsBudget } of CASES) {
     await page.getByRole('button', { name: 'Sandbox' }).click();
     const hud = page.locator('.hud');
     await expect(hud).toContainText('WebGL2', { timeout: 30_000 });
-    await page.getByRole('button', { name: 'Game options' }).click();
+    const toolbar = page.locator('.game-toolbar');
+    const optionsButton = toolbar.getByRole('button', { name: 'Game options', exact: true });
+    if (!(await optionsButton.isVisible()))
+      await toolbar.getByRole('button', { name: 'Actions', exact: true }).click();
+    await optionsButton.click();
     for (let have = 1_000; have < guests; have += 1_000) {
       await page.getByRole('button', { name: 'Guests +1,000' }).click();
       await expect(hud).toContainText(new RegExp(`guests ${have + 1_000}\\b`), {
