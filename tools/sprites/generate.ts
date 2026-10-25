@@ -292,7 +292,7 @@ function transportTrackCellSprites(style: string, piece: TrackPieceDef, local: M
   return out;
 }
 
-function transportSprites(): SpriteDef[] {
+export function transportSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
   for (const transport of TRANSPORT_STYLES) {
     for (const piece of TRANSPORT_PIECES)
@@ -309,7 +309,7 @@ function transportSprites(): SpriteDef[] {
 }
 
 /** Every sprite this tool renders, keyed as in the atlas manifest. */
-function waterTrackSprites(): SpriteDef[] {
+export function waterTrackSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
   for (const family of WATER_RIDE_FAMILIES) {
     const ride = RIDE_CATALOG[family === 'log-flume' ? RideType.LogFlume : RideType.RiverRapids];
