@@ -16,6 +16,7 @@ import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
 import { cactusTreeMesh, palmTreeMesh } from './models/trees';
 import { LOG_FLUME_MODEL } from './models/log-flume';
 import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
+import { personMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
 import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
@@ -178,6 +179,20 @@ function transportRideSprites(): SpriteDef[] {
   );
 }
 
+function peopleSprites(): SpriteDef[] {
+  const out: SpriteDef[] = [];
+  for (let kind = 0; kind < 4; kind++)
+    for (let direction = 0; direction < 4; direction++)
+      out.push({
+        key: `people/staff/${kind}/direction-${direction}`,
+        frames: Array.from({ length: 2 }, (_, frame) =>
+          renderMesh(personMesh(kind, direction, frame, true)),
+        ),
+        footprint: ONE_TILE,
+      });
+  return out;
+}
+
 function transportTrackCellSprites(style: string, piece: TrackPieceDef, local: Mesh): SpriteDef[] {
   const out: SpriteDef[] = [];
   piece.footprint.forEach((cell, index) => {
@@ -231,6 +246,7 @@ export function buildSprites(): SpriteDef[] {
     ...treeSprites(),
     ...coasterSprites(),
     ...transportSprites(),
+    ...peopleSprites(),
   ];
 }
 

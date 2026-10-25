@@ -30,7 +30,7 @@ interface ActivePointer {
 }
 
 const DRAG_THRESHOLD = 4;
-const HOLD_DELAY_MS = 500;
+const HOLD_DELAY_MS = 900;
 const ROTATE_THRESHOLD_RADIANS = Math.PI / 4;
 
 export class PointerInput {

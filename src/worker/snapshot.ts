@@ -13,6 +13,7 @@ import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/l
 import type { ActiveAward, ParkNewsItem } from '../sim/economy/ledger';
 import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
+import { TILE_UNITS } from '../sim/core/constants';
 
 /** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
@@ -266,6 +267,25 @@ function writeLayer<S extends Schema>(
   layer.count = n;
 }
 
+function writePeopleLayer<S extends Schema>(
+  layer: SnapshotLayer,
+  store: EntityStore<S>,
+  variant: Uint8Array,
+  state: Uint8Array,
+  direction: (slot: number) => number,
+): void {
+  const { x, y, z } = store.cols as unknown as PosCols;
+  const n = Math.min(store.count, layer.data.length / SNAPSHOT_STRIDE);
+  const d = layer.data;
+  for (let i = 0, o = 0; i < n; i++, o += SNAPSHOT_STRIDE) {
+    d[o] = x[i];
+    d[o + 1] = y[i];
+    d[o + 2] = z[i];
+    d[o + 3] = (state[i] << 16) | ((direction(i) & 3) << 8) | variant[i];
+  }
+  layer.count = n;
+}
+
 function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   const r = world.rides.cols;
   const o = slot * RIDE_INFO_STRIDE;
@@ -323,7 +343,13 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.weather.temperature = world.weather.temperature;
   const buildableCount = Math.min(world.map.ownership.length, out.buildable.length);
   for (let i = 0; i < buildableCount; i++) out.buildable[i] = world.map.canBuild(i) ? 1 : 0;
-  writeLayer(out.guests, world.guests, world.guests.cols.tint, world.guests.cols.state);
+  writePeopleLayer(
+    out.guests,
+    world.guests,
+    world.guests.cols.tint,
+    world.guests.cols.state,
+    (slot) => Math.min(3, world.guests.cols.heading[slot]),
+  );
   const guests = world.guests.cols;
   for (let i = 0; i < out.guests.count; i++)
     out.guests.data[i * SNAPSHOT_STRIDE + 3] |= guests.heading[i]! << 16;
@@ -351,7 +377,18 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     out.guestDetails[o + 17] = guests.voucherKind[i];
     out.guestDetails[o + 18] = guests.voucherTarget[i];
   }
-  writeLayer(out.staff, world.staff, world.staff.cols.kind, world.staff.cols.state);
+  writePeopleLayer(
+    out.staff,
+    world.staff,
+    world.staff.cols.kind,
+    world.staff.cols.state,
+    (slot) => {
+      const staff = world.staff.cols;
+      const dx = staff.targetX[slot] - Math.floor(staff.x[slot] / TILE_UNITS);
+      const dy = staff.targetY[slot] - Math.floor(staff.y[slot] / TILE_UNITS);
+      return Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 2 : 0) : dy < 0 ? 3 : 1;
+    },
+  );
   const staffIdCount = Math.min(world.staff.count, out.staffIds.length);
   for (let i = 0; i < staffIdCount; i++) out.staffIds[i] = world.staff.slotToId[i];
   out.staffOrders.set(world.staff.cols.orderFlags.subarray(0, staffIdCount));

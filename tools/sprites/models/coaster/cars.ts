@@ -96,6 +96,16 @@ function carShape(family: CoasterFamily): Mesh {
       ...box([x, -w + 0.025, 0.075], [x + 0.03, w - 0.025, 0.135], look.seat),
       ...box([x + 0.05, -w + 0.02, 0.075], [x + 0.058, w - 0.02, 0.125], look.trim),
     );
+    for (const y of [-0.065, 0.025]) {
+      out.push(
+        ...box(
+          [x + 0.005, y, 0.11],
+          [x + 0.035, y + 0.035, 0.18],
+          mat(row % 2 === 0 ? 'white' : 'yellow'),
+        ),
+        ...box([x + 0.007, y + 0.006, 0.18], [x + 0.033, y + 0.032, 0.22], mat('skin')),
+      );
+    }
   }
   if (look.nose) {
     out.push(

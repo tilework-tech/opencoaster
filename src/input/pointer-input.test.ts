@@ -226,11 +226,35 @@ describe('PointerInput', () => {
     });
 
     input.pointerDown(sample(1, 42, 84));
-    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(900);
     input.pointerUp(sample(1, 42, 84));
 
     expect(held).toEqual([[42, 84]]);
     expect(tapped).toEqual([]);
+  });
+
+  it('keeps a touch shorter than the hold threshold as a tap', () => {
+    vi.useFakeTimers();
+    const tapped: Array<[number, number]> = [];
+    const held: Array<[number, number]> = [];
+    const input = new PointerInput({
+      tool: () => 'select',
+      pan: () => {},
+      zoomStart: () => {},
+      zoom: () => {},
+      zoomEnd: () => {},
+      rotate: () => {},
+      tap: (x, y) => tapped.push([x, y]),
+      hold: (x, y) => held.push([x, y]),
+      paint: () => {},
+    });
+
+    input.pointerDown(sample(1, 42, 84));
+    vi.advanceTimersByTime(899);
+    input.pointerUp(sample(1, 42, 84));
+
+    expect(held).toEqual([]);
+    expect(tapped).toEqual([[42, 84]]);
   });
 
   it('emits taps for unmoved pointers and ignores canceled gestures', () => {

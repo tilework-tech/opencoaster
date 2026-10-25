@@ -131,6 +131,63 @@ describe('generated sprite catalogue', () => {
           expect(sprites.has(`rides/coaster/${family}/support-${part}/view-${view}`)).toBe(true);
   });
 
+  it('keeps every ride entrance and exit compact while retaining all ride-category styles', () => {
+    const groups = [
+      'rides/flat/stations/gentle',
+      'rides/flat/stations/thrill',
+      'transport/stations/water',
+      'transport/stations/transport',
+      'rides/coaster/wood/stations',
+      'rides/coaster/steel/stations',
+      'rides/coaster/junior/stations',
+      'rides/coaster/mouse/stations',
+    ];
+    for (const group of groups)
+      for (const part of ['entrance', 'exit'])
+        for (let facing = 0; facing < 4; facing++)
+          for (let view = 0; view < 4; view++) {
+            const key = `${group}/${part}/facing-${facing}/view-${view}`;
+            const sprite = sprites.get(key);
+            expect(sprite, key).toBeDefined();
+            const frame = alignFrames(sprite!.frames)[0];
+            // Tile art is rendered at 64 px per tile; huts should read as guest-height x2.
+            expect(frame.width, key).toBeGreaterThanOrEqual(40);
+            expect(frame.width, key).toBeLessThanOrEqual(56);
+            expect(frame.height, key).toBeGreaterThanOrEqual(32);
+            expect(frame.height, key).toBeLessThanOrEqual(40);
+          }
+  });
+
+  it('generates readable walking sprites for staff in four directions', () => {
+    for (let direction = 0; direction < 4; direction++) {
+      for (let kind = 0; kind < 4; kind++) {
+        const staff = sprites.get(`people/staff/${kind}/direction-${direction}`);
+        expect(staff?.frames, `staff ${kind}, direction ${direction}`).toHaveLength(2);
+        expect(staff!.frames.every((frame) => frame.pixels.some((p) => p !== TRANSPARENT))).toBe(
+          true,
+        );
+        expect(
+          Buffer.from(staff!.frames[0].pixels).equals(Buffer.from(staff!.frames[1].pixels)),
+        ).toBe(false);
+        expect(staff!.frames[0].height).toBeGreaterThanOrEqual(20);
+        const otherDirection = sprites.get(
+          `people/staff/${kind}/direction-${(direction + 1) % 4}`,
+        )!;
+        expect(
+          Buffer.from(staff!.frames[0].pixels).equals(Buffer.from(otherDirection.frames[0].pixels)),
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('renders visible riders above every coaster car family', () => {
+    for (const family of ['wood', 'steel', 'junior', 'mouse']) {
+      const car = sprites.get(`rides/coaster/${family}/vehicles/car/flat/level/heading-0`);
+      expect(car, family).toBeDefined();
+      expect(car!.frames[0].height, family).toBeGreaterThanOrEqual(22);
+    }
+  });
+
   it('has chain, brake and block-brake art for lift- and brake-capable pieces', () => {
     for (const art of TRACK_ARTS)
       for (const variant of ['chain', 'brake', 'block'])
