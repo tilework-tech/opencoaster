@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { PIECES } from '../../src/sim/track/catalog';
+import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import { buildSprites } from './generate';
+import { TRANSPARENT } from './raster';
+import { alignFrames } from './output';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -56,31 +59,64 @@ describe('generated sprite catalogue', () => {
   });
 
   it('renders every non-track ride and stall type in 4 rotations with at least 4 frames', () => {
-    const keys = [
-      'merry-go-round',
-      'swinging-ship',
-      'ferris-wheel',
-      'twist',
-      'food-stall',
-      'drink-stall',
-      'information-kiosk',
-      'toilets',
-    ];
-    for (const key of keys)
-      for (let view = 0; view < 4; view++) {
-        const sprite = sprites.get(`rides/${key}/view-${view}`);
-        expect(sprite?.frames.length ?? 0).toBeGreaterThanOrEqual(4);
-      }
+    for (const def of Object.values(RIDE_CATALOG).filter((ride) => !ride.usesTrack)) {
+      const slug = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      for (let view = 0; view < 4; view++)
+        expect(
+          sprites.get(`rides/${slug}/view-${view}`)?.frames.length ?? 0,
+          `${def.name} view ${view}`,
+        ).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('renders each shop with four path-facing orientations and four camera views', () => {
+    const facilities = Object.values(RIDE_CATALOG).filter((ride) =>
+      ['shop', 'stall', 'facility'].includes(ride.category),
+    );
+    for (const def of facilities) {
+      const key = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      for (let facing = 0; facing < 4; facing++)
+        for (let view = 0; view < 4; view++)
+          expect(
+            sprites.get(`facilities/${key}/facing-${facing}/view-${view}`)?.frames.length ?? 0,
+          ).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('renders category-specific ride entrances and exits in four views', () => {
+    const categories = new Set(
+      Object.values(RIDE_CATALOG)
+        .filter((ride) => !['shop', 'stall', 'facility'].includes(ride.category))
+        .map((ride) => ride.category),
+    );
+    for (const category of categories)
+      for (const part of ['entrance', 'exit'])
+        for (let view = 0; view < 4; view++) {
+          const sprite = sprites.get(`stations/${category}/${part}/view-${view}`);
+          expect(sprite).toBeDefined();
+          expect(sprite!.frames[0].pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+        }
+  });
+
+  it('renders the park entrance gate in four camera views', () => {
+    for (let view = 0; view < 4; view++) {
+      const sprite = sprites.get(`scenery/park-entrance/view-${view}`);
+      expect(sprite).toBeDefined();
+      expect(sprite!.frames[0].pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+    }
   });
 
   it('gives every operating frame of a ride the same size and anchor', () => {
     for (const [key, sprite] of sprites) {
       if (!key.startsWith('rides/')) continue;
-      const { width, height, anchor } = sprite.frames[0];
+      const frames = alignFrames(sprite.frames);
+      const { width, height, anchor } = frames[0];
       expect(width).toBeGreaterThan(0);
-      expect(sprite.frames.length).toBeGreaterThan(0);
+      expect(frames.length).toBeGreaterThan(0);
       expect(anchor.x).toBe(width / 2);
       expect(height % 2).toBe(0);
+      for (const frame of frames)
+        expect([frame.width, frame.height, frame.anchor]).toEqual([width, height, anchor]);
     }
   });
 
