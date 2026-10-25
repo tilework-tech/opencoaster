@@ -21,14 +21,14 @@ async function assertTerrainPixels(canvasScreenshot: Buffer): Promise<void> {
     const blue = data[offset + 2]!;
     if (Math.abs(red - 15) <= 2 && Math.abs(green - 20) <= 2 && Math.abs(blue - 26) <= 2)
       clearColorPixels++;
-    if (blue > red + 30 && green > red + 30 && blue > green + 4) waterPixels++;
+    if (blue > red + 45 && green > red + 25 && blue > green + 4) waterPixels++;
   }
   for (let start = 0; start < seen.length; start++) {
     const offset = start * info.channels;
     if (
       seen[start] ||
-      data[offset + 2]! <= data[offset]! + 30 ||
-      data[offset + 1]! <= data[offset]! + 30 ||
+      data[offset + 2]! <= data[offset]! + 45 ||
+      data[offset + 1]! <= data[offset]! + 25 ||
       data[offset + 2]! <= data[offset + 1]! + 4
     )
       continue;
@@ -54,8 +54,8 @@ async function assertTerrainPixels(canvasScreenshot: Buffer): Promise<void> {
         if (seen[neighbour]) continue;
         const neighbourOffset = neighbour * info.channels;
         if (
-          data[neighbourOffset + 2]! <= data[neighbourOffset]! + 30 ||
-          data[neighbourOffset + 1]! <= data[neighbourOffset]! + 30 ||
+          data[neighbourOffset + 2]! <= data[neighbourOffset]! + 45 ||
+          data[neighbourOffset + 1]! <= data[neighbourOffset]! + 25 ||
           data[neighbourOffset + 2]! <= data[neighbourOffset + 1]! + 4
         )
           continue;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clipTerrainTileBelowHeight,
+  clipTerrainTileTrianglesBelowHeight,
   terrainEdgeFace,
   terrainLightFactor,
   terrainShorelineSegments,
@@ -74,6 +75,16 @@ describe('terrain tile geometry', () => {
     ]);
     expect(clipTerrainTileBelowHeight(corners, 1.5)).toEqual([]);
     expect(clipTerrainTileBelowHeight(corners, 4)).toEqual(corners);
+  });
+
+  it('keeps water split across the raised diagonal on alternating corner heights', () => {
+    const corners = terrainTileCorners(8, 12, 2, 0b1010);
+    const submerged = clipTerrainTileTrianglesBelowHeight(corners, 2.5);
+
+    expect(submerged).toHaveLength(2);
+    expect(submerged[0]).toContainEqual({ x: 8, y: 12, height: 2 });
+    expect(submerged[1]).toContainEqual({ x: 9, y: 13, height: 2 });
+    expect(terrainShorelineSegments(corners, 2.5)).toHaveLength(2);
   });
 
   it('gives adjacent shoreline tiles identical intersections on their shared edge', () => {

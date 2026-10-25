@@ -13,7 +13,7 @@ import { WATER_BANK, pathSpriteName, waterFrameIndex } from './world-art';
 import { terrainSurfaceSpriteName } from './world-art';
 import type { PathSurface } from './world-art';
 import {
-  clipTerrainTileBelowHeight,
+  clipTerrainTileTrianglesBelowHeight,
   terrainShorelineSegments,
   terrainTileCorners,
 } from './terrain-geometry';
@@ -222,11 +222,11 @@ export class Canvas2DRenderer implements Renderer {
         if (waterLevel > 0) {
           const waterLift = waterLevel * Z_PIXELS - WATER_BANK.surfaceInset / (Z_STEP / Z_PIXELS);
           const waterHeight = waterLevel - WATER_BANK.surfaceInset / 64;
-          const clipped = clipTerrainTileBelowHeight(
+          const clipped = clipTerrainTileTrianglesBelowHeight(
             terrainTileCorners(x, y, map.heights[i]!, mask),
             waterHeight,
           );
-          if (clipped.length >= 3) {
+          if (clipped.length > 0) {
             const bankFaces = terrainShorelineSegments(
               terrainTileCorners(x, y, map.heights[i]!, mask),
               waterHeight,
@@ -259,21 +259,23 @@ export class Canvas2DRenderer implements Renderer {
             }
             ctx.save();
             ctx.beginPath();
-            for (let corner = 0; corner < clipped.length; corner++) {
-              const point = clipped[corner]!;
-              project(
-                point.x * TILE_UNITS,
-                point.y * TILE_UNITS,
-                waterHeight * Z_STEP,
-                map.width,
-                map.height,
-                cam.rotation,
-                this.tmp,
-              );
-              if (corner === 0) ctx.moveTo(this.tmp[0]!, this.tmp[1]!);
-              else ctx.lineTo(this.tmp[0]!, this.tmp[1]!);
+            for (const polygon of clipped) {
+              for (let corner = 0; corner < polygon.length; corner++) {
+                const point = polygon[corner]!;
+                project(
+                  point.x * TILE_UNITS,
+                  point.y * TILE_UNITS,
+                  waterHeight * Z_STEP,
+                  map.width,
+                  map.height,
+                  cam.rotation,
+                  this.tmp,
+                );
+                if (corner === 0) ctx.moveTo(this.tmp[0]!, this.tmp[1]!);
+                else ctx.lineTo(this.tmp[0]!, this.tmp[1]!);
+              }
+              ctx.closePath();
             }
-            ctx.closePath();
             ctx.clip();
             ctx.globalAlpha = 0.88;
             const drawn = this.atlas

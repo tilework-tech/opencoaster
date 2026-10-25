@@ -197,6 +197,7 @@ ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot})
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
+  if (vMeshMode > 4.5) outColor = vec4(0.37, 0.29, 0.18, 1.0);
   if (vMeshMode > 2.5 && vMeshMode < 3.5) {
     float depth = vWaterDepth;
     float foam = 1.0 - step(${glslFloat(WATER_BANK.foamDepth)}, depth);
@@ -630,7 +631,7 @@ export class WebGL2Renderer implements Renderer {
               (end.y - start.y) * TILE_UNITS,
               terrainCliffSpriteName(terrainSurface, 0),
               2 * (rx + ry) - waterLevel + 1,
-              4,
+              5,
               [waterLevel * 64, waterLevel * 64, waterLevel * 64, waterLevel * 64],
             );
           }

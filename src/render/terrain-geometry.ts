@@ -70,22 +70,37 @@ export function clipTerrainTileBelowHeight(
   return clipped;
 }
 
+/** Clips the same two-triangle surface used by the WebGL terrain mesh. */
+export function clipTerrainTileTrianglesBelowHeight(
+  corners: readonly TerrainCorner[],
+  waterHeight: number,
+): TerrainCorner[][] {
+  if (corners.length !== 4) return [];
+  return [
+    [corners[0]!, corners[1]!, corners[3]!],
+    [corners[1]!, corners[2]!, corners[3]!],
+  ]
+    .map((triangle) => clipTerrainTileBelowHeight(triangle, waterHeight))
+    .filter((polygon) => polygon.length >= 3);
+}
+
 /** Returns the waterline segments inside a tile, excluding tile edges shared by neighboring water. */
 export function terrainShorelineSegments(
   corners: readonly TerrainCorner[],
   waterHeight: number,
 ): [TerrainCorner, TerrainCorner][] {
-  const polygon = clipTerrainTileBelowHeight(corners, waterHeight);
   const segments: [TerrainCorner, TerrainCorner][] = [];
-  for (let index = 0; index < polygon.length; index++) {
-    const start = polygon[index]!;
-    const end = polygon[(index + 1) % polygon.length]!;
-    if (
-      start.height === waterHeight &&
-      end.height === waterHeight &&
-      (start.x !== end.x || start.y !== end.y)
-    )
-      segments.push([start, end]);
+  for (const polygon of clipTerrainTileTrianglesBelowHeight(corners, waterHeight)) {
+    for (let index = 0; index < polygon.length; index++) {
+      const start = polygon[index]!;
+      const end = polygon[(index + 1) % polygon.length]!;
+      if (
+        start.height === waterHeight &&
+        end.height === waterHeight &&
+        (start.x !== end.x || start.y !== end.y)
+      )
+        segments.push([start, end]);
+    }
   }
   return segments;
 }
