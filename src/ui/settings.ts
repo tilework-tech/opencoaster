@@ -9,6 +9,7 @@ export interface PlayerSettings {
   paused: boolean;
   soundVolume: number;
   musicVolume: number;
+  musicOn: boolean;
   muted: boolean;
 }
 
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: PlayerSettings = {
   paused: false,
   soundVolume: 1,
   musicVolume: 0.7,
+  musicOn: true,
   muted: false,
 };
 
@@ -44,6 +46,7 @@ export function parseSettings(raw: string | null): PlayerSettings {
     paused: typeof record.paused === 'boolean' ? record.paused : DEFAULT_SETTINGS.paused,
     soundVolume: volume(record.soundVolume, DEFAULT_SETTINGS.soundVolume),
     musicVolume: volume(record.musicVolume, DEFAULT_SETTINGS.musicVolume),
+    musicOn: typeof record.musicOn === 'boolean' ? record.musicOn : DEFAULT_SETTINGS.musicOn,
     muted: typeof record.muted === 'boolean' ? record.muted : DEFAULT_SETTINGS.muted,
   };
 }

@@ -514,6 +514,7 @@ export class GameUI {
         element('p', 'ui-help', 'Sound and music settings'),
         this.audioRange('Sound volume', 'soundVolume'),
         this.audioRange('Music volume', 'musicVolume'),
+        this.audioMusicToggle(),
         this.audioMute(),
       );
       const displayPane = win.pane('display');
@@ -576,6 +577,19 @@ export class GameUI {
     });
     row.append(element('span', '', labelText), input);
     return row;
+  }
+
+  private audioMusicToggle(): HTMLLabelElement {
+    const label = element('label', 'check-row');
+    const input = element('input');
+    input.type = 'checkbox';
+    input.checked = this.actions.audioSettings().musicOn;
+    input.setAttribute('aria-label', 'Music on');
+    input.addEventListener('change', () =>
+      this.actions.setAudioSettings({ musicOn: input.checked }),
+    );
+    label.append(input, element('span', '', 'Music on'));
+    return label;
   }
 
   private audioMute(): HTMLLabelElement {
