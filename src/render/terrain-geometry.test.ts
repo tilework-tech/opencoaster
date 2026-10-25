@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   clipTerrainTileBelowHeight,
   clipTerrainTileTrianglesBelowHeight,
+  tileBankDepth,
+  tileWaterDepth,
   terrainEdgeFace,
   terrainLightFactor,
   terrainShorelineSegments,
@@ -10,6 +12,16 @@ import {
   waterCoversTerrainTile,
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
+
+function polygonArea(polygon: readonly { x: number; y: number }[]): number {
+  let doubledArea = 0;
+  for (let index = 0; index < polygon.length; index++) {
+    const start = polygon[index]!;
+    const end = polygon[(index + 1) % polygon.length]!;
+    doubledArea += start.x * end.y - end.x * start.y;
+  }
+  return Math.abs(doubledArea) / 2;
+}
 
 describe('terrain tile geometry', () => {
   it('joins shared raised corners between adjacent tiles', () => {
@@ -79,12 +91,32 @@ describe('terrain tile geometry', () => {
 
   it('keeps water split across the raised diagonal on alternating corner heights', () => {
     const corners = terrainTileCorners(8, 12, 2, 0b1010);
-    const submerged = clipTerrainTileTrianglesBelowHeight(corners, 2.5);
+    const submerged = clipTerrainTileTrianglesBelowHeight(corners, 2.5, 0);
 
     expect(submerged).toHaveLength(2);
     expect(submerged[0]).toContainEqual({ x: 8, y: 12, height: 2 });
     expect(submerged[1]).toContainEqual({ x: 9, y: 13, height: 2 });
-    expect(terrainShorelineSegments(corners, 2.5)).toHaveLength(2);
+    expect(terrainShorelineSegments(corners, 2.5, 0)).toHaveLength(2);
+  });
+
+  it('clips alternating corners along the diagonal each view rotation draws', () => {
+    const corners = terrainTileCorners(8, 12, 2, 0b0101);
+    const wetArea = (rotation: number) =>
+      clipTerrainTileTrianglesBelowHeight(corners, 2.5, rotation).reduce(
+        (sum, polygon) => sum + polygonArea(polygon),
+        0,
+      );
+
+    expect(wetArea(0)).toBeCloseTo(0.75);
+    expect(wetArea(1)).toBeCloseTo(0.25);
+    expect(wetArea(2)).toBeCloseTo(0.75);
+    expect(wetArea(3)).toBeCloseTo(0.25);
+  });
+
+  it("draws a tile's bank faces after that tile's water surface", () => {
+    for (let waterLevel = 1; waterLevel <= 4; waterLevel++) {
+      expect(tileBankDepth(5, 7, waterLevel)).toBeGreaterThan(tileWaterDepth(5, 7, waterLevel));
+    }
   });
 
   it('gives adjacent shoreline tiles identical intersections on their shared edge', () => {
@@ -112,8 +144,8 @@ describe('terrain tile geometry', () => {
 
   it('forms one or two complete waterline segments at convex and concave corners', () => {
     const corners = (mask: number) => terrainTileCorners(8, 12, 2, mask);
-    expect(terrainShorelineSegments(corners(0b0100), 2.5)).toHaveLength(1);
-    expect(terrainShorelineSegments(corners(0b0101), 2.5)).toHaveLength(2);
+    expect(terrainShorelineSegments(corners(0b0100), 2.5, 0)).toHaveLength(1);
+    expect(terrainShorelineSegments(corners(0b0101), 2.5, 0)).toHaveLength(2);
     const atCorner = clipTerrainTileBelowHeight(corners(0b0100), 3);
     expect(new Set(atCorner.map(({ x, y }) => `${x},${y}`)).size).toBe(atCorner.length);
   });

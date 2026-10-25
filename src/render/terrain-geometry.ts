@@ -16,16 +16,37 @@ export function terrainLightFactor(corners: readonly [number, number, number, nu
   return Math.max(0.92, Math.min(1.08, 1 + (slopeX - slopeY) * 0.05));
 }
 
+/** World corner index shown at the view's top-left corner after the given rotation. */
+function viewTopCorner(rotation: number): number {
+  return (((4 - rotation) % 4) + 4) % 4;
+}
+
 export function viewTerrainCornerHeights(
   worldCorners: readonly [number, number, number, number],
   rotation: number,
 ): [number, number, number, number] {
-  const top = (((4 - rotation) % 4) + 4) % 4;
+  const top = viewTopCorner(rotation);
   return [
     worldCorners[top]!,
     worldCorners[(top + 1) & 3]!,
     worldCorners[(top + 2) & 3]!,
     worldCorners[(top + 3) & 3]!,
+  ];
+}
+
+/**
+ * World corner indices of the two triangles the terrain quad is drawn with for a view rotation.
+ * The quad is a triangle strip in view order, so its diagonal joins view corners 1 and 3, which is
+ * world corners 1 and 3 on even rotations and world corners 0 and 2 on odd rotations.
+ */
+export function terrainMeshTriangles(
+  rotation: number,
+): [[number, number, number], [number, number, number]] {
+  const top = viewTopCorner(rotation);
+  const world = (view: number) => (top + view) & 3;
+  return [
+    [world(0), world(1), world(3)],
+    [world(1), world(3), world(2)],
   ];
 }
 
@@ -70,17 +91,20 @@ export function clipTerrainTileBelowHeight(
   return clipped;
 }
 
-/** Clips the same two-triangle surface used by the WebGL terrain mesh. */
+/** Clips the same two-triangle surface, for this view rotation, that the WebGL terrain mesh draws. */
 export function clipTerrainTileTrianglesBelowHeight(
   corners: readonly TerrainCorner[],
   waterHeight: number,
+  rotation: number,
 ): TerrainCorner[][] {
   if (corners.length !== 4) return [];
-  return [
-    [corners[0]!, corners[1]!, corners[3]!],
-    [corners[1]!, corners[2]!, corners[3]!],
-  ]
-    .map((triangle) => clipTerrainTileBelowHeight(triangle, waterHeight))
+  return terrainMeshTriangles(rotation)
+    .map((triangle) =>
+      clipTerrainTileBelowHeight(
+        triangle.map((corner) => corners[corner]!),
+        waterHeight,
+      ),
+    )
     .filter((polygon) => polygon.length >= 3);
 }
 
@@ -88,9 +112,10 @@ export function clipTerrainTileTrianglesBelowHeight(
 export function terrainShorelineSegments(
   corners: readonly TerrainCorner[],
   waterHeight: number,
+  rotation: number,
 ): [TerrainCorner, TerrainCorner][] {
   const segments: [TerrainCorner, TerrainCorner][] = [];
-  for (const polygon of clipTerrainTileTrianglesBelowHeight(corners, waterHeight)) {
+  for (const polygon of clipTerrainTileTrianglesBelowHeight(corners, waterHeight, rotation)) {
     for (let index = 0; index < polygon.length; index++) {
       const start = polygon[index]!;
       const end = polygon[(index + 1) % polygon.length]!;
@@ -125,6 +150,18 @@ export function terrainEdgeFace(
     end: { ...end, height: Math.max(end.height, neighborBase) },
     bottomHeight: neighborBase,
   };
+}
+
+/**
+ * Painter keys for one tile's shoreline. The water surface draws before the bank faces that rise
+ * from its waterline, so a wall is never covered by water from the tile it belongs to.
+ */
+export function tileWaterDepth(rx: number, ry: number, waterLevel: number): number {
+  return 2 * (rx + ry) - waterLevel + 2;
+}
+
+export function tileBankDepth(rx: number, ry: number, waterLevel: number): number {
+  return 2 * (rx + ry) - waterLevel + 3;
 }
 
 export function waterCoversTerrainTile(

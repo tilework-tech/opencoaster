@@ -249,41 +249,13 @@ export class Canvas2DRenderer implements Renderer {
         if (waterLevel > 0) {
           const waterLift = waterLevel * Z_PIXELS - WATER_BANK.surfaceInset / (Z_STEP / Z_PIXELS);
           const waterHeight = waterLevel - WATER_BANK.surfaceInset / 64;
+          const tileCorners = terrainTileCorners(x, y, map.heights[i]!, mask);
           const clipped = clipTerrainTileTrianglesBelowHeight(
-            terrainTileCorners(x, y, map.heights[i]!, mask),
+            tileCorners,
             waterHeight,
+            cam.rotation,
           );
           if (clipped.length > 0) {
-            const bankFaces = terrainShorelineSegments(
-              terrainTileCorners(x, y, map.heights[i]!, mask),
-              waterHeight,
-            );
-            for (const [start, end] of bankFaces) {
-              ctx.fillStyle = 'rgba(94, 75, 45, 0.82)';
-              ctx.beginPath();
-              const faceCorners = [
-                [start, waterLevel],
-                [end, waterLevel],
-                [end, waterHeight],
-                [start, waterHeight],
-              ] as const;
-              for (let faceCorner = 0; faceCorner < faceCorners.length; faceCorner++) {
-                const [point, height] = faceCorners[faceCorner]!;
-                project(
-                  point.x * TILE_UNITS,
-                  point.y * TILE_UNITS,
-                  height * Z_STEP,
-                  map.width,
-                  map.height,
-                  cam.rotation,
-                  this.tmp,
-                );
-                if (faceCorner === 0) ctx.moveTo(this.tmp[0]!, this.tmp[1]!);
-                else ctx.lineTo(this.tmp[0]!, this.tmp[1]!);
-              }
-              ctx.closePath();
-              ctx.fill();
-            }
             ctx.save();
             ctx.beginPath();
             for (const polygon of clipped) {
@@ -329,6 +301,36 @@ export class Canvas2DRenderer implements Renderer {
             }
             ctx.globalAlpha = 1;
             ctx.restore();
+            for (const [start, end] of terrainShorelineSegments(
+              tileCorners,
+              waterHeight,
+              cam.rotation,
+            )) {
+              ctx.fillStyle = 'rgba(94, 75, 45, 0.82)';
+              ctx.beginPath();
+              const faceCorners = [
+                [start, waterLevel],
+                [end, waterLevel],
+                [end, waterHeight],
+                [start, waterHeight],
+              ] as const;
+              for (let faceCorner = 0; faceCorner < faceCorners.length; faceCorner++) {
+                const [point, height] = faceCorners[faceCorner]!;
+                project(
+                  point.x * TILE_UNITS,
+                  point.y * TILE_UNITS,
+                  height * Z_STEP,
+                  map.width,
+                  map.height,
+                  cam.rotation,
+                  this.tmp,
+                );
+                if (faceCorner === 0) ctx.moveTo(this.tmp[0]!, this.tmp[1]!);
+                else ctx.lineTo(this.tmp[0]!, this.tmp[1]!);
+              }
+              ctx.closePath();
+              ctx.fill();
+            }
           }
         }
         this.drawMapElements(ctx, map, cam, i);

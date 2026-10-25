@@ -8,6 +8,8 @@ import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import {
+  tileBankDepth,
+  tileWaterDepth,
   terrainEdgeFace,
   terrainLightFactor,
   terrainShorelineSegments,
@@ -653,7 +655,11 @@ export class WebGL2Renderer implements Renderer {
         const waterLevel = map.waterLevel?.[index] ?? 0;
         if (waterIntersectsTerrainTile(waterLevel, mask, height)) {
           const waterHeight = waterLevel - WATER_BANK.surfaceInset / 64;
-          for (const [start, end] of terrainShorelineSegments(tileCorners, waterHeight)) {
+          for (const [start, end] of terrainShorelineSegments(
+            tileCorners,
+            waterHeight,
+            camera.rotation,
+          )) {
             this.append(
               start.x * TILE_UNITS,
               start.y * TILE_UNITS,
@@ -661,7 +667,7 @@ export class WebGL2Renderer implements Renderer {
               (end.x - start.x) * TILE_UNITS,
               (end.y - start.y) * TILE_UNITS,
               terrainCliffSpriteName(terrainSurface, 0),
-              2 * (rx + ry) - waterLevel + 1,
+              tileBankDepth(rx, ry, waterLevel),
               5,
               [waterLevel * 64, waterLevel * 64, waterLevel * 64, waterLevel * 64],
             );
@@ -673,7 +679,7 @@ export class WebGL2Renderer implements Renderer {
             TILE_W,
             TILE_H,
             waterSpriteName(waterFrameIndex(tick)),
-            2 * (rx + ry) - map.waterLevel![index] + 2,
+            tileWaterDepth(rx, ry, map.waterLevel![index]),
             3,
             corners,
           );
