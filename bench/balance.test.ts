@@ -19,6 +19,8 @@ function run(ticks: number, seed?: number) {
 
 const FOUR_MONTHS = TICKS_PER_MONTH * 4;
 const FULL_YEAR = TICKS_PER_MONTH * 8;
+/** Multi-month sim runs take 1.5–6 s locally and more on shared CI runners; 5 s is too tight. */
+const LONG_RUN_TIMEOUT_MS = 30_000;
 
 describe('scripted starter park', () => {
   const sim = run(FOUR_MONTHS);
@@ -49,12 +51,16 @@ describe('scripted starter park', () => {
     }
   });
 
-  it('is deterministic for a seed', () => {
-    expect(hashWorld(run(FOUR_MONTHS).world)).toBe(hashWorld(w));
-    expect(hashWorld(run(TICKS_PER_MONTH, 99).world)).not.toBe(
-      hashWorld(run(TICKS_PER_MONTH, 100).world),
-    );
-  });
+  it(
+    'is deterministic for a seed',
+    () => {
+      expect(hashWorld(run(FOUR_MONTHS).world)).toBe(hashWorld(w));
+      expect(hashWorld(run(TICKS_PER_MONTH, 99).world)).not.toBe(
+        hashWorld(run(TICKS_PER_MONTH, 100).world),
+      );
+    },
+    LONG_RUN_TIMEOUT_MS,
+  );
 
   it('continues identically after a save and load', () => {
     const park = createBalancePark();
@@ -70,7 +76,11 @@ describe('scripted starter park', () => {
     expect(hashWorld(loaded.world)).toBe(hashWorld(park.sim.world));
   });
 
-  it('can meet the starter scenario objective by the year-end check', () => {
-    expect(run(FULL_YEAR).world.scenario.status).toBe(ScenarioStatus.Won);
-  }, 15_000);
+  it(
+    'can meet the starter scenario objective by the year-end check',
+    () => {
+      expect(run(FULL_YEAR).world.scenario.status).toBe(ScenarioStatus.Won);
+    },
+    LONG_RUN_TIMEOUT_MS,
+  );
 });

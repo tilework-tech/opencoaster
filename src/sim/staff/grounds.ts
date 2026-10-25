@@ -57,16 +57,6 @@ export function growGrounds(world: World): void {
   }
 }
 
-/** Writes every tile that currently needs watering or mowing into `sites`; returns how many. */
-export function collectGardenSites(world: World, sites: Int32Array): number {
-  const size = world.map.width * world.map.height;
-  let count = 0;
-  for (let tile = 0; tile < size; tile++) {
-    if (needsWatering(world, tile) || needsMowing(world, tile)) sites[count++] = tile;
-  }
-  return count;
-}
-
 export function needsWatering(world: World, tile: number): boolean {
   const value = world.grounds[tile];
   return (
