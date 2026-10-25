@@ -67,6 +67,7 @@ export interface CameraInputDependencies {
   land: LandController;
   setPlacementHover: (hover: PlacementHover | null) => void;
   setBuildHover: (tile: [number, number] | null, clientX: number, clientY: number) => void;
+  removeSceneryAt: (x: number, y: number) => void;
   /** Receives the canvas size in CSS pixels whenever it changes. */
   viewport: { width: number; height: number };
   /** Backing-buffer scale applied on top of the capped device pixel ratio. */
@@ -304,9 +305,11 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     if (deps.selectedTool() === 'land' && event.buttons === 0) deps.land.leave();
   });
   canvas.addEventListener('contextmenu', (event) => {
+    const tool = deps.selectedTool();
+    if (tool === 'select' || tool === 'patrol') return;
     event.preventDefault();
-    if (deps.selectedTool() === 'path') deps.removePathAt(event.clientX, event.clientY);
-    else deps.handleCanvasClick(event.clientX, event.clientY, false, true);
+    if (tool === 'path') deps.removePathAt(event.clientX, event.clientY);
+    else deps.removeSceneryAt(event.clientX, event.clientY);
   });
 
   return keys;

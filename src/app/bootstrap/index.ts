@@ -363,6 +363,7 @@ export async function bootstrap(): Promise<void> {
       buildHoverTile = tile;
       buildHoverFeedback.pointAt(x, y);
     },
+    removeSceneryAt: toolController.removeSceneryAt,
     viewport,
     renderScale: () => appliedScale,
     registerResize: (resize) => (resizeCanvas = resize),

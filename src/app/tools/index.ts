@@ -98,6 +98,42 @@ export function createToolController(deps: ToolControllerDependencies) {
     },
   };
 
+  function removeSceneryAt(clientX: number, clientY: number): void {
+    const rect = deps.canvas.getBoundingClientRect();
+    const map = deps.sim.map;
+    if (!map) {
+      deps.gameUi.setToolStatus('Scenery cannot be removed until the park map is ready.');
+      return;
+    }
+    const tile = pickTile(clientX - rect.left, clientY - rect.top, map, deps.camera, {
+      width: rect.width,
+      height: rect.height,
+    });
+    if (!tile) {
+      deps.gameUi.setToolStatus('No map tile under the pointer to remove scenery from.');
+      return;
+    }
+    if (deps.sim.latest && findRideIdAtTile(deps.sim.latest, tile[0], tile[1]) !== null) {
+      handleCanvasClick(clientX, clientY, false, true);
+      return;
+    }
+    let hasScenery = false;
+    const sceneryElements = map.sceneryElements ?? [];
+    for (let item = 0; item < (map.sceneryCount ?? 0); item++) {
+      const offset = item * 5;
+      if (sceneryElements[offset] === tile[0] && sceneryElements[offset + 1] === tile[1]) {
+        hasScenery = true;
+        break;
+      }
+    }
+    if (!hasScenery) {
+      deps.gameUi.setToolStatus(`No scenery on tile ${tile[0]}, ${tile[1]} to remove.`);
+      return;
+    }
+    deps.sim.command({ type: 'removeScenery', x: tile[0], y: tile[1] });
+    deps.gameUi.setToolStatus(`Scenery removal requested at ${tile[0]}, ${tile[1]}.`);
+  }
+
   function handleCanvasClick(
     clientX: number,
     clientY: number,
@@ -160,5 +196,5 @@ export function createToolController(deps: ToolControllerDependencies) {
     deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
   }
 
-  return { removePathAt, handleCanvasClick, pathDrag };
+  return { removePathAt, removeSceneryAt, handleCanvasClick, pathDrag };
 }

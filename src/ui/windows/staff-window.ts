@@ -29,17 +29,16 @@ export function openStaffWindow(ctx: UiContext): WindowController {
     STAFF_KIND_NAMES.forEach((name, kind) => {
       const pane = win.pane(String(kind));
       const row = element('div', 'button-row');
-      row.append(
-        button(`Hire ${name}`, () => ctx.actions.hireStaff(kind), 'ui-button'),
-        button(
-          `Patrol ${name}`,
-          () => {
-            ctx.actions.setPatrolKind(kind);
-            ctx.chooseTool('patrol');
-          },
-          'ui-button',
-        ),
+      row.append(button(`Hire ${name}`, () => ctx.actions.hireStaff(kind), 'ui-button'));
+      const patrol = button(
+        `Patrol ${name}`,
+        () => {
+          ctx.actions.setPatrolKind(kind);
+          ctx.chooseTool('patrol');
+        },
+        'ui-button',
       );
+      row.append(patrol);
       const alternate = button(
         'Remove tiles',
         () => {
