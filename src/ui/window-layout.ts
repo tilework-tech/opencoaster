@@ -5,7 +5,7 @@ export const MOBILE_QUERY = `(max-width: ${MOBILE_MAX_WIDTH}px)`;
 
 /** Space reserved above (toolbar) and below (status bar) the windows on desktop. */
 export const TOP_INSET = 40;
-const BOTTOM_INSET = 30;
+const BOTTOM_INSET = 68;
 const GRAB = 40;
 
 export function isMobileWidth(width: number): boolean {
@@ -75,8 +75,9 @@ export function clampPosition(
   viewportWidth: number,
   viewportHeight: number,
 ): Point {
+  const maxY = Math.max(TOP_INSET, viewportHeight - BOTTOM_INSET - size.height - 4);
   return {
     x: Math.min(viewportWidth - GRAB, Math.max(GRAB - size.width, x)),
-    y: Math.min(viewportHeight - BOTTOM_INSET - 4, Math.max(TOP_INSET, y)),
+    y: Math.min(maxY, Math.max(TOP_INSET, y)),
   };
 }

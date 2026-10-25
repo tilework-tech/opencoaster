@@ -30,7 +30,7 @@ describe('window layout', () => {
     expect(clampPosition(-900, -50, size, 1280, 800)).toEqual({ x: -260, y: 40 });
     const far = clampPosition(5000, 5000, size, 1280, 800);
     expect(far.x).toBe(1240);
-    expect(far.y).toBeLessThanOrEqual(800 - 30);
+    expect(far.y + size.height).toBeLessThanOrEqual(800 - 68);
   });
 
   it('places new windows away from the current pointer when there is room', () => {
@@ -43,6 +43,13 @@ describe('window layout', () => {
     );
 
     expect(position.x + 340).toBeLessThanOrEqual(640);
+  });
+
+  it('keeps new windows above the desktop status bar', () => {
+    const size = { width: 340, height: 260 };
+    const position = positionAwayFromPoint({ x: 640, y: 400 }, size, { x: 640, y: 20 }, 1280, 800);
+
+    expect(position.y + size.height).toBeLessThanOrEqual(800 - 68);
   });
 
   it('limits four-times speed to two-times while construction is active', () => {

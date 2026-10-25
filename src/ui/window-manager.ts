@@ -220,9 +220,9 @@ export class WindowManager {
       win.root.style.setProperty('--y', `${at.y}px`);
     };
     place();
-    requestAnimationFrame(place);
     win.root.addEventListener('pointerdown', () => this.focus(win, true), true);
     this.focus(win);
+    requestAnimationFrame(() => requestAnimationFrame(place));
     return { window: win, created: true };
   }
 
