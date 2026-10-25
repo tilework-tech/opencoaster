@@ -113,6 +113,10 @@ export function createToolController(deps: ToolControllerDependencies) {
       deps.gameUi.setToolStatus('No map tile under the pointer to remove scenery from.');
       return;
     }
+    if (deps.sim.latest && findRideIdAtTile(deps.sim.latest, tile[0], tile[1]) !== null) {
+      handleCanvasClick(clientX, clientY, false, true);
+      return;
+    }
     let hasScenery = false;
     const sceneryElements = map.sceneryElements ?? [];
     for (let item = 0; item < (map.sceneryCount ?? 0); item++) {
