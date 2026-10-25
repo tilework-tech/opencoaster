@@ -1,3 +1,5 @@
+import { writeCarPoses } from './car-poses';
+import { MAX_CARS } from '../sim/vehicles/ride-trains';
 import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -103,6 +105,8 @@ export interface Snapshot {
   /** Player-given staff names by staff id. */
   staffNames: ReadonlyMap<number, string>;
   vehicles: SnapshotLayer;
+  /** One row per car of every train: x, y, z and a packed pose (see car-poses.ts). */
+  cars: SnapshotLayer;
   litter: SnapshotLayer;
   rides: SnapshotLayer;
   tracks: SnapshotLayer;
@@ -166,6 +170,7 @@ export interface SnapshotCapacities {
   guests: number;
   staff: number;
   vehicles: number;
+  cars?: number;
   litter: number;
   rides?: number;
   tracks?: number;
@@ -186,6 +191,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     staffOrders: new Uint8Array(caps.staff),
     staffNames: new Map(),
     vehicles: layer(caps.vehicles),
+    cars: layer(caps.cars ?? caps.vehicles * MAX_CARS),
     litter: layer(caps.litter),
     rides: layer(caps.rides ?? SNAPSHOT_RIDE_CAPACITY),
     tracks: layer(caps.tracks ?? SNAPSHOT_TRACK_CAPACITY),
@@ -226,7 +232,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
 }
 
 export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
-  return [s.guests, s.staff, s.vehicles, s.litter, s.rides, s.tracks]
+  return [s.guests, s.staff, s.vehicles, s.cars, s.litter, s.rides, s.tracks]
     .map((l) => l.data.buffer as ArrayBuffer)
     .concat(
       s.rideInfo.buffer as ArrayBuffer,
@@ -351,6 +357,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   const patrolCount = Math.min(world.patrolAreas.length, out.patrolAreas.length);
   out.patrolAreas.set(world.patrolAreas.subarray(0, patrolCount));
   writeLayer(out.vehicles, world.vehicles, world.vehicles.cols.state, null);
+  writeCarPoses(world, out.cars);
   writeLayer(out.litter, world.litter, world.litter.cols.kind, null);
   const rides = world.rides;
   const rideData = out.rides.data;
@@ -375,6 +382,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     trackData[o + 2] = trackPieces.cols.z[i] * 64;
     trackData[o + 3] =
       (trackPieces.cols.rideId[i] << 16) |
+      (trackPieces.cols.mode[i] << 10) |
       (trackPieces.cols.dir[i] << 8) |
       (trackPieces.cols.pieceType[i] & 0xff);
   }
