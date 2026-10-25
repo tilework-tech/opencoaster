@@ -29,5 +29,6 @@ Path: @/src/input
 - Starting a second pointer cancels pending one-finger holds and starts a pinch. Pointer cancellation clears the gesture state and ends the active zoom sequence.
 - The controller sends gesture intents; it does not decide whether a tile is in the park or whether a build command succeeds. Tile picking and worker feedback remain authoritative at their existing boundaries.
 - The visible view rotation is discrete. Accumulated twist movement can cross multiple thresholds during one gesture; each crossing requests one quarter-turn.
+- The camera moves only on drag/pinch/wheel/WASD input, explicit locate actions, and the map of a started or loaded game (`SimClient.onMap(map, newGame)`). The worker republishes the map after every terrain, path or scenery edit; those republishes must not recentre the view. `e2e/camera-stability.spec.ts` clicks many tiles and asserts the camera is unchanged (dev builds expose `window.__camera`). Held WASD keys are cleared on window blur.
 
 Created and maintained by Nori.
