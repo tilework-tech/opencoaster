@@ -13,9 +13,11 @@ import {
 import {
   PathResult,
   placePathOutcome,
+  planPathPlacement,
   removePath,
   setPathAddition,
   type PathAddition,
+  type PathPlacement,
 } from './paths';
 import { placeScenery, removeScenery, SCENERY_CATALOG, type SceneryItem } from './scenery';
 import {
@@ -23,13 +25,15 @@ import {
   LAND_PRICE_CENTS,
   OWNED,
   PATH_COST_CENTS,
+  PATH_REFUND_CENTS,
   RIGHTS_OWNED,
   RIGHTS_PRICE_CENTS,
   WATER_TILE_ACTION_COST_CENTS,
   SALE_LAND,
   SALE_RIGHTS,
 } from './tile-map';
-import type { PathStyle, TileMap } from './tile-map';
+import { PathFlag, PathStyle } from './tile-map';
+import type { TileMap } from './tile-map';
 import { TILE_UNITS } from '../core/constants';
 
 /** Map-owned player commands; the core `Command` union includes this type. */
@@ -48,11 +52,29 @@ export type MapCommand =
       queue?: boolean;
       style?: PathStyle;
     }
+  /** Lays a run of footpath pieces in order, each judged against the pieces before it. */
+  | { type: 'placePathRun'; placements: PathPlacement[] }
   | { type: 'removePath'; x: number; y: number; z?: number }
   | { type: 'setPathAddition'; x: number; y: number; addition: PathAddition }
   | { type: 'placeScenery'; x: number; y: number; item: SceneryItem }
   | { type: 'removeScenery'; x: number; y: number }
   | { type: 'buyLand'; x: number; y: number; width: number; height: number; rights: boolean };
+
+/** Places one footpath piece, charging for it and reporting a refusal to the UI. */
+function applyPathPlacement(w: World, c: PathPlacement): void {
+  const m = w.map;
+  const result = canAfford(w, PATH_COST_CENTS)
+    ? placePathOutcome(m, c)
+    : PathResult.InsufficientFunds;
+  if (result === PathResult.Ok) charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
+  else
+    reportFeedback(
+      w.feedback,
+      FeedbackDomain.Path,
+      result,
+      m.inBounds(c.x, c.y) ? m.index(c.x, c.y) : -1,
+    );
+}
 
 function canAfford(w: World, cents: number): boolean {
   return w.economy.cash >= cents;
@@ -159,22 +181,14 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       if (canAfford(w, LAND_SURFACE_COST_CENTS))
         paintLand(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, c.surface | 0);
       break;
-    case 'placePath': {
-      const result = canAfford(w, PATH_COST_CENTS)
-        ? placePathOutcome(m, c)
-        : PathResult.InsufficientFunds;
-      if (result === PathResult.Ok) charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
-      else
-        reportFeedback(
-          w.feedback,
-          FeedbackDomain.Path,
-          result,
-          m.inBounds(c.x, c.y) ? m.index(c.x, c.y) : -1,
-        );
+    case 'placePath':
+      applyPathPlacement(w, c);
       break;
-    }
+    case 'placePathRun':
+      for (const placement of c.placements) applyPathPlacement(w, placement);
+      break;
     case 'removePath':
-      removePath(m, c);
+      if (removePath(m, c)) post(w.economy, LedgerCategory.Landscaping, PATH_REFUND_CENTS);
       break;
     case 'setPathAddition':
       setPathAddition(m, c.x, c.y, c.addition);
@@ -205,4 +219,55 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     }
   }
+}
+
+/** What one footpath piece in a previewed run would be, once the run is laid. */
+export interface PathPiecePreview {
+  result: PathResult;
+  /** Base level of the piece; meaningful when `result` is Ok. */
+  z: number;
+  /** Direction the piece rises toward, or -1 for flat. */
+  dir: number;
+  queue: boolean;
+  style: PathStyle;
+  /** Edges (bit `1 << dir`) the piece joins to its neighbours once the whole run is laid. */
+  edges: number;
+}
+
+/**
+ * Previews `placePathRun` without changing the map: each piece is judged in order on a copy of the
+ * map, with the cash the run would leave, and its final edges are read after the whole run.
+ */
+export function previewPathRun(w: World, placements: readonly PathPlacement[]): PathPiecePreview[] {
+  const m = w.map.clone();
+  let cash = w.economy.cash;
+  const plans = placements.map((p) => {
+    const plan = planPathPlacement(m, p);
+    if (plan.result !== PathResult.Ok) return plan;
+    if (cash < PATH_COST_CENTS) return { ...plan, result: PathResult.InsufficientFunds };
+    placePathOutcome(m, p);
+    cash -= PATH_COST_CENTS;
+    return plan;
+  });
+  return plans.map((plan) => {
+    if (plan.result !== PathResult.Ok) {
+      return {
+        result: plan.result,
+        z: 0,
+        dir: -1,
+        queue: false,
+        style: PathStyle.Tarmac,
+        edges: 0,
+      };
+    }
+    const element = m.pathElement(plan.i, plan.z);
+    return {
+      result: PathResult.Ok,
+      z: plan.z,
+      dir: plan.dir,
+      queue: (plan.flags & PathFlag.Queue) !== 0,
+      style: plan.style,
+      edges: element < 0 ? 0 : m.pathEdgesOf(element),
+    };
+  });
 }

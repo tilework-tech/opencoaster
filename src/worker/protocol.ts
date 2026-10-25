@@ -1,5 +1,7 @@
 import type { Command } from '../sim/core/commands';
 import type { ScenarioDef } from '../sim/scenario/scenario';
+import type { PathPlacement } from '../sim/map/paths';
+import type { PathPiecePreview } from '../sim/map/map-commands';
 import type { Snapshot } from './snapshot';
 
 export interface InitMessage {
@@ -25,7 +27,9 @@ export type ToWorker =
   /** Serialises the running game; answered with `saved`. */
   | { type: 'save' }
   /** Replaces the running game with a save; answered with `loaded` or `error`. */
-  | { type: 'load'; bytes: Uint8Array };
+  | { type: 'load'; bytes: Uint8Array }
+  /** Asks what each footpath placement would do right now; answered with `pathPreview`. */
+  | { type: 'previewPaths'; id: number; placements: PathPlacement[] };
 
 export interface MapMessage {
   type: 'map';
@@ -63,4 +67,6 @@ export type FromWorker =
   | { type: 'stats'; stats: Stats }
   | { type: 'saved'; bytes: Uint8Array }
   | { type: 'loaded' }
-  | { type: 'error'; request: 'save' | 'load'; message: string };
+  | { type: 'error'; request: 'save' | 'load'; message: string }
+  /** One preview per requested placement, in request order. */
+  | { type: 'pathPreview'; id: number; pieces: PathPiecePreview[] };

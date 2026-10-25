@@ -124,42 +124,82 @@ function terrainPathDirection(m: TileMap, i: number): number | null {
   return null;
 }
 
+/** A validated footpath placement: where it goes, what it looks like, and what it replaces. */
+export interface PathPlan {
+  result: PathResult;
+  /** Tile index, or -1 when refused before reaching a tile. */
+  i: number;
+  z: number;
+  /** Direction the piece rises toward, or -1 for a flat piece. */
+  dir: number;
+  clear: number;
+  /** Existing path element at `z` that the piece would replace, or -1. */
+  existing: number;
+  flags: number;
+  style: PathStyle;
+}
+
+function refusedPlan(result: PathResult, i = -1): PathPlan {
+  return {
+    result,
+    i,
+    z: 0,
+    dir: -1,
+    clear: 0,
+    existing: -1,
+    flags: 0,
+    style: PathStyle.Tarmac,
+  };
+}
+
 /**
- * Places (or replaces in place) a path piece and reports the outcome. A piece must rest on the
- * ground (flat on a flat tile, or a ramp on a matching slope) or float at or above the tile's
- * highest corner, must not be under water, and must not overlap another element's volume.
+ * Checks a footpath placement without changing the map. A piece must rest on the ground (flat on
+ * a flat tile, or a ramp on a matching slope) or float at or above the tile's highest corner,
+ * must not be under water, and must not overlap another element's volume.
  */
-export function placePathOutcome(m: TileMap, p: PathPlacement): PathResult {
-  if (!m.inBounds(p.x, p.y)) return PathResult.OutOfBounds;
+export function planPathPlacement(m: TileMap, p: PathPlacement): PathPlan {
+  if (!m.inBounds(p.x, p.y)) return refusedPlan(PathResult.OutOfBounds);
   const i = m.index(p.x, p.y);
-  if (!m.canBuild(i)) return PathResult.NotOwned;
+  if (!m.canBuild(i)) return refusedPlan(PathResult.NotOwned, i);
   const requested = p.slope ?? -1;
   if (!Number.isInteger(requested) || requested < -1 || requested > 3)
-    return PathResult.InvalidPiece;
+    return refusedPlan(PathResult.InvalidPiece, i);
   const style = p.style ?? PathStyle.Tarmac;
   if (!Number.isInteger(style) || style < PathStyle.Tarmac || style > PathStyle.Dirt)
-    return PathResult.InvalidPiece;
+    return refusedPlan(PathResult.InvalidPiece, i);
   const dir = requested >= 0 ? requested : terrainPathDirection(m, i);
-  if (dir === null) return PathResult.UnevenGround;
+  if (dir === null) return refusedPlan(PathResult.UnevenGround, i);
   const z = p.z ?? m.heights[i];
-  if (!Number.isInteger(z) || z > MAX_ELEMENT_BASE) return PathResult.InvalidPiece;
-  if (z < m.heights[i]) return PathResult.BelowGround;
+  if (!Number.isInteger(z) || z > MAX_ELEMENT_BASE) return refusedPlan(PathResult.InvalidPiece, i);
+  if (z < m.heights[i]) return refusedPlan(PathResult.BelowGround, i);
 
   const ramp = dir >= 0;
   const top = m.heights[i] + (m.slope[i] !== 0 ? 1 : 0);
   if (z < top && !(ramp && z === m.heights[i] && m.slope[i] === rampMask(dir)))
-    return PathResult.UnevenGround;
-  if (m.waterLevel[i] > z) return PathResult.Underwater;
+    return refusedPlan(PathResult.UnevenGround, i);
+  if (m.waterLevel[i] > z) return refusedPlan(PathResult.Underwater, i);
 
   const clear = z + PATH_CLEARANCE + (ramp ? 1 : 0);
   const existing = m.pathElement(i, z);
   for (let e = m.firstElement(i); e >= 0; e = m.nextElement(e)) {
-    if (e !== existing && m.elBase[e] < clear && z < m.elClear[e]) return PathResult.Blocked;
+    if (e !== existing && m.elBase[e] < clear && z < m.elClear[e])
+      return refusedPlan(PathResult.Blocked, i);
   }
-  repairPathElement(m, existing);
-
   const flags =
     (p.queue ? PathFlag.Queue : 0) | (ramp ? PathFlag.Sloped | (dir << SLOPE_DIR_SHIFT) : 0);
+  return { result: PathResult.Ok, i, z, dir, clear, existing, flags, style };
+}
+
+/**
+ * Places (or replaces in place) a path piece and reports the outcome. Validation is
+ * `planPathPlacement`; this applies the plan.
+ */
+export function placePathOutcome(m: TileMap, p: PathPlacement): PathResult {
+  const plan = planPathPlacement(m, p);
+  if (plan.result !== PathResult.Ok) return plan.result;
+  const { i, z, clear, existing, flags, style } = plan;
+  repairPathElement(m, existing);
+
   const keep = PathFlag.Queue | PathFlag.Sloped | PathFlag.SlopeDir;
   if (existing >= 0) {
     if (

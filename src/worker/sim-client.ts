@@ -1,4 +1,6 @@
 import type { Command } from '../sim/core/commands';
+import type { PathPlacement } from '../sim/map/paths';
+import type { PathPiecePreview } from '../sim/map/map-commands';
 import type { InitMessage, MapMessage, Stats, ToWorker, FromWorker } from './protocol';
 import { snapshotBuffers } from './snapshot';
 import type { Snapshot } from './snapshot';
@@ -13,6 +15,8 @@ interface PendingRequest {
 export class SimClient {
   private readonly worker: Worker;
   private pending: PendingRequest[] = [];
+  private previews = new Map<number, (pieces: PathPiecePreview[]) => void>();
+  private nextPreviewId = 1;
   /** True from a start or load request until the worker confirms it; older snapshots are stale. */
   private starting = false;
   latest: Snapshot | null = null;
@@ -32,6 +36,7 @@ export class SimClient {
   private failPending(err: Error): void {
     this.starting = false;
     for (const request of this.pending.splice(0)) request.reject(err);
+    this.previews.clear();
   }
 
   private onMessage(msg: FromWorker): void {
@@ -39,6 +44,10 @@ export class SimClient {
       case 'map':
         this.map = msg;
         this.onMap?.(msg, this.starting);
+        break;
+      case 'pathPreview':
+        this.previews.get(msg.id)?.(msg.pieces);
+        this.previews.delete(msg.id);
         break;
       case 'snapshot':
         if (this.starting) {
@@ -114,6 +123,15 @@ export class SimClient {
 
   command(command: Command): void {
     this.send({ type: 'command', command });
+  }
+
+  /** What each footpath placement would become if the run were laid now. */
+  previewPaths(placements: PathPlacement[]): Promise<PathPiecePreview[]> {
+    const id = this.nextPreviewId++;
+    return new Promise((resolve) => {
+      this.previews.set(id, resolve);
+      this.send({ type: 'previewPaths', id, placements });
+    });
   }
   setSpeed(multiplier: number): void {
     this.send({ type: 'setSpeed', multiplier });

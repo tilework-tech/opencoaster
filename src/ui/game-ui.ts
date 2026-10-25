@@ -29,17 +29,12 @@ import { openRideSelect } from './windows/ride-select';
 import { openRideWindow } from './windows/ride-window';
 import { openStaffWindow } from './windows/staff-window';
 import { openWorkerWindow } from './windows/worker-window';
-import {
-  LAND_WINDOW,
-  PATH_WINDOW,
-  SCENERY_WINDOW,
-  WATER_WINDOW,
-  openToolWindow,
-} from './windows/tool-windows';
+import { LAND_WINDOW, SCENERY_WINDOW, WATER_WINDOW, openToolWindow } from './windows/tool-windows';
+import { openPathWindow } from './windows/path-window';
 import { shortcutFor } from './shortcuts';
 import type { KeyLike } from './shortcuts';
 
-export type { GameUIActions, GuestSelection, ToolMode } from './ui-types';
+export type { FootpathControls, GameUIActions, GuestSelection, ToolMode } from './ui-types';
 export { guestDetailsText, guestSelectionText } from './windows/guest-window';
 export type { GuestDetails } from './windows/guest-window';
 
@@ -394,7 +389,7 @@ export class GameUI {
       case 'scenery':
         return openToolWindow(this.ctx, SCENERY_WINDOW);
       case 'paths':
-        return openToolWindow(this.ctx, PATH_WINDOW);
+        return openPathWindow(this.ctx);
       case 'clear':
         return this.openNotice(
           'clear',

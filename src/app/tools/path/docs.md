@@ -1,0 +1,30 @@
+# Noridoc: Footpath Construction
+
+Path: @/src/app/tools/path
+
+### Overview
+
+- Builds footpaths for the Footpaths window in two modes: a dragged run or a hovered tile (line mode), and a piece at a cursor (piece mode).
+- Previews exactly what would be built before it is: the ghost draws each piece with the base level, slope, connections to neighbours and queue rails the sim computed. Green is accepted; red is refused, with the reason at the pointer.
+
+### How it fits into the larger codebase
+
+- [tools](../docs.md) routes taps and pointer drags here; [input](../../input/docs.md) recognises the drag and calls back through `PathDragHandlers`.
+- The [Footpaths window](../../../ui/windows/path-window.ts) drives the tool through `FootpathControls` in [ui-types](../../../ui/ui-types.ts).
+- Preview and placement go through [SimClient](../../../worker/sim-client.ts): `previewPaths` asks the sim what each piece would become, and the commit sends the same placements as one `placePathRun` command. The sim judges that batch in order on the live map, the same way the preview did on a copy, so the laid pieces match the ghost. The sim is the authority; this module never edits the map.
+
+### Core Implementation
+
+- [run.ts](run.ts): `pathRunTiles` gives a straight line or one turn, along x first; `pieceSlope` maps Level/Up/Down to the sim's slope argument; `stepCursor` moves the piece cursor.
+- [controller.ts](controller.ts): `PathTool` previews the hovered tile, a dragged run, or the piece cursor, lays the run on release, and builds or removes a piece at the cursor. Tiles that already hold a footpath are shown as paved and skipped, so they are never charged twice.
+- [ghost.ts](ghost.ts): `PathGhost` draws the preview as an SVG overlay positioned with the camera. Each piece is drawn at its base level and slope (`pieceCornerLevels`), with connector lines for its edges and rails for queue lines. Polygons carry `data-*` attributes with the piece's level, direction, style, queue flag and edges, which the e2e tests read.
+- [state.ts](state.ts): the tool's settings (mode, surface, queue, piece direction and slope, cursor) and the once-only Footpaths hint.
+
+### Things to Know
+
+- Only tiles without a footpath are previewed and laid during a drag; a tile that is already paved is shown neutral and costs nothing.
+- Line-mode drags use the terrain slope. Piece mode can request a ramp explicitly with Up or Down. A tile whose slope the sim cannot pave is refused with the sim's reason.
+- The preview is asynchronous: a new preview may show pending tiles for a few milliseconds. Only the newest preview may draw, and release sends its own batch, which the sim judges again, so a stale preview cannot build a piece the sim would refuse.
+- Touch has no hover: the ghost appears under the finger while a drag is in progress.
+
+Created and maintained by Nori.

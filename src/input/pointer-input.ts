@@ -18,6 +18,11 @@ export interface PointerInputActions {
   tap(x: number, y: number, shiftKey: boolean): void;
   hold(x: number, y: number): void;
   paint(x: number, y: number, shiftKey: boolean): void;
+  /** Starts a footpath run drag; false when the drag should pan the view instead. */
+  pathDragStart(x: number, y: number): boolean;
+  pathDragMove(x: number, y: number): void;
+  pathDragEnd(): void;
+  pathDragCancel(): void;
 }
 
 interface ActivePointer {
@@ -26,6 +31,8 @@ interface ActivePointer {
   startY: number;
   moved: boolean;
   held: boolean;
+  /** This pointer is laying a footpath run rather than panning. */
+  pathDrag: boolean;
   timer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -50,6 +57,7 @@ export class PointerInput {
       startY: sample.y,
       moved: false,
       held: false,
+      pathDrag: false,
       timer: null,
     };
     this.pointers.set(sample.pointerId, active);
@@ -112,12 +120,15 @@ export class PointerInput {
     if (startsDrag) {
       active.moved = true;
       this.cancelHold(active);
-      if (this.actions.tool() === 'land' || this.actions.tool() === 'path')
+      if (this.actions.tool() === 'land')
         this.actions.paint(active.startX, active.startY, sample.shiftKey);
+      else if (this.actions.tool() === 'path')
+        active.pathDrag = this.actions.pathDragStart(active.startX, active.startY);
     }
 
-    if (this.actions.tool() === 'land' || this.actions.tool() === 'path')
+    if (this.actions.tool() === 'land')
       this.paintBetween(startsDrag ? { x: active.startX, y: active.startY } : previous, sample);
+    else if (active.pathDrag) this.actions.pathDragMove(sample.x, sample.y);
     else if (startsDrag) this.actions.pan(dx, dy);
     else this.actions.pan(sample.x - previous.x, sample.y - previous.y);
   }
@@ -128,6 +139,7 @@ export class PointerInput {
     active.sample = sample;
     this.cancelHold(active);
     this.pointers.delete(sample.pointerId);
+    if (active.pathDrag) this.actions.pathDragEnd();
 
     if (this.pointers.size === 1) {
       const [remaining] = this.pointers.values();
@@ -151,6 +163,7 @@ export class PointerInput {
   pointerCancel(pointerId: number): void {
     const active = this.pointers.get(pointerId);
     if (active) this.cancelHold(active);
+    if (active?.pathDrag) this.actions.pathDragCancel();
     this.pointers.clear();
     if (this.pinchStartDistance > 0) this.actions.zoomEnd();
     this.pinchStartDistance = 0;
