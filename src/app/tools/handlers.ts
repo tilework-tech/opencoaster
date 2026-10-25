@@ -1,0 +1,116 @@
+import type { SimClient } from '../../worker/sim-client';
+import type { GameUI, ToolMode } from '../../ui/game-ui';
+import { PathAddition } from '../../sim/map/paths';
+import { PathStyle } from '../../sim/map/tile-map';
+import { SceneryItem } from '../../sim/map/scenery';
+
+export interface ToolHandlerDependencies {
+  sim: SimClient;
+  gameUi: GameUI;
+  selectedTool: () => ToolMode;
+  alternate: () => boolean;
+  brush: () => number;
+  pathOptions: () => { queue: boolean; slope: number };
+  pathStyle: () => PathStyle;
+  sceneryItem: () => SceneryItem;
+  patrolKind: () => number | null;
+}
+
+export function handleLandTool(
+  deps: ToolHandlerDependencies,
+  x: number,
+  y: number,
+  shiftKey: boolean,
+): void {
+  const lower = shiftKey || deps.alternate();
+  const brush = deps.brush();
+  const origin = Math.floor((brush - 1) / 2);
+  deps.sim.command({
+    type: lower ? 'lowerLand' : 'raiseLand',
+    x: Math.max(0, x - origin),
+    y: Math.max(0, y - origin),
+    width: brush,
+    height: brush,
+  });
+  deps.gameUi.setToolStatus(`${lower ? 'Lowering' : 'Raising'} land at ${x}, ${y}.`);
+}
+
+export function handlePathTool(deps: ToolHandlerDependencies, x: number, y: number): void {
+  if (deps.alternate()) {
+    deps.sim.command({ type: 'removePath', x, y });
+    deps.gameUi.setToolStatus(`Path removal requested at ${x}, ${y}.`);
+    return;
+  }
+  const options = deps.pathOptions();
+  deps.sim.command({
+    type: 'placePath',
+    x,
+    y,
+    style: deps.pathStyle(),
+    queue: options.queue,
+    slope: options.slope,
+  });
+  deps.gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
+}
+
+export function handleSceneryTool(
+  deps: ToolHandlerDependencies,
+  x: number,
+  y: number,
+  shiftKey: boolean,
+): void {
+  const remove = shiftKey || deps.alternate();
+  deps.sim.command(
+    remove
+      ? { type: 'removeScenery', x, y }
+      : { type: 'placeScenery', x, y, item: deps.sceneryItem() },
+  );
+  deps.gameUi.setToolStatus(
+    `${remove ? 'Scenery removal' : 'Scenery placement'} requested at ${x}, ${y}.`,
+  );
+}
+
+export function handlePathAdditionTool(deps: ToolHandlerDependencies, x: number, y: number): void {
+  const tool = deps.selectedTool();
+  const addition =
+    tool === 'bin'
+      ? PathAddition.Bin
+      : tool === 'bench'
+        ? PathAddition.Bench
+        : tool === 'shelter'
+          ? PathAddition.Shelter
+          : PathAddition.Lamp;
+  deps.sim.command({ type: 'setPathAddition', x, y, addition });
+  deps.gameUi.setToolStatus(`${tool} placement requested at ${x}, ${y}.`);
+}
+
+export function handleFlowerbedTool(
+  deps: ToolHandlerDependencies,
+  x: number,
+  y: number,
+  shiftKey: boolean,
+): void {
+  const remove = shiftKey || deps.alternate();
+  deps.sim.command({ type: 'setFlowerBed', x, y, enabled: !remove });
+  deps.gameUi.setToolStatus(
+    `${remove ? 'Flower bed removal' : 'Flower bed planting'} requested at ${x}, ${y}.`,
+  );
+}
+
+export function handlePatrolTool(
+  deps: ToolHandlerDependencies,
+  x: number,
+  y: number,
+  shiftKey: boolean,
+): void {
+  const kind = deps.patrolKind();
+  if (kind === null) {
+    deps.gameUi.setToolStatus('Choose a staff role or person in the Staff panel first.');
+    return;
+  }
+  const remove = shiftKey || deps.alternate();
+  deps.sim.command({ type: 'setStaffKindPatrolTile', kind, x, y, enabled: !remove });
+  deps.gameUi.setToolStatus(
+    `${remove ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
+  );
+}
