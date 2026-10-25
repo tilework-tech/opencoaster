@@ -186,6 +186,8 @@ export async function paintPaths(
   await toolbarAction(page, 'Footpaths', mobile);
   await centerMapOnTile(page, MAP_CENTER, mobile);
   for (const tile of tiles) await clickTile(page, tile, mobile, false);
+  const closeFootpaths = page.getByRole('button', { name: 'Close Footpaths' });
+  if (await closeFootpaths.count()) await closeFootpaths.click();
 }
 
 /** Picks a ride card from the New attraction window (its tab and `data-ride-type`). */
