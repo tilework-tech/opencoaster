@@ -6,6 +6,7 @@ import { buildSprites } from './generate';
 import { alignFrames } from './output';
 import { TRANSPARENT } from './raster';
 import { TRANSPORT_STYLES } from './models/transport';
+import { PALETTE } from './palette';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -180,6 +181,27 @@ describe('generated sprite catalogue', () => {
     for (const { style } of TRANSPORT_STYLES) {
       expect(sprites.has(`track/${style}/flat/view-0/cell-0`), style).toBe(true);
       expect(sprites.has(`vehicles/${style}/car/flat/heading-0`), style).toBe(true);
+    }
+  });
+  it('keeps the water pattern to a few low-contrast ripple shades', () => {
+    const water = sprites.get('water/surface')!;
+    for (const frame of water.frames) {
+      const used = new Set(frame.pixels);
+      expect(used.size).toBeLessThanOrEqual(3);
+    }
+
+    const colors = [...new Set(sprites.get('water/surface')!.frames[0]!.pixels)].map(
+      (index) => PALETTE[index]!,
+    );
+    for (let first = 0; first < colors.length; first++) {
+      for (let second = first + 1; second < colors.length; second++) {
+        const distance = Math.hypot(
+          colors[first]![0] - colors[second]![0],
+          colors[first]![1] - colors[second]![1],
+          colors[first]![2] - colors[second]![2],
+        );
+        expect(distance).toBeLessThan(45);
+      }
     }
   });
 });

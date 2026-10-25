@@ -28,7 +28,7 @@ const RAMPS: Record<string, readonly string[]> = {
 };
 
 /** Eight water colours forming one closed palette-cycle loop (ping-pong through five blues). */
-const WATER_BLUES = ['#2b6a99', '#3a7fb0', '#4a94c4', '#5fa9d6', '#79bde4'];
+const WATER_BLUES = ['#356f92', '#3a7596', '#3f7b9a', '#44819e', '#4987a2'];
 export const WATER_CYCLE_LENGTH = 8;
 
 function hex(value: string): Rgb {
