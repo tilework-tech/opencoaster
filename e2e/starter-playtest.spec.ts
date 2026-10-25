@@ -45,7 +45,11 @@ test('plays the starter park shell and exercises save file round trips', async (
 
   await toolbarButton('Footpaths').click();
   const tickBeforePath = await currentTick();
-  await page.locator('#game').click({ position: { x: 700, y: 200 } });
+  const gameBounds = await page.locator('#game').boundingBox();
+  if (!gameBounds) throw new Error('Game viewport is missing');
+  await page.locator('#game').click({
+    position: { x: gameBounds.width / 2, y: gameBounds.height / 2 },
+  });
   await expect(page.locator('.tool-status')).toContainText('Path placement requested');
   await expect.poll(currentTick).toBeGreaterThan(tickBeforePath);
   await screenshot('04-path-building');
@@ -57,7 +61,10 @@ test('plays the starter park shell and exercises save file round trips', async (
     await page.getByRole('button', { name: new RegExp(`^${ride}`) }).click();
     await page.locator('#game').click({ position: at });
   };
-  await buildRide('Gentle rides', 'Merry-Go-Round', { x: 800, y: 200 });
+  await buildRide('Gentle rides', 'Merry-Go-Round', {
+    x: gameBounds.width / 2 + 80,
+    y: gameBounds.height / 2 - 10,
+  });
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   await page
     .getByRole('button', { name: /Place entrance at tile/ })
