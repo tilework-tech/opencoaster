@@ -4,6 +4,7 @@ import { renderMesh } from './raster';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
 import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
+import { rideSpriteName } from '../../src/render/world-art';
 import { RIDE_MODELS } from './models/ride-catalog';
 import { rideMesh } from './models/rides';
 import { rotateMesh } from './mesh';
@@ -57,11 +58,13 @@ function rideSprites(): SpriteDef[] {
       width: Math.max(...xs) - Math.min(...xs) + 1,
       height: Math.max(...ys) - Math.min(...ys) + 1,
     };
-    const frames = ride && !ride.usesTrack && (ride.category === 'gentle' || ride.category === 'thrill')
-      ? 9
-      : model.frames;
+    const spriteName = ride ? rideSpriteName(ride.id) : model.key;
+    const frames =
+      ride && !ride.usesTrack && (ride.category === 'gentle' || ride.category === 'thrill')
+        ? 9
+        : model.frames;
     return Array.from({ length: 4 }, (_, view): SpriteDef => ({
-      key: `${model.key}/view-${view}`,
+      key: `${spriteName}/view-${view}`,
       frames: Array.from({ length: frames }, (_, frame) =>
         renderMesh(rotateMesh(rideMesh(model, frame), view)),
       ),

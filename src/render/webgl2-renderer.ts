@@ -5,7 +5,8 @@ import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
-import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import {
   terrainEdgeFace,
   terrainLightFactor,
@@ -969,7 +970,14 @@ export class WebGL2Renderer implements Renderer {
       const definition = RIDE_CATALOG[type];
       const tileX = snapshot.rideInfo[offset + RideInfo.RideX];
       const tileY = snapshot.rideInfo[offset + RideInfo.RideY];
-      if (!definition || definition.usesTrack || tileX < 0 || tileY < 0 || tileX >= map.width || tileY >= map.height)
+      if (
+        !definition ||
+        definition.usesTrack ||
+        tileX < 0 ||
+        tileY < 0 ||
+        tileX >= map.width ||
+        tileY >= map.height
+      )
         continue;
 
       const worldX = tileX * TILE_UNITS + TILE_UNITS / 2;
@@ -977,7 +985,11 @@ export class WebGL2Renderer implements Renderer {
       const z = map.heights[tileY * map.width + tileX] * Z_STEP;
       const key = rideSpriteKey(type, camera.rotation);
       const entry = this.atlasFrames[key];
-      const frameIndex = rideSpriteFrame(snapshot.rideInfo[offset + RideInfo.Phase], snapshot.tick, entry?.frames.length ?? 1);
+      const frameIndex = rideSpriteFrame(
+        snapshot.rideInfo[offset + RideInfo.Phase],
+        snapshot.tick,
+        entry?.frames.length ?? 1,
+      );
       const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
       const width = frame?.width ?? 12;
       const height = frame?.height ?? 14;
@@ -986,7 +998,17 @@ export class WebGL2Renderer implements Renderer {
         z / Z_STEP +
         1;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
-      if (!inViewport(this.projected[0], this.projected[1], camera, viewportWidth, viewportHeight, width, height))
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          width,
+          height,
+        )
+      )
         continue;
       this.append(worldX, worldY, z, width, height, entry ? `${key}#${frameIndex}` : 26, depth);
     }

@@ -12,6 +12,7 @@ import {
   nativeSpriteWorldOffset,
   rideSpriteFrame,
   rideSpriteKey,
+  rideSpriteName,
   waterFrameIndex,
   waterSpriteName,
 } from './world-art';
@@ -99,11 +100,12 @@ describe('world art sprite selection', () => {
 
   it('selects ride views and keeps idle rides in their empty frame', () => {
     expect([0, 1, 2, 3].map((rotation) => rideSpriteKey(1, rotation))).toEqual([
-      'rides/merry-go-round/view-0',
-      'rides/merry-go-round/view-1',
-      'rides/merry-go-round/view-2',
-      'rides/merry-go-round/view-3',
+      'flat-rides/merry-go-round/view-0',
+      'flat-rides/merry-go-round/view-1',
+      'flat-rides/merry-go-round/view-2',
+      'flat-rides/merry-go-round/view-3',
     ]);
+    expect(rideSpriteName(5)).toBe('stalls/food-stall');
     expect(rideSpriteFrame(0, 80, 9)).toBe(0);
     expect(rideSpriteFrame(2, 0, 9)).toBe(1);
     expect(rideSpriteFrame(2, 64, 9)).toBe(1);

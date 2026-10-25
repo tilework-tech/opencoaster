@@ -6,10 +6,17 @@ import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
 import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
-import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import { drawAnchoredSprite, drawTileTexture, loadCanvasAtlas } from './canvas-atlas';
 import type { CanvasAtlas } from './canvas-atlas';
-import { WATER_BANK, pathSpriteName, rideSpriteFrame, rideSpriteKey, waterFrameIndex } from './world-art';
+import {
+  WATER_BANK,
+  pathSpriteName,
+  rideSpriteFrame,
+  rideSpriteKey,
+  waterFrameIndex,
+} from './world-art';
 import type { PathSurface } from './world-art';
 
 const SURFACE_COLORS = [
@@ -450,21 +457,45 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
-  private drawRides(ctx: CanvasRenderingContext2D, snapshot: Snapshot, map: MapData, cam: Camera): void {
+  private drawRides(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
     for (let i = 0; i < snapshot.rides.count; i++) {
       const offset = i * RIDE_INFO_STRIDE;
       const type = snapshot.rideInfo[offset + RideInfo.Type] as RideType;
       const definition = RIDE_CATALOG[type];
       const tileX = snapshot.rideInfo[offset + RideInfo.RideX];
       const tileY = snapshot.rideInfo[offset + RideInfo.RideY];
-      if (!definition || definition.usesTrack || tileX < 0 || tileY < 0 || tileX >= map.width || tileY >= map.height)
+      if (
+        !definition ||
+        definition.usesTrack ||
+        tileX < 0 ||
+        tileY < 0 ||
+        tileX >= map.width ||
+        tileY >= map.height
+      )
         continue;
 
       const z = map.heights[tileY * map.width + tileX] * Z_STEP;
-      project(tileX * TILE_UNITS + TILE_UNITS / 2, tileY * TILE_UNITS + TILE_UNITS / 2, z, map.width, map.height, cam.rotation, this.tmp);
+      project(
+        tileX * TILE_UNITS + TILE_UNITS / 2,
+        tileY * TILE_UNITS + TILE_UNITS / 2,
+        z,
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
       const key = rideSpriteKey(type, cam.rotation);
       const entry = this.atlas?.sprites[key];
-      const frameIndex = rideSpriteFrame(snapshot.rideInfo[offset + RideInfo.Phase], snapshot.tick, entry?.frames.length ?? 1);
+      const frameIndex = rideSpriteFrame(
+        snapshot.rideInfo[offset + RideInfo.Phase],
+        snapshot.tick,
+        entry?.frames.length ?? 1,
+      );
       const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
       if (frame && this.atlas) {
         const margin = Math.max(frame.width - entry!.anchor.x, entry!.anchor.x, frame.height);

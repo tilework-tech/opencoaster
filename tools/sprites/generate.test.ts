@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
+import { rideSpriteName } from '../../src/render/world-art';
 import { buildSprites } from './generate';
 import { alignFrames } from './output';
 
@@ -63,7 +64,6 @@ describe('generated sprite catalogue', () => {
     expect(targetRides.length).toBeGreaterThan(0);
 
     for (const ride of targetRides) {
-      const slug = ride.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       const xs = ride.footprint.map(([x]) => x);
       const ys = ride.footprint.map(([, y]) => y);
       const expectedFootprint = {
@@ -71,7 +71,7 @@ describe('generated sprite catalogue', () => {
         height: Math.max(...ys) - Math.min(...ys) + 1,
       };
       for (let view = 0; view < 4; view++) {
-        const sprite = sprites.get(`rides/${slug}/view-${view}`);
+        const sprite = sprites.get(`${rideSpriteName(ride.id)}/view-${view}`);
         expect(sprite, `${ride.name}, view ${view}`).toBeDefined();
         expect(sprite?.frames, `${ride.name}, view ${view}`).toHaveLength(9);
         expect(sprite?.footprint, `${ride.name}, view ${view}`).toEqual(expectedFootprint);
@@ -85,7 +85,10 @@ describe('generated sprite catalogue', () => {
         });
         expect(aligned[0].anchor.x).toBe(aligned[0].width / 2);
         expect(aligned[0].height % 2).toBe(0);
-        expect(new Set(signatures).size, `${ride.name}, view ${view} occupied poses`).toBeGreaterThanOrEqual(8);
+        expect(
+          new Set(signatures).size,
+          `${ride.name}, view ${view} occupied poses`,
+        ).toBeGreaterThanOrEqual(8);
         expect(signatures.slice(1).every((signature) => signature !== signatures[0])).toBe(true);
       }
     }
