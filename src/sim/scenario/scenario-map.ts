@@ -10,6 +10,7 @@ import {
   Surface,
 } from '../map/tile-map';
 import type { TileMap } from '../map/tile-map';
+import { SceneryItem } from '../map/scenery';
 import type {
   EntranceSide,
   ScenarioDef,
@@ -17,6 +18,7 @@ import type {
   ScenarioTerrain,
   ScenarioTrees,
   TerrainSurface,
+  TreeSpecies,
 } from './scenario';
 
 const SURFACES: Record<TerrainSurface, number> = {
@@ -164,12 +166,11 @@ function paintTiles(map: TileMap, t: ScenarioTerrain, land: ScenarioLand): void 
   const owned = ownedBounds(map.width, map.height, land);
   const saleX = Math.floor((map.width * land.saleMarginPercent) / 100);
   const saleY = Math.floor((map.height * land.saleMarginPercent) / 100);
-  const base = SURFACES[t.surface];
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       const i = map.index(x, y);
       const h = map.heights[i];
-      map.terrain[i] = h <= t.seaLevel ? Surface.Sand : base;
+      map.terrain[i] = groundSurface(map, t, x, y);
       map.waterLevel[i] = h < t.seaLevel ? t.seaLevel : 0;
       const border =
         x < MAP_BORDER ||
@@ -185,11 +186,63 @@ function paintTiles(map: TileMap, t: ScenarioTerrain, land: ScenarioLand): void 
   }
 }
 
+/**
+ * A tile is a steep face when a tile within `STEEP_REACH` rises or falls by `STEEP_RISE` levels:
+ * the heights step at most one level per tile, so this is ground climbing at the steepest grade.
+ */
+const STEEP_REACH = 3;
+const STEEP_RISE = 3;
+
+/** The scenario's theme surface, with uplands and steep faces changed to rock or the highland surface. */
+function groundSurface(map: TileMap, t: ScenarioTerrain, x: number, y: number): number {
+  const h = map.heights[map.index(x, y)];
+  if (t.highland && h >= t.highland.level) return SURFACES[t.highland.surface];
+  if (isSteep(map, x, y)) return Surface.Rock;
+  return SURFACES[t.surface];
+}
+
+function isSteep(map: TileMap, x: number, y: number): boolean {
+  const h = map.heights[map.index(x, y)];
+  for (let dy = -STEEP_REACH; dy <= STEEP_REACH; dy++) {
+    for (let dx = -STEEP_REACH; dx <= STEEP_REACH; dx++) {
+      if (!map.inBounds(x + dx, y + dy)) continue;
+      if (Math.abs(map.heights[map.index(x + dx, y + dy)] - h) >= STEEP_RISE) return true;
+    }
+  }
+  return false;
+}
+
 const TREE_RADIUS = 4;
 const TREE_CLEARANCE = 3;
+/** Clear ground kept free of scenery around the build apron, so the gate and first rides have room. */
+const GATE_MARGIN = 2;
+/** One tree in this many stands alone instead of joining a grove. */
+const SOLITARY_EVERY = 6;
 
-/** Small-scenery trees in clumps on dry, flat, owned or purchasable ground, never on the apron. */
+const SPECIES_ITEM: Record<TreeSpecies, SceneryItem> = {
+  oak: SceneryItem.OakTree,
+  conifer: SceneryItem.Conifer,
+  birch: SceneryItem.BirchTree,
+  blossom: SceneryItem.BlossomTree,
+  autumn: SceneryItem.AutumnTree,
+  topiary: SceneryItem.TopiaryTree,
+  palm: SceneryItem.PalmTree,
+  cactus: SceneryItem.CactusTree,
+};
+
+/** Species that grow on each ground surface, when the scenario does not list its own. */
+const GROUND_SPECIES: Partial<Record<number, readonly TreeSpecies[]>> = {
+  [Surface.Grass]: ['oak', 'birch', 'blossom', 'autumn', 'conifer', 'topiary'],
+  [Surface.Dirt]: ['conifer'],
+  [Surface.Sand]: ['palm', 'cactus'],
+};
+
+/**
+ * Trees in groves of one species on dry, flat, owned or purchasable ground that suits them. Some
+ * trees stand alone. Nothing goes on the build apron, the gate margin, water or rock.
+ */
 function scatterTrees(map: TileMap, trees: ScenarioTrees, apron: TileRect, rng: Prng): void {
+  const pool = trees.species ?? [];
   const centres: Array<[number, number]> = [];
   for (let g = 0; g < trees.groves; g++) {
     centres.push([
@@ -197,20 +250,60 @@ function scatterTrees(map: TileMap, trees: ScenarioTrees, apron: TileRect, rng: 
       MAP_BORDER + rng.int(map.height - 2 * MAP_BORDER),
     ]);
   }
+  const grove = centres.map(() => null as TreeSpecies | null);
   let placed = 0;
   for (let attempt = 0; attempt < trees.count * 8 && placed < trees.count; attempt++) {
-    const [cx, cy] = centres[attempt % centres.length];
-    const x = cx + rng.int(2 * TREE_RADIUS + 1) - TREE_RADIUS;
-    const y = cy + rng.int(2 * TREE_RADIUS + 1) - TREE_RADIUS;
+    const solitary = attempt % SOLITARY_EVERY === SOLITARY_EVERY - 1;
+    const g = attempt % centres.length;
+    const [cx, cy] = solitary
+      ? [
+          MAP_BORDER + rng.int(map.width - 2 * MAP_BORDER),
+          MAP_BORDER + rng.int(map.height - 2 * MAP_BORDER),
+        ]
+      : centres[g];
+    const x = solitary ? cx : cx + rng.int(2 * TREE_RADIUS + 1) - TREE_RADIUS;
+    const y = solitary ? cy : cy + rng.int(2 * TREE_RADIUS + 1) - TREE_RADIUS;
     if (!map.inBounds(x, y)) continue;
     const i = map.index(x, y);
-    const onApron =
-      x >= apron.x0 - 1 && x <= apron.x1 + 1 && y >= apron.y0 - 1 && y <= apron.y1 + 1;
-    if (onApron || map.ownership[i] === 0 || map.waterLevel[i] !== 0 || map.slope[i] !== 0)
-      continue;
-    if (map.terrain[i] !== Surface.Grass || map.firstElement(i) >= 0) continue;
+    if (nearApron(x, y, apron) || !isFreeGround(map, i)) continue;
+    const allowed = (GROUND_SPECIES[map.terrain[i]] ?? []).filter(
+      (s) => pool.length === 0 || pool.includes(s),
+    );
+    if (allowed.length === 0) continue;
+    if (!solitary && grove[g] === null) grove[g] = allowed[rng.int(allowed.length)];
+    const species =
+      !solitary && grove[g] !== null && allowed.includes(grove[g]!)
+        ? grove[g]!
+        : allowed[rng.int(allowed.length)];
     const base = map.heights[i];
-    if (map.addElement(i, ElementType.SmallScenery, base, base + TREE_CLEARANCE, 0, 0) >= 0)
+    if (
+      map.addElement(
+        i,
+        ElementType.SmallScenery,
+        base,
+        base + TREE_CLEARANCE,
+        0,
+        SPECIES_ITEM[species],
+      ) >= 0
+    )
       placed++;
   }
+}
+
+function nearApron(x: number, y: number, apron: TileRect): boolean {
+  return (
+    x >= apron.x0 - GATE_MARGIN &&
+    x <= apron.x1 + GATE_MARGIN &&
+    y >= apron.y0 - GATE_MARGIN &&
+    y <= apron.y1 + GATE_MARGIN
+  );
+}
+
+function isFreeGround(map: TileMap, i: number): boolean {
+  return (
+    map.ownership[i] !== 0 &&
+    map.waterLevel[i] === 0 &&
+    map.slope[i] === 0 &&
+    map.firstElement(i) < 0
+  );
 }

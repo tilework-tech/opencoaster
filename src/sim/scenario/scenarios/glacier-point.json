@@ -43,7 +43,7 @@
     "baseLevel": 9,
     "relief": 5,
     "cell": 10,
-    "surface": "rock",
+    "surface": "grass",
     "buildLevel": 10,
     "buildLength": 52,
     "buildWidth": 37,
@@ -63,7 +63,11 @@
         "radius": 12,
         "height": 6
       }
-    ]
+    ],
+    "highland": {
+      "surface": "rock",
+      "level": 11
+    }
   },
   "land": {
     "ownedMarginPercent": 22,
@@ -71,7 +75,8 @@
   },
   "trees": {
     "count": 200,
-    "groves": 9
+    "groves": 9,
+    "species": ["conifer", "birch"]
   },
   "objective": {
     "kind": "completeCoasters",

@@ -69,7 +69,11 @@
         "radius": 10,
         "height": 4
       }
-    ]
+    ],
+    "highland": {
+      "surface": "rock",
+      "level": 10
+    }
   },
   "land": {
     "ownedMarginPercent": 25,
@@ -77,7 +81,8 @@
   },
   "trees": {
     "count": 60,
-    "groves": 3
+    "groves": 3,
+    "species": ["cactus"]
   },
   "objective": {
     "kind": "guestsAndRating",

@@ -100,6 +100,14 @@ export interface ScenarioTerrain {
   buildWidth: number;
   lakes: ScenarioLake[];
   hills: ScenarioHill[];
+  /** Ground above `level` takes this surface instead of `surface`, for themed uplands. */
+  highland?: ScenarioHighland;
+}
+
+/** Surface for dry ground at or above an absolute height level (uplands, mesa tops). */
+export interface ScenarioHighland {
+  surface: TerrainSurface;
+  level: number;
 }
 
 /** Share of the map inset (percent per side) that is owned at the start, and how much of the rest is for sale. */
@@ -109,9 +117,23 @@ export interface ScenarioLand {
   saleMarginPercent: number;
 }
 
+export const TREE_SPECIES = [
+  'oak',
+  'conifer',
+  'birch',
+  'blossom',
+  'autumn',
+  'topiary',
+  'palm',
+  'cactus',
+] as const;
+export type TreeSpecies = (typeof TREE_SPECIES)[number];
+
 export interface ScenarioTrees {
   count: number;
   groves: number;
+  /** Species the trees may use. Defaults by ground: broadleaf and conifer on grass, cactus on sand. */
+  species?: TreeSpecies[];
 }
 
 /** A ride or stall already standing at the start, placed on the gate's park grid. */

@@ -13,6 +13,7 @@ import type { Mesh } from './mesh';
 import { FACILITY_MODELS } from './models/facilities';
 import { parkEntranceMesh } from './models/park-entrance';
 import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
+import { cactusTreeMesh, palmTreeMesh } from './models/trees';
 import { LOG_FLUME_MODEL } from './models/log-flume';
 import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
 import { rideMesh as transportRideMesh } from './models/ride-model';
@@ -142,6 +143,21 @@ function stationSprites(): SpriteDef[] {
   return out;
 }
 
+function treeSprites(): SpriteDef[] {
+  return [
+    {
+      key: 'trees/tree-palm',
+      frames: [renderMesh(physicalToLevels(palmTreeMesh()))],
+      footprint: ONE_TILE,
+    },
+    {
+      key: 'trees/tree-cactus',
+      frames: [renderMesh(physicalToLevels(cactusTreeMesh()))],
+      footprint: ONE_TILE,
+    },
+  ];
+}
+
 function parkEntranceSprites(): SpriteDef[] {
   return Array.from({ length: 4 }, (_, view) => ({
     key: `scenery/park-entrance/view-${view}`,
@@ -212,6 +228,7 @@ export function buildSprites(): SpriteDef[] {
     ...facilitySprites(),
     ...stationSprites(),
     ...parkEntranceSprites(),
+    ...treeSprites(),
     ...coasterSprites(),
     ...transportSprites(),
   ];

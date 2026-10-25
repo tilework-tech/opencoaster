@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../core/world';
 import { hashWorld } from '../core/hash';
 import { ElementType, OWNED, SALE_LAND, Surface } from '../map/tile-map';
+import { SceneryItem } from '../map/scenery';
 import { RideState } from '../rides/ride-store';
 import { buildApron, ownedBounds } from './scenario-map';
 import { parseScenarioFile } from './scenario-file';
@@ -108,6 +109,102 @@ describe('scenario terrain generation', () => {
       expect(w.park.entranceX).toBeLessThanOrEqual(apron.x1);
       expect(w.park.entranceY).toBeGreaterThanOrEqual(apron.y0);
       expect(w.park.entranceY).toBeLessThanOrEqual(apron.y1);
+    }
+  });
+});
+
+describe('scenario ground and trees', () => {
+  const trees = (m: World['map']): Array<{ x: number; y: number; item: number }> => {
+    const found: Array<{ x: number; y: number; item: number }> = [];
+    for (let y = 0; y < m.height; y++) {
+      for (let x = 0; x < m.width; x++) {
+        const i = m.index(x, y);
+        for (let e = m.firstElement(i); e >= 0; e = m.nextElement(e)) {
+          if (m.elType[e] === ElementType.SmallScenery) found.push({ x, y, item: m.elData[e] });
+        }
+      }
+    }
+    return found;
+  };
+
+  const steep = (m: World['map'], x: number, y: number): boolean => {
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        if (!m.inBounds(x + dx, y + dy)) continue;
+        if (Math.abs(m.heights[m.index(x + dx, y + dy)] - m.heights[m.index(x, y)]) >= 3)
+          return true;
+      }
+    }
+    return false;
+  };
+
+  it('keeps grass-themed ground grass, with rock only on steep faces', () => {
+    const def = recipe({
+      trees: undefined,
+      terrain: { ...recipe().terrain!, relief: 12, cell: 5 },
+    });
+    for (const seed of [1, 2, 3]) {
+      const m = world(def, seed).map;
+      let rock = 0;
+      for (let y = 0; y < m.height; y++) {
+        for (let x = 0; x < m.width; x++) {
+          const surface = m.terrain[m.index(x, y)];
+          expect([Surface.Grass, Surface.Rock]).toContain(surface);
+          if (surface === Surface.Rock) {
+            rock++;
+            expect(steep(m, x, y)).toBe(true);
+          }
+        }
+      }
+      expect(rock).toBeGreaterThan(0);
+    }
+  });
+
+  it('paints ground at or above the highland level with the highland surface', () => {
+    const def = recipe({
+      terrain: { ...recipe().terrain!, highland: { surface: 'dirt', level: 7 } },
+    });
+    const m = world(def).map;
+    let upland = 0;
+    for (let i = 0; i < m.width * m.height; i++) {
+      if (m.heights[i] >= 7) {
+        upland++;
+        expect(m.terrain[i]).toBe(Surface.Dirt);
+      } else if (m.terrain[i] !== Surface.Rock) {
+        expect(m.terrain[i]).toBe(Surface.Grass);
+      }
+    }
+    expect(upland).toBeGreaterThan(0);
+  });
+
+  it('places only the listed species, on sand, and never on rock or water', () => {
+    const def = recipe({
+      terrain: { ...recipe().terrain!, surface: 'sand' },
+      trees: { count: 60, groves: 4, species: ['palm'] },
+    });
+    const m = world(def).map;
+    const placed = trees(m);
+    expect(placed.length).toBe(60);
+    for (const t of placed) {
+      expect(t.item).toBe(SceneryItem.PalmTree);
+      const i = m.index(t.x, t.y);
+      expect(m.terrain[i]).toBe(Surface.Sand);
+      expect(m.waterLevel[i]).toBe(0);
+    }
+  });
+
+  it('places the configured count in mixed species on grass, clear of the gate margin', () => {
+    const def = recipe({ trees: { count: 90, groves: 6 } });
+    const m = world(def).map;
+    const apron = buildApron(80, 80, 'south', def.terrain!);
+    const placed = trees(m);
+    expect(placed.length).toBe(90);
+    expect(new Set(placed.map((t) => t.item)).size).toBeGreaterThanOrEqual(3);
+    for (const t of placed) {
+      expect(m.terrain[m.index(t.x, t.y)]).toBe(Surface.Grass);
+      const nearGate =
+        t.x >= apron.x0 - 2 && t.x <= apron.x1 + 2 && t.y >= apron.y0 - 2 && t.y <= apron.y1 + 2;
+      expect(nearGate).toBe(false);
     }
   });
 });

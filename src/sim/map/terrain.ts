@@ -44,7 +44,7 @@ export function generateTerrain(map: TileMap, rng: Prng): void {
     for (let x = 0; x < map.width; x++) {
       const i = map.index(x, y);
       const h = map.heights[i];
-      map.terrain[i] = h <= SEA_LEVEL ? Surface.Sand : Surface.Grass;
+      map.terrain[i] = Surface.Grass;
       map.waterLevel[i] = h < SEA_LEVEL ? SEA_LEVEL : 0;
       const border =
         x < MAP_BORDER ||
