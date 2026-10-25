@@ -144,6 +144,7 @@ describe('land tool planning', () => {
 describe('land tool and structures', () => {
   it('refuses to change land under a flat ride and under tiles it would tilt', () => {
     const s = flatOwnedSim();
+    s.world.research.unlocked.add(RideType.FerrisWheel);
     s.enqueue({ type: 'createRide', rideType: RideType.FerrisWheel, x: 10, y: 10 });
     s.step();
     const under = edit(s, { action: LandAction.Raise, x: 10, y: 10, width: 1, height: 1 });
