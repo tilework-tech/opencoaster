@@ -240,4 +240,3 @@ export function carMesh(style: CoasterStyle, heading: number, pitch: CarPitch): 
   });
   return toLevels(rotateZ(pitched, (heading / CAR_HEADINGS) * Math.PI * 2));
 }
-

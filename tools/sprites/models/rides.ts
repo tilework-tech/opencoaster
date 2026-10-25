@@ -5,8 +5,10 @@ import {
   material,
   orientedBox,
   physicalToLevels,
+  polygon,
   quad,
   rotateY,
+  mapMesh,
   rotateZ,
   translateMesh,
 } from '../mesh';
@@ -276,6 +278,266 @@ function stall(
   return mesh;
 }
 
+function hauntedHouse(frame: number): Mesh {
+  const mesh: Mesh = [];
+  const wall = mat('purple');
+  const roof = mat('steel');
+  mesh.push(...box([-0.36, -0.3, 0], [0.2, 0.3, 0.5], wall));
+  mesh.push(...box([0.2, -0.3, 0], [0.38, 0.0, 0.8], wall));
+  mesh.push(...stripedCone(0.8, 1.05, 0.2, 0.02, 8, roof, mat('glass')));
+  const ridgeZ = 0.78;
+  mesh.push(
+    ...quad(
+      [
+        [-0.4, -0.34, 0.5],
+        [0.22, -0.34, 0.5],
+        [0.22, 0, ridgeZ],
+        [-0.4, 0, ridgeZ],
+      ],
+      roof,
+    ),
+    ...quad(
+      [
+        [-0.4, 0.34, 0.5],
+        [0.22, 0.34, 0.5],
+        [0.22, 0, ridgeZ],
+        [-0.4, 0, ridgeZ],
+      ],
+      roof,
+    ),
+    ...polygon(
+      [
+        [0.22, -0.34, 0.5],
+        [0.22, 0.34, 0.5],
+        [0.22, 0, ridgeZ],
+      ],
+      wall,
+    ),
+  );
+  mesh.push(...box([-0.1, 0.3, 0], [0.06, 0.32, 0.26], WOOD));
+  const lit = [YELLOW, mat('glass')];
+  for (let i = 0; i < 3; i++) {
+    const glow = lit[(i + frame) % 2 === 0 ? 0 : 1];
+    mesh.push(...box([-0.3 + i * 0.16, 0.3, 0.3], [-0.22 + i * 0.16, 0.315, 0.42], glow));
+  }
+  mesh.push(...box([0.3, 0.0, 0.5], [0.32, 0.03, 0.62], (frame + 1) % 2 === 0 ? YELLOW : GLASS));
+  mesh.push(...box([0.29, -0.15, 0.4], [0.385, -0.12, 0.55], frame % 3 === 0 ? YELLOW : GLASS));
+  return mesh;
+}
+
+function spiralSlide(frame: number): Mesh {
+  const mesh: Mesh = [];
+  mesh.push(...cylinder(0, 0, 0, 0.05, 0.44, 0.44, 12, mat('grass'), { capBottom: true }));
+  mesh.push(...cylinder(0, 0, 0.05, 0.9, 0.12, 0.12, 10, WHITE));
+  mesh.push(...stripedCone(0.9, 1.05, 0.17, 0.02, 8, RED, WHITE));
+  const turns = 2;
+  const steps = 32;
+  const point = (t: number, radius: number): Vec3 => {
+    const a = t * turns * Math.PI * 2 + 0.6;
+    return [Math.cos(a) * radius, Math.sin(a) * radius, 0.85 - t * 0.78];
+  };
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps;
+    const t1 = (i + 1) / steps;
+    mesh.push(...beam(point(t0, 0.27), point(t1, 0.27), 0.12, i % 2 === 0 ? YELLOW : ORANGE, 0.03));
+    mesh.push(...beam(point(t0, 0.33), point(t1, 0.33), 0.02, WHITE, 0.07));
+    mesh.push(...beam(point(t0, 0.21), point(t1, 0.21), 0.02, WHITE, 0.07));
+  }
+  for (let r = 0; r < 2; r++) {
+    const t = (((frame + r * 2) % 4) + 0.5) / 4;
+    const p = point(t, 0.27);
+    mesh.push(
+      ...box(
+        [p[0] - 0.03, p[1] - 0.03, p[2] + 0.02],
+        [p[0] + 0.03, p[1] + 0.03, p[2] + 0.09],
+        r === 0 ? BLUE : PINK,
+      ),
+    );
+  }
+  return mesh;
+}
+
+function topSpin(frame: number): Mesh {
+  const mesh: Mesh = [];
+  const axleZ = 0.55;
+  mesh.push(...box([-0.4, -0.3, 0], [0.4, 0.3, 0.04], STONE));
+  for (const y of [-0.22, 0.22]) {
+    mesh.push(...beam([-0.2, y, 0.04], [0, y, axleZ], 0.06, RED));
+    mesh.push(...beam([0.2, y, 0.04], [0, y, axleZ], 0.06, RED));
+  }
+  mesh.push(...beam([0, -0.26, axleZ], [0, 0.26, axleZ], 0.05, STEEL));
+  const angle = (frame * Math.PI) / 4;
+  const arm: Mesh = [
+    ...beam([-0.32, 0, axleZ], [0.32, 0, axleZ], 0.05, STEEL),
+    ...box([-0.4, -0.2, axleZ - 0.07], [-0.24, 0.2, axleZ + 0.07], YELLOW),
+    ...box([0.24, -0.2, axleZ - 0.07], [0.4, 0.2, axleZ + 0.07], YELLOW),
+    ...box([-0.4, -0.2, axleZ - 0.07], [-0.37, 0.2, axleZ + 0.1], BLUE),
+    ...box([0.37, -0.2, axleZ - 0.07], [0.4, 0.2, axleZ + 0.1], BLUE),
+  ];
+  mesh.push(...rotateY(arm, angle, 0, axleZ));
+  return mesh;
+}
+
+function enterprise(frame: number): Mesh {
+  const mesh: Mesh = [];
+  mesh.push(...cylinder(0, 0, 0, 0.05, 0.46, 0.46, 12, STONE, { capBottom: true }));
+  mesh.push(...box([-0.08, -0.08, 0.05], [0.08, 0.08, 0.3], PURPLE));
+  const hub: Vec3 = [0, 0, 0.42];
+  const radius = 0.36;
+  const tilt = (50 * Math.PI) / 180;
+  const wheel: Mesh = [];
+  const spin = (frame * Math.PI) / 16;
+  const rim = (a: number): Vec3 => [Math.cos(a) * radius, 0, Math.sin(a) * radius];
+  for (let i = 0; i < 16; i++) {
+    const a0 = spin + (i / 16) * Math.PI * 2;
+    const a1 = spin + ((i + 1) / 16) * Math.PI * 2;
+    wheel.push(...beam(rim(a0), rim(a1), 0.03, WHITE));
+    if (i % 2 === 0) {
+      const p = rim(a0);
+      wheel.push(...beam([0, 0, 0], p, 0.02, STEEL));
+      wheel.push(
+        ...box(
+          [p[0] - 0.05, -0.05, p[2] - 0.05],
+          [p[0] + 0.05, 0.05, p[2] + 0.05],
+          i % 4 === 0 ? RED : BLUE,
+        ),
+      );
+    }
+  }
+  const tilted = mapMesh(wheel, (p) => {
+    const c = Math.cos(tilt);
+    const s = Math.sin(tilt);
+    return [p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c];
+  });
+  mesh.push(...translateMesh(tilted, hub[0], hub[1], hub[2]));
+  mesh.push(...beam([0, 0, 0.3], hub, 0.04, STEEL));
+  return mesh;
+}
+
+function goKarts(frame: number): Mesh {
+  const mesh: Mesh = [];
+  const ring = (rx: number, ry: number, a: number): [number, number] => [
+    Math.cos(a) * rx,
+    Math.sin(a) * ry,
+  ];
+  mesh.push(...cylinder(0, 0, 0, 0.02, 0.48, 0.48, 16, mat('grass'), { capBottom: true }));
+  const segments = 24;
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * Math.PI * 2;
+    const a1 = ((i + 1) / segments) * Math.PI * 2;
+    const o0 = ring(0.44, 0.34, a0);
+    const o1 = ring(0.44, 0.34, a1);
+    const i0 = ring(0.26, 0.16, a0);
+    const i1 = ring(0.26, 0.16, a1);
+    mesh.push(
+      ...quad(
+        [
+          [o0[0], o0[1], 0.025],
+          [o1[0], o1[1], 0.025],
+          [i1[0], i1[1], 0.025],
+          [i0[0], i0[1], 0.025],
+        ],
+        mat('asphalt'),
+      ),
+    );
+    const k = i % 2 === 0 ? RED : WHITE;
+    mesh.push(...beam([o0[0], o0[1], 0.04], [o1[0], o1[1], 0.04], 0.025, k));
+    mesh.push(...beam([i0[0], i0[1], 0.04], [i1[0], i1[1], 0.04], 0.025, k));
+  }
+  const colors = [RED, BLUE, YELLOW];
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3 + frame / 12) * Math.PI * 2;
+    const p = ring(0.35, 0.25, a);
+    const dx = -Math.sin(a) * 0.35;
+    const dy = Math.cos(a) * 0.25;
+    const heading = Math.atan2(dy, dx);
+    mesh.push(...orientedBox(p[0], p[1], 0.025, 0.1, 0.06, 0.04, heading, colors[k]));
+    mesh.push(...orientedBox(p[0], p[1], 0.065, 0.03, 0.04, 0.04, heading, WHITE));
+  }
+  return mesh;
+}
+
+function logFlume(frame: number): Mesh {
+  const mesh: Mesh = [];
+  mesh.push(...box([-0.46, -0.46, 0], [0.46, 0.46, 0.03], mat('grass')));
+  const path: Array<[number, number, number]> = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = i / 16;
+    path.push([
+      -0.38 + t * 0.76,
+      Math.sin(t * Math.PI * 2) * 0.22,
+      0.04 + Math.max(0, 0.3 * (1 - Math.abs(t * 2 - 0.6) / 0.6)) * (t < 0.6 ? 1 : 0),
+    ]);
+  }
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i];
+    const b = path[i + 1];
+    mesh.push(...beam([a[0], a[1], a[2]], [b[0], b[1], b[2]], 0.2, mat('blue'), 0.04));
+    mesh.push(
+      ...beam([a[0], a[1] - 0.1, a[2] + 0.04], [b[0], b[1] - 0.1, b[2] + 0.04], 0.03, WOOD, 0.06),
+    );
+    mesh.push(
+      ...beam([a[0], a[1] + 0.1, a[2] + 0.04], [b[0], b[1] + 0.1, b[2] + 0.04], 0.03, WOOD, 0.06),
+    );
+    if (a[2] > 0.06) mesh.push(...beam([a[0], a[1], 0], [a[0], a[1], a[2]], 0.03, WOOD));
+  }
+  for (let k = 0; k < 2; k++) {
+    const idx = Math.min(15, Math.floor(((frame + k * 2) % 4) * 4 + k * 2));
+    const p = path[idx];
+    mesh.push(
+      ...box(
+        [p[0] - 0.07, p[1] - 0.045, p[2] + 0.04],
+        [p[0] + 0.07, p[1] + 0.045, p[2] + 0.1],
+        k === 0 ? mat('timber') : ORANGE,
+      ),
+    );
+  }
+  return mesh;
+}
+
+function riverRapids(frame: number): Mesh {
+  const mesh: Mesh = [];
+  mesh.push(...cylinder(0, 0, 0, 0.04, 0.47, 0.47, 16, mat('stone'), { capBottom: true }));
+  mesh.push(...cylinder(0, 0, 0.04, 0.05, 0.4, 0.4, 16, mat('blue')));
+  mesh.push(...cylinder(0, 0, 0.04, 0.1, 0.17, 0.2, 10, mat('stone')));
+  mesh.push(...cylinder(0, 0, 0.04, 0.06, 0.18, 0.18, 12, mat('grass')));
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3 + frame / 12) * Math.PI * 2;
+    const x = Math.cos(a) * 0.3;
+    const y = Math.sin(a) * 0.3;
+    mesh.push(
+      ...cylinder(x, y, 0.05, 0.12, 0.08, 0.08, 8, k === 1 ? YELLOW : ORANGE, { capBottom: true }),
+    );
+    mesh.push(...cylinder(x, y, 0.12, 0.125, 0.05, 0.05, 8, WHITE));
+  }
+  return mesh;
+}
+
+function observationTower(frame: number): Mesh {
+  const mesh: Mesh = [];
+  mesh.push(...cylinder(0, 0, 0, 0.05, 0.4, 0.4, 12, STONE, { capBottom: true }));
+  for (let i = 0; i < 6; i++)
+    mesh.push(
+      ...cylinder(
+        0,
+        0,
+        0.05 + i * 0.22,
+        0.05 + (i + 1) * 0.22,
+        0.1,
+        0.09,
+        8,
+        i % 2 === 0 ? WHITE : RED,
+      ),
+    );
+  mesh.push(...cylinder(0, 0, 1.37, 1.45, 0.17, 0.12, 10, WHITE));
+  mesh.push(...stripedCone(1.45, 1.62, 0.12, 0.01, 8, BLUE, WHITE));
+  const z = 0.2 + [0, 0.25, 0.5, 0.25][frame % 4];
+  mesh.push(...cylinder(0, 0, z, z + 0.01, 0.2, 0.2, 12, STEEL, { capBottom: true }));
+  mesh.push(...cylinder(0, 0, z + 0.01, z + 0.1, 0.2, 0.2, 12, GLASS));
+  mesh.push(...cylinder(0, 0, z + 0.1, z + 0.13, 0.21, 0.21, 12, YELLOW));
+  return mesh;
+}
+
 const FOOD: StallStyle = {
   walls: mat('timber'),
   awning: [RED, WHITE],
@@ -289,6 +551,12 @@ const DRINK: StallStyle = {
   sign: PURPLE,
 };
 const INFO: StallStyle = { walls: WHITE, awning: [GREEN, WHITE], roof: GREEN, sign: BLUE };
+const BURGER: StallStyle = {
+  walls: mat('timber'),
+  awning: [ORANGE, YELLOW],
+  roof: mat('wood'),
+  sign: RED,
+};
 const TOILETS: StallStyle = {
   walls: mat('stone'),
   awning: [GLASS, GLASS],
@@ -304,6 +572,15 @@ export const RIDE_MODELS: readonly RideModel[] = [
   { key: 'rides/food-stall', frames: 4, build: (f) => stall(FOOD, f, 'food') },
   { key: 'rides/drink-stall', frames: 4, build: (f) => stall(DRINK, f, 'drink') },
   { key: 'rides/information-kiosk', frames: 4, build: (f) => stall(INFO, f, 'info') },
+  { key: 'rides/haunted-house', frames: 4, build: hauntedHouse },
+  { key: 'rides/spiral-slide', frames: 4, build: spiralSlide },
+  { key: 'rides/top-spin', frames: 8, build: topSpin },
+  { key: 'rides/enterprise', frames: 4, build: enterprise },
+  { key: 'rides/go-karts', frames: 4, build: goKarts },
+  { key: 'rides/log-flume', frames: 4, build: logFlume },
+  { key: 'rides/river-rapids', frames: 4, build: riverRapids },
+  { key: 'rides/observation-tower', frames: 4, build: observationTower },
+  { key: 'rides/burger-stall', frames: 4, build: (f) => stall(BURGER, f, 'food') },
   { key: 'rides/toilets', frames: 4, build: (f) => stall(TOILETS, f, 'toilets') },
 ];
 
