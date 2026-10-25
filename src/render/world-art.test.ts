@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ambientTreeName } from './world-art';
+import { ambientTreeName, pathElementSprite } from './world-art';
+import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import {
   TERRAIN_SLOPE_NAMES,
   atlasFrameOrFallback,
@@ -130,5 +131,25 @@ describe('world art sprite selection', () => {
     expect(spriteAnchorWorldOffset(48, 48, 72)).toBe(144);
     expect(spriteAnchorWorldOffset(48, 24, 72)).toBe(0);
     expect(spriteAnchorWorldOffset(48, 0, 72)).toBe(-144);
+  });
+});
+
+describe('footpath element sprites', () => {
+  it('names the surface connection for a flat piece at the unrotated camera', () => {
+    expect(pathElementSprite(0b0101, 0, 0)).toBe('paths/tarmac/connection-05');
+  });
+
+  it('uses the queue art for queue pieces regardless of surface', () => {
+    expect(pathElementSprite(PathFlag.Queue | 0b0001, 2, 0)).toBe('paths/queue/connection-01');
+  });
+
+  it('names the ramp for a sloped piece by its slope direction', () => {
+    expect(pathElementSprite(PathFlag.Sloped | (2 << SLOPE_DIR_SHIFT), 2, 0)).toBe(
+      'paths/dirt/ramp-2',
+    );
+  });
+
+  it('turns the connections with the camera rotation', () => {
+    expect(pathElementSprite(0b0001, 0, 1)).toBe('paths/tarmac/connection-02');
   });
 });

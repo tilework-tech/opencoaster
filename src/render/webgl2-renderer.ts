@@ -2,7 +2,7 @@ import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
-import { PathFlag, SLOPE_DIR_SHIFT, Surface } from '../sim/map/tile-map';
+import { PathFlag, Surface } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -17,7 +17,7 @@ import {
   viewTerrainCornerHeights,
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
-import type { Camera, MapData, Renderer } from './renderer';
+import type { Camera, MapData, PathPieceGhost, Renderer } from './renderer';
 import {
   AMBIENT_TREE_BOX,
   FLOWER_BED_BOX,
@@ -36,8 +36,8 @@ import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
 import type { Rotation } from './projection';
 import {
+  pathElementSprite,
   pathSpriteName,
-  type PathSurface,
   rideSpriteFrame,
   rideSpriteKey,
   facilityFacingFromPaths,
@@ -63,7 +63,12 @@ const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 5;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
-const INSTANCE_FLOATS = 18;
+const INSTANCE_FLOATS = 19;
+/** Instance float holding the atlas page slot, then the ghost mode (0 none, 1 accepted, 2 refused). */
+const SLOT_FLOAT = 17;
+const GHOST_FLOAT = 18;
+/** Opacity of footpath placement previews drawn in the world. */
+const GHOST_ALPHA = 0.55;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
 const TEXTURE_SLOTS = 8;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
@@ -140,6 +145,7 @@ layout(location=6) in float aGridlines;
 layout(location=7) in float aTerrainShade;
 layout(location=8) in float aSlot;
 layout(location=9) in float aAnchorShift;
+layout(location=10) in float aGhost;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -152,6 +158,7 @@ out float vGridlines;
 out float vTerrainShade;
 out float vWaterDepth;
 flat out float vSlot;
+flat out float vGhost;
 void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
   bool faceMesh = aMeshMode > 3.5;
@@ -209,6 +216,7 @@ void main() {
   vTerrainShade = aTerrainShade;
   vWaterDepth = aWorld.z - cornerHeight;
   vSlot = aSlot;
+  vGhost = aGhost;
 }`;
 
 const fragmentSource = `#version 300 es
@@ -220,6 +228,7 @@ in float vGridlines;
 in float vTerrainShade;
 in float vWaterDepth;
 flat in float vSlot;
+flat in float vGhost;
 ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uAtlas${slot};`).join('\n')}
 out vec4 outColor;
 vec4 sampleAtlas(vec2 uv) {
@@ -242,6 +251,10 @@ void main() {
     outColor.a = 0.88;
   }
   if (vMeshMode > 0.5 && vMeshMode < 1.5) outColor.rgb *= vTerrainShade;
+  if (vGhost > 0.5) {
+    outColor.a *= ${glslFloat(GHOST_ALPHA)};
+    if (vGhost > 1.5) outColor.rgb = mix(outColor.rgb, vec3(0.9, 0.16, 0.14), 0.6);
+  }
   if (vGridlines > 0.5 && vMeshMode > 0.5 && vMeshMode < 1.5) {
     vec2 edge = min(vTileUv, 1.0 - vTileUv);
     float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * 1.2;
@@ -349,6 +362,8 @@ export class WebGL2Renderer implements Renderer {
   private groundArtReady = false;
   private tileLists: TileLists | null = null;
   private count = 0;
+  private ghosts: readonly PathPieceGhost[] = [];
+  private ghostMode = 0;
   private visibleCount = 0;
   private gridlinesActive = false;
   private dpr = 1;
@@ -389,6 +404,10 @@ export class WebGL2Renderer implements Renderer {
     this.map = map;
   }
 
+  setGhosts(ghosts: readonly PathPieceGhost[]): void {
+    this.ghosts = ghosts;
+  }
+
   draw(snapshot: Snapshot | null, camera: Camera): void {
     const gl = this.gl;
     const canvas = this.canvas;
@@ -411,6 +430,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
       this.appendGrounds(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendPathElements(map, camera, viewportWidth, viewportHeight);
+      this.appendPathGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
@@ -606,6 +626,7 @@ export class WebGL2Renderer implements Renderer {
       [7, 1, 15],
       [8, 1, 17],
       [9, 1, 16],
+      [10, 1, GHOST_FLOAT],
     ] as const;
     for (const [location, size, floatOffset] of layout) {
       gl.enableVertexAttribArray(location);
@@ -1365,6 +1386,46 @@ export class WebGL2Renderer implements Renderer {
       );
   }
 
+  private appendPathGhosts(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    for (const ghost of this.ghosts) {
+      const z = ghost.level * Z_STEP;
+      const worldX = ghost.x * TILE_UNITS + 128;
+      const worldY = ghost.y * TILE_UNITS + 128;
+      const depth =
+        2 * rotatedPositionSum(ghost.x * TILE_UNITS, ghost.y * TILE_UNITS, map, camera.rotation) -
+        ghost.level;
+      project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          40,
+          26,
+        )
+      )
+        continue;
+      this.ghostMode = ghost.tone === 'refused' ? 2 : 1;
+      this.append(
+        worldX,
+        worldY,
+        z,
+        40,
+        26,
+        pathElementSprite(ghost.flags, ghost.surface, camera.rotation),
+        depth + 1,
+      );
+      this.ghostMode = 0;
+    }
+  }
+
   private appendPathElements(
     map: MapData,
     camera: Camera,
@@ -1380,18 +1441,8 @@ export class WebGL2Renderer implements Renderer {
       const y = paths[o + 1];
       const z = paths[o + 2] * Z_STEP;
       const flags = paths[o + 3];
-      const slope = (flags & PathFlag.Sloped) !== 0;
-      const direction = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
       const isQueue = (flags & PathFlag.Queue) !== 0;
-      const edges = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
-      const sprite = pathSpriteName(
-        isQueue
-          ? 'queue'
-          : ((['tarmac', 'crazy-paving', 'dirt'][paths[o + 5]] ?? 'tarmac') as PathSurface),
-        edges,
-        slope ? direction : undefined,
-        camera.rotation,
-      );
+      const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
       const depth =
         2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) - z / Z_STEP;
       const worldX = x * TILE_UNITS + 128;
@@ -1911,6 +1962,7 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 : 0;
     this.instanceData[offset + 15] = terrainShade;
     this.instanceData[offset + 16] = anchorShift;
+    this.instanceData[offset + GHOST_FLOAT] = this.ghostMode;
     this.depths[this.count] = Math.round(depth * 2);
     this.pageIds[this.count] = page;
     this.count++;
@@ -1941,7 +1993,7 @@ export class WebGL2Renderer implements Renderer {
       const source = this.order[i];
       const from = source * INSTANCE_FLOATS;
       const to = i * INSTANCE_FLOATS;
-      for (let j = 0; j < INSTANCE_FLOATS - 1; j++)
+      for (let j = 0; j < INSTANCE_FLOATS; j++)
         this.orderedData[to + j] = this.instanceData[from + j];
       this.orderedPages[i] = this.pageIds[source];
     }
@@ -1949,7 +2001,7 @@ export class WebGL2Renderer implements Renderer {
     this.runs.length = 0;
     this.runs.push(...batches.runs);
     for (let i = 0; i < this.count; i++)
-      this.orderedData[i * INSTANCE_FLOATS + INSTANCE_FLOATS - 1] = batches.slots[i];
+      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = batches.slots[i];
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     if (this.depths.length > this.bufferCapacity) {
       gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);

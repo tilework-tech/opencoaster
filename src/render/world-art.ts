@@ -2,7 +2,7 @@ import { Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RidePhase } from '../sim/rides/ride-store';
-import { PathFlag } from '../sim/map/tile-map';
+import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
 import { Z_PIXELS } from './projection';
 
@@ -155,6 +155,17 @@ export function pathSpriteName(
   const mask = edges & 0x0f;
   const viewMask = ((mask << turns) | (mask >> (4 - turns))) & 0x0f;
   return `paths/${surface}/connection-${viewMask.toString(16).padStart(2, '0')}`;
+}
+
+const PATH_SURFACES: readonly PathSurface[] = ['tarmac', 'crazy-paving', 'dirt'];
+
+/** Atlas sprite for a footpath element at the camera rotation, from its PathFlag bits and surface index. */
+export function pathElementSprite(flags: number, surface: number, rotation: number): string {
+  const sloped = (flags & PathFlag.Sloped) !== 0;
+  const direction = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
+  const edges = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
+  const style = flags & PathFlag.Queue ? 'queue' : (PATH_SURFACES[surface] ?? 'tarmac');
+  return pathSpriteName(style, edges, sloped ? direction : undefined, rotation);
 }
 
 /** Palette-cycle frames of the water texture. */

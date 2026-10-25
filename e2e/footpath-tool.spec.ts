@@ -124,7 +124,6 @@ test.describe('footpath tool (desktop)', () => {
     await hoverGameTile(page, world, tile!);
     const [piece] = await ghostPieces(page);
     expect(piece).toMatchObject({ tone: 'ok', style: 2, queue: true });
-    await expect(page.locator('.path-ghost-rail')).toHaveCount(2);
 
     // The surface and queue choices are shared by both tabs, so the piece tab shows them too.
     await page.getByRole('tab', { name: 'Piece by piece' }).click();

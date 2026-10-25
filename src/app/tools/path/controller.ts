@@ -1,4 +1,4 @@
-import type { Camera } from '../../../render/renderer';
+import type { Camera, Renderer } from '../../../render/renderer';
 import type { MapMessage } from '../../../worker/protocol';
 import type { SimClient } from '../../../worker/sim-client';
 import type { PathPiecePreview } from '../../../sim/map/map-commands';
@@ -9,7 +9,7 @@ import type { PathStyle } from '../../../sim/map/tile-map';
 import { formatMoney } from '../../../ui/format';
 import type { FootpathControls } from '../../../ui/ui-types';
 import { pathRefusalText } from '../path-feedback';
-import { PathGhost } from './ghost';
+import { PathGhost, pathPieceGhosts } from './ghost';
 import type { GhostItem } from './ghost';
 import { pathRunTiles, pieceSlope, stepCursor } from './run';
 import type { PieceSlope, Tile } from './run';
@@ -20,6 +20,8 @@ export interface PathToolDeps {
   sim: SimClient;
   state: PathToolState;
   camera: Camera;
+  /** Draws the accepted and refused pieces in the world, at their depth. */
+  renderer: Renderer;
   canvas: HTMLCanvasElement;
   /** Element the preview overlay is added to; it must cover the viewport. */
   overlay: HTMLElement;
@@ -57,6 +59,12 @@ export class PathTool implements FootpathControls {
 
   constructor(private readonly deps: PathToolDeps) {
     this.ghost = new PathGhost(deps.overlay);
+  }
+
+  /** Hides the outline and clears the piece art drawn in the world. */
+  private hidePreview(): void {
+    this.ghost.hide();
+    this.deps.renderer.setGhosts([]);
   }
 
   get state(): Readonly<PathToolState> {
@@ -108,7 +116,7 @@ export class PathTool implements FootpathControls {
   leave(): void {
     this.dragCancel();
     this.hovered = null;
-    this.ghost.hide();
+    this.hidePreview();
   }
 
   /** Remembers where the pointer is so the ghost label can follow it. */
@@ -131,7 +139,7 @@ export class PathTool implements FootpathControls {
   hoverEnd(): void {
     if (this.hovered === null) return;
     this.hovered = null;
-    if (!this.anchor) this.ghost.hide();
+    if (!this.anchor) this.hidePreview();
   }
 
   /** A drag in line mode starts on `tile`. Returns false in piece mode, where a drag pans instead. */
@@ -168,7 +176,7 @@ export class PathTool implements FootpathControls {
     this.anchor = null;
     this.run = [];
     this.previewSeq++;
-    if (this.hovered === null) this.ghost.hide();
+    if (this.hovered === null) this.hidePreview();
   }
 
   /** A single tap in line mode lays one piece, judged and reported the same way as a run. */
@@ -228,13 +236,14 @@ export class PathTool implements FootpathControls {
     const { state } = this.deps;
     const cursor = state.cursor;
     if (state.mode !== 'piece' || !cursor) {
-      if (this.anchor === null && this.hovered === null) this.ghost.hide();
+      if (this.anchor === null && this.hovered === null) this.hidePreview();
       return;
     }
     this.show([cursor], pieceSlope(state.dir, state.slope));
   }
 
   dispose(): void {
+    this.deps.renderer.setGhosts([]);
     this.ghost.dispose();
   }
 
@@ -275,6 +284,8 @@ export class PathTool implements FootpathControls {
     });
     const rect = this.deps.canvas.getBoundingClientRect();
     this.ghost.show(items, map, this.deps.camera, rect, this.pointer, this.labelFor(items));
+    const { style, queue } = this.deps.state;
+    this.deps.renderer.setGhosts(pathPieceGhosts(items, map, style, queue));
   }
 
   /** The label at the cursor: the reason the last tile is refused, or the cost of the buildable ones. */
@@ -298,7 +309,7 @@ export class PathTool implements FootpathControls {
   private async lay(tiles: Tile[], slope: number): Promise<void> {
     this.previewSeq++;
     const unpaved = tiles.filter((tile) => !this.isPaved(tile));
-    this.ghost.hide();
+    this.hidePreview();
     if (unpaved.length === 0) {
       this.deps.setStatus(
         tiles.length === 1

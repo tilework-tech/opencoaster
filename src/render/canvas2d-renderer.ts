@@ -1,4 +1,4 @@
-import type { Camera, MapData, Renderer } from './renderer';
+import type { Camera, MapData, PathPieceGhost, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, viewSize } from './projection';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
@@ -8,14 +8,19 @@ import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
-import { drawAnchoredSprite, drawBoxedSprite, drawTileTexture } from './canvas-atlas';
+import {
+  drawAnchoredSprite,
+  drawBoxedSprite,
+  drawGhostSprite,
+  drawTileTexture,
+} from './canvas-atlas';
 import { spritePages } from './sprite-pages';
 import type { PageImage, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
 import type { CanvasAtlas } from './canvas-atlas';
 import {
   WATER_BANK,
-  pathSpriteName,
+  pathElementSprite,
   scenerySpriteName,
   rideSpriteFrame,
   rideSpriteKey,
@@ -37,7 +42,6 @@ import {
   SCENERY_PIXELS_PER_HEIGHT,
   STAFF_BOX,
 } from './sprite-layout';
-import type { PathSurface } from './world-art';
 import {
   clipTerrainTileTrianglesBelowHeight,
   terrainEdgeFace,
@@ -94,6 +98,8 @@ export class Canvas2DRenderer implements Renderer {
   private sceneryOffsets = new Int32Array(0);
   private sceneryIndices = new Int32Array(0);
   private visibleCount = 0;
+  private ghosts: readonly PathPieceGhost[] = [];
+  private ghostsByTile: Map<number, PathPieceGhost[]> | null = null;
   private atlas: CanvasAtlas | null = null;
   private readonly coasterScene = new CoasterScene();
   private tick = 0;
@@ -123,6 +129,7 @@ export class Canvas2DRenderer implements Renderer {
 
   setMap(map: MapData): void {
     this.map = map;
+    this.ghostsByTile = null;
     const paths = map.pathElements;
     const count = Math.min(map.pathCount ?? 0, paths?.length ? paths.length / 6 : 0);
     this.pathOffsets = new Int32Array(map.width * map.height + 1);
@@ -158,6 +165,11 @@ export class Canvas2DRenderer implements Renderer {
         if (tile >= 0 && tile < map.width * map.height) this.sceneryIndices[cursor[tile]++] = i;
       }
     }
+  }
+
+  setGhosts(ghosts: readonly PathPieceGhost[]): void {
+    this.ghosts = ghosts;
+    this.ghostsByTile = null;
   }
 
   draw(snapshot: Snapshot | null, cam: Camera): void {
@@ -588,18 +600,13 @@ export class Canvas2DRenderer implements Renderer {
         this.tmp,
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 22)) continue;
-      const edges = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
-      const surface: PathSurface =
-        flags & PathFlag.Queue
-          ? 'queue'
-          : ((['tarmac', 'crazy-paving', 'dirt'][paths[o + 5]] ?? 'tarmac') as PathSurface);
       project(centerX, centerY, z, map.width, map.height, cam.rotation, this.pathLow);
       if (
         this.atlas &&
         drawAnchoredSprite(
           ctx,
           this.atlas,
-          pathSpriteName(surface, edges, sloped ? direction : undefined, cam.rotation),
+          pathElementSprite(flags, paths[o + 5]!, cam.rotation),
           this.pathLow[0],
           this.pathLow[1],
         )
@@ -659,7 +666,48 @@ export class Canvas2DRenderer implements Renderer {
       }
       this.visibleCount++;
     }
+    for (const ghost of this.ghostsAt(map, tile)) this.drawPathGhost(ctx, map, cam, ghost);
     this.drawSceneryElements(ctx, map, cam, tile);
+  }
+
+  private ghostsAt(map: MapData, tile: number): readonly PathPieceGhost[] {
+    if (!this.ghostsByTile) {
+      this.ghostsByTile = new Map();
+      for (const ghost of this.ghosts) {
+        const index = ghost.y * map.width + ghost.x;
+        const list = this.ghostsByTile.get(index);
+        if (list) list.push(ghost);
+        else this.ghostsByTile.set(index, [ghost]);
+      }
+    }
+    return this.ghostsByTile.get(tile) ?? [];
+  }
+
+  private drawPathGhost(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    ghost: PathPieceGhost,
+  ): void {
+    if (!this.atlas) return;
+    project(
+      ghost.x * TILE_UNITS + 128,
+      ghost.y * TILE_UNITS + 128,
+      ghost.level * Z_STEP,
+      map.width,
+      map.height,
+      cam.rotation,
+      this.pathLow,
+    );
+    if (!this.isVisible(this.pathLow[0], this.pathLow[1], cam, 22)) return;
+    drawGhostSprite(
+      ctx,
+      this.atlas,
+      pathElementSprite(ghost.flags, ghost.surface, cam.rotation),
+      this.pathLow[0],
+      this.pathLow[1],
+      ghost.tone,
+    );
   }
 
   private drawSceneryElements(

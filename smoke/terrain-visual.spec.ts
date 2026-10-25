@@ -125,8 +125,8 @@ test('captures the WebGL2 starter park terrain', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Game options' }).click();
 
   await page.getByRole('button', { name: 'Footpaths' }).click();
-  const pathStyle = page.getByRole('combobox', { name: 'Path surface style' });
-  await expect(pathStyle.locator('option')).toHaveText(['Tarmac', 'Crazy paving', 'Dirt']);
+  for (const surface of ['Tarmac', 'Crazy paving', 'Dirt'])
+    await expect(page.getByRole('button', { name: surface, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Scenery', exact: true }).click();
   const sceneryCategory = page.getByRole('combobox', { name: 'Scenery category' });
   await sceneryCategory.selectOption({ label: 'Gardens' });
