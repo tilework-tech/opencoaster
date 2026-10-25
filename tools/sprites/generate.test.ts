@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { COASTER_FAMILIES, TRACK_ARTS, artPieces } from '../../src/render/coaster-art';
 import { buildSprites } from './generate';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
@@ -52,5 +53,42 @@ describe('generated sprite catalogue', () => {
     const water = sprites.get('water/surface')!;
     const used = new Set(water.frames.flatMap((f) => [...f.pixels]));
     expect(used.size).toBeLessThanOrEqual(5);
+  });
+
+  it('renders every piece a coaster family can build in 4 rotations, with a sprite on its cells', () => {
+    for (const art of TRACK_ARTS)
+      for (const piece of artPieces(art))
+        for (let view = 0; view < 4; view++) {
+          const cells = piece.footprint
+            .map((_, index) => sprites.has(`track/${art}/${piece.name}/view-${view}/cell-${index}`))
+            .filter(Boolean);
+          expect(cells.length, `${art} ${piece.name} view ${view}`).toBeGreaterThan(0);
+        }
+  });
+
+  it('has support segments, quarter caps and a base for every family in 4 rotations', () => {
+    for (const family of ['wood', 'steel', 'junior', 'mouse'])
+      for (const part of ['column', 'cap1', 'cap2', 'cap3', 'base'])
+        for (let view = 0; view < 4; view++)
+          expect(sprites.has(`track/${family}/support-${part}/view-${view}`)).toBe(true);
+  });
+
+  it('has chain, brake and block-brake art for lift- and brake-capable pieces', () => {
+    for (const art of TRACK_ARTS)
+      for (const variant of ['chain', 'brake', 'block'])
+        for (let view = 0; view < 4; view++)
+          expect(sprites.has(`track/${art}/flat+${variant}/view-${view}/cell-0`)).toBe(true);
+    expect(sprites.get('track/wood/flat+chain/view-0/cell-0')?.frames).toHaveLength(2);
+    expect(sprites.has('track/wood/smallLeft+chain/view-0/cell-0')).toBe(false);
+  });
+
+  it('has cars at 8 headings for every pitch and bank class of every family', () => {
+    for (const family of ['wood', 'steel', 'junior', 'mouse'])
+      for (const pitch of ['down90', 'down60', 'down25', 'flat', 'up25', 'up60', 'up90'])
+        for (const bank of ['level', 'left', 'right', 'inverted'])
+          for (let heading = 0; heading < 8; heading++)
+            expect(sprites.has(`vehicles/${family}/car/${pitch}/${bank}/heading-${heading}`)).toBe(
+              true,
+            );
   });
 });

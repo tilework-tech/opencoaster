@@ -43,7 +43,10 @@ export function loadCanvasAtlas(): Promise<CanvasAtlas | null> {
   return pending;
 }
 
-/** Draws a native-size sprite frame with its anchor pixel on (x, y) in the current transform. */
+/**
+ * Draws a native-size sprite frame with its anchor pixel on (x, y) in the current transform.
+ * A key ending in `#n` selects animation frame n.
+ */
 export function drawAnchoredSprite(
   ctx: CanvasRenderingContext2D,
   atlas: CanvasAtlas,
@@ -51,8 +54,9 @@ export function drawAnchoredSprite(
   x: number,
   y: number,
 ): boolean {
-  const entry = atlas.sprites[key];
-  const frame = entry?.frames[0];
+  const hash = key.indexOf('#');
+  const entry = atlas.sprites[hash < 0 ? key : key.slice(0, hash)];
+  const frame = entry?.frames[hash < 0 ? 0 : Number(key.slice(hash + 1))] ?? entry?.frames[0];
   if (!entry || !frame) return false;
   ctx.drawImage(
     atlas.image,

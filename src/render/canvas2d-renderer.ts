@@ -7,6 +7,7 @@ import { PathFlag } from '../sim/map/tile-map';
 import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { drawAnchoredSprite, drawTileTexture, loadCanvasAtlas } from './canvas-atlas';
+import { CoasterScene } from './coaster-scene';
 import type { CanvasAtlas } from './canvas-atlas';
 import { WATER_BANK, pathSpriteName, waterFrameIndex } from './world-art';
 import type { PathSurface } from './world-art';
@@ -32,6 +33,10 @@ const GUEST_TINTS = [
   '#e67e22',
   '#1abc9c',
 ];
+/** Present in the atlas only once the generated coaster art has been packed. */
+const COASTER_PROBE_KEY = 'track/wood/station/view-0/cell-0';
+/** Largest coaster sprite half-extent in pixels, for viewport culling. */
+const COASTER_CULL_RADIUS = 160;
 const PATH_DX = [1, 0, -1, 0];
 const PATH_DY = [0, 1, 0, -1];
 const PATH_STYLE_COLORS = ['#55565a', '#a9a193', '#987047'];
@@ -57,6 +62,7 @@ export class Canvas2DRenderer implements Renderer {
   private sceneryIndices = new Int32Array(0);
   private visibleCount = 0;
   private atlas: CanvasAtlas | null = null;
+  private readonly coasterScene = new CoasterScene();
   private tick = 0;
 
   get visibleSpriteCount(): number {
@@ -138,9 +144,19 @@ export class Canvas2DRenderer implements Renderer {
     this.drawTiles(ctx, map, cam);
     if (snapshot) {
       this.drawRideMarkers(ctx, snapshot, map, cam);
-      if (snapshot.tracks) this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
+      const coasterSprites = this.drawCoasters(ctx, snapshot, map, cam);
+      if (snapshot.tracks && !coasterSprites)
+        this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
       this.drawLayer(ctx, snapshot.litter, map, cam, 2, ['#6b4f2a', '#9fc35b']);
-      this.drawLayer(ctx, snapshot.vehicles, map, cam, 4, '#c0392b');
+      this.drawLayer(
+        ctx,
+        snapshot.vehicles,
+        map,
+        cam,
+        4,
+        '#c0392b',
+        coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
+      );
       this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
         '#4ca95b',
         '#397cb3',
@@ -449,6 +465,29 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
+  /** Draws coaster track, supports and cars from the atlas in painter order; false without art. */
+  private drawCoasters(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): boolean {
+    const atlas = this.atlas;
+    if (!atlas?.sprites[COASTER_PROBE_KEY]) return false;
+    const scene = this.coasterScene;
+    scene.build(snapshot, map, cam.rotation);
+    const items = scene.items.slice(0, scene.length);
+    items.sort((a, b) => a.depth - b.depth);
+    const t = this.tmp;
+    ctx.imageSmoothingEnabled = false;
+    for (const item of items) {
+      project(item.x, item.y, item.z, map.width, map.height, cam.rotation, t);
+      if (!this.isVisible(t[0], t[1], cam, COASTER_CULL_RADIUS)) continue;
+      if (drawAnchoredSprite(ctx, atlas, item.key, t[0], t[1])) this.visibleCount++;
+    }
+    return true;
+  }
+
   private drawLayer(
     ctx: CanvasRenderingContext2D,
     layer: SnapshotLayer,
@@ -456,10 +495,12 @@ export class Canvas2DRenderer implements Renderer {
     cam: Camera,
     r: number,
     color: string | readonly string[],
+    skip?: (word: number) => boolean,
   ): void {
     const d = layer.data;
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
+      if (skip?.(d[o + 3])) continue;
       ctx.fillStyle = typeof color === 'string' ? color : (color[d[o + 3] & 0xff] ?? color[0]);
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
       if (!this.isVisible(t[0], t[1], cam, r * 2)) continue;

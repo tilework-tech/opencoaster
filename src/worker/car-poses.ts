@@ -25,7 +25,9 @@ export interface CarPose {
 
 /** Word 3 of a car row: ride id in the high half, then bank, pitch and heading bit fields. */
 export function encodeCarPose(pose: CarPose): number {
-  return (pose.rideId << 16) | (pose.bank << 7) | ((pose.pitch + CAR_PITCH_MAX) << 3) | pose.heading;
+  return (
+    (pose.rideId << 16) | (pose.bank << 7) | ((pose.pitch + CAR_PITCH_MAX) << 3) | pose.heading
+  );
 }
 
 export function decodeCarPose(word: number): CarPose {

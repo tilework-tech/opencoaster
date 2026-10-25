@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../sim/core/world';
-import { createVehicleTrack, VehicleTrackRegistry, CAR_LENGTH_Q8 } from '../sim/vehicles/vehicle-system';
+import {
+  createVehicleTrack,
+  VehicleTrackRegistry,
+  CAR_LENGTH_Q8,
+} from '../sim/vehicles/vehicle-system';
 import { VehicleState, spawnTrain } from '../sim/vehicles/vehicle-store';
 import { createSnapshot } from './snapshot';
 import { decodeCarPose, writeCarPoses, CarBank } from './car-poses';

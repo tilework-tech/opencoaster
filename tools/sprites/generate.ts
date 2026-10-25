@@ -1,6 +1,7 @@
 import { writeSpriteDef } from './output';
 import type { SpriteDef } from './output';
 import { renderMesh } from './raster';
+import { coasterSprites } from './models/coaster/sprites';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
 
@@ -43,7 +44,7 @@ function waterSprites(): SpriteDef[] {
 
 /** Every sprite this tool renders, keyed as in the atlas manifest. */
 export function buildSprites(): SpriteDef[] {
-  return [...pathSprites(), ...waterSprites()];
+  return [...pathSprites(), ...waterSprites(), ...coasterSprites()];
 }
 
 export async function renderSprites(outputDir: string): Promise<SpriteDef[]> {
