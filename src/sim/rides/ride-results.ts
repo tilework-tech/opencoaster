@@ -22,4 +22,5 @@ export const enum RideResult {
   TestPassed = 16,
   /** The test train stopped part way round the circuit and could not continue. */
   TestStalled = 17,
+  ResearchRequired = 18,
 }

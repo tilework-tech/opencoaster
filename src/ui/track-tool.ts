@@ -195,6 +195,7 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.NoExit]: 'Place an exit next to the station.',
   [RideResult.NoQueue]: 'Connect a footpath to the entrance queue.',
   [RideResult.NotAdjacentToStation]: 'Entrance and exit must touch the station.',
+  [RideResult.ResearchRequired]: 'Research this ride type before building it.',
   [RideResult.NotOwned]: 'You need to own that land or its construction rights.',
   [RideResult.Blocked]: 'Something is in the way.',
   [RideResult.InsufficientFunds]: 'Not enough cash.',

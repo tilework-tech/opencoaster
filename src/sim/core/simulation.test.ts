@@ -4,6 +4,7 @@ import { hashWorld } from './hash';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { SALE_LAND } from '../map/tile-map';
 import { PIECES, PieceId } from '../track/catalog';
+import { RideResult } from '../rides/ride-results';
 
 function run(seed: number, ticks: number): number {
   const sim = new Simulation({ seed, width: 64, height: 64, maxGuests: 2000 });
@@ -39,6 +40,7 @@ describe('Simulation', () => {
 
   it('creates a ride from a command at the requested tile', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
     const cash = sim.world.economy.cash;
     sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
 
@@ -50,6 +52,19 @@ describe('Simulation', () => {
     expect(sim.world.rides.cols.rideX[0]).toBe(5);
     expect(sim.world.rides.cols.rideY[0]).toBe(6);
     expect(sim.world.economy.cash).toBe(cash - RIDE_CATALOG[RideType.MerryGoRound].cost);
+  });
+
+  it('rejects a ride command for a type that research has not unlocked', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
+    const cash = sim.world.economy.cash;
+    sim.enqueue({ type: 'createRide', rideType: RideType.TopSpin, x: 5, y: 6 });
+
+    sim.step();
+
+    expect(sim.world.rides.count).toBe(0);
+    expect(sim.world.economy.cash).toBe(cash);
+    expect(sim.world.feedback.code).toBe(RideResult.ResearchRequired);
   });
 
   it('sets an operating ride ticket price through a simulation command', () => {
@@ -80,6 +95,7 @@ describe('Simulation', () => {
 
   it('does not create or charge for a ride on land the park cannot build on', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
     const tile = sim.world.map.index(2, 2);
     sim.world.map.ownership[tile] = SALE_LAND;
     const cash = sim.world.economy.cash;
@@ -93,6 +109,7 @@ describe('Simulation', () => {
 
   it('does not create or charge for a ride that the park cannot afford', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
     sim.world.economy.cash = 0;
     sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
 

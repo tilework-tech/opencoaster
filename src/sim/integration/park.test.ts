@@ -24,6 +24,8 @@ const TICKS_PER_DAY = Math.floor(TICKS_PER_MONTH / 31);
  */
 function buildPark(seed = 7): Simulation {
   const sim = new Simulation({ seed, width: 32, height: 32 });
+  sim.world.research.unlocked.add(RideType.MerryGoRound);
+  sim.world.research.unlocked.add(RideType.FoodStall);
   const m = sim.world.map;
   m.waterLevel.fill(0);
   m.ownership.fill(1);

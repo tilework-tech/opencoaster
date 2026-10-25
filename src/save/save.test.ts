@@ -7,6 +7,7 @@ import { SAVE_VERSION, deserialize, serialize } from './save';
 import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RidePhase, RideState } from '../sim/rides/ride-store';
+import { RideResult } from '../sim/rides/ride-results';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
@@ -464,6 +465,25 @@ describe('save: guest history and satiation migration', () => {
 });
 
 describe('save: economy, research and scenario state', () => {
+  it('preserves locked ride types across save and load and rejects construction afterward', () => {
+    const sim = new Simulation({ seed: 5, width: 16, height: 16 });
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
+
+    const loaded = new Simulation(deserialize(serialize(sim.world)));
+    loaded.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
+    loaded.step();
+
+    expect(loaded.world.rides.count).toBe(1);
+    const cash = loaded.world.economy.cash;
+    loaded.enqueue({ type: 'createRide', rideType: RideType.TopSpin, x: 5, y: 6 });
+
+    loaded.step();
+
+    expect(loaded.world.rides.count).toBe(1);
+    expect(loaded.world.economy.cash).toBe(cash);
+    expect(loaded.world.feedback.code).toBe(RideResult.ResearchRequired);
+  });
+
   it('round-trips finance, research and scenario state exactly', () => {
     const sim = new Simulation({ seed: 5, width: 16, height: 16 });
     applyScenario(sim.world, {

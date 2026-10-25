@@ -43,6 +43,7 @@ export function createCoaster(
   x = STATION_X,
   y = STATION_Y - 4,
 ): number {
+  sim.world.research.unlocked.add(rideType);
   sim.enqueue({ type: 'createRide', rideType, x, y });
   sim.step();
   return sim.world.rides.slotToId[sim.world.rides.count - 1];

@@ -5,6 +5,7 @@ import { ScenarioStatus } from '../../src/sim/scenario/scenario';
 import { objectiveMetric } from '../../src/sim/scenario/scenario-system';
 import type { ScenarioDef } from '../../src/sim/scenario/scenario';
 import { ParkBuilder } from './builder';
+import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 
 /** One scripted playthrough: called once per tick before the simulation steps. */
 export interface Strategy {
@@ -43,6 +44,8 @@ export function runScenario(
 ): RunResult {
   const sim = new Simulation({ seed: opts.seed, width: def.mapWidth, height: def.mapHeight });
   prepareScenario(sim.world, def);
+  // The strategy suite isolates park and economy balance from research pacing.
+  sim.world.research.unlocked = new Set(Object.keys(RIDE_CATALOG).map(Number));
   const builder = new ParkBuilder(sim, def);
   const strategy = factory(def);
   const world = sim.world;

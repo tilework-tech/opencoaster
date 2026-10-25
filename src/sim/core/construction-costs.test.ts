@@ -10,6 +10,7 @@ import { prepareFlat } from '../integration/fixtures';
 function simWithCash(cash: number): Simulation {
   const sim = new Simulation({ seed: 3, width: 16, height: 16 });
   prepareFlat(sim.world);
+  sim.world.research.unlocked = new Set(Object.keys(RIDE_CATALOG).map(Number));
   sim.world.economy.cash = cash;
   return sim;
 }

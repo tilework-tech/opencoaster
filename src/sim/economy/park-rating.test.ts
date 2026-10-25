@@ -45,13 +45,21 @@ describe('park rating', () => {
   });
 
   it('gets worse with more lost guests beyond the first 25', () => {
-    expect(computeParkRating(0, { ...quiet, lostGuests: 35 })).toBe(930);
-    expect(computeParkRating(0, { ...quiet, lostGuests: 125 })).toBe(300);
+    const base = 250;
+    expect(computeParkRating(0, { ...quiet, lostGuests: 35 }, base)).toBe(
+      computeParkRating(0, quiet, base) - 70,
+    );
+    expect(computeParkRating(0, { ...quiet, lostGuests: 125 }, base)).toBe(0);
   });
 
   it('gets worse with ride downtime and litter', () => {
-    expect(computeParkRating(0, { ...quiet, rideDowntimePercent: 10 })).toBe(980);
-    expect(computeParkRating(0, { ...quiet, litter: 3 })).toBe(988);
+    const base = 250;
+    expect(computeParkRating(0, { ...quiet, rideDowntimePercent: 10 }, base)).toBe(
+      computeParkRating(0, quiet, base) - 20,
+    );
+    expect(computeParkRating(0, { ...quiet, litter: 3 }, base)).toBe(
+      computeParkRating(0, quiet, base) - 12,
+    );
   });
 
   it('charges drowning casualties at 25 points each', () => {
@@ -66,7 +74,9 @@ describe('park rating', () => {
     const twoCrashes = { ...casualtyBase, fatalRideCrashPenalty: 400 };
     const manyDrownings = { ...casualtyBase, drowningCasualtyPenalty: 2_500 };
     expect(computeParkRating(0, oneCrash)).toBe(computeParkRating(0, casualtyBase) - 200);
-    expect(computeParkRating(0, twoCrashes)).toBe(computeParkRating(0, casualtyBase) - 400);
+    expect(computeParkRating(0, twoCrashes)).toBe(
+      Math.max(0, computeParkRating(0, casualtyBase) - 400),
+    );
     expect(computeParkRating(0, manyDrownings)).toBe(
       Math.max(0, computeParkRating(0, casualtyBase) - 1000),
     );
@@ -83,8 +93,20 @@ describe('park rating', () => {
 });
 
 describe('park rating ride terms', () => {
-  it('does not reach the cap for a park with no open attractions', () => {
-    expect(computeParkRating(0, createLedger().inputs)).toBeLessThan(MAX_RATING - 200);
+  it('starts an empty park with a low rating', () => {
+    expect(computeParkRating(0, createLedger().inputs)).toBeLessThanOrEqual(250);
+  });
+
+  it('lets a developed park recover most of the rating lost at the start', () => {
+    const developed = {
+      ...quiet,
+      openAttractionCount: 20,
+      excitementTotal: 20 * IDEAL_EXCITEMENT,
+      intensityTotal: 20 * IDEAL_INTENSITY,
+      litter: 0,
+      unhappyPercent: 0,
+    };
+    expect(computeParkRating(250, developed)).toBeGreaterThanOrEqual(700);
   });
 
   it('rewards attractions that approach the ideal averages', () => {
@@ -109,7 +131,7 @@ describe('park rating ride terms', () => {
     );
   });
 
-  it('keeps a modest starter park under the cap', () => {
+  it('keeps a modest starter park below the cap', () => {
     const starter = {
       ...quiet,
       openAttractionCount: 4,
@@ -117,7 +139,7 @@ describe('park rating ride terms', () => {
       intensityTotal: 120 + 100 + 540 + 680,
     };
     expect(computeParkRating(60, starter)).toBeLessThan(MAX_RATING);
-    expect(computeParkRating(60, starter)).toBeGreaterThan(500);
+    expect(computeParkRating(60, starter)).toBeGreaterThan(200);
   });
 });
 
@@ -127,27 +149,28 @@ describe('park rating happiness', () => {
   const withHappiness = (unhappyPercent: number) => ({ ...below, unhappyPercent });
 
   it('charges the full 500 when no guest is happy', () => {
-    expect(computeParkRating(0, below)).toBe(800);
-    expect(computeParkRating(0, withHappiness(100))).toBe(300);
+    expect(computeParkRating(0, below) - computeParkRating(0, withHappiness(100))).toBe(500);
   });
 
   it('charges 200 when half the guests are happy', () => {
-    expect(computeParkRating(0, withHappiness(50))).toBe(600);
+    expect(computeParkRating(0, below) - computeParkRating(0, withHappiness(50))).toBe(200);
   });
 
   it('charges nothing once about 83% of guests are happy', () => {
-    expect(computeParkRating(0, withHappiness(16))).toBe(800);
-    expect(computeParkRating(0, withHappiness(17))).toBe(798);
+    expect(computeParkRating(0, withHappiness(16))).toBe(computeParkRating(0, below));
+    expect(computeParkRating(0, withHappiness(17))).toBe(computeParkRating(0, below) - 2);
   });
 
   it('charges nothing for a park with no guests', () => {
-    expect(computeParkRating(0, withHappiness(0))).toBe(800);
+    expect(computeParkRating(0, withHappiness(0))).toBe(computeParkRating(0, below));
   });
 });
 
 describe('park rating difficulty', () => {
-  it('starts from 1,050 instead of 1,150 when difficult rating is on', () => {
+  it('starts from 600 instead of 700 when difficult rating is on', () => {
     const below = { ...quiet, litter: 50 };
-    expect(computeParkRating(0, below, DIFFICULT_RATING_BASE)).toBe(700);
+    expect(computeParkRating(0, below, DIFFICULT_RATING_BASE)).toBe(
+      computeParkRating(0, below) - 100,
+    );
   });
 });

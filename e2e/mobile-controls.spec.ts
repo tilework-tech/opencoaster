@@ -44,26 +44,40 @@ test('keeps map camera controls reachable on a phone-sized screen', async ({ pag
 
   const beforePinch = await page.locator('#game').screenshot();
   const session = await page.context().newCDPSession(page);
-  await session.send('Input.dispatchTouchEvent', {
-    type: 'touchStart',
-    touchPoints: [
-      { id: 1, x: 100, y: 400 },
-      { id: 2, x: 200, y: 400 },
-    ],
-  });
+  const dispatchTouches = async (
+    type: 'touchStart' | 'touchMove' | 'touchEnd',
+    points: Array<{ id: number; x: number; y: number }>,
+  ) => {
+    await session.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: points.map((point) => ({
+        ...point,
+        radiusX: 1,
+        radiusY: 1,
+        force: 1,
+      })),
+    });
+  };
+  await dispatchTouches('touchStart', [
+    { id: 1, x: 100, y: 400 },
+    { id: 2, x: 200, y: 400 },
+  ]);
   // Zoom snaps to the nearest level in log space, so the spread must grow past √2 (about 1.41×)
   // to step from zoom 1 to 2; 100 → 180 px is 1.8×.
-  await session.send('Input.dispatchTouchEvent', {
-    type: 'touchMove',
-    touchPoints: [
-      { id: 1, x: 60, y: 400 },
-      { id: 2, x: 240, y: 400 },
-    ],
-  });
+  await dispatchTouches('touchMove', [
+    { id: 1, x: 60, y: 400 },
+    { id: 2, x: 240, y: 400 },
+  ]);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   const afterPinch = await page.locator('#game').screenshot();
   expect(createHash('sha256').update(afterPinch).digest('hex')).not.toBe(
     createHash('sha256').update(beforePinch).digest('hex'),
   );
-  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await dispatchTouches('touchEnd', []);
   await session.detach();
 });
