@@ -62,5 +62,12 @@ export function stationHutMesh(category: RideCategory, part: 'entrance' | 'exit'
   } else {
     mesh.push(...box([-0.2, 0.36, 0.18], [0.2, 0.38, 0.22], YELLOW));
   }
-  return mesh;
+  return mesh.map((triangle) => ({
+    material: triangle.material,
+    v: triangle.v.map(([x, y, z]) => [
+      x,
+      y,
+      z * 0.8,
+    ]) as unknown as typeof triangle.v,
+  }));
 }
