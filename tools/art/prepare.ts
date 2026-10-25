@@ -5,6 +5,7 @@ import { renderSprites } from '../sprites/generate';
 
 const sourceDirectory = new URL('./source/', import.meta.url);
 const outputDirectory = new URL('../../public/sprites/', import.meta.url);
+const renderedDirectory = new URL('../sprites/.build/', import.meta.url).pathname;
 
 interface FrameRegion {
   x: number;
@@ -185,7 +186,8 @@ async function main(): Promise<void> {
   await rm(destination, { recursive: true, force: true });
   await mkdir(destination, { recursive: true });
   await Promise.all([prepareTerrain(), prepareProps()]);
-  await renderSprites(destination);
+  await rm(renderedDirectory, { recursive: true, force: true });
+  await renderSprites(renderedDirectory);
 }
 
 await main();

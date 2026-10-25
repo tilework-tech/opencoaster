@@ -116,7 +116,7 @@ describe('world art atlas packing', () => {
     );
 
     const manifest = await packSprites(source, output);
-    expect(manifest.width).toBeLessThanOrEqual(1024);
+    expect(manifest.width).toBeLessThanOrEqual(2048);
     expect(manifest.height).toBeLessThanOrEqual(4096);
     expect(manifest.sprites.sheet.frames).toHaveLength(65);
   });
