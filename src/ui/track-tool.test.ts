@@ -152,9 +152,12 @@ describe('previewStatus', () => {
 
 describe('feedbackMessage', () => {
   it('describes every track and ride result for the player', () => {
-    for (let code = 0; code <= TrackResult.PieceNotAllowed; code++) {
+    for (let code = 0; code <= TrackResult.OverWater; code++) {
       expect(feedbackMessage(FeedbackDomain.Track, code).text.length).toBeGreaterThan(0);
     }
+    expect(feedbackMessage(FeedbackDomain.Track, TrackResult.OverWater).text).toContain(
+      'open water',
+    );
     for (let code = 0; code <= RideResult.TestPassed; code++) {
       expect(feedbackMessage(FeedbackDomain.Ride, code).text.length).toBeGreaterThan(0);
     }

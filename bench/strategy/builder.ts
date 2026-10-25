@@ -130,8 +130,9 @@ export class ParkBuilder {
     const lateral = slot.lateral * reach;
     this.extendSpine(slot.row);
     const frontage = rideFrontage(this.grid, slot.row, lateral);
+    const serviceRide = STALLS.has(name);
     for (const [x, y] of frontage.queue) {
-      this.sim.enqueue({ type: 'placePath', x, y, queue: true });
+      this.sim.enqueue({ type: 'placePath', x, y, queue: !serviceRide });
       this.sim.enqueue({ type: 'setPathAddition', x, y, addition: PathAddition.Bin });
     }
     for (const [x, y] of frontage.exitPath) {
@@ -153,7 +154,8 @@ export class ParkBuilder {
       x: frontage.entrance[0],
       y: frontage.entrance[1],
     });
-    this.sim.enqueue({ type: 'placeRideExit', rideId, x: frontage.exit[0], y: frontage.exit[1] });
+    if (!serviceRide)
+      this.sim.enqueue({ type: 'placeRideExit', rideId, x: frontage.exit[0], y: frontage.exit[1] });
     this.sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
     const price = this.prices[name];
     if (price !== undefined) this.sim.enqueue({ type: 'setRidePrice', rideId, priceCents: price });

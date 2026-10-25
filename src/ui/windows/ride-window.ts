@@ -58,6 +58,14 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     button('Close', setStatus('close'), 'ui-button'),
     button('Test', setStatus('test'), 'ui-button'),
   );
+  const demolish = button(
+    'Demolish ride',
+    () => {
+      if (window.confirm('Demolish this ride and receive its construction refund?'))
+        ctx.actions.demolishRide(rideId);
+    },
+    'ui-button danger',
+  );
   const partButtons = element('div', 'button-row');
   partButtons.append(
     button('Place entrance', () => ctx.actions.placeRidePart(rideId, 'entrance'), 'ui-button'),
@@ -134,6 +142,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     p('main').append(
       status,
       statusButtons,
+      demolish,
       excitement.row,
       intensity.row,
       nausea.row,
@@ -236,12 +245,25 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(mainFacts.queue.value, String(info[o + RideInfo.QueueLength]));
       setText(mainFacts.served.value, String(info[o + RideInfo.GuestsServed]));
       const blockers: { label: string; action: string; onClick: () => void }[] = [];
-      if (!(flags & RideFlag.EntrancePlaced))
-        blockers.push({
-          label: 'No entrance',
-          action: 'Place entrance',
-          onClick: () => ctx.actions.placeRidePart(rideId, 'entrance'),
-        });
+      const serviceRide = def?.category === 'stall' || def?.category === 'facility';
+      if (!(flags & RideFlag.EntrancePlaced)) {
+        blockers.push(
+          serviceRide
+            ? {
+                label: 'No path access',
+                action: 'Build path',
+                onClick: () => {
+                  ctx.actions.setPathQueue(false);
+                  ctx.chooseTool('path');
+                },
+              }
+            : {
+                label: 'No entrance',
+                action: 'Place entrance',
+                onClick: () => ctx.actions.placeRidePart(rideId, 'entrance'),
+              },
+        );
+      }
       const needsExit = def?.category !== 'stall' && def?.category !== 'facility';
       if (needsExit && !(flags & RideFlag.ExitPlaced))
         blockers.push({
@@ -280,7 +302,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(mainFacts.setup.value, missing.length ? missing.join(' · ') : 'Ride setup complete');
       buildTrack.hidden = !def?.usesTrack;
       trainsRow.hidden = !def?.usesTrack;
-      partButtons.hidden = false;
+      partButtons.hidden = serviceRide;
 
       setText(vehicle.type.value, def?.name ?? 'Ride');
       setText(vehicle.capacity.value, String(def?.capacity ?? 0));

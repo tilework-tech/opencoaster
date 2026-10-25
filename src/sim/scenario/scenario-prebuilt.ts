@@ -38,11 +38,17 @@ export function placePrebuilt(
   }
   for (const spec of rides) {
     const frontage = rideFrontage(grid, spec.row, spec.lateral);
+    const rideType = PREBUILT_TYPES[spec.type];
+    const serviceRide =
+      rideType === RideType.FoodStall ||
+      rideType === RideType.DrinkStall ||
+      rideType === RideType.InformationKiosk ||
+      rideType === RideType.Toilets;
     for (const [x, y] of frontage.queue) {
-      applyMapCommand(world, { type: 'placePath', x, y, queue: true });
+      applyMapCommand(world, { type: 'placePath', x, y, queue: !serviceRide });
     }
     for (const [x, y] of frontage.exitPath) applyMapCommand(world, { type: 'placePath', x, y });
-    const rideId = createRide(world, PREBUILT_TYPES[spec.type], frontage.ride[0], frontage.ride[1]);
+    const rideId = createRide(world, rideType, frontage.ride[0], frontage.ride[1]);
     if (rideId < 0) continue;
     applyRideCommand(world, {
       type: 'placeRideEntrance',
@@ -50,12 +56,13 @@ export function placePrebuilt(
       x: frontage.entrance[0],
       y: frontage.entrance[1],
     });
-    applyRideCommand(world, {
-      type: 'placeRideExit',
-      rideId,
-      x: frontage.exit[0],
-      y: frontage.exit[1],
-    });
+    if (!serviceRide)
+      applyRideCommand(world, {
+        type: 'placeRideExit',
+        rideId,
+        x: frontage.exit[0],
+        y: frontage.exit[1],
+      });
     applyRideCommand(world, { type: 'setRideStatus', rideId, status: 'open' });
   }
 }

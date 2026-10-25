@@ -17,11 +17,13 @@ Path: @/src/app/ride-setup
 
 - `createRideSetup` handles ride-type selection, ride/entrance/exit placement requests, and tracks pending work until snapshot feedback advances the flow.
 - Ride ghosts and valid placement targets are projected for display; worker-side command validation remains authoritative.
-- Flat rides, stalls and track rides follow their respective entrance/exit or track-construction setup paths.
+- Flat rides and track rides, including Log Flume and River Rapids, place entrances and exits around the complete ride footprint or all coaster station-piece footprints. Candidate geometry and visible validity are derived from the snapshot, while the worker validates each placement command.
+- Valid and invalid boarding candidates remain pointer and keyboard targets. Their accessible labels and status feedback identify the blocking condition; worker feedback is retained instead of being replaced by the next generic prompt.
+- Stalls and facilities use a public path tile beside their footprint as direct service access. Setup detects an adjacent path and opens the service ride without placing a separate entrance or exit.
 
 ### Things to Know
 
 - Pending creation records existing ride IDs before a request so the next snapshot can identify the newly created instance even when multiple rides share a type.
-- Stall and facility entrances are oriented toward adjacent paths when one can be found; otherwise placement remains an explicit follow-up step.
+- A stall or facility with no adjacent public path remains closed and reports that a path must be built beside it. Its internal entrance coordinate denotes the path access tile, not a separate entrance object.
 
 Created and maintained by Nori.

@@ -239,6 +239,31 @@ async function playStarterRideAccess(
   );
 }
 
+async function playStarterCoasterOverWater(page: Page, mobile: boolean): Promise<void> {
+  page.setDefaultTimeout(8_000);
+  await startStarterPark(page, mobile);
+  await toolbarAction(page, 'New ride', mobile);
+  await page.getByRole('tab', { name: 'Roller Coasters' }).click();
+  await page.getByRole('button', { name: /^Steel Looping Coaster/ }).click();
+  await mapTileClick(page, 28, 39, [28, 43], mobile);
+  const construction = page.locator('[data-panel="construction"]');
+  await expect(construction).toBeVisible();
+
+  await construction.getByLabel('Special elements').selectOption({ label: 'Station' });
+  await construction.getByRole('button', { name: 'Level', exact: true }).click();
+  await construction.getByRole('button', { name: 'Build piece' }).click();
+  await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
+
+  await construction.getByRole('button', { name: 'Straight', exact: true }).click();
+  await construction.getByRole('button', { name: 'Up', exact: true }).click();
+  await construction.getByLabel('Drive').selectOption({ label: 'Chain lift' });
+  await construction.getByRole('button', { name: 'Build piece' }).click();
+  await expect(construction.locator('.coaster-feedback')).toHaveText(
+    'Track cannot be built over open water for this ride type.',
+  );
+  await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
+}
+
 test('new Starter Park builds and opens rides and a stall before guests ride (desktop)', async ({
   page,
 }, testInfo) => {
@@ -263,6 +288,19 @@ test('new Starter Park keeps water rides locked until researched', async ({ page
   await expect(
     page.getByRole('group', { name: 'New attraction' }).locator('.ui-pane.active'),
   ).toContainText('Nothing in this group is unlocked yet.');
+});
+
+test('Starter Park explains when coaster track crosses open water (desktop)', async ({ page }) => {
+  await playStarterCoasterOverWater(page, false);
+});
+
+test('Starter Park explains when coaster track crosses open water (Pixel 8)', async ({ browser }) => {
+  const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
+  void _browserType;
+  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const page = await context.newPage();
+  await playStarterCoasterOverWater(page, true);
+  await context.close();
 });
 
 test('starts entrance setup on the newly created ride when ride types repeat', async ({ page }) => {

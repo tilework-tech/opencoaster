@@ -7,6 +7,7 @@ import type { CoasterPanel } from '../../ui/coaster-panel';
 import { ridePlacementValid } from '../../render/placement-art';
 import { facilityFacingFromPaths } from '../../render/world-art';
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
+import { FeedbackDomain } from '../../sim/core/feedback';
 import { Surface } from '../../sim/map/tile-map';
 import { RIDE_INFO_STRIDE, RideFlag, RideInfo } from '../../worker/snapshot';
 import type { SimClient } from '../../worker/sim-client';
@@ -15,6 +16,7 @@ import { PieceFlag } from '../../sim/track/track-types';
 import { rotateTile } from '../../sim/track/construction';
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 import { capDevicePixelRatio } from '../../input/camera-controls';
+import { feedbackMessage } from '../../ui/track-tool';
 
 interface RidePlacement {
   rideId: number;
@@ -44,6 +46,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   let ridePlacement: RidePlacement | null = null;
   let ridePlacementCommandPending = false;
   let ridePlacementFeedbackSeq = -1;
+  let ridePlacementFeedbackMessage: string | null = null;
   let pendingRideCreation: PendingRideCreation | null = null;
   let openingStallRideId: number | null = null;
   let stallFrontTile: [number, number] | null = null;
@@ -55,6 +58,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     ridePlacement = null;
     rideHoverClear();
     ridePlacementCommandPending = false;
+    ridePlacementFeedbackMessage = null;
     pendingRideCreation = null;
     rideSetupNotice = null;
     gameUi.selectTool('ride');
@@ -70,6 +74,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   function placeRidePart(rideId: number, part: 'entrance' | 'exit'): void {
     ridePlacement = { rideId, part };
     ridePlacementCommandPending = false;
+    ridePlacementFeedbackMessage = null;
     gameUi.selectTool('ride');
     gameUi.setToolStatus(`Click a tile next to ride ${rideId} to place its ${part}.`);
   }
@@ -86,6 +91,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
       gameUi.setToolStatus(
         `Placing ${ridePlacement.part} for ride ${ridePlacement.rideId} at ${x}, ${y}.`,
       );
+      ridePlacementFeedbackMessage = null;
       ridePlacementCommandPending = true;
       ridePlacementFeedbackSeq = sim.latest?.feedback.seq ?? -1;
     } else {
@@ -127,10 +133,10 @@ export function createRideSetup(deps: RideSetupDependencies) {
               sim.command({ type: 'placeRideEntrance', rideId, ...front.entrance });
               gameUi.setToolStatus(`${def.name} front faces the path; opening…`);
             } else {
-              ridePlacement = { rideId, part: 'entrance' };
+              ridePlacement = null;
               ridePlacementCommandPending = false;
               gameUi.selectTool('ride');
-              gameUi.setToolStatus(`Place ${def.name.toLowerCase()} entrance facing a path.`);
+              gameUi.setToolStatus(`Build a path directly beside the ${def.name.toLowerCase()}.`);
             }
           } else {
             ridePlacement = { rideId, part: 'entrance' };
@@ -149,14 +155,28 @@ export function createRideSetup(deps: RideSetupDependencies) {
     const type = snapshot.rideInfo[offset + RideInfo.Type];
     const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
     const flags = snapshot.rideInfo[offset + RideInfo.Flags];
-    if (ridePlacementCommandPending && snapshot.feedback.seq !== ridePlacementFeedbackSeq)
+    if (ridePlacementCommandPending && snapshot.feedback.seq !== ridePlacementFeedbackSeq) {
       ridePlacementCommandPending = false;
+      if (
+        snapshot.feedback.domain === FeedbackDomain.Ride &&
+        snapshot.feedback.subject === ridePlacement.rideId &&
+        snapshot.feedback.code !== 0
+      ) {
+        ridePlacementFeedbackMessage = feedbackMessage(
+          FeedbackDomain.Ride,
+          snapshot.feedback.code,
+        ).text;
+        gameUi.setToolStatus(ridePlacementFeedbackMessage);
+        return;
+      }
+    }
     if (ridePlacement.part === 'entrance' && flags & RideFlag.EntrancePlaced) {
       ridePlacementCommandPending = false;
       if (openingStallRideId === ridePlacement.rideId) {
         sim.command({ type: 'setRideStatus', rideId: ridePlacement.rideId, status: 'open' });
         openingStallRideId = null;
         ridePlacement = null;
+        ridePlacementFeedbackMessage = null;
         stallFrontTile = null;
         rideSetupNotice = `${def?.name ?? 'Stall'} is open.`;
         gameUi.setToolStatus(rideSetupNotice);
@@ -167,16 +187,20 @@ export function createRideSetup(deps: RideSetupDependencies) {
         gameUi.setToolStatus(`${def.name} entrance placed.`);
       } else {
         ridePlacement = { rideId: ridePlacement.rideId, part: 'exit' };
+        ridePlacementFeedbackMessage = null;
         gameUi.setToolStatus('Place exit next to the ride.');
       }
     } else if (ridePlacement.part === 'exit' && flags & RideFlag.ExitPlaced) {
       gameUi.openRide(ridePlacement.rideId);
       ridePlacement = null;
+      ridePlacementFeedbackMessage = null;
       ridePlacementCommandPending = false;
       rideSetupNotice = 'Ride setup complete. Test the ride before opening it.';
       gameUi.setToolStatus(rideSetupNotice);
     } else if (!ridePlacementCommandPending) {
-      gameUi.setToolStatus(`Place ${ridePlacement.part} next to the ride.`);
+      gameUi.setToolStatus(
+        ridePlacementFeedbackMessage ?? `Place ${ridePlacement.part} next to the ride.`,
+      );
     }
   }
 
@@ -208,31 +232,20 @@ export function createRideSetup(deps: RideSetupDependencies) {
     const y = snapshot.rideInfo[offset + RideInfo.RideY];
     const map = sim.map;
     if (!map) return null;
-    const directions = [
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-      [0, -1],
-    ] as const;
-    for (const [dx, dy] of directions) {
-      for (const [fx, fy] of footprint) {
+    for (const [fx, fy] of footprint) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+        [0, -1],
+      ] as const) {
         const entrance = { x: x + fx + dx, y: y + fy + dy };
-        const pathX = entrance.x + dx;
-        const pathY = entrance.y + dy;
         if (
           entrance.x >= 0 &&
           entrance.y >= 0 &&
           entrance.x < map.width &&
           entrance.y < map.height &&
           map.surface[entrance.y * map.width + entrance.x] === Surface.Path
-        )
-          return { entrance };
-        if (
-          pathX >= 0 &&
-          pathY >= 0 &&
-          pathX < map.width &&
-          pathY < map.height &&
-          map.surface[pathY * map.width + pathX] === Surface.Path
         )
           return { entrance };
       }
@@ -381,15 +394,25 @@ export function createRideSetup(deps: RideSetupDependencies) {
           snapshot.rideInfo[infoOffset + RideInfo.ExitY] === candidate.y);
       const existingPath =
         map.surface[index] === Surface.Path || map.surface[index] === Surface.Queue;
-      const valid =
-        snapshot.buildable[index] !== 0 &&
-        (existingPath ||
-          (map.surface[index] !== Surface.Water &&
-            map.slope[index] === 0 &&
-            (map.waterLevel?.[index] ?? 0) <= map.heights[index])) &&
-        !occupiedByTrack &&
-        !occupiedRideTiles.has(index) &&
-        !occupiedBoardingTile;
+      const level = snapshot.buildable[index] !== 0;
+      const dryAndLevel =
+        map.surface[index] !== Surface.Water &&
+        map.slope[index] === 0 &&
+        (map.waterLevel?.[index] ?? 0) <= map.heights[index];
+      const invalidReason = !level
+        ? 'You need to own the land or its construction rights.'
+        : occupiedBoardingTile
+          ? 'An entrance or exit is already placed here.'
+          : occupiedByTrack
+            ? 'Track occupies this tile.'
+            : occupiedRideTiles.has(index)
+              ? 'Another ride occupies this tile.'
+              : !existingPath && !dryAndLevel
+                ? map.surface[index] === Surface.Water
+                  ? 'This tile is under open water.'
+                  : 'The ground must be level and dry.'
+                : null;
+      const valid = invalidReason === null;
       context.fillStyle = valid ? 'rgba(70, 225, 115, .48)' : 'rgba(230, 70, 65, .46)';
       context.strokeStyle = 'rgba(255,255,220,.9)';
       context.lineWidth = 1.5;
@@ -419,17 +442,25 @@ export function createRideSetup(deps: RideSetupDependencies) {
       context.closePath();
       context.fill();
       context.stroke();
-      if (valid && placement) {
+      if (placement) {
         const target = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
         target.classList.add('ride-placement-target');
         target.setAttribute('points', points.join(' '));
         target.setAttribute('role', 'button');
         target.setAttribute('tabindex', '0');
+        const candidateLabel = `tile ${candidate.x}, ${candidate.y}`;
         target.setAttribute(
           'aria-label',
-          `Place ${placement.part} at tile ${candidate.x}, ${candidate.y}`,
+          valid
+            ? `Place ${placement.part} at ${candidateLabel}`
+            : `${placement.part[0]!.toUpperCase()}${placement.part.slice(1)} unavailable at ${candidateLabel}: ${invalidReason}`,
         );
         const place = () => {
+          if (!valid) {
+            ridePlacementFeedbackMessage = invalidReason;
+            gameUi.setToolStatus(invalidReason);
+            return;
+          }
           if (deps.selectedTool() === 'track') {
             gameUi.setToolStatus(coasterPanel.handleTileClick(candidate.x, candidate.y));
           } else if (ridePlacement && !ridePlacementCommandPending) {
@@ -441,6 +472,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
             });
             ridePlacementCommandPending = true;
             ridePlacementFeedbackSeq = snapshot.feedback.seq;
+            ridePlacementFeedbackMessage = null;
             gameUi.setToolStatus(
               `Placing ${ridePlacement.part} at ${candidate.x}, ${candidate.y}…`,
             );

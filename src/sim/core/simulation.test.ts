@@ -77,14 +77,14 @@ describe('Simulation', () => {
     expect(sim.world.rides.cols.price[sim.world.rides.idToSlot[id]]).toBe(275);
   });
 
-  it('opens a stall after placing its service entrance without requiring an exit', () => {
+  it('opens a stall directly from an adjacent path without an entrance or exit', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16 });
     const slot = sim.world.rides.spawn();
     const id = sim.world.rides.slotToId[slot];
     sim.world.rides.cols.typeId[slot] = RideType.FoodStall;
     sim.world.rides.cols.rideX[slot] = 5;
     sim.world.rides.cols.rideY[slot] = 6;
-    sim.enqueue({ type: 'placeRideEntrance', rideId: id, x: 5, y: 7 });
+    sim.enqueue({ type: 'placePath', x: 5, y: 7 });
     sim.step();
     sim.enqueue({ type: 'setRideStatus', rideId: id, status: 'open' });
 
