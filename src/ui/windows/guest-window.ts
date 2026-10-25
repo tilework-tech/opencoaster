@@ -306,13 +306,14 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
     const locate = () => {
       if (location) ctx.actions.locate(location.x, location.y);
     };
-    win
-      .pane('view')
-      .append(
-        where.row,
-        button('Locate', locate, 'ui-button'),
-        button('Track guest', locate, 'ui-button'),
-      );
+    win.pane('view').append(
+      where.row,
+      button('Locate', locate, 'ui-button'),
+      Object.assign(button('Track guest', locate, 'ui-button'), {
+        disabled: true,
+        title: 'Following a guest is not available yet.',
+      }),
+    );
     win.pane('stats').append(...Object.values(gauges).map((item) => item.row));
     win.pane('rides').append(rides);
     win.pane('cash').append(cash.row);

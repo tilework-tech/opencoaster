@@ -7,6 +7,7 @@ export interface ToolbarButton {
   label: string;
   caption?: string;
   tooltip?: string;
+  disabledReason?: string;
   onClick(): void;
 }
 
@@ -49,6 +50,10 @@ export class Toolbar {
         if (item.tooltip) b.title = item.tooltip;
         b.dataset.action = item.id;
         b.setAttribute('aria-pressed', 'false');
+        if (item.disabledReason) {
+          b.disabled = true;
+          b.title = item.disabledReason;
+        }
         this.buttons.set(item.id, b);
         b.addEventListener('click', () => this.closeMenu());
         group.append(b);

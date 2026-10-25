@@ -15,7 +15,8 @@ Path: @/src/app/input
 
 ### Core Implementation
 
-- `connectCameraInput` installs DOM event handlers, tracks held keys, updates render dimensions, and connects pointer gestures to pan, zoom, rotation, selection and paint callbacks. Pointer twist and the keyboard shortcuts resolve rotation through the shared camera helper using the current map and latest track snapshot, so elevated surfaces can define the viewport-centre focus. A desktop context click prevents the browser menu and forces canvas selection except while Footpaths is active, when it removes a path. A touch hold forces selection except while Footpaths is active, when it removes a path.
+- `connectCameraInput` installs DOM event handlers, tracks held keys, updates render dimensions, and connects pointer gestures to pan, zoom, rotation, selection and paint callbacks. Pointer twist and the keyboard shortcuts resolve rotation through the shared camera helper using the current map and latest track snapshot, so elevated surfaces can define the viewport-centre focus.
+- The canvas context menu is suppressed for active tools except Select and Patrol; Paths delegates to path removal, while all other tools delegate to scenery removal. A touch hold forces selection except while Footpaths is active, when it removes a path.
 - `centreOnTile` projects a map tile into camera coordinates for locate actions.
 - Input is gated by active-game and overlay callbacks; visibility changes update app pause state.
 

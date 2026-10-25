@@ -17,7 +17,7 @@ Path: @/src/app/bootstrap
 
 - Creates shared app state and passes accessors or action callbacks into controllers, preserving one live source for camera, selected tool, settings and selection state. Toolbar rotation actions use the same centre-focus camera transform as pointer twist and keyboard rotation.
 - Drives frame-time camera movement, scenario outcome observation, HUD/UI refresh, rendering and overlays from a single animation-frame callback. The loop synchronizes the UI's compass indicator with the camera's discrete rotation.
-- Wires controller actions back into `SimClient` commands and pause/speed controls.
+- Wires controller actions back into `SimClient` commands and pause/speed controls, including the tool controller's path and scenery removal callbacks used by canvas context menus.
 - On a new game, the map callback uses [opening-camera.ts](opening-camera.ts) to project the park gate and contiguous inward entrance path into the current camera rotation. It falls back to the map center when entrance coordinates are unavailable or negative; later map updates preserve the player's view.
 
 ### Things to Know

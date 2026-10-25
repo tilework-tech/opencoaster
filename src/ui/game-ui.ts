@@ -11,6 +11,7 @@ import { StatusBar } from './status-bar';
 import { effectiveGameSpeed } from './window-layout';
 import { Toolbar } from './toolbar';
 import type { ToolbarButton } from './toolbar';
+import { STAFF_KIND_NAMES } from './staff-roster';
 import type {
   GameUIActions,
   GuestSelection,
@@ -108,6 +109,7 @@ export class GameUI {
   private readonly ctx: UiContext;
   private paused = false;
   private tool: ToolMode = 'select';
+  private patrolKind: number | null = null;
   private selectedGuest: GuestSelection | null = null;
   private speed = 1;
 
@@ -118,7 +120,13 @@ export class GameUI {
   ) {
     this.ctx = {
       windows,
-      actions,
+      actions: {
+        ...actions,
+        setPatrolKind: (kind) => {
+          this.patrolKind = kind;
+          actions.setPatrolKind(kind);
+        },
+      },
       selectedGuest: () => this.selectedGuest,
       series: this.series,
       openRide: (id) => this.openRide(id),
@@ -163,9 +171,21 @@ export class GameUI {
       { id: 'map', icon: 'map', label: 'Map', onClick: open('map') },
     ];
     const right: ToolbarButton[] = [
-      { id: 'clear', icon: 'demolish', label: 'Clear scenery', onClick: open('clear') },
+      {
+        id: 'clear',
+        icon: 'demolish',
+        label: 'Clear scenery',
+        onClick: open('clear'),
+        disabledReason: 'Clearing scenery is not available in this version.',
+      },
       { id: 'land', icon: 'land', label: 'Land', onClick: open('land') },
-      { id: 'water', icon: 'water', label: 'Water', onClick: open('water') },
+      {
+        id: 'water',
+        icon: 'water',
+        label: 'Water',
+        onClick: open('water'),
+        disabledReason: 'Water tools are not available in this version.',
+      },
       { id: 'scenery', icon: 'scenery', label: 'Scenery', onClick: open('scenery') },
       { id: 'paths', icon: 'paths', label: 'Footpaths', onClick: open('paths') },
       { id: 'ride-select', icon: 'rides', label: 'New ride', onClick: open('ride-select') },
@@ -556,9 +576,14 @@ export class GameUI {
       const displayPane = win.pane('display');
       displayPane.append(
         element('p', 'ui-help', 'View and display options'),
-        this.optionToggle('Height labels', 'height-labels'),
+        this.optionToggle('Height labels', 'height-labels', undefined, 'Not available yet.'),
         this.optionToggle('Gridlines', 'gridlines'),
-        this.optionToggle('Construction marker', 'construction-marker'),
+        this.optionToggle(
+          'Construction marker',
+          'construction-marker',
+          undefined,
+          'Not available yet.',
+        ),
         this.optionToggle('Performance overlay', 'performance-overlay', (on) =>
           this.parent.classList.toggle('hud-visible', on),
         ),
@@ -586,10 +611,16 @@ export class GameUI {
     labelText: string,
     key: string,
     onChange?: (enabled: boolean) => void,
+    unavailableReason?: string,
   ): HTMLLabelElement {
     const label = element('label', 'check-row');
     const input = element('input');
     input.type = 'checkbox';
+    if (unavailableReason) {
+      input.disabled = true;
+      input.title = unavailableReason;
+      label.title = unavailableReason;
+    }
     input.checked = localStorage.getItem(`opencoaster-option-${key}`) === 'true';
     input.addEventListener('change', () => {
       localStorage.setItem(`opencoaster-option-${key}`, String(input.checked));
@@ -657,7 +688,7 @@ export class GameUI {
             : tool === 'buy-rights'
               ? 'Construction rights selected. Click a marked tile to buy the rights.'
               : tool === 'patrol'
-                ? 'Patrol tool selected. Tap tiles to add them; use Remove tiles (or Shift) to remove.'
+                ? `Patrol tool selected${this.patrolKind === null ? '' : ` for ${STAFF_KIND_NAMES[this.patrolKind] ?? 'Staff'}`}. Tap tiles to add them; use Remove tiles (or Shift) to remove.`
                 : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
   }
 }
