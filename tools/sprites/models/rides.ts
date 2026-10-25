@@ -1,18 +1,5 @@
-import {
-  beam,
-  box,
-  cylinder,
-  material,
-  orientedBox,
-  physicalToLevels,
-  polygon,
-  quad,
-  rotateY,
-  mapMesh,
-  rotateZ,
-  translateMesh,
-} from '../mesh';
-import type { Material, Mesh, Vec3 } from '../mesh';
+import { beam, box, cylinder, material, orientedBox, physicalToLevels, quad } from '../mesh';
+import type { Material, Mesh } from '../mesh';
 import { ramp } from '../palette';
 import {
   enterprise,
@@ -33,13 +20,9 @@ const BLUE = mat('blue');
 const YELLOW = mat('yellow');
 const GREEN = mat('green');
 const ORANGE = mat('orange');
-const PINK = mat('pink');
 const PURPLE = mat('purple');
-const STEEL = mat('steel');
 const WOOD = mat('wood');
-const TIMBER = mat('timber');
 const GLASS = mat('glass');
-const STONE = mat('stone');
 const BRICK = mat('brick');
 
 export interface RideModel {
@@ -48,35 +31,6 @@ export interface RideModel {
   frames: number;
   /** Mesh for operating frame `frame`, authored in physical tile units around the tile centre. */
   build: (frame: number) => Mesh;
-}
-
-/** Cone or truncated cone whose side panels alternate between two materials. */
-function stripedCone(
-  z0: number,
-  z1: number,
-  r0: number,
-  r1: number,
-  segments: number,
-  a: Material,
-  b: Material,
-): Mesh {
-  const out: Mesh = [];
-  for (let i = 0; i < segments; i++) {
-    const a0 = (i / segments) * Math.PI * 2;
-    const a1 = ((i + 1) / segments) * Math.PI * 2;
-    out.push(
-      ...quad(
-        [
-          [Math.cos(a0) * r0, Math.sin(a0) * r0, z0],
-          [Math.cos(a1) * r0, Math.sin(a1) * r0, z0],
-          [Math.cos(a1) * r1, Math.sin(a1) * r1, z1],
-          [Math.cos(a0) * r1, Math.sin(a0) * r1, z1],
-        ],
-        i % 2 === 0 ? a : b,
-      ),
-    );
-  }
-  return out;
 }
 
 interface StallStyle {

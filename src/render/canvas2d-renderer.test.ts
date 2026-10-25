@@ -3,7 +3,10 @@ import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
-import { createSnapshot } from '../worker/snapshot';
+import { RideInfo, createSnapshot } from '../worker/snapshot';
+import { TILE_UNITS } from '../sim/core/constants';
+import { RideType } from '../sim/rides/ride-types';
+import { rideCellSpriteKey } from './world-art';
 import type { Snapshot } from '../worker/snapshot';
 import type { MapData } from './renderer';
 import { SpritePages, spritePages } from './sprite-pages';
@@ -309,5 +312,64 @@ describe('Canvas2D fallback map art', () => {
     expect(context.images).toHaveLength(1);
     expect([1, 2, 3]).toContain(context.spriteSources[0]);
     expect(context.spriteSources).not.toContain(0);
+  });
+
+  it('draws flat-ride slices and guests in painter order in every camera rotation', async () => {
+    for (const rotation of [0, 1, 2, 3] as const) {
+      const map = { ...flatMap(), width: 12, height: 12 };
+      map.heights = new Uint8Array(144);
+      map.surface = new Uint8Array(144);
+      map.slope = new Uint8Array(144);
+      map.waterLevel = new Uint8Array(144);
+      const snapshot = createSnapshot({ guests: 1, staff: 0, vehicles: 0, litter: 0 });
+      snapshot.rides.count = 1;
+      snapshot.rideInfo[RideInfo.Type] = RideType.SwingingShip;
+      snapshot.rideInfo[RideInfo.RideX] = 5;
+      snapshot.rideInfo[RideInfo.RideY] = 5;
+      snapshot.rideInfo[RideInfo.Dir] = 0;
+      snapshot.guests.count = 1;
+      snapshot.guests.data.set([5.5 * TILE_UNITS, 5.5 * TILE_UNITS, 0, 0]);
+      const first = rideCellSpriteKey(RideType.SwingingShip, 0, 0, rotation);
+      const last = rideCellSpriteKey(RideType.SwingingShip, 4, 0, rotation);
+      const context = new RecordingContext();
+      const renderer = new Canvas2DRenderer();
+      installStubAtlas([first, last, 'people/guest-walk']);
+      renderer.attach({ getContext: () => context } as unknown as HTMLCanvasElement);
+      renderer.resize(800, 600, 1);
+      renderer.setMap(map);
+      renderer.draw(snapshot, { x: 0, y: 0, zoom: 1, rotation });
+      // Source x of each stub: first slice 1, last slice 2, guest 3. Ship cells 1..4 are missing.
+      const farFirst = rotation === 1 || rotation === 2;
+      expect(context.spriteSources, `rotation ${rotation}`).toEqual(
+        farFirst ? [2, 3, 1] : [1, 3, 2],
+      );
+    }
+  });
+
+  it('draws scenery beside a large ride between the slices behind and in front of it', () => {
+    const map = { ...flatMap(), width: 12, height: 12 };
+    map.heights = new Uint8Array(144);
+    map.surface = new Uint8Array(144).fill(1);
+    map.slope = new Uint8Array(144);
+    map.waterLevel = new Uint8Array(144);
+    map.sceneryElements = Int32Array.of(6, 3, 0, 0, SceneryItem.OakTree);
+    map.sceneryCount = 1;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+    snapshot.rides.count = 1;
+    snapshot.rideInfo[RideInfo.Type] = RideType.SwingingShip;
+    snapshot.rideInfo[RideInfo.RideX] = 5;
+    snapshot.rideInfo[RideInfo.RideY] = 5;
+    const context = new RecordingContext();
+    const renderer = new Canvas2DRenderer();
+    installStubAtlas([
+      rideCellSpriteKey(RideType.SwingingShip, 0, 0, 0),
+      rideCellSpriteKey(RideType.SwingingShip, 4, 0, 0),
+      'trees/tree-oak',
+    ]);
+    renderer.attach({ getContext: () => context } as unknown as HTMLCanvasElement);
+    renderer.resize(800, 600, 1);
+    renderer.setMap(map);
+    renderer.draw(snapshot, { x: 0, y: 0, zoom: 1, rotation: 0 });
+    expect(context.spriteSources).toEqual([1, 3, 2]);
   });
 });

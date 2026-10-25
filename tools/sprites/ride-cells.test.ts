@@ -31,11 +31,7 @@ function probeAt(x: number, y: number): Mesh {
   ];
 }
 
-function screenOf(
-  fx: number,
-  fy: number,
-  rotation: Rotation,
-): [number, number] {
+function screenOf(fx: number, fy: number, rotation: Rotation): [number, number] {
   const out = new Float64Array(2);
   project(fx, fy, 0, MAP, MAP, rotation, out);
   return [out[0], out[1]];
@@ -52,10 +48,7 @@ describe('flat ride slices land on the tile they belong to', () => {
           def.footprint.forEach(([fx, fy], j) => {
             // A point inside footprint tile j, in anchor-relative unrotated tile offsets.
             const local: [number, number] = [fx + 0.21, fy - 0.17];
-            const probe = placeOnFootprint(
-              probeAt(local[0], local[1]),
-              def.footprint,
-            );
+            const probe = placeOnFootprint(probeAt(local[0], local[1]), def.footprint);
             const [cx, cy] = footprintCentre(def.footprint);
             // placeOnFootprint shifts by the centre; undo so the probe sits at `local` exactly.
             const placed = probe.map((t) => ({

@@ -34,7 +34,9 @@ describe('flat ride footprint cells', () => {
 
   it('stays under the ride sprite group so the lazy flat-ride atlas category serves it', () => {
     for (const def of FLAT_RIDES)
-      expect(rideCellSpriteKey(def.id, 0, 0, 0).startsWith(`${rideSpriteName(def.id)}/`)).toBe(true);
+      expect(rideCellSpriteKey(def.id, 0, 0, 0).startsWith(`${rideSpriteName(def.id)}/`)).toBe(
+        true,
+      );
   });
 });
 
@@ -67,8 +69,6 @@ describe('entrance and exit hut facing', () => {
         [4, 5],
         [5, 4],
       ])
-        expect(rideHutFacingForFootprint(type, 5, 5, 0, px, py)).toBe(
-          rideHutFacing(5, 5, px, py),
-        );
+        expect(rideHutFacingForFootprint(type, 5, 5, 0, px, py)).toBe(rideHutFacing(5, 5, px, py));
   });
 });

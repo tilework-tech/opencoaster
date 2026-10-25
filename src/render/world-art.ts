@@ -86,7 +86,8 @@ export function rideHutFacingForFootprint(
   if (!def || def.usesTrack || def.footprint.length <= 1)
     return rideHutFacing(rideX, rideY, partX, partY);
   for (const [tx, ty] of rideFootprintTiles(def, rideX, rideY, rideDir))
-    if (Math.abs(partX - tx) + Math.abs(partY - ty) === 1) return rideHutFacing(tx, ty, partX, partY);
+    if (Math.abs(partX - tx) + Math.abs(partY - ty) === 1)
+      return rideHutFacing(tx, ty, partX, partY);
   return rideHutFacing(rideX, rideY, partX, partY);
 }
 

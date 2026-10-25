@@ -33,7 +33,8 @@ import { CoasterScene } from './coaster-scene';
 import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
-import { sortByDepth } from './painter-order';
+import { rotatedPositionSum, sortByDepth } from './painter-order';
+import { RideCellScene, isSlicedRide } from './ride-scene';
 import type { Rotation } from './projection';
 import {
   pathElementSprite,
@@ -44,7 +45,7 @@ import {
   rideSpriteKey,
   facilityFacingFromPaths,
   facilitySpriteKey,
-  rideHutFacing,
+  rideHutFacingForFootprint,
   rideHutSpriteKey,
   spriteViewName,
   terrainCliffSpriteName,
@@ -325,6 +326,7 @@ export class WebGL2Renderer implements Renderer {
   private syncedPageVersion = -1;
   private attributeBase = 0;
   private readonly coasterScene = new CoasterScene();
+  private readonly rideCells = new RideCellScene();
   private uniforms: {
     atlas: (WebGLUniformLocation | null)[];
     viewport: WebGLUniformLocation | null;
@@ -1618,9 +1620,11 @@ export class WebGL2Renderer implements Renderer {
           )
         ) {
           const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
-          const facing = rideHutFacing(
+          const facing = rideHutFacingForFootprint(
+            type,
             snapshot.rideInfo[o + RideInfo.RideX],
             snapshot.rideInfo[o + RideInfo.RideY],
+            snapshot.rideInfo[o + RideInfo.Dir],
             x,
             y,
           );
@@ -1751,6 +1755,46 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  private appendRideCells(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const scene = this.rideCells;
+    scene.build(snapshot, map, camera.rotation);
+    for (let i = 0; i < scene.length; i++) {
+      const item = scene.items[i];
+      const entry = spritePages.resolve(item.key);
+      if (!entry) continue;
+      const frameIndex = rideSpriteFrame(item.phase, snapshot.tick, entry.frames.length);
+      const frame = entry.frames[frameIndex] ?? entry.frames[0];
+      project(item.x, item.y, item.z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          frame.width,
+          frame.height,
+        )
+      )
+        continue;
+      this.append(
+        item.x,
+        item.y,
+        item.z,
+        frame.width,
+        frame.height,
+        `${item.key}#${frameIndex}`,
+        item.depth,
+      );
+    }
+  }
+
   private appendRides(
     snapshot: Snapshot,
     map: MapData,
@@ -1758,6 +1802,7 @@ export class WebGL2Renderer implements Renderer {
     viewportWidth: number,
     viewportHeight: number,
   ): void {
+    this.appendRideCells(snapshot, map, camera, viewportWidth, viewportHeight);
     for (let i = 0; i < snapshot.rides.count; i++) {
       const offset = i * RIDE_INFO_STRIDE;
       const type = snapshot.rideInfo[offset + RideInfo.Type] as RideType;
@@ -1767,6 +1812,7 @@ export class WebGL2Renderer implements Renderer {
       if (
         !definition ||
         definition.usesTrack ||
+        isSlicedRide(type) ||
         tileX < 0 ||
         tileY < 0 ||
         tileX >= map.width ||
@@ -2354,22 +2400,6 @@ function unrotateForDraw(
       out[0] = width - 1 - y;
       out[1] = x;
       break;
-  }
-}
-
-/** Depth key of a world point: the painter sorts by it, doubled, so the ride and scenery offsets stay integers. */
-export function rotatedPositionSum(x: number, y: number, map: MapData, rotation: Rotation): number {
-  const tx = x / TILE_UNITS;
-  const ty = y / TILE_UNITS;
-  switch (rotation) {
-    case 0:
-      return tx + ty;
-    case 1:
-      return map.height - ty + tx;
-    case 2:
-      return map.width - tx + map.height - ty;
-    case 3:
-      return ty + map.width - tx;
   }
 }
 

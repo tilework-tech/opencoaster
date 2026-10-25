@@ -102,17 +102,35 @@ function horse(x: number, y: number, z: number, heading: number, coat: Material)
 export function merryGoRound(frame: number): Mesh {
   const mesh: Mesh = [];
   const turn = (Math.max(frame, 0) * Math.PI) / 24;
-  mesh.push(...cylinder(0, 0, 0, MGR_DECK, MGR_RADIUS + 0.04, MGR_RADIUS + 0.04, 24, RED, { capBottom: true }));
-  mesh.push(...cylinder(0, 0, MGR_DECK, MGR_DECK + 0.015, MGR_RADIUS - 0.04, MGR_RADIUS - 0.04, 24, TIMBER, { capBottom: true }));
+  mesh.push(
+    ...cylinder(0, 0, 0, MGR_DECK, MGR_RADIUS + 0.04, MGR_RADIUS + 0.04, 24, RED, {
+      capBottom: true,
+    }),
+  );
+  mesh.push(
+    ...cylinder(
+      0,
+      0,
+      MGR_DECK,
+      MGR_DECK + 0.015,
+      MGR_RADIUS - 0.04,
+      MGR_RADIUS - 0.04,
+      24,
+      TIMBER,
+      { capBottom: true },
+    ),
+  );
   mesh.push(...cylinder(0, 0, MGR_DECK, MGR_CANOPY_Z, 0.3, 0.3, 12, WHITE));
   mesh.push(...cylinder(0, 0, MGR_DECK, 0.5, 0.36, 0.36, 12, YELLOW));
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * TAU + turn;
-    mesh.push(...box(
-      [Math.cos(a) * 0.3 - 0.07, Math.sin(a) * 0.3 - 0.07, 0.52],
-      [Math.cos(a) * 0.3 + 0.07, Math.sin(a) * 0.3 + 0.07, 0.9],
-      i % 2 === 0 ? BLUE : PINK,
-    ));
+    mesh.push(
+      ...box(
+        [Math.cos(a) * 0.3 - 0.07, Math.sin(a) * 0.3 - 0.07, 0.52],
+        [Math.cos(a) * 0.3 + 0.07, Math.sin(a) * 0.3 + 0.07, 0.9],
+        i % 2 === 0 ? BLUE : PINK,
+      ),
+    );
   }
   const coats = [WHITE, PINK, YELLOW, BLUE, ORANGE, GREEN];
   const rings: Array<{ count: number; radius: number }> = [
@@ -126,20 +144,74 @@ export function merryGoRound(frame: number): Mesh {
       const cy = Math.sin(angle) * radius;
       const bob = 0.1 + 0.1 * (1 + Math.sin(i * 1.9 + Math.max(frame, 0) * 0.8 + ring)) * 0.5;
       mesh.push(...post(cx, cy, MGR_DECK, MGR_CANOPY_Z, 0.022, YELLOW));
-      mesh.push(...horse(cx, cy, MGR_DECK + 0.05 + bob, angle + Math.PI / 2, coats[(i + ring) % coats.length]));
+      mesh.push(
+        ...horse(
+          cx,
+          cy,
+          MGR_DECK + 0.05 + bob,
+          angle + Math.PI / 2,
+          coats[(i + ring) % coats.length],
+        ),
+      );
     }
   });
-  mesh.push(...stripedCone(0, 0, MGR_CANOPY_Z - 0.15, MGR_CANOPY_Z, MGR_RADIUS + 0.08, MGR_RADIUS + 0.08, 12, YELLOW, WHITE));
-  mesh.push(...stripedCone(0, 0, MGR_CANOPY_Z, MGR_CANOPY_Z + 0.08, MGR_RADIUS + 0.08, MGR_RADIUS + 0.08, 12, WOOD, WOOD));
-  mesh.push(...stripedCone(0, 0, MGR_CANOPY_Z + 0.08, MGR_CANOPY_Z + 0.85, MGR_RADIUS + 0.1, 0.07, 12, RED, WHITE));
+  mesh.push(
+    ...stripedCone(
+      0,
+      0,
+      MGR_CANOPY_Z - 0.15,
+      MGR_CANOPY_Z,
+      MGR_RADIUS + 0.08,
+      MGR_RADIUS + 0.08,
+      12,
+      YELLOW,
+      WHITE,
+    ),
+  );
+  mesh.push(
+    ...stripedCone(
+      0,
+      0,
+      MGR_CANOPY_Z,
+      MGR_CANOPY_Z + 0.08,
+      MGR_RADIUS + 0.08,
+      MGR_RADIUS + 0.08,
+      12,
+      WOOD,
+      WOOD,
+    ),
+  );
+  mesh.push(
+    ...stripedCone(
+      0,
+      0,
+      MGR_CANOPY_Z + 0.08,
+      MGR_CANOPY_Z + 0.85,
+      MGR_RADIUS + 0.1,
+      0.07,
+      12,
+      RED,
+      WHITE,
+    ),
+  );
   mesh.push(...cylinder(0, 0, MGR_CANOPY_Z + 0.85, MGR_CANOPY_Z + 1.1, 0.05, 0.015, 6, YELLOW));
   for (let i = 0; i < 12; i++) {
     const a = ((i + 0.5) / 12) * TAU;
-    mesh.push(...box(
-      [Math.cos(a) * (MGR_RADIUS + 0.09) - 0.03, Math.sin(a) * (MGR_RADIUS + 0.09) - 0.03, MGR_CANOPY_Z - 0.1],
-      [Math.cos(a) * (MGR_RADIUS + 0.09) + 0.03, Math.sin(a) * (MGR_RADIUS + 0.09) + 0.03, MGR_CANOPY_Z - 0.04],
-      WHITE,
-    ));
+    mesh.push(
+      ...box(
+        [
+          Math.cos(a) * (MGR_RADIUS + 0.09) - 0.03,
+          Math.sin(a) * (MGR_RADIUS + 0.09) - 0.03,
+          MGR_CANOPY_Z - 0.1,
+        ],
+        [
+          Math.cos(a) * (MGR_RADIUS + 0.09) + 0.03,
+          Math.sin(a) * (MGR_RADIUS + 0.09) + 0.03,
+          MGR_CANOPY_Z - 0.04,
+        ],
+        WHITE,
+      ),
+    );
   }
   return mesh;
 }
@@ -190,7 +262,8 @@ function shipHull(): Mesh {
     mesh.push(...beam([0, s * 1.6, 0.5], [0, s * 1.78, 1.0], 0.1, YELLOW));
     mesh.push(...box([-0.08, s * 1.76 - 0.06, 0.98], [0.08, s * 1.76 + 0.06, 1.12], WHITE));
   }
-  for (let i = -4; i <= 4; i++) mesh.push(...box([-0.34, i * 0.38 - 0.03, 0.16], [0.34, i * 0.38 + 0.03, 0.4], WHITE));
+  for (let i = -4; i <= 4; i++)
+    mesh.push(...box([-0.34, i * 0.38 - 0.03, 0.16], [0.34, i * 0.38 + 0.03, 0.4], WHITE));
   return mesh;
 }
 
@@ -229,7 +302,11 @@ export function swingingShipSeats(frame: number): Vec3[] {
       const z = hullTop - 0.04 + 0.16;
       const dx = x;
       const dz = z - SHIP_AXLE_Z;
-      out.push([dx * Math.cos(swing) + dz * Math.sin(swing), y, SHIP_AXLE_Z - dx * Math.sin(swing) + dz * Math.cos(swing)]);
+      out.push([
+        dx * Math.cos(swing) + dz * Math.sin(swing),
+        y,
+        SHIP_AXLE_Z - dx * Math.sin(swing) + dz * Math.cos(swing),
+      ]);
     }
   return out;
 }
@@ -273,7 +350,13 @@ export function ferrisWheel(frame: number): Mesh {
     const p = rim(a, 0);
     mesh.push(...beam([-0.2, p[1], p[2]], [0.2, p[1], p[2]], 0.05, STEEL));
     const g = mat('white');
-    mesh.push(...box([-0.19, p[1] - 0.15, p[2] - 0.34], [0.19, p[1] + 0.15, p[2] - 0.1], cabins[i % cabins.length]));
+    mesh.push(
+      ...box(
+        [-0.19, p[1] - 0.15, p[2] - 0.34],
+        [0.19, p[1] + 0.15, p[2] - 0.1],
+        cabins[i % cabins.length],
+      ),
+    );
     mesh.push(...box([-0.22, p[1] - 0.17, p[2] - 0.1], [0.22, p[1] + 0.17, p[2] - 0.05], g));
     mesh.push(...box([-0.15, p[1] - 0.11, p[2] - 0.3], [0.15, p[1] + 0.11, p[2] - 0.2], GLASS));
   }
@@ -329,7 +412,15 @@ export function twist(frame: number): Mesh {
     const spin = -f * (Math.PI / 5) + a;
     for (let k = 0; k < 3; k++) {
       const b = spin + (k / 3) * TAU;
-      mesh.push(...twistCar(ax + Math.cos(b) * 0.33, ay + Math.sin(b) * 0.33, 0.56, colours[arm * 3 + k], b + Math.PI));
+      mesh.push(
+        ...twistCar(
+          ax + Math.cos(b) * 0.33,
+          ay + Math.sin(b) * 0.33,
+          0.56,
+          colours[arm * 3 + k],
+          b + Math.PI,
+        ),
+      );
     }
   }
   return mesh;
@@ -411,7 +502,8 @@ export function hauntedHouse(frame: number): Mesh {
   mesh.push(...box([-0.25, 1.4, 0.06], [-0.05, 1.43, 0.45], WOOD));
   mesh.push(...box([-0.45, 1.4, 0.06], [-0.4, 1.45, 0.55], WHITE));
   mesh.push(...box([0.05, 1.4, 0.06], [0.1, 1.45, 0.55], WHITE));
-  for (let i = 0; i < 3; i++) mesh.push(...box([-0.4, 1.4 + i * 0.06, 0.06], [0.1, 1.46 + i * 0.06, 0.1 - i * 0.02], STONE));
+  for (let i = 0; i < 3; i++)
+    mesh.push(...box([-0.4, 1.4 + i * 0.06, 0.06], [0.1, 1.46 + i * 0.06, 0.1 - i * 0.02], STONE));
   // windows
   const flicker = frame < 0 ? 0 : frame + 1;
   for (const [x, z] of [
@@ -426,8 +518,20 @@ export function hauntedHouse(frame: number): Mesh {
   }
   mesh.push(...box([-0.38, 1.05, 1.15], [-0.22, 1.08, 1.4], lit(flicker % 2 === 0)));
   for (const y of [-0.6, 0, 0.6]) {
-    mesh.push(...box([0.7, y - 0.1, 0.4], [0.73, y + 0.1, 0.68], lit((flicker + Math.round(y * 5)) % 2 === 0)));
-    mesh.push(...box([-1.33, y - 0.1, 0.4], [-1.3, y + 0.1, 0.68], lit((flicker + Math.round(y * 5)) % 3 === 0)));
+    mesh.push(
+      ...box(
+        [0.7, y - 0.1, 0.4],
+        [0.73, y + 0.1, 0.68],
+        lit((flicker + Math.round(y * 5)) % 2 === 0),
+      ),
+    );
+    mesh.push(
+      ...box(
+        [-1.33, y - 0.1, 0.4],
+        [-1.3, y + 0.1, 0.68],
+        lit((flicker + Math.round(y * 5)) % 3 === 0),
+      ),
+    );
   }
   // tower
   mesh.push(...box([0.55, -1.38, 0.06], [1.38, -0.55, 1.95], wall));
@@ -494,9 +598,21 @@ export function topSpin(frame: number): Mesh {
   ] as const) {
     const x = side * TOPSPIN_ARM;
     arm.push(
-      ...box([x - 0.24, -0.75, TOPSPIN_AXLE_Z - 0.16], [x + 0.24, 0.75, TOPSPIN_AXLE_Z + 0.16], colour),
-      ...box([x - 0.24, -0.78, TOPSPIN_AXLE_Z - 0.2], [x + 0.24, 0.78, TOPSPIN_AXLE_Z - 0.16], STEEL),
-      ...box([x + side * 0.2, -0.75, TOPSPIN_AXLE_Z - 0.16], [x + side * 0.26, 0.75, TOPSPIN_AXLE_Z + 0.34], BLUE),
+      ...box(
+        [x - 0.24, -0.75, TOPSPIN_AXLE_Z - 0.16],
+        [x + 0.24, 0.75, TOPSPIN_AXLE_Z + 0.16],
+        colour,
+      ),
+      ...box(
+        [x - 0.24, -0.78, TOPSPIN_AXLE_Z - 0.2],
+        [x + 0.24, 0.78, TOPSPIN_AXLE_Z - 0.16],
+        STEEL,
+      ),
+      ...box(
+        [x + side * 0.2, -0.75, TOPSPIN_AXLE_Z - 0.16],
+        [x + side * 0.26, 0.75, TOPSPIN_AXLE_Z + 0.34],
+        BLUE,
+      ),
     );
   }
   mesh.push(...rotateY(arm, angle, 0, TOPSPIN_AXLE_Z));
@@ -542,9 +658,19 @@ export function spiralSlide(): Mesh {
   mesh.push(...cylinder(0, 0, 0.12, SLIDE_TOP + 0.05, 0.27, 0.2, 12, WHITE));
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * TAU + 0.6;
-    mesh.push(...box([Math.cos(a) * 0.24 - 0.04, Math.sin(a) * 0.24 - 0.04, 0.12], [Math.cos(a) * 0.24 + 0.04, Math.sin(a) * 0.24 + 0.04, SLIDE_TOP], RED));
+    mesh.push(
+      ...box(
+        [Math.cos(a) * 0.24 - 0.04, Math.sin(a) * 0.24 - 0.04, 0.12],
+        [Math.cos(a) * 0.24 + 0.04, Math.sin(a) * 0.24 + 0.04, SLIDE_TOP],
+        RED,
+      ),
+    );
   }
-  mesh.push(...cylinder(0, 0, SLIDE_TOP + 0.05, SLIDE_TOP + 0.12, 0.52, 0.52, 12, YELLOW, { capBottom: true }));
+  mesh.push(
+    ...cylinder(0, 0, SLIDE_TOP + 0.05, SLIDE_TOP + 0.12, 0.52, 0.52, 12, YELLOW, {
+      capBottom: true,
+    }),
+  );
   mesh.push(...stripedCone(0, 0, SLIDE_TOP + 0.12, SLIDE_TOP + 0.62, 0.5, 0.02, 8, RED, WHITE));
   const steps = 56;
   for (let i = 0; i < steps; i++) {
@@ -552,8 +678,24 @@ export function spiralSlide(): Mesh {
     const t1 = (i + 1) / steps;
     const m = i % 2 === 0 ? YELLOW : ORANGE;
     mesh.push(...beam(slidePoint(t0), slidePoint(t1), 0.26, m, 0.04));
-    mesh.push(...beam(slidePoint(t0, SLIDE_RADIUS + 0.14), slidePoint(t1, SLIDE_RADIUS + 0.14), 0.03, WHITE, 0.14));
-    mesh.push(...beam(slidePoint(t0, SLIDE_RADIUS - 0.14), slidePoint(t1, SLIDE_RADIUS - 0.14), 0.03, WHITE, 0.14));
+    mesh.push(
+      ...beam(
+        slidePoint(t0, SLIDE_RADIUS + 0.14),
+        slidePoint(t1, SLIDE_RADIUS + 0.14),
+        0.03,
+        WHITE,
+        0.14,
+      ),
+    );
+    mesh.push(
+      ...beam(
+        slidePoint(t0, SLIDE_RADIUS - 0.14),
+        slidePoint(t1, SLIDE_RADIUS - 0.14),
+        0.03,
+        WHITE,
+        0.14,
+      ),
+    );
     if (i % 7 === 3) {
       const p = slidePoint(t0);
       mesh.push(...post(p[0], p[1], 0.06, p[2] - 0.02, 0.025, STEEL));
@@ -600,7 +742,9 @@ export function enterprise(frame: number): Mesh {
   mesh.push(...cylinder(0, 0, 0.11, 0.3, 0.55, 0.45, 12, PURPLE));
   mesh.push(...cylinder(0, 0, 0.3, ENTERPRISE_HUB_Z, 0.16, 0.1, 10, STEEL));
   mesh.push(...beam([0.0, 0.35, 0.2], [0, 0, ENTERPRISE_HUB_Z], 0.1, STEEL));
-  mesh.push(...cylinder(0, 0, ENTERPRISE_HUB_Z - 0.06, ENTERPRISE_HUB_Z + 0.1, 0.2, 0.2, 10, YELLOW));
+  mesh.push(
+    ...cylinder(0, 0, ENTERPRISE_HUB_Z - 0.06, ENTERPRISE_HUB_Z + 0.1, 0.2, 0.2, 10, YELLOW),
+  );
   const hub: Vec3 = [0, 0, ENTERPRISE_HUB_Z];
   const colours = [RED, BLUE, YELLOW, GREEN];
   const segments = ENTERPRISE_CARS * 2;
@@ -614,8 +758,16 @@ export function enterprise(frame: number): Mesh {
     const p = enterpriseRim(a);
     mesh.push(...beam(hub, p, 0.05, STEEL));
     mesh.push(
-      ...box([p[0] - 0.19, p[1] - 0.19, p[2] - 0.12], [p[0] + 0.19, p[1] + 0.19, p[2] + 0.14], colours[i % colours.length]),
-      ...box([p[0] - 0.21, p[1] - 0.21, p[2] + 0.14], [p[0] + 0.21, p[1] + 0.21, p[2] + 0.19], WHITE),
+      ...box(
+        [p[0] - 0.19, p[1] - 0.19, p[2] - 0.12],
+        [p[0] + 0.19, p[1] + 0.19, p[2] + 0.14],
+        colours[i % colours.length],
+      ),
+      ...box(
+        [p[0] - 0.21, p[1] - 0.21, p[2] + 0.14],
+        [p[0] + 0.21, p[1] + 0.21, p[2] + 0.19],
+        WHITE,
+      ),
     );
   }
   return mesh;
@@ -644,7 +796,13 @@ export function observationTower(frame: number): Mesh {
   mesh.push(...cylinder(0, 0, 0.4, 3.45, 0.11, 0.09, 12, WHITE));
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * TAU + Math.PI / 4;
-    mesh.push(...box([Math.cos(a) * 0.11 - 0.015, Math.sin(a) * 0.11 - 0.015, 0.4], [Math.cos(a) * 0.11 + 0.015, Math.sin(a) * 0.11 + 0.015, 3.4], RED));
+    mesh.push(
+      ...box(
+        [Math.cos(a) * 0.11 - 0.015, Math.sin(a) * 0.11 - 0.015, 0.4],
+        [Math.cos(a) * 0.11 + 0.015, Math.sin(a) * 0.11 + 0.015, 3.4],
+        RED,
+      ),
+    );
   }
   mesh.push(...cylinder(0, 0, 3.4, 3.5, 0.34, 0.34, 12, STEEL, { capBottom: true }));
   mesh.push(...cylinder(0, 0, 3.5, 3.78, 0.34, 0.34, 12, GLASS));
