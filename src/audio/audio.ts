@@ -54,6 +54,7 @@ export class AudioEngine {
   private lastRideCount = 0;
   private updateFrame = 0;
   private readonly rideStates = new Map<number, number>();
+  private readonly pendingUiSounds: Array<'click' | 'open' | 'close' | 'news'> = [];
   private readonly musicVoices = new Map<
     number,
     { gain: GainNode; panner: StereoPannerNode; oscillator: OscillatorNode; visibleFrame: number }
@@ -80,6 +81,7 @@ export class AudioEngine {
     }
     this.musicVoices.clear();
     this.rideStates.clear();
+    this.pendingUiSounds.length = 0;
     this.lastTick = -1;
     this.lastWeather = 0;
     this.lastAudioEvent = 0;
@@ -103,9 +105,15 @@ export class AudioEngine {
       this.startAmbience();
     }
     if (this.context.state !== 'running') await this.context.resume();
+    for (const name of this.pendingUiSounds.splice(0)) this.play(name);
   }
 
   playUi(name: 'click' | 'open' | 'close' | 'news'): void {
+    if (!this.context) return;
+    if (this.context.state !== 'running') {
+      if (this.pendingUiSounds.length < 8) this.pendingUiSounds.push(name);
+      return;
+    }
     this.play(name);
   }
 

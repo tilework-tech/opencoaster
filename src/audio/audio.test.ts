@@ -57,6 +57,7 @@ class RecordingContext {
     return new RecordingNode() as unknown as AudioBufferSourceNode;
   }
   async resume(): Promise<void> {
+    await Promise.resolve();
     this.state = 'running';
   }
   async close(): Promise<void> {
@@ -116,6 +117,20 @@ describe('audio level controls', () => {
       { width: 800, height: 600, mapWidth: 8, mapHeight: 8 },
       { x: 0, y: 0, zoom: 1, rotation: 0 },
     );
+    expect(RecordingContext.started).toBe(ambienceSources + 1);
+    engine.dispose();
+  });
+
+  it('plays a UI cue issued while the first gesture is resuming audio', async () => {
+    RecordingContext.started = 0;
+    const engine = new AudioEngine(
+      DEFAULT_SETTINGS,
+      () => new RecordingContext() as unknown as AudioContext,
+    );
+    const unlocking = engine.unlock();
+    const ambienceSources = RecordingContext.started;
+    engine.playUi('open');
+    await unlocking;
     expect(RecordingContext.started).toBe(ambienceSources + 1);
     engine.dispose();
   });

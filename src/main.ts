@@ -68,6 +68,7 @@ interface Session extends GameInfo {
 
 const settings = loadSettings();
 const audio = new AudioEngine(settings);
+document.addEventListener('pointerdown', () => void audio.unlock().catch(() => undefined), true);
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof Element) || !target.closest('button, [role="button"], input, select, a'))
@@ -77,9 +78,7 @@ document.addEventListener('click', (event) => {
     .then(() => audio.playUi('click'))
     .catch(() => undefined);
 });
-document.addEventListener('keydown', () => void audio.unlock().catch(() => undefined), {
-  passive: true,
-});
+document.addEventListener('keydown', () => void audio.unlock().catch(() => undefined), true);
 let speed: GameSpeed = settings.speed;
 let userPaused = settings.paused;
 let hiddenPaused = document.visibilityState === 'hidden';
