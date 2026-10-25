@@ -1103,7 +1103,7 @@ export class WebGL2Renderer implements Renderer {
       if (Math.abs(lists.occluderX[i] - camera.x) > halfWidth) continue;
       const dy = lists.occluderY[i] - camera.y;
       if (dy < -top || dy > bottom) continue;
-      this.appendGroundTile(map, lists.occluders[i], camera.rotation);
+      this.appendGroundTile(map, lists.occluders[i], camera.rotation, 5);
     }
     const frame = waterSpriteName(waterFrameIndex(tick));
     for (let i = 0; i < lists.water.length; i++) {
@@ -1162,7 +1162,7 @@ export class WebGL2Renderer implements Renderer {
   }
 
   /** Appends one tile's terrain, boundary cliff faces and flat path fill. */
-  private appendGroundTile(map: MapData, index: number, rotation: Rotation): void {
+  private appendGroundTile(map: MapData, index: number, rotation: Rotation, depthOffset = 0): void {
     const x = index % map.width;
     const y = (index - x) / map.width;
     rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
@@ -1187,7 +1187,7 @@ export class WebGL2Renderer implements Renderer {
       TILE_W,
       TILE_H,
       terrainSurfaceSpriteName(terrainSurface),
-      2 * (rx + ry) - height,
+      2 * (rx + ry) - height + depthOffset,
       1,
       corners,
       terrainLightFactor(corners),
@@ -1259,8 +1259,7 @@ export class WebGL2Renderer implements Renderer {
         const z = map.heights[index] * Z_STEP;
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-        const depth =
-          2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 2;
+        const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
         project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1392,10 +1391,9 @@ export class WebGL2Renderer implements Renderer {
         slope ? direction : undefined,
         camera.rotation,
       );
-      const depth =
-        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) - z / Z_STEP;
       const worldX = x * TILE_UNITS + 128;
       const worldY = y * TILE_UNITS + 128;
+      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP - 1;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1452,8 +1450,7 @@ export class WebGL2Renderer implements Renderer {
       if (!item) continue;
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth =
-        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 2;
+      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       const spriteHeight = item.height * SCENERY_PIXELS_PER_HEIGHT;
       if (

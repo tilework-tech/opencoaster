@@ -1,5 +1,5 @@
 import type { Camera, MapData, Renderer } from './renderer';
-import { TILE_H, TILE_W, Z_PIXELS, project, viewSize } from './projection';
+import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
@@ -27,6 +27,7 @@ import {
   ambientTreeName,
 } from './world-art';
 import { terrainCliffSpriteName, terrainSurfaceSpriteName } from './world-art';
+import type { TerrainSurface } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
@@ -97,6 +98,8 @@ export class Canvas2DRenderer implements Renderer {
   private atlas: CanvasAtlas | null = null;
   private readonly coasterScene = new CoasterScene();
   private tick = 0;
+  private drawOrder: { depth: number; order: number; draw: () => void }[] = [];
+  private nextDrawOrder = 0;
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
@@ -166,6 +169,8 @@ export class Canvas2DRenderer implements Renderer {
     if (!ctx) return;
     this.visibleCount = 0;
     this.tick = snapshot?.tick ?? 0;
+    this.drawOrder = [];
+    this.nextDrawOrder = 0;
     ctx.fillStyle = '#10151b';
     ctx.fillRect(0, 0, this.cw, this.ch);
     if (!map) return;
@@ -201,7 +206,46 @@ export class Canvas2DRenderer implements Renderer {
       this.drawRides(ctx, snapshot, map, cam);
       this.drawGuests(ctx, snapshot.guests, snapshot.tick, map, cam);
     }
+    this.drawOrder.sort((a, b) => a.depth - b.depth || a.order - b.order);
+    for (const item of this.drawOrder) item.draw();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  private enqueue(
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    z: number,
+    offset: number,
+    draw: () => void,
+  ): void {
+    const tx = x / TILE_UNITS;
+    const ty = y / TILE_UNITS;
+    let sum: number;
+    switch (cam.rotation) {
+      case 0:
+        sum = tx + ty;
+        break;
+      case 1:
+        sum = map.height - ty + tx;
+        break;
+      case 2:
+        sum = map.width - tx + map.height - ty;
+        break;
+      case 3:
+        sum = ty + map.width - tx;
+        break;
+    }
+    this.queueAtDepth(2 * sum - z / Z_STEP + offset, draw);
+  }
+
+  private queueAtDepth(depth: number, draw: () => void): void {
+    this.drawOrder.push({
+      depth,
+      order: this.nextDrawOrder++,
+      draw,
+    });
   }
 
   private drawTiles(
@@ -227,6 +271,7 @@ export class Canvas2DRenderer implements Renderer {
         const y = this.tile[1];
         const i = y * map.width + x;
         const lift = map.heights[i] * Z_PIXELS;
+        const terrainZ = map.heights[i]! * Z_STEP;
         // View-space top/right/bottom/left vertices are tile corners starting at (4 - rot) & 3.
         const top = (4 - cam.rotation) & 3;
         const mask = map.slope[i];
@@ -279,7 +324,10 @@ export class Canvas2DRenderer implements Renderer {
             ctx.restore();
           }
         }
-        if (terrainSurface === 'rock') this.drawRockCliffFaces(ctx, map, cam, x, y, i, mask);
+        if (terrainSurface === 'rock')
+          this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 0.25, () =>
+            this.drawRockCliffFaces(ctx, map, cam, x, y, i, mask),
+          );
         if (cam.showGridlines) {
           ctx.strokeStyle = 'rgba(28, 34, 26, 0.18)';
           ctx.lineWidth = 0.7;
@@ -372,10 +420,91 @@ export class Canvas2DRenderer implements Renderer {
             }
           }
         }
-        if (this.atlas) this.drawGroundProps(ctx, map, cam, snapshot, i, x, y);
-        this.drawMapElements(ctx, map, cam, i);
+        const terrainPeak = map.heights[i]! + (mask !== 0 ? 1 : 0);
+        const raisedOver = (behindX: number, behindY: number): boolean => {
+          if (behindX < 0 || behindY < 0 || behindX >= vw || behindY >= vh) return false;
+          const [behindWorldX, behindWorldY] = unrotateTile(
+            behindX,
+            behindY,
+            map.width,
+            map.height,
+            cam.rotation,
+          );
+          const behindIndex = behindWorldY * map.width + behindWorldX;
+          return terrainPeak > map.heights[behindIndex]! + (map.slope[behindIndex] !== 0 ? 1 : 0);
+        };
+        if (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1)) {
+          this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 5, () =>
+            this.drawTerrainOccluder(ctx, map, cam, x, y, i, mask, terrainSurface, sx, sy, lift),
+          );
+        }
+        const centerX = x * TILE_UNITS + TILE_UNITS / 2;
+        const centerY = y * TILE_UNITS + TILE_UNITS / 2;
+        if (this.atlas)
+          this.enqueue(map, cam, centerX, centerY, terrainZ, 2, () =>
+            this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
+          );
+        this.enqueue(map, cam, centerX, centerY, terrainZ, -1, () =>
+          this.drawMapElements(ctx, map, cam, i),
+        );
+        this.enqueue(map, cam, centerX, centerY, terrainZ, 2, () =>
+          this.drawSceneryElements(ctx, map, cam, i),
+        );
         this.visibleCount++;
       }
+    }
+  }
+
+  private drawTerrainOccluder(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    index: number,
+    mask: number,
+    surface: TerrainSurface,
+    sx: number,
+    sy: number,
+    lift: number,
+  ): void {
+    const corners = terrainTileCorners(x, y, map.heights[index]!, mask);
+    const top = (4 - cam.rotation) & 3;
+    const points = Array.from({ length: 4 }, (_, corner) => {
+      const point = corners[(top + corner) & 3]!;
+      const projected = new Float64Array(2);
+      project(
+        point.x * TILE_UNITS,
+        point.y * TILE_UNITS,
+        point.height * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        projected,
+      );
+      return projected;
+    });
+    ctx.beginPath();
+    ctx.moveTo(points[0]![0]!, points[0]![1]!);
+    for (let corner = 1; corner < points.length; corner++)
+      ctx.lineTo(points[corner]![0]!, points[corner]![1]!);
+    ctx.closePath();
+    ctx.fillStyle = SURFACE_COLORS[map.surface[index]!] ?? '#5aa24a';
+    ctx.fill();
+    if (this.atlas && (mask === 0 || surface === 'rock')) {
+      ctx.save();
+      ctx.clip();
+      drawTileTexture(
+        ctx,
+        this.atlas,
+        terrainSurfaceSpriteName(surface),
+        0,
+        sx,
+        sy - lift,
+        TILE_W,
+        TILE_H,
+      );
+      ctx.restore();
     }
   }
 
@@ -659,7 +788,6 @@ export class Canvas2DRenderer implements Renderer {
       }
       this.visibleCount++;
     }
-    this.drawSceneryElements(ctx, map, cam, tile);
   }
 
   private drawSceneryElements(
@@ -776,38 +904,36 @@ export class Canvas2DRenderer implements Renderer {
         if ((flags & flag) === 0) continue;
         const x = snapshot.rideInfo[o + xField];
         const y = snapshot.rideInfo[o + yField];
-        project(
-          x * TILE_UNITS + 128,
-          y * TILE_UNITS + 128,
-          map.heights[y * map.width + x] * Z_STEP,
-          map.width,
-          map.height,
-          cam.rotation,
-          this.tmp,
-        );
-        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 24)) continue;
+        if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
         const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
-        const facing = rideHutFacing(
-          snapshot.rideInfo[o + RideInfo.RideX],
-          snapshot.rideInfo[o + RideInfo.RideY],
-          x,
-          y,
-        );
-        if (
-          !this.atlas ||
-          !drawAnchoredSprite(
-            ctx,
-            this.atlas,
-            rideHutSpriteKey(type, part, facing, cam.rotation),
-            this.tmp[0],
-            this.tmp[1],
-          )
-        ) {
-          ctx.fillStyle = part === 'entrance' ? '#46ae72' : '#d36355';
-          ctx.beginPath();
-          ctx.arc(this.tmp[0], this.tmp[1] - 4, 5, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        const worldX = x * TILE_UNITS + 128;
+        const worldY = y * TILE_UNITS + 128;
+        const z = map.heights[y * map.width + x]! * Z_STEP;
+        this.enqueue(map, cam, worldX, worldY, z, 2, () => {
+          project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
+          if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 24)) return;
+          const facing = rideHutFacing(
+            snapshot.rideInfo[o + RideInfo.RideX]!,
+            snapshot.rideInfo[o + RideInfo.RideY]!,
+            x,
+            y,
+          );
+          if (
+            !this.atlas ||
+            !drawAnchoredSprite(
+              ctx,
+              this.atlas,
+              rideHutSpriteKey(type, part, facing, cam.rotation),
+              this.tmp[0]!,
+              this.tmp[1]!,
+            )
+          ) {
+            ctx.fillStyle = part === 'entrance' ? '#46ae72' : '#d36355';
+            ctx.beginPath();
+            ctx.arc(this.tmp[0]!, this.tmp[1]! - 4, 5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        });
       }
     }
   }
@@ -821,18 +947,15 @@ export class Canvas2DRenderer implements Renderer {
     const x = snapshot.park.entranceX;
     const y = snapshot.park.entranceY;
     if (x < 0 || y < 0 || x >= map.width || y >= map.height) return;
-    project(
-      x * TILE_UNITS + TILE_UNITS / 2,
-      y * TILE_UNITS + TILE_UNITS / 2,
-      map.heights[y * map.width + x] * Z_STEP,
-      map.width,
-      map.height,
-      cam.rotation,
-      this.tmp,
-    );
-    if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 40)) return;
-    const key = `scenery/park-entrance/view-${cam.rotation}`;
-    if (this.atlas) drawAnchoredSprite(ctx, this.atlas, key, this.tmp[0], this.tmp[1]);
+    const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+    const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+    const z = map.heights[y * map.width + x]! * Z_STEP;
+    this.enqueue(map, cam, worldX, worldY, z, 2, () => {
+      project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
+      if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 40)) return;
+      const key = `scenery/park-entrance/view-${cam.rotation}`;
+      if (this.atlas) drawAnchoredSprite(ctx, this.atlas, key, this.tmp[0]!, this.tmp[1]!);
+    });
   }
 
   private drawRides(
@@ -858,36 +981,32 @@ export class Canvas2DRenderer implements Renderer {
         continue;
 
       const z = map.heights[tileY * map.width + tileX] * Z_STEP;
-      project(
-        tileX * TILE_UNITS + TILE_UNITS / 2,
-        tileY * TILE_UNITS + TILE_UNITS / 2,
-        z,
-        map.width,
-        map.height,
-        cam.rotation,
-        this.tmp,
-      );
-      const isFacility = ['shop', 'stall', 'facility'].includes(definition.category);
-      const key = isFacility
-        ? facilitySpriteKey(type, facilityFacingFromPaths(tileX, tileY, map), cam.rotation)
-        : rideSpriteKey(type, cam.rotation);
-      const entry = this.atlas?.resolve(key);
-      const frameIndex = rideSpriteFrame(
-        snapshot.rideInfo[offset + RideInfo.Phase],
-        snapshot.tick,
-        entry?.frames.length ?? 1,
-      );
-      const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
-      if (frame && this.atlas) {
-        const margin = Math.max(frame.width - entry!.anchor.x, entry!.anchor.x, frame.height);
-        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, margin)) continue;
-        drawAnchoredSprite(ctx, this.atlas, key, this.tmp[0], this.tmp[1], frameIndex);
-      } else {
-        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 8)) continue;
-        ctx.fillStyle = '#6f75bd';
-        ctx.fillRect(this.tmp[0] - 4, this.tmp[1] - 4, 8, 8);
-      }
-      this.visibleCount++;
+      const worldX = tileX * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = tileY * TILE_UNITS + TILE_UNITS / 2;
+      this.enqueue(map, cam, worldX, worldY, z, 0, () => {
+        project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
+        const isFacility = ['shop', 'stall', 'facility'].includes(definition.category);
+        const key = isFacility
+          ? facilitySpriteKey(type, facilityFacingFromPaths(tileX, tileY, map), cam.rotation)
+          : rideSpriteKey(type, cam.rotation);
+        const entry = this.atlas?.resolve(key);
+        const frameIndex = rideSpriteFrame(
+          snapshot.rideInfo[offset + RideInfo.Phase]!,
+          snapshot.tick,
+          entry?.frames.length ?? 1,
+        );
+        const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
+        if (frame && this.atlas) {
+          const margin = Math.max(frame.width - entry!.anchor.x, entry!.anchor.x, frame.height);
+          if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, margin)) return;
+          drawAnchoredSprite(ctx, this.atlas, key, this.tmp[0]!, this.tmp[1]!, frameIndex);
+        } else {
+          if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 8)) return;
+          ctx.fillStyle = '#6f75bd';
+          ctx.fillRect(this.tmp[0]! - 4, this.tmp[1]! - 4, 8, 8);
+        }
+        this.visibleCount++;
+      });
     }
   }
 
@@ -911,15 +1030,17 @@ export class Canvas2DRenderer implements Renderer {
     const t = this.tmp;
     ctx.imageSmoothingEnabled = false;
     for (const item of items) {
-      project(item.x, item.y, item.z, map.width, map.height, cam.rotation, t);
-      if (!this.isVisible(t[0], t[1], cam, COASTER_CULL_RADIUS)) continue;
-      if (drawAnchoredSprite(ctx, atlas, item.key, t[0], t[1])) {
-        this.visibleCount++;
-      } else if (item.key.includes('/track/') || item.key.startsWith('track/')) {
-        ctx.fillStyle = '#cf5650';
-        ctx.fillRect(t[0] - 5, t[1] - 5, 10, 10);
-        this.visibleCount++;
-      }
+      this.queueAtDepth(item.depth, () => {
+        project(item.x, item.y, item.z, map.width, map.height, cam.rotation, t);
+        if (!this.isVisible(t[0]!, t[1]!, cam, COASTER_CULL_RADIUS)) return;
+        if (drawAnchoredSprite(ctx, atlas, item.key, t[0]!, t[1]!)) {
+          this.visibleCount++;
+        } else if (item.key.includes('/track/') || item.key.startsWith('track/')) {
+          ctx.fillStyle = '#cf5650';
+          ctx.fillRect(t[0]! - 5, t[1]! - 5, 10, 10);
+          this.visibleCount++;
+        }
+      });
     }
     return true;
   }
@@ -937,11 +1058,17 @@ export class Canvas2DRenderer implements Renderer {
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
       if (skip?.(d[o + 3])) continue;
-      ctx.fillStyle = typeof color === 'string' ? color : (color[d[o + 3] & 0xff] ?? color[0]);
-      project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
-      if (!this.isVisible(t[0], t[1], cam, r * 2)) continue;
-      ctx.fillRect(t[0] - r, t[1] - r, r * 2, r * 2);
-      this.visibleCount++;
+      const x = d[o]!;
+      const y = d[o + 1]!;
+      const z = d[o + 2]!;
+      const metadata = d[o + 3]!;
+      this.enqueue(map, cam, x, y, z, 0, () => {
+        ctx.fillStyle = typeof color === 'string' ? color : (color[metadata & 0xff] ?? color[0]);
+        project(x, y, z, map.width, map.height, cam.rotation, t);
+        if (!this.isVisible(t[0]!, t[1]!, cam, r * 2)) return;
+        ctx.fillRect(t[0]! - r, t[1]! - r, r * 2, r * 2);
+        this.visibleCount++;
+      });
     }
   }
 
@@ -955,18 +1082,23 @@ export class Canvas2DRenderer implements Renderer {
     const d = layer.data;
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
-      project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
-      if (!this.isVisible(t[0], t[1], cam, GUEST_BOX.height)) continue;
-      const metadata = d[o + 3];
-      const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, (metadata >>> 16) & 0xff, tick >>> 2) - 40}`;
-      if (
-        !this.atlas ||
-        !drawBoxedSprite(ctx, this.atlas, sprite, t[0], t[1], GUEST_BOX.width, GUEST_BOX.height)
-      ) {
-        ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
-        ctx.fillRect(t[0] - 1.5, t[1] - 1.5, 3, 3);
-      }
-      this.visibleCount++;
+      const x = d[o]!;
+      const y = d[o + 1]!;
+      const z = d[o + 2]!;
+      const metadata = d[o + 3]!;
+      this.enqueue(map, cam, x, y, z, 0, () => {
+        project(x, y, z, map.width, map.height, cam.rotation, t);
+        if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
+        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, (metadata >>> 16) & 0xff, tick >>> 2) - 40}`;
+        if (
+          !this.atlas ||
+          !drawBoxedSprite(ctx, this.atlas, sprite, t[0]!, t[1]!, GUEST_BOX.width, GUEST_BOX.height)
+        ) {
+          ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
+          ctx.fillRect(t[0]! - 1.5, t[1]! - 1.5, 3, 3);
+        }
+        this.visibleCount++;
+      });
     }
   }
 
@@ -980,23 +1112,28 @@ export class Canvas2DRenderer implements Renderer {
     const d = layer.data;
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
-      project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
-      if (!this.isVisible(t[0], t[1], cam, Math.max(STAFF_BOX.height, 24))) continue;
-      const metadata = d[o + 3];
-      const kind = metadata & 0xff;
-      const direction = (metadata >>> 8) & 3;
-      const sprite = `${peopleSpriteKey(kind, direction, cam.rotation)}#${walkingFrame(tick)}`;
-      if (!drawAnchoredSprite(ctx, this.atlas!, sprite, t[0], t[1]))
-        drawBoxedSprite(
-          ctx,
-          this.atlas!,
-          staffSpriteName(kind),
-          t[0],
-          t[1],
-          STAFF_BOX.width,
-          STAFF_BOX.height,
-        );
-      this.visibleCount++;
+      const x = d[o]!;
+      const y = d[o + 1]!;
+      const z = d[o + 2]!;
+      const metadata = d[o + 3]!;
+      this.enqueue(map, cam, x, y, z, 0, () => {
+        project(x, y, z, map.width, map.height, cam.rotation, t);
+        if (!this.isVisible(t[0]!, t[1]!, cam, Math.max(STAFF_BOX.height, 24))) return;
+        const kind = metadata & 0xff;
+        const direction = (metadata >>> 8) & 3;
+        const sprite = `${peopleSpriteKey(kind, direction, cam.rotation)}#${walkingFrame(tick)}`;
+        if (!drawAnchoredSprite(ctx, this.atlas!, sprite, t[0]!, t[1]!))
+          drawBoxedSprite(
+            ctx,
+            this.atlas!,
+            staffSpriteName(kind),
+            t[0]!,
+            t[1]!,
+            STAFF_BOX.width,
+            STAFF_BOX.height,
+          );
+        this.visibleCount++;
+      });
     }
   }
 

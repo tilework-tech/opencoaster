@@ -273,7 +273,7 @@ async function playStarterRideAccess(
       : 'starter-ride-access-desktop-guests-riding',
   );
   for (let rotation = 1; rotation < 4; rotation++) {
-    await toolbarAction(page, 'Rotate view', mobile);
+    await toolbarAction(page, 'Rotate clockwise', mobile);
     await expect(page.locator('.hud')).toContainText(`rot ${rotation}`);
     await toolbarAction(page, 'Rides', mobile);
     await page

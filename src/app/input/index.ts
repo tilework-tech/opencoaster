@@ -1,9 +1,12 @@
 import type { Camera, Renderer } from '../../render/renderer';
 import { pickTile, project } from '../../render/projection';
-import type { Rotation } from '../../render/projection';
 import { stepZoom } from '../../ui/zoom';
 import type { ToolMode, GameUI } from '../../ui/game-ui';
-import { capDevicePixelRatio, zoomCameraAt } from '../../input/camera-controls';
+import {
+  capDevicePixelRatio,
+  rotateCameraAtCenter,
+  zoomCameraAt,
+} from '../../input/camera-controls';
 import { PointerInput } from '../../input/pointer-input';
 import type { PointerSample } from '../../input/pointer-input';
 import type { SimClient } from '../../worker/sim-client';
@@ -191,7 +194,14 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
       pinchStartZoom = null;
     },
     rotate(direction) {
-      camera.rotation = ((camera.rotation + direction + 4) % 4) as Rotation;
+      const rect = canvas.getBoundingClientRect();
+      rotateCameraAtCenter(
+        camera,
+        sim.map,
+        direction,
+        { width: rect.width, height: rect.height },
+        sim.latest ?? undefined,
+      );
     },
     tap(x, y, shiftKey) {
       deps.handleCanvasClick(x, y, shiftKey);
