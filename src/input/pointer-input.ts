@@ -53,6 +53,7 @@ export class PointerInput {
   private rotationRemainder = 0;
   private rotating = false;
   private landDragging = false;
+  /** Two-finger midpoint, tracked so the land tool (whose one-finger drag edits terrain) can pan. */
   private lastMidpoint: [number, number] | null = null;
 
   constructor(private readonly actions: PointerInputActions) {}
@@ -107,7 +108,7 @@ export class PointerInput {
       this.cancelHolds();
       const distance = Math.max(this.distance(first.sample, second.sample), 1);
       const [centerX, centerY] = this.midpoint(first.sample, second.sample);
-      if (this.lastMidpoint)
+      if (this.actions.tool() === 'land' && this.lastMidpoint)
         this.actions.pan(centerX - this.lastMidpoint[0], centerY - this.lastMidpoint[1]);
       this.lastMidpoint = [centerX, centerY];
       this.actions.zoom(distance / this.pinchStartDistance, centerX, centerY);
