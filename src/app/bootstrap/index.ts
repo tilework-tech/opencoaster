@@ -590,7 +590,6 @@ export async function bootstrap(): Promise<void> {
       camera,
       viewport,
       capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
-      rideGhost,
       pathGhost ?? hoverGhost,
     );
     landController.update(now);
