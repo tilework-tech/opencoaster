@@ -164,7 +164,11 @@ async function startStarterPark(
   }
 }
 
-async function importUnlockedCoaster(page: Page, testInfo: TestInfo, mobile: boolean): Promise<void> {
+async function importUnlockedCoaster(
+  page: Page,
+  testInfo: TestInfo,
+  mobile: boolean,
+): Promise<void> {
   const world = new World({
     seed: starterScenario.seed,
     width: starterScenario.mapWidth,
@@ -364,9 +368,14 @@ async function playStarterRideAccess(
   );
 }
 
-async function playStarterCoasterOverWater(page: Page, mobile: boolean): Promise<void> {
+async function playStarterCoasterOverWater(
+  page: Page,
+  mobile: boolean,
+  testInfo: TestInfo,
+): Promise<void> {
   page.setDefaultTimeout(8_000);
   await startStarterPark(page, mobile);
+  await importUnlockedCoaster(page, testInfo, mobile);
   await toolbarAction(page, 'New ride', mobile);
   await page.getByRole('tab', { name: 'Roller Coasters' }).click();
   await page.getByRole('button', { name: /^Steel Looping Coaster/ }).click();
@@ -414,21 +423,22 @@ test('new Starter Park keeps water rides locked until researched', async ({ page
   await expect(
     page.getByRole('group', { name: 'New attraction' }).locator('.ui-pane.active'),
   ).toContainText('Nothing in this group is unlocked yet.');
-
 });
 
-test('Starter Park explains when coaster track crosses open water (desktop)', async ({ page }) => {
-  await playStarterCoasterOverWater(page, false);
+test('Starter Park explains when coaster track crosses open water (desktop)', async ({
+  page,
+}, testInfo) => {
+  await playStarterCoasterOverWater(page, false, testInfo);
 });
 
 test('Starter Park explains when coaster track crosses open water (Pixel 8)', async ({
   browser,
-}) => {
+}, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
   const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
-  await playStarterCoasterOverWater(page, true);
+  await playStarterCoasterOverWater(page, true, testInfo);
   await context.close();
 });
 

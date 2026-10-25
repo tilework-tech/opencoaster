@@ -97,6 +97,7 @@ describe('Simulation', () => {
   it('refreshes ride access after a path run reaches an entrance', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16 });
     prepareFlat(sim.world);
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
     sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
     sim.step();
     const id = sim.world.rides.slotToId[0];
