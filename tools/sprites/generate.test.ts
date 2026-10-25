@@ -56,6 +56,40 @@ describe('generated sprite catalogue', () => {
     expect(widestUpperRow).toBeGreaterThan(width * 0.5);
   });
 
+  it('renders compact four-direction guest and staff walking sprites', () => {
+    const guests = sprites.get('people/guest-walk');
+    expect(guests?.frames).toHaveLength(8 * 4 * 4);
+    for (const frame of guests?.frames ?? []) {
+      expect(frame.height).toBeGreaterThanOrEqual(16);
+      expect(frame.height).toBeLessThanOrEqual(21);
+      expect(frame.width / frame.height).toBeLessThan(0.65);
+      expect(frame.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+    }
+
+    const staffSignatures: string[] = [];
+    for (let role = 0; role < 4; role++) {
+      for (let direction = 0; direction < 4; direction++) {
+        const staff = sprites.get(`people/staff/${role}/direction-${direction}`);
+        expect(staff, `staff role ${role}, direction ${direction}`).toBeDefined();
+        expect(staff?.frames).toHaveLength(4);
+        for (const frame of staff?.frames ?? []) {
+          expect(frame.height).toBeGreaterThanOrEqual(16);
+          expect(frame.height).toBeLessThanOrEqual(21);
+          expect(frame.width / frame.height).toBeLessThan(0.65);
+        }
+        if (direction === 0)
+          staffSignatures.push(Buffer.from(staff!.frames[0]!.pixels).toString('base64'));
+      }
+    }
+    expect(new Set(staffSignatures).size).toBe(4);
+
+    for (let direction = 0; direction < 4; direction++) {
+      const guestsFacing = guests?.frames.slice(direction * 4, direction * 4 + 4) ?? [];
+      expect(new Set(guestsFacing.map((frame) => Buffer.from(frame.pixels).toString('base64'))).size)
+        .toBe(4);
+    }
+  });
+
   it('has all 16 connection masks and 4 ramp directions for each path style', () => {
     for (const style of ['tarmac', 'crazy-paving', 'dirt', 'queue']) {
       for (let mask = 0; mask < 16; mask++)
