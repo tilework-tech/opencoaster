@@ -45,7 +45,7 @@ export class ScenerySpotPreview {
     parent: HTMLElement,
     private readonly sim: SimClient,
   ) {
-    this.label.className = 'path-ghost-label placement-label';
+    this.label.className = 'placement-label';
     this.label.setAttribute('role', 'status');
     this.label.hidden = true;
     parent.append(this.label);
