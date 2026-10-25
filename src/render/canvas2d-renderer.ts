@@ -7,9 +7,27 @@ import { PathFlag } from '../sim/map/tile-map';
 import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { drawAnchoredSprite, drawTileTexture, loadCanvasAtlas } from './canvas-atlas';
-import type { CanvasAtlas } from './canvas-atlas';
+import type { CanvasAtlas, CanvasSpriteEntry, CanvasSpriteFrame } from './canvas-atlas';
+import {
+  flatRideSpriteName,
+  rideSpriteKey,
+  rideTypesById,
+  trackCells,
+  trackStyleForRide,
+} from './sprite-art';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import { WATER_BANK, pathSpriteName, waterFrameIndex } from './world-art';
 import type { PathSurface } from './world-art';
+
+/** One atlas sprite placed at its projected base point, sorted by that point before drawing. */
+interface AtlasDraw {
+  frame: CanvasSpriteFrame;
+  anchor: CanvasSpriteEntry['anchor'];
+  image: ImageBitmap;
+  x: number;
+  y: number;
+}
 
 const SURFACE_COLORS = [
   '#5aa24a',
@@ -138,7 +156,7 @@ export class Canvas2DRenderer implements Renderer {
     this.drawTiles(ctx, map, cam);
     if (snapshot) {
       this.drawRideMarkers(ctx, snapshot, map, cam);
-      if (snapshot.tracks) this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
+      this.drawTrackSprites(ctx, snapshot, map, cam);
       this.drawLayer(ctx, snapshot.litter, map, cam, 2, ['#6b4f2a', '#9fc35b']);
       this.drawLayer(ctx, snapshot.vehicles, map, cam, 4, '#c0392b');
       this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
@@ -147,7 +165,7 @@ export class Canvas2DRenderer implements Renderer {
         '#855ea8',
         '#de8840',
       ]);
-      this.drawLayer(ctx, snapshot.rides, map, cam, 8, '#6f75bd');
+      this.drawRideSprites(ctx, snapshot, map, cam);
       this.drawGuests(ctx, snapshot.guests, map, cam);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -464,6 +482,122 @@ export class Canvas2DRenderer implements Renderer {
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
       if (!this.isVisible(t[0], t[1], cam, r * 2)) continue;
       ctx.fillRect(t[0] - r, t[1] - r, r * 2, r * 2);
+      this.visibleCount++;
+    }
+  }
+
+  /** Track cells of ride pieces from the generated atlas; dots until it loads. */
+  private drawTrackSprites(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const tracks = snapshot.tracks;
+    if (!tracks) return;
+    if (!this.atlas) {
+      this.drawLayer(ctx, tracks, map, cam, 5, '#cf5650');
+      return;
+    }
+    const types = rideTypesById(snapshot.rides.data, snapshot.rideInfo, snapshot.rides.count);
+    const draws: AtlasDraw[] = [];
+    for (let i = 0, o = 0; i < tracks.count; i++, o += SNAPSHOT_STRIDE) {
+      const tint = tracks.data[o + 3];
+      const type = types.get(tint >>> 16);
+      if (type === undefined) continue;
+      const cells = trackCells(
+        tint & 0xff,
+        (tint >>> 8) & 0xff,
+        cam.rotation,
+        trackStyleForRide(type),
+      );
+      for (const cell of cells) {
+        const x = tracks.data[o] + cell.dx * TILE_UNITS;
+        const y = tracks.data[o + 1] + cell.dy * TILE_UNITS;
+        this.collectAtlasDraw(ctx, draws, cell.key, '#cf5650', x, y, tracks.data[o + 2], map, cam);
+      }
+    }
+    this.drawAtlasDraws(ctx, draws);
+  }
+
+  /** Flat rides at the current animation frame; track rides are drawn from their pieces. */
+  private drawRideSprites(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const rides = snapshot.rides;
+    if (!this.atlas) {
+      this.drawLayer(ctx, rides, map, cam, 8, '#6f75bd');
+      return;
+    }
+    const draws: AtlasDraw[] = [];
+    for (let i = 0, o = 0; i < rides.count; i++, o += SNAPSHOT_STRIDE) {
+      const type = snapshot.rideInfo[i * RIDE_INFO_STRIDE + RideInfo.Type] as RideType;
+      if (RIDE_CATALOG[type].usesTrack) continue;
+      const key = rideSpriteKey(type, cam.rotation);
+      const frameCount = this.atlas?.sprites[key]?.frames.length ?? 0;
+      const name =
+        frameCount > 0 ? flatRideSpriteName(type, cam.rotation, snapshot.tick, frameCount) : key;
+      this.collectAtlasDraw(
+        ctx,
+        draws,
+        name,
+        '#6f75bd',
+        rides.data[o],
+        rides.data[o + 1],
+        rides.data[o + 2],
+        map,
+        cam,
+      );
+    }
+    this.drawAtlasDraws(ctx, draws);
+  }
+
+  /** Projects a named atlas sprite and queues it if it is on screen and the atlas has it. */
+  private collectAtlasDraw(
+    ctx: CanvasRenderingContext2D,
+    out: AtlasDraw[],
+    name: string,
+    missingColor: string,
+    x: number,
+    y: number,
+    z: number,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const atlas = this.atlas;
+    const match = /#(\d+)$/.exec(name);
+    const entry = atlas?.sprites[match ? name.slice(0, match.index) : name];
+    const frame = entry?.frames[match ? Number(match[1]) : 0];
+    const t = this.tmp;
+    project(x, y, z, map.width, map.height, cam.rotation, t);
+    if (!atlas || !entry || !frame) {
+      if (!this.isVisible(t[0], t[1], cam, 4)) return;
+      ctx.fillStyle = missingColor;
+      ctx.fillRect(t[0] - 2, t[1] - 2, 4, 4);
+      this.visibleCount++;
+      return;
+    }
+    if (!this.isVisible(t[0], t[1], cam, Math.max(frame.width, frame.height))) return;
+    out.push({ frame, anchor: entry.anchor, image: atlas.image, x: t[0], y: t[1] });
+  }
+
+  private drawAtlasDraws(ctx: CanvasRenderingContext2D, draws: AtlasDraw[]): void {
+    draws.sort((a, b) => a.y - b.y);
+    for (const { frame, anchor, image, x, y } of draws) {
+      ctx.drawImage(
+        image,
+        frame.x,
+        frame.y,
+        frame.width,
+        frame.height,
+        x - anchor.x,
+        y - anchor.y,
+        frame.width,
+        frame.height,
+      );
       this.visibleCount++;
     }
   }

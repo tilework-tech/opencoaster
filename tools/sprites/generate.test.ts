@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSprites } from './generate';
+import { TRANSPORT_PIECES } from './models/transport';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -52,5 +53,35 @@ describe('generated sprite catalogue', () => {
     const water = sprites.get('water/surface')!;
     const used = new Set(water.frames.flatMap((f) => [...f.pixels]));
     expect(used.size).toBeLessThanOrEqual(5);
+  });
+});
+
+describe('ride sprite catalogue', () => {
+  it('renders the flat water and kart rides in 4 rotations with 4 animation frames', () => {
+    for (const key of ['log-flume', 'river-rapids', 'go-karts'])
+      for (let view = 0; view < 4; view++) {
+        const sprite = sprites.get(`rides/${key}/view-${view}`);
+        expect(sprite?.frames).toHaveLength(4);
+      }
+  });
+
+  it('renders every transport track style for every transport piece in 4 views', () => {
+    expect(TRANSPORT_PIECES.length).toBeGreaterThan(0);
+    for (const style of ['rail', 'monorail', 'chairlift'])
+      for (const piece of TRANSPORT_PIECES)
+        for (let view = 0; view < 4; view++) {
+          const cells = piece.footprint.map((_, index) => index);
+          const keys = cells.map(
+            (index) => `track/${style}/${piece.name}/view-${view}/cell-${index}`,
+          );
+          expect(keys.some((key) => sprites.has(key))).toBe(true);
+        }
+  });
+
+  it('renders each transport vehicle in 5 pitches and 8 headings', () => {
+    for (const style of ['rail', 'monorail', 'chairlift'])
+      for (const pitch of ['flat', 'up25', 'up60', 'down25', 'down60'])
+        for (let heading = 0; heading < 8; heading++)
+          expect(sprites.has(`vehicles/${style}/car/${pitch}/heading-${heading}`)).toBe(true);
   });
 });

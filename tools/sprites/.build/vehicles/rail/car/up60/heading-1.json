@@ -1,0 +1,18 @@
+{
+  "frames": [
+    {
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 30
+    }
+  ],
+  "anchor": {
+    "x": 6,
+    "y": 23
+  },
+  "footprint": {
+    "width": 1,
+    "height": 1
+  }
+}

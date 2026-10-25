@@ -14,6 +14,15 @@ import {
 } from './terrain-geometry';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
+import {
+  flatRideSpriteName,
+  rideSpriteKey,
+  rideTypesById,
+  trackCells,
+  trackStyleForRide,
+} from './sprite-art';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import type { Rotation } from './projection';
 import {
   pathSpriteName,
@@ -309,19 +318,8 @@ export class WebGL2Renderer implements Renderer {
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
-      if (snapshot.tracks)
-        this.appendLayer(
-          snapshot.tracks,
-          27,
-          map,
-          camera,
-          viewportWidth,
-          viewportHeight,
-          40,
-          28,
-          1,
-        );
-      this.appendLayer(snapshot.rides, 26, map, camera, viewportWidth, viewportHeight, 12, 14);
+      this.appendTrackSprites(snapshot, map, camera, viewportWidth, viewportHeight);
+      this.appendRideSprites(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendVariantLayer(
         snapshot.litter,
         litterSpriteIndex,
@@ -913,6 +911,112 @@ export class WebGL2Renderer implements Renderer {
         depth,
       );
     }
+  }
+
+  /** Track cells of ride pieces, each cell drawn from its per-view sprite (falls back to the procedural cell). */
+  private appendTrackSprites(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const tracks = snapshot.tracks;
+    if (!tracks) return;
+    const types = rideTypesById(snapshot.rides.data, snapshot.rideInfo, snapshot.rides.count);
+    for (let i = 0, offset = 0; i < tracks.count; i++, offset += SNAPSHOT_STRIDE) {
+      const tint = tracks.data[offset + 3];
+      const type = types.get(tint >>> 16);
+      if (type === undefined) continue;
+      const style = trackStyleForRide(type);
+      for (const cell of trackCells(tint & 0xff, (tint >>> 8) & 0xff, camera.rotation, style)) {
+        const x = tracks.data[offset] + cell.dx * TILE_UNITS;
+        const y = tracks.data[offset + 1] + cell.dy * TILE_UNITS;
+        const z = tracks.data[offset + 2];
+        const depth = 2 * rotatedPositionSum(x, y, map, camera.rotation) - z / 64 + 1;
+        this.appendNamedSprite(
+          cell.key,
+          x,
+          y,
+          z,
+          { sprite: 27, width: 40, height: 28 },
+          map,
+          camera,
+          viewportWidth,
+          viewportHeight,
+          depth,
+        );
+      }
+    }
+  }
+
+  /** Placed flat rides, drawn at the current animation frame; track rides are drawn from their pieces. */
+  private appendRideSprites(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const rides = snapshot.rides;
+    for (let i = 0, offset = 0; i < rides.count; i++, offset += SNAPSHOT_STRIDE) {
+      const type = snapshot.rideInfo[i * RIDE_INFO_STRIDE + RideInfo.Type] as RideType;
+      if (RIDE_CATALOG[type].usesTrack) continue;
+      const x = rides.data[offset];
+      const y = rides.data[offset + 1];
+      const z = rides.data[offset + 2];
+      const key = rideSpriteKey(type, camera.rotation);
+      const frameCount = this.atlasFrames[key]?.frames.length ?? 0;
+      const name =
+        frameCount > 0 ? flatRideSpriteName(type, camera.rotation, snapshot.tick, frameCount) : key;
+      const depth = 2 * rotatedPositionSum(x, y, map, camera.rotation) - z / 64;
+      this.appendNamedSprite(
+        name,
+        x,
+        y,
+        z,
+        { sprite: 26, width: 12, height: 14 },
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        depth,
+      );
+    }
+  }
+
+  /** Draws a named atlas sprite at its frame size, or the procedural fallback cell when it is missing. */
+  private appendNamedSprite(
+    name: string,
+    x: number,
+    y: number,
+    z: number,
+    fallback: { sprite: number; width: number; height: number },
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+    depth: number,
+  ): void {
+    const match = /#(\d+)$/.exec(name);
+    const entry = this.atlasFrames[match ? name.slice(0, match.index) : name];
+    const frame = entry?.frames[match ? Number(match[1]) : 0];
+    const width = frame?.width ?? fallback.width;
+    const height = frame?.height ?? fallback.height;
+    project(x, y, z, map.width, map.height, camera.rotation, this.projected);
+    if (
+      !inViewport(
+        this.projected[0],
+        this.projected[1],
+        camera,
+        viewportWidth,
+        viewportHeight,
+        width,
+        height,
+      )
+    )
+      return;
+    this.append(x, y, z, width, height, frame ? name : fallback.sprite, depth);
   }
 
   private appendLayer(
