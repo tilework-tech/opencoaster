@@ -1,6 +1,10 @@
 import type { World } from '../core/world';
 import { TILE_SHIFT, Z_STEP } from '../core/constants';
-import { countScenerySurroundings, SCENERY_SCAN_WINDOW_TILES } from '../map/scenery-effects';
+import {
+  countScenerySurroundings,
+  emptyScenerySurroundings,
+  SCENERY_SCAN_WINDOW_TILES,
+} from '../map/scenery-effects';
 import { GuestState, GuestThought, recordThought } from './guest-store';
 
 export const SCENERY_THOUGHT_INTERVAL = 18;
@@ -17,6 +21,7 @@ interface LitterIndex {
 }
 
 const litterIndexByWorld = new WeakMap<World, LitterIndex>();
+const surroundingsScratch = emptyScenerySurroundings();
 
 function makeLitterPrefix(world: World): LitterIndex {
   const { width, height } = world.map;
@@ -76,6 +81,7 @@ export function updateGuestSurroundings(world: World, slot: number): void {
     tileY,
     Math.floor(guests.z[slot] / Z_STEP),
     litterInWindow(world, tileX, tileY),
+    surroundingsScratch,
   );
   if (surroundings.suppressed) return;
 

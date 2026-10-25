@@ -20,7 +20,7 @@ Path: @/bench
 
 ### Core Implementation
 
-- The simulation benchmark accepts `--guests`, `--staff`, `--litter`, `--ticks`, and `--warmup`; defaults are 5,000 guests, 100 staff, 1,000 litter items, 400 measured ticks, and 40 warmup ticks. Warmup steps occur before the measured loop, and each measured step is timed independently.
+- The simulation benchmark accepts `--guests`, `--staff`, `--litter`, `--ticks`, and `--warmup`; defaults are 5,000 guests, 100 staff, 1,000 litter items, 400 measured ticks, and 150 warmup ticks. Warmup steps occur before the measured loop so V8 finishes compiling the hot paths; with 40 warmup ticks, p99 includes compile-time spikes from the first measured ticks (about 2.3 ms against about 1.0 ms at 150 on the CI configuration). Each measured step is timed independently.
 - `pnpm bench:audio` reports p50, p95, and p99 update latency for 2,000 frames and 128 rides by default. `AUDIO_BENCH_TICKS` and `AUDIO_BENCH_RIDES` adjust that workload, and `pnpm bench:audio -- --strict` fails when p99 reaches or exceeds 0.5 ms.
 - Tick samples are sorted to report mean, p50, p95, p99, and maximum latency. Percentiles use nearest-rank selection, with rank `ceil(p × sample count)` and a minimum rank of one.
 - `--strict` exits unsuccessfully when p99 exceeds the 3 ms budget; ordinary benchmark runs still print whether that budget passed.

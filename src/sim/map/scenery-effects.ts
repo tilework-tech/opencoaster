@@ -88,21 +88,27 @@ function rectangleSum(
   );
 }
 
-/** Counts scenery and broken path pieces in the guest's clipped surroundings window. */
+export function emptyScenerySurroundings(): ScenerySurroundings {
+  return { smallScenery: 0, largeScenery: 0, brokenPaths: 0, rubbishCount: 0, suppressed: false };
+}
+
+/**
+ * Counts scenery and broken path pieces in the guest's clipped surroundings window. Writes into
+ * `out` so the per-guest hot path can reuse one result object instead of allocating each scan.
+ */
 export function countScenerySurroundings(
   map: TileMap,
   centerX: number,
   centerY: number,
   scanningHeight: number,
   litterCount: number,
+  out: ScenerySurroundings = emptyScenerySurroundings(),
 ): ScenerySurroundings {
-  const empty = {
-    smallScenery: 0,
-    largeScenery: 0,
-    brokenPaths: 0,
-    rubbishCount: 0,
-    suppressed: false,
-  };
+  out.smallScenery = 0;
+  out.largeScenery = 0;
+  out.brokenPaths = 0;
+  out.rubbishCount = 0;
+  out.suppressed = false;
   if (
     !Number.isInteger(centerX) ||
     !Number.isInteger(centerY) ||
@@ -111,12 +117,13 @@ export function countScenerySurroundings(
     centerX >= map.width ||
     centerY >= map.height
   ) {
-    return empty;
+    return out;
   }
 
   const centerIndex = map.index(centerX, centerY);
   if (map.heights[centerIndex] > scanningHeight) {
-    return { smallScenery: 0, largeScenery: 0, brokenPaths: 0, rubbishCount: 0, suppressed: true };
+    out.suppressed = true;
+    return out;
   }
 
   const windowStartX = centerX - Math.floor(SCENERY_SCAN_WINDOW_TILES / 2);
@@ -126,15 +133,9 @@ export function countScenerySurroundings(
   const x1 = Math.min(map.width, windowStartX + SCENERY_SCAN_WINDOW_TILES);
   const y1 = Math.min(map.height, windowStartY + SCENERY_SCAN_WINDOW_TILES);
   const index = sceneryIndex(map);
-  const smallScenery = rectangleSum(index.small, index.stride, x0, y0, x1, y1);
-  const largeScenery = rectangleSum(index.large, index.stride, x0, y0, x1, y1);
-  const brokenPaths = rectangleSum(index.broken, index.stride, x0, y0, x1, y1);
-
-  return {
-    smallScenery,
-    largeScenery,
-    brokenPaths,
-    rubbishCount: brokenPaths + litterCount,
-    suppressed: false,
-  };
+  out.smallScenery = rectangleSum(index.small, index.stride, x0, y0, x1, y1);
+  out.largeScenery = rectangleSum(index.large, index.stride, x0, y0, x1, y1);
+  out.brokenPaths = rectangleSum(index.broken, index.stride, x0, y0, x1, y1);
+  out.rubbishCount = out.brokenPaths + litterCount;
+  return out;
 }
