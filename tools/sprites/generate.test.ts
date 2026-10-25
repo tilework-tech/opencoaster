@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COASTER_FAMILIES, TRACK_ARTS, artPieces } from '../../src/render/coaster-art';
+import { TRACK_ARTS, artPieces } from '../../src/render/coaster-art';
 import { buildSprites } from './generate';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
