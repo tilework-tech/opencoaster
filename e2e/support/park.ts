@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { expect } from '@playwright/test';
-import type { Locator, Page, TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
 import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import type { RideType } from '../../src/sim/rides/ride-types';
 import { rideFootprintTiles } from '../../src/sim/rides/ride-footprint';
@@ -184,7 +184,8 @@ export async function paintPaths(
   mobile = false,
 ): Promise<void> {
   await toolbarAction(page, 'Footpaths', mobile);
-  for (const tile of tiles) await clickTile(page, tile, mobile);
+  await centerMapOnTile(page, MAP_CENTER, mobile);
+  for (const tile of tiles) await clickTile(page, tile, mobile, false);
 }
 
 /** Picks a ride card from the New attraction window (its tab and `data-ride-type`). */
@@ -220,41 +221,4 @@ export async function placeBoardingPart(
       : page.getByRole('button', { name: new RegExp(`Place ${part} at tile`) }).first();
   await target.click();
   await expect(page.locator('.tool-status')).toContainText(expectedStatus);
-}
-
-/**
- * Candidate buttons are offered only on buildable flat tiles, so rough ground drops part of the
- * ring. The survivors must all be ring tiles and still reach both flanks and both ends of the
- * footprint, which a one-tile ring around the anchor could not.
- */
-export async function expectRingAroundFootprint(
-  candidates: Locator,
-  footprint: readonly Tile[],
-  ring: readonly Tile[],
-): Promise<void> {
-  const tiles = (
-    await candidates.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')))
-  ).map(
-    (label) =>
-      label!
-        .match(/tile (\d+), (\d+)/)!
-        .slice(1)
-        .map(Number) as [number, number],
-  );
-  const ringKeys = new Set(ring.map(([x, y]) => `${x},${y}`));
-  for (const [x, y] of tiles)
-    expect(ringKeys.has(`${x},${y}`), `candidate ${x}, ${y} is in the ring`).toBe(true);
-  const extent = (list: readonly Tile[], axis: 0 | 1) => [
-    Math.min(...list.map((tile) => tile[axis])),
-    Math.max(...list.map((tile) => tile[axis])),
-  ];
-  const [footMinX, footMaxX] = extent(footprint, 0);
-  const [footMinY, footMaxY] = extent(footprint, 1);
-  const [minX, maxX] = extent(tiles, 0);
-  const [minY, maxY] = extent(tiles, 1);
-  expect(minX, 'west flank').toBe(footMinX - 1);
-  expect(maxX, 'east flank').toBe(footMaxX + 1);
-  expect(minY, 'ring reaches the north end').toBeLessThanOrEqual(footMinY);
-  expect(maxY, 'ring reaches the south end').toBeGreaterThanOrEqual(footMaxY);
-  expect(tiles.length, 'candidates offered').toBeGreaterThanOrEqual(Math.ceil(ring.length / 2));
 }
