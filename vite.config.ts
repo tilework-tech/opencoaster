@@ -46,11 +46,34 @@ function pwaPlugin(): Plugin {
   };
 }
 
+function artCoveragePlugin(): Plugin {
+  return {
+    name: 'opencoaster-art-coverage',
+    configureServer(server) {
+      server.middlewares.use('/__art-coverage', (request, response, next) => {
+        if (request.method !== 'GET') return next();
+        void import('./tools/sprites/coverage')
+          .then(({ renderArtCoverageHtml }) => {
+            response.setHeader('Content-Type', 'text/html; charset=utf-8');
+            response.setHeader('Cache-Control', 'no-store');
+            response.end(renderArtCoverageHtml());
+          })
+          .catch((error: unknown) => {
+            response.statusCode = 500;
+            response.end(
+              error instanceof Error ? error.message : 'Could not build the art coverage report',
+            );
+          });
+      });
+    },
+  };
+}
+
 // Production builds default to a relative base so the same dist/ works at the site root or under a
 // path prefix such as GitHub Pages' /opencoaster/. Set OC_BASE to pin an absolute base instead.
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? (process.env.OC_BASE ?? './') : '/',
-  plugins: [pwaPlugin()],
+  plugins: [pwaPlugin(), artCoveragePlugin()],
   server: {
     headers: isolationHeaders,
     watch: { ignored: ['**/public/sprites/**'] },

@@ -37,6 +37,8 @@ import { sortByDepth } from './painter-order';
 import type { Rotation } from './projection';
 import {
   pathSpriteName,
+  pathAdditionSpriteName,
+  litterSpriteName,
   type PathSurface,
   rideSpriteFrame,
   rideSpriteKey,
@@ -122,10 +124,6 @@ export function guestSpriteIndex(tint: number, heading: number, frame: number): 
   const direction = Number.isInteger(heading) && heading >= 0 && heading < 4 ? heading : 0;
   const animationFrame = ((frame % 4) + 4) % 4;
   return 40 + palette * 16 + direction * 4 + animationFrame;
-}
-
-export function litterSpriteIndex(kind: number): number {
-  return kind === 1 ? 25 : 24;
 }
 
 const vertexSource = `#version 300 es
@@ -436,7 +434,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendRides(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendVariantLayer(
         snapshot.litter,
-        litterSpriteIndex,
+        (kind) => litterSpriteName(kind, camera.rotation),
         map,
         camera,
         viewportWidth,
@@ -1410,16 +1408,21 @@ export class WebGL2Renderer implements Renderer {
       )
         this.append(worldX, worldY, z, 40, 26, sprite, depth + 1);
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
-        const sprite = scenerySpriteName(
-          (flags & PathFlag.Bin) !== 0
-            ? 'bin'
-            : (flags & PathFlag.Bench) !== 0
-              ? 'bench'
-              : (flags & PathFlag.Shelter) !== 0
-                ? 'shelter'
-                : 'lamp',
-        );
-        this.append(worldX, worldY, z + Z_STEP, 12, 16, sprite, depth + 2);
+        const sprite = pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]);
+        const [width, height] = sprite.includes('/shelter/')
+          ? [54, 52]
+          : sprite.includes('bench-broken')
+            ? [34, 24]
+            : sprite.includes('bin-broken')
+              ? [24, 30]
+              : (flags & PathFlag.Bench) !== 0
+                ? [30, 18]
+                : (flags & PathFlag.Bin) !== 0
+                  ? [18, 26]
+                  : (flags & PathFlag.Lamp) !== 0
+                    ? [16, 32]
+                    : [54, 52];
+        this.append(worldX, worldY, z + Z_STEP, width, height, sprite, depth + 2);
       }
       if (isQueue)
         this.append(
