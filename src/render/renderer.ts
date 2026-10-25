@@ -16,6 +16,22 @@ export interface MapData {
   sceneryCount?: number;
 }
 
+/**
+ * A footpath piece a placement preview draws in the world, in the terms of `MapData.pathElements`:
+ * its base level and PathFlag bits. A refused tile is drawn flat on the ground, tinted red.
+ */
+export interface PathPieceGhost {
+  x: number;
+  y: number;
+  /** Base level of the piece, in the same units as `MapData.heights`. */
+  level: number;
+  /** PathFlag bits: connections, queue, and slope with its direction. */
+  flags: number;
+  /** Index into the footpath surfaces: tarmac, crazy paving, dirt. */
+  surface: number;
+  tone: 'ok' | 'refused';
+}
+
 export interface Camera {
   /** World-pixel point at the centre of the viewport. */
   x: number;
@@ -38,6 +54,8 @@ export interface Renderer {
   attach(canvas: HTMLCanvasElement): void;
   resize(width: number, height: number, devicePixelRatio: number): void;
   setMap(map: MapData): void;
+  /** Footpath pieces drawn translucently in the world until replaced; an empty list clears them. */
+  setGhosts(ghosts: readonly PathPieceGhost[]): void;
   draw(snapshot: Snapshot | null, camera: Camera): void;
   dispose(): void;
 }

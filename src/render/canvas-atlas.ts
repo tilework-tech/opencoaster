@@ -2,6 +2,18 @@ import type { SpritePages } from './sprite-pages';
 
 export type CanvasAtlas = SpritePages;
 
+/** Resolves a key (`name` or `name#frame`) to its frame and page image, or null when either is missing. */
+function resolveFrame(atlas: CanvasAtlas, key: string, frameIndex?: number) {
+  const hash = key.lastIndexOf('#');
+  const spriteName = hash < 0 ? key : key.slice(0, hash);
+  const selectedFrame = frameIndex ?? (hash < 0 ? 0 : Number(key.slice(hash + 1)));
+  const entry = atlas.resolve(spriteName);
+  const frame = entry?.frames[selectedFrame] ?? entry?.frames[0];
+  const image = frame && atlas.pageImage(frame.page);
+  if (!entry || !frame || !image) return null;
+  return { entry, frame, image };
+}
+
 /**
  * Draws a native-size sprite frame with its anchor pixel on (x, y) in the current transform.
  * A key ending in `#n` selects animation frame n.
@@ -14,13 +26,9 @@ export function drawAnchoredSprite(
   y: number,
   frameIndex?: number,
 ): boolean {
-  const hash = key.lastIndexOf('#');
-  const spriteName = hash < 0 ? key : key.slice(0, hash);
-  const selectedFrame = frameIndex ?? (hash < 0 ? 0 : Number(key.slice(hash + 1)));
-  const entry = atlas.resolve(spriteName);
-  const frame = entry?.frames[selectedFrame] ?? entry?.frames[0];
-  const image = frame && atlas.pageImage(frame.page);
-  if (!entry || !frame || !image) return false;
+  const found = resolveFrame(atlas, key, frameIndex);
+  if (!found) return false;
+  const { entry, frame, image } = found;
   ctx.drawImage(
     image,
     frame.x,
@@ -32,6 +40,63 @@ export function drawAnchoredSprite(
     frame.width,
     frame.height,
   );
+  return true;
+}
+
+const GHOST_ALPHA = 0.55;
+const REFUSED_TINT = 'rgba(232, 40, 32, 0.6)';
+let tintCanvas: HTMLCanvasElement | null = null;
+
+/**
+ * Draws a native-size sprite as a translucent placement preview, anchored like drawAnchoredSprite.
+ * A refused preview keeps the sprite's shape and is tinted red.
+ */
+export function drawGhostSprite(
+  ctx: CanvasRenderingContext2D,
+  atlas: CanvasAtlas,
+  key: string,
+  x: number,
+  y: number,
+  tone: 'ok' | 'refused',
+): boolean {
+  const found = resolveFrame(atlas, key);
+  if (!found) return false;
+  const { entry, frame, image } = found;
+  tintCanvas ??= document.createElement('canvas');
+  tintCanvas.width = frame.width;
+  tintCanvas.height = frame.height;
+  const sprite = tintCanvas.getContext('2d');
+  if (!sprite) return false;
+  sprite.drawImage(
+    image,
+    frame.x,
+    frame.y,
+    frame.width,
+    frame.height,
+    0,
+    0,
+    frame.width,
+    frame.height,
+  );
+  if (tone === 'refused') {
+    sprite.globalCompositeOperation = 'source-atop';
+    sprite.fillStyle = REFUSED_TINT;
+    sprite.fillRect(0, 0, frame.width, frame.height);
+  }
+  ctx.save();
+  ctx.globalAlpha *= GHOST_ALPHA;
+  ctx.drawImage(
+    tintCanvas,
+    0,
+    0,
+    frame.width,
+    frame.height,
+    Math.round(x - entry.anchor.x),
+    Math.round(y - entry.anchor.y),
+    frame.width,
+    frame.height,
+  );
+  ctx.restore();
   return true;
 }
 
