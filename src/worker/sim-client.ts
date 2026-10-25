@@ -121,4 +121,7 @@ export class SimClient {
   setPaused(paused: boolean): void {
     this.send({ type: 'setPaused', paused });
   }
+  setSnapshotInterval(ms: number): void {
+    this.send({ type: 'setSnapshotInterval', ms });
+  }
 }

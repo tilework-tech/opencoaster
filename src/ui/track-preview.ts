@@ -43,11 +43,13 @@ export class TrackPreviewOverlay {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly corner = new Float64Array(2);
   private atlas: CanvasAtlas | null = null;
+  private hasContent = false;
 
   constructor(parent: HTMLElement) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'track-preview';
     this.canvas.setAttribute('aria-hidden', 'true');
+    this.canvas.hidden = true;
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas is unavailable');
     this.ctx = ctx;
@@ -65,6 +67,7 @@ export class TrackPreviewOverlay {
     rideGhost: RidePlacementGhost | null = null,
   ): void {
     const { canvas, ctx } = this;
+    if (!ghost && !rideGhost && !this.hasContent) return;
     const width = Math.round(viewport.width * pixelRatio);
     const height = Math.round(viewport.height * pixelRatio);
     if (canvas.width !== width || canvas.height !== height) {
@@ -73,6 +76,9 @@ export class TrackPreviewOverlay {
     }
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     ctx.clearRect(0, 0, viewport.width, viewport.height);
+    const active = ghost !== null || rideGhost !== null;
+    this.hasContent = active;
+    canvas.hidden = !active;
     if (rideGhost) this.drawRideGhost(rideGhost, map, camera, viewport);
     if (!ghost) return;
 

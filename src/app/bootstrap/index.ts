@@ -28,6 +28,7 @@ import { centreOnTile, connectCameraInput } from '../input';
 import { AudioEngine } from '../../audio/audio';
 import { createToolController } from '../tools';
 import { createRideSetup } from '../ride-setup';
+import { AdaptiveResolution } from '../../render/adaptive-resolution';
 
 export async function bootstrap(): Promise<void> {
   const root = document.getElementById('app') as HTMLElement;
@@ -305,6 +306,10 @@ export async function bootstrap(): Promise<void> {
     rideTileClick: rideSetupState.current.rideTileClick,
   });
 
+  const resolution = new AdaptiveResolution();
+  let appliedScale = resolution.scale;
+  const viewport = { width: 0, height: 0 };
+  let resizeCanvas: () => void = () => undefined;
   const keys = connectCameraInput({
     canvas,
     renderer,
@@ -320,11 +325,41 @@ export async function bootstrap(): Promise<void> {
     handleCanvasClick: toolController.handleCanvasClick,
     removePathAt: toolController.removePathAt,
     setRideHover: (tile) => (rideHover = tile),
+    viewport,
+    renderScale: () => appliedScale,
+    registerResize: (resize) => (resizeCanvas = resize),
   });
+
+  /** Minimum time between HUD text writes; keeps DOM churn off the frame path. */
+  const HUD_INTERVAL_MS = 50;
+  /** Minimum time between panel refreshes; direct user actions refresh their panel immediately. */
+  const PANEL_INTERVAL_MS = 100;
+  /** Smallest change in the display-rate estimate worth telling the worker about. */
+  const SNAPSHOT_INTERVAL_STEP_MS = 4;
 
   let last = performance.now();
   let fps = 60;
+  let frameEmaMs = 1000 / 60;
   let renderMs = 0;
+  let lastHud = -Infinity;
+  let lastPanel = -Infinity;
+  let requestedSnapshotMs = 0;
+
+  function refreshPanels(now: number): void {
+    if (now - lastPanel < PANEL_INTERVAL_MS) return;
+    lastPanel = now;
+    gameUi.update(sim.latest, sim.stats, selectedGuest);
+    coasterPanel.update();
+  }
+
+  /** Asks the worker for snapshots no faster than frames are being drawn. */
+  function syncSnapshotRate(): void {
+    const wanted = Math.max(0, Math.min(100, Math.round(frameEmaMs - 2)));
+    if (Math.abs(wanted - requestedSnapshotMs) < SNAPSHOT_INTERVAL_STEP_MS) return;
+    requestedSnapshotMs = wanted;
+    sim.setSnapshotInterval(wanted);
+  }
+
   function drawPatrolOverlay(): void {
     if (
       !saveLoad.current() ||
@@ -343,7 +378,7 @@ export async function bootstrap(): Promise<void> {
     const mapSize = map.width * map.height;
     const start = patrolKind * mapSize;
     const mask = snapshot.patrolAreas;
-    const rect = canvas.getBoundingClientRect();
+    const rect = viewport;
     const signature = [
       snapshot.tick,
       patrolKind,
@@ -401,6 +436,13 @@ export async function bootstrap(): Promise<void> {
     const dt = now - last;
     last = now;
     fps = fps * 0.95 + (1000 / Math.max(dt, 1)) * 0.05;
+    frameEmaMs = frameEmaMs * 0.95 + Math.min(dt, 100) * 0.05;
+    resolution.record(dt);
+    if (resolution.scale !== appliedScale) {
+      appliedScale = resolution.scale;
+      resizeCanvas();
+    }
+    syncSnapshotRate();
     const pan = (0.6 * dt) / camera.zoom;
     if (keys.has('a')) camera.x -= pan;
     if (keys.has('d')) camera.x += pan;
@@ -428,26 +470,27 @@ export async function bootstrap(): Promise<void> {
     renderer.draw(sim.latest, camera);
     drawPatrolOverlay();
     renderMs = performance.now() - renderStart;
-    hud.update(
-      sim.stats,
-      fps,
-      camera.rotation,
-      renderMs,
-      renderer.visibleSpriteCount,
-      renderer.backend,
-    );
-    gameUi.update(sim.latest, sim.stats, selectedGuest);
-    coasterPanel.update();
+    if (now - lastHud >= HUD_INTERVAL_MS) {
+      lastHud = now;
+      hud.update(
+        sim.stats,
+        fps,
+        camera.rotation,
+        renderMs,
+        renderer.visibleSpriteCount,
+        renderer.backend,
+      );
+    }
+    refreshPanels(now);
     if (latest) rideSetupState.current.advance(latest);
     const rideNotice = rideSetupState.current.notice();
     if (rideNotice) gameUi.setToolStatus(rideNotice);
-    const rect = canvas.getBoundingClientRect();
     if (sim.latest && sim.map) {
       audio.update(
         sim.latest,
         {
-          width: rect.width,
-          height: rect.height,
+          width: viewport.width,
+          height: viewport.height,
           mapWidth: sim.map.width,
           mapHeight: sim.map.height,
         },
@@ -467,11 +510,11 @@ export async function bootstrap(): Promise<void> {
       sim.map ? coasterPanel.ghost() : null,
       sim.map ?? { width: 0, height: 0 },
       camera,
-      { width: rect.width, height: rect.height },
-      capDevicePixelRatio(window.devicePixelRatio || 1),
+      viewport,
+      capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
       rideGhost,
     );
-    rideSetupState.current.drawPreview(rect.width, rect.height);
+    rideSetupState.current.drawPreview(viewport.width, viewport.height);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

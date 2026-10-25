@@ -30,6 +30,10 @@ export class SimRunner {
   private maxMs = 0;
   private lastStats = 0;
   private mapRevision = 0;
+  private snapshotIntervalMs = 0;
+  private lastSnapshot = -Infinity;
+  /** Ticks have advanced since the last published snapshot. */
+  private snapshotDue = false;
 
   constructor(
     private readonly port: Port,
@@ -49,6 +53,9 @@ export class SimRunner {
         break;
       case 'setPaused':
         this.sched.paused = msg.paused;
+        break;
+      case 'setSnapshotInterval':
+        this.snapshotIntervalMs = Math.max(0, msg.ms);
         break;
       case 'recycle':
         if (msg.snapshot.buildable.length >= this.poolTiles) this.pool.push(msg.snapshot);
@@ -151,8 +158,13 @@ export class SimRunner {
       const per = (this.clock() - t0) / n;
       this.emaMs = this.emaMs === 0 ? per : this.emaMs * 0.9 + per * 0.1;
       if (per > this.maxMs) this.maxMs = per;
+      this.snapshotDue = true;
+    }
+    if (this.snapshotDue && now - this.lastSnapshot >= this.snapshotIntervalMs) {
       const snap = this.pool.pop();
       if (snap) {
+        this.snapshotDue = false;
+        this.lastSnapshot = now;
         writeSnapshot(sim.world, snap);
         this.port.post({ type: 'snapshot', snapshot: snap }, snapshotBuffers(snap));
       }

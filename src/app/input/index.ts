@@ -42,6 +42,12 @@ export interface CameraInputDependencies {
   handleCanvasClick: (x: number, y: number, shiftKey?: boolean, forceSelect?: boolean) => void;
   removePathAt: (x: number, y: number) => void;
   setRideHover: (tile: [number, number] | null) => void;
+  /** Receives the canvas size in CSS pixels whenever it changes. */
+  viewport: { width: number; height: number };
+  /** Backing-buffer scale applied on top of the capped device pixel ratio. */
+  renderScale: () => number;
+  /** Hands back the resize routine so the frame loop can re-run it when the render scale changes. */
+  registerResize: (resize: () => void) => void;
 }
 
 function localPosition(canvas: HTMLCanvasElement, x: number, y: number): [number, number] {
@@ -65,9 +71,15 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
 
   function resize(): void {
     const rect = canvas.getBoundingClientRect();
-    const dpr = capDevicePixelRatio(window.devicePixelRatio || 1);
-    renderer.resize(rect.width, rect.height, dpr);
+    deps.viewport.width = rect.width;
+    deps.viewport.height = rect.height;
+    renderer.resize(
+      rect.width,
+      rect.height,
+      capDevicePixelRatio(window.devicePixelRatio || 1) * deps.renderScale(),
+    );
   }
+  deps.registerResize(resize);
 
   window.addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize', resize);
