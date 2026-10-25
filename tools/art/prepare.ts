@@ -2,6 +2,11 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import sharp from 'sharp';
 import { renderSprites } from '../sprites/generate';
+import {
+  PREPARED_PROP_SPRITES,
+  PREPARED_TERRAIN_MATERIALS,
+  PREPARED_UI_SPRITES,
+} from './prepared-assets';
 import { defringeRgba } from './image-cleanup';
 
 const sourceDirectory = new URL('./source/', import.meta.url);
@@ -153,7 +158,7 @@ async function prepareTerrain(): Promise<void> {
   const source = await readFile(new URL('terrain-shapes.png', sourceDirectory));
   const { width, height } = await sharp(source).metadata();
   if (!width || !height) throw new Error('Could not read terrain sheet dimensions');
-  const materials = ['grass', 'sand', 'dirt', 'rock'];
+  const materials = PREPARED_TERRAIN_MATERIALS;
   for (let row = 0; row < materials.length; row++) {
     let flatTerrain: Buffer | undefined;
     for (let shape = 0; shape < 16; shape++) {
@@ -200,24 +205,7 @@ async function prepareProps(): Promise<void> {
   const source = await readFile(new URL('world-props.png', sourceDirectory));
   const { width, height } = await sharp(source).metadata();
   if (!width || !height) throw new Error('Could not read world props dimensions');
-  const spriteIds = [
-    'trees/tree-oak',
-    'trees/tree-conifer',
-    'trees/tree-birch',
-    'trees/tree-blossom',
-    'trees/tree-autumn',
-    'trees/tree-topiary',
-    'scenery/shrub',
-    'scenery/flower-bed',
-    'scenery/wooden-fence',
-    'scenery/stone-fence',
-    'scenery/bench',
-    'scenery/bin',
-    'scenery/lamp',
-    'scenery/park-entrance',
-    'scenery/hedge',
-    'scenery/queue-rail',
-  ];
+  const spriteIds = PREPARED_PROP_SPRITES;
   for (let index = 0; index < spriteIds.length; index++) {
     const bounds = gridBounds(width, height, 4, 4, index % 4, Math.floor(index / 4));
     const image = await cell(source, bounds);
@@ -235,7 +223,7 @@ async function prepareProps(): Promise<void> {
 async function prepareUi(): Promise<void> {
   const source = await readFile(new URL('ui-icons.png', sourceDirectory));
   const cleaned = await cleanedImage(source, 1024);
-  const destination = new URL('../../public/sprites/ui/icons.png', import.meta.url);
+  const destination = outputPath(PREPARED_UI_SPRITES[0]);
   await mkdir(dirname(destination.pathname), { recursive: true });
   await writeFile(destination, cleaned);
 }

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import { SCENERY_CATALOG } from '../../src/sim/map/scenery';
-import { buildArtCoverage, renderArtCoverageHtml } from './coverage';
+import {
+  availableSpriteKeys,
+  buildArtCoverage,
+  renderArtCoverageHtml,
+  spriteCoverageStatus,
+} from './coverage';
+import { PREPARED_PROP_SPRITES, PREPARED_TERRAIN_MATERIALS } from '../art/prepared-assets';
 
 const rows = buildArtCoverage();
 
@@ -23,6 +29,38 @@ describe('art coverage inventory', () => {
     expect(uncovered.map((row) => `${row.group}: ${row.item}: ${row.missing.join(', ')}`)).toEqual(
       [],
     );
+  });
+
+  it('reports runtime fallback when a required sprite key is unavailable', () => {
+    expect(spriteCoverageStatus(['trees/tree-palm'], new Set())).toEqual({
+      webgl2: 'placeholder',
+      canvas2d: 'placeholder',
+    });
+  });
+
+  it('checks generated and prepared sources for every scenery catalog key', () => {
+    const available = availableSpriteKeys();
+    const terrain = new Set(
+      PREPARED_TERRAIN_MATERIALS.flatMap((material) => [
+        ...Array.from(
+          { length: 16 },
+          (_, slope) => `terrain/${material}/shape-${slope.toString(16).padStart(2, '0')}`,
+        ),
+        `terrain/${material}/surface`,
+        ...Array.from(
+          { length: 4 },
+          (_, direction) => `terrain/${material}/cliff-face-${direction}`,
+        ),
+      ]),
+    );
+    for (const key of [...PREPARED_PROP_SPRITES, ...terrain])
+      expect(available.has(key), key).toBe(true);
+    for (const item of SCENERY_CATALOG) {
+      const key = item.sprite.startsWith('tree-')
+        ? `trees/${item.sprite}`
+        : `scenery/${item.sprite}`;
+      expect(available.has(key), item.name).toBe(true);
+    }
   });
 
   it('reports path additions, weather, UI, litter, and placement previews', () => {
