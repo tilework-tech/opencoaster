@@ -1,0 +1,64 @@
+import { writeSpriteDef } from './output';
+import type { SpriteDef } from './output';
+import { renderMesh } from './raster';
+import type { Mesh } from './mesh';
+import { PATH_STYLES, pathMesh } from './models/paths';
+import { SHORE_FRAMES, WATER_FRAMES, shoreMesh, waterMesh } from './models/water';
+
+const ONE_TILE = { width: 1, height: 1 };
+
+function hex2(value: number): string {
+  return value.toString(16).padStart(2, '0');
+}
+
+function pathSprites(): SpriteDef[] {
+  const out: SpriteDef[] = [];
+  for (const style of PATH_STYLES) {
+    for (let mask = 0; mask < 16; mask++)
+      out.push({
+        key: `paths/${style}/connection-${hex2(mask)}`,
+        frames: [renderMesh(pathMesh({ style, mask }), { outline: false })],
+        footprint: ONE_TILE,
+      });
+    for (let direction = 0; direction < 4; direction++)
+      out.push({
+        key: `paths/${style}/ramp-${direction}`,
+        frames: [renderMesh(pathMesh({ style, mask: 0, slope: direction }), { outline: false })],
+        footprint: ONE_TILE,
+      });
+  }
+  return out;
+}
+
+function waterSprites(): SpriteDef[] {
+  const out: SpriteDef[] = [
+    {
+      key: 'water/surface',
+      frames: Array.from({ length: WATER_FRAMES }, (_, f) =>
+        renderMesh(waterMesh(f), { outline: false }),
+      ),
+      footprint: ONE_TILE,
+    },
+  ];
+  for (let mask = 0; mask < 16; mask++) {
+    const frames = Array.from({ length: SHORE_FRAMES }, (_, f): Mesh => shoreMesh(mask, f));
+    if (frames[0].length === 0) continue;
+    out.push({
+      key: `water/shore/shape-${hex2(mask)}`,
+      frames: frames.map((mesh) => renderMesh(mesh, { outline: false })),
+      footprint: ONE_TILE,
+    });
+  }
+  return out;
+}
+
+/** Every sprite this tool renders, keyed as in the atlas manifest. */
+export function buildSprites(): SpriteDef[] {
+  return [...pathSprites(), ...waterSprites()];
+}
+
+export async function renderSprites(outputDir: string): Promise<SpriteDef[]> {
+  const defs = buildSprites();
+  await Promise.all(defs.map((def) => writeSpriteDef(outputDir, def)));
+  return defs;
+}
