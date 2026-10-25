@@ -1,4 +1,5 @@
 import type { Command } from '../sim/core/commands';
+import { FeedbackDomain } from '../sim/core/feedback';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import type { RideTypeDef } from '../sim/rides/ride-types';
 import type { RideState } from '../sim/rides/ride-store';
@@ -457,6 +458,7 @@ export class CoasterPanel {
     const feedback = snapshot.feedback;
     if (feedback.seq === this.lastFeedbackSeq) return;
     this.lastFeedbackSeq = feedback.seq;
+    if (feedback.domain !== FeedbackDomain.Track && feedback.domain !== FeedbackDomain.Ride) return;
     const line = feedbackMessage(feedback.domain, feedback.code);
     this.feedbackLine.textContent = line.text;
     this.feedbackLine.dataset.ok = String(line.ok);

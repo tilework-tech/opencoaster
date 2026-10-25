@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TileMap, OWNED, RIGHTS_OWNED, PathFlag, ElementType } from './tile-map';
+import type { PathStyle } from './tile-map';
 import { placePath, removePath, raiseLand } from './index';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
-import { PathAddition, setPathAddition } from './paths';
+import { PathAddition, PathResult, placePathOutcome, setPathAddition } from './paths';
 
 function ownedMap(): TileMap {
   const m = new TileMap(16, 16);
@@ -188,5 +189,59 @@ describe('path surface styles', () => {
     expect(placePath(m, { x: 7, y: 6, queue: true, style: 1 })).toBe(true);
     const queue = m.pathElement(I(m, 7, 6), -1);
     expect(m.pathStyle[queue]).toBe(1);
+  });
+});
+
+describe('footpaths follow the terrain', () => {
+  it('builds a ramp facing the rise of a one-level slope when no direction is given', () => {
+    const m = ownedMap();
+    raiseLand(m, 8, 8, 1, 1, 1);
+    raiseLand(m, 8, 8, 1, 1, 2);
+    expect(placePathOutcome(m, { x: 8, y: 8 })).toBe(PathResult.Ok);
+    expect(m.pathSlopeDir(m.pathElement(I(m, 8, 8), -1))).toBe(0);
+    expect(m.pathEdges(I(m, 8, 8))).toBe(0);
+  });
+
+  it('keeps the flat piece on flat ground', () => {
+    const m = ownedMap();
+    expect(placePathOutcome(m, { x: 3, y: 3 })).toBe(PathResult.Ok);
+    expect(m.pathSlopeDir(m.pathElement(I(m, 3, 3), -1))).toBe(-1);
+  });
+
+  it('refuses a ramp whose direction does not match the terrain', () => {
+    const m = ownedMap();
+    raiseLand(m, 8, 8, 1, 1, 1);
+    raiseLand(m, 8, 8, 1, 1, 2);
+    expect(placePathOutcome(m, { x: 8, y: 8, slope: 2 })).toBe(PathResult.UnevenGround);
+  });
+
+  it('refuses ground that is neither flat nor a one-level ramp', () => {
+    const m = ownedMap();
+    raiseLand(m, 8, 8, 1, 1, 0);
+    expect(placePathOutcome(m, { x: 8, y: 8 })).toBe(PathResult.UnevenGround);
+    expect(m.elementCount).toBe(0);
+  });
+});
+
+describe('placePathOutcome reasons', () => {
+  it('names why each refused placement failed', () => {
+    const m = ownedMap();
+    expect(placePathOutcome(m, { x: -1, y: 0 })).toBe(PathResult.OutOfBounds);
+    m.ownership[I(m, 2, 2)] = 0;
+    expect(placePathOutcome(m, { x: 2, y: 2 })).toBe(PathResult.NotOwned);
+    m.waterLevel[I(m, 4, 4)] = 5;
+    m.refreshTile(I(m, 4, 4));
+    expect(placePathOutcome(m, { x: 4, y: 4 })).toBe(PathResult.Underwater);
+    expect(placePathOutcome(m, { x: 5, y: 5, style: 99 as PathStyle })).toBe(
+      PathResult.InvalidPiece,
+    );
+    expect(placePathOutcome(m, { x: 6, y: 6, z: 2 })).toBe(PathResult.BelowGround);
+  });
+
+  it('reports Ok for a placement that was already in place', () => {
+    const m = ownedMap();
+    expect(placePathOutcome(m, { x: 3, y: 3 })).toBe(PathResult.Ok);
+    expect(placePathOutcome(m, { x: 3, y: 3 })).toBe(PathResult.Ok);
+    expect(m.elementCount).toBe(1);
   });
 });

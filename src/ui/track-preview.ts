@@ -31,6 +31,12 @@ export interface RidePlacementGhost {
   tick: number;
 }
 
+/** A tile a refused placement points at; drawn red. */
+export interface TileGhost {
+  x: number;
+  y: number;
+}
+
 interface PreviewMap {
   width: number;
   height: number;
@@ -65,9 +71,10 @@ export class TrackPreviewOverlay {
     viewport: { width: number; height: number },
     pixelRatio: number,
     rideGhost: RidePlacementGhost | null = null,
+    tileGhost: TileGhost | null = null,
   ): void {
     const { canvas, ctx } = this;
-    if (!ghost && !rideGhost && !this.hasContent) return;
+    if (!ghost && !rideGhost && !tileGhost && !this.hasContent) return;
     const width = Math.round(viewport.width * pixelRatio);
     const height = Math.round(viewport.height * pixelRatio);
     if (canvas.width !== width || canvas.height !== height) {
@@ -76,10 +83,11 @@ export class TrackPreviewOverlay {
     }
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     ctx.clearRect(0, 0, viewport.width, viewport.height);
-    const active = ghost !== null || rideGhost !== null;
+    const active = ghost !== null || rideGhost !== null || tileGhost !== null;
     this.hasContent = active;
     canvas.hidden = !active;
     if (rideGhost) this.drawRideGhost(rideGhost, map, camera, viewport);
+    if (tileGhost) this.drawTileGhost(tileGhost, map, camera, viewport);
     if (!ghost) return;
 
     const fill = ghost.status === TrackResult.Ok ? VALID_FILL : INVALID_FILL;
@@ -132,6 +140,20 @@ export class TrackPreviewOverlay {
       }
       ctx.globalAlpha = 1;
     }
+  }
+
+  private drawTileGhost(
+    ghost: TileGhost,
+    map: PreviewMap,
+    camera: Camera,
+    viewport: { width: number; height: number },
+  ): void {
+    const { x, y } = ghost;
+    if (x < 0 || y < 0 || x >= map.width || y >= map.height) return;
+    const z = (map.heights?.[y * map.width + x] ?? 0) * Z_STEP;
+    ctxPath(this.ctx, INVALID_FILL, ENTRY_MARK, (visit) =>
+      this.corners(x, y, z, map, camera, viewport, visit),
+    );
   }
 
   private drawRideGhost(

@@ -27,6 +27,7 @@ import { capDevicePixelRatio } from '../../input/camera-controls';
 import { centreOnTile, connectCameraInput } from '../input';
 import { AudioEngine } from '../../audio/audio';
 import { createToolController } from '../tools';
+import { PathFeedback } from '../tools/path-feedback';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
 
@@ -78,7 +79,6 @@ export async function bootstrap(): Promise<void> {
   let patrolKind: number | null = null;
   let alternate = false;
   let pathQueue = false;
-  let pathSlope = -1;
   let pathStyle = PathStyle.Tarmac;
   let sceneryItem = SceneryItem.OakTree;
   let brush = 1;
@@ -96,6 +96,7 @@ export async function bootstrap(): Promise<void> {
   root.append(patrolOverlay);
   let patrolOverlaySignature = '';
   const trackPreview = new TrackPreviewOverlay(root);
+  const pathFeedback = new PathFeedback(root);
   const ridePlacementPreview = document.createElement('canvas');
   ridePlacementPreview.className = 'ride-placement-preview';
   ridePlacementPreview.setAttribute('aria-hidden', 'true');
@@ -133,9 +134,8 @@ export async function bootstrap(): Promise<void> {
     setBrush(size) {
       brush = Math.max(1, Math.min(5, Math.round(size)));
     },
-    setPathOptions(queue, slope) {
+    setPathQueue(queue) {
       pathQueue = queue;
-      pathSlope = slope;
     },
     setPathStyle(style) {
       pathStyle = style as PathStyle;
@@ -298,7 +298,8 @@ export async function bootstrap(): Promise<void> {
     setSelectedGuest: (guest) => (selectedGuest = guest),
     alternate: () => alternate,
     brush: () => brush,
-    pathOptions: () => ({ queue: pathQueue, slope: pathSlope }),
+    pathQueue: () => pathQueue,
+    pathFeedback,
     pathStyle: () => pathStyle,
     sceneryItem: () => sceneryItem,
     patrolKind: () => patrolKind,
@@ -506,6 +507,8 @@ export async function bootstrap(): Promise<void> {
       latest
         ? rideSetupState.current.createRideGhost(rideHover[0], rideHover[1], latest.tick)
         : null;
+    const pathGhost =
+      latest && sim.map ? pathFeedback.update(latest.feedback, sim.map.width, now) : null;
     trackPreview.draw(
       sim.map ? coasterPanel.ghost() : null,
       sim.map ?? { width: 0, height: 0 },
@@ -513,6 +516,7 @@ export async function bootstrap(): Promise<void> {
       viewport,
       capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
       rideGhost,
+      pathGhost,
     );
     rideSetupState.current.drawPreview(viewport.width, viewport.height);
     requestAnimationFrame(frame);
@@ -524,6 +528,7 @@ export async function bootstrap(): Promise<void> {
     audio.dispose();
     coasterPanel.dispose();
     trackPreview.dispose();
+    pathFeedback.dispose();
     renderer.dispose();
   });
 }
