@@ -1,7 +1,7 @@
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RideResult } from '../sim/rides/ride-results';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
-import type { RideType } from '../sim/rides/ride-types';
+import { RideType } from '../sim/rides/ride-types';
 import { PIECES } from '../sim/track/catalog';
 import { rotateTile } from '../sim/track/construction';
 import {
@@ -65,7 +65,9 @@ export function resolvePiece(
 export function allowedModes(piece: TrackPieceDef, rideType: RideType): PieceMode[] {
   const rules = RIDE_CATALOG[rideType]?.trackRules;
   const modes = [PieceMode.Normal];
-  if (piece.flags & PieceFlag.LiftOk) modes.push(PieceMode.ChainLift);
+  const waterRide = rideType === RideType.LogFlume || rideType === RideType.RiverRapids;
+  if (piece.flags & PieceFlag.LiftOk && (!waterRide || piece.entrySlope > 0 || piece.exitSlope > 0))
+    modes.push(waterRide ? PieceMode.WaterLift : PieceMode.ChainLift);
   if (piece.flags & PieceFlag.BrakeOk) modes.push(PieceMode.Brake, PieceMode.BlockBrake);
   if (piece.flags & PieceFlag.LaunchOk && rules?.launch !== false) modes.push(PieceMode.Launch);
   return modes;
@@ -77,6 +79,7 @@ export const MODE_LABELS: Record<PieceMode, string> = {
   [PieceMode.Brake]: 'Brake',
   [PieceMode.BlockBrake]: 'Block brake',
   [PieceMode.Launch]: 'Launch',
+  [PieceMode.WaterLift]: 'Powered climb',
 };
 
 export const SLOPE_LABELS: ReadonlyArray<readonly [Slope, string]> = [
@@ -96,6 +99,7 @@ export const BANK_LABELS: ReadonlyArray<readonly [Bank, string]> = [
 export const TURN_LABELS: ReadonlyArray<readonly [TurnKind, string]> = [
   ['station', 'Station'],
   ['straight', 'Straight'],
+  ['waterSplashDrop', 'Water splash drop'],
   ['smallLeft', 'Left small'],
   ['mediumLeft', 'Left medium'],
   ['largeLeft', 'Left large'],

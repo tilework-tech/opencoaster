@@ -14,8 +14,14 @@ const mobileProfiles = [
 async function toolbarAction(page: Page, label: string): Promise<void> {
   const toolbar = page.locator('.game-toolbar');
   const action = toolbar.getByRole('button', { name: label, exact: true });
-  if (!(await action.isVisible()))
-    await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
+  if (!(await action.isVisible())) {
+    const actions = toolbar.getByRole('button', { name: 'Actions', exact: true });
+    if ((await actions.getAttribute('aria-expanded')) !== 'true') {
+      await actions.tap();
+      if ((await actions.getAttribute('aria-expanded')) !== 'true') await actions.click();
+    }
+    await expect(action).toBeVisible();
+  }
   await action.tap();
 }
 
@@ -132,10 +138,8 @@ for (const { name, device } of mobileProfiles) {
     await toolbarAction(page, 'Park');
     const selectPathTool = async () => {
       const paths = page.locator('[data-panel="paths"]');
-      await expect(async () => {
-        await toolbarAction(page, 'Footpaths');
-        await expect(paths).toBeVisible({ timeout: 1500 });
-      }).toPass({ timeout: 10_000 });
+      if (!(await paths.isVisible())) await toolbarAction(page, 'Footpaths');
+      await expect(paths).toBeVisible({ timeout: 10_000 });
       if (!(await paths.evaluate((window) => window.classList.contains('collapsed'))))
         await paths.locator('.ui-titlebar').click();
     };

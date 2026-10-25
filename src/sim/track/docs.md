@@ -8,7 +8,7 @@ Responsibility: track piece catalog and geometry, construction (cursor, validati
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `track-types.ts`    | `Slope`, `Bank`, `PieceMode`, `PieceFlag`, `TrackResult` enums; `TrackPieceDef`, `FootprintCell`.                                                                                                                                                                    |
 | `geometry.ts`       | Build-time curves (straight, Bezier quarter arc, vertical loop, S-bend, helix, corkscrew, Hermite height profile). Uses only `+ - * / sqrt` (sine and cosine come from Taylor series, `sinCosTurns`), so the generated integer tables are identical on every engine. |
-| `catalog.ts`        | `PIECES` (66 piece types), `PieceId`, `SAMPLES` (shared SoA centre-line table), `pieceByName`. Built once at module load.                                                                                                                                            |
+| `catalog.ts`        | `PIECES` (67 piece types), `PieceId`, `SAMPLES` (shared SoA centre-line table), `pieceByName`. Built once at module load.                                                                                                                                            |
 | `track-store.ts`    | `TrackState` (`world.track`): `pieces` EntityStore plus per-ride `head/tail/count/closed/length/version`.                                                                                                                                                            |
 | `construction.ts`   | Cursor, `validatePlacement`, `placeTrack`, `removeTrack`, `removeRideTrack`, `circuitStatus`.                                                                                                                                                                        |
 | `track-path.ts`     | `getTrackPath(world, rideId)`: cached world-space polyline for vehicles.                                                                                                                                                                                             |
@@ -30,13 +30,15 @@ Added after the original 34 (ids are appended so saves stay valid):
 - Small and large helix, left/right, up/down (8): a full banked circle (radius 1.5 or 2.5 tiles) that drifts forward 3 or 4 tiles and changes height by 4 or 6 levels with level slope classes at both ends. Entry and exit bank are the turn side, so a flat-to-bank piece goes before and a bank-to-flat piece after.
 - Banked slopes (12): banked up/down 25 straights and the flat<->slope transitions that keep the bank, left and right. Bank changes on a slope (8): up/down 25 flat<->left/right bank.
 
-Each piece carries a `shape` (`PieceShape`, the build-control vocabulary: straight, turns by size, loop, S-bend, corkscrew, helix by size/side/direction) that the UI uses to find the piece for the chosen controls; no two pieces share a shape with the same entry and exit slope and bank.
+Each piece carries a `shape` (`PieceShape`, the build-control vocabulary: straight, turns by size, loop, S-bend, corkscrew, helix by size/side/direction, or water splash drop) that the UI uses to find the piece for the chosen controls; no two pieces share a shape with the same entry and exit slope and bank.
+
+Piece 66, `waterSplashDrop`, is appended to the catalog to preserve existing piece IDs. It is a straight transition from flat entry to a 25-degree descent, flagged as both a drop start and a water splash. Log Flume and River Rapids allow this piece through their ride-specific piece lists; other ride families do not.
 
 Slope classes: 25 = 0.5 rise/run (26.6 degrees), 60 = 2.0 rise/run (63.4 degrees), so every piece rises a whole number of height levels. Bank is 60 degrees (`BANK_DEG`); left banks are negative. The bank was raised from 45 to 60 degrees so the banked turns reach the spec's lateral-G speeds (medium banked 162 km/h, small banked about 95 against 101); this is an analytic calibration from the lateral-G formula, not yet measured in play.
 
 Placing an inversion (`Inverted` flag) straight after a chain-lift piece reports `TrackWarning.LiftIntoInversion` (code 100) in the track feedback. The placement still succeeds.
 
-Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and upward slopes), Brake and BlockBrake (flag `BrakeOk`: flat only), Launch (`PieceMode.Launch`, flag `LaunchOk`: flat pieces only). Stations take no mode.
+Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and upward slopes), Brake and BlockBrake (flag `BrakeOk`: flat only), Launch (`PieceMode.Launch`, flag `LaunchOk`: flat pieces only), and WaterLift (uphill pieces on Log Flume and River Rapids). The command layer permits WaterLift only for water rides and uphill pieces, and rejects ChainLift on water rides. Stations take no mode.
 
 ## Sample table (what vehicles consume)
 
@@ -49,7 +51,7 @@ Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and up
 `getConstructionCursor(world, rideId)` gives the position, heading, height level, slope and bank at the tail; `connectablePieces(cursor)` lists the piece types that fit. `validatePlacement` returns a `TrackResult`:
 
 1. Ride must exist (`world.rides`) and not be a closed circuit; piece-count cap `MAX_PIECES_PER_RIDE` (2048); store capacity `MAX_TRACK_PIECES` (16384).
-2. Mode allowed by the piece flags.
+2. Mode allowed by the piece flags. Shared validation accepts both `ChainLift` and `WaterLift` on `LiftOk` pieces; ride-family and uphill-only restrictions for `WaterLift` are checked by the command layer.
 3. Connection: the first piece goes anywhere; later pieces must meet the tail cursor (append) or have an exit that meets the head's entry (prepend). A piece whose exit meets the head while appended closes the circuit.
 4. Footprint (tiles touched by the centre line, rasterised in the local frame and rotated): inside the map, lowest point at or above height 0, above terrain unless the piece has `TunnelOk` (then it is a tunnel), highest point at most `MAX_TRACK_LEVEL` (96) levels.
 5. Clearance: each footprint cell occupies `[zMin, zMax + CLEARANCE_UNITS]` (3 levels) on its tile; overlap with any cell of any ride is `Blocked`.
@@ -67,7 +69,7 @@ Commands: `{ type: 'placeTrack', rideId, pieceType, x, y, z, dir, mode }` and `{
 3. Ownership of every footprint tile via `map.canBuild` -> `NotOwned`.
 4. Funds -> `InsufficientFunds`.
 
-A valid piece is placed and charged through the economy `charge`, then `invalidateRideTest` clears the ride's tested state. Removal also invalidates the test. Direct `placeTrack()` / `removeTrack()` calls (tests, fixtures) skip ownership, ride rules and charging; only commands enforce them. UIs call `validatePlacement` first for hover feedback, but the command result is authoritative.
+A valid piece is placed and charged through the economy `charge`, then `invalidateRideTest` clears the ride's tested state. Removal also invalidates the test. Direct `placeTrack()` / `removeTrack()` calls (tests, fixtures) skip ownership, ride-family rules and charging; shared construction validation still checks generic mode/flag compatibility. UIs call `validatePlacement` first for hover feedback, but the command result is authoritative.
 
 ## Determinism and state
 

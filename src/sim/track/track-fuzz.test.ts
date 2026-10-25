@@ -4,7 +4,9 @@ import { hashWorld } from '../core/hash';
 import { Prng } from '../core/prng';
 import type { World } from '../core/world';
 import { OWNED } from '../map/tile-map';
-import { PIECES, getConstructionCursor, getTrackPath } from './index';
+import { PIECES, PieceId, getConstructionCursor, getTrackPath } from './index';
+
+const GENERAL_FUZZ_PIECES = PIECES.filter((piece) => piece.id !== PieceId.WaterSplashDrop);
 
 function checkInvariants(w: World): void {
   const t = w.track;
@@ -53,7 +55,7 @@ function fuzz(seed: number): { hash: number; sim: Simulation } {
       sim.enqueue({
         type: 'placeTrack',
         rideId: ride,
-        pieceType: rng.nextU32() % PIECES.length,
+        pieceType: GENERAL_FUZZ_PIECES[rng.nextU32() % GENERAL_FUZZ_PIECES.length]!.id,
         x: fresh ? 4 + (rng.nextU32() % 24) : cur.x,
         y: fresh ? 4 + (rng.nextU32() % 24) : cur.y,
         z: fresh ? 4 + (rng.nextU32() % 8) : cur.z,

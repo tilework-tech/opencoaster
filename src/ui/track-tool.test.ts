@@ -8,6 +8,7 @@ import {
   classifyPiece,
   feedbackMessage,
   footprintTiles,
+  MODE_LABELS,
   previewStatus,
   resolvePiece,
 } from './track-tool';
@@ -107,6 +108,15 @@ describe('allowedModes', () => {
       PieceMode.Normal,
     ]);
   });
+
+  it.each([RideType.LogFlume, RideType.RiverRapids])(
+    '%s offers a powered uphill mode instead of a coaster chain lift',
+    (type) => {
+      const modes = allowedModes(PIECES[PieceId.Up25], type).map((mode) => MODE_LABELS[mode]);
+      expect(modes).toContain('Powered climb');
+      expect(modes).not.toContain('Chain lift');
+    },
+  );
 });
 
 describe('footprintTiles', () => {

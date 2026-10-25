@@ -260,6 +260,14 @@ const SPECS: Spec[] = [
       bankChangeOnSlope(`down25${N}BankToFlat`, Slope.Down25, bankOf(side), Bank.None),
     ];
   }),
+  {
+    name: 'waterSplashDrop',
+    horizontal: { kind: 'straight' },
+    entrySlope: Slope.Flat,
+    exitSlope: Slope.Down25,
+    flags: PieceFlag.DropStart | PieceFlag.WaterSplash,
+    cost: 2400,
+  },
 ];
 
 export const PieceId = {
@@ -329,6 +337,7 @@ export const PieceId = {
   Up25RightBankToFlat: 63,
   Down25FlatToRightBank: 64,
   Down25RightBankToFlat: 65,
+  WaterSplashDrop: 66,
 } as const;
 
 /** Shared centre-line point table, struct-of-arrays over every piece's samples. */
@@ -394,6 +403,7 @@ function buildCurve(spec: Spec): { curve: Curve; dz: number; headingDelta: numbe
 const CURVE_SIZE: Record<number, string> = { 1.5: 'small', 2.5: 'medium', 3.5: 'large' };
 
 function shapeOf(spec: Spec): PieceShape {
+  if (spec.name === 'waterSplashDrop') return 'waterSplashDrop';
   const h = spec.horizontal;
   const side = (h.kind !== 'straight' && h.side === 1 ? 'Right' : 'Left') as 'Left' | 'Right';
   switch (h.kind) {

@@ -219,6 +219,13 @@ describe('construction', () => {
       validatePlacement(w, { ...req, pieceType: PieceId.Flat, mode: PieceMode.BlockBrake }),
     ).toBe(0);
     expect(
+      validatePlacement(w, {
+        ...req,
+        pieceType: PieceId.FlatToUp25,
+        mode: PieceMode.WaterLift,
+      }),
+    ).toBe(TrackResult.Ok);
+    expect(
       validatePlacement(w, { ...req, pieceType: PieceId.SmallRight, mode: PieceMode.ChainLift }),
     ).toBe(TrackResult.BadMode);
     expect(validatePlacement(w, { ...req, pieceType: PieceId.Flat, mode: 9 as PieceMode })).toBe(

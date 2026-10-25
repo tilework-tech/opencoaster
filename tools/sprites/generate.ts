@@ -28,6 +28,14 @@ import { personMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
 import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
+import {
+  WATER_CAR_PITCHES,
+  WATER_RIDE_FAMILIES,
+  waterCarMesh,
+  waterTrackMesh,
+} from './models/water-track';
+import { PIECES } from '../../src/sim/track/catalog';
+import { PieceFlag } from '../../src/sim/track/track-types';
 import type { TrackPieceDef } from '../../src/sim/track/track-types';
 
 const ONE_TILE = { width: 1, height: 1 };
@@ -301,6 +309,51 @@ function transportSprites(): SpriteDef[] {
 }
 
 /** Every sprite this tool renders, keyed as in the atlas manifest. */
+function waterTrackSprites(): SpriteDef[] {
+  const out: SpriteDef[] = [];
+  for (const family of WATER_RIDE_FAMILIES) {
+    const ride = RIDE_CATALOG[family === 'log-flume' ? RideType.LogFlume : RideType.RiverRapids];
+    for (const piece of PIECES) {
+      if (!ride.trackRules?.allowedPieces?.includes(piece.id)) continue;
+      const variants = [''];
+      if (piece.flags & PieceFlag.LiftOk) variants.push('+water-lift');
+      for (let view = 0; view < 4; view++)
+        for (const variant of variants)
+          for (let cell = 0; cell < piece.footprint.length; cell++) {
+            const centre = rotatePoint([piece.footprint[cell].i, piece.footprint[cell].j, 0], view);
+            const local = waterTrackMesh(
+              piece,
+              !!(piece.flags & PieceFlag.WaterSplash),
+              variant === '+water-lift',
+            );
+            const turned = rotateMesh(local, view);
+            const clipped = clipMesh(
+              turned,
+              centre[0] - 0.5,
+              centre[0] + 0.5,
+              centre[1] - 0.5,
+              centre[1] + 0.5,
+            );
+            if (clipped.length === 0) continue;
+            out.push({
+              key: `rides/water/${family}/track/${piece.name}${variant}/view-${view}/cell-${cell}`,
+              frames: [renderMesh(translateMesh(clipped, -centre[0], -centre[1], 0))],
+              footprint: ONE_TILE,
+            });
+          }
+    }
+    for (let pitchIndex = 0; pitchIndex < WATER_CAR_PITCHES.length; pitchIndex++)
+      for (let heading = 0; heading < 8; heading++)
+        for (let passengers = 0; passengers <= 7; passengers++)
+          out.push({
+            key: `rides/water/${family}/vehicles/car/${WATER_CAR_PITCHES[pitchIndex]}/heading-${heading}/passengers-${passengers}`,
+            frames: [renderMesh(waterCarMesh(family, heading, pitchIndex - 3, passengers))],
+            footprint: ONE_TILE,
+          });
+  }
+  return out;
+}
+
 export function buildSprites(): SpriteDef[] {
   return [
     ...rockSprites(),
@@ -313,6 +366,7 @@ export function buildSprites(): SpriteDef[] {
     ...parkEntranceSprites(),
     ...treeSprites(),
     ...coasterSprites(),
+    ...waterTrackSprites(),
     ...transportSprites(),
     ...peopleSprites(),
   ];

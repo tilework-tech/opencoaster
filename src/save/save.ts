@@ -14,16 +14,21 @@ import {
   STAFF_SCHEMA,
 } from '../sim/staff/staff-store';
 import { LITTER_SCHEMA } from '../sim/guests/litter-store';
-import { RIDE_COLUMNS_ADDED_IN_V10, RIDER_HISTORY_WINDOWS } from '../sim/rides/ride-store';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
-import type { RideType } from '../sim/rides/ride-types';
+import {
+  RIDE_COLUMNS_ADDED_IN_V10,
+  RIDER_HISTORY_WINDOWS,
+  RidePhase,
+  RideState,
+} from '../sim/rides/ride-store';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 const PRE_PATH_STYLE_SAVE_VERSION = 16;
 const PATH_STYLE_SAVE_VERSION = 17;
 /** Guests carry campaign vouchers from this version; earlier guests carry none. */
 const VOUCHER_SAVE_VERSION = 18;
+const PRE_TRACKED_WATER_RIDES_SAVE_VERSION = 19;
 const PREVIOUS_SAVE_VERSION = 15;
 const PRE_V15_SAVE_VERSION = 14;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
@@ -186,6 +191,41 @@ function migrateLegacyRides(world: World, arrays: ArrayBufferView[]): void {
     rides.queueLength[slot] = queueLength[slot];
     rides.reliability[slot] = reliability[slot];
     rides.breakdownCounter[slot] = breakdownCounter[slot];
+  }
+}
+
+function migrateFlatWaterRides(world: World): void {
+  const rides = world.rides.cols;
+  const waterRideIds = new Set<number>();
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    if (rides.typeId[slot] !== RideType.LogFlume && rides.typeId[slot] !== RideType.RiverRapids)
+      continue;
+    waterRideIds.add(world.rides.slotToId[slot]);
+    rides.state[slot] = RideState.Closed;
+    rides.phase[slot] = RidePhase.Closed;
+    rides.entrancePlaced[slot] = 0;
+    rides.exitPlaced[slot] = 0;
+    rides.queueConnected[slot] = 0;
+    rides.queueLength[slot] = 0;
+    rides.boarded[slot] = 0;
+    rides.tested[slot] = 0;
+    rides.excitement[slot] = 0;
+    rides.intensity[slot] = 0;
+    rides.nausea[slot] = 0;
+    rides.testMaxSpeed[slot] = 0;
+    rides.testMaxPositiveG[slot] = 0;
+    rides.testMaxNegativeG[slot] = 0;
+    rides.testMaxLateralG[slot] = 0;
+    rides.testDropCount[slot] = 0;
+    rides.testHighestDrop[slot] = 0;
+    rides.testInversionCount[slot] = 0;
+    rides.testDurationTicks[slot] = 0;
+  }
+  const guests = world.guests.cols;
+  for (let slot = 0; slot < world.guests.count; slot++) {
+    if (!waterRideIds.has(guests.targetRide[slot])) continue;
+    guests.targetRide[slot] = -1;
+    guests.state[slot] = GuestState.Wandering;
   }
 }
 
@@ -424,6 +464,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_V15_SAVE_VERSION,
     PRE_PATH_STYLE_SAVE_VERSION,
     PATH_STYLE_SAVE_VERSION,
+    VOUCHER_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -547,6 +588,7 @@ export function deserialize(bytes: Uint8Array): World {
     migrateMissingApproachGap(world, header.stores.guests.count);
   if (header.version < VOUCHER_SAVE_VERSION)
     migrateVoucherlessGuests(world, header.stores.guests.count);
+  if (header.version < PRE_TRACKED_WATER_RIDES_SAVE_VERSION) migrateFlatWaterRides(world);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION

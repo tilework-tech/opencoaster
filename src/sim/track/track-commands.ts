@@ -40,6 +40,15 @@ function checkRideRules(world: World, req: PlaceRequest): TrackResult {
   if (steep && !rules.steepSlopes) return TrackResult.PieceNotAllowed;
   if (def.flags & PieceFlag.Inverted && !rules.inversions) return TrackResult.PieceNotAllowed;
   if (req.mode === PieceMode.Launch && !rules.launch) return TrackResult.PieceNotAllowed;
+  const waterRide =
+    RIDE_CATALOG[world.rides.cols.typeId[world.rides.idToSlot[req.rideId]] as RideType]
+      ?.category === 'water';
+  if (
+    req.mode === PieceMode.WaterLift &&
+    (!waterRide || (def.entrySlope <= 0 && def.exitSlope <= 0))
+  )
+    return TrackResult.BadMode;
+  if (req.mode === PieceMode.ChainLift && waterRide) return TrackResult.BadMode;
   if (def.flags & PieceFlag.Station && circuitStatus(world, req.rideId).stations > 0) {
     return TrackResult.PieceNotAllowed;
   }

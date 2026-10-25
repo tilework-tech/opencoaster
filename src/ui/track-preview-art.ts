@@ -1,6 +1,6 @@
 import type { RideType } from '../sim/rides/ride-types';
 import {
-  coasterFamily,
+  trackedRideFamily,
   trackCellSprites,
   transportFamily,
   transportTrackCells,
@@ -14,8 +14,8 @@ export function trackPreviewSprites(
   rotation: number,
   tick: number,
 ): TrackCellSprite[] {
-  const coaster = coasterFamily(rideType);
-  if (coaster) return trackCellSprites(pieceType, direction, rotation, coaster, 0, tick);
+  const family = trackedRideFamily(rideType);
+  if (family) return trackCellSprites(pieceType, direction, rotation, family, 0, tick);
   const transport = transportFamily(rideType);
   if (transport) return transportTrackCells(pieceType, direction, rotation, transport);
   return [];

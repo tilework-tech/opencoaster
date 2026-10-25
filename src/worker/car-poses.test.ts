@@ -41,6 +41,26 @@ describe('car poses', () => {
     expect(decodeCarPose(snapshot.cars.data[3])).toMatchObject({ rideId: 3, heading: 0, pitch: 0 });
   });
 
+  it('distributes boarded riders across boat car poses', () => {
+    const track = line(256, 0, 0);
+    const world = new World({ seed: 1, width: 16, height: 16, maxGuests: 4 });
+    world.vehicleTracks = new VehicleTrackRegistry([track]);
+    spawnTrain(world, {
+      rideId: 3,
+      state: VehicleState.Running,
+      carCount: 2,
+      passengers: 5,
+      trackPos: 1200 * 256,
+    });
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 4, litter: 0 });
+    writeCarPoses(world, snapshot.cars);
+    const passengers = [0, 1].map(
+      (car) => decodeCarPose(snapshot.cars.data[car * 4 + 3]).passengers ?? 0,
+    );
+    expect(passengers.every((count) => count > 0)).toBe(true);
+    expect(passengers.reduce((sum, count) => sum + count, 0)).toBe(5);
+  });
+
   it('quantises heading to eight directions', () => {
     const { snapshot } = poses(line(0, 256, 0), 1, 1000 * 256);
     expect(decodeCarPose(snapshot.cars.data[3]).heading).toBe(2);

@@ -260,7 +260,45 @@ describe('generated sprite catalogue', () => {
       expect(sprites.has(`scenery/park-entrance/view-${view}`)).toBe(true);
       expect(sprites.has(`transport/log-flume/view-${view}`)).toBe(true);
       expect(sprites.has(`transport/river-rapids/view-${view}`)).toBe(true);
+      expect(sprites.has(`rides/water/log-flume/track/flat/view-${view}/cell-0`)).toBe(true);
+      expect(sprites.has(`rides/water/river-rapids/track/flat/view-${view}/cell-0`)).toBe(true);
     }
+    for (const family of ['log-flume', 'river-rapids'])
+      for (let heading = 0; heading < 8; heading++)
+        expect(
+          sprites.has(`rides/water/${family}/vehicles/car/flat/heading-${heading}/passengers-0`),
+        ).toBe(true);
+  });
+
+  it('renders water track geometry and passenger-dependent boat sprites', () => {
+    const flat = sprites.get('rides/water/log-flume/track/flat/view-0/cell-0')!.frames[0];
+    const climb = sprites.get('rides/water/log-flume/track/up25/view-0/cell-0')!.frames[0];
+    const turn = sprites.get('rides/water/log-flume/track/smallRight/view-0/cell-0')!.frames[0];
+    const emptyBoat = sprites.get('rides/water/log-flume/vehicles/car/flat/heading-0/passengers-0')!
+      .frames[0];
+    const loadedBoat = sprites.get(
+      'rides/water/log-flume/vehicles/car/flat/heading-0/passengers-2',
+    )!.frames[0];
+    const fullLogBoat = sprites.get(
+      'rides/water/log-flume/vehicles/car/flat/heading-0/passengers-4',
+    )!.frames[0];
+    const fullRaft = sprites.get(
+      'rides/water/river-rapids/vehicles/car/flat/heading-0/passengers-7',
+    )!.frames[0];
+    const partialRaft = sprites.get(
+      'rides/water/river-rapids/vehicles/car/flat/heading-0/passengers-3',
+    )!.frames[0];
+    expect(Buffer.from(climb.pixels).equals(Buffer.from(flat.pixels))).toBe(false);
+    expect(Buffer.from(turn.pixels).equals(Buffer.from(flat.pixels))).toBe(false);
+    expect(Buffer.from(loadedBoat.pixels).equals(Buffer.from(emptyBoat.pixels))).toBe(false);
+    expect(Buffer.from(fullLogBoat.pixels).equals(Buffer.from(loadedBoat.pixels))).toBe(false);
+    expect(Buffer.from(fullRaft.pixels).equals(Buffer.from(partialRaft.pixels))).toBe(false);
+    expect(sprites.has('rides/water/log-flume/vehicles/car/flat/heading-0/passengers-0')).toBe(
+      true,
+    );
+    expect(sprites.has('rides/water/log-flume/vehicles/car/flat/heading-0/passengers-2')).toBe(
+      true,
+    );
   });
 
   it('renders palm and cactus trees on a single tile with a centred bottom anchor', () => {
