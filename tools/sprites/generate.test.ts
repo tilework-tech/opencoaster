@@ -3,6 +3,7 @@ import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import { rideSpriteName } from '../../src/render/world-art';
 import { buildSprites } from './generate';
 import { alignFrames } from './output';
+import { TRANSPARENT } from './raster';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -80,7 +81,7 @@ describe('generated sprite catalogue', () => {
           expect(frame.width).toBe(aligned[0].width);
           expect(frame.height).toBe(aligned[0].height);
           expect(frame.anchor).toEqual(aligned[0].anchor);
-          expect(frame.pixels.some((pixel) => pixel !== 0)).toBe(true);
+          expect(frame.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
           return Buffer.from(frame.pixels).toString('base64');
         });
         expect(aligned[0].anchor.x).toBe(aligned[0].width / 2);
