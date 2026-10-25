@@ -658,6 +658,6 @@ export class GameUI {
               ? 'Construction rights selected. Click a marked tile to buy the rights.'
               : tool === 'patrol'
                 ? 'Patrol tool selected. Tap tiles to add them; use Remove tiles (or Shift) to remove.'
-                 : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
+                : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
   }
 }

@@ -12,7 +12,7 @@ import type { PointerSample } from '../../input/pointer-input';
 import type { SimClient } from '../../worker/sim-client';
 import type { CoasterPanel } from '../../ui/coaster-panel';
 import type { LandController } from '../tools/land-controller';
-import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
+import { TILE_UNITS } from '../../sim/core/constants';
 
 export function centreOnTile(x: number, y: number, sim: SimClient, camera: Camera): void {
   const map = sim.map;
