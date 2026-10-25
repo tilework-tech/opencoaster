@@ -26,6 +26,7 @@
     "balance": "tsx bench/balance.ts",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "smoke": "playwright test --config=playwright.config.ts",
+    "smoke:subpath": "pnpm build && playwright test --config=playwright.subpath.config.ts",
     "e2e": "playwright test --config=playwright.e2e.config.ts"
   },
   "devDependencies": {

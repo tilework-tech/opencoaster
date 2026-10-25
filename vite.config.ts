@@ -19,7 +19,7 @@ function publicFiles(directory: string, prefix = ''): string[] {
     const relativePath = `${prefix}${name}`;
     return statSync(absolutePath).isDirectory()
       ? publicFiles(absolutePath, `${relativePath}/`)
-      : [`/${relativePath}`];
+      : [relativePath];
   });
 }
 
@@ -34,10 +34,9 @@ function pwaPlugin(): Plugin {
       });
     },
     generateBundle(_options, bundle) {
-      const urls = Object.keys(bundle)
-        .filter((fileName) => fileName !== 'service-worker.js')
-        .map((fileName) => `/${fileName}`);
-      urls.push('/index.html', '/', ...publicFiles(resolve('public')));
+      // Relative to the worker script, so the precache works at any deploy base (e.g. /opencoaster/).
+      const urls = Object.keys(bundle).filter((fileName) => fileName !== 'service-worker.js');
+      urls.push('index.html', './', ...publicFiles(resolve('public')));
       this.emitFile({
         type: 'asset',
         fileName: 'service-worker.js',
@@ -47,7 +46,10 @@ function pwaPlugin(): Plugin {
   };
 }
 
-export default defineConfig({
+// Production builds default to a relative base so the same dist/ works at the site root or under a
+// path prefix such as GitHub Pages' /opencoaster/. Set OC_BASE to pin an absolute base instead.
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? (process.env.OC_BASE ?? './') : '/',
   plugins: [pwaPlugin()],
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
@@ -57,4 +59,4 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'bench/**/*.test.ts', 'tools/art/**/*.test.ts'],
   },
-});
+}));

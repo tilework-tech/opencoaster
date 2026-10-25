@@ -12,7 +12,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
   });
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
-  await page.goto('/');
+  await page.goto('./');
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const hud = page.locator('.hud');
   await expect(hud).toContainText('WebGL2', { timeout: 20_000 });
