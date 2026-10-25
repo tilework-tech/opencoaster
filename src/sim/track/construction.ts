@@ -81,6 +81,7 @@ function modeAllowed(flags: number, mode: number): boolean {
     case PieceMode.Normal:
       return true;
     case PieceMode.ChainLift:
+    case PieceMode.WaterLift:
       return (flags & PieceFlag.LiftOk) !== 0;
     case PieceMode.Brake:
     case PieceMode.BlockBrake:

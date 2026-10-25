@@ -51,7 +51,7 @@ Per-instance `mode` (`PieceMode`): Normal, ChainLift (flag `LiftOk`: flat and up
 `getConstructionCursor(world, rideId)` gives the position, heading, height level, slope and bank at the tail; `connectablePieces(cursor)` lists the piece types that fit. `validatePlacement` returns a `TrackResult`:
 
 1. Ride must exist (`world.rides`) and not be a closed circuit; piece-count cap `MAX_PIECES_PER_RIDE` (2048); store capacity `MAX_TRACK_PIECES` (16384).
-2. Mode allowed by the piece flags.
+2. Mode allowed by the piece flags. Shared validation accepts both `ChainLift` and `WaterLift` on `LiftOk` pieces; ride-family and uphill-only restrictions for `WaterLift` are checked by the command layer.
 3. Connection: the first piece goes anywhere; later pieces must meet the tail cursor (append) or have an exit that meets the head's entry (prepend). A piece whose exit meets the head while appended closes the circuit.
 4. Footprint (tiles touched by the centre line, rasterised in the local frame and rotated): inside the map, lowest point at or above height 0, above terrain unless the piece has `TunnelOk` (then it is a tunnel), highest point at most `MAX_TRACK_LEVEL` (96) levels.
 5. Clearance: each footprint cell occupies `[zMin, zMax + CLEARANCE_UNITS]` (3 levels) on its tile; overlap with any cell of any ride is `Blocked`.
@@ -69,7 +69,7 @@ Commands: `{ type: 'placeTrack', rideId, pieceType, x, y, z, dir, mode }` and `{
 3. Ownership of every footprint tile via `map.canBuild` -> `NotOwned`.
 4. Funds -> `InsufficientFunds`.
 
-A valid piece is placed and charged through the economy `charge`, then `invalidateRideTest` clears the ride's tested state. Removal also invalidates the test. Direct `placeTrack()` / `removeTrack()` calls (tests, fixtures) skip ownership, ride rules and charging; only commands enforce them. UIs call `validatePlacement` first for hover feedback, but the command result is authoritative.
+A valid piece is placed and charged through the economy `charge`, then `invalidateRideTest` clears the ride's tested state. Removal also invalidates the test. Direct `placeTrack()` / `removeTrack()` calls (tests, fixtures) skip ownership, ride-family rules and charging; shared construction validation still checks generic mode/flag compatibility. UIs call `validatePlacement` first for hover feedback, but the command result is authoritative.
 
 ## Determinism and state
 

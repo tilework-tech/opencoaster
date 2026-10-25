@@ -319,24 +319,37 @@ function waterTrackSprites(): SpriteDef[] {
       if (piece.flags & PieceFlag.LiftOk) variants.push('+water-lift');
       for (let view = 0; view < 4; view++)
         for (const variant of variants)
-          for (let cell = 0; cell < piece.footprint.length; cell++)
+          for (let cell = 0; cell < piece.footprint.length; cell++) {
+            const centre = rotatePoint([piece.footprint[cell].i, piece.footprint[cell].j, 0], view);
+            const local = waterTrackMesh(
+              piece,
+              !!(piece.flags & PieceFlag.WaterSplash),
+              variant === '+water-lift',
+            );
+            const turned = rotateMesh(local, view);
+            const clipped = clipMesh(
+              turned,
+              centre[0] - 0.5,
+              centre[0] + 0.5,
+              centre[1] - 0.5,
+              centre[1] + 0.5,
+            );
+            if (clipped.length === 0) continue;
             out.push({
               key: `rides/water/${family}/track/${piece.name}${variant}/view-${view}/cell-${cell}`,
-              frames: [
-                renderMesh(
-                  rotateMesh(waterTrackMesh(!!(piece.flags & PieceFlag.WaterSplash)), view),
-                ),
-              ],
+              frames: [renderMesh(translateMesh(clipped, -centre[0], -centre[1], 0))],
               footprint: ONE_TILE,
             });
+          }
     }
     for (let pitchIndex = 0; pitchIndex < WATER_CAR_PITCHES.length; pitchIndex++)
       for (let heading = 0; heading < 8; heading++)
-        out.push({
-          key: `rides/water/${family}/vehicles/car/${WATER_CAR_PITCHES[pitchIndex]}/heading-${heading}`,
-          frames: [renderMesh(waterCarMesh(family, heading, pitchIndex - 3))],
-          footprint: ONE_TILE,
-        });
+        for (let passengers = 0; passengers <= 7; passengers++)
+          out.push({
+            key: `rides/water/${family}/vehicles/car/${WATER_CAR_PITCHES[pitchIndex]}/heading-${heading}/passengers-${passengers}`,
+            frames: [renderMesh(waterCarMesh(family, heading, pitchIndex - 3, passengers))],
+            footprint: ONE_TILE,
+          });
   }
   return out;
 }

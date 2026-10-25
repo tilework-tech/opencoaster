@@ -353,6 +353,13 @@ test('Starter Park builds and opens a Log Flume with guests riding its water tra
   await placePiece('Right small', 'Level');
   await expect(page.locator('.coaster-info')).toContainText('closed circuit');
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
+  const header = construction.locator('.ui-titlebar');
+  const headerBounds = await header.boundingBox();
+  if (!headerBounds) throw new Error('Ride construction title bar is missing');
+  await page.mouse.move(headerBounds.x + 24, headerBounds.y + 16);
+  await page.mouse.down();
+  await page.mouse.move(74, 66, { steps: 6 });
+  await page.mouse.up();
   await placeStationPart(page, 'Place exit', false, mapCenter, [28, 40]);
   await placeStationPart(page, 'Test ride', false, mapCenter, [28, 38]);
 
@@ -386,6 +393,12 @@ test('Starter Park builds and opens a Log Flume with guests riding its water tra
       { timeout: 120_000 },
     )
     .toBeGreaterThan(0);
+  const rideWindow = await waterRide.boundingBox();
+  if (!rideWindow) throw new Error('Log Flume detail window is missing');
+  await page.mouse.move(rideWindow.x + 24, rideWindow.y + 16);
+  await page.mouse.down();
+  await page.mouse.move(74, 66, { steps: 6 });
+  await page.mouse.up();
   await waterRide.getByRole('button', { name: 'Locate' }).click();
   await page.getByRole('button', { name: 'Close Ride #0' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
