@@ -1,0 +1,88 @@
+{
+  "id": "thunderhead-mesa",
+  "name": "Thunderhead Mesa",
+  "category": "expert",
+  "climate": "hotAndDry",
+  "description": "A scorched mesa and a hard-to-please crowd. Hold 460 guests and a park rating of 700 through the end of year four.",
+  "seed": 3101,
+  "map": {
+    "width": 96,
+    "height": 96
+  },
+  "finance": {
+    "startingCash": 3000000,
+    "startingLoan": 3000000,
+    "maxLoan": 8000000,
+    "annualInterestBps": 1000
+  },
+  "difficultRating": true,
+  "pricing": {
+    "mode": "perRide"
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "north",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 2,
+    "baseLevel": 8,
+    "relief": 6,
+    "cell": 12,
+    "surface": "sand",
+    "buildLevel": 9,
+    "buildLength": 32,
+    "buildWidth": 25,
+    "lakes": [
+      {
+        "x": 80,
+        "y": 75,
+        "rx": 7,
+        "ry": 6,
+        "depth": 2
+      }
+    ],
+    "hills": [
+      {
+        "x": 20,
+        "y": 25,
+        "radius": 14,
+        "height": 6
+      },
+      {
+        "x": 75,
+        "y": 22,
+        "radius": 10,
+        "height": 4
+      }
+    ]
+  },
+  "land": {
+    "ownedMarginPercent": 25,
+    "saleMarginPercent": 0
+  },
+  "trees": {
+    "count": 60,
+    "groves": 3
+  },
+  "objective": {
+    "kind": "guestsAndRating",
+    "target": 460,
+    "rating": 700,
+    "byYear": 4
+  }
+}

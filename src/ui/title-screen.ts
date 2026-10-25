@@ -1,3 +1,4 @@
+import type { ScenarioProgress } from '../save/scenario-progress';
 import type { SaveSlotMeta, SlotStore } from '../save/slot-store';
 import { gameDate } from '../sim/economy/calendar';
 import { LedgerCategory } from '../sim/economy/ledger';
@@ -37,6 +38,7 @@ export class TitleScreen {
     private readonly scenarios: readonly ScenarioDef[],
     private readonly slots: SlotStore,
     private readonly actions: TitleActions,
+    private readonly progress: () => ScenarioProgress = () => ({}),
   ) {
     this.root.setAttribute('aria-label', 'Title screen');
     this.chooser = fileChooser((file) => actions.importFile(file));
@@ -97,9 +99,14 @@ export class TitleScreen {
     const categoryTabs = element('div', 'scenario-category-tabs');
     categoryTabs.setAttribute('role', 'tablist');
     categoryTabs.setAttribute('aria-label', 'Scenario difficulty');
+    const completed = this.progress();
     for (const category of SCENARIO_CATEGORIES) {
+      const inCategory = this.scenarios.filter(
+        (scenario) => (scenario.category ?? 'beginner') === category.id,
+      );
+      const won = inCategory.filter((scenario) => completed[scenario.id]).length;
       const tab = button(
-        category.label,
+        inCategory.length > 0 ? `${category.label} (${won}/${inCategory.length})` : category.label,
         () => {
           this.selectedCategory = category.id;
           this.selectedScenarioId =
@@ -123,6 +130,7 @@ export class TitleScreen {
       const card = element('article', 'scenario-card');
       card.setAttribute('role', 'listitem');
       card.classList.toggle('selected', def.id === this.selectedScenarioId);
+      card.classList.toggle('completed', Boolean(completed[def.id]));
       const choose = button(
         def.name,
         () => {
@@ -135,6 +143,7 @@ export class TitleScreen {
       card.append(
         choose,
         element('p', 'scenario-description', def.description ?? ''),
+        ...(completed[def.id] ? [element('p', 'scenario-status', 'Completed')] : []),
         button('Start', () => this.actions.newGame(def), 'menu-button scenario-card-start'),
       );
       list.append(card);
@@ -148,6 +157,13 @@ export class TitleScreen {
         element('h2', 'scenario-preview-name', selected.name),
         element('p', 'scenario-description', selected.description ?? ''),
         element('p', 'scenario-objective', objectiveText(selected)),
+        element(
+          'p',
+          'scenario-status',
+          completed[selected.id]
+            ? `Completed ${new Date(completed[selected.id].completedAt).toLocaleDateString()}`
+            : 'Not completed',
+        ),
         element(
           'p',
           'scenario-meta',

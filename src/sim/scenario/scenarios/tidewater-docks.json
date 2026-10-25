@@ -1,0 +1,93 @@
+{
+  "id": "tidewater-docks",
+  "name": "Tidewater Docks",
+  "category": "challenging",
+  "climate": "cold",
+  "description": "An old dockyard park with a loan to clear. Pay off the debt and lift the park's value past $5,500 by the end of year four.",
+  "seed": 2202,
+  "map": {
+    "width": 80,
+    "height": 80
+  },
+  "finance": {
+    "startingCash": 2800000,
+    "startingLoan": 600000,
+    "maxLoan": 9000000,
+    "annualInterestBps": 1100
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "perRide"
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "west",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 4,
+    "baseLevel": 6,
+    "relief": 3,
+    "cell": 8,
+    "surface": "grass",
+    "buildLevel": 7,
+    "buildLength": 30,
+    "buildWidth": 25,
+    "lakes": [
+      {
+        "x": 55,
+        "y": 8,
+        "rx": 30,
+        "ry": 8,
+        "depth": 3
+      }
+    ],
+    "hills": [
+      {
+        "x": 25,
+        "y": 70,
+        "radius": 9,
+        "height": 3
+      }
+    ]
+  },
+  "land": {
+    "ownedMarginPercent": 23,
+    "saleMarginPercent": 2
+  },
+  "trees": {
+    "count": 90,
+    "groves": 5
+  },
+  "prebuilt": [
+    {
+      "type": "foodStall",
+      "row": 4,
+      "lateral": -2
+    },
+    {
+      "type": "ferrisWheel",
+      "row": 6,
+      "lateral": 6
+    }
+  ],
+  "objective": {
+    "kind": "repayLoanAndParkValue",
+    "target": 550000,
+    "byYear": 4
+  }
+}

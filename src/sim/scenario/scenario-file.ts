@@ -2,7 +2,22 @@ import { TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { Climate } from '../weather/weather';
 import { IMPORTED_ID, ObjectiveKind, SANDBOX_ID } from './scenario';
-import type { EntranceSide, ScenarioCategory, ScenarioDef, ScenarioEntrance } from './scenario';
+import { MAX_HEIGHT } from '../map/tile-map';
+import { buildApron, DEFAULT_LAND, ownedBounds } from './scenario-map';
+import { PREBUILT_TYPES } from './scenario-prebuilt';
+import type {
+  EntranceSide,
+  PrebuiltRide,
+  ScenarioCategory,
+  ScenarioDef,
+  ScenarioEntrance,
+  ScenarioHill,
+  ScenarioLake,
+  ScenarioLand,
+  ScenarioTerrain,
+  ScenarioTrees,
+  TerrainSurface,
+} from './scenario';
 
 type Json = Record<string, unknown>;
 
@@ -69,6 +84,16 @@ const SIDES: Record<EntranceSide, EntranceSide> = {
   west: 'west',
 };
 
+const TERRAIN_SURFACES: Record<TerrainSurface, TerrainSurface> = {
+  grass: 'grass',
+  sand: 'sand',
+  dirt: 'dirt',
+  rock: 'rock',
+};
+
+const MAX_TREES = 2000;
+const MAX_PREBUILT = 40;
+const MAX_PREBUILT_ROW = 60;
 const MIN_MAP_SIZE = 8;
 const MAX_MAP_SIZE = 256;
 const MAX_ENTRANCE_LENGTH = 16;
@@ -155,6 +180,10 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
   };
   if (def.startingLoan > def.maxLoan) fail('finance.startingLoan must not exceed finance.maxLoan');
   if (root.entrance !== undefined) def.entrance = check(() => entrance(root.entrance));
+  if (root.land !== undefined) def.land = check(() => land(root.land));
+  if (root.terrain !== undefined) def.terrain = check(() => terrain(root.terrain, def));
+  if (root.trees !== undefined) def.trees = check(() => trees(root.trees));
+  if (root.prebuilt !== undefined) def.prebuilt = check(() => prebuilt(root.prebuilt, def));
   return def;
 }
 
@@ -215,6 +244,97 @@ function entrance(v: unknown): ScenarioEntrance {
     side: oneOf(e.side, 'entrance.side', SIDES),
     length: integer(e.length, 'entrance.length', 1, MAX_ENTRANCE_LENGTH),
   };
+}
+
+function land(v: unknown): ScenarioLand {
+  const l = object(v, 'land');
+  return {
+    ownedMarginPercent: integer(
+      l.ownedMarginPercent ?? DEFAULT_LAND.ownedMarginPercent,
+      'land.ownedMarginPercent',
+      10,
+      45,
+    ),
+    saleMarginPercent: integer(
+      l.saleMarginPercent ?? DEFAULT_LAND.saleMarginPercent,
+      'land.saleMarginPercent',
+      0,
+      20,
+    ),
+  };
+}
+
+function terrain(v: unknown, def: ScenarioDef): ScenarioTerrain {
+  const t = object(v, 'terrain');
+  const seaLevel = integer(t.seaLevel, 'terrain.seaLevel', 1, 10);
+  const out: ScenarioTerrain = {
+    seaLevel,
+    baseLevel: integer(t.baseLevel, 'terrain.baseLevel', 1, MAX_HEIGHT - 4),
+    relief: integer(t.relief, 'terrain.relief', 0, 12),
+    cell: integer(t.cell, 'terrain.cell', 4, 16),
+    surface: oneOf(t.surface ?? 'grass', 'terrain.surface', TERRAIN_SURFACES),
+    buildLevel: integer(t.buildLevel, 'terrain.buildLevel', seaLevel + 2, MAX_HEIGHT - 6),
+    buildLength: integer(t.buildLength, 'terrain.buildLength', 8, MAX_MAP_SIZE),
+    buildWidth: integer(t.buildWidth, 'terrain.buildWidth', 5, MAX_MAP_SIZE),
+    lakes: array(t.lakes ?? [], 'terrain.lakes').map((l, i) => lake(l, `terrain.lakes[${i}]`)),
+    hills: array(t.hills ?? [], 'terrain.hills').map((h, i) => hill(h, `terrain.hills[${i}]`)),
+  };
+  if (def.entrance === undefined)
+    throw new Error('terrain needs an entrance to orient the build apron');
+  const owned = ownedBounds(def.mapWidth, def.mapHeight, def.land);
+  const apron = buildApron(def.mapWidth, def.mapHeight, def.entrance.side, out, def.land);
+  if (apron.x0 < owned.x0 || apron.x1 > owned.x1 || apron.y0 < owned.y0 || apron.y1 > owned.y1) {
+    throw new Error('terrain build apron must fit inside the owned land');
+  }
+  return out;
+}
+
+function lake(v: unknown, path: string): ScenarioLake {
+  const l = object(v, path);
+  return {
+    x: integer(l.x, `${path}.x`, 0, 100),
+    y: integer(l.y, `${path}.y`, 0, 100),
+    rx: integer(l.rx, `${path}.rx`, 1, MAX_MAP_SIZE),
+    ry: integer(l.ry, `${path}.ry`, 1, MAX_MAP_SIZE),
+    depth: integer(l.depth, `${path}.depth`, 0, 8),
+  };
+}
+
+function hill(v: unknown, path: string): ScenarioHill {
+  const h = object(v, path);
+  return {
+    x: integer(h.x, `${path}.x`, 0, 100),
+    y: integer(h.y, `${path}.y`, 0, 100),
+    radius: integer(h.radius, `${path}.radius`, 1, MAX_MAP_SIZE),
+    height: integer(h.height, `${path}.height`, 0, 12),
+  };
+}
+
+function trees(v: unknown): ScenarioTrees {
+  const t = object(v, 'trees');
+  return {
+    count: integer(t.count, 'trees.count', 0, MAX_TREES),
+    groves: integer(t.groves, 'trees.groves', 1, 100),
+  };
+}
+
+function prebuilt(v: unknown, def: ScenarioDef): PrebuiltRide[] {
+  if (def.entrance === undefined) throw new Error('prebuilt rides need an entrance');
+  const list = array(v, 'prebuilt');
+  if (list.length > MAX_PREBUILT)
+    throw new Error(`prebuilt may list at most ${MAX_PREBUILT} rides`);
+  return list.map((item, i) => {
+    const r = object(item, `prebuilt[${i}]`);
+    const lateral = integer(r.lateral, `prebuilt[${i}].lateral`, -30, 30);
+    if (Math.abs(lateral) < 2)
+      throw new Error(`prebuilt[${i}].lateral must be at least 2 tiles from the spine`);
+    oneOf(r.type, `prebuilt[${i}].type`, PREBUILT_TYPES);
+    return {
+      type: r.type as string,
+      row: integer(r.row, `prebuilt[${i}].row`, 2, MAX_PREBUILT_ROW),
+      lateral,
+    };
+  });
 }
 
 function object(v: unknown, path: string): Json {

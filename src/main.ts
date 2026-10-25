@@ -33,6 +33,8 @@ import { createMemorySlotStore, openIndexedDbSlotStore } from './save/slot-store
 import type { SaveSlotMeta, SlotStore } from './save/slot-store';
 import { defaultSlotName, exportFileName, saveGameToSlot } from './save/game-saves';
 import { summarizeSave } from './save/save';
+import { loadScenarioProgress, markScenarioCompleted } from './save/scenario-progress';
+import type { ScenarioProgress } from './save/scenario-progress';
 import { registerPwa } from './pwa/register';
 import { capDevicePixelRatio, zoomCameraAt } from './input/camera-controls';
 import { PointerInput } from './input/pointer-input';
@@ -68,6 +70,7 @@ interface GameInfo {
  */
 interface Session extends GameInfo {
   outcomeShown: boolean;
+  winRecorded: boolean;
   resumed: boolean;
 }
 
@@ -235,12 +238,18 @@ const outcomeActions = {
   },
 };
 
-const titleScreen = new TitleScreen(root, SCENARIOS, slots, {
-  newGame: (def) => startNewGame(def),
-  sandbox: () => startSandbox(),
-  loadSlot: (slot) => void loadSlotFromTitle(slot),
-  importFile: (file) => void importFromTitle(file),
-});
+const titleScreen = new TitleScreen(
+  root,
+  SCENARIOS,
+  slots,
+  {
+    newGame: (def) => startNewGame(def),
+    sandbox: () => startSandbox(),
+    loadSlot: (slot) => void loadSlotFromTitle(slot),
+    importFile: (file) => void importFromTitle(file),
+  },
+  readScenarioProgress,
+);
 
 const saveMenu = new SaveMenu(root, slots, {
   save: async (id, name) => {
@@ -289,7 +298,7 @@ function syncPause(): void {
 
 function begin(game: GameInfo, resumed: boolean): void {
   audio.reset();
-  session = { ...game, outcomeShown: false, resumed };
+  session = { ...game, outcomeShown: false, winRecorded: false, resumed };
   selectedGuest = null;
   root.classList.remove('title-open');
   gameUi.onGameStart(!resumed);
@@ -876,6 +885,24 @@ function drawPatrolOverlay(): void {
   }
   patrolOverlay.replaceChildren(...polygons);
 }
+/** Progress lives in localStorage, which can be unavailable (private browsing); that reads as none. */
+function readScenarioProgress(): ScenarioProgress {
+  try {
+    return loadScenarioProgress();
+  } catch {
+    return {};
+  }
+}
+
+function recordScenarioWin(scenarioId: string): void {
+  if (!SCENARIOS.some((scenario) => scenario.id === scenarioId)) return;
+  try {
+    markScenarioCompleted(scenarioId, Date.now());
+  } catch {
+    // Storage full or blocked: the win simply is not remembered.
+  }
+}
+
 function frame(now: number): void {
   const dt = now - last;
   last = now;
@@ -887,6 +914,10 @@ function frame(now: number): void {
   if (keys.has('s')) camera.y += pan;
   const latest = sim.latest;
   if (session && latest) {
+    if (latest.scenario.status === ScenarioStatus.Won && !session.winRecorded) {
+      session.winRecorded = true;
+      recordScenarioWin(session.scenarioId);
+    }
     if (latest.scenario.status === ScenarioStatus.Active) {
       session.resumed = false;
     } else if (!session.outcomeShown) {

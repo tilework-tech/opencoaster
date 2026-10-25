@@ -8,7 +8,7 @@ Path: @/src/ui
 - Displays worker snapshots and timing statistics; authoritative game state remains in the simulation worker.
 - Below 700 px width windows become stacked bottom sheets (only the front sheet is expanded; tapping a title collapses/expands) and the toolbar becomes one horizontally scrolling row. Pointer focus preserves a collapsed sheet so its title-bar controls, including close, remain tappable. Controls have 44 px minimum touch targets (checked by `e2e/mobile.spec.ts`).
 - Hosts the game shell: a title screen, an in-game menu (reached from Game options), and a one-time scenario outcome dialog.
-- Title and scenario selection use the same bevelled window chrome as the in-game interface. New Game groups scenarios under the five manual-listed categories and shows a park illustration, objective and starting details for the selected park; scenario JSON defaults to Beginner Parks unless `category` is set.
+- Title and scenario selection use the same bevelled window chrome as the in-game interface. Each category tab shows how many of its scenarios have been won (`Beginner Parks (1/4)`), won scenarios carry a Completed badge in the list, and the preview states the completion date or `Not completed`; the title screen takes a progress callback so it stays independent of storage. New Game groups scenarios under the five manual-listed categories and shows a park illustration, objective and starting details for the selected park; scenario JSON defaults to Beginner Parks unless `category` is set.
 
 ### How it fits into the larger codebase
 

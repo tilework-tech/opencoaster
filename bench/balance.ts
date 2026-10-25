@@ -1,3 +1,7 @@
+if (process.argv.includes('--scenario') || process.argv.includes('--child')) {
+  await import('./scenario-balance');
+  process.exit(0);
+}
 import { createBalancePark, TICKS_PER_YEAR } from './balance-park';
 import type { BalanceProfile } from './balance-park';
 import { TICKS_PER_MONTH } from '../src/sim/economy/calendar';

@@ -1,0 +1,94 @@
+{
+  "id": "bramblewood-hollow",
+  "name": "Bramblewood Hollow",
+  "category": "beginner",
+  "climate": "coolAndWet",
+  "description": "A wooded hollow where every ride earns its keep. Reach $750 a month in ride ticket income by the end of year three.",
+  "seed": 1303,
+  "map": {
+    "width": 72,
+    "height": 72
+  },
+  "finance": {
+    "startingCash": 4500000,
+    "startingLoan": 1500000,
+    "maxLoan": 6000000,
+    "annualInterestBps": 800
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "perRide"
+  },
+  "research": {
+    "availableItemIds": [1, 5, 6, 7, 8],
+    "inventions": [
+      {
+        "itemId": 2,
+        "category": 0,
+        "workUnits": 180
+      },
+      {
+        "itemId": 3,
+        "category": 0,
+        "workUnits": 360
+      }
+    ]
+  },
+  "entrance": {
+    "side": "west",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 3,
+    "baseLevel": 7,
+    "relief": 4,
+    "cell": 8,
+    "surface": "grass",
+    "buildLevel": 8,
+    "buildLength": 30,
+    "buildWidth": 25,
+    "lakes": [
+      {
+        "x": 30,
+        "y": 70,
+        "rx": 6,
+        "ry": 5,
+        "depth": 2
+      }
+    ],
+    "hills": [
+      {
+        "x": 78,
+        "y": 30,
+        "radius": 10,
+        "height": 4
+      },
+      {
+        "x": 20,
+        "y": 20,
+        "radius": 8,
+        "height": 3
+      }
+    ]
+  },
+  "land": {
+    "ownedMarginPercent": 22,
+    "saleMarginPercent": 4
+  },
+  "trees": {
+    "count": 420,
+    "groves": 16
+  },
+  "prebuilt": [
+    {
+      "type": "merryGoRound",
+      "row": 4,
+      "lateral": 6
+    }
+  ],
+  "objective": {
+    "kind": "monthlyRideIncome",
+    "target": 75000,
+    "byYear": 3
+  }
+}

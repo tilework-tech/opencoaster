@@ -61,6 +61,68 @@ export interface ScenarioEntrance {
   length: number;
 }
 
+export type TerrainSurface = 'grass' | 'sand' | 'dirt' | 'rock';
+
+/** Elliptical depression: `x`/`y` are the centre as a percent of the map, radii are in tiles. */
+export interface ScenarioLake {
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  /** Levels the centre sits below the sea surface. */
+  depth: number;
+}
+
+/** Round rise: `x`/`y` are the centre as a percent of the map, `radius` is in tiles. */
+export interface ScenarioHill {
+  x: number;
+  y: number;
+  radius: number;
+  height: number;
+}
+
+/**
+ * Hand-authored terrain recipe. The generator layers coarse seeded noise, hills and lakes over a
+ * base level, then flattens a build apron in front of the gate.
+ */
+export interface ScenarioTerrain {
+  seaLevel: number;
+  baseLevel: number;
+  /** Peak-to-peak amplitude of the coarse noise, in levels. */
+  relief: number;
+  /** Noise cell size in tiles. */
+  cell: number;
+  surface: TerrainSurface;
+  /** Height of the flat apron, which is always dry and tree-free. */
+  buildLevel: number;
+  /** Apron extent inward from the gate edge, and across it, in tiles. */
+  buildLength: number;
+  buildWidth: number;
+  lakes: ScenarioLake[];
+  hills: ScenarioHill[];
+}
+
+/** Share of the map inset (percent per side) that is owned at the start, and how much of the rest is for sale. */
+export interface ScenarioLand {
+  ownedMarginPercent: number;
+  /** Percent of each side, from the border, that is not for sale. */
+  saleMarginPercent: number;
+}
+
+export interface ScenarioTrees {
+  count: number;
+  groves: number;
+}
+
+/** A ride or stall already standing at the start, placed on the gate's park grid. */
+export interface PrebuiltRide {
+  type: string;
+  /** Tiles inward from the gate along the spine path. */
+  row: number;
+  /** Signed tiles across the spine; the sign picks the side. */
+  lateral: number;
+}
+
 export interface ScenarioDef {
   id: string;
   name: string;
@@ -80,6 +142,10 @@ export interface ScenarioDef {
   inventions: ResearchInvention[];
   entrance?: ScenarioEntrance;
   climate?: Climate;
+  terrain?: ScenarioTerrain;
+  land?: ScenarioLand;
+  trees?: ScenarioTrees;
+  prebuilt?: PrebuiltRide[];
   objective: ScenarioObjective;
 }
 

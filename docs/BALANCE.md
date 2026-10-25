@@ -266,6 +266,33 @@ Default seed 2026, modest harness, one year on flattened terrain. The first worl
 
 The intervening rebased runs before the final litter calibration ended at 261 guests, rating 208, and $34,016, then 278 guests, rating 269, and $34,320 after monthly base temperatures and scenery/cleanliness effects. The final one-in-96 litter rate brings the default run to a win. The rating target is an OpenCoaster balance decision, not a claim about original-game difficulty or a guarantee across seeds. Terrain edits, staff hiring and park layout can change the result.
 
+## Scenario win rates
+
+`pnpm balance -- --scenario <id|all> [--seeds 12] [--jobs N] [--trace]` plays every shipped park other than the starter with a scripted strategy ([bench/strategy](../bench/strategy)) over seeds 1 to 12 and prints the wins and each seed's final guests, rating, cash, loan and park value. The seed changes the generated terrain, trees, guest rolls and breakdowns; the apron in front of the gate is flat in every seed, so one script fits all of them. A full 12-seed run of all ten parks takes about 50 minutes on one core.
+
+The scripts play a competent but imperfect player. All build gate-relative: a spine path inward from the gate with one ride or stall per row and side, a queue with bins, an exit path with bins, and coasters on reserved pads at the far end. Bins on every queue and exit path matter more than staffing: with bins only on the spine the same parks sat at 200 to 400 litter and a rating near 300, with bins everywhere litter averages under 10 and the rating stays above 700. Handymen are hired at one per two rides and stalls and mechanics at one per three attractions. Expert and Challenging scripts add per-seed hesitation (skipped build decisions and a late start), so their win rates reflect timing luck as well as terrain; Beginner scripts do not hesitate.
+
+| Park                 | Tab         | Objective                                                         | Setup                                                  | Wins  |
+| -------------------- | ----------- | ----------------------------------------------------------------- | ------------------------------------------------------ | ----- |
+| Meadowbrook Green    | Beginner    | 300 guests, rating 500+, by end of year 2                         | $60k cash, $15k loan, admission $3, south gate         | 12/12 |
+| Lantern Bay          | Beginner    | park value $7,000 by end of year 3                                | $50k, $10k loan, pay per ride, sand and sea, east gate | 12/12 |
+| Bramblewood Hollow   | Beginner    | $750 a month ride ticket income by end of year 3                  | $45k, $15k loan, pay per ride, dense trees, west gate  | 12/12 |
+| Copper Ridge         | Challenging | five coasters of 4.60+ excitement before the end of year 1        | $30k, $25k loan, pay per ride, hills, south gate       | 12/12 |
+| Tidewater Docks      | Challenging | repay the $6k loan and reach park value $5,500 by end of year 4   | $28k, $6k loan, pay per ride, west gate                | 12/12 |
+| Thunderhead Mesa     | Expert      | 460 guests and rating 700+ by end of year 4                       | $30k, $30k loan, difficult rating, hot and dry         | 7/12  |
+| Glacier Point        | Expert      | six coasters of 4.90+ excitement within 22,528 ticks (1.4 months) | $33k, $20k loan, pay per ride, cold, hesitant script   | 6/12  |
+| Seaside Promenade    | Real        | $380 a month food and drink profit by end of year 3               | $40k, $20k loan, free entry and rides                  | 12/12 |
+| Riverside Fairground | Real        | 645 guests, rating 600+, by end of year 3                         | $50k, $25k loan, admission $3, north gate              | 5/12  |
+| Open Grounds         | Other       | Have Fun (no deadline)                                            | $80k, no loan                                          | 11/12 |
+
+Notes on reading the table:
+
+- Beginner parks win 12/12 and Expert parks 7/12 and 6/12, inside the 10+ and 3 to 9 targets. The Expert thresholds sit at the middle of the script's spread rather than at a round number: Thunderhead Mesa's guest count is limited by the number of open attractions (`comfortable = 30 + 40 x attractions + 8 x stalls`), so the 20-ride script lands at 456 to 467 guests across seeds and the 460 target splits them. Riverside Fairground works the same way at 641 to 651 guests.
+- Seaside Promenade, Copper Ridge and Tidewater Docks are 12/12 for this script (the last two hesitate, but not enough to miss). They are easy for a script that never misplaces a queue or skimps on bins; a human will find them harder. Tidewater's final park ratings range from 250 to 877 across seeds; rating is not part of its objective, which needs the loan at zero and value of $5,500 or more (the script holds a $6,000 reserve and repays as soon as cash allows).
+- Open Grounds has no objective to win. The harness counts a run as healthy when, after four years, the park is solvent, rated 600 or more and holds 200 or more guests; seed 4 ends at rating 538 (a litter spike at the final sample) and is the one miss. The game itself never marks the park complete.
+- Glacier Point is a race against the script's random start delay (up to three months). With $33k all six coasters are placed on the first decision after the delay; $30k only pays for five. The six losing seeds (3 and 7 to 11) were still waiting at the deadline with just the four opening items built.
+- Coaster ratings in the table are measured on the apron after a 7,000-tick test: the compact circuit rates 4.67, the "river run" 4.92 and the "switchback" 4.94 (see [bench/strategy/coasters.ts](../bench/strategy/coasters.ts)). These are the best of about 500 closed circuits found by randomised search over a 16-tile box; the wooden coaster's ratings top out near 5.2 for larger circuits, which is why coaster targets stay at 4.90 or below. Scenery within five tiles of a station would add 0.05 per item, but the apron is tree-free and the scripts place no scenery, so only trees just past its edge could add to a station's rating.
+
 ## Known gaps
 
 - Far rides still cost a long walk: after the change the wooden coaster (a 35-tile walk, open for the last two thirds of the year) serves 362 guests against 905 for the merry-go-round next to the gate, and it is capped by what its single train carries. Energy is a placeholder until the target-based needs model lands ([fidelity/guests.md](fidelity/guests.md) F2).

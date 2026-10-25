@@ -2,7 +2,13 @@ import { parseScenarioFile } from './scenario-file';
 import { SANDBOX_ID } from './scenario';
 import type { ScenarioDef } from './scenario';
 
-/** Every `scenarios/*.json` file is a scenario. Adding a file adds a playable scenario. */
+/** The starter scenario heads the list (and its tab), so New game offers it first; the rest follow in file-name order. */
+export const STARTER_ID = 'starter';
+
+/**
+ * Every `scenarios/*.json` file is a scenario. Adding a file adds a playable scenario; the title
+ * screen groups them into tabs by each file's `category`.
+ */
 const files = import.meta.glob<unknown>('./scenarios/*.json', { eager: true, import: 'default' });
 
 /** Parsed, validated scenarios in file-name order. Throws on a malformed file or duplicate id. */
@@ -20,7 +26,7 @@ export function scenarioDisplayName(id: string): string {
 
 export function buildCatalog(modules: Record<string, unknown>): ScenarioDef[] {
   const seen = new Set<string>();
-  return Object.keys(modules)
+  const defs = Object.keys(modules)
     .sort()
     .map((path) => {
       const def = parseScenarioFile(modules[path]);
@@ -28,4 +34,5 @@ export function buildCatalog(modules: Record<string, unknown>): ScenarioDef[] {
       seen.add(def.id);
       return def;
     });
+  return [...defs.filter((d) => d.id === STARTER_ID), ...defs.filter((d) => d.id !== STARTER_ID)];
 }
