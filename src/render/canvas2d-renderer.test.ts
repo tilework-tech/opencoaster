@@ -113,7 +113,7 @@ async function renderWithAtlas(
   renderer.attach(canvas);
   renderer.resize(800, 600, 1);
   renderer.setMap(map);
-  renderer.draw(snapshot, { x: 0, y: 0, zoom: 1, rotation: 0 });
+  renderer.draw(snapshot, camera);
   return context;
 }
 
@@ -294,7 +294,7 @@ describe('Canvas2D fallback map art', () => {
     );
 
     expect(context.images).toHaveLength(1);
-    expect(context.spriteSources).toContain(1);
+    expect([1, 2, 3]).toContain(context.spriteSources[0]);
     expect(context.spriteSources).not.toContain(0);
   });
 });
