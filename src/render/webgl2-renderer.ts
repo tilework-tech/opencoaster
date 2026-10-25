@@ -2,7 +2,7 @@ import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
-import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
+import { PathFlag, SLOPE_DIR_SHIFT, Surface } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -53,6 +53,7 @@ import {
   nativeSpriteWorldOffset,
   waterFrameIndex,
   waterSpriteName,
+  ambientTreeName,
 } from './world-art';
 
 const CELL = 64;
@@ -69,14 +70,6 @@ const INITIAL_INSTANCE_CAPACITY = 16_384;
 const GROUND_CHUNK_SIZE = 512;
 const GROUND_CHUNK_CAPACITY = 48;
 const BACKGROUND = [0.06, 0.08, 0.1, 1] as const;
-const TREE_NAMES = [
-  'tree-oak',
-  'tree-conifer',
-  'tree-birch',
-  'tree-blossom',
-  'tree-autumn',
-  'tree-topiary',
-] as const;
 
 function glslFloat(value: number): string {
   return Number.isInteger(value) ? `${value}.0` : String(value);
@@ -766,8 +759,37 @@ export class WebGL2Renderer implements Renderer {
         continue;
       const x = index % width;
       const y = (index - x) / width;
-      this.dropChunksAround(x, y, previous.heights[index], width, height);
-      this.dropChunksAround(x, y, next.heights[index], width, height);
+      this.dropChunksAround(
+        x,
+        y,
+        previous.heights[index],
+        width,
+        height,
+        previous.surface[index] === Surface.Rock || next.surface[index] === Surface.Rock,
+      );
+      this.dropChunksAround(
+        x,
+        y,
+        next.heights[index],
+        width,
+        height,
+        previous.surface[index] === Surface.Rock || next.surface[index] === Surface.Rock,
+      );
+      for (const [dx, dy] of [
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+        [0, -1],
+      ]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+        const neighbor = ny * width + nx;
+        if (previous.surface[neighbor] !== Surface.Rock && next.surface[neighbor] !== Surface.Rock)
+          continue;
+        this.dropChunksAround(nx, ny, previous.heights[neighbor]!, width, height, true);
+        this.dropChunksAround(nx, ny, next.heights[neighbor]!, width, height, true);
+      }
     }
   }
 
@@ -777,8 +799,17 @@ export class WebGL2Renderer implements Renderer {
     tileHeight: number,
     width: number,
     height: number,
+    extendsToGround = false,
   ): void {
-    const range = this.tileChunkRange(x, y, tileHeight, width, height, this.groundRotation);
+    const range = this.tileChunkRange(
+      x,
+      y,
+      tileHeight,
+      width,
+      height,
+      this.groundRotation,
+      extendsToGround,
+    );
     for (let cy = range.y0; cy <= range.y1; cy++)
       for (let cx = range.x0; cx <= range.x1; cx++) this.groundChunks.delete(chunkKey(cx, cy));
   }
@@ -790,6 +821,7 @@ export class WebGL2Renderer implements Renderer {
     width: number,
     height: number,
     rotation: Rotation,
+    extendsToGround = false,
   ): ChunkRange {
     return tileChunkRange(
       x,
@@ -800,6 +832,7 @@ export class WebGL2Renderer implements Renderer {
       rotation,
       GROUND_CHUNK_SIZE,
       this.projected,
+      extendsToGround,
     );
   }
 
@@ -813,7 +846,15 @@ export class WebGL2Renderer implements Renderer {
     for (let index = 0; index < tileCount; index++) {
       const x = index % map.width;
       const y = (index - x) / map.width;
-      const r = this.tileChunkRange(x, y, map.heights[index], map.width, map.height, rotation);
+      const r = this.tileChunkRange(
+        x,
+        y,
+        map.heights[index]!,
+        map.width,
+        map.height,
+        rotation,
+        map.surface[index] === Surface.Rock,
+      );
       ranges[index * 4] = r.x0;
       ranges[index * 4 + 1] = r.y0;
       ranges[index * 4 + 2] = r.x1;
@@ -1154,8 +1195,22 @@ export class WebGL2Renderer implements Renderer {
         (direction === 1 && y === map.height - 1) ||
         (direction === 2 && x === 0) ||
         (direction === 3 && y === 0);
-      if (!onMapEdge) continue;
-      const face = terrainEdgeFace(tileCorners, direction, 0);
+      if (!onMapEdge && terrainSurface !== 'rock') continue;
+      const neighbor = [
+        [x + 1, y],
+        [x, y + 1],
+        [x - 1, y],
+        [x, y - 1],
+      ][direction]!;
+      const neighborBase =
+        onMapEdge ||
+        neighbor[0] < 0 ||
+        neighbor[0] >= map.width ||
+        neighbor[1] < 0 ||
+        neighbor[1] >= map.height
+          ? 0
+          : map.heights[neighbor[1] * map.width + neighbor[0]]!;
+      const face = terrainEdgeFace(tileCorners, direction, neighborBase);
       if (!face) continue;
       const top = Math.max(face.start.height, face.end.height);
       const bottom = face.bottomHeight;
@@ -1194,8 +1249,9 @@ export class WebGL2Renderer implements Renderer {
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const index = y * map.width + x;
-        if (map.surface[index] !== 0 || (x * 17 + y * 31) % 23 !== 7) continue;
-        const sprite = scenerySpriteName(TREE_NAMES[(x * 3 + y * 5) % TREE_NAMES.length]);
+        const tree = ambientTreeName(map.surface[index]!, x, y);
+        if (!tree) continue;
+        const sprite = scenerySpriteName(tree);
         const z = map.heights[index] * Z_STEP;
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;

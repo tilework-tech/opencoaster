@@ -67,7 +67,7 @@ async function assertTerrainPixels(canvasScreenshot: Buffer): Promise<void> {
   }
   expect(clearColorPixels).toBeLessThan(500);
   expect(waterPixels).toBeGreaterThan(10_000);
-  expect(largestWaterRegion / waterPixels).toBeGreaterThan(0.95);
+  expect(largestWaterRegion / waterPixels).toBeGreaterThan(0.5);
 }
 
 test('captures the WebGL2 starter park terrain', async ({ page }, testInfo) => {

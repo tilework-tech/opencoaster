@@ -332,6 +332,13 @@ function trees(v: unknown): ScenarioTrees {
     count: integer(t.count, 'trees.count', 0, MAX_TREES),
     groves: integer(t.groves, 'trees.groves', 1, 100),
   };
+  if (t.shrubs !== undefined) out.shrubs = integer(t.shrubs, 'trees.shrubs', 0, MAX_TREES);
+  if (t.flowerBeds !== undefined)
+    out.flowerBeds = integer(t.flowerBeds, 'trees.flowerBeds', 0, MAX_TREES);
+  if (t.clearWidth !== undefined)
+    out.clearWidth = integer(t.clearWidth, 'trees.clearWidth', 0, 100);
+  if (t.clearLength !== undefined)
+    out.clearLength = integer(t.clearLength, 'trees.clearLength', 0, MAX_MAP_SIZE);
   if (t.species !== undefined) {
     const species = array(t.species, 'trees.species');
     if (species.length === 0) throw new Error('trees.species must list at least one species');

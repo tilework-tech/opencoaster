@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SimRunner } from './sim-runner';
 import type { FromWorker } from './protocol';
+import { PriceMode } from '../sim/economy/ledger';
+import { ObjectiveKind } from '../sim/scenario/scenario';
 
 describe('SimRunner', () => {
   it('sends the map, then snapshots with the requested guest count', () => {
@@ -9,11 +11,59 @@ describe('SimRunner', () => {
     const r = new SimRunner({ post: (m) => out.push(m) }, () => now);
     r.handle({ type: 'init', seed: 1, width: 16, height: 16, initialGuests: 20, maxGuests: 100 });
     expect(out.map((m) => m.type)).toEqual(['map', 'ready']);
+    const map = out.find((m) => m.type === 'map');
+    expect(map && map.type === 'map' ? [map.entranceX, map.entranceY] : null).toEqual([-1, -1]);
     r.pump();
     now = 100;
     r.pump();
     const snap = out.find((m) => m.type === 'snapshot');
     expect(snap && snap.type === 'snapshot' && snap.snapshot.guests.count).toBe(20);
+  });
+
+  it('publishes the scenario entrance with the opening map before the first snapshot', () => {
+    const out: FromWorker[] = [];
+    let now = 0;
+    const r = new SimRunner({ post: (m) => out.push(m) }, () => now);
+    r.handle({
+      type: 'init',
+      seed: 11,
+      width: 24,
+      height: 24,
+      initialGuests: 0,
+      scenario: {
+        id: 'camera-test',
+        name: 'Camera Test',
+        seed: 11,
+        mapWidth: 24,
+        mapHeight: 24,
+        startingCash: 100_000,
+        startingLoan: 0,
+        maxLoan: 100_000,
+        annualInterestBps: 0,
+        difficultRating: false,
+        priceMode: PriceMode.Admission,
+        admissionPrice: 300,
+        availableItemIds: [],
+        inventions: [],
+        entrance: { side: 'south', length: 4 },
+        objective: {
+          kind: ObjectiveKind.Guests,
+          target: 10,
+          rating: 0,
+          categoryMask: 0,
+          byTick: 100,
+        },
+      },
+    });
+
+    const map = out.find((m) => m.type === 'map');
+    expect(map && map.type === 'map' ? [map.entranceX, map.entranceY] : null).toEqual([17, 17]);
+    r.pump();
+    now = 100;
+    r.pump();
+    expect(out.findIndex((message) => message.type === 'map')).toBeLessThan(
+      out.findIndex((message) => message.type === 'snapshot'),
+    );
   });
 
   it('re-sends the map after a terrain edit', () => {

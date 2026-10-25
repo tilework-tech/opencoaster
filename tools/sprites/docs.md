@@ -5,7 +5,7 @@ Path: @/tools/sprites
 ### Overview
 
 - Renders the game's generated world art from small 3D models with a deterministic software rasterizer; generation runs at build time and does not require a browser or GPU.
-- Produces PNG and JSON sprite definitions for [tools/art](../art/README.md), which prepares and packs them into the runtime atlas and manifest.
+- Produces PNG and JSON sprite definitions for [tools/art](../art/README.md), which prepares and packs them into the runtime atlas and manifest. Generated rock keys replace the prepared rock surface and add directional cliff faces.
 - `pnpm art:prepare` calls `renderSprites`, which writes every sprite from `buildSprites()` into `public/sprites/`. `pnpm sprites:render` only writes contact sheets under `docs/art/` for visual review.
 
 ### How it fits into the larger codebase
@@ -25,6 +25,7 @@ Path: @/tools/sprites
 - [models/go-karts.ts](models/go-karts.ts) supplies the detailed circuit and four kart poses used for Go-Karts, while other flat rides keep the selected models from the flat-ride catalog.
 - [models/coaster/](models/coaster/sprites.ts) produces coaster track cells, supports, stations, and cars under family-specific keys. Track coverage follows each ride family's permitted simulation pieces; car variants encode heading, pitch, and bank to match [src/worker/car-poses.ts](../../src/worker/car-poses.ts).
 - [models/trees.ts](models/trees.ts) supplies the palm and cactus ambient trees (`trees/tree-palm`, `trees/tree-cactus`), which are registered in [generate.ts](generate.ts) alongside the source-sheet trees and rendered by `pnpm art:prepare`. Their colours come from the existing green, wood and pink ramps.
+- [generate.ts](generate.ts) also emits raw tiled rock textures: an opaque surface and four direction-specific cliff faces under `terrain/rock/`. These definitions run after terrain-sheet preparation and replace those prepared keys in generated output; the renderers consume them through the shared world atlas.
 - [models/transport.ts](models/transport.ts), the transport ride models, and [models/transport-track.ts](models/transport-track.ts) generate transport track cells and vehicles, alongside animated log-flume and river-rapids ride art. [generate.ts](generate.ts) registers the complete set, including facing/view variants for facilities and station huts.
 
 ### Things to Know

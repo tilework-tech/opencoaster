@@ -1,6 +1,50 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
+import { World } from '../src/sim/core/world';
+import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
+import { prepareScenario } from '../src/sim/scenario/scenario-layout';
+import { project } from '../src/render/projection';
+import { deserialize } from '../src/save/save';
+import { extractMapData } from '../src/worker/map-data';
+
+const starterScenario = parseScenarioFile(
+  JSON.parse(
+    readFileSync(new URL('../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
+  ),
+);
+
+function entranceContinuation(): { x: number; y: number; projection: [number, number] } {
+  const entrance = starterScenario.entrance;
+  if (!entrance) throw new Error('Starter Park entrance is missing');
+  const world = new World({
+    seed: starterScenario.seed,
+    width: starterScenario.mapWidth,
+    height: starterScenario.mapHeight,
+  });
+  prepareScenario(world, starterScenario);
+  const [dx, dy] = {
+    north: [0, 1],
+    east: [-1, 0],
+    south: [0, -1],
+    west: [1, 0],
+  }[entrance.side];
+  const x = world.park.entranceX + dx * entrance.length;
+  const y = world.park.entranceY + dy * entrance.length;
+  const position = new Float64Array(2);
+  project(
+    (x + 0.5) * TILE_UNITS,
+    (y + 0.5) * TILE_UNITS,
+    world.map.heights[world.map.index(x, y)]! * Z_STEP,
+    world.map.width,
+    world.map.height,
+    0,
+    position,
+  );
+  return { x, y, projection: [position[0]!, position[1]!] };
+}
 
 test('plays the starter park shell and exercises save file round trips', async ({
   page,
@@ -45,8 +89,26 @@ test('plays the starter park shell and exercises save file round trips', async (
 
   await toolbarButton('Footpaths').click();
   const tickBeforePath = await currentTick();
-  await page.locator('#game').click({ position: { x: 700, y: 200 } });
-  await expect(page.locator('.tool-status')).toContainText('Path placement requested');
+  const gameBounds = await page.locator('#game').boundingBox();
+  if (!gameBounds) throw new Error('Game viewport is missing');
+  const continuation = entranceContinuation();
+  const camera = await page.evaluate(() => {
+    const { x, y, zoom } = (
+      window as unknown as {
+        __camera: { x: number; y: number; zoom: number };
+      }
+    ).__camera;
+    return { x, y, zoom };
+  });
+  await page.locator('#game').click({
+    position: {
+      x: gameBounds.width / 2 + (continuation.projection[0] - camera.x) * camera.zoom,
+      y: gameBounds.height / 2 + (continuation.projection[1] - camera.y) * camera.zoom,
+    },
+  });
+  await expect(page.locator('.tool-status')).toHaveText(
+    `Path placement requested at ${continuation.x}, ${continuation.y}.`,
+  );
   await expect.poll(currentTick).toBeGreaterThan(tickBeforePath);
   await screenshot('04-path-building');
 
@@ -57,7 +119,10 @@ test('plays the starter park shell and exercises save file round trips', async (
     await page.getByRole('button', { name: new RegExp(`^${ride}`) }).click();
     await page.locator('#game').click({ position: at });
   };
-  await buildRide('Gentle rides', 'Merry-Go-Round', { x: 800, y: 200 });
+  await buildRide('Gentle rides', 'Merry-Go-Round', {
+    x: gameBounds.width / 2 + 80,
+    y: gameBounds.height / 2 - 10,
+  });
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   await page
     .getByRole('button', { name: /Place entrance at tile/ })
@@ -120,6 +185,8 @@ test('plays the starter park shell and exercises save file round trips', async (
   const savePath = testInfo.outputPath('starter-playtest.ocsave');
   await download.saveAs(savePath);
   await expect(menu).toContainText('Save file downloaded.');
+  const savedPathCount = extractMapData(deserialize(await readFile(savePath)).map).pathCount;
+  expect(savedPathCount).toBeGreaterThan(starterScenario.entrance?.length ?? 0);
   await screenshot('10-exported');
 
   await page.getByRole('button', { name: 'Import save file' }).click();

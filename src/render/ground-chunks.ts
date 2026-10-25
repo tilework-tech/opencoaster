@@ -30,6 +30,7 @@ export function chunkRange(
  * projected under the current rotation so the extent is right whichever diamond vertex a corner
  * becomes. Tiles on the map boundary also own cliff faces that hang down to sea level, and a
  * neighbour's height change can reshape those, so their extent reaches the ground plane.
+ * Rock tiles with internal cliff faces also extend down to the ground plane.
  */
 export function tileChunkRange(
   x: number,
@@ -40,6 +41,7 @@ export function tileChunkRange(
   rotation: Rotation,
   chunkSize: number,
   scratch: Float64Array,
+  extendsToGround = false,
 ): ChunkRange {
   let left = Infinity;
   let right = -Infinity;
@@ -60,12 +62,12 @@ export function tileChunkRange(
     top = Math.min(top, scratch[1]);
     bottom = Math.max(bottom, scratch[1]);
   }
-  const onEdge = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+  const extendsDown = extendsToGround || x === 0 || y === 0 || x === width - 1 || y === height - 1;
   return chunkRange(
     left - 2,
     top - Z_PIXELS - 2,
     right + 2,
-    bottom + 2 + (onEdge ? (tileHeight + 1) * Z_PIXELS : 0),
+    bottom + 2 + (extendsDown ? (tileHeight + 1) * Z_PIXELS : 0),
     chunkSize,
   );
 }

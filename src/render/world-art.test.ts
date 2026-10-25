@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ambientTreeName } from './world-art';
 import {
   TERRAIN_SLOPE_NAMES,
   atlasFrameOrFallback,
@@ -19,6 +20,12 @@ import {
 } from './world-art';
 
 describe('world art sprite selection', () => {
+  it('chooses desert trees on sand and temperate trees on grass', () => {
+    expect(ambientTreeName(1, 4, 1)).toBe('tree-cactus');
+    expect(ambientTreeName(1, 27, 1)).toBe('tree-palm');
+    expect(ambientTreeName(0, 4, 1)).toBe('tree-topiary');
+    expect(ambientTreeName(4, 4, 1)).toBeNull();
+  });
   it('selects one authored terrain shape for every corner-height mask and surface', () => {
     const surfaces = ['grass', 'dirt', 'sand', 'rock'] as const;
     for (const surface of surfaces) {

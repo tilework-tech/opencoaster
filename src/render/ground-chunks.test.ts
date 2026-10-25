@@ -95,4 +95,11 @@ describe('tileChunkRange', () => {
       }
     }
   });
+
+  it('includes the lower edge of an interior rock cliff in the cached chunk range', () => {
+    const flatRange = tileChunkRange(20, 20, 10, 40, 40, 0, 128, scratch);
+    const rockFaceRange = tileChunkRange(20, 20, 10, 40, 40, 0, 128, scratch, true);
+
+    expect(rockFaceRange.y1).toBeGreaterThan(flatRange.y1);
+  });
 });

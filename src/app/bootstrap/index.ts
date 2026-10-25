@@ -30,6 +30,7 @@ import { createToolController } from '../tools';
 import { PathFeedback } from '../tools/path-feedback';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
+import { scenarioOpeningPosition } from './opening-camera';
 
 export async function bootstrap(): Promise<void> {
   const root = document.getElementById('app') as HTMLElement;
@@ -42,8 +43,7 @@ export async function bootstrap(): Promise<void> {
   sim.onMap = (map, newGame) => {
     renderer.setMap(map);
     if (!newGame) return;
-    camera.x = (map.width - map.height) * 16;
-    camera.y = (map.width + map.height) * 8;
+    [camera.x, camera.y] = scenarioOpeningPosition(map, camera.rotation);
   };
 
   const { store: slots, note: storeNote } = await openSlotStore();
