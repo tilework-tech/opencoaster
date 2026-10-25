@@ -17,6 +17,50 @@ export const enum StaffKind {
   Entertainer = 3,
 }
 
+export const enum StaffOrder {
+  SweepPaths = 0,
+  EmptyBins = 1,
+  WaterGardens = 2,
+  InspectRides = 3,
+  RepairRides = 4,
+  WatchForVandalism = 5,
+  EntertainGuests = 6,
+}
+
+export type StaffOrderId =
+  | 'sweep-paths'
+  | 'empty-bins'
+  | 'water-gardens'
+  | 'inspect-rides'
+  | 'repair-rides'
+  | 'watch-for-vandalism'
+  | 'entertain-guests';
+
+const STAFF_ORDER_IDS: readonly StaffOrderId[] = [
+  'sweep-paths',
+  'empty-bins',
+  'water-gardens',
+  'inspect-rides',
+  'repair-rides',
+  'watch-for-vandalism',
+  'entertain-guests',
+];
+
+const STAFF_ORDERS_BY_KIND: readonly (readonly StaffOrder[])[] = [
+  [StaffOrder.SweepPaths, StaffOrder.EmptyBins, StaffOrder.WaterGardens],
+  [StaffOrder.InspectRides, StaffOrder.RepairRides],
+  [StaffOrder.WatchForVandalism],
+  [StaffOrder.EntertainGuests],
+];
+
+export function staffOrdersForKind(kind: number): readonly StaffOrder[] {
+  return STAFF_ORDERS_BY_KIND[kind] ?? [];
+}
+
+export function defaultStaffOrderFlags(kind: number): number {
+  return staffOrdersForKind(kind).reduce((flags, order) => flags | (1 << order), 0);
+}
+
 export const STAFF_SCHEMA = {
   x: Int32Array,
   y: Int32Array,
@@ -26,6 +70,7 @@ export const STAFF_SCHEMA = {
   kind: Uint8Array,
   state: Uint8Array,
   patrolArea: Uint16Array,
+  orderFlags: Uint8Array,
 } as const;
 
 export function spawnStaff(w: World, kind: number): boolean {
@@ -43,6 +88,7 @@ export function spawnStaff(w: World, kind: number): boolean {
   s.cols.targetY[slot] = ty;
   s.cols.kind[slot] = kind;
   s.cols.state[slot] = 0;
+  s.cols.orderFlags[slot] = defaultStaffOrderFlags(kind);
   const patrolOffset = kind * w.map.width * w.map.height;
   for (let tile = 0; tile < w.map.width * w.map.height; tile++) {
     if (w.patrolAreas[patrolOffset + tile] !== 0) {
@@ -52,6 +98,27 @@ export function spawnStaff(w: World, kind: number): boolean {
   }
   w.economy.inputs.wageBillPerWeek += STAFF_WAGE_CENTS_PER_WEEK[kind] ?? 0;
   return true;
+}
+
+export function setStaffOrder(
+  w: World,
+  staffId: number,
+  orderId: StaffOrderId,
+  enabled: boolean,
+): boolean {
+  const slot = w.staff.idToSlot[staffId] ?? -1;
+  if (slot < 0) return false;
+  const order = STAFF_ORDER_IDS.indexOf(orderId);
+  if (order < 0 || !staffOrdersForKind(w.staff.cols.kind[slot]).includes(order)) return false;
+  const bit = 1 << order;
+  if (enabled) w.staff.cols.orderFlags[slot] |= bit;
+  else w.staff.cols.orderFlags[slot] &= ~bit;
+  return true;
+}
+
+export function staffOrderEnabled(w: World, staffId: number, order: StaffOrder): boolean {
+  const slot = w.staff.idToSlot[staffId] ?? -1;
+  return slot >= 0 && (w.staff.cols.orderFlags[slot] & (1 << order)) !== 0;
 }
 
 export function hireStaff(w: World, kind: number): boolean {

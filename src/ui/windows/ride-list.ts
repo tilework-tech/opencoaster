@@ -1,7 +1,7 @@
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import { RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
-import { element } from '../dom';
+import { element, setText } from '../dom';
 import { formatMoney } from '../format';
 import type { UiContext, WindowController } from '../ui-types';
 
@@ -32,6 +32,10 @@ export function openRideList(ctx: UiContext): WindowController {
   for (const tab of LIST_TABS) {
     const list = element('ul', 'ride-list');
     list.setAttribute('aria-label', tab.label);
+    list.addEventListener('click', (event) => {
+      const row = (event.target as HTMLElement).closest<HTMLButtonElement>('.list-row');
+      if (row?.dataset.rideId) ctx.openRide(Number(row.dataset.rideId));
+    });
     win.pane(tab.id).append(list);
     lists.set(tab.id, list);
   }
@@ -53,34 +57,46 @@ export function openRideList(ctx: UiContext): WindowController {
           );
       }
       for (const [tabId, tabRows] of rows) {
-        const next = tabRows.join('\n');
-        if (next === signatures.get(tabId)) continue;
-        signatures.set(tabId, next);
         const list = lists.get(tabId)!;
         if (tabRows.length === 0) {
-          list.replaceChildren(element('li', 'ui-help', 'None have been built yet.'));
+          if (!list.querySelector('.ui-help'))
+            list.replaceChildren(element('li', 'ui-help', 'None have been built yet.'));
+          signatures.set(tabId, '');
           continue;
         }
-        list.replaceChildren(
-          ...tabRows.map((row) => {
-            const [id, name, state, queue, price] = row.split('|');
-            const item = element('li');
-            const open = element('button', 'list-row');
+        const ids = tabRows.map((row) => row.split('|')[0] ?? '').join(',');
+        const existing = new Map(
+          [...list.querySelectorAll<HTMLButtonElement>('.list-row')].map((button) => [
+            button.dataset.rideId,
+            button,
+          ]),
+        );
+        const buttons = tabRows.map((row) => {
+          const [id, name, state, queue, price] = row.split('|');
+          let open = existing.get(id);
+          if (!open) {
+            open = element('button', 'list-row');
             open.type = 'button';
             open.dataset.rideId = id;
-            open.append(
-              element('span', 'list-name', `${name} #${id}`),
-              element(
-                'span',
-                'list-meta',
-                `${state} · queue ${queue} · ${formatMoney(Number(price))}`,
-              ),
-            );
-            open.addEventListener('click', () => ctx.openRide(Number(id)));
-            item.append(open);
-            return item;
-          }),
-        );
+            open.append(element('span', 'list-name'), element('span', 'list-meta'));
+          }
+          setText(open.querySelector<HTMLElement>('.list-name')!, `${name} #${id}`);
+          setText(
+            open.querySelector<HTMLElement>('.list-meta')!,
+            `${state} · queue ${queue} · ${formatMoney(Number(price))}`,
+          );
+          return open;
+        });
+        if (ids !== signatures.get(tabId)) {
+          list.replaceChildren(
+            ...buttons.map((button) => {
+              const item = element('li');
+              item.append(button);
+              return item;
+            }),
+          );
+          signatures.set(tabId, ids);
+        }
       }
     },
   };

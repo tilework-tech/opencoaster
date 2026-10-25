@@ -43,7 +43,7 @@ test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, ta
   await page
     .locator('.scenario-card')
     .filter({ hasText: 'Starter Park' })
-    .getByRole('button', { name: 'Start' })
+    .getByRole('button', { name: 'Start', exact: true })
     .click();
   const toolbar = page.locator('.game-toolbar');
   await expect(page.locator('[data-panel="park"]')).toBeVisible();
@@ -72,4 +72,43 @@ test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, ta
   await page.getByRole('tab', { name: 'Shops & Stalls' }).tap();
   expect(await undersizedTargets(page)).toEqual([]);
   await screenshot('m3-ride-select');
+});
+
+test('guest and footpath controls stay reachable on a phone', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Sandbox' }).click();
+
+  const toolbar = page.locator('.game-toolbar');
+  await toolbar.getByRole('button', { name: 'Guests', exact: true }).scrollIntoViewIfNeeded();
+  await toolbar.getByRole('button', { name: 'Guests', exact: true }).tap();
+  const guests = page.locator('[data-panel="guests"]');
+  await guests.getByRole('tab', { name: 'By location' }).tap();
+  const locationFilter = guests.getByLabel('Filter guests by location');
+  await expect(locationFilter).toBeVisible();
+  const location = await locationFilter.locator('option').nth(1).getAttribute('value');
+  expect(location).toBeTruthy();
+  await locationFilter.selectOption(location!);
+  await expect(guests.locator('.ui-pane.active > .ui-help')).toContainText(/^\d+ guests?$/);
+  await guests.getByRole('tab', { name: 'Guests' }).tap();
+  await expect(guests.locator('.guest-entry').first()).toBeVisible();
+  await guests.locator('.guest-entry').first().tap();
+  await expect(page.locator('[data-panel^="guest-"]')).toBeVisible();
+  expect(await undersizedTargets(page)).toEqual([]);
+
+  await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).scrollIntoViewIfNeeded();
+  await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).tap();
+  const paths = page.locator('[data-panel="paths"]');
+  await expect(paths.getByRole('button', { name: 'Queue line' })).toBeVisible();
+  await expect(paths.getByRole('button', { name: 'Follow terrain slope' })).toBeVisible();
+  await expect(paths.getByRole('button', { name: 'Remove footpath' })).toBeVisible();
+  const queue = paths.getByRole('button', { name: 'Queue line' });
+  await queue.tap();
+  await expect(queue).toHaveAttribute('aria-pressed', 'true');
+  const slope = paths.getByRole('button', { name: 'Follow terrain slope' });
+  await slope.tap();
+  await expect(paths.getByLabel('Slope direction')).toBeVisible();
+  const remove = paths.getByRole('button', { name: 'Remove footpath' });
+  await remove.tap();
+  await expect(remove).toHaveAttribute('aria-pressed', 'true');
+  expect(await undersizedTargets(page)).toEqual([]);
 });

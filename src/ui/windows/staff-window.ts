@@ -56,6 +56,7 @@ export function openStaffWindow(ctx: UiContext): WindowController {
         new StaffRoster(
           pane,
           {
+            open: (staffId) => ctx.openWorker(staffId),
             rename: (staffId, newName) => ctx.actions.renameStaff(staffId, newName),
             patrol: (k) => {
               ctx.actions.setPatrolKind(k);

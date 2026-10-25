@@ -21,10 +21,13 @@ Path: @/e2e
 - It creates a named save slot, exports the save file, imports that file, and loads the saved game before continuing the scenario.
 - When enabled with `E2E_RUN_YEAR=1`, the final stage runs at 4× speed until the year-one outcome dialog appears and captures whether the objective was met or missed.
 - The playtest exposed a camera offset that left 64×64 Starter Park mis-centered in the default 128×128 view. The map callback now centers the camera from the loaded map dimensions.
-- [mobile-input.spec.ts](mobile-input.spec.ts) checks path tap and drag painting, pan and pinch effects via changed picked tiles, rotation controls, capped backing-buffer scale, page zoom/scroll prevention, visibility pause, and viewport resizing. It pauses the simulation, exports and deserializes the current save to locate a guest in the viewport, then long-presses that guest with the Path tool active and asserts Guest details open. It also checks that the saved map data contains a path. Its emulated Pixel 8 performance case records HUD FPS samples with 2,000 guests.
+- [mobile-input.spec.ts](mobile-input.spec.ts) checks path tap and drag painting, pan and pinch effects via changed picked tiles, rotation controls, capped backing-buffer scale, page zoom/scroll prevention, visibility pause, and viewport resizing. It pauses the simulation, exports and deserializes the current save to locate a guest in the viewport, then long-presses the guest with Path active and asserts Guest details open. It also long-presses a path tile to check mobile removal, verifies saved map paths, and records HUD FPS samples with 2,000 guests on emulated Pixel 8.
 - [mobile-runtime.spec.ts](mobile-runtime.spec.ts) checks the manifest, service-worker control, and that the app can reload offline and start a progressing sandbox simulation. It disables Chromium's HTTP cache before taking the browser offline, so the reload exercises the service-worker cache.
 
 ### Things to Know
+
+- The deferred UI flow covers worker inspection and orders, patrol editing, Options categories, desktop resizing, Ctrl+S screenshot download, and the classic scenario selector tabs, preview and objective. Mobile guest/path coverage checks guest details, queue/slope/removal controls including touch-and-hold removal, and 44 px targets.
+- Repository screenshots captured by the UI flow are stored in [docs/screenshots](../docs/screenshots).
 
 - The current UI does not expose stall placement or price controls, so those requested playtest actions remain uncovered. Coaster construction is available and exercised by the test.
 - The default `pnpm e2e` flow completes the build and save/import/load checks without advancing a full year. Set `E2E_RUN_YEAR=1` to opt into the year-one scenario outcome; that run exceeded the 850-second expectation, so it is kept out of the default suite.

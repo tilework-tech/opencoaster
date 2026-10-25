@@ -3,6 +3,7 @@ import type { MapCommand } from '../map/map-commands';
 import type { ResearchAction } from '../research/research';
 import type { RideCommand } from '../rides/ride-commands';
 import type { RideType } from '../rides/ride-types';
+import type { StaffOrderId } from '../staff/staff-store';
 
 /**
  * Player/debug inputs. Commands are applied at the start of a tick, in arrival order, so
@@ -17,6 +18,7 @@ export type Command =
   | { type: 'setStaffPatrolTile'; staffId: number; x: number; y: number; enabled: boolean }
   | { type: 'setStaffKindPatrolTile'; kind: number; x: number; y: number; enabled: boolean }
   | { type: 'renameStaff'; staffId: number; name: string }
+  | { type: 'setStaffOrder'; staffId: number; order: StaffOrderId; enabled: boolean }
   | { type: 'setFlowerBed'; x: number; y: number; enabled: boolean }
   | { type: 'createRide'; rideType: RideType; x: number; y: number }
   | MapCommand

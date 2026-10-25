@@ -23,9 +23,10 @@ export function prepareFlat(w: World): void {
   w.map.fillFlat(4);
 }
 
-/** Guest store arrays in the layout used by saves before the `heading` column existed. */
+/** Guest store arrays in the layout used by saves before heading, navigation, and ride history. */
 export function legacyGuestArrays(w: World): ArrayBufferView[] {
   const columnsAbsentFromVersion3 = new Set([
+    'heading',
     'approachGap',
     'navGoal',
     'navGap',
@@ -35,6 +36,11 @@ export function legacyGuestArrays(w: World): ArrayBufferView[] {
     'visitTicks',
     'ridesTaken',
     'lastRide',
+    'rideHistoryCursor',
+    'rideHistory0',
+    'rideHistory1',
+    'rideHistory2',
+    'rideHistory3',
   ]);
   const legacyColumns = Object.keys(GUEST_SCHEMA).filter(
     (name) => name !== 'heading' && !columnsAbsentFromVersion3.has(name),

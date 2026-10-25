@@ -8,15 +8,16 @@ import type { LedgerSave } from '../sim/economy/ledger';
 import { restoreResearch, saveResearch, upgradeLegacyResearchSave } from '../sim/research/research';
 import type { LegacyResearchSave, ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
-import { calculateStaffWageBill } from '../sim/staff/staff-store';
+import { calculateStaffWageBill, defaultStaffOrderFlags } from '../sim/staff/staff-store';
 import { RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 12;
-const PREVIOUS_SAVE_VERSION = 11;
-const PRE_GUEST_HISTORY_SAVE_VERSION = 11;
+export const SAVE_VERSION = 13;
+const PREVIOUS_SAVE_VERSION = 12;
+const PRE_GUEST_STATS_SAVE_VERSION = 11;
+const PRE_RIDE_HISTORY_SAVE_VERSION = 12;
 /** First version whose research stores invention work units rather than cents. */
 const RESEARCH_UNITS_SAVE_VERSION = 10;
 const PRE_NAVIGATION_SAVE_VERSION = 9;
@@ -43,6 +44,11 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
         'visitTicks',
         'ridesTaken',
         'lastRide',
+        'rideHistoryCursor',
+        'rideHistory0',
+        'rideHistory1',
+        'rideHistory2',
+        'rideHistory3',
       ].includes(name),
   ),
 ) as Omit<
@@ -57,6 +63,11 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
   | 'visitTicks'
   | 'ridesTaken'
   | 'lastRide'
+  | 'rideHistoryCursor'
+  | 'rideHistory0'
+  | 'rideHistory1'
+  | 'rideHistory2'
+  | 'rideHistory3'
 >;
 const MAGIC = 0x56534f43; // "COSV" little-endian
 
@@ -266,13 +277,19 @@ export function serialize(world: World): Uint8Array {
   return out;
 }
 
-/** Guest columns appended after a save's version: approach gap, navigation, then ride history. */
+/** Guest columns appended after a save's version: approach gap, navigation, stats, then ride history. */
 function guestColumnsAbsent(version: number): number {
   return (
-    (version <= PRE_GUEST_HISTORY_SAVE_VERSION ? 3 : 0) +
+    (version <= PRE_GUEST_STATS_SAVE_VERSION ? 3 : 0) +
     (version <= PRE_APPROACH_SAVE_VERSION ? 1 : 0) +
-    (version <= PRE_NAVIGATION_SAVE_VERSION ? 5 : 0)
+    (version <= PRE_NAVIGATION_SAVE_VERSION ? 5 : 0) +
+    (version <= PRE_RIDE_HISTORY_SAVE_VERSION ? 5 : 0)
   );
+}
+
+/** The worker-order bit field was appended to staff storage in version 13. */
+function staffColumnsAbsent(version: number): number {
+  return version <= PREVIOUS_SAVE_VERSION ? 1 : 0;
 }
 
 /** Ride columns appended after a save's version: income, the train layout, then reliability. */
@@ -299,6 +316,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_APPROACH_SAVE_VERSION,
     PRE_NAVIGATION_SAVE_VERSION,
     PRE_RELIABILITY_SAVE_VERSION,
+    PRE_GUEST_STATS_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];
@@ -330,13 +348,19 @@ export function deserialize(bytes: Uint8Array): World {
   const rideViewEnd = allViews.length - trackViews.length;
   const rideViewStart = rideViewEnd - world.rides.arrays().length;
   const guestViewStart = world.map.arrays().length;
-  const guestViewEnd = guestViewStart + world.guests.arrays().length;
+  const guestPayloadViews = legacyGuests
+    ? legacyGuests.arrays()
+    : allViews.slice(
+        guestViewStart,
+        guestViewStart + world.guests.arrays().length - guestColumnsAbsent(header.version),
+      );
+  const staffViewStart = guestViewStart + world.guests.arrays().length;
+  const staffViewEnd = staffViewStart + world.staff.arrays().length;
   const serializedViews = [
     ...allViews.slice(0, guestViewStart),
-    ...(legacyGuests
-      ? legacyGuests.arrays()
-      : allViews.slice(guestViewStart, guestViewEnd - guestColumnsAbsent(header.version))),
-    ...allViews.slice(guestViewEnd, rideViewStart),
+    ...guestPayloadViews,
+    ...allViews.slice(staffViewStart, staffViewEnd - staffColumnsAbsent(header.version)),
+    ...allViews.slice(staffViewEnd, rideViewStart),
     ...(header.version === PRE_RIDES_SAVE_VERSION
       ? legacyViews
       : allViews.slice(rideViewStart, rideViewEnd - rideColumnsAbsent(header.version))),
@@ -352,6 +376,11 @@ export function deserialize(bytes: Uint8Array): World {
     const h = header.stores[n];
     (world[n] as EntityStore<Schema>).restore(h.count, h.freeTop);
   }
+  if (header.version <= PREVIOUS_SAVE_VERSION) {
+    for (let slot = 0; slot < world.staff.count; slot++) {
+      world.staff.cols.orderFlags[slot] = defaultStaffOrderFlags(world.staff.cols.kind[slot]);
+    }
+  }
   world.track.pieces.restore(header.track.pieces.count, header.track.pieces.freeTop);
   world.track.lastResult = header.track.lastResult;
   world.track.lastPiece = header.track.lastPiece;
@@ -359,7 +388,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
   if (legacyGuests) migrateLegacyGuests(world, legacyGuests, header.stores.guests.count);
   if (header.version <= PRE_RELIABILITY_SAVE_VERSION) migratePreReliabilityRides(world);
-  if (header.version <= PRE_GUEST_HISTORY_SAVE_VERSION)
+  if (header.version <= PRE_GUEST_STATS_SAVE_VERSION)
     migrateGuestHistory(world, header.stores.guests.count);
   if (header.version <= PRE_APPROACH_SAVE_VERSION)
     migrateMissingApproachGap(world, header.stores.guests.count);

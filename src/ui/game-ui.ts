@@ -19,7 +19,7 @@ import type {
 } from './ui-types';
 import type { WindowManager } from './window-manager';
 import { openFinanceWindow } from './windows/finance-window';
-import { openGuestWindow } from './windows/guest-window';
+import { openGuestWindow, openIndividualGuestWindow } from './windows/guest-window';
 import { openMapWindow } from './windows/map-window';
 import { openNewsWindow } from './windows/news-window';
 import { openParkWindow } from './windows/park-window';
@@ -28,6 +28,7 @@ import { openRideList } from './windows/ride-list';
 import { openRideSelect } from './windows/ride-select';
 import { openRideWindow } from './windows/ride-window';
 import { openStaffWindow } from './windows/staff-window';
+import { openWorkerWindow } from './windows/worker-window';
 import {
   LAND_WINDOW,
   PATH_WINDOW,
@@ -114,6 +115,8 @@ export class GameUI {
       selectedGuest: () => this.selectedGuest,
       series: this.series,
       openRide: (id) => this.openRide(id),
+      openGuest: (id) => this.openWindow(`guest-${id}`),
+      openWorker: (id) => this.openWindow(`worker-${id}`),
       openWindow: (id) => this.openWindow(id),
       chooseTool: (tool) => this.chooseTool(tool),
       currentTool: () => this.tool,
@@ -215,7 +218,8 @@ export class GameUI {
   }
 
   openGuestPanel(): void {
-    this.openWindow('guests');
+    if (this.selectedGuest) this.openWindow(`guest-${this.selectedGuest.id}`);
+    else this.openWindow('guests');
   }
 
   /** New games open the Park window; loaded games keep an empty desktop. */
@@ -358,6 +362,13 @@ export class GameUI {
   }
 
   private createController(id: string): WindowController | null {
+    const guestId = /^guest-(\d+)$/.exec(id)?.[1];
+    if (guestId !== undefined) return openIndividualGuestWindow(this.ctx, Number(guestId));
+    const workerId = /^worker-(\d+)$/.exec(id)?.[1];
+    if (workerId !== undefined)
+      return openWorkerWindow(this.ctx, Number(workerId), (staffId, order, enabled) =>
+        this.actions.command({ type: 'setStaffOrder', staffId, order, enabled }),
+      );
     switch (id) {
       case 'land':
         return openToolWindow(this.ctx, { ...LAND_WINDOW });
@@ -446,14 +457,20 @@ export class GameUI {
   private openOptions(): WindowController {
     const { window: win, created } = this.windows.open({
       id: 'options',
-      title: 'Game options',
+      title: 'Options',
       kind: 'tool',
       width: 300,
+      tabs: [
+        { id: 'game', label: 'Game', icon: 'options' },
+        { id: 'sound', label: 'Sound', icon: 'news' },
+        { id: 'display', label: 'Display', icon: 'view' },
+        { id: 'controls', label: 'Controls', icon: 'info' },
+      ],
     });
     const speeds = new Map<number, HTMLButtonElement>();
     if (created) {
-      const pane = win.pane();
-      pane.append(
+      const gamePane = win.pane('game');
+      gamePane.append(
         button('Save, load and quit…', () => this.actions.openMenu(), 'ui-button'),
         element('p', 'ui-help', 'Game speed'),
       );
@@ -470,10 +487,41 @@ export class GameUI {
         speeds.set(speed, b);
         row.append(b);
       }
-      pane.append(
+      gamePane.append(
         row,
         element('p', 'ui-help', 'Development'),
         button('Guests +1,000', () => this.actions.spawnGuests(), 'ui-button'),
+      );
+      const soundPane = win.pane('sound');
+      soundPane.append(
+        element('p', 'ui-help', 'Sound and music settings'),
+        this.optionToggle('Sound effects', 'sound-effects'),
+        this.optionToggle('Music', 'music'),
+        this.optionSelect('Sound quality', 'sound-quality', [
+          ['low', 'Low'],
+          ['medium', 'Medium'],
+          ['high', 'High'],
+        ]),
+      );
+      const displayPane = win.pane('display');
+      displayPane.append(
+        element('p', 'ui-help', 'View and display options'),
+        this.optionToggle('Height labels', 'height-labels'),
+        this.optionToggle('Gridlines', 'gridlines'),
+        this.optionToggle('Construction marker', 'construction-marker'),
+        this.optionToggle('Performance overlay', 'performance-overlay', (on) =>
+          this.parent.classList.toggle('hud-visible', on),
+        ),
+      );
+      const controlsPane = win.pane('controls');
+      controlsPane.append(
+        element('p', 'ui-help', 'Keyboard shortcuts'),
+        element(
+          'p',
+          'ui-help',
+          'Esc cancels a tool · Enter rotates view · Ctrl+S saves a screenshot.',
+        ),
+        element('p', 'ui-help', 'Page Up / Page Down zoom · Backspace closes a window.'),
       );
     }
     return {
@@ -482,6 +530,41 @@ export class GameUI {
           b.setAttribute('aria-pressed', String(speed === this.speed));
       },
     };
+  }
+
+  private optionToggle(
+    labelText: string,
+    key: string,
+    onChange?: (enabled: boolean) => void,
+  ): HTMLLabelElement {
+    const label = element('label', 'check-row');
+    const input = element('input');
+    input.type = 'checkbox';
+    input.checked = localStorage.getItem(`opencoaster-option-${key}`) === 'true';
+    input.addEventListener('change', () => {
+      localStorage.setItem(`opencoaster-option-${key}`, String(input.checked));
+      onChange?.(input.checked);
+    });
+    label.append(input, element('span', '', labelText));
+    return label;
+  }
+
+  private optionSelect(
+    labelText: string,
+    key: string,
+    options: readonly (readonly [string, string])[],
+  ): HTMLElement {
+    const label = element('label', 'coaster-row');
+    const select = element('select');
+    select.setAttribute('aria-label', labelText);
+    for (const [value, text] of options) select.append(new Option(text, value));
+    const saved = localStorage.getItem(`opencoaster-option-${key}`);
+    if (saved && options.some(([value]) => value === saved)) select.value = saved;
+    select.addEventListener('change', () =>
+      localStorage.setItem(`opencoaster-option-${key}`, select.value),
+    );
+    label.append(element('span', '', labelText), select);
+    return label;
   }
 
   private chooseTool(tool: ToolMode): void {

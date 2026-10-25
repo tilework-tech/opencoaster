@@ -60,6 +60,35 @@ export class UiWindow {
     );
     close.dataset.action = `close-${spec.id}`;
     header.append(this.titleText, pin, close);
+    const resize = element('button', 'ui-resize-handle', '◢');
+    resize.type = 'button';
+    resize.setAttribute('aria-label', `Resize ${spec.title} window`);
+    resize.dataset.action = `resize-${spec.id}`;
+    resize.addEventListener('pointerdown', (event) => {
+      if (manager.mobile || event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      resize.setPointerCapture(event.pointerId);
+      const rect = this.root.getBoundingClientRect();
+      const move = (next: PointerEvent): void => {
+        this.root.style.setProperty(
+          '--w',
+          `${Math.max(220, Math.min(window.innerWidth - rect.left - 4, rect.width + next.clientX - event.clientX))}px`,
+        );
+        this.root.style.setProperty(
+          '--h',
+          `${Math.max(160, Math.min(window.innerHeight - rect.top - 4, rect.height + next.clientY - event.clientY))}px`,
+        );
+      };
+      const end = (): void => {
+        resize.removeEventListener('pointermove', move);
+        resize.removeEventListener('pointerup', end);
+        resize.removeEventListener('pointercancel', end);
+      };
+      resize.addEventListener('pointermove', move);
+      resize.addEventListener('pointerup', end);
+      resize.addEventListener('pointercancel', end);
+    });
 
     this.body = element('div', 'ui-body');
     if (spec.tabs?.length) {
@@ -82,13 +111,13 @@ export class UiWindow {
         this.panes.set(tab.id, pane);
         this.body.append(pane);
       }
-      this.root.append(header, strip, this.body);
+      this.root.append(header, strip, this.body, resize);
       this.showTab(spec.tabs[0].id);
     } else {
       const pane = element('div', 'ui-pane active');
       this.panes.set('main', pane);
       this.body.append(pane);
-      this.root.append(header, this.body);
+      this.root.append(header, this.body, resize);
     }
     manager.attachDrag(this, header);
   }

@@ -18,7 +18,7 @@ export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
 export const RIDE_INFO_STRIDE = 24;
-export const GUEST_DETAIL_STRIDE = 12;
+export const GUEST_DETAIL_STRIDE = 17;
 
 export const enum RideInfo {
   Id = 0,
@@ -90,6 +90,8 @@ export interface Snapshot {
   staff: SnapshotLayer;
   /** Stable staff id per staff slot, in the same order as `staff`. */
   staffIds: Int32Array;
+  /** Per-worker enabled task orders, using StaffOrder bit positions. */
+  staffOrders: Uint8Array;
   /** Player-given staff names by staff id. */
   staffNames: ReadonlyMap<number, string>;
   vehicles: SnapshotLayer;
@@ -100,12 +102,16 @@ export interface Snapshot {
   rideInfo: Int32Array;
   /** Guest needs and thought history, aligned with the guest render layer. */
   guestDetails: Int32Array;
+  /** Stable guest id per guest render row. */
+  guestIds: Int32Array;
   weather: { kind: number; temperature: number };
   /** Outcome of the latest player command. */
   feedback: CommandFeedback;
   buildable: Uint8Array;
   /** Per-tile grass overgrowth and flower-bed bits (see staff/grounds.ts). */
   grounds: Uint8Array;
+  /** Four per-role patrol masks, each map-width × map-height. */
+  patrolAreas: Uint8Array;
   park: { cash: number; loan: number; rides: number; entranceX: number; entranceY: number };
   scenario: SnapshotScenario;
   economy: SnapshotEconomy;
@@ -166,6 +172,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     guests: layer(caps.guests),
     staff: layer(caps.staff),
     staffIds: new Int32Array(caps.staff),
+    staffOrders: new Uint8Array(caps.staff),
     staffNames: new Map(),
     vehicles: layer(caps.vehicles),
     litter: layer(caps.litter),
@@ -173,10 +180,12 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     tracks: layer(caps.tracks ?? SNAPSHOT_TRACK_CAPACITY),
     rideInfo: new Int32Array((caps.rides ?? SNAPSHOT_RIDE_CAPACITY) * RIDE_INFO_STRIDE),
     guestDetails: new Int32Array(caps.guests * GUEST_DETAIL_STRIDE),
+    guestIds: new Int32Array(caps.guests),
     weather: { kind: 0, temperature: 20 },
     feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
     grounds: new Uint8Array(caps.mapTiles ?? 0),
+    patrolAreas: new Uint8Array((caps.mapTiles ?? 0) * 4),
     park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1 },
     scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
     economy: {
@@ -210,8 +219,11 @@ export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
       s.rideInfo.buffer as ArrayBuffer,
       s.buildable.buffer as ArrayBuffer,
       s.grounds.buffer as ArrayBuffer,
+      s.patrolAreas.buffer as ArrayBuffer,
       s.staffIds.buffer as ArrayBuffer,
+      s.staffOrders.buffer as ArrayBuffer,
       s.guestDetails.buffer as ArrayBuffer,
+      s.guestIds.buffer as ArrayBuffer,
     );
 }
 
@@ -291,6 +303,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   const guestCount = Math.min(world.guests.count, out.guestDetails.length / GUEST_DETAIL_STRIDE);
   for (let i = 0; i < guestCount; i++) {
     const o = i * GUEST_DETAIL_STRIDE;
+    out.guestIds[i] = world.guests.slotToId[i];
     out.guestDetails[o] = guests.happiness[i];
     out.guestDetails[o + 1] = guests.hunger[i];
     out.guestDetails[o + 2] = guests.thirst[i];
@@ -303,13 +316,21 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     out.guestDetails[o + 9] = guests.thought1[i];
     out.guestDetails[o + 10] = guests.thought2[i];
     out.guestDetails[o + 11] = guests.thought3[i];
+    out.guestDetails[o + 12] = guests.rideHistoryCursor[i] & 3;
+    out.guestDetails[o + 13] = guests.rideHistory0[i];
+    out.guestDetails[o + 14] = guests.rideHistory1[i];
+    out.guestDetails[o + 15] = guests.rideHistory2[i];
+    out.guestDetails[o + 16] = guests.rideHistory3[i];
   }
   writeLayer(out.staff, world.staff, world.staff.cols.kind, world.staff.cols.state);
   const staffIdCount = Math.min(world.staff.count, out.staffIds.length);
   for (let i = 0; i < staffIdCount; i++) out.staffIds[i] = world.staff.slotToId[i];
+  out.staffOrders.set(world.staff.cols.orderFlags.subarray(0, staffIdCount));
   out.staffNames = world.staffNames;
   const groundCount = Math.min(world.grounds.length, out.grounds.length);
   out.grounds.set(world.grounds.subarray(0, groundCount));
+  const patrolCount = Math.min(world.patrolAreas.length, out.patrolAreas.length);
+  out.patrolAreas.set(world.patrolAreas.subarray(0, patrolCount));
   writeLayer(out.vehicles, world.vehicles, world.vehicles.cols.state, null);
   writeLayer(out.litter, world.litter, world.litter.cols.kind, null);
   const rides = world.rides;

@@ -7,7 +7,7 @@ import { createRide, isRideInspectionDue } from '../rides/ride-operations';
 import { triggerRideBreakdown } from '../rides/ride-maintenance';
 import { RideType } from '../rides/ride-types';
 import { FLOWER_BED, FLOWER_BED_THIRSTY, GROUNDS_GROW_INTERVAL, OVERGROWTH_MASK } from './grounds';
-import { StaffKind, spawnStaff } from './staff-store';
+import { setStaffOrder, StaffKind, spawnStaff } from './staff-store';
 import { staffSystem } from './staff-system';
 import { flatWorld, layPath, row } from '../integration/fixtures';
 
@@ -35,6 +35,20 @@ describe('handyman garden work', () => {
     for (let i = 0; i < 40; i++) sim.step();
 
     expect(w.grounds[bed] & FLOWER_BED_THIRSTY).toBe(0);
+  });
+
+  it('leaves garden sites alone when garden maintenance is disabled', () => {
+    const sim = handymanWorld(111);
+    const w = sim.world;
+    sim.enqueue({ type: 'setFlowerBed', x: 6, y: 7, enabled: true });
+    sim.step();
+    const bed = w.map.index(6, 7);
+    w.grounds[bed] |= FLOWER_BED_THIRSTY;
+    setStaffOrder(w, w.staff.slotToId[0], 'water-gardens', false);
+
+    for (let i = 0; i < 40; i++) sim.step();
+
+    expect(w.grounds[bed] & FLOWER_BED_THIRSTY).toBe(FLOWER_BED_THIRSTY);
   });
 
   it('mows grass that has grown tall next to the path', () => {
@@ -137,6 +151,29 @@ describe('mechanic response', () => {
 
     expect(w.rides.cols.state[w.rides.idToSlot[brokenId]]).toBe(RideState.Open);
     expect(w.rides.cols.lastInspectionTick[w.rides.idToSlot[dueId]]).toBe(0);
+  });
+
+  it('leaves a broken ride for later when repair orders are disabled', () => {
+    const w = flatWorld(16, 3);
+    layPath(w, [...row(6, 4, 10), [7, 7], [7, 8]]);
+    const rideId = createRide(w, RideType.MerryGoRound, 8, 8);
+    const slot = w.rides.idToSlot[rideId];
+    w.rides.cols.state[slot] = RideState.Open;
+    w.rides.cols.phase[slot] = RidePhase.Waiting;
+    w.rides.cols.queueConnected[slot] = 1;
+    triggerRideBreakdown(w, rideId);
+    spawnStaff(w, StaffKind.Mechanic);
+    setStaffOrder(w, w.staff.slotToId[0], 'repair-rides', false);
+    w.staff.cols.x[0] = 7 * 256 + 128;
+    w.staff.cols.y[0] = 8 * 256 + 128;
+    w.tick = 1;
+
+    for (let i = 0; i < 80; i++) {
+      w.tick += 16;
+      staffSystem.update(w);
+    }
+
+    expect(w.rides.cols.state[slot]).toBe(RideState.Broken);
   });
 });
 

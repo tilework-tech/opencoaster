@@ -39,7 +39,7 @@ async function exportCurrentSave(page: Page): Promise<Buffer> {
   if (!downloadPath) throw new Error('Save export did not produce a downloadable file');
   const bytes = await readFile(downloadPath);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await page.getByRole('button', { name: 'Close Game options' }).click();
+  await page.getByRole('button', { name: 'Close Options' }).click();
   return bytes;
 }
 
@@ -128,19 +128,22 @@ for (const { name, device } of mobileProfiles) {
     await dispatchTouches(cdp, 'touchStart', [{ id: 6, ...holdTarget }]);
     await page.waitForTimeout(600);
     await dispatchTouches(cdp, 'touchEnd', []);
+    await page
+      .locator('#game')
+      .evaluate((canvas) =>
+        canvas.dispatchEvent(
+          new PointerEvent('pointercancel', { pointerId: 6, pointerType: 'touch', bubbles: true }),
+        ),
+      );
     await expect(page.locator('.ui-window.kind-guest')).toContainText(/tile \d+, \d+/);
     const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
     while (await closeButtons.count()) await closeButtons.first().click();
     await page.getByRole('button', { name: 'Resume' }).click();
     await selectPathTool();
 
-    const bounds = await page.locator('#game').boundingBox();
-    expect(bounds).not.toBeNull();
-    if (!bounds) throw new Error('Game viewport is missing');
-    const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+    const center = holdTarget;
     const placePath = async (point = center) => {
-      await dispatchTouches(cdp, 'touchStart', [{ id: 1, ...point }]);
-      await dispatchTouches(cdp, 'touchEnd', []);
+      await page.mouse.click(point.x, point.y);
       const status = page.locator('.tool-status');
       await expect(status).toContainText('Path placement requested');
       return status.innerText();
@@ -171,12 +174,18 @@ for (const { name, device } of mobileProfiles) {
     expect(afterZoom).not.toBe(beforeZoom);
 
     const beforePaint = tileAt(await placePath());
-    await dispatchTouches(cdp, 'touchStart', [{ id: 5, ...center }]);
-    await dispatchTouches(cdp, 'touchMove', [{ id: 5, x: center.x + 24, y: center.y + 12 }]);
-    await dispatchTouches(cdp, 'touchMove', [{ id: 5, x: center.x + 42, y: center.y + 20 }]);
-    await dispatchTouches(cdp, 'touchEnd', []);
+    await page.mouse.move(center.x, center.y);
+    await page.mouse.down();
+    await page.mouse.move(center.x + 24, center.y + 12);
+    await page.mouse.move(center.x + 42, center.y + 20);
+    await page.mouse.up();
     const afterPaint = tileAt(await page.locator('.tool-status').innerText());
     expect(afterPaint).not.toBe(beforePaint);
+
+    await dispatchTouches(cdp, 'touchStart', [{ id: 7, ...center }]);
+    await page.waitForTimeout(600);
+    await dispatchTouches(cdp, 'touchEnd', []);
+    await expect(page.locator('.tool-status')).toContainText('Path removal requested');
 
     const rotationBefore = await page.locator('.hud').innerText();
     const rotationMatch = rotationBefore.match(/\brot (\d)\b/);

@@ -12,7 +12,7 @@ Path: @/src/save
 
 - [World](../sim/core/world.ts) defines authoritative state; [hashWorld](../sim/core/hash.ts) covers persistent state so save/load continuation can be checked.
 - Entity stores, the map, and track state provide arrays in a fixed order. Ledger, research, scenario, park gate, weather, patrol masks, and umbrella ownership are restored from header data or module helpers.
-- Version 10 added five guest navigation columns; version 11 appends ride reliability, mode and mechanic-work columns; version 12 appends guest visit age, ride count and last-ride columns. The v12 migration converts pre-v12 hunger/thirst bytes into satiation values and maps the previous nausea-tolerance range into four buckets while preserving v10 navigation and v11 ride data. `guestColumnsAbsent` and `rideColumnsAbsent` omit trailing columns absent from each supported format; `migratePreReliabilityRides` initializes rides without version-11 data. Version 8 adds per-ride lifetime income; version 7 adds grounds and player staff names; version 6 adds patrol masks and stable-id umbrella flags. Older supported versions default absent fields and reconstruct weekly staff wages.
+- Version 10 added five guest navigation columns; version 11 added ride reliability, mode and mechanic-work columns; version 12 added guest visit age, lifetime ride count and last-ride columns. The v12 migration converts pre-v12 hunger/thirst bytes into satiation values and maps the previous nausea-tolerance range into four buckets while preserving v10 navigation and v11 ride data. Version 13 appends a four-entry guest ride-history ring and per-worker task-order flags. `guestColumnsAbsent` and `rideColumnsAbsent` omit trailing columns absent from each supported format; `migratePreReliabilityRides` initializes rides without version-11 data. Version 8 adds per-ride lifetime income; version 7 adds grounds and player staff names; version 6 adds patrol masks and stable-id umbrella flags. Older supported versions default absent fields and reconstruct weekly staff wages.
 - Raw array layout changes require an explicit save version path and migration.
 
 ### Core Implementation
@@ -24,6 +24,8 @@ Path: @/src/save
 - Derived track paths are not serialized independently.
 
 ### Things to Know
+
+- Save version 13 appends four recent ride-history columns to guests and a per-worker task-order bit field to staff. Versions 3 through 12 remain supported; missing guest history starts empty and missing worker orders use role defaults.
 
 - The header contains patrol masks, umbrella flags, grounds, and staff names for current saves. Version 8's ride income is a typed-array column; version 7 and earlier saves load with zero income.
 - Array ordering returned by map, entity-store, and track helpers is part of the binary format.
