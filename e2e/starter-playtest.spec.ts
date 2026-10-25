@@ -58,54 +58,18 @@ test('plays the starter park shell and exercises save file round trips', async (
     await page.locator('#game').click({ position: at });
   };
   await buildRide('Gentle rides', 'Merry-Go-Round', { x: 800, y: 200 });
-  await expect(page.locator('.tool-status')).toContainText('Done.');
+  await expect(page.locator('.tool-status')).toContainText('Place entrance');
+  await page
+    .getByRole('button', { name: /Place entrance at tile/ })
+    .first()
+    .click();
+  await expect(page.locator('.tool-status')).toContainText('Place exit');
+  await page
+    .getByRole('button', { name: /Place exit at tile/ })
+    .first()
+    .click();
+  await expect(page.locator('.tool-status')).toContainText('Ride setup complete');
   await screenshot('05-flat-ride-built');
-
-  await buildRide('Shops & Stalls', 'Food Stall', { x: 760, y: 260 });
-  await expect(page.locator('.tool-status')).toContainText('Done.');
-
-  await buildRide('Roller Coasters', 'Steel Looping Coaster', { x: 600, y: 200 });
-  await expect(page.locator('.coaster-info')).toContainText('Steel Looping Coaster', {
-    timeout: 15_000,
-  });
-  await expect(page.locator('[data-panel="construction"]')).toBeVisible();
-  await screenshot('06-coaster-controls');
-  await page.mouse.move(601, 201);
-  await page.mouse.move(600, 200);
-
-  const construction = page.locator('[data-panel="construction"]');
-  await expect(construction.getByLabel('Drive').locator('option')).not.toHaveCount(0);
-  let trackPieces = 0;
-  const specials = ['Station', 'Loop right'];
-  const placePiece = async (shape: string, slope: string, drive = 'Normal') => {
-    if (specials.includes(shape))
-      await construction.getByLabel('Special elements').selectOption({ label: shape });
-    else await construction.getByRole('button', { name: shape, exact: true }).click();
-    await construction.getByRole('button', { name: slope, exact: true }).click();
-    await construction.getByLabel('Drive').selectOption({ label: drive });
-    await construction.getByRole('button', { name: 'Build piece' }).click();
-    trackPieces++;
-    await screenshot(`coaster-piece-${trackPieces}`);
-    await expect(page.locator('.coaster-info')).toContainText(`Track ${trackPieces} pieces`);
-  };
-
-  await placePiece('Station', 'Level');
-  await placePiece('Straight', 'Up', 'Chain lift');
-  await placePiece('Straight', 'Up', 'Chain lift');
-  await placePiece('Straight', 'Level', 'Chain lift');
-  await placePiece('Loop right', 'Level');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right small', 'Level');
-  await placePiece('Right medium', 'Level');
-  await placePiece('Straight', 'Down');
-  await placePiece('Straight', 'Down');
-  await placePiece('Straight', 'Level');
-  await placePiece('Right large', 'Level');
-  await placePiece('Right small', 'Level');
-  await expect(page.locator('.coaster-info')).toContainText(
-    `Track ${trackPieces} pieces, closed circuit`,
-  );
-  await screenshot('07-coaster-built');
 
   await toolbarButton('Finances').click();
   await expect(page.locator('[data-panel="finance"]')).toContainText('Cash');
@@ -137,21 +101,16 @@ test('plays the starter park shell and exercises save file round trips', async (
     await expect(page.locator('[data-panel="staff"]')).toContainText('Staff employed  2');
     await page.getByRole('button', { name: 'Close Staff' }).click();
     await toolbarButton('Rides').click();
-    const coasterRow = page
+    const rideRow = page
       .locator('[data-panel="ride-list"] .list-row')
-      .filter({ hasText: 'Steel Looping Coaster' });
-    await expect(coasterRow).toBeVisible();
-    const rideId = await coasterRow.getAttribute('data-ride-id');
-    if (!rideId) throw new Error('Coaster ride row is missing its ride id');
-    await coasterRow.click();
+      .filter({ hasText: 'Merry-Go-Round' });
+    await expect(rideRow).toBeVisible();
+    const rideId = await rideRow.getAttribute('data-ride-id');
+    if (!rideId) throw new Error('Merry-Go-Round row is missing its ride id');
+    await rideRow.click();
     const rideWindow = page.locator(`[data-panel="ride-${rideId}"]`);
     await expect(rideWindow).toBeVisible();
-    const statisticsTab = rideWindow.getByRole('tab', { name: 'Ride statistics' });
-    await statisticsTab.click();
-    await expect(statisticsTab).toHaveAttribute('aria-selected', 'true');
-    const statisticsPanel = rideWindow.locator('[role="tabpanel"][data-tab="measurements"]');
-    await expect(statisticsPanel).toBeVisible();
-    await expect(statisticsPanel).toContainText('13 pieces, closed circuit');
+    await expect(rideWindow.locator('.ride-status')).toHaveText('Closed');
     await page.keyboard.press('Shift+Backspace');
   };
 

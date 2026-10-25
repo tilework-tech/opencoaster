@@ -76,6 +76,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     served: statRow('Guests served'),
     setup: statRow('Setup'),
   };
+  const checklist = element('div', 'ride-checklist');
+  let checklistSignature = '';
 
   const vehicle = {
     type: statRow('Type'),
@@ -138,6 +140,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       mainFacts.queue.row,
       mainFacts.served.row,
       mainFacts.setup.row,
+      checklist,
       partButtons,
       buildTrack,
       locate,
@@ -232,11 +235,49 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       );
       setText(mainFacts.queue.value, String(info[o + RideInfo.QueueLength]));
       setText(mainFacts.served.value, String(info[o + RideInfo.GuestsServed]));
-      const missing: string[] = [];
-      if (!(flags & RideFlag.EntrancePlaced)) missing.push('entrance');
-      if (!(flags & RideFlag.ExitPlaced)) missing.push('exit');
-      if (!(flags & RideFlag.QueueConnected)) missing.push('footpath link');
-      setText(mainFacts.setup.value, missing.length ? `needs ${missing.join(', ')}` : 'complete');
+      const blockers: { label: string; action: string; onClick: () => void }[] = [];
+      if (!(flags & RideFlag.EntrancePlaced))
+        blockers.push({
+          label: 'No entrance',
+          action: 'Place entrance',
+          onClick: () => ctx.actions.placeRidePart(rideId, 'entrance'),
+        });
+      const needsExit = def?.category !== 'stall' && def?.category !== 'facility';
+      if (needsExit && !(flags & RideFlag.ExitPlaced))
+        blockers.push({
+          label: 'No exit',
+          action: 'Place exit',
+          onClick: () => ctx.actions.placeRidePart(rideId, 'exit'),
+        });
+      if (needsExit && flags & RideFlag.EntrancePlaced && !(flags & RideFlag.QueueConnected))
+        blockers.push({
+          label: 'Entrance not connected to a path',
+          action: 'Build path',
+          onClick: () => {
+            ctx.actions.setPathOptions(false, -1);
+            ctx.chooseTool('path');
+          },
+        });
+      if (def?.usesTrack && !tested)
+        blockers.push({
+          label: 'Untested',
+          action: 'Test ride',
+          onClick: () => ctx.actions.setRideStatus(rideId, 'test'),
+        });
+      const signature = blockers.map((blocker) => `${blocker.label}:${blocker.action}`).join('|');
+      if (signature !== checklistSignature) {
+        checklistSignature = signature;
+        checklist.replaceChildren(
+          ...blockers.map((blocker) => {
+            const row = element('div', 'ride-checklist-item');
+            row.append(element('span', 'ride-checklist-label', blocker.label));
+            row.append(button(blocker.action, blocker.onClick, 'ui-button'));
+            return row;
+          }),
+        );
+      }
+      const missing = blockers.map((blocker) => blocker.label);
+      setText(mainFacts.setup.value, missing.length ? missing.join(' · ') : 'Ride setup complete');
       buildTrack.hidden = !def?.usesTrack;
       trainsRow.hidden = !def?.usesTrack;
       partButtons.hidden = false;

@@ -11,6 +11,14 @@ const mobileProfiles = [
   { name: 'Pixel 8', device: devices['Pixel 8'] },
 ] as const;
 
+async function toolbarAction(page: Page, label: string): Promise<void> {
+  const toolbar = page.locator('.game-toolbar');
+  const action = toolbar.getByRole('button', { name: label, exact: true });
+  if (!(await action.isVisible()))
+    await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
+  await action.tap();
+}
+
 async function dispatchTouches(
   cdp: CdpSession,
   type: 'touchStart' | 'touchMove' | 'touchEnd',
@@ -30,7 +38,7 @@ async function dispatchTouches(
 async function exportCurrentSave(page: Page): Promise<Buffer> {
   const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
   while (await closeButtons.count()) await closeButtons.first().click();
-  await page.getByRole('button', { name: 'Game options' }).click();
+  await toolbarAction(page, 'Game options');
   await page.getByRole('button', { name: 'Save, load and quit…' }).click();
   const exportPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export save file' }).click();
@@ -117,15 +125,13 @@ for (const { name, device } of mobileProfiles) {
     await expect(page.locator('.title-heading')).toBeVisible();
     await page.getByRole('button', { name: 'Sandbox' }).click();
     await expect(page.locator('.hud')).toContainText(/guests 1000/, { timeout: 20_000 });
-    await page.getByRole('button', { name: 'Pause' }).click();
-    await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
-    await page.getByRole('button', { name: 'Park', exact: true }).click();
+    await toolbarAction(page, 'Pause');
+    const toolbar = page.locator('.game-toolbar');
+    await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
+    await expect(toolbar.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+    await toolbarAction(page, 'Park');
     const selectPathTool = async () => {
-      const pathButton = page
-        .locator('.game-toolbar')
-        .getByRole('button', { name: 'Footpaths', exact: true });
-      await pathButton.scrollIntoViewIfNeeded();
-      await pathButton.tap();
+      await toolbarAction(page, 'Footpaths');
       const paths = page.locator('[data-panel="paths"]');
       await expect(paths).toBeVisible();
       if (!(await paths.evaluate((window) => window.classList.contains('collapsed'))))
@@ -146,7 +152,7 @@ for (const { name, device } of mobileProfiles) {
     await expect(page.locator('.ui-window.kind-guest')).toContainText(/tile \d+, \d+/);
     const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
     while (await closeButtons.count()) await closeButtons.first().click();
-    await page.getByRole('button', { name: 'Resume' }).click();
+    await toolbarAction(page, 'Resume');
     await selectPathTool();
 
     const center = holdTarget;
@@ -201,7 +207,7 @@ for (const { name, device } of mobileProfiles) {
     const initialRotation = Number(rotationMatch?.[1]);
     expect(initialRotation).toBeGreaterThanOrEqual(0);
     expect(initialRotation).toBeLessThanOrEqual(3);
-    await page.locator('[data-action="rotate"]').click();
+    await toolbarAction(page, 'Rotate view');
     await expect
       .poll(async () => {
         const text = await page.locator('.hud').innerText();
@@ -304,7 +310,7 @@ test('mobile-emulated rendering reports frame rate with 2,000 guests', async ({ 
   await page.goto('/');
   await page.getByRole('button', { name: 'Sandbox' }).click();
   await expect(page.locator('.hud')).toContainText(/guests 1000/);
-  await page.getByRole('button', { name: 'Game options' }).click();
+  await toolbarAction(page, 'Game options');
   await page.getByRole('button', { name: 'Guests +1,000' }).click();
   await expect(page.locator('.hud')).toContainText(/guests 2000/, { timeout: 30_000 });
 

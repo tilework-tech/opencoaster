@@ -153,6 +153,12 @@ export class GameUI {
       { id: 'staff', icon: 'staff', label: 'Staff', onClick: open('staff') },
       { id: 'guests', icon: 'guests', label: 'Guests', onClick: open('guests') },
       { id: 'news', icon: 'news', label: 'Messages', onClick: open('news') },
+      {
+        id: 'save-load',
+        icon: 'options',
+        label: 'Save / Load',
+        onClick: () => actions.openMenu(),
+      },
     ];
     this.toolbar = new Toolbar(parent, left, right);
     this.statusBar = new StatusBar(parent, {
@@ -213,6 +219,7 @@ export class GameUI {
 
   /** Switches tools as if the player had pressed the toolbar button. */
   selectTool(tool: ToolMode): void {
+    if (tool === 'ride') this.closeConstruction();
     this.chooseTool(tool);
   }
 
@@ -305,6 +312,11 @@ export class GameUI {
       return;
     }
     this.actions.playUiSound('open');
+    if (id === 'ride-select') {
+      this.windows.close('ride-list');
+      for (const windowId of this.windows.ids())
+        if (/^ride-\d+$/.test(windowId)) this.windows.close(windowId);
+    }
     if (CONSTRUCTION_WINDOWS.includes(id)) this.closeConstruction();
     const controller = this.createController(id);
     if (controller) this.controllers.set(id, controller);
