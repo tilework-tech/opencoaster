@@ -10,9 +10,7 @@
   "categories": {
     "world": {
       "lazy": false,
-      "pages": [
-        0
-      ]
+      "pages": [0]
     }
   },
   "sprites": {
