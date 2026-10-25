@@ -6,7 +6,7 @@ Path: @/smoke
 
 - This folder contains the browser smoke suite for renderer integration and starter-park visuals.
 - `pnpm smoke` runs the WebGL2 integration check with a 5,000-guest park and a terrain visual check against the Vite dev server.
-- `pnpm smoke:subpath` builds `dist/`, serves it under `/opencoaster/` without cross-origin isolation headers, and runs the same suite plus `deployed-base.spec.ts`, which checks the manifest, icons, sprite atlas, and service-worker scope resolve under the deploy base.
+- `pnpm smoke:subpath` builds `dist/`, serves it under `/opencoaster/` without cross-origin isolation headers, and runs the same suite plus `deployed-base.spec.ts`, which checks the manifest, icons, sprite manifest and eager atlas page, precached atlas pages (production build), and service-worker scope resolve under the deploy base.
 
 ### How it fits into the larger codebase
 

@@ -123,13 +123,14 @@ describe('world art atlas packing', () => {
     }
     expect(manifest.sprites.sheet.frames).toHaveLength(80);
     expect(manifest.categories.world.pages).toEqual(manifest.pages.map((_, index) => index));
-    const occupied = new Set<string>();
     for (const frame of manifest.sprites.sheet.frames) {
       expect(frame.x + frame.width).toBeLessThanOrEqual(manifest.pages[frame.page].width);
       expect(frame.y + frame.height).toBeLessThanOrEqual(manifest.pages[frame.page].height);
-      for (const cell of [`${frame.page}:${frame.x},${frame.y}`])
-        (expect(occupied.has(cell)).toBe(false), occupied.add(cell));
     }
+    const placements = manifest.sprites.sheet.frames.map(
+      (frame) => `${frame.page}:${frame.x},${frame.y}`,
+    );
+    expect(new Set(placements).size).toBe(placements.length);
   });
 
   it('packs each category into its own pages and marks ride categories lazy', async () => {

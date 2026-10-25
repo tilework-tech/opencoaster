@@ -14,6 +14,8 @@ import {
 } from './terrain-geometry';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
+import { spritePages } from './sprite-pages';
+import type { PageFrame, SpriteEntry } from './sprite-pages';
 import type { Rotation } from './projection';
 import {
   pathSpriteName,
@@ -30,7 +32,11 @@ import {
 const CELL = 64;
 const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 5;
-const INSTANCE_FLOATS = 16;
+const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
+const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
+const INSTANCE_FLOATS = 17;
+/** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
+const TEXTURE_SLOTS = 8;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
 const TREE_NAMES = [
   'tree-oak',
@@ -40,27 +46,6 @@ const TREE_NAMES = [
   'tree-autumn',
   'tree-topiary',
 ] as const;
-
-interface SpriteFrame {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface SpriteEntry {
-  frames: SpriteFrame[];
-  anchor: { x: number; y: number };
-  footprint: { width: number; height: number };
-  /** Drawn at frame size with the anchor on the projected point. */
-  native?: boolean;
-}
-
-interface SpriteAtlasManifest {
-  width: number;
-  height: number;
-  sprites: Record<string, SpriteEntry>;
-}
 
 function glslFloat(value: number): string {
   return Number.isInteger(value) ? `${value}.0` : String(value);
@@ -121,6 +106,7 @@ layout(location=4) in float aMeshMode;
 layout(location=5) in vec4 aCornerHeights;
 layout(location=6) in float aGridlines;
 layout(location=7) in float aTerrainShade;
+layout(location=8) in float aSlot;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -132,6 +118,7 @@ out float vMeshMode;
 out float vGridlines;
 out float vTerrainShade;
 out float vWaterDepth;
+flat out float vSlot;
 void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
   bool faceMesh = aMeshMode > 3.5;
@@ -187,6 +174,7 @@ void main() {
   vGridlines = aGridlines;
   vTerrainShade = aTerrainShade;
   vWaterDepth = aWorld.z - cornerHeight;
+  vSlot = aSlot;
 }`;
 
 const fragmentSource = `#version 300 es
@@ -197,11 +185,17 @@ in float vMeshMode;
 in float vGridlines;
 in float vTerrainShade;
 in float vWaterDepth;
-uniform sampler2D uAtlas;
+flat in float vSlot;
+${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uAtlas${slot};`).join('\n')}
 out vec4 outColor;
+vec4 sampleAtlas(vec2 uv) {
+  int slot = int(vSlot + 0.5);
+${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uAtlas${slot}, uv);`).join('\n')}
+  return texture(uAtlas${TEXTURE_SLOTS - 1}, uv);
+}
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
-  outColor = texture(uAtlas, vUv);
+  outColor = sampleAtlas(vUv);
   if (vMeshMode > 2.5 && vMeshMode < 3.5) {
     float depth = vWaterDepth;
     float foam = 1.0 - step(${glslFloat(WATER_BANK.foamDepth)}, depth);
@@ -220,7 +214,7 @@ void main() {
   }
 }`;
 
-/** WebGL2 renderer using one runtime-generated atlas and a single instanced quad batch. */
+/** WebGL2 renderer drawing atlas pages through an instanced quad batch in painter order. */
 export class WebGL2Renderer implements Renderer {
   readonly backend = 'WebGL2';
   private canvas: HTMLCanvasElement | null = null;
@@ -229,15 +223,12 @@ export class WebGL2Renderer implements Renderer {
   private program: WebGLProgram | null = null;
   private vao: WebGLVertexArrayObject | null = null;
   private instanceBuffer: WebGLBuffer | null = null;
-  private texture: WebGLTexture | null = null;
-  private fallbackAtlas: HTMLCanvasElement | null = null;
-  private generatedAtlas: { image: ImageBitmap; manifest: SpriteAtlasManifest } | null = null;
-  private atlasFrames: Record<string, SpriteEntry> = {};
-  private atlasWidth = CELL * ATLAS_COLUMNS;
-  private atlasHeight = CELL * ATLAS_ROWS;
-  private atlasRequestStarted = false;
+  private fallbackTexture: WebGLTexture | null = null;
+  private readonly pageTextures = new Map<number, WebGLTexture>();
+  private syncedPageVersion = -1;
+  private attributeBase = 0;
   private uniforms: {
-    atlas: WebGLUniformLocation | null;
+    atlas: (WebGLUniformLocation | null)[];
     viewport: WebGLUniformLocation | null;
     mapSize: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
@@ -246,6 +237,8 @@ export class WebGL2Renderer implements Renderer {
   } | null = null;
   private instanceData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private depths = new Int32Array(INITIAL_INSTANCE_CAPACITY);
+  private pageIds = new Int16Array(INITIAL_INSTANCE_CAPACITY);
+  private readonly runs: { start: number; count: number; pages: number[] }[] = [];
   private orderedData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private readonly projected = new Float64Array(2);
   private readonly tileCoordinates = new Int32Array(2);
@@ -294,8 +287,10 @@ export class WebGL2Renderer implements Renderer {
     const gl = this.gl;
     const canvas = this.canvas;
     const map = this.map;
-    if (!gl || !canvas || !map || this.lost || !this.program || !this.vao || !this.texture) return;
+    if (!gl || !canvas || !map || this.lost || !this.program || !this.vao || !this.fallbackTexture)
+      return;
 
+    this.syncPageTextures();
     this.count = 0;
     const viewportWidth = canvas.width / this.dpr;
     const viewportHeight = canvas.height / this.dpr;
@@ -349,17 +344,27 @@ export class WebGL2Renderer implements Renderer {
 
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
     const uniforms = this.uniforms;
     if (!uniforms) return;
-    gl.uniform1i(uniforms.atlas, 0);
+    for (let slot = 0; slot < TEXTURE_SLOTS; slot++) gl.uniform1i(uniforms.atlas[slot], slot);
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
     gl.uniform2f(uniforms.mapSize, map.width, map.height);
     gl.uniform2f(uniforms.camera, camera.x, camera.y);
     gl.uniform1f(uniforms.zoom, camera.zoom);
     gl.uniform1f(uniforms.rotation, camera.rotation);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
+    for (const run of this.runs) {
+      for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
+        const page = run.pages[slot];
+        gl.activeTexture(gl.TEXTURE0 + slot);
+        gl.bindTexture(
+          gl.TEXTURE_2D,
+          (page === undefined ? null : this.pageTextures.get(page)) ?? this.fallbackTexture,
+        );
+      }
+      if (run.start !== this.attributeBase) this.pointInstanceAttributes(run.start);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, run.count);
+    }
+    if (this.attributeBase !== 0) this.pointInstanceAttributes(0);
     this.visibleCount = this.count;
   }
 
@@ -368,7 +373,7 @@ export class WebGL2Renderer implements Renderer {
     this.canvas?.removeEventListener('webglcontextrestored', this.onRestored);
     const gl = this.gl;
     if (gl) {
-      if (this.texture) gl.deleteTexture(this.texture);
+      this.deleteTextures();
       if (this.instanceBuffer) gl.deleteBuffer(this.instanceBuffer);
       if (this.vao) gl.deleteVertexArray(this.vao);
       if (this.program) gl.deleteProgram(this.program);
@@ -398,7 +403,9 @@ export class WebGL2Renderer implements Renderer {
     }
     this.program = shaderProgram;
     this.uniforms = {
-      atlas: gl.getUniformLocation(shaderProgram, 'uAtlas'),
+      atlas: Array.from({ length: TEXTURE_SLOTS }, (_, slot) =>
+        gl.getUniformLocation(shaderProgram, `uAtlas${slot}`),
+      ),
       viewport: gl.getUniformLocation(shaderProgram, 'uViewport'),
       mapSize: gl.getUniformLocation(shaderProgram, 'uMapSize'),
       camera: gl.getUniformLocation(shaderProgram, 'uCamera'),
@@ -418,33 +425,77 @@ export class WebGL2Renderer implements Renderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
-    this.setInstanceAttribute(1, 3, 0);
-    this.setInstanceAttribute(2, 2, 3 * Float32Array.BYTES_PER_ELEMENT);
-    this.setInstanceAttribute(3, 4, 5 * Float32Array.BYTES_PER_ELEMENT);
-    this.setInstanceAttribute(4, 1, 9 * Float32Array.BYTES_PER_ELEMENT);
-    this.setInstanceAttribute(5, 4, 10 * Float32Array.BYTES_PER_ELEMENT);
-    this.setInstanceAttribute(6, 1, 14 * Float32Array.BYTES_PER_ELEMENT);
-    this.setInstanceAttribute(7, 1, 15 * Float32Array.BYTES_PER_ELEMENT);
-    this.fallbackAtlas = document.createElement('canvas');
-    this.fallbackAtlas.width = CELL * ATLAS_COLUMNS;
-    this.fallbackAtlas.height = CELL * ATLAS_ROWS;
-    const fallbackContext = this.fallbackAtlas.getContext('2d');
+    this.attributeBase = 0;
+    this.pointInstanceAttributes(0);
+    const fallbackAtlas = document.createElement('canvas');
+    fallbackAtlas.width = FALLBACK_WIDTH;
+    fallbackAtlas.height = FALLBACK_HEIGHT;
+    const fallbackContext = fallbackAtlas.getContext('2d');
     if (!fallbackContext) throw new Error('Could not generate fallback sprite atlas');
     drawAtlas(fallbackContext);
-    this.atlasWidth = this.fallbackAtlas.width;
-    this.atlasHeight = this.fallbackAtlas.height;
-    this.texture = this.createAtlasTexture(this.fallbackAtlas);
-    if (this.generatedAtlas) this.installGeneratedAtlas(this.generatedAtlas);
-    else this.loadGeneratedAtlas();
+    this.deleteTextures();
+    this.fallbackTexture = this.createAtlasTexture(fallbackAtlas);
+    this.syncedPageVersion = -1;
+    spritePages.start();
     gl.bindVertexArray(null);
   }
 
-  private setInstanceAttribute(location: number, size: number, offset: number): void {
+  /** Points the per-instance attributes at the instance `base` entries into the buffer. */
+  private pointInstanceAttributes(base: number): void {
     const gl = this.gl;
     if (!gl) return;
-    gl.enableVertexAttribArray(location);
-    gl.vertexAttribPointer(location, size, gl.FLOAT, false, INSTANCE_FLOATS * 4, offset);
-    gl.vertexAttribDivisor(location, 1);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+    const layout = [
+      [1, 3, 0],
+      [2, 2, 3],
+      [3, 4, 5],
+      [4, 1, 9],
+      [5, 4, 10],
+      [6, 1, 14],
+      [7, 1, 15],
+      [8, 1, 16],
+    ] as const;
+    for (const [location, size, floatOffset] of layout) {
+      gl.enableVertexAttribArray(location);
+      gl.vertexAttribPointer(
+        location,
+        size,
+        gl.FLOAT,
+        false,
+        INSTANCE_FLOATS * 4,
+        (base * INSTANCE_FLOATS + floatOffset) * 4,
+      );
+      gl.vertexAttribDivisor(location, 1);
+    }
+    this.attributeBase = base;
+  }
+
+  private deleteTextures(): void {
+    const gl = this.gl;
+    if (gl) {
+      if (this.fallbackTexture) gl.deleteTexture(this.fallbackTexture);
+      for (const texture of this.pageTextures.values()) gl.deleteTexture(texture);
+    }
+    this.fallbackTexture = null;
+    this.pageTextures.clear();
+  }
+
+  /** Uploads atlas pages that have arrived since the last frame. */
+  private syncPageTextures(): void {
+    if (this.syncedPageVersion === spritePages.version) return;
+    for (const [page, image] of spritePages.loadedPages) {
+      if (this.pageTextures.has(page)) continue;
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d');
+      if (!context) continue;
+      context.imageSmoothingEnabled = false;
+      context.drawImage(image, 0, 0);
+      this.pageTextures.set(page, this.createAtlasTexture(canvas));
+      canvas.width = 0;
+    }
+    this.syncedPageVersion = spritePages.version;
   }
 
   private compileShader(kind: number, source: string): WebGLShader {
@@ -478,49 +529,6 @@ export class WebGL2Renderer implements Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     return texture;
-  }
-
-  private loadGeneratedAtlas(): void {
-    if (this.atlasRequestStarted || typeof fetch !== 'function') return;
-    this.atlasRequestStarted = true;
-    void (async () => {
-      const spritesBase = `${import.meta.env.BASE_URL}sprites/`;
-      const manifestResponse = await fetch(`${spritesBase}manifest.json`);
-      if (!manifestResponse.ok) return;
-      const manifest = (await manifestResponse.json()) as SpriteAtlasManifest;
-      const imageResponse = await fetch(`${spritesBase}atlas.png`);
-      if (!imageResponse.ok) return;
-      const image = await createImageBitmap(await imageResponse.blob());
-      this.generatedAtlas = { image, manifest };
-      this.installGeneratedAtlas(this.generatedAtlas);
-    })().catch(() => {
-      this.atlasRequestStarted = false;
-    });
-  }
-
-  private installGeneratedAtlas(assets: {
-    image: ImageBitmap;
-    manifest: SpriteAtlasManifest;
-  }): void {
-    const gl = this.gl;
-    const fallback = this.fallbackAtlas;
-    if (!gl || !fallback || this.lost) return;
-    const width = assets.image.width + fallback.width + 2;
-    const height = Math.max(assets.image.height, fallback.height);
-    const combined = document.createElement('canvas');
-    combined.width = width;
-    combined.height = height;
-    const context = combined.getContext('2d');
-    if (!context) return;
-    context.imageSmoothingEnabled = false;
-    context.drawImage(assets.image, 0, 0);
-    context.drawImage(fallback, assets.image.width + 2, 0);
-    const texture = this.createAtlasTexture(combined);
-    if (this.texture) gl.deleteTexture(this.texture);
-    this.texture = texture;
-    this.atlasWidth = width;
-    this.atlasHeight = height;
-    this.atlasFrames = assets.manifest.sprites;
   }
 
   private appendTiles(
@@ -1029,7 +1037,7 @@ export class WebGL2Renderer implements Renderer {
   ): void {
     if (this.count === this.depths.length) this.grow();
     const offset = this.count * INSTANCE_FLOATS;
-    let frame: SpriteFrame | undefined;
+    let frame: PageFrame | undefined;
     let entry: SpriteEntry | undefined;
     let frameIndex: number;
     let fallbackIndex = -1;
@@ -1037,7 +1045,7 @@ export class WebGL2Renderer implements Renderer {
       const match = /#(\d+)$/.exec(sprite);
       const spriteName = match ? sprite.slice(0, match.index) : sprite;
       frameIndex = match ? Number(match[1]) : 0;
-      entry = this.atlasFrames[spriteName];
+      entry = spritePages.resolve(spriteName);
       frame = entry?.frames[frameIndex] ?? entry?.frames[0];
     } else {
       fallbackIndex = sprite;
@@ -1046,11 +1054,15 @@ export class WebGL2Renderer implements Renderer {
     let v0: number;
     let u1: number;
     let v1: number;
+    if (frame && !this.pageTextures.has(frame.page)) frame = undefined;
+    let page = -1;
     if (frame) {
-      u0 = (frame.x + 0.5) / this.atlasWidth;
-      v0 = 1 - (frame.y + frame.height - 0.5) / this.atlasHeight;
-      u1 = (frame.x + frame.width - 0.5) / this.atlasWidth;
-      v1 = 1 - (frame.y + 0.5) / this.atlasHeight;
+      page = frame.page;
+      const { width: pageWidth, height: pageHeight } = spritePages.pageInfos[page];
+      u0 = (frame.x + 0.5) / pageWidth;
+      v0 = 1 - (frame.y + frame.height - 0.5) / pageHeight;
+      u1 = (frame.x + frame.width - 0.5) / pageWidth;
+      v1 = 1 - (frame.y + 0.5) / pageHeight;
       if (!meshMode && entry?.native) {
         width = frame.width;
         height = frame.height;
@@ -1079,13 +1091,12 @@ export class WebGL2Renderer implements Renderer {
           else if (sprite.includes('/flower-bed')) fallbackIndex = 0;
         }
       }
-      const fallbackX = (this.generatedAtlas?.image.width ?? 0) + (this.generatedAtlas ? 2 : 0);
-      const x = fallbackX + (fallbackIndex % ATLAS_COLUMNS) * CELL;
+      const x = (fallbackIndex % ATLAS_COLUMNS) * CELL;
       const y = Math.floor(fallbackIndex / ATLAS_COLUMNS) * CELL;
-      u0 = x / this.atlasWidth;
-      v0 = 1 - (y + CELL) / this.atlasHeight;
-      u1 = (x + CELL) / this.atlasWidth;
-      v1 = 1 - y / this.atlasHeight;
+      u0 = x / FALLBACK_WIDTH;
+      v0 = 1 - (y + CELL) / FALLBACK_HEIGHT;
+      u1 = (x + CELL) / FALLBACK_WIDTH;
+      v1 = 1 - y / FALLBACK_HEIGHT;
     }
     this.instanceData[offset] = x;
     this.instanceData[offset + 1] = y;
@@ -1104,6 +1115,7 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 : 0;
     this.instanceData[offset + 15] = terrainShade;
     this.depths[this.count] = Math.round(depth * 2);
+    this.pageIds[this.count] = page;
     this.count++;
   }
 
@@ -1115,6 +1127,9 @@ export class WebGL2Renderer implements Renderer {
     const nextDepths = new Int32Array(nextCapacity);
     nextDepths.set(this.depths);
     this.depths = nextDepths;
+    const nextPages = new Int16Array(nextCapacity);
+    nextPages.set(this.pageIds);
+    this.pageIds = nextPages;
     const nextOrdered = new Float32Array(nextCapacity * INSTANCE_FLOATS);
     nextOrdered.set(this.orderedData);
     this.orderedData = nextOrdered;
@@ -1132,11 +1147,24 @@ export class WebGL2Renderer implements Renderer {
     this.order.length = this.count;
     for (let i = 0; i < this.count; i++) this.order[i] = i;
     this.order.sort((a, b) => this.depths[a] - this.depths[b] || a - b);
+    this.runs.length = 0;
+    let run: { start: number; count: number; pages: number[] } | null = null;
     for (let i = 0; i < this.count; i++) {
-      const from = this.order[i] * INSTANCE_FLOATS;
+      const source = this.order[i];
+      const from = source * INSTANCE_FLOATS;
       const to = i * INSTANCE_FLOATS;
-      for (let j = 0; j < INSTANCE_FLOATS; j++)
+      for (let j = 0; j < INSTANCE_FLOATS - 1; j++)
         this.orderedData[to + j] = this.instanceData[from + j];
+      const page = this.pageIds[source];
+      let slot = run ? run.pages.indexOf(page) : -1;
+      if (!run || (slot < 0 && run.pages.length === TEXTURE_SLOTS)) {
+        run = { start: i, count: 0, pages: [] };
+        this.runs.push(run);
+        slot = -1;
+      }
+      if (slot < 0) slot = run.pages.push(page) - 1;
+      run.count++;
+      this.orderedData[to + INSTANCE_FLOATS - 1] = slot;
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(

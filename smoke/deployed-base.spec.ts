@@ -37,8 +37,18 @@ test('loads every asset, the manifest and the service worker from the deployed b
   await page.getByRole('button', { name: 'Sandbox' }).click();
   await expect(page.locator('.hud')).toContainText('WebGL2', { timeout: 20_000 });
   expect(spriteResponses).toEqual(
-    expect.arrayContaining([`${base}sprites/manifest.json`, `${base}sprites/atlas.png`]),
+    expect.arrayContaining([`${base}sprites/manifest.json`, `${base}sprites/atlas/world-0.png`]),
   );
+
+  // The dev server's worker only precaches the shell; production builds precache every sprite page.
+  if (new URL(base).pathname !== '/') {
+    const spriteManifest = (await (
+      await page.request.get(`${base}sprites/manifest.json`)
+    ).json()) as { pages: { file: string }[] };
+    const workerSource = await (await page.request.get(`${base}service-worker.js`)).text();
+    for (const atlasPage of spriteManifest.pages)
+      expect(workerSource).toContain(`sprites/${atlasPage.file}`);
+  }
 
   const serviceWorkerScope = await page.evaluate(
     async () => (await navigator.serviceWorker.ready).scope,

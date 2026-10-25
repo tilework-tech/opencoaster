@@ -6,7 +6,8 @@ import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
 import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
-import { drawAnchoredSprite, drawTileTexture, loadCanvasAtlas } from './canvas-atlas';
+import { drawAnchoredSprite, drawTileTexture } from './canvas-atlas';
+import { spritePages } from './sprite-pages';
 import type { CanvasAtlas } from './canvas-atlas';
 import { WATER_BANK, pathSpriteName, waterFrameIndex } from './world-art';
 import type { PathSurface } from './world-art';
@@ -67,9 +68,8 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('2D canvas unavailable');
     this.ctx = ctx;
-    void loadCanvasAtlas().then((atlas) => {
-      this.atlas = atlas;
-    });
+    this.atlas = spritePages;
+    spritePages.start();
   }
 
   resize(width: number, height: number, dpr: number): void {
