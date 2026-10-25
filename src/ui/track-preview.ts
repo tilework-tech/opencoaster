@@ -1,7 +1,7 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { project } from '../render/projection';
 import type { Rotation } from '../render/projection';
-import type { Camera } from '../render/renderer';
+import type { Camera, SpriteGhost } from '../render/renderer';
 import { TrackResult } from '../sim/track/track-types';
 import type { TrackGhost } from './coaster-panel';
 import { footprintTiles } from './track-tool';
@@ -10,12 +10,7 @@ import type { RideType } from '../sim/rides/ride-types';
 import { drawAnchoredSprite } from '../render/canvas-atlas';
 import { spritePages } from '../render/sprite-pages';
 import type { CanvasAtlas } from '../render/canvas-atlas';
-import {
-  facilitySpriteKey,
-  rideHutSpriteKey,
-  rideSpriteFrame,
-  rideSpriteKey,
-} from '../render/world-art';
+import { facilitySpriteKey, rideHutSpriteKey, rideSpriteKey } from '../render/world-art';
 import { trackPreviewSprites } from './track-preview-art';
 
 const VALID_FILL = 'rgba(90, 225, 130, 0.45)';
@@ -28,7 +23,34 @@ export interface RidePlacementGhost {
   y: number;
   facing: number;
   valid: boolean;
-  tick: number;
+}
+
+/**
+ * The sprite a ride or stall preview draws in the world: the ride's entrance hut, the facility
+ * sprite facing its path, or the ride itself, in the camera's rotation. Its tile level comes from
+ * the map, so it stands on the ground where the ride would be built.
+ */
+export function rideGhostSprite(
+  ghost: RidePlacementGhost,
+  map: PreviewMap,
+  rotation: Rotation,
+): SpriteGhost | null {
+  const { x, y } = ghost;
+  if (x < 0 || y < 0 || x >= map.width || y >= map.height) return null;
+  const def = RIDE_CATALOG[ghost.type];
+  const sprite = def.usesTrack
+    ? rideHutSpriteKey(ghost.type, 'entrance', ghost.facing, rotation)
+    : ['shop', 'stall', 'facility'].includes(def.category)
+      ? facilitySpriteKey(ghost.type, ghost.facing, rotation)
+      : rideSpriteKey(ghost.type, rotation);
+  return {
+    x,
+    y,
+    level: map.heights?.[y * map.width + x] ?? 0,
+    sprite,
+    kind: 'ride',
+    tone: ghost.valid ? 'ok' : 'refused',
+  };
 }
 
 /** A tile a refused placement points at; drawn red. */
@@ -70,11 +92,10 @@ export class TrackPreviewOverlay {
     camera: Camera,
     viewport: { width: number; height: number },
     pixelRatio: number,
-    rideGhost: RidePlacementGhost | null = null,
     tileGhost: TileGhost | null = null,
   ): void {
     const { canvas, ctx } = this;
-    if (!ghost && !rideGhost && !tileGhost && !this.hasContent) return;
+    if (!ghost && !tileGhost && !this.hasContent) return;
     const width = Math.round(viewport.width * pixelRatio);
     const height = Math.round(viewport.height * pixelRatio);
     if (canvas.width !== width || canvas.height !== height) {
@@ -83,10 +104,9 @@ export class TrackPreviewOverlay {
     }
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     ctx.clearRect(0, 0, viewport.width, viewport.height);
-    const active = ghost !== null || rideGhost !== null || tileGhost !== null;
+    const active = ghost !== null || tileGhost !== null;
     this.hasContent = active;
     canvas.hidden = !active;
-    if (rideGhost) this.drawRideGhost(rideGhost, map, camera, viewport);
     if (tileGhost) this.drawTileGhost(tileGhost, map, camera, viewport);
     if (!ghost) return;
 
@@ -154,47 +174,6 @@ export class TrackPreviewOverlay {
     ctxPath(this.ctx, INVALID_FILL, ENTRY_MARK, (visit) =>
       this.corners(x, y, z, map, camera, viewport, visit),
     );
-  }
-
-  private drawRideGhost(
-    ghost: RidePlacementGhost,
-    map: PreviewMap,
-    camera: Camera,
-    viewport: { width: number; height: number },
-  ): void {
-    const x = ghost.x;
-    const y = ghost.y;
-    if (x < 0 || y < 0 || x >= map.width || y >= map.height) return;
-    const z = (map.heights?.[y * map.width + x] ?? 0) * Z_STEP;
-    ctxPath(this.ctx, ghost.valid ? VALID_FILL : INVALID_FILL, ENTRY_MARK, (visit) =>
-      this.corners(x, y, z, map, camera, viewport, visit),
-    );
-    if (!this.atlas) return;
-    const def = RIDE_CATALOG[ghost.type];
-    const key = def.usesTrack
-      ? rideHutSpriteKey(ghost.type, 'entrance', ghost.facing, camera.rotation)
-      : ['shop', 'stall', 'facility'].includes(def.category)
-        ? facilitySpriteKey(ghost.type, ghost.facing, camera.rotation)
-        : rideSpriteKey(ghost.type, camera.rotation);
-    const entry = this.atlas.resolve(key);
-    const frameCount = entry?.frames.length ?? 1;
-    project(
-      x * TILE_UNITS + TILE_UNITS / 2,
-      y * TILE_UNITS + TILE_UNITS / 2,
-      z,
-      map.width,
-      map.height,
-      camera.rotation,
-      this.corner,
-    );
-    this.ctx.save();
-    this.ctx.translate(
-      viewport.width / 2 + (this.corner[0] - camera.x) * camera.zoom,
-      viewport.height / 2 + (this.corner[1] - camera.y) * camera.zoom,
-    );
-    this.ctx.scale(camera.zoom * 0.62, camera.zoom * 0.62);
-    drawAnchoredSprite(this.ctx, this.atlas, key, 0, 0, rideSpriteFrame(0, ghost.tick, frameCount));
-    this.ctx.restore();
   }
 
   dispose(): void {

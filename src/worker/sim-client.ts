@@ -1,6 +1,7 @@
 import type { Command } from '../sim/core/commands';
 import type { PathPlacement } from '../sim/map/paths';
-import type { PathPiecePreview } from '../sim/map/map-commands';
+import type { PathPiecePreview, ScenerySpot } from '../sim/map/map-commands';
+import type { SceneryResult } from '../sim/map/scenery';
 import type { InitMessage, MapMessage, Stats, ToWorker, FromWorker } from './protocol';
 import type { LandEdit, LandPlan } from '../sim/map/land-tool';
 import { snapshotBuffers } from './snapshot';
@@ -17,6 +18,7 @@ export class SimClient {
   private readonly worker: Worker;
   private pending: PendingRequest[] = [];
   private previews = new Map<number, (pieces: PathPiecePreview[]) => void>();
+  private sceneryPreviews = new Map<number, (result: SceneryResult) => void>();
   private nextPreviewId = 1;
   /** True from a start or load request until the worker confirms it; older snapshots are stale. */
   private starting = false;
@@ -42,6 +44,7 @@ export class SimClient {
     this.starting = false;
     for (const request of this.pending.splice(0)) request.reject(err);
     this.previews.clear();
+    this.sceneryPreviews.clear();
   }
 
   private onMessage(msg: FromWorker): void {
@@ -53,6 +56,10 @@ export class SimClient {
       case 'pathPreview':
         this.previews.get(msg.id)?.(msg.pieces);
         this.previews.delete(msg.id);
+        break;
+      case 'scenerySpotPreview':
+        this.sceneryPreviews.get(msg.id)?.(msg.result);
+        this.sceneryPreviews.delete(msg.id);
         break;
       case 'snapshot':
         if (this.starting) {
@@ -155,6 +162,14 @@ export class SimClient {
     return new Promise((resolve) => {
       this.previews.set(id, resolve);
       this.send({ type: 'previewPaths', id, placements });
+    });
+  }
+  /** Whether a scenery placement would be accepted now, and why not if it would be refused. */
+  previewScenery(spot: ScenerySpot): Promise<SceneryResult> {
+    const id = this.nextPreviewId++;
+    return new Promise((resolve) => {
+      this.sceneryPreviews.set(id, resolve);
+      this.send({ type: 'previewScenery', id, spot });
     });
   }
   setSpeed(multiplier: number): void {

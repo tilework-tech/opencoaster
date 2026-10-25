@@ -1,4 +1,4 @@
-import type { Camera, MapData, PathPieceGhost, Renderer } from './renderer';
+import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
@@ -103,6 +103,8 @@ export class Canvas2DRenderer implements Renderer {
   private visibleCount = 0;
   private ghosts: readonly PathPieceGhost[] = [];
   private ghostsByTile: Map<number, PathPieceGhost[]> | null = null;
+  private spriteGhosts: readonly SpriteGhost[] = [];
+  private spriteGhostsByTile: Map<number, SpriteGhost[]> | null = null;
   private atlas: CanvasAtlas | null = null;
   private readonly coasterScene = new CoasterScene();
   private tick = 0;
@@ -175,6 +177,11 @@ export class Canvas2DRenderer implements Renderer {
   setGhosts(ghosts: readonly PathPieceGhost[]): void {
     this.ghosts = ghosts;
     this.ghostsByTile = null;
+  }
+
+  setSpriteGhosts(ghosts: readonly SpriteGhost[]): void {
+    this.spriteGhosts = ghosts;
+    this.spriteGhostsByTile = null;
   }
 
   draw(snapshot: Snapshot | null, cam: Camera): void {
@@ -468,6 +475,12 @@ export class Canvas2DRenderer implements Renderer {
         this.enqueue(map, cam, centerX, centerY, terrainZ, 2, () =>
           this.drawSceneryElements(ctx, map, cam, i),
         );
+        for (const ghost of this.spriteGhostsAt(map, i)) {
+          if (ghost.kind === 'scenery')
+            this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 2, () =>
+              this.drawSpriteGhost(ctx, map, cam, ghost),
+            );
+        }
         this.visibleCount++;
       }
     }
@@ -828,6 +841,40 @@ export class Canvas2DRenderer implements Renderer {
     return this.ghostsByTile.get(tile) ?? [];
   }
 
+  private spriteGhostsAt(map: MapData, tile: number): readonly SpriteGhost[] {
+    if (!this.spriteGhostsByTile) {
+      this.spriteGhostsByTile = new Map();
+      for (const ghost of this.spriteGhosts) {
+        const index = ghost.y * map.width + ghost.x;
+        const list = this.spriteGhostsByTile.get(index);
+        if (list) list.push(ghost);
+        else this.spriteGhostsByTile.set(index, [ghost]);
+      }
+    }
+    return this.spriteGhostsByTile.get(tile) ?? [];
+  }
+
+  /** Draws a ride or scenery preview at the projected centre of its tile, like the built piece. */
+  private drawSpriteGhost(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    ghost: SpriteGhost,
+  ): void {
+    if (!this.atlas) return;
+    project(
+      ghost.x * TILE_UNITS + TILE_UNITS / 2,
+      ghost.y * TILE_UNITS + TILE_UNITS / 2,
+      ghost.level * Z_STEP,
+      map.width,
+      map.height,
+      cam.rotation,
+      this.pathLow,
+    );
+    if (!this.isVisible(this.pathLow[0]!, this.pathLow[1]!, cam, 40)) return;
+    drawGhostSprite(ctx, this.atlas, ghost.sprite, this.pathLow[0]!, this.pathLow[1]!, ghost.tone);
+  }
+
   private drawPathGhost(
     ctx: CanvasRenderingContext2D,
     map: MapData,
@@ -1072,6 +1119,14 @@ export class Canvas2DRenderer implements Renderer {
         }
         this.visibleCount++;
       });
+    }
+    for (const ghost of this.spriteGhosts) {
+      if (ghost.kind !== 'ride') continue;
+      const worldX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
+      this.enqueue(map, cam, worldX, worldY, ghost.level * Z_STEP, 0, () =>
+        this.drawSpriteGhost(ctx, map, cam, ghost),
+      );
     }
   }
 

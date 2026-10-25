@@ -17,7 +17,7 @@ import {
   viewTerrainCornerHeights,
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
-import type { Camera, MapData, PathPieceGhost, Renderer } from './renderer';
+import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import {
   AMBIENT_TREE_BOX,
   FLOWER_BED_BOX,
@@ -361,6 +361,7 @@ export class WebGL2Renderer implements Renderer {
   private tileLists: TileLists | null = null;
   private count = 0;
   private ghosts: readonly PathPieceGhost[] = [];
+  private spriteGhosts: readonly SpriteGhost[] = [];
   private ghostMode = 0;
   private visibleCount = 0;
   private gridlinesActive = false;
@@ -406,6 +407,10 @@ export class WebGL2Renderer implements Renderer {
     this.ghosts = ghosts;
   }
 
+  setSpriteGhosts(ghosts: readonly SpriteGhost[]): void {
+    this.spriteGhosts = ghosts;
+  }
+
   draw(snapshot: Snapshot | null, camera: Camera): void {
     const gl = this.gl;
     const canvas = this.canvas;
@@ -430,6 +435,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendPathElements(map, camera, viewportWidth, viewportHeight);
       this.appendPathGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
+      this.appendSpriteGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
       const coasterSprites = this.appendCoasters(
@@ -1423,6 +1429,46 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  /** Ride and scenery previews, sorted with the built piece each one stands in for. */
+  private appendSpriteGhosts(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    for (const ghost of this.spriteGhosts) {
+      const z = ghost.level * Z_STEP;
+      const worldX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
+      const rotated = rotatedPositionSum(
+        ghost.x * TILE_UNITS,
+        ghost.y * TILE_UNITS,
+        map,
+        camera.rotation,
+      );
+      const depth = ghost.kind === 'ride' ? 2 * rotated - ghost.level + 1 : 2 * rotated + 2;
+      const [spriteName, frameSuffix] = ghost.sprite.split('#');
+      const entry = spritePages.resolve(spriteName!);
+      const frame = entry?.frames[Number(frameSuffix ?? 0)] ?? entry?.frames[0];
+      project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          frame?.width ?? 12,
+          frame?.height ?? 14,
+        )
+      )
+        continue;
+      this.ghostMode = ghost.tone === 'refused' ? 2 : 1;
+      this.append(worldX, worldY, z, frame?.width ?? 12, frame?.height ?? 14, ghost.sprite, depth);
+      this.ghostMode = 0;
+    }
+  }
+
   private appendPathElements(
     map: MapData,
     camera: Camera,
@@ -2311,7 +2357,8 @@ function unrotateForDraw(
   }
 }
 
-function rotatedPositionSum(x: number, y: number, map: MapData, rotation: Rotation): number {
+/** Depth key of a world point: the painter sorts by it, doubled, so the ride and scenery offsets stay integers. */
+export function rotatedPositionSum(x: number, y: number, map: MapData, rotation: Rotation): number {
   const tx = x / TILE_UNITS;
   const ty = y / TILE_UNITS;
   switch (rotation) {

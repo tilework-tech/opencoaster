@@ -32,6 +32,7 @@ export interface ToolControllerDependencies {
   pathFeedback: PathFeedback;
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
+  sceneryRotation: () => number;
   patrolKind: () => number | null;
   clearRideSetupNotice: () => void;
   rideTileClick: (x: number, y: number) => void;
@@ -45,6 +46,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     alternate: deps.alternate,
     pathTool: deps.pathTool,
     sceneryItem: deps.sceneryItem,
+    sceneryRotation: deps.sceneryRotation,
     patrolKind: deps.patrolKind,
   };
 

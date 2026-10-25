@@ -159,7 +159,9 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
           ctx.actions.setSceneryItem(Number(item.value) as SceneryItem),
         );
         updateItems();
-        pane.append(category, item);
+        const rotate = button('Rotate piece', () => ctx.actions.rotatePiece(), 'ui-button');
+        rotate.setAttribute('aria-label', 'Rotate scenery piece');
+        pane.append(category, item, rotate);
       }
     }
     if (spec.tabs.length === 1) select(spec.tabs[0]);

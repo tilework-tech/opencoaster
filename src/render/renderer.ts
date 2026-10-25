@@ -32,6 +32,22 @@ export interface PathPieceGhost {
   tone: 'ok' | 'refused';
 }
 
+/**
+ * A ride or scenery piece a placement preview draws in the world, translucent, at the depth the
+ * built piece would take. A refused piece keeps its shape and is tinted red.
+ */
+export interface SpriteGhost {
+  x: number;
+  y: number;
+  /** Base level of the tile the piece stands on, in the same units as `MapData.heights`. */
+  level: number;
+  /** Atlas key (optionally with a `#frame` suffix) already in the camera's rotation. */
+  sprite: string;
+  /** Which built kind the piece sorts as: rides and scenery use different depth offsets. */
+  kind: 'ride' | 'scenery';
+  tone: 'ok' | 'refused';
+}
+
 export interface Camera {
   /** World-pixel point at the centre of the viewport. */
   x: number;
@@ -56,6 +72,8 @@ export interface Renderer {
   setMap(map: MapData): void;
   /** Footpath pieces drawn translucently in the world until replaced; an empty list clears them. */
   setGhosts(ghosts: readonly PathPieceGhost[]): void;
+  /** Ride and scenery previews drawn in the depth-sorted world pass until replaced. */
+  setSpriteGhosts(ghosts: readonly SpriteGhost[]): void;
   draw(snapshot: Snapshot | null, camera: Camera): void;
   dispose(): void;
 }

@@ -13,7 +13,14 @@ import {
   type PathAddition,
   type PathPlacement,
 } from './paths';
-import { placeScenery, removeScenery, SCENERY_CATALOG, type SceneryItem } from './scenery';
+import {
+  placeScenery,
+  removeScenery,
+  SCENERY_CATALOG,
+  sceneryPlacementResult,
+  SceneryResult,
+  type SceneryItem,
+} from './scenery';
 import {
   LAND_SURFACE_COST_CENTS,
   LAND_PRICE_CENTS,
@@ -70,7 +77,7 @@ export type MapCommand =
   | { type: 'placePathRun'; placements: PathPlacement[] }
   | { type: 'removePath'; x: number; y: number; z?: number }
   | { type: 'setPathAddition'; x: number; y: number; addition: PathAddition }
-  | { type: 'placeScenery'; x: number; y: number; item: SceneryItem }
+  | { type: 'placeScenery'; x: number; y: number; item: SceneryItem; rotation?: number }
   | { type: 'removeScenery'; x: number; y: number }
   | { type: 'buyLand'; x: number; y: number; width: number; height: number; rights: boolean };
 
@@ -229,7 +236,7 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     case 'placeScenery': {
       const item = SCENERY_CATALOG[c.item];
-      if (item && canAfford(w, item.priceCents) && placeScenery(m, c.x, c.y, c.item)) {
+      if (item && canAfford(w, item.priceCents) && placeScenery(m, c.x, c.y, c.item, c.rotation)) {
         charge(w, LedgerCategory.Landscaping, item.priceCents);
       }
       break;
@@ -253,6 +260,26 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     }
   }
+}
+
+/** A scenery placement to judge: the tile, the item and the piece's rotation (0-3). */
+export interface ScenerySpot {
+  x: number;
+  y: number;
+  item: SceneryItem;
+  rotation: number;
+}
+
+/**
+ * Judges a `placeScenery` command without changing the map: the placement rules first, then whether
+ * the world's cash covers the item. Matches what the command does when it is applied.
+ */
+export function previewScenery(w: World, spot: ScenerySpot): SceneryResult {
+  const item = SCENERY_CATALOG[spot.item];
+  if (!item) return SceneryResult.Invalid;
+  const result = sceneryPlacementResult(w.map, spot.x, spot.y, spot.item, spot.rotation);
+  if (result !== SceneryResult.Ok) return result;
+  return canAfford(w, item.priceCents) ? SceneryResult.Ok : SceneryResult.InsufficientFunds;
 }
 
 /** What one footpath piece in a previewed run would be, once the run is laid. */
