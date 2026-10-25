@@ -116,6 +116,7 @@ test('shows an explanatory red build preview while hovering over unowned land', 
   await page.mouse.move(x, y);
 
   await expect(page.locator('.build-hover-tip')).toHaveText('Land not owned by park');
+  await expect(page.locator('.path-tip')).toBeHidden();
   const preview = page.locator('.track-preview');
   await expect(preview).toBeVisible();
   const redPreviewPixels = await preview.evaluate((canvas) => {

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createFeedback, FeedbackDomain, reportFeedback } from '../../sim/core/feedback';
 import { PathResult } from '../../sim/map/paths';
-import { pathRejectionFrom } from './path-feedback';
+import { pathRejectionFrom, pathTipShouldShow } from './path-feedback';
+
+describe('pathTipShouldShow', () => {
+  it('lets the ownership warning replace a stale footpath tooltip', () => {
+    expect(pathTipShouldShow(true, true)).toBe(false);
+    expect(pathTipShouldShow(true, false)).toBe(true);
+    expect(pathTipShouldShow(false, true)).toBe(false);
+    expect(pathTipShouldShow(false, false)).toBe(false);
+  });
+});
 
 describe('pathRejectionFrom', () => {
   it('maps a refused footpath to its tile and a reason', () => {

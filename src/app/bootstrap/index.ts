@@ -582,6 +582,7 @@ export async function bootstrap(): Promise<void> {
             latest.buildable,
           )
         : null;
+    pathFeedback.setOwnershipWarning(hoverGhost !== null);
     buildHoverFeedback.update(hoverGhost);
     trackPreview.draw(
       sim.map ? coasterPanel.ghost() : null,
