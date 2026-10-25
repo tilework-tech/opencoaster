@@ -8,7 +8,7 @@ import {
   TICKS_PER_WEEK,
 } from './calendar';
 import { DIFFICULT_RATING_BASE, RATING_BASE } from './park-rating';
-import { LedgerCategory } from './ledger';
+import { BASIS_POINTS, LedgerCategory } from './ledger';
 import { setEconomyInputs } from './api';
 import { RIDE_UPKEEP_DIVISOR } from './park-inputs';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
@@ -19,7 +19,7 @@ import { applyEconomyAction } from './actions';
 import { PriceMode } from './ledger';
 import { CAMPAIGNS } from './marketing';
 import { economySystem } from './economy-system';
-import { recordDrowningCasualty, recordFatalRideCrash } from './api';
+import { marketingAttraction, recordDrowningCasualty, recordFatalRideCrash } from './api';
 
 function sim(): Simulation {
   return new Simulation({ seed: 9, width: 16, height: 16 });
@@ -126,6 +126,21 @@ describe('marketing campaigns', () => {
     runUntil(s, TICKS_PER_WEEK * 3);
     expect(s.world.economy.cash).toBe(start - campaign.weeklyCostCents * 2);
     expect(s.world.economy.campaignWeeksLeft).toBe(0);
+  });
+
+  it('runs for the chosen duration: charges every week of it and then expires', () => {
+    const s = sim();
+    const campaign = CAMPAIGNS[0];
+    s.enqueue({ type: 'economy', action: { type: 'startCampaign', campaignId: 0, weeks: 5 } });
+    s.step();
+    const start = s.world.economy.cash;
+    runUntil(s, TICKS_PER_WEEK * 4);
+    expect(s.world.economy.campaignWeeksLeft).toBe(1);
+    expect(marketingAttraction(s.world)).toBe(campaign.attractionBps);
+    runUntil(s, TICKS_PER_WEEK * 6);
+    expect(s.world.economy.cash).toBe(start - campaign.weeklyCostCents * 5);
+    expect(s.world.economy.campaignWeeksLeft).toBe(0);
+    expect(marketingAttraction(s.world)).toBe(BASIS_POINTS);
   });
 });
 

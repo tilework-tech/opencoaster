@@ -224,6 +224,24 @@
   font-size: 12px;
   line-height: 1.4;
 }
+.campaign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.campaign-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.campaign-field select {
+  max-width: 60%;
+}
+.campaign-feedback:empty {
+  display: none;
+}
 .ui-pre {
   margin: 0;
   white-space: pre-wrap;

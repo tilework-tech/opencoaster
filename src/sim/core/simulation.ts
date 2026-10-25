@@ -40,7 +40,7 @@ import { setParkEntrance } from '../guests/park';
 import { weatherSystem } from '../weather/weather-system';
 import { researchSystem } from '../research/research-system';
 import { scenarioSystem } from '../scenario/scenario-system';
-import { applyEconomyAction } from '../economy/actions';
+import { applyEconomyCommand } from '../economy/actions';
 import { applyResearchAction } from '../research/research';
 
 /**
@@ -199,7 +199,7 @@ export class Simulation {
         applyMapCommand(w, c);
         break;
       case 'economy':
-        applyEconomyAction(w.economy, c.action);
+        reportFeedback(w.feedback, FeedbackDomain.Economy, applyEconomyCommand(w, c.action));
         break;
       case 'research':
         applyResearchAction(w.research, c.action);

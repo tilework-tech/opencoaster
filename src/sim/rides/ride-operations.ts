@@ -402,6 +402,11 @@ export function getRidePhase(world: World, rideId: number): RidePhase | undefine
   return slot < 0 ? undefined : (world.rides.cols.phase[slot] as RidePhase);
 }
 
+export function getRideType(world: World, rideId: number): RideType | undefined {
+  const slot = slotForRide(world, rideId);
+  return slot < 0 ? undefined : (world.rides.cols.typeId[slot] as RideType);
+}
+
 export function getRideCapacity(world: World, rideId: number): number {
   const slot = slotForRide(world, rideId);
   return slot < 0 ? 0 : world.rides.cols.capacity[slot];
