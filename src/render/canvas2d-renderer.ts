@@ -16,6 +16,8 @@ import type { CanvasAtlas } from './canvas-atlas';
 import {
   WATER_BANK,
   pathSpriteName,
+  pathAdditionSpriteName,
+  litterSpriteName,
   scenerySpriteName,
   rideSpriteFrame,
   rideSpriteKey,
@@ -180,7 +182,7 @@ export class Canvas2DRenderer implements Renderer {
       const coasterSprites = this.drawCoasters(ctx, snapshot, map, cam);
       if (snapshot.tracks && !coasterSprites)
         this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
-      this.drawLayer(ctx, snapshot.litter, map, cam, 2, ['#6b4f2a', '#9fc35b']);
+      this.drawLitter(ctx, snapshot.litter, map, cam);
       this.drawLayer(
         ctx,
         snapshot.vehicles,
@@ -537,7 +539,19 @@ export class Canvas2DRenderer implements Renderer {
     ctx.restore();
   }
 
-  private drawPathAddition(ctx: CanvasRenderingContext2D, flags: number): void {
+  private drawPathAddition(
+    ctx: CanvasRenderingContext2D,
+    flags: number,
+    data: number,
+    rotation: number,
+  ): void {
+    const sprite = pathAdditionSpriteName(flags, rotation, data);
+    if (
+      this.atlas &&
+      sprite &&
+      drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1])
+    )
+      return;
     if (flags & PathFlag.Bin) {
       ctx.fillStyle = '#547d58';
       ctx.fillRect(this.tmp[0] - 3, this.tmp[1] - 13, 6, 9);
@@ -604,7 +618,7 @@ export class Canvas2DRenderer implements Renderer {
           this.pathLow[1],
         )
       ) {
-        this.drawPathAddition(ctx, flags);
+        this.drawPathAddition(ctx, flags, paths[o + 4], cam.rotation);
         this.visibleCount++;
         continue;
       }
@@ -649,7 +663,7 @@ export class Canvas2DRenderer implements Renderer {
       } else {
         ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 4, 18, 8);
       }
-      this.drawPathAddition(ctx, flags);
+      this.drawPathAddition(ctx, flags, paths[o + 4], cam.rotation);
       if (flags & PathFlag.Queue) {
         ctx.fillStyle = '#d7bb65';
         ctx.fillRect(this.tmp[0] - 7, this.tmp[1] - 5, 14, 1.5);
@@ -941,6 +955,44 @@ export class Canvas2DRenderer implements Renderer {
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
       if (!this.isVisible(t[0], t[1], cam, r * 2)) continue;
       ctx.fillRect(t[0] - r, t[1] - r, r * 2, r * 2);
+      this.visibleCount++;
+    }
+  }
+
+  private drawLitter(
+    ctx: CanvasRenderingContext2D,
+    layer: SnapshotLayer,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const data = layer.data;
+    for (let index = 0, offset = 0; index < layer.count; index++, offset += SNAPSHOT_STRIDE) {
+      project(
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 8)) continue;
+      const kind = data[offset + 3] & 0xff;
+      if (
+        !this.atlas ||
+        !drawBoxedSprite(
+          ctx,
+          this.atlas,
+          litterSpriteName(kind, cam.rotation),
+          this.tmp[0],
+          this.tmp[1],
+          14,
+          8,
+        )
+      ) {
+        ctx.fillStyle = kind === 1 ? '#9fc35b' : '#6b4f2a';
+        ctx.fillRect(this.tmp[0] - 2, this.tmp[1] - 2, 4, 4);
+      }
       this.visibleCount++;
     }
   }

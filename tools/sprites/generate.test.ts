@@ -11,6 +11,30 @@ import { PALETTE } from './palette';
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
 describe('generated sprite catalogue', () => {
+  it('renders a roofed path shelter and damaged path furniture in four views', () => {
+    for (const key of [
+      'scenery/shelter',
+      'scenery/bench-broken',
+      'scenery/bin-broken',
+      'litter/trash',
+      'litter/vomit',
+    ]) {
+      const views = [];
+      for (let view = 0; view < 4; view++) {
+        const sprite = sprites.get(`${key}/view-${view}`);
+        expect(sprite, `${key}, view ${view}`).toBeDefined();
+        const frame = sprite?.frames[0];
+        const minimumWidth = key.startsWith('litter/') ? 10 : 24;
+        const minimumHeight = key.startsWith('litter/') ? 6 : 16;
+        expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
+        expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
+        expect(frame?.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+        views.push(Buffer.from(frame!.pixels).toString('base64'));
+      }
+      expect(new Set(views).size, `${key} view variety`).toBeGreaterThan(1);
+    }
+  });
+
   it('has all 16 connection masks and 4 ramp directions for each path style', () => {
     for (const style of ['tarmac', 'crazy-paving', 'dirt', 'queue']) {
       for (let mask = 0; mask < 16; mask++)

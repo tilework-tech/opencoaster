@@ -1,4 +1,4 @@
-/** Placeholder line icons (24×24 viewBox). Original geometric glyphs; art can replace them by name. */
+/** Original line glyphs (24×24 viewBox) for controls outside the generated icon sheet. */
 
 const GLYPHS = {
   pause: '<path d="M8 5v14M16 5v14" />',
@@ -91,7 +91,6 @@ const SPRITE_ICONS: Partial<Record<IconName, readonly [number, number]>> = {
   water: [1, 0],
   scenery: [2, 0],
   paths: [3, 0],
-  rides: [0, 1],
   coaster: [1, 1],
   entrance: [2, 1],
   finances: [3, 1],
@@ -102,8 +101,13 @@ const SPRITE_ICONS: Partial<Record<IconName, readonly [number, number]>> = {
   zoomIn: [0, 3],
   rotateLeft: [1, 3],
   play: [2, 3],
-  menu: [3, 3],
 };
+
+export const ICON_NAMES = Object.keys(GLYPHS) as IconName[];
+
+export function iconArtKind(name: IconName): 'sprite-sheet' | 'vector' {
+  return SPRITE_ICONS[name] ? 'sprite-sheet' : 'vector';
+}
 
 /** A decorative SVG icon; the caller supplies the accessible name on the control. */
 export function icon(name: IconName): SVGSVGElement {
