@@ -9,29 +9,9 @@ export interface ToolHandlerDependencies {
   gameUi: GameUI;
   selectedTool: () => ToolMode;
   alternate: () => boolean;
-  brush: () => number;
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
   patrolKind: () => number | null;
-}
-
-export function handleLandTool(
-  deps: ToolHandlerDependencies,
-  x: number,
-  y: number,
-  shiftKey: boolean,
-): void {
-  const lower = shiftKey || deps.alternate();
-  const brush = deps.brush();
-  const origin = Math.floor((brush - 1) / 2);
-  deps.sim.command({
-    type: lower ? 'lowerLand' : 'raiseLand',
-    x: Math.max(0, x - origin),
-    y: Math.max(0, y - origin),
-    width: brush,
-    height: brush,
-  });
-  deps.gameUi.setToolStatus(`${lower ? 'Lowering' : 'Raising'} land at ${x}, ${y}.`);
 }
 
 export function handlePathTool(deps: ToolHandlerDependencies, x: number, y: number): void {

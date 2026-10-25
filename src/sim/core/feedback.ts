@@ -9,6 +9,8 @@ export const enum FeedbackDomain {
   Economy = 3,
   /** `PathResult` */
   Path = 4,
+  /** `LandResult` */
+  Land = 5,
 }
 
 /**

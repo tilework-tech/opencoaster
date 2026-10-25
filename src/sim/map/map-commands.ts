@@ -1,15 +1,9 @@
 import type { World } from '../core/world';
 import { LedgerCategory, post } from '../economy/ledger';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
-import {
-  lowerLand,
-  paintLand,
-  planLandEdit,
-  planSetTileHeight,
-  raiseLand,
-  setTileHeight,
-  setWaterLevel,
-} from './land';
+import { paintLand, planSetTileHeight, setTileHeight, setWaterLevel } from './land';
+import { applyLand, LandAction, LandResult } from './land-tool';
+import type { LandEdit } from './land-tool';
 import {
   PathResult,
   placePathOutcome,
@@ -39,8 +33,28 @@ import { TILE_UNITS } from '../core/constants';
 /** Map-owned player commands; the core `Command` union includes this type. */
 export type MapCommand =
   | { type: 'setTileHeight'; x: number; y: number; height: number }
-  | { type: 'raiseLand'; x: number; y: number; width: number; height: number; corner?: number }
-  | { type: 'lowerLand'; x: number; y: number; width: number; height: number; corner?: number }
+  | {
+      type: 'raiseLand' | 'lowerLand';
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      /** Corner index of a single-tile selection; superseded by `corners`. */
+      corner?: number;
+      /** Corner mask of a single-tile selection: one bit a corner, two adjacent bits an edge. */
+      corners?: number;
+    }
+  | { type: 'smoothLand'; x: number; y: number; width: number; height: number }
+  | {
+      type: 'flattenLand';
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      /** Tile whose height the area is levelled to. */
+      anchorX: number;
+      anchorY: number;
+    }
   | { type: 'setWater'; x: number; y: number; width: number; height: number; level: number }
   | { type: 'paintLand'; x: number; y: number; width: number; height: number; surface: number }
   | {
@@ -136,18 +150,38 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     }
     case 'raiseLand':
-    case 'lowerLand': {
-      const x = c.x | 0;
-      const y = c.y | 0;
-      const width = c.width | 0;
-      const height = c.height | 0;
-      const corner = c.corner === undefined ? undefined : c.corner | 0;
-      const plan = planLandEdit(m, x, y, width, height, c.type === 'raiseLand', corner);
-      if (!plan.succeeds || !canAfford(w, plan.costCents)) break;
-      const edit = c.type === 'raiseLand' ? raiseLand : lowerLand;
-      if (edit(m, x, y, width, height, corner)) {
+    case 'lowerLand':
+    case 'smoothLand':
+    case 'flattenLand': {
+      const edit: LandEdit = {
+        action:
+          c.type === 'raiseLand'
+            ? LandAction.Raise
+            : c.type === 'lowerLand'
+              ? LandAction.Lower
+              : c.type === 'smoothLand'
+                ? LandAction.Smooth
+                : LandAction.Flatten,
+        x: c.x | 0,
+        y: c.y | 0,
+        width: c.width | 0,
+        height: c.height | 0,
+      };
+      if (c.type === 'raiseLand' || c.type === 'lowerLand') {
+        if (c.corners !== undefined) edit.corners = c.corners | 0;
+        else if (c.corner !== undefined) edit.corners = 1 << (c.corner & 3);
+      } else if (c.type === 'flattenLand') {
+        edit.anchorX = c.anchorX | 0;
+        edit.anchorY = c.anchorY | 0;
+      }
+      const plan = applyLand(w, edit);
+      if (plan.result === LandResult.Ok) {
         charge(w, LedgerCategory.Landscaping, plan.costCents);
-        removeLitterOnTerrainTiles(w, plan.affectedTiles);
+        const affected = new Uint8Array(m.width * m.height);
+        for (const tile of plan.tiles) affected[tile] = 1;
+        removeLitterOnTerrainTiles(w, affected);
+      } else {
+        reportFeedback(w.feedback, FeedbackDomain.Land, plan.result, plan.subject);
       }
       break;
     }

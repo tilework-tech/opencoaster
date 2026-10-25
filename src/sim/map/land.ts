@@ -223,6 +223,51 @@ function shiftLand(
   return commit(m, s);
 }
 
+/** Moves a vertex one way and drags neighbours so every tile keeps spanning at most one level. */
+export type VertexMover = (vx: number, vy: number, target: number, up: boolean) => void;
+
+/** A terrain edit already applied to the map; `rollback` restores the previous heights. */
+export interface TerrainEdit {
+  /** Vertex indexes (`TileMap.vertexIndex`) whose height ended up different. */
+  changed: Int32Array;
+  /** Height levels of `changed` before the edit. */
+  before: Uint8Array;
+  rollback(): void;
+}
+
+/**
+ * Applies vertex moves without validating the elements above the ground; the caller decides
+ * whether the result is acceptable and calls `rollback` when it is not.
+ */
+export function editTerrain(m: TileMap, apply: (move: VertexMover) => void): TerrainEdit {
+  const s = begin(m);
+  const revision = m.revision;
+  apply((vx, vy, target, up) => moveVertex(m, s, vx, vy, target, up));
+  const idx: number[] = [];
+  const old: number[] = [];
+  for (let k = 0; k < s.undoCount; k++) {
+    const v = s.undoIdx[k];
+    if (m.vertexHeights[v] === s.undoVal[k]) continue;
+    idx.push(v);
+    old.push(s.undoVal[k]);
+  }
+  const touched = s.undoIdx.slice(0, s.undoCount);
+  const touchedVal = s.undoVal.slice(0, s.undoCount);
+  const count = s.undoCount;
+  refreshAffected(m, s);
+  return {
+    changed: Int32Array.from(idx),
+    before: Uint8Array.from(old),
+    rollback() {
+      for (let j = 0; j < count; j++) m.vertexHeights[touched[j]] = touchedVal[j];
+      s.undoCount = count;
+      s.undoIdx.set(touched);
+      refreshAffected(m, s);
+      m.revision = revision;
+    },
+  };
+}
+
 export interface LandEditPlan {
   succeeds: boolean;
   costCents: number;

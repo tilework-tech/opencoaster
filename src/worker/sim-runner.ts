@@ -6,6 +6,7 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import { deserialize, serialize } from '../save/save';
 import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
+import { planLand } from '../sim/map/land-tool';
 import { extractMapData } from './map-data';
 import { previewPathRun } from '../sim/map/map-commands';
 import type { PathPlacement } from '../sim/map/paths';
@@ -71,6 +72,14 @@ export class SimRunner {
         break;
       case 'previewPaths':
         this.previewPaths(msg.id, msg.placements);
+        break;
+      case 'previewLand':
+        if (this.sim)
+          this.port.post({
+            type: 'landPreview',
+            id: msg.id,
+            plan: planLand(this.sim.world, msg.edit),
+          });
         break;
     }
   }

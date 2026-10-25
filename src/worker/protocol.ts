@@ -3,6 +3,7 @@ import type { ScenarioDef } from '../sim/scenario/scenario';
 import type { PathPlacement } from '../sim/map/paths';
 import type { PathPiecePreview } from '../sim/map/map-commands';
 import type { Snapshot } from './snapshot';
+import type { LandEdit, LandPlan } from '../sim/map/land-tool';
 
 export interface InitMessage {
   type: 'init';
@@ -29,7 +30,9 @@ export type ToWorker =
   /** Replaces the running game with a save; answered with `loaded` or `error`. */
   | { type: 'load'; bytes: Uint8Array }
   /** Asks what each footpath placement would do right now; answered with `pathPreview`. */
-  | { type: 'previewPaths'; id: number; placements: PathPlacement[] };
+  | { type: 'previewPaths'; id: number; placements: PathPlacement[] }
+  /** Evaluates a land edit without applying it; answered with `landPreview`. */
+  | { type: 'previewLand'; id: number; edit: LandEdit };
 
 export interface MapMessage {
   type: 'map';
@@ -69,4 +72,5 @@ export type FromWorker =
   | { type: 'loaded' }
   | { type: 'error'; request: 'save' | 'load'; message: string }
   /** One preview per requested placement, in request order. */
-  | { type: 'pathPreview'; id: number; pieces: PathPiecePreview[] };
+  | { type: 'pathPreview'; id: number; pieces: PathPiecePreview[] }
+  | { type: 'landPreview'; id: number; plan: LandPlan };

@@ -29,7 +29,8 @@ import { openRideSelect } from './windows/ride-select';
 import { openRideWindow } from './windows/ride-window';
 import { openStaffWindow } from './windows/staff-window';
 import { openWorkerWindow } from './windows/worker-window';
-import { LAND_WINDOW, SCENERY_WINDOW, WATER_WINDOW, openToolWindow } from './windows/tool-windows';
+import { SCENERY_WINDOW, WATER_WINDOW, openToolWindow } from './windows/tool-windows';
+import { openLandWindow } from './windows/land-window';
 import { openPathWindow } from './windows/path-window';
 import { shortcutFor } from './shortcuts';
 import type { KeyLike } from './shortcuts';
@@ -385,7 +386,7 @@ export class GameUI {
       );
     switch (id) {
       case 'land':
-        return openToolWindow(this.ctx, { ...LAND_WINDOW });
+        return openLandWindow(this.ctx);
       case 'water':
         return openToolWindow(this.ctx, WATER_WINDOW);
       case 'scenery':
@@ -609,7 +610,7 @@ export class GameUI {
       tool === 'select'
         ? 'Select a guest or tile. Drag to pan; Page Up/Down or pinch to zoom.'
         : tool === 'land'
-          ? 'Land tool selected. Tap to raise; use Lower (or Shift) to dig.'
+          ? 'Land tool selected. Tap to change land; drag up or down to raise or lower repeatedly.'
           : tool === 'patrol'
             ? 'Patrol tool selected. Tap tiles to add them; use Remove tiles (or Shift) to remove.'
             : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
