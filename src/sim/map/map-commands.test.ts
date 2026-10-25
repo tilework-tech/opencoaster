@@ -14,7 +14,8 @@ import { dropLitter, LitterKind } from '../guests/litter-store';
 import { landEditCostCents } from './land';
 import { PathResult, placePath, removePath } from './paths';
 import { FeedbackDomain } from '../core/feedback';
-import { SceneryItem, SCENERY_CATALOG } from './scenery';
+import { SceneryItem, SCENERY_CATALOG, SceneryResult } from './scenery';
+import { previewScenery } from './map-commands';
 
 function sim(): Simulation {
   const s = new Simulation({ seed: 9, width: 32, height: 32, maxGuests: 100 });
@@ -216,6 +217,27 @@ describe('map commands', () => {
     s.step();
     expect(s.world.map.elData[s.world.map.firstElement(tile)]).toBe(SceneryItem.Shrub);
     expect(cash - s.world.economy.cash).toBe(SCENERY_CATALOG[SceneryItem.Shrub].priceCents);
+  });
+
+  it('previews scenery placement with the verdict the command would reach', () => {
+    const s = sim();
+    const w = s.world;
+    const cash = w.economy.cash;
+    const spot = { x: 7, y: 7, item: SceneryItem.Shrub, rotation: 0 };
+    expect(previewScenery(w, spot)).toBe(SceneryResult.Ok);
+    w.map.ownership[w.map.index(0, 0)] = 0;
+    expect(previewScenery(w, { ...spot, x: 0, y: 0 })).toBe(SceneryResult.NotOwned);
+    expect(w.economy.cash).toBe(cash);
+    w.economy.cash = 0;
+    expect(previewScenery(w, spot)).toBe(SceneryResult.InsufficientFunds);
+  });
+
+  it('places scenery with the rotation the spot was previewed with', () => {
+    const s = sim();
+    const tile = s.world.map.index(7, 7);
+    s.enqueue({ type: 'placeScenery', x: 7, y: 7, item: SceneryItem.Shrub, rotation: 2 });
+    s.step();
+    expect(s.world.map.elFlags[s.world.map.firstElement(tile)]).toBe(2);
   });
 
   it('replays identically and survives save/load', () => {

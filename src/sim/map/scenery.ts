@@ -154,13 +154,24 @@ export const SCENERY_CATALOG: readonly SceneryDefinition[] = [
   },
 ];
 
-export function placeScenery(
+/** Why a scenery item cannot be placed on a tile; `Ok` means it can. */
+export const enum SceneryResult {
+  Ok = 0,
+  Invalid = 1,
+  NotOwned = 2,
+  Underwater = 3,
+  Blocked = 4,
+  InsufficientFunds = 5,
+}
+
+/** Checks a placement without changing the map: the same rules `placeScenery` applies. */
+export function sceneryPlacementResult(
   map: TileMap,
   x: number,
   y: number,
   item: SceneryItem,
   rotation = 0,
-): boolean {
+): SceneryResult {
   const definition = SCENERY_CATALOG[item];
   if (
     !definition ||
@@ -169,18 +180,29 @@ export function placeScenery(
     rotation < 0 ||
     rotation > 3
   )
-    return false;
+    return SceneryResult.Invalid;
   const tile = map.index(x, y);
-  if (
-    (map.ownership[tile] & (OWNED | RIGHTS_OWNED)) === 0 ||
-    map.waterLevel[tile] > map.heights[tile]
-  )
-    return false;
+  if ((map.ownership[tile] & (OWNED | RIGHTS_OWNED)) === 0) return SceneryResult.NotOwned;
+  if (map.waterLevel[tile] > map.heights[tile]) return SceneryResult.Underwater;
   const base = map.heights[tile] + (map.slope[tile] ? 1 : 0);
   const clear = Math.min(MAX_ELEMENT_BASE, base + Math.max(1, definition.height));
   for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element)) {
-    if (map.elBase[element] < clear && base < map.elClear[element]) return false;
+    if (map.elBase[element] < clear && base < map.elClear[element]) return SceneryResult.Blocked;
   }
+  return SceneryResult.Ok;
+}
+
+export function placeScenery(
+  map: TileMap,
+  x: number,
+  y: number,
+  item: SceneryItem,
+  rotation = 0,
+): boolean {
+  if (sceneryPlacementResult(map, x, y, item, rotation) !== SceneryResult.Ok) return false;
+  const tile = map.index(x, y);
+  const base = map.heights[tile] + (map.slope[tile] ? 1 : 0);
+  const clear = Math.min(MAX_ELEMENT_BASE, base + Math.max(1, SCENERY_CATALOG[item]!.height));
   const element = map.addElement(tile, ElementType.SmallScenery, base, clear, rotation, item);
   return element >= 0;
 }

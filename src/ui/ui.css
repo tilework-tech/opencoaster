@@ -754,7 +754,8 @@
 .path-ghost-pending {
   stroke: #fff0bd;
 }
-.path-ghost-label {
+.path-ghost-label,
+.placement-label {
   position: fixed;
   z-index: 46;
   max-width: 260px;
@@ -765,7 +766,8 @@
   border: 1px solid #887b55;
   color: #fff0bd;
 }
-.path-ghost-label[data-tone='refused'] {
+.path-ghost-label[data-tone='refused'],
+.placement-label[data-tone='refused'] {
   background: rgba(46, 16, 14, 0.92);
   border-color: #c85a4e;
   color: #ffd9d3;

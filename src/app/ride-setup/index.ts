@@ -3,6 +3,7 @@ import { project } from '../../render/projection';
 import type { Rotation } from '../../render/projection';
 import type { GameUI, ToolMode } from '../../ui/game-ui';
 import type { RidePlacementGhost } from '../../ui/track-preview';
+import type { PlacementHover } from '../input';
 import type { CoasterPanel } from '../../ui/coaster-panel';
 import { ridePlacementValid } from '../../render/placement-art';
 import { facilityFacingFromPaths } from '../../render/world-art';
@@ -36,7 +37,7 @@ export interface RideSetupDependencies {
   selectedTool: () => ToolMode;
   preview: HTMLCanvasElement;
   targets: SVGSVGElement;
-  setRideHover: (tile: [number, number] | null) => void;
+  setPlacementHover: (hover: PlacementHover | null) => void;
 }
 
 export function createRideSetup(deps: RideSetupDependencies) {
@@ -68,7 +69,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   }
 
   function rideHoverClear(): void {
-    deps.setRideHover(null);
+    deps.setPlacementHover(null);
   }
 
   function placeRidePart(rideId: number, part: 'entrance' | 'exit'): void {
@@ -506,7 +507,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     hasPlacement: () => ridePlacement !== null,
     advance: advanceRideSetup,
     drawPreview: drawRidePlacementPreview,
-    createRideGhost(x: number, y: number, tick: number): RidePlacementGhost {
+    createRideGhost(x: number, y: number): RidePlacementGhost {
       const map = sim.map;
       const snapshot = sim.latest;
       if (!map || !snapshot) throw new Error('Ride placement requires a current map snapshot.');
@@ -516,7 +517,6 @@ export function createRideSetup(deps: RideSetupDependencies) {
         y,
         facing: facilityFacingFromPaths(x, y, map),
         valid: ridePlacementValid(coasterPanel.rideType, x, y, map, snapshot),
-        tick,
       };
     },
   };

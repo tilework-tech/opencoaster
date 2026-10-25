@@ -17,7 +17,10 @@ import { DEFAULT_MAP_SIZE, TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 import { PathFlag } from '../../sim/map/tile-map';
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
-import { TrackPreviewOverlay } from '../../ui/track-preview';
+import { rideGhostSprite, TrackPreviewOverlay } from '../../ui/track-preview';
+import type { SpriteGhost } from '../../render/renderer';
+import { ScenerySpotPreview } from '../tools/scenery-preview';
+import type { PlacementHover } from '../input';
 import { SCENARIOS } from '../../sim/scenario/catalog';
 import { ScenarioStatus } from '../../sim/scenario/scenario';
 import { createSaveLoadController, openSlotStore, readScenarioProgress } from '../save-load';
@@ -78,7 +81,8 @@ export async function bootstrap(): Promise<void> {
   const hud = new Hud(root);
   let selectedTool: ToolMode = 'select';
   let selectedGuest: GuestSelection | null = null;
-  let rideHover: [number, number] | null = null;
+  let placementHover: PlacementHover | null = null;
+  let sceneryRotation = 0;
   let patrolKind: number | null = null;
   let alternate = false;
   const pathState = createPathState();
@@ -98,6 +102,7 @@ export async function bootstrap(): Promise<void> {
   root.append(patrolOverlay);
   let patrolOverlaySignature = '';
   const trackPreview = new TrackPreviewOverlay(root);
+  const scenerySpot = new ScenerySpotPreview(root, sim);
   const pathFeedback = new PathFeedback(root);
   const pathTool = new PathTool({
     sim,
@@ -148,6 +153,9 @@ export async function bootstrap(): Promise<void> {
     footpath: pathTool,
     setSceneryItem(item) {
       sceneryItem = item as SceneryItem;
+    },
+    rotatePiece() {
+      sceneryRotation = (sceneryRotation + 1) % 4;
     },
     locate(x, y) {
       centreOnTile(x, y, sim, camera);
@@ -220,7 +228,7 @@ export async function bootstrap(): Promise<void> {
     selectedTool: () => selectedTool,
     preview: ridePlacementPreview,
     targets: ridePlacementTargets,
-    setRideHover: (tile) => (rideHover = tile),
+    setPlacementHover: (hover) => (placementHover = hover),
   });
 
   const outcomeDialog = new ScenarioDialog(root);
@@ -322,6 +330,7 @@ export async function bootstrap(): Promise<void> {
     pathFeedback,
     pathTool,
     sceneryItem: () => sceneryItem,
+    sceneryRotation: () => sceneryRotation,
     patrolKind: () => patrolKind,
     clearRideSetupNotice: rideSetupState.current.clearNotice,
     rideTileClick: rideSetupState.current.rideTileClick,
@@ -346,7 +355,7 @@ export async function bootstrap(): Promise<void> {
     removePathAt: toolController.removePathAt,
     pathDrag: toolController.pathDrag,
     land: landController,
-    setRideHover: (tile) => (rideHover = tile),
+    setPlacementHover: (hover) => (placementHover = hover),
     viewport,
     renderScale: () => appliedScale,
     registerResize: (resize) => (resizeCanvas = resize),
@@ -523,14 +532,37 @@ export async function bootstrap(): Promise<void> {
       );
     }
     coasterPanel.update();
+    const spriteGhosts: SpriteGhost[] = [];
     const rideGhost =
       selectedTool === 'ride' &&
       !rideSetupState.current.hasPlacement() &&
-      rideHover &&
+      placementHover &&
       sim.map &&
       latest
-        ? rideSetupState.current.createRideGhost(rideHover[0], rideHover[1], latest.tick)
+        ? rideSetupState.current.createRideGhost(placementHover.tile[0], placementHover.tile[1])
         : null;
+    const rideSprite =
+      rideGhost && sim.map ? rideGhostSprite(rideGhost, sim.map, camera.rotation) : null;
+    if (rideSprite) spriteGhosts.push(rideSprite);
+    if (selectedTool === 'scenery' && placementHover && sim.map) {
+      const [x, y] = placementHover.tile;
+      const sceneryGhost = scenerySpot.update(
+        {
+          x,
+          y,
+          level: sim.map.heights[y * sim.map.width + x] ?? 0,
+          item: sceneryItem,
+          rotation: sceneryRotation,
+          clientX: placementHover.clientX,
+          clientY: placementHover.clientY,
+        },
+        now,
+      );
+      if (sceneryGhost) spriteGhosts.push(sceneryGhost);
+    } else {
+      scenerySpot.hide();
+    }
+    renderer.setSpriteGhosts(spriteGhosts);
     const pathGhost =
       latest && sim.map ? pathFeedback.update(latest.feedback, sim.map.width, now) : null;
     trackPreview.draw(
@@ -539,7 +571,6 @@ export async function bootstrap(): Promise<void> {
       camera,
       viewport,
       capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
-      rideGhost,
       pathGhost,
     );
     landController.update(now);
@@ -553,6 +584,7 @@ export async function bootstrap(): Promise<void> {
     audio.dispose();
     coasterPanel.dispose();
     trackPreview.dispose();
+    scenerySpot.dispose();
     pathFeedback.dispose();
     landController.dispose();
     renderer.dispose();

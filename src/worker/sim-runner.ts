@@ -8,7 +8,9 @@ import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
 import { planLand } from '../sim/map/land-tool';
 import { extractMapData } from './map-data';
-import { previewPathRun } from '../sim/map/map-commands';
+import { previewPathRun, previewScenery } from '../sim/map/map-commands';
+import type { ScenerySpot } from '../sim/map/map-commands';
+import { SceneryResult } from '../sim/map/scenery';
 import type { PathPlacement } from '../sim/map/paths';
 import type { Snapshot } from './snapshot';
 import type { FromWorker, InitMessage, ToWorker } from './protocol';
@@ -81,6 +83,9 @@ export class SimRunner {
             plan: planLand(this.sim.world, msg.edit),
           });
         break;
+      case 'previewScenery':
+        this.previewScenery(msg.id, msg.spot);
+        break;
     }
   }
 
@@ -111,6 +116,12 @@ export class SimRunner {
     const sim = this.sim;
     const pieces = sim ? previewPathRun(sim.world, placements) : [];
     this.port.post({ type: 'pathPreview', id, pieces });
+  }
+
+  private previewScenery(id: number, spot: ScenerySpot): void {
+    const sim = this.sim;
+    const result = sim ? previewScenery(sim.world, spot) : SceneryResult.Invalid;
+    this.port.post({ type: 'scenerySpotPreview', id, result });
   }
 
   private load(bytes: Uint8Array): void {

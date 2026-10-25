@@ -298,6 +298,9 @@ export class GameUI {
       case 'rotate':
         this.actions.rotate(action.direction);
         return true;
+      case 'rotatePiece':
+        this.actions.rotatePiece();
+        return true;
       case 'zoom':
         this.actions.zoom(action.direction);
         return true;

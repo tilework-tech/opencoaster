@@ -74,6 +74,8 @@ export interface GameUIActions {
   setLand(settings: LandSettings): void;
   footpath: FootpathControls;
   setSceneryItem(item: number): void;
+  /** Turns the scenery piece the Scenery tool places by a quarter turn. */
+  rotatePiece(): void;
   /** Centres the camera on a tile. */
   locate(x: number, y: number): void;
   /** Selects the ride type the Ride tool places. */

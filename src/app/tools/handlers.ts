@@ -11,6 +11,7 @@ export interface ToolHandlerDependencies {
   alternate: () => boolean;
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
+  sceneryRotation: () => number;
   patrolKind: () => number | null;
 }
 
@@ -33,7 +34,7 @@ export function handleSceneryTool(
   deps.sim.command(
     remove
       ? { type: 'removeScenery', x, y }
-      : { type: 'placeScenery', x, y, item: deps.sceneryItem() },
+      : { type: 'placeScenery', x, y, item: deps.sceneryItem(), rotation: deps.sceneryRotation() },
   );
   deps.gameUi.setToolStatus(
     `${remove ? 'Scenery removal' : 'Scenery placement'} requested at ${x}, ${y}.`,

@@ -1,7 +1,8 @@
 import type { Command } from '../sim/core/commands';
 import type { ScenarioDef } from '../sim/scenario/scenario';
 import type { PathPlacement } from '../sim/map/paths';
-import type { PathPiecePreview } from '../sim/map/map-commands';
+import type { PathPiecePreview, ScenerySpot } from '../sim/map/map-commands';
+import type { SceneryResult } from '../sim/map/scenery';
 import type { Snapshot } from './snapshot';
 import type { LandEdit, LandPlan } from '../sim/map/land-tool';
 
@@ -32,7 +33,9 @@ export type ToWorker =
   /** Asks what each footpath placement would do right now; answered with `pathPreview`. */
   | { type: 'previewPaths'; id: number; placements: PathPlacement[] }
   /** Evaluates a land edit without applying it; answered with `landPreview`. */
-  | { type: 'previewLand'; id: number; edit: LandEdit };
+  | { type: 'previewLand'; id: number; edit: LandEdit }
+  /** Asks whether a scenery placement would be accepted now; answered with `scenerySpotPreview`. */
+  | { type: 'previewScenery'; id: number; spot: ScenerySpot };
 
 export interface MapMessage {
   type: 'map';
@@ -73,4 +76,5 @@ export type FromWorker =
   | { type: 'error'; request: 'save' | 'load'; message: string }
   /** One preview per requested placement, in request order. */
   | { type: 'pathPreview'; id: number; pieces: PathPiecePreview[] }
-  | { type: 'landPreview'; id: number; plan: LandPlan };
+  | { type: 'landPreview'; id: number; plan: LandPlan }
+  | { type: 'scenerySpotPreview'; id: number; result: SceneryResult };

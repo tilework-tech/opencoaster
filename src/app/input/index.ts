@@ -42,6 +42,13 @@ export interface PathDragHandlers {
   hoverEnd(): void;
 }
 
+/** The tile under a hovering pointer, with the pointer's client position for cursor labels. */
+export interface PlacementHover {
+  tile: [number, number];
+  clientX: number;
+  clientY: number;
+}
+
 export interface CameraInputDependencies {
   canvas: HTMLCanvasElement;
   renderer: Renderer;
@@ -58,7 +65,7 @@ export interface CameraInputDependencies {
   removePathAt: (x: number, y: number) => void;
   pathDrag: PathDragHandlers;
   land: LandController;
-  setRideHover: (tile: [number, number] | null) => void;
+  setPlacementHover: (hover: PlacementHover | null) => void;
   /** Receives the canvas size in CSS pixels whenever it changes. */
   viewport: { width: number; height: number };
   /** Backing-buffer scale applied on top of the capped device pixel ratio. */
@@ -264,14 +271,22 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
       deps.pathDrag.hover(event.clientX, event.clientY);
     if (deps.selectedTool() === 'land' && event.pointerType === 'mouse' && event.buttons === 0)
       deps.land.hover(event.clientX, event.clientY);
-    if ((deps.selectedTool() === 'track' || deps.selectedTool() === 'ride') && sim.map) {
+    if (
+      (deps.selectedTool() === 'track' ||
+        deps.selectedTool() === 'ride' ||
+        deps.selectedTool() === 'scenery') &&
+      sim.map
+    ) {
       const rect = canvas.getBoundingClientRect();
       const tile = pickTile(event.clientX - rect.left, event.clientY - rect.top, sim.map, camera, {
         width: rect.width,
         height: rect.height,
       });
       if (deps.selectedTool() === 'track') coasterPanel.setHover(tile);
-      else deps.setRideHover(tile);
+      else
+        deps.setPlacementHover(
+          tile ? { tile, clientX: event.clientX, clientY: event.clientY } : null,
+        );
     }
     pointerInput.pointerMove(pointerSample(event));
   });
@@ -281,6 +296,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
   canvas.addEventListener('pointerleave', (event) => {
     deps.pathDrag.hoverEnd();
+    deps.setPlacementHover(null);
     if (deps.selectedTool() === 'land' && event.buttons === 0) deps.land.leave();
   });
   canvas.addEventListener('contextmenu', (event) => {

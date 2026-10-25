@@ -6,6 +6,7 @@ export type ShortcutAction =
   | { type: 'cancel' }
   | { type: 'pause' }
   | { type: 'rotate'; direction: -1 | 1 }
+  | { type: 'rotatePiece' }
   | { type: 'zoom'; direction: -1 | 1 }
   | { type: 'window'; id: string };
 
@@ -42,6 +43,8 @@ export function shortcutFor(event: KeyLike): ShortcutAction | null {
       return { type: 'cancel' };
     case 'Enter':
       return { type: 'rotate', direction: event.shiftKey ? -1 : 1 };
+    case 't':
+      return { type: 'rotatePiece' };
     case 'PageUp':
       return { type: 'zoom', direction: -1 };
     case 'PageDown':
