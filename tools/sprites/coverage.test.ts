@@ -13,9 +13,10 @@ const rows = buildArtCoverage();
 
 describe('art coverage inventory', () => {
   it('includes every ride and placeable scenery catalog entry', () => {
-    expect(rows.filter((row) => row.group === 'Ride').map((row) => row.item)).toHaveLength(
-      Object.keys(RIDE_CATALOG).length,
-    );
+    const rides = rows.filter((row) => row.group === 'Ride');
+    expect(rides.map((row) => row.item)).toHaveLength(Object.keys(RIDE_CATALOG).length);
+    expect(rides.filter((row) => row.assetKeys.length === 0).map((row) => row.item)).toEqual([]);
+    expect(rides.filter((row) => row.missing.length > 0).map((row) => row.item)).toEqual([]);
     expect(rows.filter((row) => row.group === 'Scenery').map((row) => row.item)).toHaveLength(
       SCENERY_CATALOG.length,
     );
