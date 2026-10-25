@@ -8,6 +8,7 @@ import { SCENERY_CATALOG } from '../sim/map/scenery';
 import {
   terrainEdgeFace,
   terrainLightFactor,
+  terrainShorelineSegments,
   terrainTileCorners,
   viewTerrainCornerHeights,
   waterIntersectsTerrainTile,
@@ -196,14 +197,16 @@ ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot})
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
+  if (vMeshMode > 4.5) outColor = vec4(0.37, 0.29, 0.18, 1.0);
   if (vMeshMode > 2.5 && vMeshMode < 3.5) {
     float depth = vWaterDepth;
     float foam = 1.0 - step(${glslFloat(WATER_BANK.foamDepth)}, depth);
     float shallow = 1.0 - smoothstep(${glslFloat(WATER_BANK.foamDepth)}, ${glslFloat(WATER_BANK.shallowDepth)}, depth);
     float deep = smoothstep(${glslFloat(WATER_BANK.shallowDepth)}, ${glslFloat(WATER_BANK.deepDepth)}, depth);
-    outColor.rgb = mix(outColor.rgb, vec3(0.16, 0.42, 0.66), deep * 0.55);
-    outColor.rgb = mix(outColor.rgb, vec3(0.62, 0.86, 0.95), shallow * 0.4);
-    outColor.rgb = mix(outColor.rgb, vec3(0.95, 0.99, 1.0), foam * 0.7);
+    outColor.rgb = mix(outColor.rgb, vec3(0.12, 0.31, 0.42), deep * 0.42);
+    outColor.rgb = mix(outColor.rgb, vec3(0.25, 0.45, 0.52), shallow * 0.18);
+    outColor.rgb = mix(outColor.rgb, vec3(0.63, 0.75, 0.75), foam * 0.2);
+    outColor.a = 0.88;
   }
   if (vMeshMode > 0.5 && vMeshMode < 1.5) outColor.rgb *= vTerrainShade;
   if (vGridlines > 0.5 && vMeshMode > 0.5 && vMeshMode < 1.5) {
@@ -618,6 +621,20 @@ export class WebGL2Renderer implements Renderer {
         }
         const waterLevel = map.waterLevel?.[index] ?? 0;
         if (waterIntersectsTerrainTile(waterLevel, mask, height)) {
+          const waterHeight = waterLevel - WATER_BANK.surfaceInset / 64;
+          for (const [start, end] of terrainShorelineSegments(tileCorners, waterHeight)) {
+            this.append(
+              start.x * TILE_UNITS,
+              start.y * TILE_UNITS,
+              waterHeight * 64,
+              (end.x - start.x) * TILE_UNITS,
+              (end.y - start.y) * TILE_UNITS,
+              terrainCliffSpriteName(terrainSurface, 0),
+              2 * (rx + ry) - waterLevel + 1,
+              5,
+              [waterLevel * 64, waterLevel * 64, waterLevel * 64, waterLevel * 64],
+            );
+          }
           this.append(
             rx * TILE_UNITS,
             ry * TILE_UNITS,

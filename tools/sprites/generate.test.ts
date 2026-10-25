@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSprites } from './generate';
+import { PALETTE } from './palette';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -52,5 +53,27 @@ describe('generated sprite catalogue', () => {
     const water = sprites.get('water/surface')!;
     const used = new Set(water.frames.flatMap((f) => [...f.pixels]));
     expect(used.size).toBeLessThanOrEqual(5);
+  });
+
+  it('keeps the water pattern to a few low-contrast ripple shades', () => {
+    const water = sprites.get('water/surface')!;
+    for (const frame of water.frames) {
+      const used = new Set(frame.pixels);
+      expect(used.size).toBeLessThanOrEqual(3);
+    }
+
+    const colors = [...new Set(sprites.get('water/surface')!.frames[0]!.pixels)].map(
+      (index) => PALETTE[index]!,
+    );
+    for (let first = 0; first < colors.length; first++) {
+      for (let second = first + 1; second < colors.length; second++) {
+        const distance = Math.hypot(
+          colors[first]![0] - colors[second]![0],
+          colors[first]![1] - colors[second]![1],
+          colors[first]![2] - colors[second]![2],
+        );
+        expect(distance).toBeLessThan(45);
+      }
+    }
   });
 });

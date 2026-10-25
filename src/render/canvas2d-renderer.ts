@@ -10,7 +10,13 @@ import { drawAnchoredSprite, drawTileTexture } from './canvas-atlas';
 import { spritePages } from './sprite-pages';
 import type { CanvasAtlas } from './canvas-atlas';
 import { WATER_BANK, pathSpriteName, waterFrameIndex } from './world-art';
+import { terrainSurfaceSpriteName } from './world-art';
 import type { PathSurface } from './world-art';
+import {
+  clipTerrainTileTrianglesBelowHeight,
+  terrainShorelineSegments,
+  terrainTileCorners,
+} from './terrain-geometry';
 
 const SURFACE_COLORS = [
   '#5aa24a',
@@ -179,6 +185,14 @@ export class Canvas2DRenderer implements Renderer {
         const liftBottom = lift + ((mask >> ((top + 2) & 3)) & 1) * Z_PIXELS;
         const liftLeft = lift + ((mask >> ((top + 3) & 3)) & 1) * Z_PIXELS;
         const waterLevel = map.waterLevel?.[i] ?? 0;
+        const terrainSurface =
+          map.surface[i] === 1
+            ? 'sand'
+            : map.surface[i] === 4
+              ? 'dirt'
+              : map.surface[i] === 5
+                ? 'rock'
+                : 'grass';
         ctx.fillStyle =
           waterLevel > map.heights[i] ? LAKE_BED_COLOR : (SURFACE_COLORS[map.surface[i]] ?? '#f0f');
         ctx.beginPath();
@@ -188,34 +202,106 @@ export class Canvas2DRenderer implements Renderer {
         ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
         ctx.closePath();
         ctx.fill();
+        if (mask === 0 && this.atlas) {
+          drawTileTexture(
+            ctx,
+            this.atlas,
+            terrainSurfaceSpriteName(terrainSurface),
+            0,
+            sx,
+            sy - lift,
+            TILE_W,
+            TILE_H,
+          );
+        }
         if (cam.showGridlines) {
           ctx.strokeStyle = 'rgba(28, 34, 26, 0.18)';
           ctx.lineWidth = 0.7;
           ctx.stroke();
         }
-        if (waterLevel > map.heights[i]) {
+        if (waterLevel > 0) {
           const waterLift = waterLevel * Z_PIXELS - WATER_BANK.surfaceInset / (Z_STEP / Z_PIXELS);
-          if (
-            !this.atlas ||
-            !drawTileTexture(
-              ctx,
-              this.atlas,
-              'water/surface',
-              waterFrameIndex(this.tick),
-              sx,
-              sy - waterLift,
-              TILE_W,
-              TILE_H,
-            )
-          ) {
-            ctx.fillStyle = 'rgba(61, 141, 188, 0.72)';
+          const waterHeight = waterLevel - WATER_BANK.surfaceInset / 64;
+          const clipped = clipTerrainTileTrianglesBelowHeight(
+            terrainTileCorners(x, y, map.heights[i]!, mask),
+            waterHeight,
+          );
+          if (clipped.length > 0) {
+            const bankFaces = terrainShorelineSegments(
+              terrainTileCorners(x, y, map.heights[i]!, mask),
+              waterHeight,
+            );
+            for (const [start, end] of bankFaces) {
+              ctx.fillStyle = 'rgba(94, 75, 45, 0.82)';
+              ctx.beginPath();
+              const faceCorners = [
+                [start, waterLevel],
+                [end, waterLevel],
+                [end, waterHeight],
+                [start, waterHeight],
+              ] as const;
+              for (let faceCorner = 0; faceCorner < faceCorners.length; faceCorner++) {
+                const [point, height] = faceCorners[faceCorner]!;
+                project(
+                  point.x * TILE_UNITS,
+                  point.y * TILE_UNITS,
+                  height * Z_STEP,
+                  map.width,
+                  map.height,
+                  cam.rotation,
+                  this.tmp,
+                );
+                if (faceCorner === 0) ctx.moveTo(this.tmp[0]!, this.tmp[1]!);
+                else ctx.lineTo(this.tmp[0]!, this.tmp[1]!);
+              }
+              ctx.closePath();
+              ctx.fill();
+            }
+            ctx.save();
             ctx.beginPath();
-            ctx.moveTo(sx, sy - waterLift);
-            ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - waterLift);
-            ctx.lineTo(sx, sy + TILE_H - waterLift);
-            ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - waterLift);
-            ctx.closePath();
-            ctx.fill();
+            for (const polygon of clipped) {
+              for (let corner = 0; corner < polygon.length; corner++) {
+                const point = polygon[corner]!;
+                project(
+                  point.x * TILE_UNITS,
+                  point.y * TILE_UNITS,
+                  waterHeight * Z_STEP,
+                  map.width,
+                  map.height,
+                  cam.rotation,
+                  this.tmp,
+                );
+                if (corner === 0) ctx.moveTo(this.tmp[0]!, this.tmp[1]!);
+                else ctx.lineTo(this.tmp[0]!, this.tmp[1]!);
+              }
+              ctx.closePath();
+            }
+            ctx.clip();
+            ctx.globalAlpha = 0.88;
+            const drawn = this.atlas
+              ? drawTileTexture(
+                  ctx,
+                  this.atlas,
+                  'water/surface',
+                  waterFrameIndex(this.tick),
+                  sx,
+                  sy - waterLift,
+                  TILE_W,
+                  TILE_H,
+                )
+              : false;
+            if (!drawn) {
+              ctx.fillStyle = 'rgba(53, 111, 146, 0.88)';
+              ctx.beginPath();
+              ctx.moveTo(sx, sy - waterLift);
+              ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - waterLift);
+              ctx.lineTo(sx, sy + TILE_H - waterLift);
+              ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - waterLift);
+              ctx.closePath();
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
           }
         }
         this.drawMapElements(ctx, map, cam, i);

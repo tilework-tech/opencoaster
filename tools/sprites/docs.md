@@ -4,7 +4,7 @@ Path: @/tools/sprites
 
 ### Overview
 
-- Dev-time tool that renders game art from small 3D models, the way the original game's art was made: footpaths today, with flat rides, stalls and coaster track meant to build on the same pipeline. It runs headless in Node (no GPU, browser or image-generation service) and is deterministic: the same code always produces the same pixels.
+- Dev-time tool that renders game art from small 3D models in a clean-room pipeline: footpaths today, with flat rides, stalls and coaster track meant to build on the same pipeline. It runs headless in Node (no GPU, browser or image-generation service) and is deterministic: the same code always produces the same pixels.
 - Output is PNG/JSON pairs in the format [tools/art](../art/README.md) packs. `tools/art/prepare.ts` calls `renderSprites` after clearing `public/sprites/`, then `pack-cli.ts` packs everything into the shared atlas and `manifest.json`.
 - `pnpm sprites:render` writes review contact sheets to `docs/art/contact-sheet-*.png`, one per top-level key group (`paths`, `water`, and any new group).
 
@@ -20,7 +20,7 @@ Path: @/tools/sprites
 - [palette.ts](palette.ts) defines the fixed warm palette: named five-shade ramps (`ramp('asphalt')`, ...) plus an eight-colour water cycle. Sprites hold palette indices only, so every pixel is a palette colour.
 - [mesh.ts](mesh.ts) holds the primitives (`box`, `cylinder`, `beam`, `quad`, `polygon`, `loft`), transforms (`translateMesh`, `rotateZ`, `rotateY`, `rotateMesh` by camera quarter turns) and `clipMesh`.
 - [models/paths.ts](models/paths.ts): tarmac, crazy paving, dirt and queue (with rails). 16 connection masks and 4 ramps per style; kerbs are drawn only on unconnected sides and no end caps are drawn so neighbours join seamlessly; surface patterns are periodic per tile.
-- [models/water.ts](models/water.ts): `water/surface`, a square 32x32 tile-space texture in eight frames that differ only by palette cycle (the renderer maps it onto the terrain mesh). The renderer, not this tool, draws the bank: it lowers the surface by `WATER_BANK.surfaceInset`, clips water where terrain is above it and shades by depth below the surface (foam line, shallows, deep water).
+- [models/water.ts](models/water.ts): `water/surface`, a square 32x32 tile-space texture with broad, low-contrast ripple highlights. Its eight frames differ only by palette cycle to create a gentle shimmer; the renderer maps the texture onto terrain geometry. The renderers, not this tool, lower the water surface by `WATER_BANK.surfaceInset`, clip it to terrain corners, and draw shoreline banks. Canvas2D clips against the same two terrain triangles as WebGL2, preserving separate submerged regions on alternating corner heights. WebGL2 uses a solid earth shade for banks and applies depth shading; Canvas2D composites the clipped texture at partial alpha.
 - Keys: `paths/<style>/connection-XX` (XX = hex connection mask, bit d = world direction d) and `paths/<style>/ramp-N` (rises toward direction N), `water/surface#frame`.
 
 ### How to add a new model
@@ -37,7 +37,10 @@ Path: @/tools/sprites
 
 - Atlas pages: `tools/art/pack.ts` packs each category into its own pages of at most 2048x2048 with MaxRects, so a large ride or coaster family adds pages instead of exhausting one atlas. Category membership comes from the sprite key prefix in [tools/art/categories.ts](../art/categories.ts). Add a family by adding one rule there, for example `{ category: 'flat-rides', prefixes: ['rides/flat/'], lazy: true }`, then name keys under that prefix in `generate.ts`; `perSubdirectory: true` gives each directory under the prefix its own category (one per coaster family, `rides/coaster/<family>/...` becomes `coaster-<family>`). Lazy categories load the first time the renderer draws or is asked about one of their sprites (`spritePages.requestCategory(name)` from a build menu prefetches one); until then the renderer uses its procedural fallback. Keys matching no rule go to the eager `world` category.
 - Trimming: sprites marked `native` (everything this tool renders) have transparent borders trimmed shared across their frames and the anchor shifted to match, so the packed frame is the tight box. Non-native sprites keep their frame size because the renderer stretches them to a fixed quad.
-- The smoke test `smoke/terrain-visual.spec.ts` recognises water by colour (blue well above red and green), so the water ramp must stay saturated blue.
+- The smoke test `smoke/terrain-visual.spec.ts` recognizes water by a blue-green hue above red, allowing the translucent, desaturated surface palette.
 - A rendered sprite with an outline is one pixel larger on each side than the geometry; ground tiles are not outlined.
+- Generated art is reproducible from repository-owned models, palettes, and source sheets. Do not use, commit, or derive assets from original commercial game files; the clean-room constraints are in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+- Water texture pixels are opaque and palette-indexed. The renderers apply translucency, depth shading, and terrain clipping at runtime; the texture generator does not model banks.
+- Sprite families must fit the runtime atlas limit documented by [tools/art](../art/README.md). Adding a model requires registering its key in [generate.ts](generate.ts) and updating coverage in [generate.test.ts](generate.test.ts).
 
 Created and maintained by Nori.
