@@ -13,7 +13,7 @@ Path: @/src/sim/core
 - [Simulation](simulation.ts) is constructed by [src/worker](../../worker/docs.md), accepts commands through `enqueue`, and advances the world through `step`.
 - Commands are applied in arrival order at the start of a tick. Replaying the same seed and tick-command sequence reproduces the same simulation state.
 - Map commands are routed to [map command handlers](../map/map-commands.ts), track commands to [track command handlers](../track/track-commands.ts), ride commands (`placeRideEntrance`, `placeRideExit`, `setRideStatus`) to [ride commands](../rides/ride-commands.ts), and ride creation is validated in the core before calling [ride operations](../rides/ride-operations.ts). Economy and research commands are delegated to their respective modules.
-- The ordered systems advance weather, research, track, rides, the ride queue, vehicles, coasters, guests, staff, litter, park inputs, economy, and scenarios. The order is part of the determinism contract.
+- The ordered systems advance weather, research, track, rides, the ride queue, vehicles, coasters, guests, staff, vandalism, litter, park inputs, economy, and scenarios. Vandalism runs after staff movement and before litter aging/generation; the order is part of the determinism contract.
 - [World](world.ts) owns the state stores, map, weather, scenario and `park` (gate tile). [hashWorld](hash.ts) hashes persistent simulation state, including weather climate and the active scenario objective, for deterministic checks and replay comparisons; saves persist that state separately through [save/load](../../save/docs.md).
 
 ### Core Implementation

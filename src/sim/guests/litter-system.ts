@@ -3,7 +3,7 @@ import type { World } from '../core/world';
 import { LitterKind, dropLitter } from './litter-store';
 
 /** A guest drops trash at roughly one in this many litter checks (every 160 ticks). */
-const TRASH_ONE_IN = 48;
+const TRASH_ONE_IN = 96;
 export const VOMIT_NAUSEA_THRESHOLD = 140;
 export const VOMIT_NAUSEA_REDUCTION = 30;
 

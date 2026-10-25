@@ -16,8 +16,11 @@ export const VANDAL_ANGER_TICKS = 512;
 export const SECURITY_RADIUS = 7;
 export const VANDAL_SUCCESS_ROLL = 3276;
 
-function securityNearby(world: World, tileX: number, tileY: number): boolean {
+function securityGuardNearby(world: World, tileX: number, tileY: number): number {
   const staff = world.staff.cols;
+  let nearest = -1;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  let nearestId = Number.POSITIVE_INFINITY;
   for (let slot = 0; slot < world.staff.count; slot++) {
     if (
       staff.kind[slot] !== StaffKind.Security ||
@@ -26,10 +29,18 @@ function securityNearby(world: World, tileX: number, tileY: number): boolean {
       continue;
     const guardX = (staff.x[slot] / TILE_UNITS) | 0;
     const guardY = (staff.y[slot] / TILE_UNITS) | 0;
-    if (Math.abs(guardX - tileX) <= SECURITY_RADIUS && Math.abs(guardY - tileY) <= SECURITY_RADIUS)
-      return true;
+    const distance = Math.max(Math.abs(guardX - tileX), Math.abs(guardY - tileY));
+    const staffId = world.staff.slotToId[slot];
+    if (
+      distance <= SECURITY_RADIUS &&
+      (distance < nearestDistance || (distance === nearestDistance && staffId < nearestId))
+    ) {
+      nearest = slot;
+      nearestDistance = distance;
+      nearestId = staffId;
+    }
   }
-  return false;
+  return nearest;
 }
 
 /**
@@ -76,7 +87,14 @@ export function createVandalismSystem(): System {
         )
           continue;
         if (world.rng.int(0x10000) > VANDAL_SUCCESS_ROLL) continue;
-        if (securityNearby(world, tileX, tileY)) continue;
+        const guard = securityGuardNearby(world, tileX, tileY);
+        if (guard >= 0) {
+          world.staff.cols.vandalsStopped[guard] = Math.min(
+            0xffff,
+            world.staff.cols.vandalsStopped[guard] + 1,
+          );
+          continue;
+        }
         markPathElementBroken(map, element);
         guests.angriness[slot] = VANDAL_ANGER_TICKS;
       }

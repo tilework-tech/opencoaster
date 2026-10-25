@@ -646,6 +646,7 @@ function downgradeToVersion9(w: World): Uint8Array {
     guestColumns.litterMemory,
     guestColumns.angriness,
     w.staff.cols.sweeps,
+    w.staff.cols.vandalsStopped,
     w.litter.cols.birthOrder,
   ]);
   const head = current.subarray(headerEnd);

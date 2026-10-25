@@ -25,7 +25,7 @@ Path: @/src/sim/weather
 ### Things to Know
 
 - The current four kinds map to sunny, cloudy, rain and thunderstorm temperature deltas. The remaining five original weather kinds, climate weather weights, 128-tick update cadence, and forecast transitions are not modeled.
-- Scenario climate is saved and hashed. Missing climate in a v14 save or scenario defaults to warm; the starter scenario names warm explicitly.
+- Scenario climate is saved and hashed. Missing climate in a pre-v15 save or scenario defaults to warm; the starter scenario names warm explicitly.
 - Transition durations, transition probabilities, and ride-score penalty remain provisional OpenCoaster values. The current model does not implement weather visuals or shelter behavior.
 - An umbrella flag belongs to the guest's stable id in [World](../core/world.ts), not its dense store slot. This keeps ownership attached to a guest when entity slots are swap-removed. The guest system deducts cash for a successful kiosk purchase and posts the price to `ShopSales`; nearby kiosks the guest cannot afford are skipped.
 - This module only advances weather state. Kiosk purchases and ride preference effects are implemented by the guest system; rendering weather visuals and shelter behavior are not part of this module.

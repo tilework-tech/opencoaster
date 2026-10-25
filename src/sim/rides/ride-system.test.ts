@@ -76,7 +76,12 @@ function preRidesSave(w: World): Uint8Array {
     ...legacyGuestArrays(w),
     ...w.staff
       .arrays()
-      .filter((array) => array !== w.staff.cols.orderFlags && array !== w.staff.cols.sweeps),
+      .filter(
+        (array) =>
+          array !== w.staff.cols.orderFlags &&
+          array !== w.staff.cols.sweeps &&
+          array !== w.staff.cols.vandalsStopped,
+      ),
     ...w.vehicles.arrays(),
     ...w.litter.arrays().filter((array) => array !== w.litter.cols.birthOrder),
     slotToId,

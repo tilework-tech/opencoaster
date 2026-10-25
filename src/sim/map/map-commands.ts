@@ -1,9 +1,10 @@
 import type { World } from '../core/world';
 import { LedgerCategory, post } from '../economy/ledger';
 import {
-  landEditCostCents,
   lowerLand,
   paintLand,
+  planLandEdit,
+  planSetTileHeight,
   raiseLand,
   setTileHeight,
   setWaterLevel,
@@ -70,38 +71,6 @@ function applyBuy(m: TileMap, x: number, y: number, w: number, h: number, rights
   m.revision++;
 }
 
-function affectedTerrainTiles(
-  m: TileMap,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  up: boolean,
-  corner?: number,
-): Uint8Array {
-  const affected = new Uint8Array(m.width * m.height);
-  if (width < 1 || height < 1 || !m.inBounds(x, y) || !m.inBounds(x + width - 1, y + height - 1))
-    return affected;
-  if (corner !== undefined) {
-    affected[m.index(x, y)] = 1;
-    return affected;
-  }
-  let extreme = up ? 31 : 0;
-  for (let ty = y; ty < y + height; ty++)
-    for (let tx = x; tx < x + width; tx++) {
-      const index = m.index(tx, ty);
-      const level = m.heights[index] + (!up && m.slope[index] !== 0 ? 1 : 0);
-      extreme = up ? Math.min(extreme, level) : Math.max(extreme, level);
-    }
-  for (let ty = y; ty < y + height; ty++)
-    for (let tx = x; tx < x + width; tx++) {
-      const index = m.index(tx, ty);
-      const level = m.heights[index] + (!up && m.slope[index] !== 0 ? 1 : 0);
-      if (level === extreme) affected[index] = 1;
-    }
-  return affected;
-}
-
 function removeLitterOnTerrainTiles(w: World, affected: Uint8Array): void {
   for (let slot = w.litter.count - 1; slot >= 0; slot--) {
     const x = (w.litter.cols.x[slot] / TILE_UNITS) | 0;
@@ -114,9 +83,18 @@ function removeLitterOnTerrainTiles(w: World, affected: Uint8Array): void {
 export function applyMapCommand(w: World, c: MapCommand): void {
   const m = w.map;
   switch (c.type) {
-    case 'setTileHeight':
-      setTileHeight(m, c.x | 0, c.y | 0, c.height | 0);
+    case 'setTileHeight': {
+      const x = c.x | 0;
+      const y = c.y | 0;
+      const height = c.height | 0;
+      const plan = planSetTileHeight(m, x, y, height);
+      if (!plan.succeeds || !canAfford(w, plan.costCents)) break;
+      if (setTileHeight(m, x, y, height)) {
+        charge(w, LedgerCategory.Landscaping, plan.costCents);
+        removeLitterOnTerrainTiles(w, plan.affectedTiles);
+      }
       break;
+    }
     case 'raiseLand':
     case 'lowerLand': {
       const x = c.x | 0;
@@ -124,13 +102,12 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       const width = c.width | 0;
       const height = c.height | 0;
       const corner = c.corner === undefined ? undefined : c.corner | 0;
-      const cost = landEditCostCents(m, x, y, width, height, c.type === 'raiseLand', corner);
-      if (!canAfford(w, cost)) break;
-      const affected = affectedTerrainTiles(m, x, y, width, height, c.type === 'raiseLand', corner);
+      const plan = planLandEdit(m, x, y, width, height, c.type === 'raiseLand', corner);
+      if (!plan.succeeds || !canAfford(w, plan.costCents)) break;
       const edit = c.type === 'raiseLand' ? raiseLand : lowerLand;
       if (edit(m, x, y, width, height, corner)) {
-        charge(w, LedgerCategory.Landscaping, cost);
-        removeLitterOnTerrainTiles(w, affected);
+        charge(w, LedgerCategory.Landscaping, plan.costCents);
+        removeLitterOnTerrainTiles(w, plan.affectedTiles);
       }
       break;
     }

@@ -12,6 +12,7 @@ import {
 import { serialize, deserialize } from '../../save/save';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { landEditCostCents } from './land';
+import { placePath, removePath } from './paths';
 
 function sim(): Simulation {
   const s = new Simulation({ seed: 9, width: 32, height: 32, maxGuests: 100 });
@@ -62,7 +63,7 @@ describe('map commands', () => {
     expect(afterRaise - s.world.economy.cash).toBe(1_000);
   });
 
-  it('prices lowering from the highest corner of each selected tile', () => {
+  it('prices every height unit changed by propagated lowering', () => {
     const s = sim();
     const m = s.world.map;
     const x = 10;
@@ -76,7 +77,7 @@ describe('map commands', () => {
     m.refreshTile(m.index(x, y));
     m.refreshTile(m.index(x + 1, y));
 
-    expect(landEditCostCents(m, x, y, 2, 1, false)).toBe(2_000);
+    expect(landEditCostCents(m, x, y, 2, 1, false)).toBe(3_000);
   });
 
   it('charges only selected vertices that can move in the requested direction', () => {
@@ -122,6 +123,51 @@ describe('map commands', () => {
     s.step();
 
     expect(s.world.litter.count).toBe(0);
+  });
+
+  it('charges and clears every tile affected by propagated corner changes', () => {
+    const s = sim();
+    const m = s.world.map;
+    expect(placePath(m, { x: 10, y: 9, z: 4 })).toBe(true);
+    expect(dropLitter(s.world, 10, 9, LitterKind.Trash)).toBe(true);
+    expect(removePath(m, { x: 10, y: 9, z: 4 })).toBe(true);
+    expect(placePath(m, { x: 9, y: 9, z: 4 })).toBe(true);
+    expect(dropLitter(s.world, 9, 9, LitterKind.Trash)).toBe(true);
+    expect(removePath(m, { x: 9, y: 9, z: 4 })).toBe(true);
+    m.vertexHeights[m.vertexIndex(11, 10)] = 3;
+    for (let y = 9; y <= 10; y++) for (let x = 9; x <= 11; x++) m.refreshTile(m.index(x, y));
+    const cash = s.world.economy.cash;
+
+    s.enqueue({ type: 'raiseLand', x: 10, y: 10, width: 1, height: 1, corner: 0 });
+    s.step();
+
+    expect(m.vertexHeights[m.vertexIndex(11, 10)]).toBe(4);
+    expect(cash - s.world.economy.cash).toBe(1_000);
+    expect(s.world.litter.count).toBe(0);
+  });
+
+  it('rejects absolute terrain edits outside owned land and beyond available cash', () => {
+    const unowned = sim();
+    unowned.world.map.ownership[unowned.world.map.index(10, 10)] = 0;
+    const unownedCash = unowned.world.economy.cash;
+    unowned.enqueue({ type: 'setTileHeight', x: 10, y: 10, height: 5 });
+    unowned.step();
+    expect(unowned.world.map.heights[unowned.world.map.index(10, 10)]).toBe(4);
+    expect(unowned.world.economy.cash).toBe(unownedCash);
+
+    const unaffordable = sim();
+    unaffordable.world.economy.cash = 0;
+    unaffordable.enqueue({ type: 'setTileHeight', x: 10, y: 10, height: 5 });
+    unaffordable.step();
+    expect(unaffordable.world.map.heights[unaffordable.world.map.index(10, 10)]).toBe(4);
+    expect(unaffordable.world.economy.cash).toBe(0);
+
+    const affordable = sim();
+    const affordableCash = affordable.world.economy.cash;
+    affordable.enqueue({ type: 'setTileHeight', x: 10, y: 10, height: 5 });
+    affordable.step();
+    expect(affordable.world.map.heights[affordable.world.map.index(10, 10)]).toBe(5);
+    expect(affordableCash - affordable.world.economy.cash).toBe(2_000);
   });
 
   it('buys land and construction rights atomically against available cash', () => {

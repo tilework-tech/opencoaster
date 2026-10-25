@@ -223,7 +223,59 @@ function shiftLand(
   return commit(m, s);
 }
 
-/** Computes the named terrain charge from unique corners of the currently lowest/highest tiles. */
+export interface LandEditPlan {
+  succeeds: boolean;
+  costCents: number;
+  affectedTiles: Uint8Array;
+}
+
+function planEdit(m: TileMap, edit: () => boolean): LandEditPlan {
+  const before = m.vertexHeights.slice();
+  const revision = m.revision;
+  const succeeds = edit();
+  const affectedTiles = new Uint8Array(m.width * m.height);
+  let heightUnits = 0;
+  if (succeeds) {
+    const width = m.width + 1;
+    for (let vertex = 0; vertex < before.length; vertex++) {
+      if (before[vertex] === m.vertexHeights[vertex]) continue;
+      heightUnits += Math.abs(before[vertex] - m.vertexHeights[vertex]);
+      const vx = vertex % width;
+      const vy = (vertex / width) | 0;
+      for (let ty = vy - 1; ty <= vy; ty++) {
+        for (let tx = vx - 1; tx <= vx; tx++) {
+          if (m.inBounds(tx, ty)) affectedTiles[m.index(tx, ty)] = 1;
+        }
+      }
+    }
+  }
+  m.vertexHeights.set(before);
+  for (let tile = 0; tile < affectedTiles.length; tile++)
+    if (affectedTiles[tile]) m.refreshTile(tile);
+  m.revision = revision;
+  return {
+    succeeds,
+    costCents: heightUnits * LAND_HEIGHT_STEP_COST_CENTS,
+    affectedTiles,
+  };
+}
+
+/** Plans exact changed vertices and affected tiles for a raise or lower command. */
+export function planLandEdit(
+  m: TileMap,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  up: boolean,
+  corner?: number,
+): LandEditPlan {
+  if (!rectOwned(m, x, y, w, h))
+    return { succeeds: false, costCents: 0, affectedTiles: new Uint8Array(m.width * m.height) };
+  return planEdit(m, () => shiftLand(m, x, y, w, h, corner, up));
+}
+
+/** Returns the exact named cost for a terrain edit without leaving the map changed. */
 export function landEditCostCents(
   m: TileMap,
   x: number,
@@ -233,34 +285,7 @@ export function landEditCostCents(
   up: boolean,
   corner?: number,
 ): number {
-  if (!rectOwned(m, x, y, w, h)) return 0;
-  const canMove = (vertex: number): boolean =>
-    up ? m.vertexHeights[vertex] < MAX_HEIGHT : m.vertexHeights[vertex] > 0;
-  if (corner !== undefined) {
-    if (w !== 1 || h !== 1 || corner < 0 || corner >= 4) return 0;
-    const vx = x + CORNER_DX[corner];
-    const vy = y + CORNER_DY[corner];
-    return canMove(m.vertexIndex(vx, vy)) ? LAND_HEIGHT_STEP_COST_CENTS : 0;
-  }
-  let extreme = up ? MAX_HEIGHT : 0;
-  for (let ty = y; ty < y + h; ty++)
-    for (let tx = x; tx < x + w; tx++) {
-      const index = m.index(tx, ty);
-      const height = tileExtremeHeight(m, index, up);
-      extreme = up ? Math.min(extreme, height) : Math.max(extreme, height);
-    }
-  const selected = new Set<number>();
-  for (let ty = y; ty < y + h; ty++) {
-    for (let tx = x; tx < x + w; tx++) {
-      const index = m.index(tx, ty);
-      if (tileExtremeHeight(m, index, up) !== extreme) continue;
-      for (let c = 0; c < 4; c++) {
-        const vertex = m.vertexIndex(tx + CORNER_DX[c], ty + CORNER_DY[c]);
-        if (canMove(vertex)) selected.add(vertex);
-      }
-    }
-  }
-  return selected.size * LAND_HEIGHT_STEP_COST_CENTS;
+  return planLandEdit(m, x, y, w, h, up, corner).costCents;
 }
 
 /** Raises a rectangle of owned tiles one level (or one corner of a single tile). */
@@ -300,6 +325,13 @@ export function setTileHeight(m: TileMap, x: number, y: number, level: number): 
     }
   }
   return commit(m, s);
+}
+
+/** Plans an absolute height edit, requiring ownership and pricing each changed height unit. */
+export function planSetTileHeight(m: TileMap, x: number, y: number, level: number): LandEditPlan {
+  if (!rectOwned(m, x, y, 1, 1))
+    return { succeeds: false, costCents: 0, affectedTiles: new Uint8Array(m.width * m.height) };
+  return planEdit(m, () => setTileHeight(m, x, y, level));
 }
 
 /** Sets the water level over owned tiles; refuses to submerge a path. */

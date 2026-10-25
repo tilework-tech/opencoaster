@@ -119,6 +119,7 @@ describe('vandalism', () => {
 
     expect(w.map.elFlags[benchElement(w)] & PathFlag.Bench).toBe(PathFlag.Bench);
     expect(isPathElementBroken(w.map, benchElement(w))).toBe(false);
+    expect(w.staff.cols.vandalsStopped[0]).toBeGreaterThan(0);
   });
 
   it('does not treat a guard with vandalism duty disabled as a deterrent', () => {

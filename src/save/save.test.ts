@@ -12,18 +12,23 @@ import type { World } from '../sim/core/world';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
 import { StaffKind, StaffOrder, staffOrderEnabled, spawnStaff } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
-import { WeatherKind } from '../sim/weather/weather';
+import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
 
 describe('save', () => {
-  it('writes version 15 with guest, worker-order, and ride-history state', () => {
-    expect(SAVE_VERSION).toBe(15);
-    const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
+  it('writes version 16 with climate metadata', () => {
+    expect(SAVE_VERSION).toBe(16);
+    const sim = new Simulation({ seed: 1, width: 8, height: 8 });
+    sim.world.weather.climate = Climate.Cold;
+    expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
+    sim.world.staff.cols.vandalsStopped[0] = 27;
+    const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(15);
-    expect(header.weather.climate).toBe(
-      new Simulation({ seed: 1, width: 8, height: 8 }).world.weather.climate,
-    );
+    expect(header.version).toBe(16);
+    expect(header.weather.climate).toBe(Climate.Cold);
+    const restored = deserialize(bytes);
+    expect(restored.weather.climate).toBe(Climate.Cold);
+    expect(restored.staff.cols.vandalsStopped[0]).toBe(27);
   });
 
   it('migrates version 14 world state while preserving its ride-history windows', () => {
@@ -35,23 +40,23 @@ describe('save', () => {
     sim.world.guests.cols.litterMemory[guest] = 9;
     sim.world.guests.cols.angriness[guest] = 12;
     sim.world.staff.cols.sweeps[0] = 23;
+    sim.world.staff.cols.vandalsStopped[0] = 5;
+    sim.world.weather.climate = Climate.Cold;
     sim.world.litter.spawn();
+    sim.world.litter.spawn();
+    sim.world.litter.cols.age[0] = 20;
+    sim.world.litter.cols.age[1] = 10;
     sim.world.litter.cols.birthOrder[0] = 31;
+    sim.world.litter.cols.birthOrder[1] = 32;
     sim.world.guests.cols.rideHistory0[guest] = 41;
-    const views = [
-      ...sim.world.map.arrays(),
-      ...sim.world.guests.arrays(),
-      ...sim.world.staff.arrays(),
-      ...sim.world.vehicles.arrays(),
-      ...sim.world.litter.arrays(),
-      ...sim.world.rides.arrays(),
-      ...sim.world.track.pieces.arrays(),
-      ...sim.world.track.rideTables(),
-    ];
+    const ride = sim.world.rides.spawn();
+    (sim.world.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[ride] = 42;
+    const views = allWorldViews(sim.world);
     const legacy = withoutColumns(serialize(sim.world), 14, views, [
       sim.world.guests.cols.litterMemory,
       sim.world.guests.cols.angriness,
       sim.world.staff.cols.sweeps,
+      sim.world.staff.cols.vandalsStopped,
       sim.world.litter.cols.birthOrder,
     ]);
 
@@ -60,9 +65,26 @@ describe('save', () => {
     expect(loaded.guests.cols.litterMemory[guest]).toBe(0);
     expect(loaded.guests.cols.angriness[guest]).toBe(0);
     expect(loaded.staff.cols.sweeps[0]).toBe(0);
-    expect(loaded.litter.cols.birthOrder[0]).toBeGreaterThan(0);
+    expect(loaded.staff.cols.vandalsStopped[0]).toBe(0);
+    expect(loaded.litter.cols.birthOrder[0]).toBeLessThan(loaded.litter.cols.birthOrder[1]);
     expect(loaded.guests.cols.rideHistory0[guest]).toBe(41);
-    expect(loaded.weather.climate).toBe(sim.world.weather.climate);
+    expect((loaded.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[ride]).toBe(
+      42,
+    );
+    expect(loaded.weather.climate).toBe(DEFAULT_CLIMATE);
+  });
+
+  it('migrates version 15 staff statistics while preserving existing worker data', () => {
+    const sim = new Simulation({ seed: 18, width: 8, height: 8 });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Security });
+    sim.step();
+    sim.world.staff.cols.sweeps[0] = 23;
+    const legacy = withoutColumns(serialize(sim.world), 15, allWorldViews(sim.world), []);
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.staff.cols.sweeps[0]).toBe(23);
+    expect(loaded.staff.cols.vandalsStopped[0]).toBe(0);
   });
 
   it('round-trips individual worker task orders', () => {
@@ -467,6 +489,19 @@ function v12Columns(world: World): ArrayBufferView[] {
   ];
 }
 
+function allWorldViews(world: World): ArrayBufferView[] {
+  return [
+    ...world.map.arrays(),
+    ...world.guests.arrays(),
+    ...world.staff.arrays(),
+    ...world.vehicles.arrays(),
+    ...world.litter.arrays(),
+    ...world.rides.arrays(),
+    ...world.track.pieces.arrays(),
+    ...world.track.rideTables(),
+  ];
+}
+
 /**
  * Rewrites a current save as `version` would have written it: the header carries that version and
  * the listed columns, which that version did not have, are removed from the body.
@@ -482,6 +517,7 @@ function withoutColumns(
   const headerEnd = 8 + headerLength;
   const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
   header.version = version;
+  if (version < 15) delete header.weather.climate;
   const encoded = new TextEncoder().encode(JSON.stringify(header));
   const body = current.subarray(headerEnd);
   const newWorld = new Simulation({
@@ -500,15 +536,17 @@ function withoutColumns(
     ...newWorld.track.pieces.arrays(),
     ...newWorld.track.rideTables(),
   ];
-  const additions =
-    version < 15
+  const additions = [
+    ...(version < 15
       ? [
           newWorld.guests.cols.litterMemory,
           newWorld.guests.cols.angriness,
           newWorld.staff.cols.sweeps,
           newWorld.litter.cols.birthOrder,
         ]
-      : [];
+      : []),
+    ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
+  ];
   const absentSet = new Set([
     ...absent,
     ...additions.map((column) => views[currentViews.indexOf(column)]),

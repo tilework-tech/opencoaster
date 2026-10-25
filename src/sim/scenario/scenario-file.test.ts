@@ -65,7 +65,14 @@ describe('parseScenarioFile', () => {
   });
 
   it('parses the four supported climates and rejects an unknown climate', () => {
-    expect(parseScenarioFile({ ...valid, climate: 'coolAndWet' }).climate).toBe(Climate.CoolAndWet);
+    for (const [name, climate] of [
+      ['cold', Climate.Cold],
+      ['coolAndWet', Climate.CoolAndWet],
+      ['hotAndDry', Climate.HotAndDry],
+      ['warm', Climate.Warm],
+    ] as const) {
+      expect(parseScenarioFile({ ...valid, climate: name }).climate).toBe(climate);
+    }
     expect(() => parseScenarioFile({ ...valid, climate: 'tropical' })).toThrow(/climate/);
   });
 

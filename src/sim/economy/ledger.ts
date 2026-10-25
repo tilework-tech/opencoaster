@@ -48,8 +48,8 @@ export interface ParkNewsItem {
 
 /** Values reported by other systems (rides, staff, guests) that the economy reads each refresh. */
 export interface EconomyInputs {
-  /** Staff wages due each month, cents. */
-  wageBillPerMonth: number;
+  /** Staff wages owed per week, cents. */
+  wageBillPerWeek: number;
   /** Ride running costs charged per fortnight, cents. */
   rideUpkeepPerFortnight: number;
   /** Sum of ride values, cents (park value input). */
@@ -112,7 +112,7 @@ export function createLedger(): Ledger {
     priceMode: PriceMode.Free,
     admissionPrice: 0,
     inputs: {
-      wageBillPerMonth: 0,
+      wageBillPerWeek: 0,
       rideUpkeepPerFortnight: 0,
       rideValue: 0,
       qualifyingRideCount: 0,

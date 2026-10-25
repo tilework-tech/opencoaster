@@ -19,8 +19,9 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 15;
-const PREVIOUS_SAVE_VERSION = 14;
+export const SAVE_VERSION = 16;
+const PREVIOUS_SAVE_VERSION = 15;
+const PRE_V15_SAVE_VERSION = 14;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
 const PRE_RIDE_HISTORY_SAVE_VERSION = 12;
 const STAFF_ORDER_SAVE_VERSION = 13;
@@ -84,11 +85,16 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
   | 'angriness'
 >;
 const PRE_ORDER_STAFF_SCHEMA = Object.fromEntries(
-  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'orderFlags' && name !== 'sweeps'),
-) as Omit<typeof STAFF_SCHEMA, 'orderFlags' | 'sweeps'>;
+  Object.entries(STAFF_SCHEMA).filter(
+    ([name]) => name !== 'orderFlags' && name !== 'sweeps' && name !== 'vandalsStopped',
+  ),
+) as Omit<typeof STAFF_SCHEMA, 'orderFlags' | 'sweeps' | 'vandalsStopped'>;
 const PRE_SWEEP_STAFF_SCHEMA = Object.fromEntries(
-  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'sweeps'),
-) as Omit<typeof STAFF_SCHEMA, 'sweeps'>;
+  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'sweeps' && name !== 'vandalsStopped'),
+) as Omit<typeof STAFF_SCHEMA, 'sweeps' | 'vandalsStopped'>;
+const PRE_VANDAL_STOP_STAFF_SCHEMA = Object.fromEntries(
+  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'vandalsStopped'),
+) as Omit<typeof STAFF_SCHEMA, 'vandalsStopped'>;
 const LEGACY_LITTER_SCHEMA = Object.fromEntries(
   Object.entries(LITTER_SCHEMA).filter(([name]) => name !== 'birthOrder'),
 ) as Omit<typeof LITTER_SCHEMA, 'birthOrder'>;
@@ -252,6 +258,7 @@ function migratePreOrderStaff(
   for (let slot = 0; slot < legacy.count; slot++)
     world.staff.cols.orderFlags[slot] = defaultStaffOrderFlags(world.staff.cols.kind[slot]);
   world.staff.cols.sweeps.fill(0);
+  world.staff.cols.vandalsStopped.fill(0);
 }
 
 function migrateVersion13Staff(
@@ -265,6 +272,20 @@ function migrateVersion13Staff(
     world.staff.cols[key].set(legacy.cols[key]);
   }
   world.staff.cols.sweeps.fill(0);
+  world.staff.cols.vandalsStopped.fill(0);
+}
+
+function migrateVersion15Staff(
+  world: World,
+  legacy: EntityStore<typeof PRE_VANDAL_STOP_STAFF_SCHEMA>,
+): void {
+  copyStoreIndexArrays(world.staff, legacy as EntityStore<Schema>);
+  for (const key of Object.keys(
+    PRE_VANDAL_STOP_STAFF_SCHEMA,
+  ) as (keyof typeof PRE_VANDAL_STOP_STAFF_SCHEMA)[]) {
+    world.staff.cols[key].set(legacy.cols[key]);
+  }
+  world.staff.cols.vandalsStopped.fill(0);
 }
 
 function migrateLegacyLitter(world: World, legacy: EntityStore<typeof LEGACY_LITTER_SCHEMA>): void {
@@ -390,6 +411,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_RIDE_HISTORY_SAVE_VERSION,
     STAFF_ORDER_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
+    PRE_V15_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -424,6 +446,10 @@ export function deserialize(bytes: Uint8Array): World {
     header.version >= STAFF_ORDER_SAVE_VERSION && header.version < STAFF_SWEEP_SAVE_VERSION
       ? new EntityStore(PRE_SWEEP_STAFF_SCHEMA, world.staff.capacity)
       : null;
+  const version15Staff =
+    header.version === PREVIOUS_SAVE_VERSION
+      ? new EntityStore(PRE_VANDAL_STOP_STAFF_SCHEMA, world.staff.capacity)
+      : null;
   const legacyLitter =
     header.version < LITTER_ORDER_SAVE_VERSION
       ? new EntityStore(LEGACY_LITTER_SCHEMA, world.litter.capacity)
@@ -450,7 +476,9 @@ export function deserialize(bytes: Uint8Array): World {
       ? legacyStaff.arrays()
       : version13Staff
         ? version13Staff.arrays()
-        : allViews.slice(staffViewStart, staffViewEnd)),
+        : version15Staff
+          ? version15Staff.arrays()
+          : allViews.slice(staffViewStart, staffViewEnd)),
     ...allViews.slice(staffViewEnd, vehicleViewEnd),
     ...(legacyLitter ? legacyLitter.arrays() : allViews.slice(vehicleViewEnd, litterViewEnd)),
     ...allViews.slice(litterViewEnd, rideViewStart),
@@ -476,6 +504,10 @@ export function deserialize(bytes: Uint8Array): World {
   if (version13Staff) {
     version13Staff.restore(header.stores.staff.count, header.stores.staff.freeTop);
     migrateVersion13Staff(world, version13Staff);
+  }
+  if (version15Staff) {
+    version15Staff.restore(header.stores.staff.count, header.stores.staff.freeTop);
+    migrateVersion15Staff(world, version15Staff);
   }
   if (legacyLitter) {
     legacyLitter.restore(header.stores.litter.count, header.stores.litter.freeTop);

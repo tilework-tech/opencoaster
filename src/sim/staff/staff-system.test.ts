@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
-import { TICKS_PER_MONTH } from '../economy/calendar';
-import { completedMonthTotal } from '../economy/ledger';
-import { LedgerCategory } from '../economy/ledger';
+import { TICKS_PER_WEEK } from '../economy/calendar';
 import { placePath, setPathAddition, PathAddition } from '../map/paths';
 import { RidePhase, RideState } from '../rides/ride-store';
 import { createRide } from '../rides/ride-operations';
@@ -24,19 +22,6 @@ function workStaffUntil(world: Simulation['world'], done: () => boolean): void {
 }
 
 describe('staff commands and work', () => {
-  it('uses the manual monthly salary and charges it at the month boundary', () => {
-    const sim = new Simulation({ seed: 17, width: 16, height: 16 });
-    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
-    sim.step();
-    expect(sim.world.economy.inputs.wageBillPerMonth).toBe(5_000);
-
-    const beforePayday = sim.world.economy.cash;
-    sim.world.tick = TICKS_PER_MONTH;
-    sim.step();
-
-    expect(sim.world.economy.cash).toBe(beforePayday - 5_000);
-  });
-
   it('does not dispatch a handyman to litter outside the three-tile sweep radius', () => {
     const sim = new Simulation({ seed: 18, width: 16, height: 16 });
     const world = sim.world;
@@ -130,25 +115,23 @@ describe('staff commands and work', () => {
     expect(hashWorld(first.world)).toBe(hashWorld(second.world));
   });
 
-  it('hires and fires staff while updating the monthly wage bill', () => {
+  it('hires and fires staff while updating weekly payroll', () => {
     const sim = new Simulation({ seed: 8, width: 16, height: 16 });
     sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
     sim.step();
 
     expect(sim.world.staff.count).toBe(1);
-    expect(sim.world.economy.inputs.wageBillPerMonth).toBeGreaterThan(0);
+    expect(sim.world.economy.inputs.wageBillPerWeek).toBeGreaterThan(0);
 
     const beforePayday = sim.world.economy.cash;
     sim.world.economy.loan = 0;
-    sim.world.tick = TICKS_PER_MONTH;
+    sim.world.tick = TICKS_PER_WEEK;
     sim.step();
     expect(sim.world.economy.cash).toBeLessThan(beforePayday);
-    expect(completedMonthTotal(sim.world.economy, LedgerCategory.Wages)).toBe(-5_000);
-
     sim.enqueue({ type: 'fireStaff', staffId: sim.world.staff.slotToId[0] });
     sim.step();
     expect(sim.world.staff.count).toBe(0);
-    expect(sim.world.economy.inputs.wageBillPerMonth).toBe(0);
+    expect(sim.world.economy.inputs.wageBillPerWeek).toBe(0);
   });
 
   it('uses a patrol area to keep a handyman on its connected paths', () => {
