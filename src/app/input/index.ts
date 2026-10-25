@@ -66,6 +66,7 @@ export interface CameraInputDependencies {
   pathDrag: PathDragHandlers;
   land: LandController;
   setPlacementHover: (hover: PlacementHover | null) => void;
+  setBuildHover: (tile: [number, number] | null, clientX: number, clientY: number) => void;
   /** Receives the canvas size in CSS pixels whenever it changes. */
   viewport: { width: number; height: number };
   /** Backing-buffer scale applied on top of the capped device pixel ratio. */
@@ -269,25 +270,27 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   canvas.addEventListener('pointermove', (event) => {
     if (deps.selectedTool() === 'path' && event.pointerType === 'mouse' && event.buttons === 0)
       deps.pathDrag.hover(event.clientX, event.clientY);
-    if (deps.selectedTool() === 'land' && event.pointerType === 'mouse' && event.buttons === 0)
-      deps.land.hover(event.clientX, event.clientY);
-    if (
-      (deps.selectedTool() === 'track' ||
-        deps.selectedTool() === 'ride' ||
-        deps.selectedTool() === 'scenery') &&
-      sim.map
-    ) {
+    const map = sim.map;
+    let tile: [number, number] | null = null;
+    if (map) {
       const rect = canvas.getBoundingClientRect();
-      const tile = pickTile(event.clientX - rect.left, event.clientY - rect.top, sim.map, camera, {
+      tile = pickTile(event.clientX - rect.left, event.clientY - rect.top, map, camera, {
         width: rect.width,
         height: rect.height,
       });
-      if (deps.selectedTool() === 'track') coasterPanel.setHover(tile);
-      else
-        deps.setPlacementHover(
-          tile ? { tile, clientX: event.clientX, clientY: event.clientY } : null,
-        );
     }
+    if (deps.selectedTool() === 'land' && event.pointerType === 'mouse' && event.buttons === 0)
+      deps.land.hover(event.clientX, event.clientY);
+    if (deps.selectedTool() === 'track') coasterPanel.setHover(tile);
+    if (
+      deps.selectedTool() === 'track' ||
+      deps.selectedTool() === 'ride' ||
+      deps.selectedTool() === 'scenery'
+    )
+      deps.setPlacementHover(
+        tile ? { tile, clientX: event.clientX, clientY: event.clientY } : null,
+      );
+    deps.setBuildHover(tile, event.clientX, event.clientY);
     pointerInput.pointerMove(pointerSample(event));
   });
   canvas.addEventListener('pointerup', (event) => {
@@ -297,6 +300,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   canvas.addEventListener('pointerleave', (event) => {
     deps.pathDrag.hoverEnd();
     deps.setPlacementHover(null);
+    deps.setBuildHover(null, 0, 0);
     if (deps.selectedTool() === 'land' && event.buttons === 0) deps.land.leave();
   });
   canvas.addEventListener('contextmenu', (event) => {

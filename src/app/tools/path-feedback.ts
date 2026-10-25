@@ -21,6 +21,11 @@ export function pathRefusalText(code: PathResult): string {
   );
 }
 
+/** An ownership warning replaces the less specific footpath warning over the same state. */
+export function pathTipShouldShow(active: boolean, ownershipWarning: boolean): boolean {
+  return active && !ownershipWarning;
+}
+
 /** How long a refused placement stays marked on the map and in its tooltip. */
 const REJECTION_MS = 2500;
 
@@ -56,6 +61,7 @@ export class PathFeedback {
   private expiresAt = 0;
   private pointerX = 0;
   private pointerY = 0;
+  private ownershipWarning = false;
 
   constructor(parent: HTMLElement) {
     this.tip = document.createElement('div');
@@ -71,6 +77,11 @@ export class PathFeedback {
     this.pointerY = clientY;
   }
 
+  setOwnershipWarning(active: boolean): void {
+    this.ownershipWarning = active;
+    this.tip.hidden = !pathTipShouldShow(this.active !== null, this.ownershipWarning);
+  }
+
   /** Reads the latest snapshot and returns the tile to mark red, or null when none is active. */
   update(feedback: CommandFeedback, mapWidth: number, now: number): PathRejection | null {
     if (feedback.seq !== this.seq) {
@@ -82,7 +93,7 @@ export class PathFeedback {
         this.tip.textContent = rejection.text;
         this.tip.style.left = `${this.pointerX + 14}px`;
         this.tip.style.top = `${this.pointerY + 14}px`;
-        this.tip.hidden = false;
+        this.tip.hidden = !pathTipShouldShow(true, this.ownershipWarning);
       }
     }
     if (this.active && now >= this.expiresAt) this.clear();

@@ -142,6 +142,16 @@ test('plays the starter park shell and exercises save file round trips', async (
   await screenshot('08-finances');
 
   await toolbarButton('Park').click();
+  const financeBounds = await page.locator('[data-panel="finance"]').boundingBox();
+  const parkBounds = await page.locator('[data-panel="park"]').boundingBox();
+  expect(financeBounds).not.toBeNull();
+  expect(parkBounds).not.toBeNull();
+  expect(
+    parkBounds!.x + parkBounds!.width <= financeBounds!.x ||
+      financeBounds!.x + financeBounds!.width <= parkBounds!.x ||
+      parkBounds!.y + parkBounds!.height <= financeBounds!.y ||
+      financeBounds!.y + financeBounds!.height <= parkBounds!.y,
+  ).toBe(true);
   await page.getByRole('tab', { name: 'Admission' }).click();
   await page.getByRole('button', { name: 'Pay to enter' }).click();
   const admission = page.getByRole('textbox', { name: 'Park admission' });
@@ -152,7 +162,7 @@ test('plays the starter park shell and exercises save file round trips', async (
   await screenshot('08b-admission');
 
   const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
-  while (await closeButtons.count()) await closeButtons.first().click();
+  while (await closeButtons.count()) await closeButtons.last().click();
   await toolbarButton('Game options').click();
   await page.getByRole('button', { name: 'Save, load and quit…' }).click();
   const menu = page.locator('[aria-label="Game menu"]');

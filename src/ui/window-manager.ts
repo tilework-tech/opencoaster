@@ -1,6 +1,13 @@
 import { element, iconButton } from './dom';
 import type { IconName } from './icons';
-import { MOBILE_QUERY, TOP_INSET, cascadePosition, clampPosition } from './window-layout';
+import {
+  BOTTOM_INSET,
+  MOBILE_QUERY,
+  TOP_INSET,
+  cascadePosition,
+  clampPosition,
+  positionAwayFromPoint,
+} from './window-layout';
 
 /** Selects the title-bar and body colour scheme. */
 export type WindowKind =
@@ -160,12 +167,20 @@ export class WindowManager {
   private readonly media = window.matchMedia(MOBILE_QUERY);
   private z = 10;
   private opened = 0;
+  private readonly positions = new Map<string, { x: number; y: number }>();
+  private pointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
   constructor(parent: HTMLElement) {
     this.layer = element('div', 'ui-windows');
     parent.append(this.layer);
     this.media.addEventListener('change', () => this.relayout());
     window.addEventListener('resize', () => this.relayout());
+    window.addEventListener('pointermove', (event) => {
+      this.pointer = { x: event.clientX, y: event.clientY };
+    });
+    window.addEventListener('pointerdown', (event) => {
+      this.pointer = { x: event.clientX, y: event.clientY };
+    });
   }
 
   get mobile(): boolean {
@@ -188,19 +203,76 @@ export class WindowManager {
       return { window: existing, created: false };
     }
     const win = new UiWindow(spec, this);
-    const at = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
-    win.root.style.setProperty('--x', `${at.x}px`);
-    win.root.style.setProperty('--y', `${at.y}px`);
-    win.root.addEventListener('pointerdown', () => this.focus(win, true), true);
     this.windows.set(spec.id, win);
     this.layer.append(win.root);
+    const fallback = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
+    const remembered = this.positions.get(spec.id);
+    const openingPointer = this.pointer;
+    const place = (): void => {
+      if (!win.root.isConnected || this.mobile) return;
+      const bounds = win.root.getBoundingClientRect();
+      const size = { width: bounds.width || spec.width || 340, height: bounds.height || 260 };
+      const placementSize = remembered
+        ? size
+        : {
+            width: size.width,
+            height: Math.max(size.height, window.innerHeight - TOP_INSET - BOTTOM_INSET - 4),
+          };
+      const occupied = [...this.windows.values()]
+        .filter((other) => other !== win)
+        .map((other) => {
+          const rect = other.root.getBoundingClientRect();
+          return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+        });
+      for (const element of this.layer.parentElement?.querySelectorAll<HTMLElement>(
+        '.objective-strip, .hud, .tool-status',
+      ) ?? []) {
+        const rect = element.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0)
+          occupied.push({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+      }
+      const rememberedAt = remembered
+        ? clampPosition(remembered.x, remembered.y, size, window.innerWidth, window.innerHeight)
+        : undefined;
+      const rememberedIsOccupied =
+        rememberedAt !== undefined &&
+        occupied.some(
+          (rect) =>
+            rememberedAt.x < rect.x + rect.width &&
+            rememberedAt.x + size.width > rect.x &&
+            rememberedAt.y < rect.y + rect.height &&
+            rememberedAt.y + size.height > rect.y,
+        );
+      const at =
+        rememberedAt && !rememberedIsOccupied
+          ? rememberedAt
+          : positionAwayFromPoint(
+              fallback,
+              remembered ? size : placementSize,
+              openingPointer,
+              window.innerWidth,
+              window.innerHeight,
+              occupied,
+            );
+      win.root.style.setProperty('--x', `${at.x}px`);
+      win.root.style.setProperty('--y', `${at.y}px`);
+    };
+    place();
+    win.root.addEventListener('pointerdown', () => this.focus(win, true), true);
     this.focus(win);
+    requestAnimationFrame(() => requestAnimationFrame(place));
     return { window: win, created: true };
   }
 
   close(id: string): void {
     const win = this.windows.get(id);
     if (!win) return;
+    if (!this.mobile) {
+      this.positions.set(id, {
+        x: Number.parseFloat(win.root.style.getPropertyValue('--x')),
+        y: Number.parseFloat(win.root.style.getPropertyValue('--y')),
+      });
+    }
     this.windows.delete(id);
     win.root.remove();
     win.spec.onClose?.();
@@ -229,7 +301,7 @@ export class WindowManager {
     const wasCollapsed = preserveCollapsed && win.root.classList.contains('collapsed');
     win.root.style.zIndex = String(win.pinned ? 1000 + ++this.z : ++this.z);
     for (const other of this.windows.values()) other.root.classList.toggle('front', other === win);
-    this.relayout();
+    if (this.mobile) this.relayout();
     if (wasCollapsed && !win.pinned) win.root.classList.add('collapsed');
   }
 

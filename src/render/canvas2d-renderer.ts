@@ -34,8 +34,10 @@ import {
   rideHutSpriteKey,
   waterFrameIndex,
   ambientTreeName,
+  terrainCliffSpriteName,
+  terrainSurfaceSpriteName,
 } from './world-art';
-import { terrainCliffSpriteName, terrainSurfaceSpriteName } from './world-art';
+import { OwnershipOverlay } from './ownership-overlay';
 import type { TerrainSurface } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import { peopleSpriteKey, walkingFrame } from './people-art';
@@ -87,6 +89,7 @@ const FLOWER_COLORS = ['#f4c542', '#e85b86', '#f2eeee'];
 
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
 export class Canvas2DRenderer implements Renderer {
+  private ownershipOverlay: OwnershipOverlay | null = null;
   readonly backend = 'Canvas2D';
   private ctx: CanvasRenderingContext2D | null = null;
   private map: MapData | null = null;
@@ -122,6 +125,7 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('2D canvas unavailable');
     this.ctx = ctx;
+    if (canvas.parentElement) this.ownershipOverlay = new OwnershipOverlay(canvas.parentElement);
     this.atlas = spritePages;
     spritePages.start();
   }
@@ -135,6 +139,7 @@ export class Canvas2DRenderer implements Renderer {
       c.width = this.cw;
       c.height = this.ch;
     }
+    this.ownershipOverlay?.resize(width, height, dpr);
   }
 
   setMap(map: MapData): void {
@@ -233,6 +238,7 @@ export class Canvas2DRenderer implements Renderer {
     this.drawOrder.sort((a, b) => a.depth - b.depth || a.order - b.order);
     for (const item of this.drawOrder) item.draw();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ownershipOverlay?.draw(map, cam);
   }
 
   private enqueue(
@@ -1357,6 +1363,8 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   dispose(): void {
+    this.ownershipOverlay?.dispose();
+    this.ownershipOverlay = null;
     this.ctx = null;
     this.map = null;
   }

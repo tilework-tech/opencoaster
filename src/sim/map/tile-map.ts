@@ -48,6 +48,21 @@ export const RIGHTS_OWNED = 2;
 export const SALE_LAND = 4;
 export const SALE_RIGHTS = 8;
 
+export interface OwnedTileBounds {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** Returns ownership flags with a land-sale ring and rights-only expansion beyond it. */
+export function expansionOwnership(x: number, y: number, owned: OwnedTileBounds): number {
+  if (x >= owned.x0 && x <= owned.x1 && y >= owned.y0 && y <= owned.y1) return OWNED;
+  const dx = x < owned.x0 ? owned.x0 - x : x > owned.x1 ? x - owned.x1 : 0;
+  const dy = y < owned.y0 ? owned.y0 - y : y > owned.y1 ? y - owned.y1 : 0;
+  return Math.max(dx, dy) === 1 ? SALE_LAND : SALE_RIGHTS;
+}
+
 /** Tunable prices in cents. */
 export const LAND_PRICE_CENTS = 10_000;
 export const RIGHTS_PRICE_CENTS = 4_000;

@@ -48,6 +48,8 @@ export interface MapMessage {
   /** Corner mask per tile (bit c set when corner c is one level above `heights`). */
   slope: Uint8Array;
   waterLevel: Uint8Array;
+  /** Ownership and sale flags, indexed by map tile. */
+  ownership: Uint8Array;
   /** Six ints per path element: tile x, y, base level, flags, element data, paving style. */
   pathElements: Int32Array;
   pathCount: number;

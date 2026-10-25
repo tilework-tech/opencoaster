@@ -35,6 +35,7 @@ import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { rotatedPositionSum, sortByDepth } from './painter-order';
 import { RideCellScene, isSlicedRide } from './ride-scene';
+import { OwnershipOverlay } from './ownership-overlay';
 import type { Rotation } from './projection';
 import {
   pathElementSprite,
@@ -314,6 +315,7 @@ interface GroundIndex {
 
 /** WebGL2 renderer drawing atlas pages through an instanced quad batch in painter order. */
 export class WebGL2Renderer implements Renderer {
+  private ownershipOverlay: OwnershipOverlay | null = null;
   readonly backend = 'WebGL2';
   private canvas: HTMLCanvasElement | null = null;
   private gl: WebGL2RenderingContext | null = null;
@@ -387,6 +389,7 @@ export class WebGL2Renderer implements Renderer {
     if (!gl) throw new Error('WebGL2 unavailable');
     this.canvas = canvas;
     this.gl = gl;
+    if (canvas.parentElement) this.ownershipOverlay = new OwnershipOverlay(canvas.parentElement);
     canvas.addEventListener('webglcontextlost', this.onLost);
     canvas.addEventListener('webglcontextrestored', this.onRestored);
     this.initializeResources();
@@ -398,6 +401,7 @@ export class WebGL2Renderer implements Renderer {
     this.canvas.width = Math.max(1, Math.round(width * devicePixelRatio));
     this.canvas.height = Math.max(1, Math.round(height * devicePixelRatio));
     this.gl?.viewport(0, 0, this.canvas.width, this.canvas.height);
+    this.ownershipOverlay?.resize(width, height, devicePixelRatio);
   }
 
   setMap(map: MapData): void {
@@ -498,6 +502,7 @@ export class WebGL2Renderer implements Renderer {
       camera.rotation,
     );
     this.visibleCount = this.count;
+    this.ownershipOverlay?.draw(map, camera);
   }
 
   /** Draws the uploaded instance runs, binding each run's atlas pages to the texture slots. */
@@ -537,6 +542,8 @@ export class WebGL2Renderer implements Renderer {
   }
 
   dispose(): void {
+    this.ownershipOverlay?.dispose();
+    this.ownershipOverlay = null;
     this.canvas?.removeEventListener('webglcontextlost', this.onLost);
     this.canvas?.removeEventListener('webglcontextrestored', this.onRestored);
     const gl = this.gl;

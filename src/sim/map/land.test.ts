@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TileMap, ElementType, OWNED } from './tile-map';
+import { TileMap, ElementType, OWNED, SALE_LAND, SALE_RIGHTS } from './tile-map';
 import { lowerLand, raiseLand, generateTerrain } from './index';
 import { Prng } from '../core/prng';
 
@@ -77,6 +77,14 @@ describe('raiseLand / lowerLand', () => {
 });
 
 describe('generateTerrain', () => {
+  it('offers a land-sale ring and rights-only expansion beyond it', () => {
+    const map = new TileMap(32, 32);
+    generateTerrain(map, new Prng(5));
+
+    expect(map.ownership[map.index(16, 7)]).toBe(SALE_LAND);
+    expect(map.ownership[map.index(16, 6)]).toBe(SALE_RIGHTS);
+  });
+
   it('produces smooth terrain deterministically', () => {
     const a = new TileMap(64, 64);
     const b = new TileMap(64, 64);

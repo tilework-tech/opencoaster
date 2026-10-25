@@ -10,6 +10,7 @@ export interface MapData {
   surface: Uint8Array;
   slope: Uint8Array;
   waterLevel?: Uint8Array;
+  ownership?: Uint8Array;
   pathElements?: Int32Array;
   pathCount?: number;
   sceneryElements?: Int32Array;
