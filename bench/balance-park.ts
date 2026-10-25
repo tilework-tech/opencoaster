@@ -103,8 +103,14 @@ function place(sim: Simulation, p: Placement): number {
   sim.enqueue({ type: 'createRide', rideType: p.type, x: rideX, y: p.y });
   sim.step();
   const rideId = sim.world.rides.slotToId[sim.world.rides.count - 1];
-  sim.enqueue({ type: 'placeRideEntrance', rideId, x: entranceX, y: p.y });
-  sim.enqueue({ type: 'placeRideExit', rideId, x: rideX, y: p.y + 1 });
+  const directAccess = ['stall', 'facility'].includes(RIDE_CATALOG[p.type].category);
+  sim.enqueue({
+    type: 'placeRideEntrance',
+    rideId,
+    x: directAccess ? rideX : entranceX,
+    y: directAccess ? p.y + 1 : p.y,
+  });
+  if (!directAccess) sim.enqueue({ type: 'placeRideExit', rideId, x: rideX, y: p.y + 1 });
   sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
   sim.step();
   return rideId;

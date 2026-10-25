@@ -14,6 +14,7 @@ import type { ActiveAward, ParkNewsItem } from '../sim/economy/ledger';
 import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
 import { TILE_UNITS } from '../sim/core/constants';
+import { demolitionRefund } from '../sim/rides/ride-refund';
 
 /** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
@@ -21,7 +22,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 24;
+export const RIDE_INFO_STRIDE = 25;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -55,6 +56,7 @@ export const enum RideInfo {
   /** Tile the ride (or its first footprint tile) was built on. */
   RideX = 22,
   RideY = 23,
+  DemolitionRefund = 24,
 }
 
 export const enum RideFlag {
@@ -324,6 +326,7 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.IncomeCents] = r.incomeCents[slot];
   info[o + RideInfo.RideX] = r.rideX[slot];
   info[o + RideInfo.RideY] = r.rideY[slot];
+  info[o + RideInfo.DemolitionRefund] = demolitionRefund(world, rideId);
   if (!RIDE_CATALOG[r.typeId[slot] as RideType]?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;

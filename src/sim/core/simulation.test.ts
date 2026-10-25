@@ -5,6 +5,7 @@ import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { SALE_LAND } from '../map/tile-map';
 import { PIECES, PieceId } from '../track/catalog';
 import { RideResult } from '../rides/ride-results';
+import { prepareFlat } from '../integration/fixtures';
 
 function run(seed: number, ticks: number): number {
   const sim = new Simulation({ seed, width: 64, height: 64, maxGuests: 2000 });
@@ -77,20 +78,40 @@ describe('Simulation', () => {
     expect(sim.world.rides.cols.price[sim.world.rides.idToSlot[id]]).toBe(275);
   });
 
-  it('opens a stall after placing its service entrance without requiring an exit', () => {
+  it('opens a stall directly from an adjacent path without an entrance or exit', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16 });
     const slot = sim.world.rides.spawn();
     const id = sim.world.rides.slotToId[slot];
     sim.world.rides.cols.typeId[slot] = RideType.FoodStall;
     sim.world.rides.cols.rideX[slot] = 5;
     sim.world.rides.cols.rideY[slot] = 6;
-    sim.enqueue({ type: 'placeRideEntrance', rideId: id, x: 5, y: 7 });
+    sim.enqueue({ type: 'placePath', x: 5, y: 7 });
     sim.step();
     sim.enqueue({ type: 'setRideStatus', rideId: id, status: 'open' });
 
     sim.step();
 
     expect(sim.world.rides.cols.state[sim.world.rides.idToSlot[id]]).toBe(1);
+  });
+
+  it('refreshes ride access after a path run reaches an entrance', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    prepareFlat(sim.world);
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
+    sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
+    sim.step();
+    const id = sim.world.rides.slotToId[0];
+    sim.enqueue({ type: 'placeRideEntrance', rideId: id, x: 5, y: 7 });
+    sim.step();
+    expect(sim.world.rides.cols.queueConnected[sim.world.rides.idToSlot[id]]).toBe(0);
+
+    sim.enqueue({
+      type: 'placePathRun',
+      placements: [{ x: 5, y: 8, queue: false }],
+    });
+    sim.step();
+
+    expect(sim.world.rides.cols.queueConnected[sim.world.rides.idToSlot[id]]).toBe(1);
   });
 
   it('does not create or charge for a ride on land the park cannot build on', () => {

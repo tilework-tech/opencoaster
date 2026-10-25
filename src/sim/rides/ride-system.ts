@@ -46,7 +46,19 @@ export const rideSystem: System = {
         if (ride.downtimeTicks[slot] < 0xffffffff) ride.downtimeTicks[slot]++;
         continue;
       }
-      if (RIDE_CATALOG[ride.typeId[slot] as RideType]?.usesTrack) continue;
+      const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
+      if (ride.state[slot] === RideState.Testing && !definition?.usesTrack) {
+        if (ride.phaseTicks[slot] > 1) {
+          ride.phaseTicks[slot]--;
+        } else {
+          ride.tested[slot] = 1;
+          ride.state[slot] = RideState.Closed;
+          ride.phase[slot] = RidePhase.Closed;
+          ride.phaseTicks[slot] = 0;
+        }
+        continue;
+      }
+      if (definition?.usesTrack) continue;
 
       if (ride.phase[slot] === RidePhase.Loading) {
         if (ride.phaseTicks[slot] > 1) {

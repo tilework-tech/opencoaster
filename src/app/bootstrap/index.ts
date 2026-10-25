@@ -202,6 +202,9 @@ export async function bootstrap(): Promise<void> {
     setRideStatus(rideId, status) {
       sim.command({ type: 'setRideStatus', rideId, status });
     },
+    demolishRide(rideId) {
+      sim.command({ type: 'demolishRide', rideId });
+    },
     placeRidePart(rideId, part) {
       rideSetupState.current.placeRidePart(rideId, part);
     },

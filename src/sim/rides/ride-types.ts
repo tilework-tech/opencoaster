@@ -58,6 +58,8 @@ export interface RideTypeDef {
   /** Build cost in cents. */
   cost: number;
   footprint: ReadonlyArray<readonly [dx: number, dy: number]>;
+  /** Track may be placed over open water for this ride type. */
+  allowsWater?: boolean;
   /** Whether a track editor supplies the layout and ride test measurements. */
   usesTrack: boolean;
   /** Guests served in one dispatch; for stalls this is service capacity. */
@@ -164,6 +166,7 @@ function addedRide(
     category,
     cost,
     footprint: usesTrack ? [] : [[0, 0]],
+    allowsWater: category === 'water',
     usesTrack,
     capacity,
     loadTicks: usesTrack ? 120 : 80,

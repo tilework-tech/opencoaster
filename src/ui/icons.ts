@@ -73,7 +73,8 @@ const GLYPHS = {
   bankLeft: '<path d="M4 18l16-6M4 18v-6"/>',
   bankNone: '<path d="M4 15h16"/>',
   bankRight: '<path d="M4 12l16 6M20 18v-6"/>',
-  demolish: '<path d="M5 7h14l-1 13H6zM9 7V4h6v3M10 11v6M14 11v6"/>',
+  demolish:
+    '<path d="M3 18h18M5 15h14l2 3H3zM7 15l1-5h8l2 5M10 10V7h5l2 3M6 19v2M18 19v2M4 12h3M3 10h4"/>',
   build: '<path d="M4 20l9-9M13 5l6 6-3 3-6-6zM14 4l-2-2"/>',
   entrance: '<path d="M3 20V8l9-5 9 5v12M9 20v-7h6v7"/>',
   exit: '<path d="M14 4h6v16h-6M3 12h12M11 8l4 4-4 4"/>',

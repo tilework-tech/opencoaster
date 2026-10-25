@@ -65,6 +65,7 @@ export interface GameUIActions {
   setRidePrice(rideId: number, priceCents: number): void;
   setRideTrains(rideId: number, trains: number, cars: number): void;
   setRideStatus(rideId: number, status: 'open' | 'close' | 'test'): void;
+  demolishRide(rideId: number): void;
   placeRidePart(rideId: number, part: 'entrance' | 'exit'): void;
   /** Any other simulation command (economy, research). */
   command(command: Command): void;

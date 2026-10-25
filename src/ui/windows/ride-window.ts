@@ -2,7 +2,7 @@ import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import { MAX_CARS, MAX_TRAINS_PER_RIDE } from '../../sim/vehicles/ride-trains';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
-import { button, element, gauge, setText, statRow } from '../dom';
+import { button, element, gauge, iconButton, setText, statRow } from '../dom';
 import { SampleSeries, drawChart, formatMoney } from '../format';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
@@ -46,6 +46,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const status = element('div', 'ride-status');
   let rideX: number | null = null;
   let rideY: number | null = null;
+  let rideName = `Ride #${rideId}`;
+  let refund = 0;
   status.setAttribute('role', 'status');
   const excitement = gauge('Excitement');
   const intensity = gauge('Intensity');
@@ -57,6 +59,16 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     button('Open', setStatus('open'), 'ui-button'),
     button('Close', setStatus('close'), 'ui-button'),
     button('Test', setStatus('test'), 'ui-button'),
+  );
+  const demolish = iconButton(
+    'demolish',
+    'Demolish ride',
+    () => {
+      if (window.confirm(`Demolish ${rideName}? Refund: ${formatMoney(refund)}`))
+        ctx.actions.demolishRide(rideId);
+    },
+    'ui-button danger',
+    'Demolish',
   );
   const partButtons = element('div', 'button-row');
   partButtons.append(
@@ -134,6 +146,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     p('main').append(
       status,
       statusButtons,
+      demolish,
       excitement.row,
       intensity.row,
       nausea.row,
@@ -216,8 +229,9 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       const type = info[o + RideInfo.Type];
       const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
       const flags = info[o + RideInfo.Flags];
-      const name = `${def?.name ?? 'Ride'} #${rideId}`;
-      win.setTitle(name);
+      refund = info[o + RideInfo.DemolitionRefund];
+      rideName = `${def?.name ?? 'Ride'} #${rideId}`;
+      win.setTitle(rideName);
       const tested = (flags & RideFlag.Tested) !== 0;
       const state = info[o + RideInfo.State];
       setText(status, `${RIDE_STATE_NAMES[state] ?? ''}`);
@@ -236,12 +250,25 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(mainFacts.queue.value, String(info[o + RideInfo.QueueLength]));
       setText(mainFacts.served.value, String(info[o + RideInfo.GuestsServed]));
       const blockers: { label: string; action: string; onClick: () => void }[] = [];
-      if (!(flags & RideFlag.EntrancePlaced))
-        blockers.push({
-          label: 'No entrance',
-          action: 'Place entrance',
-          onClick: () => ctx.actions.placeRidePart(rideId, 'entrance'),
-        });
+      const serviceRide = def?.category === 'stall' || def?.category === 'facility';
+      if (!(flags & RideFlag.EntrancePlaced)) {
+        blockers.push(
+          serviceRide
+            ? {
+                label: 'No path access',
+                action: 'Build path',
+                onClick: () => {
+                  ctx.actions.footpath.setQueue(false);
+                  ctx.chooseTool('path');
+                },
+              }
+            : {
+                label: 'No entrance',
+                action: 'Place entrance',
+                onClick: () => ctx.actions.placeRidePart(rideId, 'entrance'),
+              },
+        );
+      }
       const needsExit = def?.category !== 'stall' && def?.category !== 'facility';
       if (needsExit && !(flags & RideFlag.ExitPlaced))
         blockers.push({
@@ -280,7 +307,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(mainFacts.setup.value, missing.length ? missing.join(' · ') : 'Ride setup complete');
       buildTrack.hidden = !def?.usesTrack;
       trainsRow.hidden = !def?.usesTrack;
-      partButtons.hidden = false;
+      partButtons.hidden = serviceRide;
 
       setText(vehicle.type.value, def?.name ?? 'Ride');
       setText(vehicle.capacity.value, String(def?.capacity ?? 0));

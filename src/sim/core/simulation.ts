@@ -207,11 +207,13 @@ export class Simulation {
       case 'setRideTrains':
       case 'setRideMode':
       case 'setRideInspection':
+      case 'demolishRide':
         applyRideCommand(w, c);
         break;
       default:
         applyMapCommand(w, c);
-        if (c.type === 'placePath' || c.type === 'removePath') refreshRideQueueConnections(w);
+        if (c.type === 'placePath' || c.type === 'placePathRun' || c.type === 'removePath')
+          refreshRideQueueConnections(w);
         break;
       case 'economy':
         reportFeedback(w.feedback, FeedbackDomain.Economy, applyEconomyCommand(w, c.action));
