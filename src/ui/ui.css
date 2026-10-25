@@ -1387,3 +1387,9 @@
   background: #fff18a;
   color: #1d1b0e;
 }
+
+.land-overlay .land-ghost {
+  fill: rgba(125, 255, 154, 0.18);
+  stroke: #7dff9a;
+  stroke-width: 1.5;
+}

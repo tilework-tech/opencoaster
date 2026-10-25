@@ -62,6 +62,17 @@ describe('pickLandSelection', () => {
     });
   });
 
+  it('picks the higher tile in front, not a lower one behind it', () => {
+    const raised = { ...map, heights: map.heights.slice() };
+    raised.heights[6 * SIZE + 5] = 4;
+    raised.heights[5 * SIZE + 5] = 2;
+    const p = screenAt(5.5, 6.08, 0);
+    expect(pickLandSelection(p.x, p.y, raised, p.camera, viewport, 1, false)).toMatchObject({
+      cursorX: 5,
+      cursorY: 6,
+    });
+  });
+
   it('returns null away from the map', () => {
     expect(
       pickLandSelection(5, 5, map, { x: 9000, y: 9000, zoom: 1, rotation: 0 }, viewport, 1, true),

@@ -17,7 +17,7 @@ Path: @/src/input
 
 ### Core Implementation
 
-- [pointer-input.ts](pointer-input.ts) tracks active pointers, distinguishes taps from drags using a small movement threshold, and recognizes touch holds after a delay. One-pointer select gestures pan; land and path tools paint along the drag path, interpolating segments at no more than 12 CSS pixels between paint samples.
+- [pointer-input.ts](pointer-input.ts) tracks active pointers, distinguishes taps from drags using a small movement threshold, and recognizes touch holds after a delay. One-pointer select gestures pan; two-finger gestures also pan by the midpoint; the land tool reports a press, drag start, moves and drag end (the app turns vertical drags into raise/lower steps); path tools paint along the drag path, interpolating segments at no more than 12 CSS pixels between paint samples.
 - Two active pointers establish a pinch baseline and midpoint. Distance changes report zoom scale around that midpoint; twist deltas accumulate until they cross 45 degrees, then request one quarter-turn per threshold crossing.
 - [camera-controls.ts](camera-controls.ts) snaps zoom to the supported scale set, preserves the world position under the zoom anchor, steps wheel zoom between levels, and caps device pixel ratio for rendering.
 - [src/app/input](../app/input/docs.md) de-duplicates repeated paint commands within the same tile and routes a hold through forced selection regardless of the active build tool. Guest hit-testing is handled by [src/app/tools](../app/tools/docs.md); [object-picking.ts](object-picking.ts) maps ride footprint and track tiles to ride IDs for the ride window. Tiles without an individual detail UI retain ordinary tile selection.

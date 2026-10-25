@@ -1,4 +1,4 @@
-import { pickTile, TILE_H, TILE_W, Z_PIXELS } from '../../render/projection';
+import { TILE_H, TILE_W, unrotateTile, viewSize, Z_PIXELS } from '../../render/projection';
 import type { Rotation } from '../../render/projection';
 
 export interface LandSelection {
@@ -33,6 +33,46 @@ const CORNERS: ReadonlyArray<readonly [number, number]> = [
   [0, 1],
 ];
 const EDGES = [0b0011, 0b0110, 0b1100, 0b1001];
+
+/**
+ * The tile that is drawn on top at a viewport-local point: among the tile diamonds containing
+ * it, the one nearest the viewer. A lower tile behind a higher one cannot steal the pick.
+ */
+function pickFrontTile(
+  screenX: number,
+  screenY: number,
+  map: PickMap,
+  camera: { x: number; y: number; zoom: number; rotation: Rotation },
+  viewport: { width: number; height: number },
+): [number, number] | null {
+  if (!Number.isFinite(camera.zoom) || camera.zoom <= 0) return null;
+  const worldX = camera.x + (screenX - viewport.width / 2) / camera.zoom;
+  const worldY = camera.y + (screenY - viewport.height / 2) / camera.zoom;
+  const estRx = Math.round((worldX / (TILE_W / 2) + worldY / (TILE_H / 2) - 1) / 2);
+  const estRy = Math.round((worldY / (TILE_H / 2) - 1 - worldX / (TILE_W / 2)) / 2);
+  const [viewW, viewH] = viewSize(map.width, map.height, camera.rotation);
+  let best: [number, number] | null = null;
+  let bestDepth = -Infinity;
+  let bestLevel = -1;
+  for (let ry = estRy - 16; ry <= estRy + 16; ry++) {
+    for (let rx = estRx - 16; rx <= estRx + 16; rx++) {
+      if (rx < 0 || ry < 0 || rx >= viewW || ry >= viewH) continue;
+      const [x, y] = unrotateTile(rx, ry, map.width, map.height, camera.rotation);
+      const level = map.heights[y * map.width + x];
+      const centreX = (rx - ry) * (TILE_W / 2);
+      const centreY = (rx + ry) * (TILE_H / 2) + TILE_H / 2 - level * Z_PIXELS;
+      const distance =
+        Math.abs(worldX - centreX) / (TILE_W / 2) + Math.abs(worldY - centreY) / (TILE_H / 2);
+      if (distance > 1) continue;
+      const depth = rx + ry;
+      if (depth < bestDepth || (depth === bestDepth && level <= bestLevel)) continue;
+      best = [x, y];
+      bestDepth = depth;
+      bestLevel = level;
+    }
+  }
+  return best;
+}
 
 /** Position inside the tile, as fractions of its width and depth in unrotated map axes. */
 function tileFraction(
@@ -85,7 +125,7 @@ export function pickLandSelection(
   size: number,
   snapCorners: boolean,
 ): LandSelection | null {
-  const tile = pickTile(screenX, screenY, map, camera, viewport);
+  const tile = pickFrontTile(screenX, screenY, map, camera, viewport);
   if (!tile) return null;
   const [cursorX, cursorY] = tile;
   let corners = WHOLE_TILE;

@@ -106,7 +106,10 @@ export class LandOverlay {
       nodes.push(this.tilePolygon(state, flagged, 'land-block'));
     else if (refused && plan.subject >= 0)
       nodes.push(this.tilePolygon(state, plan.subject, 'land-block'));
-    if (plan && !refused) nodes.push(...this.stems(state, plan));
+    if (plan && !refused) {
+      nodes.push(...this.ghosts(state, plan));
+      nodes.push(...this.stems(state, plan));
+    }
     this.svg.replaceChildren(...nodes);
   }
 
@@ -180,6 +183,31 @@ export class LandOverlay {
       marks.push(dot);
     });
     return marks;
+  }
+
+  /** Outline of every reshaped tile at the heights it will have once the edit is applied. */
+  private ghosts(state: LandOverlayState, plan: LandPlan): SVGElement[] {
+    const { map } = state;
+    const w1 = map.width + 1;
+    const delta = new Map<number, number>();
+    plan.vertices.forEach((v, k) => delta.set(v, plan.deltas[k]));
+    const out: SVGElement[] = [];
+    for (const tile of plan.tiles) {
+      const tx = tile % map.width;
+      const ty = Math.floor(tile / map.width);
+      const points = [0, 1, 2, 3].map((c) => {
+        const vx = tx + CORNER_DX[c];
+        const vy = ty + CORNER_DY[c];
+        const level = this.cornerLevel(map, tile, c) + (delta.get(vy * w1 + vx) ?? 0);
+        return this.corner(state, vx, vy, level).join(',');
+      });
+      const polygon = document.createElementNS(SVG_NS, 'polygon');
+      polygon.setAttribute('class', 'land-ghost');
+      polygon.setAttribute('points', points.join(' '));
+      polygon.dataset.tile = String(tile);
+      out.push(polygon);
+    }
+    return out;
   }
 
   private stems(state: LandOverlayState, plan: LandPlan): SVGElement[] {

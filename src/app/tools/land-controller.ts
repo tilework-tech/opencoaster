@@ -13,6 +13,7 @@ import type { LandSelection } from './land-selection';
 
 const FEEDBACK_MS = 2500;
 const MIN_STEP_PX = 6;
+const PAUSED_TEXT = 'The game is paused: the change is made when it resumes.';
 
 export interface LandControllerDependencies {
   parent: HTMLElement;
@@ -22,6 +23,7 @@ export interface LandControllerDependencies {
   gameUi: GameUI;
   viewport: { width: number; height: number };
   active: () => boolean;
+  paused: () => boolean;
 }
 
 function actionOf(mode: LandMode): LandAction {
@@ -217,6 +219,22 @@ export class LandController {
     this.tip.remove();
   }
 
+  /** The previewed refusal for exactly this edit, when the worker has already answered. */
+  private knownRefusal(
+    edit: LandEdit,
+  ): { result: Exclude<LandResult, LandResult.Ok>; subject: number } | null {
+    const answered = this.deps.sim.landPreview;
+    if (!answered || JSON.stringify(answered.edit) !== JSON.stringify(edit)) return null;
+    const { result, subject } = answered.plan;
+    return result === LandResult.Ok ? null : { result, subject };
+  }
+
+  private flash(text: string, tile?: number): void {
+    this.feedbackText = text;
+    this.feedbackTile = tile !== undefined && tile >= 0 ? tile : undefined;
+    this.feedbackUntil = performance.now() + FEEDBACK_MS;
+  }
+
   private showTip(text: string, bad: boolean): void {
     this.tip.hidden = false;
     this.tip.textContent = text;
@@ -264,6 +282,15 @@ export class LandController {
   }
 
   private fire(mode: LandMode, selection: LandSelection, anchor: LandSelection): void {
+    this.deps.gameUi.setToolStatus(
+      `${GERUND[mode]} land at ${selection.cursorX}, ${selection.cursorY}.`,
+    );
+    const refused = this.knownRefusal(this.editFor(mode, selection, anchor));
+    if (refused !== null) {
+      this.flash(landRefusalText(refused.result), refused.subject);
+      return;
+    }
+    if (this.deps.paused()) this.flash(PAUSED_TEXT);
     const { x, y, width, height } = selection;
     const area = { x, y, width, height };
     if (mode === 'raise' || mode === 'lower')
@@ -280,8 +307,5 @@ export class LandController {
         anchorY: anchor.cursorY,
       });
     else this.deps.sim.command({ type: 'smoothLand', ...area });
-    this.deps.gameUi.setToolStatus(
-      `${GERUND[mode]} land at ${selection.cursorX}, ${selection.cursorY}.`,
-    );
   }
 }

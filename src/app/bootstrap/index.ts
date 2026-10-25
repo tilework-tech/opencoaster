@@ -302,6 +302,7 @@ export async function bootstrap(): Promise<void> {
     gameUi,
     viewport,
     active: () => selectedTool === 'land',
+    paused: () => userPaused || hiddenPaused,
   });
   landControllerRef = landController;
   const toolController = createToolController({
