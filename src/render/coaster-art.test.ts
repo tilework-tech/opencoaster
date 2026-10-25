@@ -126,7 +126,7 @@ describe('cars', () => {
 
 describe('supports', () => {
   it(
-    'stops a quarter level short of the track centre line, in whole levels plus a quarter-level cap',
+    'stops support columns below the track with a quarter-level cap',
     () => {
       const flat = pieceByName('flat')!;
       expect(supportStack(flat.id, 0, 2, 5)).toEqual({ full: 2, quarters: 3 });

@@ -138,8 +138,11 @@ export class TrackPreviewOverlay {
     const y = ghost.y;
     if (x < 0 || y < 0 || x >= map.width || y >= map.height) return;
     const z = (map.heights?.[y * map.width + x] ?? 0) * Z_STEP;
-    ctxPath(this.ctx, ghost.valid ? VALID_FILL : INVALID_FILL, ENTRY_MARK, (visit) =>
-      this.corners(x, y, z, map, camera, viewport, visit),
+    ctxPath(
+      this.ctx,
+      ghost.valid ? VALID_FILL : INVALID_FILL,
+      ENTRY_MARK,
+      (visit) => this.corners(x, y, z, map, camera, viewport, visit),
     );
     if (!this.atlas) return;
     const def = RIDE_CATALOG[ghost.type];

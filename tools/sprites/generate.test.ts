@@ -29,7 +29,7 @@ describe('generated sprite catalogue', () => {
     }
   });
 
-  it('joins neighbouring path tiles: connected edge midpoints are opaque and surface-coloured', () => {
+  it('joins neighbouring path tiles at connected edge midpoints', () => {
     for (const style of ['tarmac', 'crazy-paving', 'dirt', 'queue']) {
       const sprite = sprites.get(`paths/${style}/connection-0f`)!.frames[0];
       const pixel = (x: number, y: number): number =>
@@ -110,7 +110,7 @@ describe('generated sprite catalogue', () => {
     }
   });
 
-  it('renders every piece a coaster family can build in 4 rotations, with a sprite on its cells', () => {
+  it('renders every piece a coaster family can build in four rotations', () => {
     for (const art of TRACK_ARTS)
       for (const piece of artPieces(art))
         for (let view = 0; view < 4; view++) {
