@@ -5,6 +5,8 @@ export const enum FeedbackDomain {
   Track = 1,
   /** `RideResult` */
   Ride = 2,
+  /** `EconomyResult` */
+  Economy = 3,
 }
 
 /**
