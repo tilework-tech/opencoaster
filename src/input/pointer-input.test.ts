@@ -6,12 +6,20 @@ function sample(pointerId: number, x: number, y: number, pointerType = 'touch'):
   return { pointerId, x, y, pointerType, shiftKey: false };
 }
 
+const NO_PATH_DRAG = {
+  pathDragStart: () => false,
+  pathDragMove: () => undefined,
+  pathDragEnd: () => undefined,
+  pathDragCancel: () => undefined,
+};
+
 describe('PointerInput', () => {
   afterEach(() => vi.useRealTimers());
 
   it('pans the camera from a one-finger drag while selecting', () => {
     const camera = { x: 120, y: 240, zoom: 1, rotation: 0 };
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: (dx, dy) => {
         camera.x -= dx / camera.zoom;
@@ -36,6 +44,7 @@ describe('PointerInput', () => {
   it('includes movement before the drag threshold in the initial pan', () => {
     const pans: Array<[number, number]> = [];
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: (dx, dy) => pans.push([dx, dy]),
       zoomStart: () => {},
@@ -55,18 +64,25 @@ describe('PointerInput', () => {
     expect(pans).toEqual([[6, 0]]);
   });
 
-  it('paints each move in the path tool instead of panning', () => {
-    const painted: Array<[number, number, boolean]> = [];
+  it('lays a footpath run from the press point to each move, then ends it on release', () => {
+    const calls: string[] = [];
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'path',
-      pan: () => {},
+      pan: () => calls.push('pan'),
       zoomStart: () => {},
       zoom: () => {},
       zoomEnd: () => {},
       rotate: () => {},
       tap: () => {},
       hold: () => {},
-      paint: (x, y, shiftKey) => painted.push([x, y, shiftKey]),
+      paint: () => calls.push('paint'),
+      pathDragStart: (x, y) => {
+        calls.push(`start ${x},${y}`);
+        return true;
+      },
+      pathDragMove: (x, y) => calls.push(`move ${x},${y}`),
+      pathDragEnd: () => calls.push('end'),
     });
 
     input.pointerDown(sample(1, 100, 100));
@@ -74,18 +90,36 @@ describe('PointerInput', () => {
     input.pointerMove(sample(1, 132, 112));
     input.pointerUp(sample(1, 132, 112));
 
-    expect(painted).toEqual([
-      [100, 100, false],
-      [109, 103, false],
-      [118, 106, false],
-      [125, 109, false],
-      [132, 112, false],
-    ]);
+    expect(calls).toEqual(['start 100,100', 'move 118,106', 'move 132,112', 'end']);
+  });
+
+  it('pans instead of laying a run when the path drag starts in piece mode', () => {
+    const calls: string[] = [];
+    const input = new PointerInput({
+      ...NO_PATH_DRAG,
+      tool: () => 'path',
+      pan: (dx, dy) => calls.push(`pan ${dx},${dy}`),
+      zoomStart: () => {},
+      zoom: () => {},
+      zoomEnd: () => {},
+      rotate: () => {},
+      tap: () => {},
+      hold: () => {},
+      paint: () => {},
+      pathDragStart: () => false,
+    });
+
+    input.pointerDown(sample(1, 100, 100));
+    input.pointerMove(sample(1, 118, 106));
+    input.pointerUp(sample(1, 118, 106));
+
+    expect(calls).toEqual(['pan 18,6']);
   });
 
   it('paints each move in the land tool instead of panning', () => {
     const painted: Array<[number, number, boolean]> = [];
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'land',
       pan: () => {},
       zoomStart: () => {},
@@ -112,6 +146,7 @@ describe('PointerInput', () => {
     const zoomScales: number[] = [];
     let zoomAnchor: [number, number] | null = null;
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: () => {},
       zoomStart: () => {},
@@ -140,6 +175,7 @@ describe('PointerInput', () => {
   it('turns a two-pointer twist into a quarter-turn rotation', () => {
     let rotations = 0;
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: () => {},
       zoomStart: () => {},
@@ -163,6 +199,7 @@ describe('PointerInput', () => {
   it('accumulates a slow two-pointer twist until it reaches a quarter turn', () => {
     let rotations = 0;
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: () => {},
       zoomStart: () => {},
@@ -189,7 +226,8 @@ describe('PointerInput', () => {
   it('emits intermediate paint points during a long drag', () => {
     const painted: Array<[number, number]> = [];
     const input = new PointerInput({
-      tool: () => 'path',
+      ...NO_PATH_DRAG,
+      tool: () => 'land',
       pan: () => {},
       zoomStart: () => {},
       zoom: () => {},
@@ -214,6 +252,7 @@ describe('PointerInput', () => {
     const held: Array<[number, number]> = [];
     const tapped: Array<[number, number]> = [];
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: () => {},
       zoomStart: () => {},
@@ -238,6 +277,7 @@ describe('PointerInput', () => {
     const tapped: Array<[number, number]> = [];
     const held: Array<[number, number]> = [];
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: () => {},
       zoomStart: () => {},
@@ -260,6 +300,7 @@ describe('PointerInput', () => {
   it('emits taps for unmoved pointers and ignores canceled gestures', () => {
     const tapped: Array<[number, number]> = [];
     const input = new PointerInput({
+      ...NO_PATH_DRAG,
       tool: () => 'select',
       pan: () => {},
       zoomStart: () => {},
@@ -285,6 +326,7 @@ describe('PointerInput', () => {
       const pans: Array<[number, number]> = [];
       const taps: Array<[number, number]> = [];
       const input = new PointerInput({
+        ...NO_PATH_DRAG,
         tool: () => tool,
         pan: (dx, dy) => pans.push([dx, dy]),
         zoomStart: () => {},

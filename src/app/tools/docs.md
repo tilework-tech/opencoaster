@@ -16,8 +16,9 @@ Path: @/src/app/tools
 ### Core Implementation
 
 - `createToolController` converts CSS-pixel canvas positions to map tiles, dispatches the active tool, and updates selection/UI state.
-- [handlers.ts](handlers.ts) maps land, path, scenery, path additions, flowerbed and patrol actions to existing worker commands. Path placements send no slope, so the simulation follows the terrain.
-- [path-feedback.ts](path-feedback.ts) shows a refused footpath: it reads the `Path` feedback domain from the snapshot, marks the tile with a red ghost, and shows the reason in a tooltip at the last pointer position for 2.5 seconds.
+- [handlers.ts](handlers.ts) maps land, path, scenery, path additions, flowerbed and patrol actions to existing worker commands. Taps on a footpath tile go to the path tool; the alternate action removes the piece under the tap. Line-mode placements send no slope, so the simulation follows the terrain.
+- [path-feedback.ts](path-feedback.ts) shows a refused footpath: it reads the `Path` feedback domain from the snapshot, marks the tile with a red ghost, and shows the reason in a tooltip at the last pointer position for 2.5 seconds. `pathRefusalText` gives the same reasons to the footpath preview.
+- [path/](path/) is footpath construction. [controller.ts](path/controller.ts) (`PathTool`) runs line-mode drags: it previews the dragged run through the worker's `previewPaths` request, draws it with [ghost.ts](path/ghost.ts), and on release lays the tiles the sim accepts. Piece mode builds or removes one piece at a cursor tile, with direction and slope from [state.ts](path/state.ts). [run.ts](path/run.ts) holds the run geometry: a straight line, or one turn going along x first.
 - [selection.ts](selection.ts) hit-tests guest positions from the current snapshot and builds the UI's guest-selection data.
 
 ### Things to Know

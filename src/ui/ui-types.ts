@@ -6,6 +6,9 @@ import type { Snapshot } from '../worker/snapshot';
 import type { PlayerSettings } from './settings';
 import type { SampleSeries } from './format';
 import type { WindowManager } from './window-manager';
+import type { PathMode, PathToolState } from '../app/tools/path/state';
+import type { PieceSlope } from '../app/tools/path/run';
+import type { PathStyle } from '../sim/map/tile-map';
 
 export type ToolMode =
   | 'select'
@@ -20,6 +23,20 @@ export type ToolMode =
   | 'ride'
   | 'track'
   | 'patrol';
+
+/** Footpath construction as the Footpaths window drives it. */
+export interface FootpathControls {
+  readonly state: Readonly<PathToolState>;
+  setMode(mode: PathMode): void;
+  setStyle(style: PathStyle): void;
+  setQueue(queue: boolean): void;
+  setDirection(dir: number): void;
+  setSlope(slope: PieceSlope): void;
+  build(): Promise<void>;
+  remove(): void;
+  announce(text: string): void;
+  leave(): void;
+}
 
 export interface GameUIActions {
   setPaused(paused: boolean): void;
@@ -43,8 +60,7 @@ export interface GameUIActions {
   setAlternate(on: boolean): void;
   /** Land brush edge length in tiles (1-5). */
   setBrush(size: number): void;
-  setPathQueue(queue: boolean): void;
-  setPathStyle(style: number): void;
+  footpath: FootpathControls;
   setSceneryItem(item: number): void;
   /** Centres the camera on a tile. */
   locate(x: number, y: number): void;

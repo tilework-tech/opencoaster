@@ -107,7 +107,7 @@ test('plays the starter park shell and exercises save file round trips', async (
     },
   });
   await expect(page.locator('.tool-status')).toHaveText(
-    `Path placement requested at ${continuation.x}, ${continuation.y}.`,
+    `Laid footpath at ${continuation.x}, ${continuation.y} for $10.00.`,
   );
   await expect.poll(currentTick).toBeGreaterThan(tickBeforePath);
   await screenshot('04-path-building');

@@ -65,7 +65,7 @@ test('is playable on a phone: labeled actions menu, bottom sheets, 44px targets,
 
   await action('Footpaths');
   await page.locator('#game').tap({ position: { x: 190, y: 200 } });
-  await expect(page.locator('.tool-status')).toContainText('Path placement requested');
+  await expect(page.locator('.tool-status')).toContainText('Laid footpath at');
   const paths = page.locator('[data-panel="paths"]');
   await paths.locator('.ui-titlebar').tap();
   await expect(paths).toHaveClass(/collapsed/);

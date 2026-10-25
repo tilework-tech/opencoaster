@@ -13,6 +13,14 @@ const REJECTION_TEXT: Record<Exclude<PathResult, PathResult.Ok>, string> = {
   [PathResult.InsufficientFunds]: 'Not enough cash for a footpath.',
 };
 
+/** Player-facing reason a footpath placement is refused. */
+export function pathRefusalText(code: PathResult): string {
+  if (code === PathResult.Ok) return '';
+  return (
+    REJECTION_TEXT[code as Exclude<PathResult, PathResult.Ok>] ?? 'A footpath cannot be built here.'
+  );
+}
+
 /** How long a refused placement stays marked on the map and in its tooltip. */
 const REJECTION_MS = 2500;
 
@@ -29,9 +37,7 @@ export function pathRejectionFrom(
 ): PathRejection | null {
   if (feedback.domain !== FeedbackDomain.Path || feedback.code === PathResult.Ok) return null;
   if (feedback.subject < 0) return null;
-  const text =
-    REJECTION_TEXT[feedback.code as Exclude<PathResult, PathResult.Ok>] ??
-    'A footpath cannot be built here.';
+  const text = pathRefusalText(feedback.code);
   return {
     x: feedback.subject % mapWidth,
     y: Math.floor(feedback.subject / mapWidth),

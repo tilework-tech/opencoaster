@@ -56,6 +56,8 @@ export const WATER_TILE_ACTION_COST_CENTS = 250;
 /** Surface painting has no supported source price in the clean-room spec; keep it free. */
 export const LAND_SURFACE_COST_CENTS = 0;
 export const PATH_COST_CENTS = 1_000;
+/** Credited when a footpath piece is removed. */
+export const PATH_REFUND_CENTS = PATH_COST_CENTS;
 
 /** Edge directions: 0 = +x, 1 = +y, 2 = -x, 3 = -y. An edge mask has bit `1 << dir`. */
 export const DIR_DX: Readonly<Int8Array> = Int8Array.of(1, 0, -1, 0);
@@ -424,6 +426,35 @@ export class TileMap {
   }
 
   /** True when the tile's owner may build on it (land or construction rights). */
+  /** An independent copy of the whole map, for previewing edits without changing this one. */
+  clone(): TileMap {
+    const copy = new TileMap(this.width, this.height, this.elementCapacity);
+    type Copyable = { set(source: ArrayLike<number>): void };
+    const arrays: Array<readonly [Copyable, ArrayLike<number>]> = [
+      [copy.vertexHeights, this.vertexHeights],
+      [copy.heights, this.heights],
+      [copy.slope, this.slope],
+      [copy.terrain, this.terrain],
+      [copy.surface, this.surface],
+      [copy.waterLevel, this.waterLevel],
+      [copy.ownership, this.ownership],
+      [copy.flags, this.flags],
+      [copy.tileHead, this.tileHead],
+      [copy.elType, this.elType],
+      [copy.elBase, this.elBase],
+      [copy.elClear, this.elClear],
+      [copy.elFlags, this.elFlags],
+      [copy.elData, this.elData],
+      [copy.elNext, this.elNext],
+      [copy.pathStyle, this.pathStyle],
+      [copy.meta, this.meta],
+    ];
+    for (const [target, source] of arrays) target.set(source);
+    copy.revision = this.revision;
+    copy.pathVersion = this.pathVersion;
+    return copy;
+  }
+
   canBuild(i: number): boolean {
     return (this.ownership[i] & (OWNED | RIGHTS_OWNED)) !== 0;
   }

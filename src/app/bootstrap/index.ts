@@ -15,7 +15,7 @@ import { ScenarioDialog } from '../../ui/scenario-dialog';
 import { loadSettings } from '../../ui/settings';
 import type { GameSpeed } from '../../ui/settings';
 import { DEFAULT_MAP_SIZE, TILE_UNITS, Z_STEP } from '../../sim/core/constants';
-import { PathFlag, PathStyle } from '../../sim/map/tile-map';
+import { PathFlag } from '../../sim/map/tile-map';
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
 import { TrackPreviewOverlay } from '../../ui/track-preview';
@@ -28,6 +28,8 @@ import { centreOnTile, connectCameraInput } from '../input';
 import { AudioEngine } from '../../audio/audio';
 import { createToolController } from '../tools';
 import { PathFeedback } from '../tools/path-feedback';
+import { PathTool } from '../tools/path/controller';
+import { createPathState } from '../tools/path/state';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
 import { scenarioOpeningPosition } from './opening-camera';
@@ -78,8 +80,7 @@ export async function bootstrap(): Promise<void> {
   let rideHover: [number, number] | null = null;
   let patrolKind: number | null = null;
   let alternate = false;
-  let pathQueue = false;
-  let pathStyle = PathStyle.Tarmac;
+  const pathState = createPathState();
   let sceneryItem = SceneryItem.OakTree;
   let brush = 1;
   const windows = new WindowManager(root);
@@ -97,6 +98,14 @@ export async function bootstrap(): Promise<void> {
   let patrolOverlaySignature = '';
   const trackPreview = new TrackPreviewOverlay(root);
   const pathFeedback = new PathFeedback(root);
+  const pathTool = new PathTool({
+    sim,
+    state: pathState,
+    camera,
+    canvas,
+    overlay: root,
+    setStatus: (text) => gameUi.setToolStatus(text),
+  });
   const ridePlacementPreview = document.createElement('canvas');
   ridePlacementPreview.className = 'ride-placement-preview';
   ridePlacementPreview.setAttribute('aria-hidden', 'true');
@@ -134,12 +143,7 @@ export async function bootstrap(): Promise<void> {
     setBrush(size) {
       brush = Math.max(1, Math.min(5, Math.round(size)));
     },
-    setPathQueue(queue) {
-      pathQueue = queue;
-    },
-    setPathStyle(style) {
-      pathStyle = style as PathStyle;
-    },
+    footpath: pathTool,
     setSceneryItem(item) {
       sceneryItem = item as SceneryItem;
     },
@@ -298,9 +302,8 @@ export async function bootstrap(): Promise<void> {
     setSelectedGuest: (guest) => (selectedGuest = guest),
     alternate: () => alternate,
     brush: () => brush,
-    pathQueue: () => pathQueue,
     pathFeedback,
-    pathStyle: () => pathStyle,
+    pathTool,
     sceneryItem: () => sceneryItem,
     patrolKind: () => patrolKind,
     clearRideSetupNotice: rideSetupState.current.clearNotice,
@@ -325,6 +328,7 @@ export async function bootstrap(): Promise<void> {
     syncPause,
     handleCanvasClick: toolController.handleCanvasClick,
     removePathAt: toolController.removePathAt,
+    pathDrag: toolController.pathDrag,
     setRideHover: (tile) => (rideHover = tile),
     viewport,
     renderScale: () => appliedScale,

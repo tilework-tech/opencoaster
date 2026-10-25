@@ -4,7 +4,6 @@ import type { GameUI, GuestSelection, ToolMode } from '../../ui/game-ui';
 import type { SimClient } from '../../worker/sim-client';
 import { findRideIdAtTile } from '../../input/object-picking';
 import type { CoasterPanel } from '../../ui/coaster-panel';
-import type { PathStyle } from '../../sim/map/tile-map';
 import type { SceneryItem } from '../../sim/map/scenery';
 import {
   handleFlowerbedTool,
@@ -16,6 +15,8 @@ import {
 } from './handlers';
 import { findGuestAt } from './selection';
 import type { PathFeedback } from './path-feedback';
+import type { PathTool } from './path/controller';
+import type { Tile } from './path/run';
 
 export interface ToolControllerDependencies {
   canvas: HTMLCanvasElement;
@@ -28,9 +29,8 @@ export interface ToolControllerDependencies {
   setSelectedGuest: (guest: GuestSelection | null) => void;
   alternate: () => boolean;
   brush: () => number;
-  pathQueue: () => boolean;
   pathFeedback: PathFeedback;
-  pathStyle: () => PathStyle;
+  pathTool: PathTool;
   sceneryItem: () => SceneryItem;
   patrolKind: () => number | null;
   clearRideSetupNotice: () => void;
@@ -44,24 +44,57 @@ export function createToolController(deps: ToolControllerDependencies) {
     selectedTool: deps.selectedTool,
     alternate: deps.alternate,
     brush: deps.brush,
-    pathQueue: deps.pathQueue,
-    pathStyle: deps.pathStyle,
+    pathTool: deps.pathTool,
     sceneryItem: deps.sceneryItem,
     patrolKind: deps.patrolKind,
   };
 
-  function removePathAt(clientX: number, clientY: number): void {
+  function tileAt(clientX: number, clientY: number): Tile | null {
     const rect = deps.canvas.getBoundingClientRect();
     const map = deps.sim.map;
-    if (!map) return;
+    if (!map) return null;
     const tile = pickTile(clientX - rect.left, clientY - rect.top, map, deps.camera, {
       width: rect.width,
       height: rect.height,
     });
-    if (!tile) return;
-    deps.sim.command({ type: 'removePath', x: tile[0], y: tile[1] });
-    deps.gameUi.setToolStatus(`Path removal requested at ${tile[0]}, ${tile[1]}.`);
+    return tile ? { x: tile[0], y: tile[1] } : null;
   }
+
+  function removePathAt(clientX: number, clientY: number): void {
+    const tile = tileAt(clientX, clientY);
+    if (!tile) return;
+    deps.sim.command({ type: 'removePath', x: tile.x, y: tile.y });
+    deps.gameUi.setToolStatus(`Path removal requested at ${tile.x}, ${tile.y}.`);
+  }
+
+  /** Line-mode footpath drags; the path tool previews the run and lays it on release. */
+  const pathDrag = {
+    start(clientX: number, clientY: number): boolean {
+      if (deps.alternate()) return false;
+      const tile = tileAt(clientX, clientY);
+      if (!tile) return false;
+      deps.pathTool.pointAt(clientX, clientY);
+      return deps.pathTool.dragStart(tile);
+    },
+    move(clientX: number, clientY: number): void {
+      deps.pathTool.pointAt(clientX, clientY);
+      const tile = tileAt(clientX, clientY);
+      if (tile) deps.pathTool.dragMove(tile);
+    },
+    end(): void {
+      void deps.pathTool.dragEnd();
+    },
+    hover(clientX: number, clientY: number): void {
+      deps.pathTool.pointAt(clientX, clientY);
+      deps.pathTool.hover(deps.alternate() ? null : tileAt(clientX, clientY));
+    },
+    hoverEnd(): void {
+      deps.pathTool.hoverEnd();
+    },
+    cancel(): void {
+      deps.pathTool.dragCancel();
+    },
+  };
 
   function handleCanvasClick(
     clientX: number,
@@ -120,5 +153,5 @@ export function createToolController(deps: ToolControllerDependencies) {
     deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
   }
 
-  return { removePathAt, handleCanvasClick };
+  return { removePathAt, handleCanvasClick, pathDrag };
 }

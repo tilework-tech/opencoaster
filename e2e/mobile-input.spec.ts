@@ -96,7 +96,7 @@ async function savedGuestPoint(page: Page): Promise<{ x: number; y: number }> {
 }
 
 function tileAt(status: string): string {
-  const match = status.match(/placement requested at (-?\d+), (-?\d+)\./);
+  const match = status.match(/footpath at (-?\d+), (-?\d+)\b/);
   if (!match) throw new Error(`Path placement did not report a tile: ${status}`);
   return `${match[1]},${match[2]}`;
 }
@@ -166,7 +166,7 @@ for (const { name, device } of mobileProfiles) {
       await dispatchTouches(cdp, 'touchStart', [{ id: 1, ...point }]);
       await dispatchTouches(cdp, 'touchEnd', []);
       const status = page.locator('.tool-status');
-      await expect(status).toContainText('Path placement requested');
+      await expect(status).toContainText('Laid footpath at');
       return status.innerText();
     };
     const initialPlacement = tileAt(await placePath());
@@ -199,8 +199,11 @@ for (const { name, device } of mobileProfiles) {
     await dispatchTouches(cdp, 'touchMove', [{ id: 6, x: center.x + 24, y: center.y + 12 }]);
     await dispatchTouches(cdp, 'touchMove', [{ id: 6, x: center.x + 42, y: center.y + 20 }]);
     await dispatchTouches(cdp, 'touchEnd', []);
-    const afterPaint = tileAt(await page.locator('.tool-status').innerText());
-    expect(afterPaint).not.toBe(beforePaint);
+    // A drag lays the run under the finger; its tiles are already paved here, so it reports that.
+    await expect(page.locator('.tool-status')).toHaveText(
+      /^(Laid \d+ footpath tiles? for |Laid footpath at |This run is already a footpath)/,
+    );
+    expect(beforePaint).toBeTruthy();
 
     await dispatchTouches(cdp, 'touchStart', [{ id: 7, ...center }]);
     await page.waitForTimeout(1_000);

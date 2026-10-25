@@ -1,8 +1,8 @@
 import type { SimClient } from '../../worker/sim-client';
 import type { GameUI, ToolMode } from '../../ui/game-ui';
 import { PathAddition } from '../../sim/map/paths';
-import type { PathStyle } from '../../sim/map/tile-map';
 import type { SceneryItem } from '../../sim/map/scenery';
+import type { PathTool } from './path/controller';
 
 export interface ToolHandlerDependencies {
   sim: SimClient;
@@ -10,8 +10,7 @@ export interface ToolHandlerDependencies {
   selectedTool: () => ToolMode;
   alternate: () => boolean;
   brush: () => number;
-  pathQueue: () => boolean;
-  pathStyle: () => PathStyle;
+  pathTool: PathTool;
   sceneryItem: () => SceneryItem;
   patrolKind: () => number | null;
 }
@@ -41,14 +40,7 @@ export function handlePathTool(deps: ToolHandlerDependencies, x: number, y: numb
     deps.gameUi.setToolStatus(`Path removal requested at ${x}, ${y}.`);
     return;
   }
-  deps.sim.command({
-    type: 'placePath',
-    x,
-    y,
-    style: deps.pathStyle(),
-    queue: deps.pathQueue(),
-  });
-  deps.gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
+  deps.pathTool.tap({ x, y });
 }
 
 export function handleSceneryTool(

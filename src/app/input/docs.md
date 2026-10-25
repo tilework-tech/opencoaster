@@ -11,7 +11,7 @@ Path: @/src/app/input
 
 - [bootstrap](../bootstrap/docs.md) provides the renderer, `SimClient`, camera, selected-tool access and tool action callbacks.
 - Gesture recognition comes from [src/input](../../input/docs.md); screen projection and tile picking use [src/render](../../render/docs.md).
-- Canvas actions are delegated to [tool handling](../tools/docs.md); this module does not issue map-edit commands itself.
+- Canvas actions are delegated to [tool handling](../tools/docs.md); this module does not issue map-edit commands itself. Footpath line drags go through `PathDragHandlers`, and a drag that starts in piece mode pans instead.
 
 ### Core Implementation
 

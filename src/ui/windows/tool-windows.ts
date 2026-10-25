@@ -3,7 +3,6 @@ import type { IconName } from '../icons';
 import type { ToolMode, UiContext, WindowController } from '../ui-types';
 import { SCENERY_CATALOG, SceneryCategory } from '../../sim/map/scenery';
 import type { SceneryItem } from '../../sim/map/scenery';
-import { PathStyle } from '../../sim/map/tile-map';
 
 interface ToolTab {
   id: string;
@@ -15,7 +14,6 @@ interface ToolTab {
   alternate?: string;
   /** Offers the 1×1 to 5×5 brush size selector. */
   brush?: boolean;
-  path?: boolean;
   scenery?: boolean;
 }
 
@@ -92,21 +90,6 @@ export const SCENERY_WINDOW: ToolWindowSpec = {
   ],
 };
 
-export const PATH_WINDOW: ToolWindowSpec = {
-  id: 'paths',
-  title: 'Footpaths',
-  tabs: [
-    {
-      id: 'path',
-      label: 'Footpath',
-      icon: 'paths',
-      tool: 'path',
-      help: 'Tap tiles to lay footpath. It follows the terrain slope; a tile that cannot take a path shows why.',
-      path: true,
-    },
-  ],
-};
-
 export const WATER_WINDOW: ToolWindowSpec = {
   id: 'water',
   title: 'Water',
@@ -125,7 +108,6 @@ export const WATER_WINDOW: ToolWindowSpec = {
 export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowController {
   const byId = new Map(spec.tabs.map((tab) => [tab.id, tab]));
   const toggles: HTMLButtonElement[] = [];
-  let queue = false;
   const select = (tab: ToolTab | undefined): void => {
     if (!tab) return;
     ctx.actions.setAlternate(false);
@@ -141,7 +123,6 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
     onTab: (id) => select(byId.get(id)),
     onClose: () => {
       ctx.actions.setAlternate(false);
-      ctx.actions.setPathQueue(false);
       ctx.actions.setBrush(1);
       ctx.chooseTool('select');
     },
@@ -172,39 +153,6 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
         toggles.push(toggle);
         toggle.setAttribute('aria-pressed', 'false');
         pane.append(toggle);
-      }
-      if (tab.path) {
-        const style = element('select', 'path-style');
-        style.setAttribute('aria-label', 'Path surface style');
-        for (const [value, label] of [
-          [PathStyle.Tarmac, 'Tarmac'],
-          [PathStyle.CrazyPaving, 'Crazy paving'],
-          [PathStyle.Dirt, 'Dirt'],
-        ] as const)
-          style.append(new Option(label, String(value)));
-        style.addEventListener('change', () => ctx.actions.setPathStyle(Number(style.value)));
-        const queueToggle = button(
-          'Queue line',
-          () => {
-            queue = !queue;
-            queueToggle.setAttribute('aria-pressed', String(queue));
-            style.disabled = queue;
-            ctx.actions.setPathQueue(queue);
-          },
-          'ui-button',
-        );
-        queueToggle.setAttribute('aria-pressed', 'false');
-        const removeToggle = button(
-          'Remove footpath',
-          () => {
-            const on = removeToggle.getAttribute('aria-pressed') !== 'true';
-            removeToggle.setAttribute('aria-pressed', String(on));
-            ctx.actions.setAlternate(on);
-          },
-          'ui-button',
-        );
-        removeToggle.setAttribute('aria-pressed', 'false');
-        pane.append(style, queueToggle, removeToggle);
       }
       if (tab.scenery) {
         const category = element('select', 'scenery-category');

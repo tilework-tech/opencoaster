@@ -27,6 +27,17 @@ export function centreOnTile(x: number, y: number, sim: SimClient, camera: Camer
   camera.y = out[1];
 }
 
+/** Footpath run drags, in client pixels. `start` returns false when the drag should pan instead. */
+export interface PathDragHandlers {
+  start(clientX: number, clientY: number): boolean;
+  move(clientX: number, clientY: number): void;
+  end(): void;
+  cancel(): void;
+  /** Mouse hover without a button held: previews the piece under the pointer. */
+  hover(clientX: number, clientY: number): void;
+  hoverEnd(): void;
+}
+
 export interface CameraInputDependencies {
   canvas: HTMLCanvasElement;
   renderer: Renderer;
@@ -41,6 +52,7 @@ export interface CameraInputDependencies {
   syncPause: () => void;
   handleCanvasClick: (x: number, y: number, shiftKey?: boolean, forceSelect?: boolean) => void;
   removePathAt: (x: number, y: number) => void;
+  pathDrag: PathDragHandlers;
   setRideHover: (tile: [number, number] | null) => void;
   /** Receives the canvas size in CSS pixels whenever it changes. */
   viewport: { width: number; height: number };
@@ -188,6 +200,18 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
       if (deps.selectedTool() === 'path') deps.removePathAt(x, y);
       else deps.handleCanvasClick(x, y, false, true);
     },
+    pathDragStart(x, y) {
+      return deps.pathDrag.start(x, y);
+    },
+    pathDragMove(x, y) {
+      deps.pathDrag.move(x, y);
+    },
+    pathDragEnd() {
+      deps.pathDrag.end();
+    },
+    pathDragCancel() {
+      deps.pathDrag.cancel();
+    },
     paint(x, y, shiftKey) {
       const map = sim.map;
       if (!map) return;
@@ -212,6 +236,8 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     canvas.setPointerCapture(event.pointerId);
   });
   canvas.addEventListener('pointermove', (event) => {
+    if (deps.selectedTool() === 'path' && event.pointerType === 'mouse' && event.buttons === 0)
+      deps.pathDrag.hover(event.clientX, event.clientY);
     if ((deps.selectedTool() === 'track' || deps.selectedTool() === 'ride') && sim.map) {
       const rect = canvas.getBoundingClientRect();
       const tile = pickTile(event.clientX - rect.left, event.clientY - rect.top, sim.map, camera, {
@@ -227,6 +253,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     pointerInput.pointerUp(pointerSample(event));
   });
   canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
+  canvas.addEventListener('pointerleave', () => deps.pathDrag.hoverEnd());
   canvas.addEventListener('contextmenu', (event) => {
     if (deps.selectedTool() !== 'path') return;
     event.preventDefault();

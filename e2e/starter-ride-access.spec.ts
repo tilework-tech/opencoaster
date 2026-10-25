@@ -30,6 +30,10 @@ async function mapTileClick(
   const screenX = bounds.width / 2 + (dx - dy) * 32;
   const screenY = bounds.height / 2 + (dx + dy) * 16 - 2 * 16;
   await page.mouse.click(bounds.x + screenX, bounds.y + screenY);
+  // Footpath laying answers after the sim previews it, so wait for the status to name this tile.
+  await expect
+    .poll(() => page.locator('.tool-status').innerText(), { timeout: 10_000 })
+    .toMatch(new RegExp(`(?:requested at| at) ${x}, ${y}\\b`));
   const status = await page.locator('.tool-status').innerText();
   const actual = status.match(/(?:requested at| at) (\d+), (\d+)/);
   expect(actual, `Expected a tile coordinate in tool status: ${status}`).not.toBeNull();

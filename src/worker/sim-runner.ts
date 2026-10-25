@@ -6,6 +6,8 @@ import { deserialize, serialize } from '../save/save';
 import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
 import { extractMapData } from './map-data';
+import { previewPathRun } from '../sim/map/map-commands';
+import type { PathPlacement } from '../sim/map/paths';
 import type { Snapshot } from './snapshot';
 import type { FromWorker, InitMessage, ToWorker } from './protocol';
 
@@ -66,6 +68,9 @@ export class SimRunner {
       case 'load':
         this.load(msg.bytes);
         break;
+      case 'previewPaths':
+        this.previewPaths(msg.id, msg.placements);
+        break;
     }
   }
 
@@ -89,6 +94,12 @@ export class SimRunner {
     }
     const bytes = serialize(this.sim.world);
     this.port.post({ type: 'saved', bytes }, [bytes.buffer as ArrayBuffer]);
+  }
+
+  private previewPaths(id: number, placements: PathPlacement[]): void {
+    const sim = this.sim;
+    const pieces = sim ? previewPathRun(sim.world, placements) : [];
+    this.port.post({ type: 'pathPreview', id, pieces });
   }
 
   private load(bytes: Uint8Array): void {
