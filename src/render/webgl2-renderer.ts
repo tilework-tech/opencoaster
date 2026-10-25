@@ -327,6 +327,7 @@ export class WebGL2Renderer implements Renderer {
   private attributeBase = 0;
   private readonly coasterScene = new CoasterScene();
   private readonly rideCells = new RideCellScene();
+  private viewRotation: Rotation = 0;
   private uniforms: {
     atlas: (WebGLUniformLocation | null)[];
     viewport: WebGLUniformLocation | null;
@@ -420,6 +421,7 @@ export class WebGL2Renderer implements Renderer {
     if (!gl || !canvas || !map || this.lost || !this.program || !this.vao || !this.fallbackTexture)
       return;
 
+    this.viewRotation = camera.rotation;
     this.syncPageTextures();
     const viewportWidth = canvas.width / this.dpr;
     const viewportHeight = canvas.height / this.dpr;
