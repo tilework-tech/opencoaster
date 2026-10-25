@@ -1,15 +1,18 @@
-import { writeSpriteDef } from './output';
+import { alignFrames, writeSpriteDef } from './output';
 import type { SpriteDef } from './output';
 import { TILE_W, renderMesh } from './raster';
 import { ramp } from './palette';
+import type { Sprite } from './raster';
+import { placeOnFootprint, rideCellContext, rideCellMesh } from './ride-cells';
 import { coasterSprites } from './models/coaster/sprites';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
-import type { RideCategory } from '../../src/sim/rides/ride-types';
+import type { RideCategory, RideTypeDef } from '../../src/sim/rides/ride-types';
 import { rideSpriteName } from '../../src/render/world-art';
 import { RIDE_MODELS } from './models/ride-catalog';
 import { rideMesh } from './models/rides';
+import type { RideModel } from './models/rides';
 import {
   clipMesh,
   mapMesh,
@@ -47,6 +50,9 @@ import { PieceFlag } from '../../src/sim/track/track-types';
 import type { TrackPieceDef } from '../../src/sim/track/track-types';
 
 const ONE_TILE = { width: 1, height: 1 };
+
+/** Idle pose plus eight operating poses of every animated flat ride. */
+const FLAT_RIDE_FRAMES = 9;
 
 /** Distance from a tile centre to its edge, in tile units. */
 const TILE_HALF_EXTENT = 0.5;
@@ -136,6 +142,52 @@ function waterSprites(): SpriteDef[] {
   return out;
 }
 
+/** Flat rides are drawn as one slice per footprint tile; everything else is one sprite per view. */
+function isFlatRide(ride: RideTypeDef | undefined): ride is RideTypeDef {
+  return (
+    ride !== undefined &&
+    ride.id !== RideType.GoKarts &&
+    !ride.usesTrack &&
+    (ride.category === 'gentle' || ride.category === 'thrill')
+  );
+}
+
+function sameFrames(frames: readonly Sprite[]): boolean {
+  const aligned = alignFrames(frames);
+  const first = Buffer.from(aligned[0].pixels);
+  return aligned.every((frame) => Buffer.from(frame.pixels).equals(first));
+}
+
+/**
+ * Per-tile slices of a flat ride, keyed `<ride>/view-<view>/cell-<footprint index>`. `view` is
+ * the camera rotation plus the ride's orientation, so a slice is rendered once for every
+ * combination of the two. Tiles without geometry get no slice; tiles whose art does not change
+ * between poses keep a single frame.
+ */
+export function flatRideCellSprites(ride: RideTypeDef, model: RideModel): SpriteDef[] {
+  const out: SpriteDef[] = [];
+  const poses = Array.from({ length: FLAT_RIDE_FRAMES }, (_, frame) =>
+    placeOnFootprint(rideMesh(model, frame), ride.footprint),
+  );
+  const name = rideSpriteName(ride.id);
+  for (let view = 0; view < 4; view++)
+    ride.footprint.forEach((_, cell) => {
+      const slices = poses.map((pose) => rideCellMesh(pose, ride.footprint, cell, view));
+      if (slices.every((slice) => slice.length === 0)) return;
+      const frames = slices.map((slice, frame) =>
+        renderMesh(slice, {
+          continuedBy: rideCellContext(poses[frame], ride.footprint, cell, view),
+        }),
+      );
+      out.push({
+        key: `${name}/view-${view}/cell-${cell}`,
+        frames: sameFrames(frames) ? [frames[0]] : frames,
+        footprint: ONE_TILE,
+      });
+    });
+  return out;
+}
+
 function rideSprites(): SpriteDef[] {
   return RIDE_MODELS.flatMap((baseModel) => {
     const model = baseModel.key === 'rides/go-karts' ? GO_KARTS_MODEL : baseModel;
@@ -149,24 +201,14 @@ function rideSprites(): SpriteDef[] {
         ride.category === 'coaster')
     )
       return [];
-    const xs = ride?.footprint.map(([x]) => x) ?? [0];
-    const ys = ride?.footprint.map(([, y]) => y) ?? [0];
-    const footprint = {
-      width: Math.max(...xs) - Math.min(...xs) + 1,
-      height: Math.max(...ys) - Math.min(...ys) + 1,
-    };
+    if (isFlatRide(ride)) return flatRideCellSprites(ride, model);
     const spriteName = ride ? rideSpriteName(ride.id) : model.key;
-    const frames =
-      ride &&
-      ride.id !== RideType.GoKarts &&
-      !ride.usesTrack &&
-      (ride.category === 'gentle' || ride.category === 'thrill')
-        ? 9
-        : model.frames;
-    const fit = rideFitScale(Array.from({ length: frames }, (_, frame) => rideMesh(model, frame)));
+    const fit = rideFitScale(
+      Array.from({ length: model.frames }, (_, frame) => rideMesh(model, frame)),
+    );
     return Array.from({ length: 4 }, (_, view): SpriteDef => ({
       key: `${spriteName}/view-${view}`,
-      frames: Array.from({ length: frames }, (_, frame) =>
+      frames: Array.from({ length: model.frames }, (_, frame) =>
         renderMesh(
           rotateMesh(
             mapMesh(rideMesh(model, frame), (p) => [p[0] * fit, p[1] * fit, p[2] * fit]),
@@ -174,7 +216,7 @@ function rideSprites(): SpriteDef[] {
           ),
         ),
       ),
-      footprint,
+      footprint: ONE_TILE,
     }));
   });
 }
