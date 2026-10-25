@@ -423,6 +423,9 @@
   font-size: 12px;
   cursor: pointer;
 }
+.ride-card[hidden] {
+  display: none;
+}
 .ride-card .ui-icon {
   width: 32px;
   height: 32px;

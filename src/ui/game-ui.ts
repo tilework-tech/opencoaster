@@ -85,7 +85,7 @@ export class GameUI {
   private readonly parkNews: HTMLElement;
   private readonly weatherOverlay: HTMLElement;
   private readonly controllers = new Map<string, WindowController>();
-  private readonly news = new NewsTracker();
+  private news = new NewsTracker();
   private readonly series = {
     cash: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
     value: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
@@ -236,6 +236,8 @@ export class GameUI {
     this.closeAllWindows();
     this.controllers.clear();
     this.selectedGuest = null;
+    this.news = new NewsTracker();
+    this.statusBar.setMessage(null);
     this.chooseTool('select');
     if (openPark) this.openWindow('park');
   }
