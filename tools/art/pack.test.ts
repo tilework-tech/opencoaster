@@ -141,6 +141,9 @@ describe('world art atlas packing', () => {
       'terrain/grass',
       'people/guest',
       'rides/flat/carousel',
+      'rides/transport/log-flume',
+      'transport/river-rapids',
+      'track/chairlift/flat/view-0/cell-0',
       'rides/coaster/steel/track',
       'rides/coaster/wooden/track',
       'vehicles/car',
@@ -159,12 +162,17 @@ describe('world art atlas packing', () => {
     expect(manifest.sprites['terrain/grass'].category).toBe('world');
     expect(manifest.sprites['people/guest'].category).toBe('people');
     expect(manifest.sprites['rides/flat/carousel'].category).toBe('flat-rides');
+    expect(manifest.sprites['rides/transport/log-flume'].category).toBe('transport');
+    expect(manifest.sprites['transport/river-rapids'].category).toBe('transport');
+    expect(manifest.sprites['track/chairlift/flat/view-0/cell-0'].category).toBe('track-chairlift');
     expect(manifest.sprites['rides/coaster/steel/track'].category).toBe('coaster-steel');
     expect(manifest.sprites['rides/coaster/wooden/track'].category).toBe('coaster-wooden');
     expect(manifest.categories.world.lazy).toBe(false);
     expect(manifest.categories.people.lazy).toBe(false);
     expect(manifest.categories['coaster-steel'].lazy).toBe(true);
     expect(manifest.categories.vehicles.lazy).toBe(true);
+    expect(manifest.categories.transport.lazy).toBe(true);
+    expect(manifest.categories['track-chairlift'].lazy).toBe(true);
     const pageOf = (key: string): number => manifest.sprites[key].frames[0].page;
     expect(new Set(keys.map(pageOf)).size).toBe(keys.length);
     for (const key of keys)

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
+import { rideSpriteName } from '../../src/render/world-art';
 import { buildSprites } from './generate';
+import { alignFrames } from './output';
+import { TRANSPARENT } from './raster';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -52,5 +56,42 @@ describe('generated sprite catalogue', () => {
     const water = sprites.get('water/surface')!;
     const used = new Set(water.frames.flatMap((f) => [...f.pixels]));
     expect(used.size).toBeLessThanOrEqual(5);
+  });
+
+  it('renders every gentle and thrill flat ride with idle and occupied animation frames', () => {
+    const targetRides = Object.values(RIDE_CATALOG).filter(
+      (ride) => !ride.usesTrack && (ride.category === 'gentle' || ride.category === 'thrill'),
+    );
+    expect(targetRides.length).toBeGreaterThan(0);
+
+    for (const ride of targetRides) {
+      const xs = ride.footprint.map(([x]) => x);
+      const ys = ride.footprint.map(([, y]) => y);
+      const expectedFootprint = {
+        width: Math.max(...xs) - Math.min(...xs) + 1,
+        height: Math.max(...ys) - Math.min(...ys) + 1,
+      };
+      for (let view = 0; view < 4; view++) {
+        const sprite = sprites.get(`${rideSpriteName(ride.id)}/view-${view}`);
+        expect(sprite, `${ride.name}, view ${view}`).toBeDefined();
+        expect(sprite?.frames, `${ride.name}, view ${view}`).toHaveLength(9);
+        expect(sprite?.footprint, `${ride.name}, view ${view}`).toEqual(expectedFootprint);
+        const aligned = alignFrames(sprite!.frames);
+        const signatures = aligned.map((frame) => {
+          expect(frame.width).toBe(aligned[0].width);
+          expect(frame.height).toBe(aligned[0].height);
+          expect(frame.anchor).toEqual(aligned[0].anchor);
+          expect(frame.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+          return Buffer.from(frame.pixels).toString('base64');
+        });
+        expect(aligned[0].anchor.x).toBe(aligned[0].width / 2);
+        expect(aligned[0].height % 2).toBe(0);
+        expect(
+          new Set(signatures).size,
+          `${ride.name}, view ${view} occupied poses`,
+        ).toBeGreaterThanOrEqual(8);
+        expect(signatures.slice(1).every((signature) => signature !== signatures[0])).toBe(true);
+      }
+    }
   });
 });
