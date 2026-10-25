@@ -71,13 +71,14 @@ STRATEGIES['copper-ridge'] = growthStrategy({
 
 STRATEGIES['tidewater-docks'] = growthStrategy({
   ...BASE,
-  jitter: { skipPercent: 15, startDelayMonths: 2 },
+  reserveCents: 600_000,
   prices: RIDE_PRICES,
+  jitter: { skipPercent: 15, startDelayMonths: 2 },
   opening: OPENING,
   growth: LONG_GROWTH.slice(0, 18),
   extra: (b) => {
     const l = b.sim.world.economy;
-    if (l.loan > 0 && l.cash > l.loan + 600_000) b.repay(l.loan);
+    if (l.loan > 0 && l.cash > l.loan + 150_000) b.repay(l.loan);
   },
 });
 
@@ -97,14 +98,15 @@ STRATEGIES['glacier-point'] = growthStrategy({
   opening: list('foodStall drinkStall toilets merryGoRound'),
   growth: [
     'coaster:riverRun:1',
-    ...list('ferrisWheel drinkStall foodStall'),
+    ...list('ferrisWheel drinkStall'),
     'coaster:switchback:-1',
-    ...list('twist toilets swingingShip'),
+    ...list('foodStall twist'),
     'coaster:riverRun:1',
-    ...list('merryGoRound drinkStall foodStall'),
+    ...list('toilets swingingShip'),
     'coaster:switchback:-1',
-    ...list('ferrisWheel informationKiosk twist'),
+    ...list('merryGoRound informationKiosk'),
     'coaster:riverRun:1',
+    'coaster:switchback:-1',
   ],
 });
 
