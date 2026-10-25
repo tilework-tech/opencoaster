@@ -8,14 +8,7 @@ import { rideServiceX, rideServiceY, serviceRide } from '../rides/ride-maintenan
 import { StaffKind, StaffOrder } from './staff-store';
 import { DIR_DX, DIR_DY, ElementType, isPathElementBroken, PathFlag } from '../map/tile-map';
 import { RideState } from '../rides/ride-store';
-import {
-  collectGardenSites,
-  growGrounds,
-  mowGrass,
-  needsMowing,
-  needsWatering,
-  waterFlowerBed,
-} from './grounds';
+import { growGrounds, mowGrass, needsMowing, needsWatering, waterFlowerBed } from './grounds';
 
 const STAFF_UPDATE_STRIDE = 16;
 const STAFF_SPEED = 48;
@@ -96,17 +89,12 @@ export function createStaffSystem(): System {
   let walkableCount = 0;
   let mapRevision = -1;
   let cachedMap: World['map'] | null = null;
-  let gardenSites = new Int32Array(0);
-  let gardenSiteCount = 0;
-  let gardenWorld: World | null = null;
-  let gardenTick = -1;
   return {
     name: 'staff',
     update(world: World) {
       growGrounds(world);
       const map = world.map;
       const mapSize = world.map.width * world.map.height;
-      if (gardenSites.length !== mapSize) gardenSites = new Int32Array(mapSize);
       if (unrestricted.length !== mapSize) {
         unrestricted = new Uint8Array(mapSize).fill(1);
       }
@@ -229,14 +217,9 @@ export function createStaffSystem(): System {
             continue;
           }
           const patrolOrNull = area > 0 ? activePatrol : null;
-          if (gardenWorld !== world || gardenTick !== world.tick) {
-            gardenSiteCount = collectGardenSites(world, gardenSites);
-            gardenWorld = world;
-            gardenTick = world.tick;
-          }
           const site =
             (orders & (1 << StaffOrder.WaterGardens)) !== 0
-              ? findGardenSite(world, x, y, patrolOrNull, gardenSites, gardenSiteCount)
+              ? findGardenSite(world, x, y, patrolOrNull)
               : -1;
           const stand = site >= 0 ? standTileFor(world, site, map.index(x, y), patrolOrNull) : -1;
           if (stand >= 0) {
@@ -413,30 +396,29 @@ export function createStaffSystem(): System {
   };
 }
 
-/** Nearest listed site within reach that a handyman can work from, or -1. */
-function findGardenSite(
-  world: World,
-  x: number,
-  y: number,
-  patrol: Uint8Array | null,
-  sites: Int32Array,
-  count: number,
-): number {
+/**
+ * Nearest site within reach that a handyman can work from, or -1. Scans only the search window
+ * around the handyman; ties go to the lowest tile index.
+ */
+function findGardenSite(world: World, x: number, y: number, patrol: Uint8Array | null): number {
   const map = world.map;
   const from = map.index(x, y);
   let best = -1;
   let bestDistance = 0x7fffffff;
-  for (let i = 0; i < count; i++) {
-    const tile = sites[i];
-    const dx = (tile % map.width) - x;
-    const dy = ((tile / map.width) | 0) - y;
-    if (Math.abs(dx) > GARDEN_SEARCH_RADIUS || Math.abs(dy) > GARDEN_SEARCH_RADIUS) continue;
-    if (!needsWatering(world, tile) && !needsMowing(world, tile)) continue;
-    const distance = Math.abs(dx) + Math.abs(dy);
-    if (distance >= bestDistance) continue;
-    if (standTileFor(world, tile, from, patrol) < 0) continue;
-    best = tile;
-    bestDistance = distance;
+  for (let dy = -GARDEN_SEARCH_RADIUS; dy <= GARDEN_SEARCH_RADIUS; dy++) {
+    for (let dx = -GARDEN_SEARCH_RADIUS; dx <= GARDEN_SEARCH_RADIUS; dx++) {
+      const tx = x + dx;
+      const ty = y + dy;
+      if (!map.inBounds(tx, ty)) continue;
+      const distance = Math.abs(dx) + Math.abs(dy);
+      if (distance > bestDistance) continue;
+      const tile = map.index(tx, ty);
+      if (distance === bestDistance && tile > best) continue;
+      if (!needsWatering(world, tile) && !needsMowing(world, tile)) continue;
+      if (standTileFor(world, tile, from, patrol) < 0) continue;
+      best = tile;
+      bestDistance = distance;
+    }
   }
   return best;
 }
