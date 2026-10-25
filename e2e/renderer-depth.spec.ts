@@ -51,6 +51,7 @@ test('the foreground tree wins its pixel overlap with a guest in every renderer 
         frames: [{ page: 1, x: 0, y: 0, width: 32, height: 32 }],
         anchor: { x: 16, y: 32 },
         footprint: { width: 1, height: 1 },
+        native: true,
       },
     };
     spriteCatalog[terrainSurfaceSpriteName('grass')] = {
@@ -282,7 +283,10 @@ test('the foreground tree wins its pixel overlap with a guest in every renderer 
     expect(sample.pathOnly[2]).toBeLessThan(60);
     expect(sample.rgba[1]).toBeLessThan(60);
     expect(sample.rgba[2]).toBeLessThan(60);
-    expect(sample.guestOnly[0]).toBeLessThan(60);
+    expect(
+      sample.guestOnly[0],
+      `${sample.backend} r${sample.rotation} ${sample.guestOnly}`,
+    ).toBeLessThan(60);
     expect(sample.guestOnly[2]).toBeGreaterThan(200);
     expect(
       sample.pathOverlap[2],
