@@ -105,10 +105,7 @@ describe('parseScenarioFile', () => {
     );
     expect(rideIncome.objective.categoryMask).toBe(1 << LedgerCategory.RideTickets);
     expect(foodProfit.objective.categoryMask).toBe(
-      (1 << LedgerCategory.ShopSales) |
-        (1 << LedgerCategory.ShopStock) |
-        (1 << LedgerCategory.FoodDrinkSales) |
-        (1 << LedgerCategory.FoodDrinkStock),
+      (1 << LedgerCategory.FoodDrinkSales) | (1 << LedgerCategory.FoodDrinkStock),
     );
   });
 

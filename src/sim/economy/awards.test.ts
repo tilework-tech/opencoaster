@@ -3,8 +3,12 @@ import { Simulation } from '../core/simulation';
 import { TICKS_PER_MONTH } from './calendar';
 import { createSnapshot, writeSnapshot } from '../../worker/snapshot';
 import { deserialize, serialize } from '../../save/save';
-import { awardAttractionBps, AWARDS, AWARD_DURATION_MONTHS } from './awards';
+import { awardAttractionBps, AWARDS, AWARD_DURATION_MONTHS, evaluateMonthlyAward } from './awards';
 import { marketingAttraction } from './api';
+import { spawnGuest } from '../guests/guest-store';
+import { GuestState } from '../guests/guest-store';
+import { RideState } from '../rides/ride-store';
+import { RideType } from '../rides/ride-types';
 
 function advanceTo(s: Simulation, tick: number): void {
   while (s.world.tick < tick) s.step();
@@ -101,5 +105,31 @@ describe('monthly park awards', () => {
     expect(awardAttractionBps(sim.world.economy.activeAwards, sim.world.tick)).toBe(12_500);
     sim.world.economy.activeAwards = [{ awardId: 13, expiresTick: 100_000 }];
     expect(awardAttractionBps(sim.world.economy.activeAwards, sim.world.tick)).toBe(7_500);
+  });
+
+  it('judges park food awards from hunger satiation', () => {
+    const satisfied = new Simulation({ seed: 15, width: 16, height: 16 });
+    const hungry = new Simulation({ seed: 15, width: 16, height: 16 });
+    const setup = (sim: Simulation, satiation: number) => {
+      sim.world.economy.parkRating = 700;
+      sim.world.economy.inputs.litter = 10;
+      for (let i = 0; i < 4; i++) {
+        spawnGuest(sim.world);
+        const slot = sim.world.guests.count - 1;
+        sim.world.guests.cols.hunger[slot] = satiation;
+        sim.world.guests.cols.state[slot] = GuestState.Riding;
+      }
+      for (let i = 0; i < 3; i++) {
+        const slot = sim.world.rides.spawn();
+        sim.world.rides.cols.typeId[slot] = RideType.FoodStall;
+        sim.world.rides.cols.state[slot] = RideState.Open;
+      }
+      evaluateMonthlyAward(sim.world, TICKS_PER_MONTH);
+    };
+    setup(satisfied, 255);
+    setup(hungry, 0);
+
+    expect(satisfied.world.economy.activeAwards[0]?.awardId).toBe(2);
+    expect(hungry.world.economy.activeAwards.some((award) => award.awardId === 2)).toBe(false);
   });
 });

@@ -154,7 +154,7 @@ function objective(v: unknown): ScenarioDef['objective'] {
     o.kind === 'monthlyRideIncome'
       ? ['rideTickets']
       : o.kind === 'monthlyFoodProfit'
-        ? ['shopSales', 'shopStock', 'foodDrinkSales', 'foodDrinkStock']
+        ? ['foodDrinkSales', 'foodDrinkStock']
         : o.categories;
   const categoryMask =
     kind === ObjectiveKind.MonthlyIncome

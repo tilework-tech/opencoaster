@@ -35,6 +35,7 @@ export const MAX_ACTIVE_AWARDS = 4;
 /** Five months is reported by the RCT2/RCT1 list; another guide reports four. */
 export const AWARD_DURATION_MONTHS = 5;
 const MAX_NEWS = 32;
+const HUNGER_SATIATION_THRESHOLD = 128;
 
 function openRideCount(world: World, predicate: (type: RideType) => boolean): number {
   let count = 0;
@@ -51,7 +52,7 @@ function eligible(world: World, id: number): boolean {
   let hungry = 0;
   let lost = 0;
   for (let slot = 0; slot < world.guests.count; slot++) {
-    if (g.hunger[slot] > 200) hungry++;
+    if (g.hunger[slot] <= HUNGER_SATIATION_THRESHOLD) hungry++;
     if (
       g.state[slot] !== GuestState.Riding &&
       !world.map.isWalkable(world.map.index(g.x[slot] >> 8, g.y[slot] >> 8))
