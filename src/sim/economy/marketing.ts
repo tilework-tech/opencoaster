@@ -1,5 +1,6 @@
 import { BASIS_POINTS, LedgerCategory, NO_CAMPAIGN, NO_TARGET, post } from './ledger';
 import type { Ledger } from './ledger';
+import { VoucherKind } from './vouchers';
 
 /** What a campaign points guests at: the whole park, one ride, or one food or drink item. */
 export type CampaignTarget = 'none' | 'ride' | 'item';
@@ -10,6 +11,8 @@ export interface CampaignDef {
   weeklyCostCents: number;
   /** Guest attraction multiplier while the campaign runs, in basis points. */
   attractionBps: number;
+  /** What each guest the campaign attracts carries. */
+  voucher: VoucherKind;
 }
 
 /**
@@ -24,26 +27,42 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     target: 'none',
     weeklyCostCents: 5_000,
     attractionBps: 12_000,
+    voucher: VoucherKind.FreeEntry,
   },
-  { name: 'park advertising', target: 'none', weeklyCostCents: 15_000, attractionBps: 13_500 },
-  { name: 'free ride vouchers', target: 'ride', weeklyCostCents: 7_500, attractionBps: 11_500 },
+  {
+    name: 'park advertising',
+    target: 'none',
+    weeklyCostCents: 15_000,
+    attractionBps: 13_500,
+    voucher: VoucherKind.None,
+  },
+  {
+    name: 'free ride vouchers',
+    target: 'ride',
+    weeklyCostCents: 7_500,
+    attractionBps: 11_500,
+    voucher: VoucherKind.FreeRide,
+  },
   {
     name: 'half-price park-entry vouchers',
     target: 'none',
     weeklyCostCents: 6_000,
     attractionBps: 12_000,
+    voucher: VoucherKind.HalfPriceEntry,
   },
   {
     name: 'free food or drink vouchers',
     target: 'item',
     weeklyCostCents: 4_000,
     attractionBps: 11_000,
+    voucher: VoucherKind.FreeFoodOrDrink,
   },
   {
     name: 'selected-ride advertising',
     target: 'ride',
     weeklyCostCents: 8_000,
     attractionBps: 11_000,
+    voucher: VoucherKind.None,
   },
 ];
 
@@ -82,6 +101,14 @@ export function startCampaign(
 export function marketingAttractionBps(l: Ledger): number {
   if (l.campaignWeeksLeft <= 0 || l.campaignId === NO_CAMPAIGN) return BASIS_POINTS;
   return CAMPAIGNS[l.campaignId].attractionBps;
+}
+
+/** The voucher a guest arriving now receives, and the ride or stall it names (NO_TARGET if none). */
+export function marketingVoucher(l: Ledger): { kind: VoucherKind; target: number } {
+  if (l.campaignWeeksLeft <= 0 || l.campaignId === NO_CAMPAIGN) {
+    return { kind: VoucherKind.None, target: NO_TARGET };
+  }
+  return { kind: CAMPAIGNS[l.campaignId].voucher, target: l.campaignTarget };
 }
 
 /** Called once per week: pays for the running campaign and consumes one of its weeks. */

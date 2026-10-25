@@ -19,9 +19,11 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 const PRE_PATH_STYLE_SAVE_VERSION = 16;
 const PATH_STYLE_SAVE_VERSION = 17;
+/** Guests carry campaign vouchers from this version; earlier guests carry none. */
+const VOUCHER_SAVE_VERSION = 18;
 const PREVIOUS_SAVE_VERSION = 15;
 const PRE_V15_SAVE_VERSION = 14;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
@@ -306,6 +308,11 @@ function migrateMissingApproachGap(world: World, count: number): void {
   world.guests.cols.approachGap.fill(0xffff, 0, count);
 }
 
+function migrateVoucherlessGuests(world: World, count: number): void {
+  world.guests.cols.voucherKind.fill(0, 0, count);
+  world.guests.cols.voucherTarget.fill(-1, 0, count);
+}
+
 const MAX_SAVED_MAP_SIDE = 512;
 const MAX_SAVED_CAPACITY = 65536;
 
@@ -373,14 +380,15 @@ export function serialize(world: World): Uint8Array {
   return out;
 }
 
-/** Guest columns appended after a save's version: approach, navigation, stats, history, then memory. */
+/** Guest columns appended after a save's version: approach, navigation, stats, history, memory, then vouchers. */
 function guestColumnsAbsent(version: number): number {
   return (
     (version <= PRE_GUEST_STATS_SAVE_VERSION ? 3 : 0) +
     (version <= PRE_APPROACH_SAVE_VERSION ? 1 : 0) +
     (version <= PRE_NAVIGATION_SAVE_VERSION ? 5 : 0) +
     (version <= PRE_RIDE_HISTORY_SAVE_VERSION ? 5 : 0) +
-    (version < GUEST_MEMORY_SAVE_VERSION ? 2 : 0)
+    (version < GUEST_MEMORY_SAVE_VERSION ? 2 : 0) +
+    (version < VOUCHER_SAVE_VERSION ? 2 : 0)
   );
 }
 
@@ -415,6 +423,7 @@ export function deserialize(bytes: Uint8Array): World {
     PREVIOUS_SAVE_VERSION,
     PRE_V15_SAVE_VERSION,
     PRE_PATH_STYLE_SAVE_VERSION,
+    PATH_STYLE_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -536,6 +545,8 @@ export function deserialize(bytes: Uint8Array): World {
     migrateGuestHistory(world, header.stores.guests.count);
   if (header.version <= PRE_APPROACH_SAVE_VERSION)
     migrateMissingApproachGap(world, header.stores.guests.count);
+  if (header.version < VOUCHER_SAVE_VERSION)
+    migrateVoucherlessGuests(world, header.stores.guests.count);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION

@@ -2,7 +2,8 @@ import type { World } from '../core/world';
 import { PriceMode, post } from './ledger';
 import { LedgerCategory } from './ledger';
 import type { EconomyInputs } from './ledger';
-import { marketingAttractionBps as attractionBps } from './marketing';
+import type { VoucherKind } from './vouchers';
+import { marketingAttractionBps as attractionBps, marketingVoucher } from './marketing';
 
 function assertAmount(cents: number): void {
   if (!Number.isSafeInteger(cents) || cents < 0) {
@@ -51,6 +52,11 @@ export function ridePricingEnabled(world: World): boolean {
 /** Guest attraction multiplier in basis points (10000 = no campaign). */
 export function marketingAttraction(world: World): number {
   return attractionBps(world.economy);
+}
+
+/** Voucher the next arriving guest receives, with the ride or stall it names. */
+export function arrivalVoucher(world: World): { kind: VoucherKind; target: number } {
+  return marketingVoucher(world.economy);
 }
 
 export function recordDrowningCasualty(world: World): void {

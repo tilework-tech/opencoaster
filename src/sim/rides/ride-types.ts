@@ -83,6 +83,8 @@ export interface RideTypeDef {
   /** Price a new ride or stall starts at, in cents. */
   defaultPriceCents: number;
   inspectionIntervalTicks: number;
+  /** What a food or drink stall sells, which decides which guest needs it meets. */
+  serves?: 'food' | 'drink';
   /** Present on ride types that set `usesTrack`. */
   trackRules?: TrackRules;
   /** Rating base values, multipliers and requirements for track rides. */
@@ -367,6 +369,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     breakdowns: [],
     defaultPriceCents: 120,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
+    serves: 'food',
   },
   [RideType.DrinkStall]: {
     id: RideType.DrinkStall,
@@ -388,6 +391,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     breakdowns: [],
     defaultPriceCents: 80,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
+    serves: 'drink',
   },
   [RideType.InformationKiosk]: {
     id: RideType.InformationKiosk,
@@ -692,19 +696,22 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     23,
     4,
   ),
-  [RideType.BurgerStall]: addedRide(
-    RideType.BurgerStall,
-    'Burger Stall',
-    'stall',
-    25_000,
-    1,
-    [0, 0, 0],
-    SHOP_MODES,
-    2_500,
-    5,
-    24,
-    0,
-  ),
+  [RideType.BurgerStall]: {
+    ...addedRide(
+      RideType.BurgerStall,
+      'Burger Stall',
+      'stall',
+      25_000,
+      1,
+      [0, 0, 0],
+      SHOP_MODES,
+      2_500,
+      5,
+      24,
+      0,
+    ),
+    serves: 'food',
+  },
 };
 
 const RESEARCH_CATEGORIES: Readonly<Record<RideCategory, number>> = {

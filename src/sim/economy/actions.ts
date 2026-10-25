@@ -1,6 +1,6 @@
 import type { World } from '../core/world';
 import { getRideType, isShopCategory } from '../rides/ride-operations';
-import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { RIDE_CATALOG } from '../rides/ride-types';
 import { borrow, repay } from './finance';
 import { PriceMode } from './ledger';
 import type { Ledger } from './ledger';
@@ -79,7 +79,7 @@ function startCampaignCommand(
   if (def.target === 'ride' && isShopCategory(RIDE_CATALOG[type].category)) {
     return EconomyResult.NotARide;
   }
-  if (def.target === 'item' && type !== RideType.FoodStall && type !== RideType.DrinkStall) {
+  if (def.target === 'item' && RIDE_CATALOG[type].serves === undefined) {
     return EconomyResult.NotAFoodOrDrinkStall;
   }
   return applyEconomyAction(world.economy, action) ? EconomyResult.Ok : EconomyResult.Rejected;

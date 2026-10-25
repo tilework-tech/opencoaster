@@ -14,7 +14,7 @@ Path: @/src/sim/guests
 - Movement calls `nextDirection` from [pathfinding](../pathfinding/navigate.ts) at every tile centre, passing the target tile (a ride or stall entrance, or the gate) or `-1` to wander. `heading` stores the last direction so the pathfinder avoids reversing. Guests never leave the footpaths: positions advance 12 units per update toward the next tile centre.
 - Destinations are ride-store entries (rides, stalls, toilets alike) addressed by `targetRide`. A destination is only chosen when `isReachable` says a footpath route to its entrance exists.
 - The [ride queue system](../rides/queue-system.ts) seats `Waiting` guests when a ride dispatches; this system finishes the ride when the ride's completed-cycle counter moves on.
-- Money: gate fees post to `Admission`, tickets to `RideTickets` (at boarding, only in per-ride price mode), food and drink to `FoodDrinkSales` with a stock cost to `FoodDrinkStock`, and toilet fees and successful umbrella kiosk purchases to `ShopSales`. Arrival chance reads `parkRating` and the active marketing campaign from the economy.
+- Money: gate fees post to `Admission`, tickets to `RideTickets` (at boarding, only in per-ride price mode), food and drink to `FoodDrinkSales` with a stock cost to `FoodDrinkStock`, and toilet fees and successful umbrella kiosk purchases to `ShopSales`. Arrival chance reads `parkRating` and the active marketing campaign from the economy. Entry vouchers change the gate fee; a carried free-ride or free-food voucher waives the fare or price at its named ride or stall once, then is spent ([vouchers.ts](vouchers.ts)).
 
 ### Core Implementation
 

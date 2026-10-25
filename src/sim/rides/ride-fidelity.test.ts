@@ -646,6 +646,8 @@ function downgradeToVersion9(w: World): Uint8Array {
     w.staff.cols.orderFlags,
     guestColumns.litterMemory,
     guestColumns.angriness,
+    guestColumns.voucherKind,
+    guestColumns.voucherTarget,
     w.staff.cols.sweeps,
     w.staff.cols.vandalsStopped,
     w.litter.cols.birthOrder,

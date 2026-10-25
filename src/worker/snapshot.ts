@@ -19,7 +19,7 @@ export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
 export const RIDE_INFO_STRIDE = 24;
-export const GUEST_DETAIL_STRIDE = 17;
+export const GUEST_DETAIL_STRIDE = 19;
 
 export const enum RideInfo {
   Id = 0,
@@ -340,6 +340,8 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     out.guestDetails[o + 14] = guests.rideHistory1[i];
     out.guestDetails[o + 15] = guests.rideHistory2[i];
     out.guestDetails[o + 16] = guests.rideHistory3[i];
+    out.guestDetails[o + 17] = guests.voucherKind[i];
+    out.guestDetails[o + 18] = guests.voucherTarget[i];
   }
   writeLayer(out.staff, world.staff, world.staff.cols.kind, world.staff.cols.state);
   const staffIdCount = Math.min(world.staff.count, out.staffIds.length);

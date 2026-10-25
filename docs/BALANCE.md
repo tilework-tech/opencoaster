@@ -275,7 +275,7 @@ The intervening rebased runs before the final litter calibration ended at 261 gu
 - Per-type wear, the age schedule, repair times and stall prices are tuned for plausibility, not measured against RCT2 (see DECISIONS.md).
 - Ride prices and the admission fee are not tuned; the scripted park keeps the scenario's admission price and free rides.
 - Award records, monthly announcements, guest-generation effects, per-type casualty rating terms, and recent-rider park value are implemented. There is still no drowning/fatal-crash event producer; scenario predicates also use proxies for several awards until scenery, water rides, colors, and guest-thought coverage exist.
-- Marketing: the six campaigns carry their target, but targeted campaigns (free ride vouchers, selected-ride advertising, free food or drink) still give the park-wide attraction bonus. Per-target effects and voucher fulfilment belong to the guests workstream.
+- Marketing: the six campaigns carry their target, but targeted campaigns (free ride vouchers, selected-ride advertising, free food or drink) still give the park-wide attraction bonus. Vouchers are honoured at the gate, rides and stalls (see docs/fidelity/economy.md).
 - Constants follow community descriptions but were tuned against this harness, not against the original game.
 
 ## Combined guest-navigation and ride-fidelity

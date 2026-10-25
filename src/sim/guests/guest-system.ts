@@ -1,8 +1,15 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
-import { charge, earn, gateAdmissionCents, marketingAttraction } from '../economy/api';
+import {
+  arrivalVoucher,
+  charge,
+  earn,
+  gateAdmissionCents,
+  marketingAttraction,
+} from '../economy/api';
 import { BASIS_POINTS, LedgerCategory } from '../economy/ledger';
+import { gateFeeAfterVoucher, isEntryVoucher, VoucherKind } from '../economy/vouchers';
 import {
   DEFAULT_GUEST_OPTS,
   DIR_DX,
@@ -17,6 +24,7 @@ import { RideState } from '../rides/ride-store';
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
+import { guestPriceCents, spendVoucher } from './vouchers';
 import {
   applyGuestBudget,
   EXIT_HAPPINESS_LOSS,
@@ -80,7 +88,11 @@ export interface GuestAdmission {
   attractionBps?: number;
   /** Natural guest-generation multiplier from active park awards. */
   awardBps?: number;
+  /** Voucher each arriving guest receives, and the ride or stall it names. */
+  voucher?: { kind: VoucherKind; target: number };
 }
+
+const NO_VOUCHER = { kind: VoucherKind.None, target: -1 };
 
 export type GuestAdmissionProvider = (world: World) => GuestAdmission;
 
@@ -99,6 +111,7 @@ function admissionFromEconomy(world: World): GuestAdmission {
     entranceFee: gateAdmissionCents(world),
     attractionBps: marketingAttraction(world),
     awardBps: awardAttractionBps(world.economy.activeAwards, world.tick),
+    voucher: arrivalVoucher(world),
   };
 }
 
@@ -147,7 +160,13 @@ function taste(world: World, slot: number, ride: number): number {
 function scoreRide(world: World, slot: number, ride: number): number {
   const r = world.rides.cols;
   const g = world.guests.cols;
-  const price = ticketPriceCents(world, ride);
+  const price = guestPriceCents(
+    world,
+    slot,
+    world.rides.slotToId[ride],
+    ticketPriceCents(world, ride),
+    VoucherKind.FreeRide,
+  );
   if (r.state[ride] !== RideState.Open || r.entrancePlaced[ride] === 0 || price > g.cash[slot]) {
     return NOT_OFFERED;
   }
@@ -225,15 +244,33 @@ function chooseRide(world: World, slot: number, tile: number): number {
   return selected;
 }
 
-/** Nearest open, affordable, visible and reachable service of `type`, or -1. */
-function nearestService(world: World, slot: number, tile: number, type: RideType): number {
+/**
+ * Nearest open, affordable, visible and reachable stall that is either of type `want` or, for
+ * `'food'` and `'drink'`, sells that; -1 when there is none.
+ */
+function nearestStall(
+  world: World,
+  slot: number,
+  tile: number,
+  want: RideType | 'food' | 'drink',
+): number {
   const r = world.rides.cols;
   const cash = world.guests.cols.cash[slot];
   let selected = -1;
   let best = SIGHT_TILES + 1;
   for (let ride = 0; ride < world.rides.count; ride++) {
-    if (r.typeId[ride] !== type || r.state[ride] !== RideState.Open) continue;
-    if (r.entrancePlaced[ride] === 0 || r.price[ride] > cash) continue;
+    const type = r.typeId[ride] as RideType;
+    const matches = typeof want === 'number' ? type === want : RIDE_CATALOG[type]?.serves === want;
+    if (!matches || r.state[ride] !== RideState.Open) continue;
+    if (r.entrancePlaced[ride] === 0) continue;
+    const fare = guestPriceCents(
+      world,
+      slot,
+      world.rides.slotToId[ride],
+      r.price[ride],
+      VoucherKind.FreeFoodOrDrink,
+    );
+    if (fare > cash) continue;
     if (world.rideLines.queued[ride] + world.rideLines.approaching[ride] >= STALL_LINE_LIMIT) {
       continue;
     }
@@ -251,30 +288,30 @@ function chooseDestination(world: World, slot: number, tile: number): number {
   const g = world.guests.cols;
   if (isLost(world, slot)) {
     return g.hasMap[slot] === 0 && g.cash[slot] >= MAP_PRICE
-      ? nearestService(world, slot, tile, RideType.InformationKiosk)
+      ? nearestStall(world, slot, tile, RideType.InformationKiosk)
       : -1;
   }
   if (g.toilet[slot] >= TOILET_SEEK) {
-    const toilets = nearestService(world, slot, tile, RideType.Toilets);
+    const toilets = nearestStall(world, slot, tile, RideType.Toilets);
     if (toilets >= 0) return toilets;
   }
   if (
     world.weather.kind >= WeatherKind.Rain &&
     world.umbrellas[world.guests.slotToId[slot]] === 0
   ) {
-    const kiosk = nearestService(world, slot, tile, RideType.InformationKiosk);
+    const kiosk = nearestStall(world, slot, tile, RideType.InformationKiosk);
     if (kiosk >= 0) return kiosk;
   }
   const hungry = g.hunger[slot] <= HUNGER_SEEK;
   const thirsty = g.thirst[slot] <= THIRST_SEEK;
   if (hungry || thirsty) {
     const foodFirst = hungry && (!thirsty || g.hunger[slot] <= g.thirst[slot]);
-    const first = foodFirst ? RideType.FoodStall : RideType.DrinkStall;
-    const second = foodFirst ? RideType.DrinkStall : RideType.FoodStall;
-    const stall = nearestService(world, slot, tile, first);
+    const first = foodFirst ? 'food' : 'drink';
+    const second = foodFirst ? 'drink' : 'food';
+    const stall = nearestStall(world, slot, tile, first);
     if (stall >= 0) return stall;
     if (hungry && thirsty) {
-      const other = nearestService(world, slot, tile, second);
+      const other = nearestStall(world, slot, tile, second);
       if (other >= 0) return other;
     }
   }
@@ -412,7 +449,10 @@ function finishShopping(world: World, slot: number, ride: number): void {
   const r = world.rides.cols;
   const type = r.typeId[ride] as RideType;
   const mapSale = isMapSale(world, slot, ride);
-  const price = Math.min(mapSale ? MAP_PRICE : r.price[ride], g.cash[slot]);
+  const voucherUsed =
+    !mapSale && spendVoucher(world, slot, world.rides.slotToId[ride], VoucherKind.FreeFoodOrDrink);
+  const listPrice = mapSale ? MAP_PRICE : voucherUsed ? 0 : r.price[ride];
+  const price = Math.min(listPrice, g.cash[slot]);
   g.cash[slot] -= price;
   if (type === RideType.Toilets) {
     g.toilet[slot] = 0;
@@ -433,7 +473,7 @@ function finishShopping(world: World, slot: number, ride: number): void {
       addRideIncome(world, ride, price);
     }
   } else {
-    if (type === RideType.FoodStall) {
+    if (RIDE_CATALOG[type].serves === 'food') {
       g.hunger[slot] = Math.min(255, g.hunger[slot] + MEAL_RELIEF);
       g.thirst[slot] = Math.max(0, g.thirst[slot] - MEAL_THIRST);
     } else {
@@ -464,7 +504,10 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
   const r = world.rides.cols;
   const category = rideCategory(world, ride);
-  const price = isThrillCategory(category) ? ticketPriceCents(world, ride) : r.price[ride];
+  const rideId = world.rides.slotToId[ride];
+  const price = isThrillCategory(category)
+    ? guestPriceCents(world, slot, rideId, ticketPriceCents(world, ride), VoucherKind.FreeRide)
+    : guestPriceCents(world, slot, rideId, r.price[ride], VoucherKind.FreeFoodOrDrink);
   const lines = world.rideLines;
   const mapSale = isMapSale(world, slot, ride);
   const unwanted =
@@ -750,10 +793,16 @@ function spawnArrival(world: World, admission: GuestAdmission): void {
   if (world.rng.int(1000) >= chance) return;
   if (!spawnGuest(world)) return;
   const slot = world.guests.count - 1;
-  const fee = Math.min(admission.entranceFee, world.guests.cols.cash[slot]);
+  const guest = world.guests.cols;
+  const voucher = admission.voucher ?? NO_VOUCHER;
+  const fee = Math.min(gateFeeAfterVoucher(voucher.kind, admission.entranceFee), guest.cash[slot]);
   if (fee > 0) {
-    world.guests.cols.cash[slot] -= fee;
+    guest.cash[slot] -= fee;
     earn(world, LedgerCategory.Admission, fee);
+  }
+  if (voucher.kind !== VoucherKind.None && !isEntryVoucher(voucher.kind) && voucher.target >= 0) {
+    guest.voucherKind[slot] = voucher.kind;
+    guest.voucherTarget[slot] = voucher.target;
   }
 }
 
