@@ -32,6 +32,7 @@ import {
   isLost,
   MAP_PRICE,
   noteNavigation,
+  noteStranded,
   tickLost,
 } from './navigation';
 import { hasParkEntrance, parkEntranceTile } from './park';
@@ -760,6 +761,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     if (stepToward(world, slot, tile, entranceTile(world, ride), nav)) return false;
     clearDestination(world, slot);
   }
+  if (noteStranded(world, slot, tile)) return true;
   stepToward(world, slot, tile, -1, nav);
   return false;
 }

@@ -1,7 +1,8 @@
 import type { World } from '../core/world';
-import { DEFAULT_GUEST_OPTS, lastSearchOutcome, SearchOutcome } from '../pathfinding';
+import { DEFAULT_GUEST_OPTS, isReachable, lastSearchOutcome, SearchOutcome } from '../pathfinding';
 import type { NavOptions } from '../pathfinding';
 import { GuestThought, recordThought } from './guest-store';
+import { parkEntranceTile } from './park';
 
 /** Junction choices a guest may make blind, without getting closer to its goal, before it is lost. */
 export const LOST_AFTER_CHOICES = 12;
@@ -13,6 +14,8 @@ export const MAP_PRICE = 60;
 export const MAP_JUNCTION_BONUS = 16;
 /** A guest with a map tolerates this many times more blind tiles before it is lost. */
 export const MAP_LOST_FACTOR = 2;
+/** Tile centres a guest with no reachable destination may visit cut off from the gate before it leaves. */
+export const STRANDED_LEAVE_VISITS = 40;
 /** A leaving guest that cannot find the exit loses happiness this often (guest updates). */
 export const EXIT_PENALTY_TICKS = 11520;
 export const EXIT_HAPPINESS_LOSS = 30;
@@ -72,4 +75,21 @@ export function noteNavigation(world: World, slot: number, tile: number, goal: n
   if (g.navSteps[slot] < limit) return false;
   becomeLost(world, slot);
   return true;
+}
+
+/**
+ * Called at a tile centre where a guest has no destination it can walk to. A guest with no
+ * footpath to the gate is lost and wanders; after `STRANDED_LEAVE_VISITS` such visits it leaves
+ * the park. Returns true when the guest should be despawned.
+ */
+export function noteStranded(world: World, slot: number, tile: number): boolean {
+  const g = world.guests.cols;
+  const gate = parkEntranceTile(world);
+  if (gate < 0 || isReachable(world, tile, gate)) {
+    g.navSteps[slot] = 0;
+    return false;
+  }
+  if (!isLost(world, slot)) becomeLost(world, slot);
+  g.navSteps[slot]++;
+  return g.navSteps[slot] >= STRANDED_LEAVE_VISITS;
 }

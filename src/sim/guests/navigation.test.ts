@@ -90,6 +90,35 @@ describe('lost guests', () => {
   });
 });
 
+describe('stranded guests', () => {
+  it('leaves the park when its footpath is cut off from the gate and no ride is reachable', () => {
+    const w = flatWorld();
+    layPath(w, [[5, 5]]);
+    guestAt(w, 5, 5);
+    expect(w.guests.count).toBe(1);
+    run(w, 1200);
+    expect(w.guests.count).toBe(0);
+  });
+
+  it('thinks it is lost while it waits to leave', () => {
+    const w = flatWorld();
+    layPath(w, [[5, 5]]);
+    const slot = guestAt(w, 5, 5);
+    run(w, 40);
+    expect(w.guests.count).toBe(1);
+    expect(w.guests.cols.lostTicks[slot]).toBeGreaterThan(0);
+    expect(thoughts(w, slot)).toContain(GuestThought.Lost);
+  });
+
+  it('keeps a guest on a footpath connected to the gate in the park', () => {
+    const w = flatWorld();
+    layPath(w, row(1, 2, 10));
+    guestAt(w, 1, 2);
+    run(w, 1200);
+    expect(w.guests.count).toBe(1);
+  });
+});
+
 describe('park maps', () => {
   function kioskWorld(): { w: World; slot: number; kiosk: number } {
     const w = flatWorld();
