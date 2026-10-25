@@ -211,6 +211,7 @@ describe('save', () => {
 
   it('migrates version 13 saves with worker and guest history but no ride rider windows', () => {
     const world = flatWorld(16);
+    layPath(world, row(5, 6, 8));
     const guestSlot = guestAt(world, 5, 5);
     spawnStaff(world, StaffKind.Entertainer);
     const staffId = world.staff.slotToId[0];
@@ -230,13 +231,19 @@ describe('save', () => {
       ...world.track.pieces.arrays(),
       ...world.track.rideTables(),
     ];
-    const legacy = withoutColumns(serialize(world), 13, views, riderHistoryColumns(world));
+    const legacy = withoutColumns(serialize(world), 13, views, [
+      world.map.pathStyle,
+      ...riderHistoryColumns(world),
+    ]);
 
     const loaded = deserialize(legacy);
 
     expect(loaded.guests.cols.rideHistoryCursor[guestSlot]).toBe(2);
     expect(loaded.guests.cols.rideHistory0[guestSlot]).toBe(17);
     expect(loaded.staff.cols.orderFlags[staffSlot]).toBe(world.staff.cols.orderFlags[staffSlot]);
+    expect(loaded.map.pathStyle[loaded.map.pathElement(world.map.index(6, 5), -1)]).toBe(
+      PathStyle.Tarmac,
+    );
     expect(staffOrderEnabled(loaded, staffId, StaffOrder.EntertainGuests)).toBe(false);
     expect(
       (loaded.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[rideSlot],

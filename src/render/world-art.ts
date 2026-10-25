@@ -15,6 +15,11 @@ export function terrainSurfaceSpriteName(surface: TerrainSurface): string {
   return `terrain/${surface}/surface`;
 }
 
+export function terrainCliffSpriteName(surface: TerrainSurface, direction: number): string {
+  const edge = Number.isInteger(direction) && direction >= 0 && direction <= 3 ? direction : 0;
+  return `terrain/${surface}/cliff-face-${edge}`;
+}
+
 export function pathSpriteName(
   surface: PathSurface,
   edges: number,

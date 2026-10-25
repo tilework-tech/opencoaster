@@ -628,6 +628,7 @@ function downgradeToVersion9(w: World): Uint8Array {
   const cols = w.rides.cols as unknown as Record<string, ArrayBufferView>;
   const guestColumns = w.guests.cols;
   const dropped = new Set<ArrayBufferView>([
+    w.map.pathStyle,
     ...added.map((name) => cols[name]),
     guestColumns.navGoal,
     guestColumns.navGap,

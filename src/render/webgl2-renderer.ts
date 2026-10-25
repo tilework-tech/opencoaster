@@ -5,13 +5,20 @@ import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
-import { terrainLightFactor, viewTerrainCornerHeights } from './terrain-geometry';
+import {
+  terrainEdgeFace,
+  terrainLightFactor,
+  terrainTileCorners,
+  viewTerrainCornerHeights,
+  waterIntersectsTerrainTile,
+} from './terrain-geometry';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import type { Rotation } from './projection';
 import {
   pathSpriteName,
   type PathSurface,
+  terrainCliffSpriteName,
   scenerySpriteName,
   terrainSurfaceSpriteName,
   waterFrameIndex,
@@ -120,20 +127,26 @@ out vec2 vTileUv;
 out float vMeshMode;
 out float vGridlines;
 out float vTerrainShade;
+out float vWaterDepth;
 void main() {
-  bool tileMesh = aMeshMode > 0.5;
-  vec2 tileCorner = aCorner;
+  bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
+  bool faceMesh = aMeshMode > 3.5;
   float cornerHeight = aWorld.z;
-  if (aMeshMode > 0.5 && aMeshMode < 1.5) {
+  if ((aMeshMode > 0.5 && aMeshMode < 1.5) || aMeshMode > 2.5) {
     if (aCorner.x < 0.5 && aCorner.y < 0.5) cornerHeight = aCornerHeights.x;
     else if (aCorner.x >= 0.5 && aCorner.y < 0.5) cornerHeight = aCornerHeights.y;
     else if (aCorner.x >= 0.5 && aCorner.y >= 0.5) cornerHeight = aCornerHeights.z;
     else cornerHeight = aCornerHeights.w;
   }
-  if (tileMesh) cornerHeight = aMeshMode > 1.5 ? aWorld.z : cornerHeight;
+  vec2 world = aWorld.xy;
+  if (faceMesh) {
+    world += aSize * aCorner.x;
+    float topHeight = mix(aCornerHeights.x, aCornerHeights.y, aCorner.x);
+    cornerHeight = mix(topHeight, aWorld.z, aCorner.y);
+  }
   float z = tileMesh ? aWorld.z : cornerHeight;
-  float rx = aWorld.x / ${TILE_UNITS.toFixed(1)};
-  float ry = aWorld.y / ${TILE_UNITS.toFixed(1)};
+  float rx = world.x / ${TILE_UNITS.toFixed(1)};
+  float ry = world.y / ${TILE_UNITS.toFixed(1)};
   if (!tileMesh && uRotation > 0.5 && uRotation < 1.5) {
     float next = uMapSize.y - ry;
     ry = rx;
@@ -154,10 +167,11 @@ void main() {
                            (aCorner.x + aCorner.y) * ${glslFloat(TILE_H / 2)});
     tileOffset = (tileOffset - vec2(0.0, ${glslFloat(TILE_H / 2)})) * 1.0 +
                  vec2(0.0, ${glslFloat(TILE_H / 2)});
-    float baseZ = aMeshMode > 1.5 ? cornerHeight : aWorld.z;
+    float baseZ = aWorld.z;
     screen += tileOffset * uZoom;
-    screen.y -= (cornerHeight - baseZ) * ${glslFloat(Z_PIXELS / Z_STEP)} * uZoom;
-  } else {
+    if (aMeshMode < 1.5)
+      screen.y -= (cornerHeight - baseZ) * ${glslFloat(Z_PIXELS / Z_STEP)} * uZoom;
+  } else if (!faceMesh) {
     screen += (aCorner - 0.5) * aSize * uZoom;
   }
   gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
@@ -168,6 +182,7 @@ void main() {
   vMeshMode = aMeshMode;
   vGridlines = aGridlines;
   vTerrainShade = aTerrainShade;
+  vWaterDepth = aWorld.z - cornerHeight;
 }`;
 
 const fragmentSource = `#version 300 es
@@ -177,9 +192,11 @@ in vec2 vTileUv;
 in float vMeshMode;
 in float vGridlines;
 in float vTerrainShade;
+in float vWaterDepth;
 uniform sampler2D uAtlas;
 out vec4 outColor;
 void main() {
+  if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = texture(uAtlas, vUv);
   if (vMeshMode > 0.5 && vMeshMode < 1.5) outColor.rgb *= vTerrainShade;
   if (vGridlines > 0.5 && vMeshMode > 0.5 && vMeshMode < 1.5) {
@@ -553,8 +570,33 @@ export class WebGL2Renderer implements Renderer {
           corners,
           terrainLightFactor(corners),
         );
+        const tileCorners = terrainTileCorners(x, y, height, mask);
+        for (let direction = 0; direction < 4; direction++) {
+          const onMapEdge =
+            (direction === 0 && x === map.width - 1) ||
+            (direction === 1 && y === map.height - 1) ||
+            (direction === 2 && x === 0) ||
+            (direction === 3 && y === 0);
+          if (!onMapEdge) continue;
+          const face = terrainEdgeFace(tileCorners, direction, 0);
+          if (!face) continue;
+          const top = Math.max(face.start.height, face.end.height);
+          const bottom = face.bottomHeight;
+          if (top <= bottom) continue;
+          this.append(
+            face.start.x * TILE_UNITS,
+            face.start.y * TILE_UNITS,
+            bottom * 64,
+            (face.end.x - face.start.x) * TILE_UNITS,
+            (face.end.y - face.start.y) * TILE_UNITS,
+            terrainCliffSpriteName(terrainSurface, (direction + camera.rotation) & 3),
+            2 * (rx + ry) - height - bottom + 0.25,
+            4,
+            [face.start.height * 64, face.end.height * 64, bottom * 64, bottom * 64],
+          );
+        }
         const waterLevel = map.waterLevel?.[index] ?? 0;
-        if (waterLevel > height && waterLevel * 64 >= Math.max(...corners)) {
+        if (waterIntersectsTerrainTile(waterLevel, mask, height)) {
           this.append(
             rx * TILE_UNITS,
             ry * TILE_UNITS,
@@ -563,8 +605,8 @@ export class WebGL2Renderer implements Renderer {
             TILE_H,
             waterSpriteName(waterFrameIndex(tick)),
             2 * (rx + ry) - map.waterLevel![index] + 2,
-            2,
-            [waterLevel * 64, waterLevel * 64, waterLevel * 64, waterLevel * 64],
+            3,
+            corners,
           );
         } else if (surface === 3 || surface === 6)
           this.append(

@@ -1,7 +1,8 @@
 import { button, element } from '../dom';
 import type { IconName } from '../icons';
 import type { ToolMode, UiContext, WindowController } from '../ui-types';
-import { SCENERY_CATALOG, SceneryCategory, SceneryItem } from '../../sim/map/scenery';
+import { SCENERY_CATALOG, SceneryCategory } from '../../sim/map/scenery';
+import type { SceneryItem } from '../../sim/map/scenery';
 import { PathStyle } from '../../sim/map/tile-map';
 
 interface ToolTab {

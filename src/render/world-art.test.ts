@@ -6,6 +6,7 @@ import {
   scenerySpriteName,
   spriteViewName,
   terrainSpriteName,
+  terrainCliffSpriteName,
   terrainSurfaceSpriteName,
   waterFrameIndex,
 } from './world-art';
@@ -25,6 +26,15 @@ describe('world art sprite selection', () => {
     expect(surfaces.map(terrainSurfaceSpriteName)).toEqual(
       surfaces.map((surface) => `terrain/${surface}/surface`),
     );
+  });
+
+  it('selects cardinal material-specific cliff-face artwork', () => {
+    for (const surface of ['grass', 'dirt', 'sand', 'rock'] as const) {
+      for (const direction of [0, 1, 2, 3])
+        expect(terrainCliffSpriteName(surface, direction)).toBe(
+          `terrain/${surface}/cliff-face-${direction}`,
+        );
+    }
   });
 
   it('selects every connected-path shape for each path material and ramp direction', () => {

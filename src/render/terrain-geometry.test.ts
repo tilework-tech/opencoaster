@@ -5,6 +5,7 @@ import {
   terrainTileCorners,
   viewTerrainCornerHeights,
   waterCoversTerrainTile,
+  waterIntersectsTerrainTile,
 } from './terrain-geometry';
 
 describe('terrain tile geometry', () => {
@@ -50,5 +51,11 @@ describe('terrain tile geometry', () => {
     expect(waterCoversTerrainTile(4, 0, 2)).toBe(true);
     expect(waterCoversTerrainTile(2, 0b0100, 2)).toBe(false);
     expect(waterCoversTerrainTile(0, 0, 4)).toBe(false);
+  });
+
+  it('keeps a partially submerged slope in the water render pass for shoreline clipping', () => {
+    expect(waterIntersectsTerrainTile(3, 0b0100, 2)).toBe(true);
+    expect(waterIntersectsTerrainTile(2, 0b0100, 2)).toBe(false);
+    expect(waterIntersectsTerrainTile(0, 0, 0)).toBe(false);
   });
 });

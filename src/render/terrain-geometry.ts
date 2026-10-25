@@ -75,3 +75,14 @@ export function waterCoversTerrainTile(
     if (baseHeight + ((slopeMask >> corner) & 1) > waterLevel) return false;
   return true;
 }
+
+export function waterIntersectsTerrainTile(
+  waterLevel: number,
+  slopeMask: number,
+  baseHeight: number,
+): boolean {
+  if (waterLevel <= 0) return false;
+  for (let corner = 0; corner < 4; corner++)
+    if (baseHeight + ((slopeMask >> corner) & 1) < waterLevel) return true;
+  return false;
+}

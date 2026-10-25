@@ -66,6 +66,11 @@ test('is playable on a phone: scrolling toolbar, bottom sheets, 44px targets, ta
   await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).tap();
   await page.locator('#game').tap({ position: { x: 190, y: 200 } });
   await expect(page.locator('.tool-status')).toContainText('Path placement requested');
+  const paths = page.locator('[data-panel="paths"]');
+  await paths.locator('.ui-titlebar').tap();
+  await expect(paths).toHaveClass(/collapsed/);
+  await paths.getByRole('button', { name: 'Close Footpaths' }).tap();
+  await expect(paths).toHaveCount(0);
 
   await toolbar.getByRole('button', { name: 'New ride', exact: true }).scrollIntoViewIfNeeded();
   await toolbar.getByRole('button', { name: 'New ride', exact: true }).tap();

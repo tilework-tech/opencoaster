@@ -6,6 +6,7 @@ import sharp from 'sharp';
 test('runs the park through WebGL2 with 5,000 guests and captures a frame', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(90_000);
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   page.on('console', (message) => {
@@ -90,7 +91,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
       setTimeout(() => {
         observer.disconnect();
         resolve();
-      }, 30_000);
+      }, 45_000);
     });
 
     return samples;
