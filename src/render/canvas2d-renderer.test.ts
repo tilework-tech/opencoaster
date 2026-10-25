@@ -99,6 +99,12 @@ async function renderWithAtlas(
   map: MapData,
   names: string[],
   snapshot: Snapshot | null = null,
+  camera: { x: number; y: number; zoom: number; rotation: 0 | 1 | 2 | 3 } = {
+    x: 0,
+    y: 0,
+    zoom: 1,
+    rotation: 0,
+  },
 ): Promise<RecordingContext> {
   const context = new RecordingContext();
   const canvas = { getContext: () => context } as unknown as HTMLCanvasElement;
@@ -229,6 +235,38 @@ describe('Canvas2D fallback map art', () => {
 
     expect(context.spriteSources).toContain(10);
     expect(context.spriteSources).toContain(20);
+  });
+
+  it('draws rock cliff faces with the camera-facing directional sprite', async () => {
+    const map = flatMap();
+    map.heights.fill(3);
+    map.heights[13] = 0;
+    map.surface[12] = 5;
+    map.slope[12] = 0b0010;
+    const cliffNames = [0, 1, 2, 3].map((direction) => `terrain/rock/cliff-face-${direction}`);
+
+    for (let rotation = 0; rotation < 4; rotation++) {
+      const context = await renderWithAtlas(map, ['terrain/rock/surface', ...cliffNames], null, {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        rotation: rotation as 0 | 1 | 2 | 3,
+      });
+
+      expect(context.spriteSources).toContain(rotation + 2);
+      if (rotation === 0)
+        expect(context.spriteSources.filter((source) => source === 2)).toHaveLength(2);
+    }
+  });
+
+  it('textures sloped rock surfaces with the generated rock sprite', async () => {
+    const map = flatMap();
+    map.surface[12] = 5;
+    map.slope[12] = 0b0011;
+
+    const context = await renderWithAtlas(map, ['terrain/rock/surface']);
+
+    expect(context.spriteSources).toContain(1);
   });
 
   it('draws placeable scenery from its catalog sprite once the atlas has loaded', async () => {

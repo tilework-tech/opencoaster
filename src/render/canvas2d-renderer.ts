@@ -10,6 +10,7 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { drawAnchoredSprite, drawBoxedSprite, drawTileTexture } from './canvas-atlas';
 import { spritePages } from './sprite-pages';
+import type { PageImage, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
 import type { CanvasAtlas } from './canvas-atlas';
 import {
@@ -25,7 +26,7 @@ import {
   waterFrameIndex,
   ambientTreeName,
 } from './world-art';
-import { terrainSurfaceSpriteName } from './world-art';
+import { terrainCliffSpriteName, terrainSurfaceSpriteName } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
@@ -39,6 +40,7 @@ import {
 import type { PathSurface } from './world-art';
 import {
   clipTerrainTileTrianglesBelowHeight,
+  terrainEdgeFace,
   terrainShorelineSegments,
   terrainTileCorners,
 } from './terrain-geometry';
@@ -83,6 +85,7 @@ export class Canvas2DRenderer implements Renderer {
   private ch = 1;
   private dpr = 1;
   private readonly tmp = new Float64Array(2);
+  private readonly cliffPoints = Array.from({ length: 4 }, () => new Float64Array(2));
   private readonly pathLow = new Float64Array(2);
   private readonly pathHigh = new Float64Array(2);
   private readonly tile = new Int32Array(2);
@@ -250,18 +253,33 @@ export class Canvas2DRenderer implements Renderer {
         ctx.lineTo(sx - TILE_W / 2 - SEAM * 2, sy + TILE_H / 2 - liftLeft);
         ctx.closePath();
         ctx.fill();
-        if (mask === 0 && this.atlas) {
-          drawTileTexture(
-            ctx,
-            this.atlas,
-            terrainSurfaceSpriteName(terrainSurface),
-            0,
-            sx,
-            sy - lift,
-            TILE_W,
-            TILE_H,
-          );
+        if (this.atlas && (mask === 0 || terrainSurface === 'rock')) {
+          const texture = () =>
+            drawTileTexture(
+              ctx,
+              this.atlas!,
+              terrainSurfaceSpriteName(terrainSurface),
+              0,
+              sx,
+              sy - lift,
+              TILE_W,
+              TILE_H,
+            );
+          if (mask === 0) texture();
+          else {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - liftTop);
+            ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - liftRight);
+            ctx.lineTo(sx, sy + TILE_H - liftBottom);
+            ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
+            ctx.closePath();
+            ctx.clip();
+            texture();
+            ctx.restore();
+          }
         }
+        if (terrainSurface === 'rock') this.drawRockCliffFaces(ctx, map, cam, x, y, i, mask);
         if (cam.showGridlines) {
           ctx.strokeStyle = 'rgba(28, 34, 26, 0.18)';
           ctx.lineWidth = 0.7;
@@ -359,6 +377,164 @@ export class Canvas2DRenderer implements Renderer {
         this.visibleCount++;
       }
     }
+  }
+
+  private drawRockCliffFaces(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    index: number,
+    mask: number,
+  ): void {
+    const corners = terrainTileCorners(x, y, map.heights[index]!, mask);
+    const neighbors = [
+      [x + 1, y],
+      [x, y + 1],
+      [x - 1, y],
+      [x, y - 1],
+    ] as const;
+    for (let direction = 0; direction < neighbors.length; direction++) {
+      const [neighborX, neighborY] = neighbors[direction]!;
+      const onMapEdge =
+        neighborX < 0 || neighborX >= map.width || neighborY < 0 || neighborY >= map.height;
+      const neighborBase = onMapEdge ? 0 : map.heights[neighborY * map.width + neighborX]!;
+      const face = terrainEdgeFace(corners, direction, neighborBase);
+      if (!face || Math.max(face.start.height, face.end.height) <= face.bottomHeight) continue;
+
+      const [start, end, endBottom, startBottom] = this.cliffPoints;
+      project(
+        face.start.x * TILE_UNITS,
+        face.start.y * TILE_UNITS,
+        face.start.height * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        start!,
+      );
+      project(
+        face.end.x * TILE_UNITS,
+        face.end.y * TILE_UNITS,
+        face.end.height * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        end!,
+      );
+      project(
+        face.end.x * TILE_UNITS,
+        face.end.y * TILE_UNITS,
+        face.bottomHeight * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        endBottom!,
+      );
+      project(
+        face.start.x * TILE_UNITS,
+        face.start.y * TILE_UNITS,
+        face.bottomHeight * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        startBottom!,
+      );
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(start![0]!, start![1]!);
+      ctx.lineTo(end![0]!, end![1]!);
+      ctx.lineTo(endBottom![0]!, endBottom![1]!);
+      ctx.lineTo(startBottom![0]!, startBottom![1]!);
+      ctx.closePath();
+      const cliff = this.atlas?.resolve(
+        terrainCliffSpriteName('rock', (direction + cam.rotation) & 3),
+      );
+      const frame = cliff?.frames[0];
+      const image = frame && this.atlas?.pageImage(frame.page);
+      if (frame && image) {
+        ctx.clip();
+        ctx.imageSmoothingEnabled = false;
+        this.drawCliffTextureTriangle(
+          ctx,
+          image,
+          frame,
+          [
+            [0, 0],
+            [frame.width, 0],
+            [0, frame.height],
+          ],
+          [start!, end!, startBottom!],
+        );
+        this.drawCliffTextureTriangle(
+          ctx,
+          image,
+          frame,
+          [
+            [frame.width, 0],
+            [frame.width, frame.height],
+            [0, frame.height],
+          ],
+          [end!, endBottom!, startBottom!],
+        );
+      } else {
+        ctx.fillStyle = '#6e675e';
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  private drawCliffTextureTriangle(
+    ctx: CanvasRenderingContext2D,
+    image: PageImage,
+    frame: SpriteEntry['frames'][number],
+    source: readonly [
+      readonly [number, number],
+      readonly [number, number],
+      readonly [number, number],
+    ],
+    target: readonly [Float64Array, Float64Array, Float64Array],
+  ): void {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(target[0]![0]!, target[0]![1]!);
+    ctx.lineTo(target[1]![0]!, target[1]![1]!);
+    ctx.lineTo(target[2]![0]!, target[2]![1]!);
+    ctx.closePath();
+    ctx.clip();
+
+    const [sourceOrigin, sourceX, sourceY] = source;
+    const [targetOrigin, targetX, targetY] = target;
+    const sourceDxX = sourceX[0] - sourceOrigin[0];
+    const sourceDxY = sourceX[1] - sourceOrigin[1];
+    const sourceDyX = sourceY[0] - sourceOrigin[0];
+    const sourceDyY = sourceY[1] - sourceOrigin[1];
+    const determinant = sourceDxX * sourceDyY - sourceDyX * sourceDxY;
+    const targetDxX = targetX[0]! - targetOrigin[0]!;
+    const targetDxY = targetX[1]! - targetOrigin[1]!;
+    const targetDyX = targetY[0]! - targetOrigin[0]!;
+    const targetDyY = targetY[1]! - targetOrigin[1]!;
+    const a = (targetDxX * sourceDyY - targetDyX * sourceDxY) / determinant;
+    const c = (sourceDxX * targetDyX - sourceDyX * targetDxX) / determinant;
+    const b = (targetDxY * sourceDyY - targetDyY * sourceDxY) / determinant;
+    const d = (sourceDxX * targetDyY - sourceDyX * targetDxY) / determinant;
+    const e = targetOrigin[0]! - a * sourceOrigin[0] - c * sourceOrigin[1];
+    const f = targetOrigin[1]! - b * sourceOrigin[0] - d * sourceOrigin[1];
+    ctx.transform(a, b, c, d, e, f);
+    ctx.drawImage(
+      image,
+      frame.x,
+      frame.y,
+      frame.width,
+      frame.height,
+      0,
+      0,
+      frame.width,
+      frame.height,
+    );
+    ctx.restore();
   }
 
   private drawPathAddition(ctx: CanvasRenderingContext2D, flags: number): void {
