@@ -14,8 +14,14 @@ const mobileProfiles = [
 async function toolbarAction(page: Page, label: string): Promise<void> {
   const toolbar = page.locator('.game-toolbar');
   const action = toolbar.getByRole('button', { name: label, exact: true });
-  if (!(await action.isVisible()))
-    await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
+  if (!(await action.isVisible())) {
+    const actions = toolbar.getByRole('button', { name: 'Actions', exact: true });
+    if ((await actions.getAttribute('aria-expanded')) !== 'true') {
+      await actions.tap();
+      if ((await actions.getAttribute('aria-expanded')) !== 'true') await actions.click();
+    }
+    await expect(action).toBeVisible();
+  }
   await action.tap();
 }
 
