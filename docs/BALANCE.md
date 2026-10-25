@@ -223,6 +223,25 @@ On the established 12-seed calibration set (11–16, 21–26), the corrected foo
 |   25 |    292 |    688 | Won    |
 |   26 |    293 |    386 | Lost   |
 
+### Starter grove layout refresh
+
+After configuring five Starter Park groves (72 trees, 24 shrubs and 16 flower beds), the modest strategy was rerun on the same twelve seeds with a 30-tile by 29-tile clear construction corridor along the entrance spine. All seeds still exceed the 100-guest objective and now clear the 450 rating target (12 / 12 wins, compared with the previously recorded 10 / 12). The default scenario seed (2026) ends at 682 rating. These results use the current landscape and current balance harness.
+
+| Seed | Guests | Rating | At 450 |
+| ---: | -----: | -----: | :----- |
+|   11 |    299 |    595 | Won    |
+|   12 |    292 |    734 | Won    |
+|   13 |    294 |    702 | Won    |
+|   14 |    289 |    642 | Won    |
+|   15 |    291 |    714 | Won    |
+|   16 |    297 |    626 | Won    |
+|   21 |    292 |    610 | Won    |
+|   22 |    293 |    650 | Won    |
+|   23 |    289 |    654 | Won    |
+|   24 |    298 |    622 | Won    |
+|   25 |    287 |    678 | Won    |
+|   26 |    295 |    654 | Won    |
+
 ## Results: economy fidelity pass
 
 Starter scenario, one year, default seed (2026), scripted modest build, `pnpm balance`, both on main at 339fecc:

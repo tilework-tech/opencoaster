@@ -15,6 +15,15 @@
     "maxLoan": 10000000,
     "annualInterestBps": 1000
   },
+  "trees": {
+    "count": 72,
+    "groves": 5,
+    "clearWidth": 14,
+    "clearLength": 30,
+    "shrubs": 24,
+    "flowerBeds": 16,
+    "species": ["oak", "conifer", "birch", "blossom", "autumn", "topiary"]
+  },
   "difficultRating": false,
   "pricing": {
     "mode": "admission",

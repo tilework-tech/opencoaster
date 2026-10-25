@@ -216,16 +216,53 @@ describe('scenario ground and trees', () => {
     if (!starter?.trees) throw new Error('Starter Park tree recipe missing');
     const m = world(starter).map;
     const placed = trees(m);
-    const treeItems = placed.filter((item) => item.item !== SceneryItem.Shrub);
+    const treeItems = placed.filter(
+      (item) => item.item !== SceneryItem.Shrub && item.item !== SceneryItem.FlowerBed,
+    );
     const shrubs = placed.filter((item) => item.item === SceneryItem.Shrub);
+    const flowerBeds = placed.filter((item) => item.item === SceneryItem.FlowerBed);
 
     expect(treeItems).toHaveLength(starter.trees.count);
     expect(shrubs).toHaveLength(starter.trees.shrubs ?? 0);
+    expect(flowerBeds).toHaveLength(starter.trees.flowerBeds ?? 0);
     expect(new Set(treeItems.map((tree) => tree.item)).size).toBeGreaterThanOrEqual(3);
-    const apron = buildApron(m, starter.entrance!);
+    const remainingTrees = new Set(treeItems.map((_, index) => index));
+    const groveSizes: number[] = [];
+    while (remainingTrees.size > 0) {
+      const first = remainingTrees.values().next().value!;
+      remainingTrees.delete(first);
+      const grove = [first];
+      for (let cursor = 0; cursor < grove.length; cursor++) {
+        const tree = treeItems[grove[cursor]!]!;
+        for (const candidate of [...remainingTrees]) {
+          const neighbour = treeItems[candidate]!;
+          if (
+            tree.item === neighbour.item &&
+            Math.abs(tree.x - neighbour.x) <= 4 &&
+            Math.abs(tree.y - neighbour.y) <= 4
+          ) {
+            remainingTrees.delete(candidate);
+            grove.push(candidate);
+          }
+        }
+      }
+      groveSizes.push(grove.length);
+    }
+    expect(groveSizes.filter((size) => size >= 5).length).toBeGreaterThanOrEqual(3);
+    const apron = buildApron(m.width, m.height, starter.entrance!.side, {
+      buildLength: starter.terrain?.buildLength ?? 10,
+      buildWidth: starter.terrain?.buildWidth ?? 18,
+    });
+    const owned = ownedBounds(m.width, m.height, starter.land);
+    const spineX = (owned.x0 + owned.x1) >> 1;
     for (const tree of placed) {
       expect(m.terrain[m.index(tree.x, tree.y)]).toBe(Surface.Grass);
-      expect(apron[m.index(tree.x, tree.y)]).toBe(0);
+      expect(tree.x < apron.x0 || tree.x > apron.x1 || tree.y < apron.y0 || tree.y > apron.y1).toBe(
+        true,
+      );
+      expect(
+        Math.abs(tree.x - spineX) <= 14 && owned.y1 - tree.y >= 0 && owned.y1 - tree.y < 30,
+      ).toBe(false);
     }
     expect(
       treeItems.some((first) =>

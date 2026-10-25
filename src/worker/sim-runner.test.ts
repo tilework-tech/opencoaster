@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SimRunner } from './sim-runner';
 import type { FromWorker } from './protocol';
+import { PriceMode } from '../sim/economy/ledger';
+import { ObjectiveKind } from '../sim/scenario/scenario';
 
 describe('SimRunner', () => {
   it('sends the map, then snapshots with the requested guest count', () => {
@@ -20,7 +22,8 @@ describe('SimRunner', () => {
 
   it('publishes the scenario entrance with the opening map before the first snapshot', () => {
     const out: FromWorker[] = [];
-    const r = new SimRunner({ post: (m) => out.push(m) }, () => 0);
+    let now = 0;
+    const r = new SimRunner({ post: (m) => out.push(m) }, () => now);
     r.handle({
       type: 'init',
       seed: 11,
@@ -38,17 +41,26 @@ describe('SimRunner', () => {
         maxLoan: 100_000,
         annualInterestBps: 0,
         difficultRating: false,
-        priceMode: 'admission',
+        priceMode: PriceMode.Admission,
         admissionPrice: 300,
         availableItemIds: [],
         inventions: [],
         entrance: { side: 'south', length: 4 },
-        objective: { kind: 'guests', target: 10, byYear: 1 },
+        objective: {
+          kind: ObjectiveKind.Guests,
+          target: 10,
+          rating: 0,
+          categoryMask: 0,
+          byTick: 100,
+        },
       },
     });
 
     const map = out.find((m) => m.type === 'map');
-    expect(map && map.type === 'map' ? [map.entranceX, map.entranceY] : null).toEqual([11, 17]);
+    expect(map && map.type === 'map' ? [map.entranceX, map.entranceY] : null).toEqual([17, 17]);
+    r.pump();
+    now = 100;
+    r.pump();
     expect(out.findIndex((message) => message.type === 'map')).toBeLessThan(
       out.findIndex((message) => message.type === 'snapshot'),
     );

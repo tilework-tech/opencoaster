@@ -136,13 +136,21 @@ export class SimRunner {
     const { map } = sim.world;
     const data = extractMapData(map);
     this.mapRevision = map.revision;
-    this.port.post({ type: 'map', ...data }, [
-      data.heights.buffer as ArrayBuffer,
-      data.surface.buffer as ArrayBuffer,
-      data.slope.buffer as ArrayBuffer,
-      data.waterLevel.buffer as ArrayBuffer,
-      data.pathElements.buffer as ArrayBuffer,
-    ]);
+    this.port.post(
+      {
+        type: 'map',
+        ...data,
+        entranceX: sim.world.park.entranceX,
+        entranceY: sim.world.park.entranceY,
+      },
+      [
+        data.heights.buffer as ArrayBuffer,
+        data.surface.buffer as ArrayBuffer,
+        data.slope.buffer as ArrayBuffer,
+        data.waterLevel.buffer as ArrayBuffer,
+        data.pathElements.buffer as ArrayBuffer,
+      ],
+    );
   }
 
   /** Runs due ticks and publishes a snapshot if any ran and a free buffer is available. */

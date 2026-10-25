@@ -1,6 +1,7 @@
 import { writeSpriteDef } from './output';
 import type { SpriteDef } from './output';
 import { TILE_W, renderMesh } from './raster';
+import { ramp } from './palette';
 import { coasterSprites } from './models/coaster/sprites';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
@@ -52,6 +53,36 @@ export function rideFitScale(poses: readonly Mesh[]): number {
   const toEdge = TILE_HALF_EXTENT / extent;
   const toTileWidth = TILE_W / width;
   return Math.min(MAX_RIDE_FIT, Math.max(1, Math.min(toEdge, toTileWidth)));
+}
+
+function rockTexture(width: number, height: number, direction = 0): SpriteDef['frames'][number] {
+  const stone = ramp('stone');
+  const pixels = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const grain = (x * 37 + y * 71 + ((x * y) % 19) * 13 + direction * 29) % 31;
+      const strata = (y + Math.floor(x / 11) + direction) % 7 === 0 ? -1 : 0;
+      const shade = Math.max(0, Math.min(4, 1 + Math.floor(grain / 9) + strata + (direction % 2)));
+      pixels[y * width + x] = stone[shade]!;
+    }
+  return { width, height, anchor: { x: 0, y: 0 }, pixels };
+}
+
+function rockSprites(): SpriteDef[] {
+  return [
+    {
+      key: 'terrain/rock/surface',
+      frames: [rockTexture(16, 16)],
+      footprint: ONE_TILE,
+      raw: true,
+    },
+    ...Array.from({ length: 4 }, (_, direction): SpriteDef => ({
+      key: `terrain/rock/cliff-face-${direction}`,
+      frames: [rockTexture(64, 16, direction)],
+      footprint: ONE_TILE,
+      raw: true,
+    })),
+  ];
 }
 
 function hex2(value: number): string {
@@ -272,6 +303,7 @@ function transportSprites(): SpriteDef[] {
 /** Every sprite this tool renders, keyed as in the atlas manifest. */
 export function buildSprites(): SpriteDef[] {
   return [
+    ...rockSprites(),
     ...pathSprites(),
     ...waterSprites(),
     ...rideSprites(),

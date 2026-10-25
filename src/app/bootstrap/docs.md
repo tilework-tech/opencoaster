@@ -18,10 +18,11 @@ Path: @/src/app/bootstrap
 - Creates shared app state and passes accessors or action callbacks into controllers, preserving one live source for camera, selected tool, settings and selection state.
 - Drives frame-time camera movement, scenario outcome observation, HUD/UI refresh, rendering and overlays from a single animation-frame callback.
 - Wires controller actions back into `SimClient` commands and pause/speed controls.
+- On a new game, the map callback uses [opening-camera.ts](opening-camera.ts) to project the park gate and contiguous inward entrance path into the current camera rotation. It falls back to the map center when entrance coordinates are unavailable or negative; later map updates preserve the player's view.
 
 ### Things to Know
 
-- `SimClient.onMap` recentres the camera only when a new game starts; ordinary map updates preserve the player's view.
+- `SimClient.onMap` receives the gate coordinates and path records from the worker map message. The opening target is the projected average horizontal position of the gate and up to three contiguous inward path tiles, using the gate tile's height, so scenario starts orient the camera around the entrance.
 - The worker can transfer or recycle snapshot buffers, so UI/controller refreshes use the current frame data rather than retaining stale snapshots.
 
 Created and maintained by Nori.

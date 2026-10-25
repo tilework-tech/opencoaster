@@ -23,6 +23,7 @@ import {
   rideHutFacing,
   rideHutSpriteKey,
   waterFrameIndex,
+  ambientTreeName,
 } from './world-art';
 import { terrainSurfaceSpriteName } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
@@ -65,14 +66,6 @@ const GUEST_TINTS = [
 ];
 /** Largest coaster sprite half-extent in pixels, for viewport culling. */
 const COASTER_CULL_RADIUS = 160;
-const AMBIENT_TREE_NAMES = [
-  'tree-oak',
-  'tree-conifer',
-  'tree-birch',
-  'tree-blossom',
-  'tree-autumn',
-  'tree-topiary',
-] as const;
 const SEAM = 0.5;
 const PATH_DX = [1, 0, -1, 0];
 const PATH_DY = [0, 1, 0, -1];
@@ -852,10 +845,8 @@ export class Canvas2DRenderer implements Renderer {
       if (drawBoxedSprite(ctx, atlas, name, this.tmp[0], this.tmp[1], width, height))
         this.visibleCount++;
     };
-    if (map.surface[tile] === 0 && (x * 17 + y * 31) % 23 === 7) {
-      const tree = AMBIENT_TREE_NAMES[(x * 3 + y * 5) % AMBIENT_TREE_NAMES.length];
-      place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
-    }
+    const tree = ambientTreeName(map.surface[tile]!, x, y);
+    if (tree) place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
       place(scenerySpriteName('flower-bed'), 1, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
   }

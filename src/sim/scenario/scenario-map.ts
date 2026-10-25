@@ -100,16 +100,24 @@ export function buildApron(
  */
 export function generateScenarioMap(map: TileMap, def: ScenarioDef, seed: number): void {
   const terrain = def.terrain;
-  if (!terrain) return;
+  if (!terrain && !def.trees) return;
   const land = def.land ?? DEFAULT_LAND;
   const side = def.entrance?.side ?? 'south';
-  const apron = buildApron(map.width, map.height, side, terrain, land);
+  const apron = buildApron(
+    map.width,
+    map.height,
+    side,
+    terrain ?? { buildLength: 10, buildWidth: 18 },
+    land,
+  );
   const rng = new Prng(seed ^ 0x7e44a1);
 
-  shapeHeights(map, terrain, apron, rng);
-  relaxTerrain(map);
-  paintTiles(map, terrain, land);
-  if (def.trees) scatterTrees(map, def.trees, apron, rng);
+  if (terrain) {
+    shapeHeights(map, terrain, apron, rng);
+    relaxTerrain(map);
+    paintTiles(map, terrain, land);
+  }
+  if (def.trees) scatterTrees(map, def.trees, apron, rng, side, land);
 }
 
 function shapeHeights(map: TileMap, t: ScenarioTerrain, apron: TileRect, rng: Prng): void {
@@ -241,7 +249,14 @@ const GROUND_SPECIES: Partial<Record<number, readonly TreeSpecies[]>> = {
  * Trees in groves of one species on dry, flat, owned or purchasable ground that suits them. Some
  * trees stand alone. Nothing goes on the build apron, the gate margin, water or rock.
  */
-function scatterTrees(map: TileMap, trees: ScenarioTrees, apron: TileRect, rng: Prng): void {
+function scatterTrees(
+  map: TileMap,
+  trees: ScenarioTrees,
+  apron: TileRect,
+  rng: Prng,
+  side: EntranceSide,
+  land: ScenarioLand,
+): void {
   const pool = trees.species ?? [];
   const centres: Array<[number, number]> = [];
   for (let g = 0; g < trees.groves; g++) {
@@ -265,7 +280,12 @@ function scatterTrees(map: TileMap, trees: ScenarioTrees, apron: TileRect, rng: 
     const y = solitary ? cy : cy + rng.int(2 * TREE_RADIUS + 1) - TREE_RADIUS;
     if (!map.inBounds(x, y)) continue;
     const i = map.index(x, y);
-    if (nearApron(x, y, apron) || !isFreeGround(map, i)) continue;
+    if (
+      nearApron(x, y, apron) ||
+      insideClearCorridor(x, y, map, side, land, trees.clearWidth ?? 0, trees.clearLength ?? 0) ||
+      !isFreeGround(map, i)
+    )
+      continue;
     const allowed = (GROUND_SPECIES[map.terrain[i]] ?? []).filter(
       (s) => pool.length === 0 || pool.includes(s),
     );
@@ -287,6 +307,68 @@ function scatterTrees(map: TileMap, trees: ScenarioTrees, apron: TileRect, rng: 
       ) >= 0
     )
       placed++;
+  }
+
+  scatterGroundScenery(map, trees.shrubs ?? 0, SceneryItem.Shrub, apron, rng, side, land, trees);
+  scatterGroundScenery(
+    map,
+    trees.flowerBeds ?? 0,
+    SceneryItem.FlowerBed,
+    apron,
+    rng,
+    side,
+    land,
+    trees,
+  );
+}
+
+function insideClearCorridor(
+  x: number,
+  y: number,
+  map: TileMap,
+  side: EntranceSide,
+  land: ScenarioLand,
+  width: number,
+  length: number,
+): boolean {
+  if (width === 0 || length === 0) return false;
+  const owned = ownedBounds(map.width, map.height, land);
+  const midX = (owned.x0 + owned.x1) >> 1;
+  const midY = (owned.y0 + owned.y1) >> 1;
+  const [row, across] =
+    side === 'south'
+      ? [owned.y1 - y, Math.abs(x - midX)]
+      : side === 'north'
+        ? [y - owned.y0, Math.abs(x - midX)]
+        : side === 'east'
+          ? [owned.x1 - x, Math.abs(y - midY)]
+          : [x - owned.x0, Math.abs(y - midY)];
+  return row >= 0 && row < length && across <= width;
+}
+
+function scatterGroundScenery(
+  map: TileMap,
+  count: number,
+  item: SceneryItem,
+  apron: TileRect,
+  rng: Prng,
+  side: EntranceSide,
+  land: ScenarioLand,
+  trees: ScenarioTrees,
+): void {
+  let placed = 0;
+  for (let attempt = 0; attempt < count * 12 && placed < count; attempt++) {
+    const x = MAP_BORDER + rng.int(map.width - 2 * MAP_BORDER);
+    const y = MAP_BORDER + rng.int(map.height - 2 * MAP_BORDER);
+    if (
+      nearApron(x, y, apron) ||
+      insideClearCorridor(x, y, map, side, land, trees.clearWidth ?? 0, trees.clearLength ?? 0)
+    )
+      continue;
+    const index = map.index(x, y);
+    if (!isFreeGround(map, index) || map.terrain[index] !== Surface.Grass) continue;
+    const base = map.heights[index];
+    if (map.addElement(index, ElementType.SmallScenery, base, base + 1, 0, item) >= 0) placed++;
   }
 }
 

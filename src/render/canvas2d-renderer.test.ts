@@ -241,4 +241,22 @@ describe('Canvas2D fallback map art', () => {
     expect(context.images).toHaveLength(1);
     expect(context.arcs).not.toContain('#397b35');
   });
+
+  it('draws palm or cactus ambient scenery on sandy ground', async () => {
+    const map = flatMap();
+    map.surface.fill(1);
+    const x = 4;
+    const y = 1;
+    const camera = { x: (x - y) * 32, y: (x + y) * 16, zoom: 1, rotation: 0 as const };
+    const context = await renderWithAtlas(
+      map,
+      ['trees/tree-palm', 'trees/tree-cactus'],
+      null,
+      camera,
+    );
+
+    expect(context.images).toHaveLength(1);
+    expect(context.spriteSources).toContain(1);
+    expect(context.spriteSources).not.toContain(0);
+  });
 });

@@ -132,6 +132,10 @@ export type TreeSpecies = (typeof TREE_SPECIES)[number];
 export interface ScenarioTrees {
   count: number;
   groves: number;
+  clearWidth?: number;
+  clearLength?: number;
+  shrubs?: number;
+  flowerBeds?: number;
   /** Species the trees may use. Defaults by ground: broadleaf and conifer on grass, cactus on sand. */
   species?: TreeSpecies[];
 }

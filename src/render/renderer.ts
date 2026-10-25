@@ -4,6 +4,8 @@ import type { Rotation } from './projection';
 export interface MapData {
   width: number;
   height: number;
+  entranceX?: number;
+  entranceY?: number;
   heights: Uint8Array;
   surface: Uint8Array;
   slope: Uint8Array;

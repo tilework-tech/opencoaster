@@ -284,6 +284,11 @@ describe('generated sprite catalogue', () => {
     expect(top?.width).toBe(16);
     expect(top?.height).toBe(16);
     expect(new Set(top?.pixels ?? []).size).toBeGreaterThan(3);
+    expect(
+      Array.from({ length: 16 * 15 }, (_, index) => index).filter(
+        (index) => top!.pixels[index] !== top!.pixels[index + 1],
+      ).length,
+    ).toBeGreaterThan(20);
 
     const cliffs = [0, 1, 2, 3].map((direction) => {
       const face = sprites.get(`terrain/rock/cliff-face-${direction}`);
@@ -292,9 +297,20 @@ describe('generated sprite catalogue', () => {
       expect(frame?.width).toBe(64);
       expect(frame?.height).toBe(16);
       expect(new Set(frame?.pixels ?? []).size).toBeGreaterThan(3);
+      let adjacentChanges = 0;
+      for (let y = 0; y < frame!.height; y++)
+        for (let x = 0; x < frame!.width - 1; x++)
+          if (frame!.pixels[y * frame!.width + x] !== frame!.pixels[y * frame!.width + x + 1])
+            adjacentChanges++;
+      expect(adjacentChanges).toBeGreaterThan(100);
       return Buffer.from(frame?.pixels ?? []).toString('base64');
     });
     expect(new Set(cliffs).size).toBe(4);
+    const averageShade = (pixels: string) =>
+      Buffer.from(pixels, 'base64').reduce((sum, value) => sum + value, 0) /
+      Buffer.from(pixels, 'base64').length;
+    expect(averageShade(cliffs[1]!)).toBeGreaterThan(averageShade(cliffs[0]!));
+    expect(averageShade(cliffs[3]!)).toBeGreaterThan(averageShade(cliffs[2]!));
   });
 
   it('generates transport track and vehicle keys matching the runtime family names', () => {
