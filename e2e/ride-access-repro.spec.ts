@@ -1,8 +1,37 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { World } from '../src/sim/core/world';
+import { serialize } from '../src/save/save';
+import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
+import { prepareScenario } from '../src/sim/scenario/scenario-layout';
+import { RideType } from '../src/sim/rides/ride-types';
 import type { Page, TestInfo } from '@playwright/test';
 import { adjacentPathTiles, clickGameTile, createScenarioWorld } from './footpath-helpers';
+
+const starterScenario = parseScenarioFile(
+  JSON.parse(
+    readFileSync(new URL('../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
+  ),
+);
+
+async function importFerrisUnlockedStarterPark(page: Page, testInfo: TestInfo): Promise<void> {
+  const world = new World({
+    seed: starterScenario.seed,
+    width: starterScenario.mapWidth,
+    height: starterScenario.mapHeight,
+  });
+  prepareScenario(world, starterScenario);
+  world.research.unlocked.add(RideType.FerrisWheel);
+  const savePath = testInfo.outputPath('starter-ferris-unlocked.park');
+  await mkdir(dirname(savePath), { recursive: true });
+  await writeFile(savePath, serialize(world));
+  await toolbarAction(page, 'Save / Load');
+  await page.getByRole('button', { name: 'Import save file' }).click();
+  await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
+  await expect(page.locator('.hud')).toContainText('tick');
+}
 
 async function toolbarAction(page: Page, name: string): Promise<void> {
   await page.locator('.game-toolbar').getByRole('button', { name, exact: true }).click();
@@ -94,6 +123,7 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
     .getByRole('button', { name: 'Start', exact: true })
     .click();
   await expect(page.locator('.hud')).toContainText('WebGL2');
+  await importFerrisUnlockedStarterPark(page, testInfo);
 
   await toolbarAction(page, 'New ride');
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
