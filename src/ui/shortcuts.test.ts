@@ -13,9 +13,15 @@ describe('default shortcuts', () => {
     expect(key('Backspace', { shiftKey: true })).toEqual({ type: 'closeAll' });
   });
 
-  it('cancels construction on Escape and rotates clockwise on Enter', () => {
+  it('cancels construction on Escape and rotates clockwise on Enter or Z', () => {
     expect(key('Escape')).toEqual({ type: 'cancel' });
-    expect(key('Enter')).toEqual({ type: 'rotate' });
+    expect(key('Enter')).toEqual({ type: 'rotate', direction: 1 });
+    expect(key('z')).toEqual({ type: 'rotate', direction: 1 });
+  });
+
+  it('rotates anticlockwise on Shift+Enter or X', () => {
+    expect(key('Enter', { shiftKey: true })).toEqual({ type: 'rotate', direction: -1 });
+    expect(key('x')).toEqual({ type: 'rotate', direction: -1 });
   });
 
   it('zooms one step with Page Up (out) and Page Down (in)', () => {
