@@ -138,11 +138,8 @@ export class TrackPreviewOverlay {
     const y = ghost.y;
     if (x < 0 || y < 0 || x >= map.width || y >= map.height) return;
     const z = (map.heights?.[y * map.width + x] ?? 0) * Z_STEP;
-    ctxPath(
-      this.ctx,
-      ghost.valid ? VALID_FILL : INVALID_FILL,
-      ENTRY_MARK,
-      (visit) => this.corners(x, y, z, map, camera, viewport, visit),
+    ctxPath(this.ctx, ghost.valid ? VALID_FILL : INVALID_FILL, ENTRY_MARK, (visit) =>
+      this.corners(x, y, z, map, camera, viewport, visit),
     );
     if (!this.atlas) return;
     const def = RIDE_CATALOG[ghost.type];
@@ -168,14 +165,7 @@ export class TrackPreviewOverlay {
       viewport.height / 2 + (this.corner[1] - camera.y) * camera.zoom,
     );
     this.ctx.scale(camera.zoom * 0.62, camera.zoom * 0.62);
-    drawAnchoredSprite(
-      this.ctx,
-      this.atlas,
-      key,
-      0,
-      0,
-      rideSpriteFrame(0, ghost.tick, frameCount),
-    );
+    drawAnchoredSprite(this.ctx, this.atlas, key, 0, 0, rideSpriteFrame(0, ghost.tick, frameCount));
     this.ctx.restore();
   }
 

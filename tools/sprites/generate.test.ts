@@ -137,9 +137,9 @@ describe('generated sprite catalogue', () => {
           expect(
             sprites.has(`rides/coaster/${art}/track/flat+${variant}/view-${view}/cell-0`),
           ).toBe(true);
-    expect(
-      sprites.get('rides/coaster/wood/track/flat+chain/view-0/cell-0')?.frames,
-    ).toHaveLength(2);
+    expect(sprites.get('rides/coaster/wood/track/flat+chain/view-0/cell-0')?.frames).toHaveLength(
+      2,
+    );
     expect(sprites.has('rides/coaster/wood/track/smallLeft+chain/view-0/cell-0')).toBe(false);
   });
 

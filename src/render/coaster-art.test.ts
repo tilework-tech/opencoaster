@@ -95,9 +95,7 @@ describe('track variants', () => {
     for (let tick = 0; tick < 64; tick++)
       keys.add(trackCellSprites(flat.id, 0, 0, 'wood', PieceMode.ChainLift, tick)[0].key);
     expect(keys.size).toBe(CHAIN_FRAMES);
-    expect([...keys][0]).toMatch(
-      /^rides\/coaster\/wood\/track\/flat\+chain\/view-0\/cell-0#\d$/,
-    );
+    expect([...keys][0]).toMatch(/^rides\/coaster\/wood\/track\/flat\+chain\/view-0\/cell-0#\d$/);
   });
 });
 
@@ -125,15 +123,12 @@ describe('cars', () => {
 });
 
 describe('supports', () => {
-  it(
-    'stops support columns below the track with a quarter-level cap',
-    () => {
-      const flat = pieceByName('flat')!;
-      expect(supportStack(flat.id, 0, 2, 5)).toEqual({ full: 2, quarters: 3 });
-      expect(supportStack(flat.id, 0, 2, 2)).toEqual({ full: 0, quarters: 0 });
-      const up = pieceByName('up25')!;
-      const stack = supportStack(up.id, 0, 0, 3);
-      expect(stack.full + stack.quarters / 4).toBeGreaterThan(2.5);
-    },
-  );
+  it('stops support columns below the track with a quarter-level cap', () => {
+    const flat = pieceByName('flat')!;
+    expect(supportStack(flat.id, 0, 2, 5)).toEqual({ full: 2, quarters: 3 });
+    expect(supportStack(flat.id, 0, 2, 2)).toEqual({ full: 0, quarters: 0 });
+    const up = pieceByName('up25')!;
+    const stack = supportStack(up.id, 0, 0, 3);
+    expect(stack.full + stack.quarters / 4).toBeGreaterThan(2.5);
+  });
 });
