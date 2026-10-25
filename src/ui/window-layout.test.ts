@@ -52,6 +52,34 @@ describe('window layout', () => {
     expect(position.y + size.height).toBeLessThanOrEqual(800 - 68);
   });
 
+  it('clamps the fallback position when no corner clears the pointer', () => {
+    const position = positionAwayFromPoint(
+      { x: 640, y: 700 },
+      { width: 900, height: 700 },
+      { x: 640, y: 400 },
+      1280,
+      800,
+    );
+
+    expect(position.y).toBe(40);
+  });
+
+  it('chooses another clear corner when a window already occupies the preferred one', () => {
+    const size = { width: 340, height: 260 };
+    const point = { x: 1180, y: 20 };
+    const first = positionAwayFromPoint({ x: 788, y: 162 }, size, point, 1280, 800);
+    const second = positionAwayFromPoint({ x: 760, y: 190 }, size, point, 1280, 800, [
+      { ...first, ...size },
+    ]);
+
+    const overlaps =
+      second.x < first.x + size.width &&
+      second.x + size.width > first.x &&
+      second.y < first.y + size.height &&
+      second.y + size.height > first.y;
+    expect(overlaps).toBe(false);
+  });
+
   it('limits four-times speed to two-times while construction is active', () => {
     expect(effectiveGameSpeed(4, true)).toBe(2);
     expect(effectiveGameSpeed(4, false)).toBe(4);

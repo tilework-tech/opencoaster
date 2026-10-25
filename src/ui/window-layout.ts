@@ -5,7 +5,7 @@ export const MOBILE_QUERY = `(max-width: ${MOBILE_MAX_WIDTH}px)`;
 
 /** Space reserved above (toolbar) and below (status bar) the windows on desktop. */
 export const TOP_INSET = 40;
-const BOTTOM_INSET = 68;
+export const BOTTOM_INSET = 68;
 const GRAB = 40;
 
 export function isMobileWidth(width: number): boolean {
@@ -39,6 +39,7 @@ export function positionAwayFromPoint(
   point: Point,
   viewportWidth: number,
   viewportHeight: number,
+  occupied: ReadonlyArray<Point & { width: number; height: number }> = [],
 ): Point {
   const candidates = [
     { x: 16, y: TOP_INSET + 10 },
@@ -52,14 +53,31 @@ export function positionAwayFromPoint(
     point.y <= TOP_INSET + 180
       ? candidates.filter((candidate) => candidate.y > viewportHeight / 3)
       : candidates.filter((candidate) => candidate.y <= viewportHeight / 3);
-  const clear = vertical.filter(
+  const free = candidates.filter(
+    (candidate) =>
+      !occupied.some(
+        (rect) =>
+          candidate.x < rect.x + rect.width &&
+          candidate.x + size.width > rect.x &&
+          candidate.y < rect.y + rect.height &&
+          candidate.y + size.height > rect.y,
+      ),
+  );
+  const clear = free.filter(
     (candidate) =>
       point.x < candidate.x - 24 ||
       point.x > candidate.x + size.width + 24 ||
       point.y < candidate.y - 24 ||
       point.y > candidate.y + size.height + 24,
   );
-  const options = clear.length ? clear : [fallback];
+  const preferred = vertical.filter((candidate) => clear.includes(candidate));
+  const options = preferred.length
+    ? preferred
+    : clear.length
+      ? clear
+      : free.length
+        ? free
+        : [clampPosition(fallback.x, fallback.y, size, viewportWidth, viewportHeight)];
   return options.reduce((best, candidate) => {
     const distance = (at: Point): number =>
       Math.hypot(at.x + size.width / 2 - point.x, at.y + size.height / 2 - point.y);

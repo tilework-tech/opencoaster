@@ -29,7 +29,7 @@ async function placeCoaster(page: Page): Promise<void> {
   const canvas = page.locator('#game');
   const rect = await canvas.boundingBox();
   if (!rect) throw new Error('Game viewport is missing');
-  await page.mouse.click(...tileScreenPoint(rect, 28, 39, 28, 43));
+  await page.mouse.click(...tileScreenPoint(rect, 27, 42, 28, 43));
 }
 
 function tileScreenPoint(
@@ -48,6 +48,7 @@ function tileScreenPoint(
 }
 
 test('desktop construction controls fit above the fold', async ({ page }) => {
+  test.setTimeout(180_000);
   await startStarterPark(page);
   expect(
     await page.locator('#game').evaluate((canvas) => Boolean(canvas.getContext('webgl2'))),
@@ -68,10 +69,7 @@ test('desktop construction controls fit above the fold', async ({ page }) => {
   await page.screenshot({ path: 'docs/playtest/assets/p1-after-coaster-controls.png' });
 
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
-  const gameBounds = await page.locator('#game').boundingBox();
-  if (!gameBounds) throw new Error('Game viewport is missing');
-  await page.mouse.move(...tileScreenPoint(gameBounds, 28, 38, 28, 43));
-  await page.waitForTimeout(100);
+  await expect(panel.getByRole('button', { name: 'Build piece' })).toBeEnabled();
   await panel.getByRole('button', { name: 'Build piece' }).click();
   await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
 

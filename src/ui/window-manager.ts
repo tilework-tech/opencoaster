@@ -1,6 +1,7 @@
 import { element, iconButton } from './dom';
 import type { IconName } from './icons';
 import {
+  BOTTOM_INSET,
   MOBILE_QUERY,
   TOP_INSET,
   cascadePosition,
@@ -203,19 +204,46 @@ export class WindowManager {
     this.layer.append(win.root);
     const fallback = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
     const remembered = this.positions.get(spec.id);
+    const openingPointer = this.pointer;
     const place = (): void => {
       if (!win.root.isConnected || this.mobile) return;
       const bounds = win.root.getBoundingClientRect();
       const size = { width: bounds.width || spec.width || 340, height: bounds.height || 260 };
-      const at = remembered
+      const placementSize = remembered
+        ? size
+        : {
+            width: size.width,
+            height: Math.max(size.height, window.innerHeight - TOP_INSET - BOTTOM_INSET - 4),
+          };
+      const occupied = [...this.windows.values()]
+        .filter((other) => other !== win)
+        .map((other) => {
+          const rect = other.root.getBoundingClientRect();
+          return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+        });
+      const rememberedAt = remembered
         ? clampPosition(remembered.x, remembered.y, size, window.innerWidth, window.innerHeight)
-        : positionAwayFromPoint(
-            fallback,
-            size,
-            this.pointer,
-            window.innerWidth,
-            window.innerHeight,
-          );
+        : undefined;
+      const rememberedIsOccupied =
+        rememberedAt !== undefined &&
+        occupied.some(
+          (rect) =>
+            rememberedAt.x < rect.x + rect.width &&
+            rememberedAt.x + size.width > rect.x &&
+            rememberedAt.y < rect.y + rect.height &&
+            rememberedAt.y + size.height > rect.y,
+        );
+      const at =
+        rememberedAt && !rememberedIsOccupied
+          ? rememberedAt
+          : positionAwayFromPoint(
+              fallback,
+              remembered ? size : placementSize,
+              openingPointer,
+              window.innerWidth,
+              window.innerHeight,
+              occupied,
+            );
       win.root.style.setProperty('--x', `${at.x}px`);
       win.root.style.setProperty('--y', `${at.y}px`);
     };
@@ -263,7 +291,7 @@ export class WindowManager {
     const wasCollapsed = preserveCollapsed && win.root.classList.contains('collapsed');
     win.root.style.zIndex = String(win.pinned ? 1000 + ++this.z : ++this.z);
     for (const other of this.windows.values()) other.root.classList.toggle('front', other === win);
-    this.relayout();
+    if (this.mobile) this.relayout();
     if (wasCollapsed && !win.pinned) win.root.classList.add('collapsed');
   }
 
