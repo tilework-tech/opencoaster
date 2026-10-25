@@ -64,17 +64,29 @@ export async function writeSpriteDef(outputDir: string, def: SpriteDef): Promise
   await writeFile(target.replace(/\.png$/, '.json'), `${JSON.stringify(metadata, null, 2)}\n`);
 }
 
-/** Lays frame 0 of each sprite on a dark sheet at an integer scale for visual review. */
+/** Lays frame 0 of each sprite on a dark sheet (shelf layout) at an integer scale for review. */
 export async function contactSheet(
   defs: readonly SpriteDef[],
-  options: { columns: number; scale: number; background?: [number, number, number] },
+  options: { width: number; scale: number; background?: [number, number, number] },
 ): Promise<Buffer> {
   const frames = defs.map((d) => alignFrames(d.frames)[0]);
-  const cellW = Math.max(...frames.map((f) => f.width)) + 4;
-  const cellH = Math.max(...frames.map((f) => f.height)) + 4;
-  const rows = Math.ceil(frames.length / options.columns);
-  const width = cellW * options.columns;
-  const height = cellH * rows;
+  const pad = 3;
+  const placements: Array<{ x: number; y: number }> = [];
+  let cursorX = 0;
+  let cursorY = 0;
+  let shelf = 0;
+  for (const f of frames) {
+    if (cursorX + f.width + pad > options.width) {
+      cursorX = 0;
+      cursorY += shelf + pad;
+      shelf = 0;
+    }
+    placements.push({ x: cursorX + pad, y: cursorY + pad });
+    cursorX += f.width + pad;
+    shelf = Math.max(shelf, f.height);
+  }
+  const width = options.width + pad;
+  const height = cursorY + shelf + pad * 2;
   const bg = options.background ?? [38, 34, 40];
   const sheet = Buffer.alloc(width * height * 4);
   for (let i = 0; i < width * height; i++) {
@@ -84,8 +96,7 @@ export async function contactSheet(
     sheet[i * 4 + 3] = 255;
   }
   frames.forEach((f, i) => {
-    const ox = (i % options.columns) * cellW + 2;
-    const oy = Math.floor(i / options.columns) * cellH + 2;
+    const { x: ox, y: oy } = placements[i];
     const rgba = toRgba(f);
     for (let y = 0; y < f.height; y++)
       for (let x = 0; x < f.width; x++) {
