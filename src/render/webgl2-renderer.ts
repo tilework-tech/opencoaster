@@ -26,6 +26,7 @@ import {
 } from './sprite-layout';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import { spritePages } from './sprite-pages';
+import { peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
 import { buildTextureRuns } from './texture-runs';
@@ -458,16 +459,7 @@ export class WebGL2Renderer implements Renderer {
         0,
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
-      this.appendVariantLayer(
-        snapshot.staff,
-        staffSpriteName,
-        map,
-        camera,
-        viewportWidth,
-        viewportHeight,
-        11,
-        13,
-      );
+      this.appendStaff(snapshot.staff, snapshot.tick, map, camera, viewportWidth, viewportHeight);
       this.appendGuests(snapshot.guests, snapshot.tick, map, camera, viewportWidth, viewportHeight);
     }
     this.uploadInPainterOrder();
@@ -1689,6 +1681,43 @@ export class WebGL2Renderer implements Renderer {
         height,
         depth,
       );
+    }
+  }
+
+  private appendStaff(
+    layer: SnapshotLayer,
+    tick: number,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
+      const metadata = layer.data[offset + 3];
+      const kind = metadata & 0xff;
+      const direction = (metadata >>> 8) & 3;
+      const x = layer.data[offset];
+      const y = layer.data[offset + 1];
+      const z = layer.data[offset + 2];
+      const key = `${peopleSpriteKey(kind, direction, camera.rotation)}#${walkingFrame(tick)}`;
+      const entry = spritePages.resolve(key.split('#')[0]);
+      const frame = entry?.frames[0];
+      const width = frame?.width ?? 16;
+      const height = frame?.height ?? 24;
+      const depth = 2 * rotatedPositionSum(x, y, map, camera.rotation) - z / 64;
+      project(x, y, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          width,
+          height,
+        )
+      )
+        this.append(x, y, z, width, height, entry ? key : staffSpriteName(kind), depth);
     }
   }
 

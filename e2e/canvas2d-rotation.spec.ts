@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('Canvas2D survives two full view rotations and zoom changes without frame stalls', async ({
+test('Canvas2D survives staff hires, two full view rotations and zoom changes without frame stalls', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -25,6 +25,19 @@ test('Canvas2D survives two full view rotations and zoom changes without frame s
   const toolbar = page.locator('.game-toolbar');
   const rotate = toolbar.getByRole('button', { name: 'Rotate view', exact: true });
   await expect(hud).toContainText('Canvas2D');
+  await toolbar.getByRole('button', { name: 'Staff', exact: true }).click();
+  const staff = page.locator('[data-panel="staff"]');
+  for (const [tab, role] of [
+    ['Handymen', 'Handyman'],
+    ['Mechanics', 'Mechanic'],
+    ['Security guards', 'Security'],
+    ['Entertainers', 'Entertainer'],
+  ]) {
+    await staff.getByRole('tab', { name: tab }).click();
+    await staff.getByRole('button', { name: `Hire ${role}` }).click();
+  }
+  await expect(staff).toContainText('Staff employed  4');
+  await page.keyboard.press('Shift+Backspace');
   for (let turn = 0; turn < 8; turn++) {
     const before = await hud.innerText();
     const tick = Number(before.match(/tick (\d+)/)?.[1]);

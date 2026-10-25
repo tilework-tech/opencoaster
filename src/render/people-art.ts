@@ -1,15 +1,8 @@
 import type { Rotation } from './projection';
 
-export type PersonKind = 'guest' | 'staff';
-
-export function peopleSpriteKey(
-  kind: number,
-  direction: number,
-  rotation: Rotation,
-  person: PersonKind,
-): string {
+export function peopleSpriteKey(kind: number, direction: number, rotation: Rotation): string {
   const view = (((direction + rotation) % 4) + 4) % 4;
-  return `people/${person}/${kind}/direction-${view}`;
+  return `people/staff/${kind}/direction-${view}`;
 }
 
 export function walkingFrame(tick: number): number {

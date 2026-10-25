@@ -165,15 +165,6 @@ function transportRideSprites(): SpriteDef[] {
 
 function peopleSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
-  for (let tint = 0; tint < 8; tint++)
-    for (let direction = 0; direction < 4; direction++)
-      out.push({
-        key: `people/guest/${tint}/direction-${direction}`,
-        frames: Array.from({ length: 2 }, (_, frame) =>
-          renderMesh(personMesh(tint, direction, frame)),
-        ),
-        footprint: ONE_TILE,
-      });
   for (let kind = 0; kind < 4; kind++)
     for (let direction = 0; direction < 4; direction++)
       out.push({

@@ -158,26 +158,8 @@ describe('generated sprite catalogue', () => {
           }
   });
 
-  it('generates readable walking sprites for guests and staff in four directions', () => {
+  it('generates readable walking sprites for staff in four directions', () => {
     for (let direction = 0; direction < 4; direction++) {
-      for (let tint = 0; tint < 8; tint++) {
-        const guest = sprites.get(`people/guest/${tint}/direction-${direction}`);
-        expect(guest?.frames, `guest ${tint}, direction ${direction}`).toHaveLength(2);
-        expect(guest!.frames.every((frame) => frame.pixels.some((p) => p !== TRANSPARENT))).toBe(
-          true,
-        );
-        expect(
-          Buffer.from(guest!.frames[0].pixels).equals(Buffer.from(guest!.frames[1].pixels)),
-        ).toBe(false);
-        expect(guest!.frames[0].height).toBeGreaterThanOrEqual(20);
-        expect(guest!.frames[0].height).toBeLessThanOrEqual(30);
-        const otherDirection = sprites.get(
-          `people/guest/${tint}/direction-${(direction + 1) % 4}`,
-        )!;
-        expect(
-          Buffer.from(guest!.frames[0].pixels).equals(Buffer.from(otherDirection.frames[0].pixels)),
-        ).toBe(false);
-      }
       for (let kind = 0; kind < 4; kind++) {
         const staff = sprites.get(`people/staff/${kind}/direction-${direction}`);
         expect(staff?.frames, `staff ${kind}, direction ${direction}`).toHaveLength(2);

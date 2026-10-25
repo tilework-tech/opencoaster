@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/core/simulation';
 import { World } from '../sim/core/world';
+import { TILE_UNITS } from '../sim/core/constants';
 import { OWNED, RIGHTS_OWNED, SALE_RIGHTS } from '../sim/map/tile-map';
 import { createCoaster, buildCircuit, flatOwnedSim } from '../sim/rides/coaster-fixtures';
 import { FeedbackDomain } from '../sim/core/feedback';
@@ -59,6 +60,22 @@ describe('render snapshot', () => {
     expect(snapshot.staffIds[0]).toBe(staffId);
     expect(snapshot.staffOrders[0] & (1 << StaffOrder.SweepPaths)).toBe(0);
     expect(snapshot.staffOrders[0] & (1 << StaffOrder.EmptyBins)).not.toBe(0);
+  });
+
+  it('publishes each worker facing direction for sprite selection', () => {
+    const world = flatWorld(8, 8);
+    world.staff.spawn();
+    const staff = world.staff.cols;
+    const slot = 0;
+    const tileX = Math.floor(staff.x[slot]! / TILE_UNITS);
+    const tileY = Math.floor(staff.y[slot]! / TILE_UNITS);
+    staff.targetX[slot] = tileX - 1;
+    staff.targetY[slot] = tileY;
+    const snapshot = createSnapshot({ guests: 0, staff: 1, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect((snapshot.staff.data[3]! >>> 8) & 3).toBe(2);
   });
 
   it('publishes guest direction and palette to the render snapshot', () => {

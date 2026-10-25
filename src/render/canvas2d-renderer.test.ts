@@ -3,6 +3,7 @@ import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
+import { createSnapshot } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import type { MapData } from './renderer';
 import { SpritePages, spritePages } from './sprite-pages';
@@ -74,10 +75,13 @@ function render(map: MapData): RecordingContext {
 
 function installStubAtlas(names: string[]): void {
   const sprites: Record<string, SpriteEntry> = {};
-  for (const name of names)
+  for (const [index, name] of names.entries())
     sprites[name] = {
       category: 'world',
-      frames: [{ page: 0, x: 1, y: 2, width: 30, height: 20 }],
+      frames: [
+        { page: 0, x: index + 1, y: 2, width: 30, height: 20 },
+        { page: 0, x: index + 2, y: 2, width: 30, height: 20 },
+      ],
       anchor: { x: 15, y: 20 },
       footprint: { width: 1, height: 1 },
     };
@@ -119,6 +123,16 @@ function flatMap(): MapData {
 }
 
 describe('Canvas2D fallback map art', () => {
+  it('draws staff in their walking direction and advances their walk cycle', async () => {
+    const snapshot = createSnapshot({ guests: 0, staff: 1, vehicles: 0, litter: 0 });
+    snapshot.tick = 6;
+    snapshot.staff.count = 1;
+    snapshot.staff.data.set([0, 0, 0, 3 << 8]);
+    const context = await renderWithAtlas(flatMap(), ['people/staff/0/direction-3'], snapshot);
+
+    expect(context.spriteSources).toContain(2);
+  });
+
   it('uses the saved paving style when drawing an ordinary path', () => {
     const map = flatMap();
     map.pathElements = Int32Array.of(2, 2, 0, 0, 0, PathStyle.CrazyPaving);

@@ -3,8 +3,7 @@ import { peopleSpriteKey, walkingFrame } from './people-art';
 
 describe('people sprite selection', () => {
   it('rotates a walking direction with the camera and keeps each kind identifiable', () => {
-    expect(peopleSpriteKey(3, 1, 2, 'guest')).toBe('people/guest/3/direction-3');
-    expect(peopleSpriteKey(1, 2, 1, 'staff')).toBe('people/staff/1/direction-3');
+    expect(peopleSpriteKey(1, 2, 1)).toBe('people/staff/1/direction-3');
   });
 
   it('advances the walk cycle from the simulation tick', () => {

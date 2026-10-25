@@ -26,6 +26,7 @@ import {
 } from './world-art';
 import { terrainSurfaceSpriteName } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
+import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import {
   AMBIENT_TREE_BOX,
@@ -193,7 +194,7 @@ export class Canvas2DRenderer implements Renderer {
         '#c0392b',
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
-      if (this.atlas) this.drawStaff(ctx, snapshot.staff, map, cam);
+      if (this.atlas) this.drawStaff(ctx, snapshot.staff, map, cam, snapshot.tick);
       else
         this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
           '#4ca95b',
@@ -805,21 +806,27 @@ export class Canvas2DRenderer implements Renderer {
     layer: SnapshotLayer,
     map: MapData,
     cam: Camera,
+    tick: number,
   ): void {
     const d = layer.data;
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
-      if (!this.isVisible(t[0], t[1], cam, STAFF_BOX.height)) continue;
-      drawBoxedSprite(
-        ctx,
-        this.atlas!,
-        staffSpriteName(d[o + 3] & 0xff),
-        t[0],
-        t[1],
-        STAFF_BOX.width,
-        STAFF_BOX.height,
-      );
+      if (!this.isVisible(t[0], t[1], cam, Math.max(STAFF_BOX.height, 24))) continue;
+      const metadata = d[o + 3];
+      const kind = metadata & 0xff;
+      const direction = (metadata >>> 8) & 3;
+      const sprite = `${peopleSpriteKey(kind, direction, cam.rotation)}#${walkingFrame(tick)}`;
+      if (!drawAnchoredSprite(ctx, this.atlas!, sprite, t[0], t[1]))
+        drawBoxedSprite(
+          ctx,
+          this.atlas!,
+          staffSpriteName(kind),
+          t[0],
+          t[1],
+          STAFF_BOX.width,
+          STAFF_BOX.height,
+        );
       this.visibleCount++;
     }
   }
