@@ -29,6 +29,7 @@ import { AudioEngine } from '../../audio/audio';
 import { createToolController } from '../tools';
 import { PathFeedback } from '../tools/path-feedback';
 import { PathTool } from '../tools/path/controller';
+import { LandController } from '../tools/land-controller';
 import { createPathState } from '../tools/path/state';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
@@ -82,7 +83,7 @@ export async function bootstrap(): Promise<void> {
   let alternate = false;
   const pathState = createPathState();
   let sceneryItem = SceneryItem.OakTree;
-  let brush = 1;
+  let landControllerRef: LandController | undefined;
   const windows = new WindowManager(root);
   const coasterPanel = new CoasterPanel(windows, {
     command: (command) => sim.command(command),
@@ -141,8 +142,8 @@ export async function bootstrap(): Promise<void> {
     setAlternate(on) {
       alternate = on;
     },
-    setBrush(size) {
-      brush = Math.max(1, Math.min(5, Math.round(size)));
+    setLand(settings) {
+      landControllerRef?.configure(settings);
     },
     footpath: pathTool,
     setSceneryItem(item) {
@@ -292,6 +293,17 @@ export async function bootstrap(): Promise<void> {
   titleScreen.show();
   if (storeNote) titleScreen.showError(storeNote);
 
+  const viewport = { width: 0, height: 0 };
+  const landController = new LandController({
+    parent: root,
+    canvas,
+    sim,
+    camera,
+    gameUi,
+    viewport,
+    active: () => selectedTool === 'land',
+  });
+  landControllerRef = landController;
   const toolController = createToolController({
     canvas,
     sim,
@@ -302,7 +314,7 @@ export async function bootstrap(): Promise<void> {
     selectedGuest: () => selectedGuest,
     setSelectedGuest: (guest) => (selectedGuest = guest),
     alternate: () => alternate,
-    brush: () => brush,
+    land: landController,
     pathFeedback,
     pathTool,
     sceneryItem: () => sceneryItem,
@@ -313,7 +325,6 @@ export async function bootstrap(): Promise<void> {
 
   const resolution = new AdaptiveResolution();
   let appliedScale = resolution.scale;
-  const viewport = { width: 0, height: 0 };
   let resizeCanvas: () => void = () => undefined;
   const keys = connectCameraInput({
     canvas,
@@ -330,6 +341,7 @@ export async function bootstrap(): Promise<void> {
     handleCanvasClick: toolController.handleCanvasClick,
     removePathAt: toolController.removePathAt,
     pathDrag: toolController.pathDrag,
+    land: landController,
     setRideHover: (tile) => (rideHover = tile),
     viewport,
     renderScale: () => appliedScale,
@@ -523,6 +535,7 @@ export async function bootstrap(): Promise<void> {
       rideGhost,
       pathGhost,
     );
+    landController.update(now);
     rideSetupState.current.drawPreview(viewport.width, viewport.height);
     requestAnimationFrame(frame);
   }
@@ -534,6 +547,7 @@ export async function bootstrap(): Promise<void> {
     coasterPanel.dispose();
     trackPreview.dispose();
     pathFeedback.dispose();
+    landController.dispose();
     renderer.dispose();
   });
 }

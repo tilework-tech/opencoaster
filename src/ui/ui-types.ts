@@ -38,6 +38,18 @@ export interface FootpathControls {
   leave(): void;
 }
 
+export type LandMode = 'raise' | 'lower' | 'flatten' | 'smooth';
+
+export interface LandSettings {
+  /** Edge length in tiles of the square the tool acts on. */
+  size: number;
+  mode: LandMode;
+  /** Whether a size-1 pick near a corner or edge selects only that corner or edge. */
+  corners: boolean;
+}
+
+export const LAND_SIZE_RANGE = { min: 1, max: 10 } as const;
+
 export interface GameUIActions {
   setPaused(paused: boolean): void;
   setSpeed(speed: number): void;
@@ -58,8 +70,7 @@ export interface GameUIActions {
   command(command: Command): void;
   /** Puts the next map click to use the alternate action: lower land, remove, un-plant. */
   setAlternate(on: boolean): void;
-  /** Land brush edge length in tiles (1-5). */
-  setBrush(size: number): void;
+  setLand(settings: LandSettings): void;
   footpath: FootpathControls;
   setSceneryItem(item: number): void;
   /** Centres the camera on a tile. */

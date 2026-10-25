@@ -8,6 +8,7 @@ import { PointerInput } from '../../input/pointer-input';
 import type { PointerSample } from '../../input/pointer-input';
 import type { SimClient } from '../../worker/sim-client';
 import type { CoasterPanel } from '../../ui/coaster-panel';
+import type { LandController } from '../tools/land-controller';
 import { TILE_UNITS } from '../../sim/core/constants';
 
 export function centreOnTile(x: number, y: number, sim: SimClient, camera: Camera): void {
@@ -53,6 +54,7 @@ export interface CameraInputDependencies {
   handleCanvasClick: (x: number, y: number, shiftKey?: boolean, forceSelect?: boolean) => void;
   removePathAt: (x: number, y: number) => void;
   pathDrag: PathDragHandlers;
+  land: LandController;
   setRideHover: (tile: [number, number] | null) => void;
   /** Receives the canvas size in CSS pixels whenever it changes. */
   viewport: { width: number; height: number };
@@ -212,6 +214,18 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     pathDragCancel() {
       deps.pathDrag.cancel();
     },
+    landPress(x, y) {
+      deps.land.press(x, y);
+    },
+    landDragStart(x, y) {
+      deps.land.dragStart(x, y);
+    },
+    landDragMove(x, y) {
+      deps.land.dragMove(x, y);
+    },
+    landDragEnd() {
+      deps.land.dragEnd();
+    },
     paint(x, y, shiftKey) {
       const map = sim.map;
       if (!map) return;
@@ -238,6 +252,8 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   canvas.addEventListener('pointermove', (event) => {
     if (deps.selectedTool() === 'path' && event.pointerType === 'mouse' && event.buttons === 0)
       deps.pathDrag.hover(event.clientX, event.clientY);
+    if (deps.selectedTool() === 'land' && event.pointerType === 'mouse' && event.buttons === 0)
+      deps.land.hover(event.clientX, event.clientY);
     if ((deps.selectedTool() === 'track' || deps.selectedTool() === 'ride') && sim.map) {
       const rect = canvas.getBoundingClientRect();
       const tile = pickTile(event.clientX - rect.left, event.clientY - rect.top, sim.map, camera, {
@@ -253,7 +269,10 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     pointerInput.pointerUp(pointerSample(event));
   });
   canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
-  canvas.addEventListener('pointerleave', () => deps.pathDrag.hoverEnd());
+  canvas.addEventListener('pointerleave', (event) => {
+    deps.pathDrag.hoverEnd();
+    if (deps.selectedTool() === 'land' && event.buttons === 0) deps.land.leave();
+  });
   canvas.addEventListener('contextmenu', (event) => {
     if (deps.selectedTool() !== 'path') return;
     event.preventDefault();

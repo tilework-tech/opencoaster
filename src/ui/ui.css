@@ -1280,3 +1280,110 @@
 .scenario-card.completed .scenario-status {
   color: #2e6320;
 }
+.land-overlay {
+  position: fixed;
+  z-index: 35;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  pointer-events: none;
+}
+.land-overlay[hidden] {
+  display: none;
+}
+.land-overlay polygon,
+.land-overlay line,
+.land-overlay circle {
+  vector-effect: non-scaling-stroke;
+}
+.land-overlay .land-sel {
+  fill: rgba(255, 241, 138, 0.22);
+  stroke: #fff18a;
+  stroke-width: 2;
+}
+.land-overlay .land-single {
+  fill: rgba(255, 241, 138, 0.06);
+  stroke-width: 1;
+}
+.land-overlay .land-spill {
+  fill: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.land-overlay .land-bad {
+  fill: rgba(235, 80, 70, 0.3);
+  stroke: #ff7a6e;
+}
+.land-overlay .land-block {
+  fill: rgba(235, 80, 70, 0.5);
+  stroke: #ff3b30;
+  stroke-width: 2;
+}
+.land-overlay .land-corner {
+  fill: #fff18a;
+  stroke: #1d1b0e;
+  stroke-width: 1.5;
+}
+.land-overlay .land-corner.land-bad {
+  fill: #ff7a6e;
+}
+.land-overlay .land-edge {
+  stroke: #fff18a;
+  stroke-width: 4;
+}
+.land-overlay .land-stem {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.land-overlay .land-up {
+  stroke: #7dff9a;
+}
+.land-overlay .land-down {
+  stroke: #ffb04d;
+}
+.land-tip {
+  position: fixed;
+  z-index: 46;
+  max-width: 260px;
+  pointer-events: none;
+  padding: 3px 8px;
+  background: rgba(24, 24, 18, 0.92);
+  border: 1px solid #c9b85a;
+  color: #fff6c4;
+  font-size: 12px;
+}
+.land-tip.land-tip-bad {
+  background: rgba(46, 16, 14, 0.92);
+  border-color: #c85a4e;
+  color: #ffd9d3;
+}
+.land-tip[hidden] {
+  display: none;
+}
+
+.land-size-row,
+.land-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+.land-size-row > span {
+  flex: 1;
+}
+.land-size-row .ui-button {
+  min-width: 36px;
+}
+.land-size-label {
+  min-width: 44px;
+  text-align: center;
+}
+.land-mode-row .ui-button {
+  flex: 1;
+}
+.land-mode-row .ui-button[aria-pressed='true'] {
+  background: #fff18a;
+  color: #1d1b0e;
+}

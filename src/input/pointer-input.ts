@@ -23,6 +23,12 @@ export interface PointerInputActions {
   pathDragMove(x: number, y: number): void;
   pathDragEnd(): void;
   pathDragCancel(): void;
+  /** Land tool: a pointer went down on the map. */
+  landPress?(x: number, y: number): void;
+  /** Land tool: the pointer moved past the tap threshold; the drag began at (x, y). */
+  landDragStart?(x: number, y: number): void;
+  landDragMove?(x: number, y: number): void;
+  landDragEnd?(): void;
 }
 
 interface ActivePointer {
@@ -46,6 +52,8 @@ export class PointerInput {
   private pinchLastAngle = 0;
   private rotationRemainder = 0;
   private rotating = false;
+  private landDragging = false;
+  private lastMidpoint: [number, number] | null = null;
 
   constructor(private readonly actions: PointerInputActions) {}
 
@@ -61,6 +69,8 @@ export class PointerInput {
       timer: null,
     };
     this.pointers.set(sample.pointerId, active);
+    if (this.pointers.size === 1 && this.actions.tool() === 'land')
+      this.actions.landPress?.(sample.x, sample.y);
 
     if (this.pointers.size === 1 && sample.pointerType === 'touch') {
       active.timer = setTimeout(() => {
@@ -71,7 +81,9 @@ export class PointerInput {
       }, HOLD_DELAY_MS);
     } else if (this.pointers.size === 2) {
       this.cancelHolds();
+      this.endLandDrag();
       const [first, second] = this.twoPointers();
+      this.lastMidpoint = this.midpoint(first.sample, second.sample);
       const distance = this.distance(first.sample, second.sample);
       this.pinchStartDistance = Math.max(distance, 1);
       this.pinchLastAngle = this.angle(first.sample, second.sample);
@@ -95,6 +107,9 @@ export class PointerInput {
       this.cancelHolds();
       const distance = Math.max(this.distance(first.sample, second.sample), 1);
       const [centerX, centerY] = this.midpoint(first.sample, second.sample);
+      if (this.lastMidpoint)
+        this.actions.pan(centerX - this.lastMidpoint[0], centerY - this.lastMidpoint[1]);
+      this.lastMidpoint = [centerX, centerY];
       this.actions.zoom(distance / this.pinchStartDistance, centerX, centerY);
 
       const angle = this.angle(first.sample, second.sample);
@@ -120,13 +135,17 @@ export class PointerInput {
     if (startsDrag) {
       active.moved = true;
       this.cancelHold(active);
-      if (this.actions.tool() === 'land')
+      if (this.landDragTool()) {
+        this.landDragging = true;
+        this.actions.landDragStart?.(active.startX, active.startY);
+      } else if (this.actions.tool() === 'land')
         this.actions.paint(active.startX, active.startY, sample.shiftKey);
       else if (this.actions.tool() === 'path')
         active.pathDrag = this.actions.pathDragStart(active.startX, active.startY);
     }
 
-    if (this.actions.tool() === 'land')
+    if (this.landDragging) this.actions.landDragMove?.(sample.x, sample.y);
+    else if (this.actions.tool() === 'land')
       this.paintBetween(startsDrag ? { x: active.startX, y: active.startY } : previous, sample);
     else if (active.pathDrag) this.actions.pathDragMove(sample.x, sample.y);
     else if (startsDrag) this.actions.pan(dx, dy);
@@ -140,6 +159,7 @@ export class PointerInput {
     this.cancelHold(active);
     this.pointers.delete(sample.pointerId);
     if (active.pathDrag) this.actions.pathDragEnd();
+    this.endLandDrag();
 
     if (this.pointers.size === 1) {
       const [remaining] = this.pointers.values();
@@ -164,10 +184,21 @@ export class PointerInput {
     const active = this.pointers.get(pointerId);
     if (active) this.cancelHold(active);
     if (active?.pathDrag) this.actions.pathDragCancel();
+    this.endLandDrag();
     this.pointers.clear();
     if (this.pinchStartDistance > 0) this.actions.zoomEnd();
     this.pinchStartDistance = 0;
     this.rotating = false;
+  }
+
+  private landDragTool(): boolean {
+    return this.actions.tool() === 'land' && this.actions.landDragStart !== undefined;
+  }
+
+  private endLandDrag(): void {
+    if (!this.landDragging) return;
+    this.landDragging = false;
+    this.actions.landDragEnd?.();
   }
 
   private twoPointers(): [ActivePointer, ActivePointer] {

@@ -12,8 +12,6 @@ interface ToolTab {
   help: string;
   /** Label for the alternate action toggle (lower, remove) when the tool has one. */
   alternate?: string;
-  /** Offers the 1×1 to 5×5 brush size selector. */
-  brush?: boolean;
   scenery?: boolean;
 }
 
@@ -22,22 +20,6 @@ interface ToolWindowSpec {
   title: string;
   tabs: readonly ToolTab[];
 }
-
-export const LAND_WINDOW: ToolWindowSpec = {
-  id: 'land',
-  title: 'Land',
-  tabs: [
-    {
-      id: 'terrain',
-      label: 'Raise or lower land',
-      icon: 'land',
-      tool: 'land',
-      help: 'Tap a tile to raise it by one step. Switch to Lower to dig instead.',
-      alternate: 'Lower',
-      brush: true,
-    },
-  ],
-};
 
 export const SCENERY_WINDOW: ToolWindowSpec = {
   id: 'scenery',
@@ -123,7 +105,6 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
     onTab: (id) => select(byId.get(id)),
     onClose: () => {
       ctx.actions.setAlternate(false);
-      ctx.actions.setBrush(1);
       ctx.chooseTool('select');
     },
   });
@@ -131,15 +112,6 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
     for (const tab of spec.tabs) {
       const pane = win.panes.get(tab.id) ?? win.pane();
       pane.append(element('p', 'ui-help', tab.help));
-      if (tab.brush) {
-        const size = element('select', 'brush-size');
-        size.setAttribute('aria-label', 'Brush size');
-        for (let n = 1; n <= 5; n++) size.append(new Option(`${n}×${n}`, String(n)));
-        size.addEventListener('change', () => ctx.actions.setBrush(Number(size.value)));
-        const label = element('label', 'coaster-row');
-        label.append(element('span', '', 'Brush size'), size);
-        pane.append(label);
-      }
       if (tab.alternate) {
         const toggle = button(
           tab.alternate,

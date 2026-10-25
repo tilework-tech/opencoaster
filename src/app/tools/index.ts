@@ -7,7 +7,6 @@ import type { CoasterPanel } from '../../ui/coaster-panel';
 import type { SceneryItem } from '../../sim/map/scenery';
 import {
   handleFlowerbedTool,
-  handleLandTool,
   handlePathAdditionTool,
   handlePathTool,
   handlePatrolTool,
@@ -15,6 +14,7 @@ import {
 } from './handlers';
 import { findGuestAt } from './selection';
 import type { PathFeedback } from './path-feedback';
+import type { LandController } from './land-controller';
 import type { PathTool } from './path/controller';
 import type { Tile } from './path/run';
 
@@ -28,7 +28,7 @@ export interface ToolControllerDependencies {
   selectedGuest: () => GuestSelection | null;
   setSelectedGuest: (guest: GuestSelection | null) => void;
   alternate: () => boolean;
-  brush: () => number;
+  land: LandController;
   pathFeedback: PathFeedback;
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
@@ -43,7 +43,6 @@ export function createToolController(deps: ToolControllerDependencies) {
     gameUi: deps.gameUi,
     selectedTool: deps.selectedTool,
     alternate: deps.alternate,
-    brush: deps.brush,
     pathTool: deps.pathTool,
     sceneryItem: deps.sceneryItem,
     patrolKind: deps.patrolKind,
@@ -122,7 +121,7 @@ export function createToolController(deps: ToolControllerDependencies) {
         return;
       }
       const [x, y] = tile;
-      if (selectedTool === 'land') handleLandTool(handlerDeps, x, y, shiftKey);
+      if (selectedTool === 'land') deps.land.tap(clientX, clientY, shiftKey);
       else if (selectedTool === 'path') handlePathTool(handlerDeps, x, y);
       else if (selectedTool === 'scenery') handleSceneryTool(handlerDeps, x, y, shiftKey);
       else if (
