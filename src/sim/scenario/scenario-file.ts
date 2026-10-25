@@ -237,10 +237,14 @@ function objective(v: unknown): ScenarioDef['objective'] {
   };
 }
 
-/** Deadlines are written as whole years (`byYear`, 1-based: year 1 ends at the start of year 2) or raw ticks. */
+/**
+ * Deadlines are written as whole years (`byYear`, 1-based) or raw ticks. `byYear` judges the
+ * objective on the last tick of that year's final month (end of October), so the verdict lands
+ * on the same date the UI labels as the deadline.
+ */
 function deadline(o: Json): number {
   if (o.byYear !== undefined)
-    return integer(o.byYear, 'objective.byYear', 1, 1000) * TICKS_PER_YEAR;
+    return integer(o.byYear, 'objective.byYear', 1, 1000) * TICKS_PER_YEAR - 1;
   if (o.byTick !== undefined) return integer(o.byTick, 'objective.byTick', 1, MAX_SAFE);
   throw new Error('objective must set byYear or byTick');
 }

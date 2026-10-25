@@ -1,9 +1,4 @@
-import {
-  gameDate,
-  RATING_REFRESH_TICKS,
-  TICKS_PER_MONTH,
-  TICKS_PER_YEAR,
-} from '../sim/economy/calendar';
+import { gameDate, RATING_REFRESH_TICKS, TICKS_PER_MONTH } from '../sim/economy/calendar';
 import { ObjectiveKind, ScenarioStatus } from '../sim/scenario/scenario';
 import type { SnapshotScenario } from '../worker/snapshot';
 import { formatCents } from './hud';
@@ -52,13 +47,19 @@ export function objectiveLines(scenario: SnapshotScenario, loan: number, tick: n
     : [`${outcome}: ${progress}`, `Deadline: ${deadlineText(o.byTick, tick)}`];
 }
 
+/** The date an objective is judged on, as shown on the scenario card, the strip and the outcome. */
+export function deadlineLabel(byTick: number): string {
+  const date = gameDate(byTick);
+  const endOfMonth = (byTick + 1) % TICKS_PER_MONTH === 0;
+  return endOfMonth
+    ? `end of ${date.monthName}, year ${date.year}`
+    : `${date.monthName} ${date.day}, year ${date.year}`;
+}
+
 function deadlineText(byTick: number, tick: number): string {
-  const deadline = gameDate(byTick - 1);
-  const when =
-    byTick % TICKS_PER_YEAR === 0
-      ? `end of year ${byTick / TICKS_PER_YEAR}`
-      : `${deadline.monthName} ${deadline.day}, year ${deadline.year}`;
+  const when = deadlineLabel(byTick);
   const left = byTick - tick;
   if (left <= 0) return when;
+  if (left < TICKS_PER_MONTH) return `${when} (this month)`;
   return `${when} (${Math.ceil(left / TICKS_PER_MONTH)} months left)`;
 }

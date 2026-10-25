@@ -1,11 +1,11 @@
 import type { ScenarioProgress } from '../save/scenario-progress';
 import type { SaveSlotMeta, SlotStore } from '../save/slot-store';
-import { gameDate } from '../sim/economy/calendar';
 import { LedgerCategory } from '../sim/economy/ledger';
 import { ObjectiveKind } from '../sim/scenario/scenario';
 import type { ScenarioCategory, ScenarioDef } from '../sim/scenario/scenario';
 import { scenarioDisplayName } from '../sim/scenario/catalog';
 import { button, element, fileChooser } from './dom';
+import { deadlineLabel } from './objective';
 import { formatMoney } from './format';
 import { slotRow } from './slot-list';
 
@@ -273,8 +273,7 @@ function scenarioPreview(scenario: ScenarioDef): SVGSVGElement {
 export function objectiveText(scenario: ScenarioDef): string {
   const objective = scenario.objective;
   if (objective.kind === ObjectiveKind.HaveFun) return 'Objective: have fun. No deadline.';
-  const deadline = gameDate(objective.byTick - 1);
-  const due = ` Deadline: ${deadline.monthName} year ${deadline.year}.`;
+  const due = ` Deadline: ${deadlineLabel(objective.byTick)}.`;
   switch (objective.kind) {
     case ObjectiveKind.Guests:
       return `Objective: attract ${objective.target} guests.${due}`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
-import { TICKS_PER_MONTH } from '../economy/calendar';
+import { TICKS_PER_MONTH, TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory } from '../economy/ledger';
 import { applyScenario, ObjectiveKind, ScenarioStatus } from './scenario';
 import type { ScenarioDef, ScenarioObjective } from './scenario';
@@ -220,5 +220,18 @@ describe('scenario objectives', () => {
     expect(meetsObjective(s.world, objective)).toBe(false);
     s.world.economy.parkRating = 700;
     expect(meetsObjective(s.world, objective)).toBe(true);
+  });
+
+  it('judges a year-end deadline on the last tick of its final month', () => {
+    const s = new Simulation({ seed: 1, width: 16, height: 16 });
+    const deadline = TICKS_PER_YEAR - 1;
+    applyScenario(
+      s.world,
+      def({ kind: ObjectiveKind.Guests, target: 1, rating: 0, categoryMask: 0, byTick: deadline }),
+    );
+    while (s.world.tick < deadline) s.step();
+    expect(s.world.scenario.status).toBe(ScenarioStatus.Active);
+    s.step();
+    expect(s.world.scenario.status).toBe(ScenarioStatus.Lost);
   });
 });

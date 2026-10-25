@@ -499,11 +499,13 @@ export class GameUI {
         speeds.set(speed, b);
         row.append(b);
       }
-      gamePane.append(
-        row,
-        element('p', 'ui-help', 'Development'),
-        button('Guests +1,000', () => this.actions.spawnGuests(), 'ui-button'),
-      );
+      gamePane.append(row);
+      if (import.meta.env.DEV) {
+        gamePane.append(
+          element('p', 'ui-help', 'Development'),
+          button('Guests +1,000', () => this.actions.spawnGuests(), 'ui-button'),
+        );
+      }
       const soundPane = win.pane('sound');
       soundPane.append(
         element('p', 'ui-help', 'Sound and music settings'),
