@@ -1,6 +1,6 @@
-import { PIECES, SAMPLES } from '../../../src/sim/track/catalog';
+import { SAMPLES } from '../../../src/sim/track/catalog';
 import type { TrackPieceDef } from '../../../src/sim/track/track-types';
-import { beam, box, cylinder, mapMesh, material, rotateZ, translateMesh } from '../mesh';
+import { beam, box, cylinder, mapMesh, material, rotateZ } from '../mesh';
 import type { Material, Mesh, Vec3 } from '../mesh';
 import { ramp } from '../palette';
 
@@ -241,4 +241,3 @@ export function carMesh(style: CoasterStyle, heading: number, pitch: CarPitch): 
   return toLevels(rotateZ(pitched, (heading / CAR_HEADINGS) * Math.PI * 2));
 }
 
-export { translateMesh };
