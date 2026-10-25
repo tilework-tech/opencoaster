@@ -170,7 +170,6 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
           await clickTile(page, x, y, mobile);
         await toolbarAction(page, 'Pause', mobile);
         await centerMapOnTile(page, ...MAP_CENTER, mobile);
-        const before = await capture(page, testInfo, `${profile}-${ride.type}-before`);
         await toolbarAction(page, 'Resume', mobile);
         await toolbarAction(page, 'New ride', mobile);
         await page.getByRole('tab', { name: ride.tab }).click();
@@ -197,8 +196,6 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
           testInfo,
           `${profile}-${ride.type}-without-preview`,
         );
-        await page.context().close();
-
         const scale = withPreview.width / viewport.width;
         let area = 0;
         const cropArea = 80 * 90;
@@ -224,6 +221,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await page.getByRole('button', { name: 'Close Ride #0' }).click();
         await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
         await toolbarAction(page, 'Pause', mobile);
+        await page.context().close();
       });
     }
   });
