@@ -4,6 +4,9 @@ import { completedMonthTotal, LedgerCategory } from '../economy/ledger';
 import { parkValueOf } from '../economy/park-rating';
 import { ScenarioStatus, ObjectiveKind } from './scenario';
 import type { ScenarioObjective } from './scenario';
+import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
+import { RideState } from '../rides/ride-store';
+import { isShopCategory } from '../rides/ride-operations';
 
 /** Objectives are judged once, on the first tick at or after their deadline. */
 export const scenarioSystem: System = {
@@ -11,6 +14,7 @@ export const scenarioSystem: System = {
   update(world: World) {
     const s = world.scenario;
     if (s.status !== ScenarioStatus.Active || !s.objective) return;
+    if (s.objective.kind === ObjectiveKind.HaveFun) return;
     if (world.tick < s.objective.byTick) return;
     s.status = meetsObjective(world, s.objective) ? ScenarioStatus.Won : ScenarioStatus.Lost;
   },
@@ -34,8 +38,61 @@ export function objectiveMetric(world: World, o: ScenarioObjective): number {
       return net;
     }
     case ObjectiveKind.QualifyingRides:
-      return l.inputs.qualifyingRideCount;
+      return countQualifyingRides(world);
+    case ObjectiveKind.BuildRides:
+      return world.rides.count;
+    case ObjectiveKind.QualifyingCoasters: {
+      const types = new Set<number>();
+      for (let slot = 0; slot < world.rides.count; slot++) {
+        const type = world.rides.cols.typeId[slot] as RideType;
+        const definition = RIDE_CATALOG[type];
+        if (!definition?.usesTrack || world.rides.cols.state[slot] !== RideState.Open) continue;
+        if (world.rides.cols.excitement[slot] < (o.minimumExcitement ?? 0)) continue;
+        if (world.track.length[world.rides.slotToId[slot]] < (o.minimumLength ?? 0)) continue;
+        types.add(type);
+      }
+      return types.size;
+    }
+    case ObjectiveKind.CompleteCoasters: {
+      let count = 0;
+      for (let slot = 0; slot < world.rides.count; slot++) {
+        const id = world.rides.slotToId[slot];
+        const type = world.rides.cols.typeId[slot] as RideType;
+        if (
+          RIDE_CATALOG[type]?.usesTrack &&
+          world.track.closed[id] !== 0 &&
+          world.rides.cols.excitement[slot] >= (o.minimumExcitement ?? 0)
+        )
+          count++;
+      }
+      return count;
+    }
+    case ObjectiveKind.BestRide: {
+      let best = 0;
+      for (let slot = 0; slot < world.rides.count; slot++) {
+        if (world.rides.cols.state[slot] === RideState.Open)
+          best = Math.max(best, world.rides.cols.excitement[slot]);
+      }
+      return best;
+    }
+    case ObjectiveKind.HaveFun:
+      return 1;
   }
+}
+
+function countQualifyingRides(world: World): number {
+  let count = 0;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    const definition = RIDE_CATALOG[world.rides.cols.typeId[slot] as RideType];
+    if (
+      definition &&
+      !isShopCategory(definition.category) &&
+      world.rides.cols.state[slot] === RideState.Open
+    ) {
+      count++;
+    }
+  }
+  return count;
 }
 
 export function meetsObjective(world: World, o: ScenarioObjective): boolean {
@@ -45,6 +102,10 @@ export function meetsObjective(world: World, o: ScenarioObjective): boolean {
       return metric && world.economy.parkRating >= o.rating;
     case ObjectiveKind.RepayLoanAndParkValue:
       return metric && world.economy.loan === 0;
+    case ObjectiveKind.Guests:
+      return metric && world.economy.parkRating >= (o.minimumRating ?? 0);
+    case ObjectiveKind.HaveFun:
+      return false;
     default:
       return metric;
   }

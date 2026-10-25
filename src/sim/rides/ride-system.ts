@@ -1,5 +1,5 @@
 import type { System } from '../core/system';
-import { RidePhase, RideState } from './ride-store';
+import { RidePhase, RideState, recordRideRiders, updateRideRiderWindow } from './ride-store';
 import { updateRideAge } from './ride-operations';
 import { updateRideMaintenance } from './ride-maintenance';
 import { RIDE_CATALOG } from './ride-types';
@@ -14,6 +14,7 @@ export function completeCycle(
   const ride = world.rides.cols;
   ride.cyclesCompleted[slot]++;
   ride.guestsServed[slot] += riders;
+  recordRideRiders(world, slot, riders);
   ride.boarded[slot] = Math.max(0, ride.boarded[slot] - riders);
 }
 
@@ -36,6 +37,7 @@ export function finishCycle(world: Parameters<System['update']>[0], slot: number
 export const rideSystem: System = {
   name: 'rides',
   update(world) {
+    updateRideRiderWindow(world);
     updateRideAge(world);
     updateRideMaintenance(world);
     const ride = world.rides.cols;

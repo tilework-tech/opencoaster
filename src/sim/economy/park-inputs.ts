@@ -6,6 +6,9 @@ import { RideState } from '../rides/ride-store';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
 import { calculateStaffWageBill } from '../staff/staff-store';
 import { setEconomyInputs } from './api';
+import { rideValueContribution } from './park-rating';
+import { ridersInRecentWindow } from '../rides/ride-store';
+import type { ParkValueRide } from './ledger';
 
 /** Inputs are republished this often; a divisor of the rating refresh cadence. */
 export const INPUT_REFRESH_TICKS = 128;
@@ -26,7 +29,7 @@ export const parkInputsSystem: System = {
     if (world.tick % INPUT_REFRESH_TICKS !== 0) return;
     const ride = world.rides.cols;
     let upkeep = 0;
-    let value = 0;
+    const valueRides: ParkValueRide[] = [];
     let qualifying = 0;
     let attractions = 0;
     let excitement = 0;
@@ -39,6 +42,15 @@ export const parkInputsSystem: System = {
       if (!shop) {
         attractions++;
         if (ride.state[slot] === RideState.Broken) broken++;
+        const typeBonus = Math.max(
+          1,
+          Math.floor(definition.valueWeights.reduce((sum, weight) => sum + weight, 0) / 10),
+        );
+        valueRides.push({
+          valueCents: getRideValueCents(world, world.rides.slotToId[slot]),
+          ridersLast5Minutes: ridersInRecentWindow(world, slot),
+          typeBonus,
+        });
       }
       if (ride.state[slot] !== RideState.Open) continue;
       upkeep += Math.floor(definition.cost / (shop ? SHOP_UPKEEP_DIVISOR : RIDE_UPKEEP_DIVISOR));
@@ -46,7 +58,6 @@ export const parkInputsSystem: System = {
         qualifying++;
         excitement += ride.excitement[slot];
         intensity += ride.intensity[slot];
-        value += getRideValueCents(world, world.rides.slotToId[slot]);
       }
     }
 
@@ -67,7 +78,7 @@ export const parkInputsSystem: System = {
     setEconomyInputs(world, {
       wageBillPerWeek: calculateStaffWageBill(world),
       rideUpkeepPerFortnight: upkeep,
-      rideValue: value,
+      rideValue: rideValueContribution(valueRides),
       qualifyingRideCount: qualifying,
       openAttractionCount: qualifying,
       excitementTotal: excitement,

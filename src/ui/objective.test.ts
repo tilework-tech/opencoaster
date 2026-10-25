@@ -82,6 +82,12 @@ describe('objectiveLines', () => {
     expect(lines[1]).toBe('Deadline: end of year 1 (2 months left)');
   });
 
+  it('shows the calendar day for an in-year deadline', () => {
+    expect(objectiveLines(scenario({ byTick: TICKS_PER_MONTH }), 0, 0)[1]).toBe(
+      'Deadline: March 31, year 1 (1 months left)',
+    );
+  });
+
   it('is empty for sandbox games', () => {
     expect(objectiveLines({ ...scenario(), objective: null }, 0, 0)).toEqual([]);
   });

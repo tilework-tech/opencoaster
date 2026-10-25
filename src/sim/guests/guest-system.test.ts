@@ -475,8 +475,8 @@ describe('arrivals', () => {
     }
     return w.guests.count;
   }
-  function gated(): World {
-    const w = flatWorld();
+  function gated(seed = 5): World {
+    const w = flatWorld(24, seed);
     layPath(w, row(5, 2, 8));
     setParkEntrance(w, 2, 5);
     return w;
@@ -512,6 +512,39 @@ describe('arrivals', () => {
     advertised.economy.campaignId = 1;
     advertised.economy.campaignWeeksLeft = 4;
     expect(arrivals(advertised, undefined, 100)).toBeGreaterThan(arrivals(quiet, undefined, 100));
+  });
+
+  it('uses positive and negative awards to scale natural park arrivals', () => {
+    const make = (awardId: number, seed = 5): World => {
+      const w = gated(seed);
+      w.economy.parkRating = 600;
+      w.economy.activeAwards.push({ awardId, expiresTick: 100_000 });
+      return w;
+    };
+    let positive = 0;
+    let neutral = 0;
+    let negative = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      positive += arrivals(make(0, seed), undefined, 20);
+      const neutralWorld = gated(seed);
+      neutralWorld.economy.parkRating = 600;
+      neutral += arrivals(neutralWorld, undefined, 20);
+      negative += arrivals(make(12, seed), undefined, 20);
+    }
+    expect(positive).toBeGreaterThan(neutral);
+    expect(negative).toBeLessThan(neutral);
+  });
+
+  it('leaves active advertising arrivals unchanged by awards', () => {
+    const make = (awardId?: number): World => {
+      const w = gated();
+      w.economy.parkRating = 600;
+      w.economy.campaignId = 1;
+      w.economy.campaignWeeksLeft = 2;
+      if (awardId !== undefined) w.economy.activeAwards.push({ awardId, expiresTick: 100_000 });
+      return w;
+    };
+    expect(arrivals(make(12), undefined, 200)).toBe(arrivals(make(), undefined, 200));
   });
 });
 

@@ -14,6 +14,8 @@ Path: @/src/ui
 
 - [src/main.ts](../main.ts) creates a [WindowManager](window-manager.ts), the [CoasterPanel](coaster-panel.ts) and the [GameUI](game-ui.ts), and connects `GameUIActions` to [SimClient](../worker/sim-client.ts), the camera, screen-to-tile picking and the renderer. Placement input becomes simulation commands at the main-thread boundary.
 - Windows read `Snapshot` fields only. `Snapshot.economy` (price mode, admission, monthly ledger totals, loan limit) and `Snapshot.research` exist for the Park, Finances and Research windows; `RideInfo.RideX/RideY` locate a ride for clicks on news items and the map.
+- Award announcements in the park HUD come from `Snapshot.parkNews`, a bounded history published by the worker snapshot; the simulation ledger remains authoritative.
+- Snapshots transfer reusable array buffers between the worker and client. Opening a window creates its controller immediately, but it fills from the next animation-frame update so it does not read an older snapshot whose buffers may have been recycled or detached.
 - [Hud](hud.ts) shows worker timing and render statistics; it is hidden until View options > Performance overlay is turned on.
 - Guest details label hunger and thirst as satisfaction because the stored values use a satiation scale: high means full.
 - [title-screen.ts](title-screen.ts), [save-menu.ts](save-menu.ts) and [scenario-dialog.ts](scenario-dialog.ts) are DOM overlays. They call into the save layer ([game-saves.ts](../save/game-saves.ts), [slot-store.ts](../save/slot-store.ts)) and the worker ([SimClient](../worker/sim-client.ts)) through callbacks wired in `main.ts`.

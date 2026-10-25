@@ -1,4 +1,4 @@
-import type { EconomyInputs } from './ledger';
+import type { EconomyInputs, ParkValueRide } from './ledger';
 
 export const MAX_RATING = 999;
 /** Starting rating before penalties; a difficult-rating scenario starts lower. */
@@ -21,8 +21,24 @@ const PROXIMITY_CAP = 50;
 export const VARIETY_TOTAL = 8000;
 const VARIETY_CAP = 100;
 
-export function parkValueOf(guests: number, inputs: EconomyInputs): number {
-  return inputs.rideValue + PARK_VALUE_PER_GUEST_CENTS * guests;
+/** Community-derived per-type factors; exact RCT2 values remain an open compatibility question. */
+export function rideValueContribution(rides: readonly ParkValueRide[]): number {
+  let total = 0;
+  for (const ride of rides) {
+    const multiplier = Math.max(0, ride.ridersLast5Minutes + 4 * ride.typeBonus);
+    total += ride.valueCents * multiplier;
+  }
+  return total;
+}
+
+export function parkValueOf(
+  guests: number,
+  inputs: EconomyInputs,
+  rides?: readonly ParkValueRide[],
+): number {
+  return (
+    (rides ? rideValueContribution(rides) : inputs.rideValue) + PARK_VALUE_PER_GUEST_CENTS * guests
+  );
 }
 
 function proximityPenalty(total: number, count: number, ideal: number): number {
@@ -54,7 +70,8 @@ export function computeParkRating(
   const lostPenalty = Math.max(0, inputs.lostGuests - 25) * 7;
   const uptimePenalty = Math.min(200, inputs.rideDowntimePercent * 2);
   const litterPenalty = Math.min(600, inputs.litter * 4);
-  const casualtyPenalty = Math.min(1000, inputs.casualties * 100);
+  const typedCasualties = inputs.drowningCasualtyPenalty + inputs.fatalRideCrashPenalty;
+  const casualtyPenalty = Math.min(1000, typedCasualties + inputs.casualties * 100);
   const count = inputs.openAttractionCount;
   const ridePenalty =
     proximityPenalty(inputs.excitementTotal, count, IDEAL_EXCITEMENT) +

@@ -40,3 +40,13 @@ export function ridePricingEnabled(world: World): boolean {
 export function marketingAttraction(world: World): number {
   return attractionBps(world.economy);
 }
+
+export function recordDrowningCasualty(world: World): void {
+  world.economy.inputs.drowningCasualties++;
+  world.economy.inputs.drowningCasualtyPenalty += 25;
+}
+
+export function recordFatalRideCrash(world: World): void {
+  world.economy.inputs.fatalRideCrashes++;
+  world.economy.inputs.fatalRideCrashPenalty += 200;
+}

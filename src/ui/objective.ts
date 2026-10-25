@@ -18,7 +18,7 @@ export function objectiveLines(scenario: SnapshotScenario, loan: number, tick: n
   const progress = (() => {
     switch (o.kind) {
       case ObjectiveKind.Guests:
-        return `${m} / ${o.target} guests in the park`;
+        return `${m} / ${o.target} guests in the park${(o.minimumRating ?? 0) > 0 ? ` · rating at least ${o.minimumRating}` : ''}`;
       case ObjectiveKind.GuestsAndRating:
         return `${m} / ${o.target} guests · rating ${rating} / ${o.rating}`;
       case ObjectiveKind.ParkValue:
@@ -29,6 +29,16 @@ export function objectiveLines(scenario: SnapshotScenario, loan: number, tick: n
         return `${formatCents(m)} / ${formatCents(o.target)} net income last month`;
       case ObjectiveKind.QualifyingRides:
         return `${m} / ${o.target} qualifying rides`;
+      case ObjectiveKind.BuildRides:
+        return `${m} / ${o.target} rides built`;
+      case ObjectiveKind.QualifyingCoasters:
+        return `${m} / ${o.target} qualifying coaster types`;
+      case ObjectiveKind.CompleteCoasters:
+        return `${m} / ${o.target} completed coasters`;
+      case ObjectiveKind.BestRide:
+        return `Best ride excitement ${m} / ${o.target}`;
+      case ObjectiveKind.HaveFun:
+        return 'Have fun in the park';
     }
   })();
   const outcome =
@@ -37,14 +47,17 @@ export function objectiveLines(scenario: SnapshotScenario, loan: number, tick: n
       : scenario.status === ScenarioStatus.Lost
         ? 'Objective missed'
         : 'Objective';
-  return [`${outcome}: ${progress}`, `Deadline: ${deadlineText(o.byTick, tick)}`];
+  return o.kind === ObjectiveKind.HaveFun
+    ? [`${outcome}: ${progress}`]
+    : [`${outcome}: ${progress}`, `Deadline: ${deadlineText(o.byTick, tick)}`];
 }
 
 function deadlineText(byTick: number, tick: number): string {
+  const deadline = gameDate(byTick - 1);
   const when =
     byTick % TICKS_PER_YEAR === 0
       ? `end of year ${byTick / TICKS_PER_YEAR}`
-      : `${gameDate(byTick - 1).monthName} year ${gameDate(byTick - 1).year}`;
+      : `${deadline.monthName} ${deadline.day}, year ${deadline.year}`;
   const left = byTick - tick;
   if (left <= 0) return when;
   return `${when} (${Math.ceil(left / TICKS_PER_MONTH)} months left)`;

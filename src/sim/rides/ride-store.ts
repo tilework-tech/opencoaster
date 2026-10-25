@@ -14,6 +14,15 @@ export enum RidePhase {
   Loading = 5,
 }
 
+export const RIDER_HISTORY_WINDOWS = 60;
+export const RIDER_HISTORY_WINDOW_TICKS = 200;
+const riderHistorySchema = Object.fromEntries(
+  Array.from({ length: RIDER_HISTORY_WINDOWS }, (_, index) => [
+    `ridersWindow${String(index).padStart(2, '0')}`,
+    Uint16Array,
+  ]),
+) as Record<string, Uint16ArrayConstructor>;
+
 /** Per-ride-instance state. Static tuning data lives in ride-types.ts. */
 export const RIDE_SCHEMA = {
   typeId: Uint16Array,
@@ -86,7 +95,44 @@ export const RIDE_SCHEMA = {
   serviceTicks: Uint16Array,
   /** Tick of the latest mechanic work, to tell continuous work from separate visits. */
   serviceLastTick: Uint32Array,
+  ...riderHistorySchema,
 } as const;
 
 /** Columns appended to the schema after each released save version, newest last. */
 export const RIDE_COLUMNS_ADDED_IN_V10 = 5;
+
+export function updateRideRiderWindow(world: {
+  rides: { cols: unknown; count: number };
+  tick: number;
+}): void {
+  if (world.tick % RIDER_HISTORY_WINDOW_TICKS !== 0) return;
+  const window = Math.floor(world.tick / RIDER_HISTORY_WINDOW_TICKS) % RIDER_HISTORY_WINDOWS;
+  const key = `ridersWindow${String(window).padStart(2, '0')}`;
+  const column = (world.rides.cols as Record<string, Uint16Array>)[key];
+  column.fill(0, 0, world.rides.count);
+}
+
+export function recordRideRiders(
+  world: { rides: { cols: unknown }; tick: number },
+  slot: number,
+  count: number,
+): void {
+  const window = Math.floor(world.tick / RIDER_HISTORY_WINDOW_TICKS) % RIDER_HISTORY_WINDOWS;
+  const key = `ridersWindow${String(window).padStart(2, '0')}`;
+  const column = (world.rides.cols as Record<string, Uint16Array>)[key];
+  column[slot] = Math.min(0xffff, column[slot] + count);
+}
+
+export function ridersInRecentWindow(
+  world: { rides: { cols: unknown }; tick: number },
+  slot: number,
+): number {
+  const current = Math.floor(world.tick / RIDER_HISTORY_WINDOW_TICKS) % RIDER_HISTORY_WINDOWS;
+  const cols = world.rides.cols as Record<string, Uint16Array>;
+  let total = 0;
+  for (let offset = 0; offset < RIDER_HISTORY_WINDOWS; offset++) {
+    const window = (current - offset + RIDER_HISTORY_WINDOWS) % RIDER_HISTORY_WINDOWS;
+    total += cols[`ridersWindow${String(window).padStart(2, '0')}`][slot];
+  }
+  return total;
+}

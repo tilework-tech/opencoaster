@@ -1,4 +1,6 @@
 import { PriceMode } from '../../sim/economy/ledger';
+import { gameDate, TICKS_PER_MONTH } from '../../sim/economy/calendar';
+import { AWARDS } from '../../sim/economy/awards';
 import type { Stats } from '../../worker/protocol';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, setText, statRow } from '../dom';
@@ -25,6 +27,11 @@ const MODE_LABELS: ReadonlyArray<readonly [PriceMode, string]> = [
   [PriceMode.Admission, 'Pay to enter'],
   [PriceMode.PerRide, 'Pay per ride'],
 ];
+
+export function formatParkDate(tick: number): string {
+  const date = gameDate(tick);
+  return `${date.monthName} ${date.day}, Year ${date.year}`;
+}
 
 /** Park window: entrance, rating, guest graph, admission pricing, statistics and objective. */
 export function openParkWindow(ctx: UiContext): WindowController {
@@ -63,11 +70,13 @@ export function openParkWindow(ctx: UiContext): WindowController {
   admissionBlock.append(element('p', 'ui-help', 'Admission price'), admission.root);
   const stats = {
     tick: statRow('Simulation tick'),
+    date: statRow('Date'),
     rides: statRow('Rides'),
     staff: statRow('Staff'),
     litter: statRow('Litter on paths'),
   };
   const objective = element('pre', 'ui-pre');
+  const awards = element('pre', 'ui-pre');
 
   if (created) {
     win.pane('entrance').append(entrance.guests.row, entrance.rides.row, entrance.value.row);
@@ -83,9 +92,13 @@ export function openParkWindow(ctx: UiContext): WindowController {
       );
     win.pane('guests').append(element('p', 'ui-help', 'Guests in the park'), guestChart);
     win.pane('price').append(element('p', 'ui-help', 'How guests pay'), modeRow, admissionBlock);
-    win.pane('stats').append(stats.tick.row, stats.rides.row, stats.staff.row, stats.litter.row);
+    win
+      .pane('stats')
+      .append(stats.date.row, stats.tick.row, stats.rides.row, stats.staff.row, stats.litter.row);
     win.pane('objective').append(objective);
-    win.pane('awards').append(element('p', 'ui-help', 'No awards have been won yet.'));
+    win
+      .pane('awards')
+      .append(element('p', 'ui-help', 'Current park awards and their remaining duration.'), awards);
   }
   return {
     update(snapshot: Snapshot | null, simStats: Stats | null) {
@@ -104,11 +117,20 @@ export function openParkWindow(ctx: UiContext): WindowController {
       admissionBlock.hidden = snapshot.economy.priceMode !== PriceMode.Admission;
       admission.show(snapshot.economy.admissionPrice);
       setText(stats.tick.value, String(snapshot.tick));
+      setText(stats.date.value, formatParkDate(snapshot.tick));
       setText(stats.rides.value, String(snapshot.park.rides));
       setText(stats.staff.value, String(snapshot.staff.count));
       setText(stats.litter.value, String(snapshot.litter.count));
       const lines = objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick);
       setText(objective, lines.length ? lines.join('\n') : 'Sandbox: no objective.');
+      const currentAwards = snapshot.activeAwards
+        .filter((award) => award.expiresTick > snapshot.tick)
+        .map((award) => {
+          const name = AWARDS[award.awardId]?.name ?? `Award ${award.awardId}`;
+          const months = Math.ceil((award.expiresTick - snapshot.tick) / TICKS_PER_MONTH);
+          return `${name} · ${months} month${months === 1 ? '' : 's'} remaining`;
+        });
+      setText(awards, currentAwards.length ? currentAwards.join('\n') : 'No active awards.');
     },
   };
 }

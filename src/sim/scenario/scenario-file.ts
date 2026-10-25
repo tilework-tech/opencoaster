@@ -7,11 +7,20 @@ type Json = Record<string, unknown>;
 
 const OBJECTIVE_KINDS: Record<string, ObjectiveKind> = {
   guests: ObjectiveKind.Guests,
+  guestsByDate: ObjectiveKind.Guests,
   parkValue: ObjectiveKind.ParkValue,
+  parkValueByDate: ObjectiveKind.ParkValue,
   guestsAndRating: ObjectiveKind.GuestsAndRating,
   repayLoanAndParkValue: ObjectiveKind.RepayLoanAndParkValue,
   monthlyIncome: ObjectiveKind.MonthlyIncome,
   qualifyingRides: ObjectiveKind.QualifyingRides,
+  buildRides: ObjectiveKind.BuildRides,
+  qualifyingCoasters: ObjectiveKind.QualifyingCoasters,
+  completeCoasters: ObjectiveKind.CompleteCoasters,
+  bestRide: ObjectiveKind.BestRide,
+  haveFun: ObjectiveKind.HaveFun,
+  monthlyRideIncome: ObjectiveKind.MonthlyIncome,
+  monthlyFoodProfit: ObjectiveKind.MonthlyIncome,
 };
 
 const PRICE_MODES: Record<string, PriceMode> = {
@@ -141,9 +150,15 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
 function objective(v: unknown): ScenarioDef['objective'] {
   const o = object(v, 'objective');
   const kind = oneOf(o.kind, 'objective.kind', OBJECTIVE_KINDS);
+  const monthlyCategories =
+    o.kind === 'monthlyRideIncome'
+      ? ['rideTickets']
+      : o.kind === 'monthlyFoodProfit'
+        ? ['shopSales', 'shopStock', 'foodDrinkSales', 'foodDrinkStock']
+        : o.categories;
   const categoryMask =
     kind === ObjectiveKind.MonthlyIncome
-      ? array(o.categories, 'objective.categories').reduce<number>(
+      ? array(monthlyCategories, 'objective.categories').reduce<number>(
           (mask, c, i) => mask | (1 << oneOf(c, `objective.categories[${i}]`, LEDGER_CATEGORIES)),
           0,
         )
@@ -153,10 +168,25 @@ function objective(v: unknown): ScenarioDef['objective'] {
   }
   return {
     kind,
-    target: integer(o.target, 'objective.target', 0, MAX_MONEY),
+    target:
+      kind === ObjectiveKind.HaveFun && o.target === undefined
+        ? 0
+        : integer(o.target, 'objective.target', 0, MAX_MONEY),
     rating: o.rating === undefined ? 0 : integer(o.rating, 'objective.rating', 0, 999),
+    minimumRating:
+      o.minimumRating === undefined
+        ? 0
+        : integer(o.minimumRating, 'objective.minimumRating', 0, 999),
+    minimumExcitement:
+      o.minimumExcitement === undefined
+        ? 0
+        : integer(o.minimumExcitement, 'objective.minimumExcitement', 0, 10_000),
+    minimumLength:
+      o.minimumLength === undefined
+        ? 0
+        : integer(o.minimumLength, 'objective.minimumLength', 0, MAX_SAFE),
     categoryMask,
-    byTick: deadline(o),
+    byTick: kind === ObjectiveKind.HaveFun ? 0 : deadline(o),
   };
 }
 

@@ -19,6 +19,16 @@ export enum ObjectiveKind {
   MonthlyIncome,
   /** Qualifying ride count reaches target by byTick. */
   QualifyingRides,
+  /** Number of rides built (open or closed) reaches target by byTick. */
+  BuildRides,
+  /** Coaster types with the configured excitement and length reach target by byTick. */
+  QualifyingCoasters,
+  /** Completed coasters with the configured excitement reach target by byTick. */
+  CompleteCoasters,
+  /** At least one open ride reaches the excitement target by byTick. */
+  BestRide,
+  /** Open-ended scenario with no terminal deadline. */
+  HaveFun,
 }
 
 export enum ScenarioStatus {
@@ -35,6 +45,9 @@ export interface ScenarioObjective {
   /** Bit per LedgerCategory, used by MonthlyIncome. */
   categoryMask: number;
   byTick: number;
+  minimumExcitement?: number;
+  minimumLength?: number;
+  minimumRating?: number;
 }
 
 export type EntranceSide = 'north' | 'east' | 'south' | 'west';

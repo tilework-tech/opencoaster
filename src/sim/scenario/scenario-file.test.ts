@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TICKS_PER_YEAR } from '../economy/calendar';
+import { LedgerCategory } from '../economy/ledger';
 import { ObjectiveKind } from './scenario';
 import { parseScenarioFile } from './scenario-file';
 
@@ -55,6 +56,9 @@ describe('parseScenarioFile', () => {
         rating: 600,
         categoryMask: 0,
         byTick: TICKS_PER_YEAR,
+        minimumExcitement: 0,
+        minimumLength: 0,
+        minimumRating: 0,
       },
     });
   });
@@ -90,6 +94,62 @@ describe('parseScenarioFile', () => {
     expect(def.objective.kind).toBe(ObjectiveKind.MonthlyIncome);
     expect(def.objective.categoryMask).toBe((1 << 4) | (1 << 5));
     expect(def.objective.byTick).toBe(2 * TICKS_PER_YEAR);
+  });
+
+  it('supports the full monthly income objective families', () => {
+    const rideIncome = parseScenarioFile(
+      withObjective({ kind: 'monthlyRideIncome', target: 12_000, byYear: 1 }),
+    );
+    const foodProfit = parseScenarioFile(
+      withObjective({ kind: 'monthlyFoodProfit', target: 8_000, byYear: 1 }),
+    );
+    expect(rideIncome.objective.categoryMask).toBe(1 << LedgerCategory.RideTickets);
+    expect(foodProfit.objective.categoryMask).toBe(
+      (1 << LedgerCategory.ShopSales) |
+        (1 << LedgerCategory.ShopStock) |
+        (1 << LedgerCategory.FoodDrinkSales) |
+        (1 << LedgerCategory.FoodDrinkStock),
+    );
+  });
+
+  it('parses ride count and coaster qualification requirements', () => {
+    const rides = parseScenarioFile(withObjective({ kind: 'buildRides', target: 12, byYear: 1 }));
+    const coasters = parseScenarioFile(
+      withObjective({
+        kind: 'qualifyingCoasters',
+        target: 10,
+        minimumExcitement: 600,
+        minimumLength: 1600,
+        byYear: 2,
+      }),
+    );
+    expect(rides.objective.target).toBe(12);
+    expect(coasters.objective.target).toBe(10);
+    expect(coasters.objective).toMatchObject({ minimumExcitement: 600, minimumLength: 1600 });
+  });
+
+  it('allows an open-ended Have Fun objective without a deadline', () => {
+    const def = parseScenarioFile(withObjective({ kind: 'haveFun' }));
+    expect(def.objective.target).toBe(0);
+    expect(def.objective.byTick).toBe(0);
+  });
+
+  it('accepts the remaining documented objective families and thresholds', () => {
+    const bestRide = parseScenarioFile(withObjective({ kind: 'bestRide', target: 700, byYear: 1 }));
+    const complete = parseScenarioFile(
+      withObjective({
+        kind: 'completeCoasters',
+        target: 5,
+        minimumExcitement: 600,
+        byYear: 2,
+      }),
+    );
+    const guestsWithRatingFloor = parseScenarioFile(
+      withObjective({ kind: 'guests', target: 100, minimumRating: 700, byYear: 1 }),
+    );
+    expect(bestRide.objective).toMatchObject({ target: 700 });
+    expect(complete.objective).toMatchObject({ target: 5, minimumExcitement: 600 });
+    expect(guestsWithRatingFloor.objective).toMatchObject({ target: 100, minimumRating: 700 });
   });
 
   it('defaults the entrance to none when the file omits it', () => {

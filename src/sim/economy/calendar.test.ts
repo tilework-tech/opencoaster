@@ -17,6 +17,16 @@ describe('calendar', () => {
     expect(gameDate(TICKS_PER_YEAR)).toEqual({ year: 2, month: 0, monthName: 'March', day: 1 });
   });
 
+  it('rolls each fixed-length month to the next label and skips November through February', () => {
+    const months = ['March', 'April', 'May', 'June', 'July', 'August', 'September', 'October'];
+    for (let index = 0; index < months.length; index++) {
+      const start = index * TICKS_PER_MONTH;
+      expect(gameDate(start)).toMatchObject({ month: index, monthName: months[index], day: 1 });
+      expect(gameDate(start + TICKS_PER_MONTH - 1).day).toBe(index % 2 === 0 ? 31 : 30);
+    }
+    expect(gameDate(TICKS_PER_YEAR)).toMatchObject({ year: 2, monthName: 'March', day: 1 });
+  });
+
   it('advances the day label across each fixed-length month', () => {
     expect(gameDate(TICKS_PER_MONTH / 2).day).toBe(16);
     expect(gameDate(TICKS_PER_MONTH - 1).day).toBe(31);

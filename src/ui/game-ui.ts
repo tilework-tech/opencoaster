@@ -86,6 +86,7 @@ export class GameUI {
   private readonly statusBar: StatusBar;
   private readonly status: HTMLElement;
   private readonly objective: HTMLElement;
+  private readonly parkNews: HTMLElement;
   private readonly weatherOverlay: HTMLElement;
   private readonly controllers = new Map<string, WindowController>();
   private readonly news = new NewsTracker();
@@ -100,7 +101,6 @@ export class GameUI {
   private tool: ToolMode = 'select';
   private selectedGuest: GuestSelection | null = null;
   private latestSnapshot: Snapshot | null = null;
-  private latestStats: Stats | null = null;
   private speed = 1;
 
   constructor(
@@ -124,6 +124,9 @@ export class GameUI {
     this.status = element('output', 'tool-status');
     this.objective = element('div', 'objective-strip');
     this.objective.hidden = true;
+    this.parkNews = element('aside', 'park-news');
+    this.parkNews.setAttribute('aria-live', 'polite');
+    this.parkNews.hidden = true;
     this.weatherOverlay = element('div', 'weather-overlay weather-sunny');
     this.weatherOverlay.setAttribute('aria-hidden', 'true');
 
@@ -160,7 +163,7 @@ export class GameUI {
       openNews: () => this.openWindow('news'),
       followNews: (item) => this.followNews(item),
     });
-    parent.append(this.status, this.objective, this.weatherOverlay);
+    parent.append(this.status, this.objective, this.parkNews, this.weatherOverlay);
     this.statusBar.setMessage(null);
     this.chooseTool('select');
   }
@@ -171,7 +174,6 @@ export class GameUI {
     selectedGuest: GuestSelection | null,
   ): void {
     this.latestSnapshot = snapshot;
-    this.latestStats = stats;
     this.selectedGuest = selectedGuest;
     const weather = snapshot?.weather.kind ?? 0;
     const weatherClass = `weather-${['sunny', 'cloudy', 'rain', 'storm'][weather] ?? 'sunny'}`;
@@ -183,6 +185,10 @@ export class GameUI {
     this.objective.hidden = lines.length === 0;
     const objectiveText = lines.join('\n');
     if (this.objective.textContent !== objectiveText) this.objective.textContent = objectiveText;
+    const latestNews = snapshot?.parkNews.slice(-3).map((item) => item.text) ?? [];
+    this.parkNews.hidden = latestNews.length === 0;
+    if (this.parkNews.textContent !== latestNews.join('\n'))
+      this.parkNews.textContent = latestNews.join('\n');
 
     if (snapshot) {
       const fresh = this.news.observe(snapshot);
@@ -282,7 +288,6 @@ export class GameUI {
       return;
     }
     this.controllers.set(id, openRideWindow(this.ctx, rideId));
-    this.refresh();
   }
 
   toggleWindow(id: string): void {
@@ -298,7 +303,6 @@ export class GameUI {
     if (CONSTRUCTION_WINDOWS.includes(id)) this.closeConstruction();
     const controller = this.createController(id);
     if (controller) this.controllers.set(id, controller);
-    this.refresh();
   }
 
   closeTopWindow(): boolean {
@@ -324,11 +328,6 @@ export class GameUI {
     this.weatherOverlay.remove();
     this.windows.dispose();
     this.controllers.clear();
-  }
-
-  private refresh(): void {
-    for (const [id, controller] of this.controllers)
-      if (this.windows.get(id)) controller.update(this.latestSnapshot, this.latestStats);
   }
 
   private toolbarWindowIds(): string[] {

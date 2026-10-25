@@ -9,13 +9,14 @@ import { restoreResearch, saveResearch, upgradeLegacyResearchSave } from '../sim
 import type { LegacyResearchSave, ResearchSave } from '../sim/research/research';
 import type { ScenarioState } from '../sim/scenario/scenario';
 import { calculateStaffWageBill, defaultStaffOrderFlags } from '../sim/staff/staff-store';
-import { RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
+import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 13;
-const PREVIOUS_SAVE_VERSION = 12;
+export const SAVE_VERSION = 14;
+const PREVIOUS_SAVE_VERSION = 13;
+const PRE_STAFF_ORDER_SAVE_VERSION = 12;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
 const PRE_RIDE_HISTORY_SAVE_VERSION = 12;
 /** First version whose research stores invention work units rather than cents. */
@@ -289,7 +290,7 @@ function guestColumnsAbsent(version: number): number {
 
 /** The worker-order bit field was appended to staff storage in version 13. */
 function staffColumnsAbsent(version: number): number {
-  return version <= PREVIOUS_SAVE_VERSION ? 1 : 0;
+  return version <= PRE_STAFF_ORDER_SAVE_VERSION ? 1 : 0;
 }
 
 /** Ride columns appended after a save's version: income, the train layout, then reliability. */
@@ -298,6 +299,7 @@ function rideColumnsAbsent(version: number): number {
   if (version <= PRE_INCOME_SAVE_VERSION) absent += 1;
   if (version <= PRE_TRAIN_LAYOUT_SAVE_VERSION) absent += 2;
   if (version <= PRE_RELIABILITY_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V10;
+  if (version < SAVE_VERSION) absent += RIDER_HISTORY_WINDOWS;
   return absent;
 }
 
@@ -317,6 +319,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_NAVIGATION_SAVE_VERSION,
     PRE_RELIABILITY_SAVE_VERSION,
     PRE_GUEST_STATS_SAVE_VERSION,
+    PRE_RIDE_HISTORY_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     SAVE_VERSION,
   ];
@@ -376,7 +379,7 @@ export function deserialize(bytes: Uint8Array): World {
     const h = header.stores[n];
     (world[n] as EntityStore<Schema>).restore(h.count, h.freeTop);
   }
-  if (header.version <= PREVIOUS_SAVE_VERSION) {
+  if (header.version <= PRE_STAFF_ORDER_SAVE_VERSION) {
     for (let slot = 0; slot < world.staff.count; slot++) {
       world.staff.cols.orderFlags[slot] = defaultStaffOrderFlags(world.staff.cols.kind[slot]);
     }
