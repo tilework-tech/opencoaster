@@ -403,8 +403,7 @@ async function exerciseWindow(page: Page, panel: Locator, mobile: boolean): Prom
   }
 
   if (!(await panel.isVisible())) return;
-  if (mobile && (await panel.getAttribute('data-panel')) === 'staff') return;
-
+  if (mobile) return;
   const pin = panel.getByRole('button', { name: /^Pin / });
   if (await pin.count()) {
     const initiallyPinned = await panel.evaluate((window) => window.classList.contains('pinned'));
@@ -415,7 +414,8 @@ async function exerciseWindow(page: Page, panel: Locator, mobile: boolean): Prom
   }
   const close = panel.getByRole('button', { name: /^Close / });
   if (await close.count()) {
-    await close.click({ timeout: 5_000 });
+    if (mobile) await close.tap({ timeout: 5_000 });
+    else await close.click({ timeout: 5_000 });
     await expect(panel).toBeHidden();
   }
 }
@@ -509,6 +509,8 @@ async function auditToolbar(page: Page, mobile = false): Promise<void> {
     if (expectedPanel) {
       const panel = page.locator(`.ui-window[data-panel="${expectedPanel}"]:visible`);
       await expect(panel).toBeVisible();
+      if (mobile && (await actions.getAttribute('aria-expanded')) === 'true')
+        await actions.tap({ timeout: 5_000 });
       await exerciseWindow(page, panel, mobile);
     } else if (label === 'Save / Load') {
       const menu = page.locator('[aria-label="Game menu"]');
