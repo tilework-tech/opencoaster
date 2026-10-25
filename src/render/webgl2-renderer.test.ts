@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   enableSpriteAlphaBlending,
+  guestSpriteIndex,
   litterSpriteIndex,
-  staffSpriteIndex,
+  staffSpriteName,
   terrainSpriteIndex,
 } from './webgl2-renderer';
 
@@ -43,8 +44,14 @@ describe('terrain atlas selection', () => {
 
 describe('entity atlas selection', () => {
   it('uses distinct procedural sprites for each staff role and litter kind', () => {
-    const staff = [0, 1, 2, 3].map(staffSpriteIndex);
+    const staff = [0, 1, 2, 3].map(staffSpriteName);
     const litter = [litterSpriteIndex(0), litterSpriteIndex(1)];
     expect(new Set([...staff, ...litter]).size).toBe(staff.length + litter.length);
+  });
+
+  it('selects the expected palette, direction, and walking frame', () => {
+    expect(guestSpriteIndex(0, 0, 0)).toBe(40);
+    expect(guestSpriteIndex(2, 1, 3)).toBe(79);
+    expect(guestSpriteIndex(7, 3, 3)).toBe(167);
   });
 });

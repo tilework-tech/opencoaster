@@ -4,6 +4,7 @@ import {
   atlasFrameOrFallback,
   pathSpriteName,
   scenerySpriteName,
+  spriteAnchorWorldOffset,
   spriteViewName,
   terrainSpriteName,
   terrainCliffSpriteName,
@@ -116,5 +117,11 @@ describe('world art sprite selection', () => {
     expect(nativeSpriteWorldOffset(64, 32)).toBe(0);
     expect(nativeSpriteWorldOffset(64, 48)).toBe(64);
     expect(nativeSpriteWorldOffset(64, 16)).toBe(-64);
+  });
+
+  it('converts sprite anchors from rendered pixels into world-height units', () => {
+    expect(spriteAnchorWorldOffset(48, 48, 72)).toBe(144);
+    expect(spriteAnchorWorldOffset(48, 24, 72)).toBe(0);
+    expect(spriteAnchorWorldOffset(48, 0, 72)).toBe(-144);
   });
 });

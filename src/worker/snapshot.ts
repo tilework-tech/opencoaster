@@ -325,6 +325,8 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   for (let i = 0; i < buildableCount; i++) out.buildable[i] = world.map.canBuild(i) ? 1 : 0;
   writeLayer(out.guests, world.guests, world.guests.cols.tint, world.guests.cols.state);
   const guests = world.guests.cols;
+  for (let i = 0; i < out.guests.count; i++)
+    out.guests.data[i * SNAPSHOT_STRIDE + 3] |= guests.heading[i]! << 16;
   const guestCount = Math.min(world.guests.count, out.guestDetails.length / GUEST_DETAIL_STRIDE);
   for (let i = 0; i < guestCount; i++) {
     const o = i * GUEST_DETAIL_STRIDE;
