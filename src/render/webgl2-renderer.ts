@@ -18,6 +18,12 @@ import {
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
 import type { Camera, MapData, Renderer } from './renderer';
+import {
+  AMBIENT_TREE_BOX,
+  FLOWER_BED_BOX,
+  PARK_GATE_BOX,
+  SCENERY_PIXELS_PER_HEIGHT,
+} from './sprite-layout';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import { spritePages } from './sprite-pages';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
@@ -36,6 +42,7 @@ import {
   spriteViewName,
   terrainCliffSpriteName,
   scenerySpriteName,
+  spriteAnchorWorldOffset,
   terrainSurfaceSpriteName,
   WATER_BANK,
   nativeSpriteWorldOffset,
@@ -103,8 +110,15 @@ export function terrainSpriteIndex(surface: number, slopeMask: number): number {
   return flatSprite + (slopeMask ? 1 : 0);
 }
 
-export function staffSpriteIndex(kind: number): number {
-  return 19 + (kind >= 0 && kind <= 3 ? kind : 0);
+export function staffSpriteName(kind: number): string {
+  return `people/staff-costumes#${(kind >= 0 && kind <= 3 ? kind : 0) * 4}`;
+}
+
+export function guestSpriteIndex(tint: number, heading: number, frame: number): number {
+  const palette = ((tint % 8) + 8) % 8;
+  const direction = Number.isInteger(heading) && heading >= 0 && heading < 4 ? heading : 0;
+  const animationFrame = ((frame % 4) + 4) % 4;
+  return 40 + palette * 16 + direction * 4 + animationFrame;
 }
 
 export function litterSpriteIndex(kind: number): number {
@@ -366,7 +380,7 @@ export class WebGL2Renderer implements Renderer {
       );
       this.appendVariantLayer(
         snapshot.staff,
-        staffSpriteIndex,
+        staffSpriteName,
         map,
         camera,
         viewportWidth,
@@ -374,7 +388,7 @@ export class WebGL2Renderer implements Renderer {
         11,
         13,
       );
-      this.appendGuests(snapshot.guests, map, camera, viewportWidth, viewportHeight);
+      this.appendGuests(snapshot.guests, snapshot.tick, map, camera, viewportWidth, viewportHeight);
     }
     this.uploadInPainterOrder();
 
@@ -721,11 +735,19 @@ export class WebGL2Renderer implements Renderer {
             camera,
             viewportWidth,
             viewportHeight,
-            34,
-            44,
+            AMBIENT_TREE_BOX.width,
+            AMBIENT_TREE_BOX.height,
           )
         )
-          this.append(worldX, worldY, z, 34, 44, sprite, depth);
+          this.append(
+            worldX,
+            worldY,
+            z,
+            AMBIENT_TREE_BOX.width,
+            AMBIENT_TREE_BOX.height,
+            sprite,
+            depth,
+          );
       }
     }
   }
@@ -755,11 +777,19 @@ export class WebGL2Renderer implements Renderer {
           camera,
           viewportWidth,
           viewportHeight,
-          30,
-          12,
+          FLOWER_BED_BOX.width,
+          FLOWER_BED_BOX.height,
         )
       )
-        this.append(worldX, worldY, z, 30, 12, scenerySpriteName('flower-bed'), depth);
+        this.append(
+          worldX,
+          worldY,
+          z,
+          FLOWER_BED_BOX.width,
+          FLOWER_BED_BOX.height,
+          scenerySpriteName('flower-bed'),
+          depth,
+        );
     }
   }
 
@@ -786,8 +816,8 @@ export class WebGL2Renderer implements Renderer {
         camera,
         viewportWidth,
         viewportHeight,
-        46,
-        40,
+        PARK_GATE_BOX.width,
+        PARK_GATE_BOX.height,
       )
     )
       this.append(
@@ -891,7 +921,7 @@ export class WebGL2Renderer implements Renderer {
       const depth =
         2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 2;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
-      const spriteHeight = item.height * 12;
+      const spriteHeight = item.height * SCENERY_PIXELS_PER_HEIGHT;
       if (
         !inViewport(
           this.projected[0],
@@ -979,20 +1009,23 @@ export class WebGL2Renderer implements Renderer {
 
   private appendGuests(
     layer: SnapshotLayer,
+    tick: number,
     map: MapData,
     camera: Camera,
     viewportWidth: number,
     viewportHeight: number,
   ): void {
     for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
-      const tint = layer.data[offset + 3] & 0xff;
+      const metadata = layer.data[offset + 3];
+      const tint = metadata & 0xff;
+      const heading = (metadata >>> 16) & 0xff;
       const depth =
         2 * rotatedPositionSum(layer.data[offset], layer.data[offset + 1], map, camera.rotation) -
         layer.data[offset + 2] / 64;
       this.appendLayerSprite(
         layer,
         offset,
-        11 + (tint % 8),
+        `people/guest-walk#${guestSpriteIndex(tint, heading, tick >>> 2) - 40}`,
         map,
         camera,
         viewportWidth,
@@ -1049,7 +1082,7 @@ export class WebGL2Renderer implements Renderer {
 
   private appendLayer(
     layer: SnapshotLayer,
-    sprite: number,
+    sprite: number | string,
     map: MapData,
     camera: Camera,
     viewportWidth: number,
@@ -1149,7 +1182,7 @@ export class WebGL2Renderer implements Renderer {
 
   private appendVariantLayer(
     layer: SnapshotLayer,
-    spriteFor: (kind: number) => number,
+    spriteFor: (kind: number) => number | string,
     map: MapData,
     camera: Camera,
     viewportWidth: number,
@@ -1181,7 +1214,7 @@ export class WebGL2Renderer implements Renderer {
   private appendLayerSprite(
     layer: SnapshotLayer,
     offset: number,
-    sprite: number,
+    sprite: number | string,
     map: MapData,
     camera: Camera,
     viewportWidth: number,
@@ -1225,7 +1258,7 @@ export class WebGL2Renderer implements Renderer {
     const offset = this.count * INSTANCE_FLOATS;
     let frame: PageFrame | undefined;
     let entry: SpriteEntry | undefined;
-    let frameIndex: number;
+    let frameIndex = 0;
     let fallbackIndex = -1;
     if (typeof sprite === 'string') {
       const match = /#(\d+)$/.exec(sprite);
@@ -1254,7 +1287,7 @@ export class WebGL2Renderer implements Renderer {
         height = frame.height;
         z += nativeSpriteWorldOffset(frame.height, entry.anchor.y);
       } else if (!meshMode && entry)
-        z += (entry.anchor.y / frame.height - 0.5) * height * (Z_PIXELS / 64);
+        z += spriteAnchorWorldOffset(frame.height, entry.anchor.y, height);
       if (meshMode === 2) {
         const insetX = 0.28;
         const oldU0 = u0;
@@ -1275,6 +1308,10 @@ export class WebGL2Renderer implements Renderer {
           else if (sprite.includes('/lamp')) fallbackIndex = 30;
           else if (sprite.includes('/park-entrance')) fallbackIndex = 31;
           else if (sprite.includes('/flower-bed')) fallbackIndex = 0;
+          else if (sprite.startsWith('people/guest-walk'))
+            fallbackIndex = 11 + Math.floor(frameIndex / 16);
+          else if (sprite.startsWith('people/staff-costumes'))
+            fallbackIndex = 19 + Math.floor(frameIndex / 4);
         }
       }
       const x = (fallbackIndex % ATLAS_COLUMNS) * CELL;

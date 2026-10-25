@@ -77,3 +77,37 @@ export function drawTileTexture(
   ctx.restore();
   return true;
 }
+
+/**
+ * Draws one atlas frame stretched to `width` x `height`, horizontally centred on `x` with the
+ * sprite's anchor row on `y`, matching how the WebGL renderer places boxed sprites.
+ */
+export function drawBoxedSprite(
+  ctx: CanvasRenderingContext2D,
+  atlas: CanvasAtlas,
+  name: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): boolean {
+  const [key, frameText] = name.split('#');
+  const entry = atlas.resolve(key);
+  if (!entry || entry.frames.length === 0) return false;
+  const count = entry.frames.length;
+  const frame = entry.frames[(((Number(frameText ?? 0) % count) + count) % count) | 0];
+  const image = atlas.pageImage(frame.page);
+  if (!image) return false;
+  ctx.drawImage(
+    image,
+    frame.x,
+    frame.y,
+    frame.width,
+    frame.height,
+    x - width / 2,
+    y - (entry.anchor.y / frame.height) * height,
+    width,
+    height,
+  );
+  return true;
+}

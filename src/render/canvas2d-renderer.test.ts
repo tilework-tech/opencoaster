@@ -3,14 +3,18 @@ import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
+import type { Snapshot } from '../worker/snapshot';
 import type { MapData } from './renderer';
-import { SpritePages } from './sprite-pages';
+import { SpritePages, spritePages } from './sprite-pages';
+import type { PageImage, SpriteEntry } from './sprite-pages';
 
 class RecordingContext {
   readonly canvas = { width: 1, height: 1 };
   readonly fills: string[] = [];
   readonly arcs: string[] = [];
   readonly spriteSources: number[] = [];
+  readonly images: unknown[][] = [];
+  imageSmoothingEnabled = true;
   fillStyle = '#000';
   strokeStyle = '#000';
   lineWidth = 1;
@@ -49,8 +53,9 @@ class RecordingContext {
 
   clip(): void {}
 
-  drawImage(_image: CanvasImageSource, x: number): void {
-    this.spriteSources.push(x);
+  drawImage(...args: unknown[]): void {
+    this.images.push(args);
+    this.spriteSources.push(args[1] as number);
   }
 }
 
@@ -64,6 +69,41 @@ function render(map: MapData): RecordingContext {
   renderer.resize(800, 600, 1);
   renderer.setMap(map);
   renderer.draw(null, { x: 0, y: 0, zoom: 1, rotation: 0 });
+  return context;
+}
+
+function installStubAtlas(names: string[]): void {
+  const sprites: Record<string, SpriteEntry> = {};
+  for (const name of names)
+    sprites[name] = {
+      category: 'world',
+      frames: [{ page: 0, x: 1, y: 2, width: 30, height: 20 }],
+      anchor: { x: 15, y: 20 },
+      footprint: { width: 1, height: 1 },
+    };
+  spritePages.install(
+    {
+      pages: [{ file: 'atlas/world-0.png', width: 64, height: 64, category: 'world' }],
+      categories: { world: { lazy: false, pages: [0] } },
+      sprites,
+    },
+    new Map([[0, {} as PageImage]]),
+  );
+}
+
+async function renderWithAtlas(
+  map: MapData,
+  names: string[],
+  snapshot: Snapshot | null = null,
+): Promise<RecordingContext> {
+  const context = new RecordingContext();
+  const canvas = { getContext: () => context } as unknown as HTMLCanvasElement;
+  const renderer = new Canvas2DRenderer();
+  installStubAtlas(names);
+  renderer.attach(canvas);
+  renderer.resize(800, 600, 1);
+  renderer.setMap(map);
+  renderer.draw(snapshot, { x: 0, y: 0, zoom: 1, rotation: 0 });
   return context;
 }
 
@@ -175,5 +215,16 @@ describe('Canvas2D fallback map art', () => {
 
     expect(context.spriteSources).toContain(10);
     expect(context.spriteSources).toContain(20);
+  });
+
+  it('draws placeable scenery from its catalog sprite once the atlas has loaded', async () => {
+    const map = flatMap();
+    map.sceneryElements = Int32Array.of(2, 2, 0, 0, SceneryItem.OakTree);
+    map.sceneryCount = 1;
+
+    const context = await renderWithAtlas(map, ['trees/tree-oak']);
+
+    expect(context.images).toHaveLength(1);
+    expect(context.arcs).not.toContain('#397b35');
   });
 });

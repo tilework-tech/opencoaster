@@ -168,6 +168,14 @@ export function scenerySpriteName(name: string): string {
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
 }
 
+export function spriteAnchorWorldOffset(
+  frameHeight: number,
+  anchorY: number,
+  renderedHeight: number,
+): number {
+  return ((anchorY / frameHeight - 0.5) * renderedHeight * Z_STEP) / Z_PIXELS;
+}
+
 export function spriteViewName(name: string, rotation: number): string {
   const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
   return `${name}/view-${view}`;

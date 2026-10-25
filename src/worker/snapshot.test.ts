@@ -61,6 +61,21 @@ describe('render snapshot', () => {
     expect(snapshot.staffOrders[0] & (1 << StaffOrder.EmptyBins)).not.toBe(0);
   });
 
+  it('publishes guest direction and palette to the render snapshot', () => {
+    const world = flatWorld(8, 8);
+    guestAt(world, 3, 4);
+    const slot = world.guests.count - 1;
+    world.guests.cols.state[slot] = GuestState.Wandering;
+    world.guests.cols.tint[slot] = 6;
+    world.guests.cols.heading[slot] = 2;
+    const snapshot = createSnapshot({ guests: 1, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.guests.data[3] & 0xff).toBe(6);
+    expect((snapshot.guests.data[3] >>> 16) & 0xff).toBe(2);
+  });
+
   it('publishes the whole line for a ride, not just its head of queue', () => {
     const world = flatWorld(24, 8);
     layPath(world, row(5, 3, 15));

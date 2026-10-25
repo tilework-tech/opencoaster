@@ -8,13 +8,14 @@ import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
-import { drawAnchoredSprite, drawTileTexture } from './canvas-atlas';
+import { drawAnchoredSprite, drawBoxedSprite, drawTileTexture } from './canvas-atlas';
 import { spritePages } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
 import type { CanvasAtlas } from './canvas-atlas';
 import {
   WATER_BANK,
   pathSpriteName,
+  scenerySpriteName,
   rideSpriteFrame,
   rideSpriteKey,
   facilityFacingFromPaths,
@@ -23,7 +24,16 @@ import {
   rideHutSpriteKey,
   waterFrameIndex,
 } from './world-art';
-import { scenerySpriteName, terrainSurfaceSpriteName } from './world-art';
+import { terrainSurfaceSpriteName } from './world-art';
+import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
+import { FLOWER_BED } from '../sim/staff/grounds';
+import {
+  AMBIENT_TREE_BOX,
+  FLOWER_BED_BOX,
+  GUEST_BOX,
+  SCENERY_PIXELS_PER_HEIGHT,
+  STAFF_BOX,
+} from './sprite-layout';
 import type { PathSurface } from './world-art';
 import {
   clipTerrainTileTrianglesBelowHeight,
@@ -54,6 +64,15 @@ const GUEST_TINTS = [
 ];
 /** Largest coaster sprite half-extent in pixels, for viewport culling. */
 const COASTER_CULL_RADIUS = 160;
+const AMBIENT_TREE_NAMES = [
+  'tree-oak',
+  'tree-conifer',
+  'tree-birch',
+  'tree-blossom',
+  'tree-autumn',
+  'tree-topiary',
+] as const;
+const SEAM = 0.5;
 const PATH_DX = [1, 0, -1, 0];
 const PATH_DY = [0, 1, 0, -1];
 const PATH_STYLE_COLORS = ['#55565a', '#a9a193', '#987047'];
@@ -157,7 +176,7 @@ export class Canvas2DRenderer implements Renderer {
     const z = cam.zoom;
     const scale = z * this.dpr;
     ctx.setTransform(scale, 0, 0, scale, this.cw / 2 - cam.x * scale, this.ch / 2 - cam.y * scale);
-    this.drawTiles(ctx, map, cam);
+    this.drawTiles(ctx, map, cam, snapshot);
     if (snapshot) {
       this.drawParkGate(ctx, snapshot, map, cam);
       this.drawRideMarkers(ctx, snapshot, map, cam);
@@ -174,19 +193,26 @@ export class Canvas2DRenderer implements Renderer {
         '#c0392b',
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
-      this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
-        '#4ca95b',
-        '#397cb3',
-        '#855ea8',
-        '#de8840',
-      ]);
+      if (this.atlas) this.drawStaff(ctx, snapshot.staff, map, cam);
+      else
+        this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
+          '#4ca95b',
+          '#397cb3',
+          '#855ea8',
+          '#de8840',
+        ]);
       this.drawRides(ctx, snapshot, map, cam);
-      this.drawGuests(ctx, snapshot.guests, map, cam);
+      this.drawGuests(ctx, snapshot.guests, snapshot.tick, map, cam);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  private drawTiles(ctx: CanvasRenderingContext2D, map: MapData, cam: Camera): void {
+  private drawTiles(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    snapshot: Snapshot | null,
+  ): void {
     const [vw, vh] = viewSize(map.width, map.height, cam.rotation);
     const z = cam.zoom;
     const minX = cam.x - this.cw / 2 / (z * this.dpr) - TILE_W;
@@ -223,10 +249,11 @@ export class Canvas2DRenderer implements Renderer {
         ctx.fillStyle =
           waterLevel > map.heights[i] ? LAKE_BED_COLOR : (SURFACE_COLORS[map.surface[i]] ?? '#f0f');
         ctx.beginPath();
-        ctx.moveTo(sx, sy - liftTop);
-        ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - liftRight);
-        ctx.lineTo(sx, sy + TILE_H - liftBottom);
-        ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
+        // Tiles overlap their neighbours by SEAM px so antialiased edges leave no background gaps.
+        ctx.moveTo(sx, sy - liftTop - SEAM);
+        ctx.lineTo(sx + TILE_W / 2 + SEAM * 2, sy + TILE_H / 2 - liftRight);
+        ctx.lineTo(sx, sy + TILE_H - liftBottom + SEAM);
+        ctx.lineTo(sx - TILE_W / 2 - SEAM * 2, sy + TILE_H / 2 - liftLeft);
         ctx.closePath();
         ctx.fill();
         if (mask === 0 && this.atlas) {
@@ -333,6 +360,7 @@ export class Canvas2DRenderer implements Renderer {
             }
           }
         }
+        if (this.atlas) this.drawGroundProps(ctx, map, cam, snapshot, i, x, y);
         this.drawMapElements(ctx, map, cam, i);
         this.visibleCount++;
       }
@@ -508,6 +536,21 @@ export class Canvas2DRenderer implements Renderer {
         continue;
       }
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, definition.width)) continue;
+      if (
+        this.atlas &&
+        drawBoxedSprite(
+          ctx,
+          this.atlas,
+          scenerySpriteName(definition.sprite),
+          this.tmp[0],
+          this.tmp[1],
+          definition.width,
+          definition.height * SCENERY_PIXELS_PER_HEIGHT,
+        )
+      ) {
+        this.visibleCount++;
+        continue;
+      }
       const crownHeight = Math.max(5, definition.height * Z_PIXELS * 0.55);
       if (definition.category === SceneryCategory.Trees) {
         ctx.fillStyle = '#76502e';
@@ -735,6 +778,7 @@ export class Canvas2DRenderer implements Renderer {
   private drawGuests(
     ctx: CanvasRenderingContext2D,
     layer: SnapshotLayer,
+    tick: number,
     map: MapData,
     cam: Camera,
   ): void {
@@ -743,10 +787,70 @@ export class Canvas2DRenderer implements Renderer {
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
       if (!this.isVisible(t[0], t[1], cam, 3)) continue;
-      ctx.fillStyle = GUEST_TINTS[(d[o + 3] & 0xff) % GUEST_TINTS.length];
-      ctx.fillRect(t[0] - 1.5, t[1] - 1.5, 3, 3);
+      const metadata = d[o + 3];
+      const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, (metadata >>> 16) & 0xff, tick >>> 2) - 40}`;
+      if (
+        !this.atlas ||
+        !drawBoxedSprite(ctx, this.atlas, sprite, t[0], t[1], GUEST_BOX.width, GUEST_BOX.height)
+      ) {
+        ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
+        ctx.fillRect(t[0] - 1.5, t[1] - 1.5, 3, 3);
+      }
       this.visibleCount++;
     }
+  }
+
+  private drawStaff(
+    ctx: CanvasRenderingContext2D,
+    layer: SnapshotLayer,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const d = layer.data;
+    const t = this.tmp;
+    for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
+      project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
+      if (!this.isVisible(t[0], t[1], cam, STAFF_BOX.height)) continue;
+      drawBoxedSprite(
+        ctx,
+        this.atlas!,
+        staffSpriteName(d[o + 3] & 0xff),
+        t[0],
+        t[1],
+        STAFF_BOX.width,
+        STAFF_BOX.height,
+      );
+      this.visibleCount++;
+    }
+  }
+
+  /** Ambient trees and flower beds, placed by tile exactly as in the WebGL renderer. */
+  private drawGroundProps(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    snapshot: Snapshot | null,
+    tile: number,
+    x: number,
+    y: number,
+  ): void {
+    const atlas = this.atlas;
+    if (!atlas) return;
+    const z = map.heights[tile] * Z_STEP;
+    const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+    const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+    const place = (name: string, offsetZ: number, width: number, height: number): void => {
+      project(worldX, worldY, z + offsetZ, map.width, map.height, cam.rotation, this.tmp);
+      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, Math.max(width, height))) return;
+      if (drawBoxedSprite(ctx, atlas, name, this.tmp[0], this.tmp[1], width, height))
+        this.visibleCount++;
+    };
+    if (map.surface[tile] === 0 && (x * 17 + y * 31) % 23 === 7) {
+      const tree = AMBIENT_TREE_NAMES[(x * 3 + y * 5) % AMBIENT_TREE_NAMES.length];
+      place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
+    }
+    if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
+      place(scenerySpriteName('flower-bed'), 1, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
   }
 
   private isVisible(x: number, y: number, cam: Camera, margin: number): boolean {
