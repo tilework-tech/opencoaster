@@ -10,6 +10,9 @@ describe('path addition art', () => {
     expect(pathAdditionSpriteName(PathFlag.Bin, 3, PATH_ADDITION_BROKEN)).toBe(
       'scenery/bin-broken/view-3',
     );
+    expect(pathAdditionSpriteName(PathFlag.Lamp, 1, PATH_ADDITION_BROKEN)).toBe(
+      'scenery/lamp-broken/view-1',
+    );
   });
 
   it('uses authored world props for benches, bins, lamps, and roofed shelters', () => {

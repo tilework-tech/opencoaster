@@ -93,6 +93,6 @@ export function waterCarMesh(family: string, heading: number, pitch: number, pas
       x,
       y,
       z + (x * Math.cos(angle) + y * Math.sin(angle)) * pitch * 0.08,
-    ]) as typeof triangle.v,
+    ]) as unknown as typeof triangle.v,
   }));
 }
