@@ -45,8 +45,9 @@ const renderer = selection.renderer;
 registerPwa();
 
 const sim = new SimClient();
-sim.onMap = (map) => {
+sim.onMap = (map, newGame) => {
   renderer.setMap(map);
+  if (!newGame) return;
   camera.x = (map.width - map.height) * 16;
   camera.y = (map.width + map.height) * 8;
 };
@@ -88,6 +89,7 @@ let session: Session | null = null;
 sim.setSpeed(speed);
 
 const camera: Camera = { x: 0, y: (DEFAULT_MAP_SIZE * 32) / 2, zoom: DEFAULT_ZOOM, rotation: 0 };
+if (import.meta.env.DEV) (window as unknown as { __camera: Camera }).__camera = camera;
 const hud = new Hud(root);
 let selectedTool: ToolMode = 'select';
 let selectedGuest: GuestSelection | null = null;
@@ -452,6 +454,7 @@ window.addEventListener('keydown', (event) => {
   if (gameUi.handleShortcut(event)) event.preventDefault();
 });
 window.addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
+window.addEventListener('blur', () => keys.clear());
 
 /** Smallest wheel travel that counts as one zoom step; trackpads send many small deltas. */
 const WHEEL_STEP = 60;

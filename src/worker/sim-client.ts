@@ -18,7 +18,8 @@ export class SimClient {
   latest: Snapshot | null = null;
   map: MapMessage | null = null;
   stats: Stats | null = null;
-  onMap: ((m: MapMessage) => void) | null = null;
+  /** Called for every published map; `newGame` is true only for the map of a started or loaded game. */
+  onMap: ((m: MapMessage, newGame: boolean) => void) | null = null;
 
   constructor() {
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
@@ -37,7 +38,7 @@ export class SimClient {
     switch (msg.type) {
       case 'map':
         this.map = msg;
-        this.onMap?.(msg);
+        this.onMap?.(msg, this.starting);
         break;
       case 'snapshot':
         if (this.starting) {

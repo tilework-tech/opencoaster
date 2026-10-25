@@ -254,4 +254,30 @@ describe('PointerInput', () => {
 
     expect(tapped).toEqual([[14, 22]]);
   });
+
+  it.each(['select', 'land', 'path'])(
+    'treats a %s click with sub-threshold jitter as a tap that never pans',
+    (tool) => {
+      const pans: Array<[number, number]> = [];
+      const taps: Array<[number, number]> = [];
+      const input = new PointerInput({
+        tool: () => tool,
+        pan: (dx, dy) => pans.push([dx, dy]),
+        zoomStart: () => {},
+        zoom: () => {},
+        zoomEnd: () => {},
+        rotate: () => {},
+        tap: (x, y) => taps.push([x, y]),
+        hold: () => {},
+        paint: () => {},
+      });
+
+      input.pointerDown(sample(1, 200, 200, 'mouse'));
+      input.pointerMove(sample(1, 202, 201, 'mouse'));
+      input.pointerUp(sample(1, 202, 201, 'mouse'));
+
+      expect(pans).toEqual([]);
+      expect(taps).toEqual([[202, 201]]);
+    },
+  );
 });
