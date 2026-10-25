@@ -1,5 +1,6 @@
 import type { SaveSlotMeta, SlotStore } from '../save/slot-store';
 import { gameDate } from '../sim/economy/calendar';
+import { LedgerCategory } from '../sim/economy/ledger';
 import { ObjectiveKind } from '../sim/scenario/scenario';
 import type { ScenarioCategory, ScenarioDef } from '../sim/scenario/scenario';
 import { scenarioDisplayName } from '../sim/scenario/catalog';
@@ -253,8 +254,9 @@ function scenarioPreview(scenario: ScenarioDef): SVGSVGElement {
   return svg;
 }
 
-function objectiveText(scenario: ScenarioDef): string {
+export function objectiveText(scenario: ScenarioDef): string {
   const objective = scenario.objective;
+  if (objective.kind === ObjectiveKind.HaveFun) return 'Objective: have fun. No deadline.';
   const deadline = gameDate(objective.byTick - 1);
   const due = ` Deadline: ${deadline.monthName} year ${deadline.year}.`;
   switch (objective.kind) {
@@ -267,8 +269,44 @@ function objectiveText(scenario: ScenarioDef): string {
     case ObjectiveKind.RepayLoanAndParkValue:
       return `Objective: repay the loan and reach a park value of ${formatMoney(objective.target)}.${due}`;
     case ObjectiveKind.MonthlyIncome:
-      return `Objective: reach monthly income of ${formatMoney(objective.target)}.${due}`;
+      return `Objective: reach ${monthlyIncomeLabel(objective.categoryMask)} of ${formatMoney(objective.target)}.${due}`;
     case ObjectiveKind.QualifyingRides:
       return `Objective: build ${objective.target} qualifying rides.${due}`;
+    case ObjectiveKind.BuildRides:
+      return `Objective: build ${objective.target} rides.${due}`;
+    case ObjectiveKind.QualifyingCoasters:
+      return `Objective: build ${objective.target} qualifying coaster types.${due}`;
+    case ObjectiveKind.CompleteCoasters:
+      return `Objective: build ${objective.target} complete coasters.${due}`;
+    case ObjectiveKind.BestRide:
+      return `Objective: have a ride with excitement of at least ${objective.target}.${due}`;
   }
+}
+
+function monthlyIncomeLabel(categoryMask: number): string {
+  const foodAndDrinkMask =
+    (1 << LedgerCategory.FoodDrinkSales) | (1 << LedgerCategory.FoodDrinkStock);
+  if (categoryMask === 1 << LedgerCategory.RideTickets) return 'monthly ride ticket income';
+  if (categoryMask === foodAndDrinkMask) return 'monthly food and drink profit';
+
+  const categories: ReadonlyArray<[LedgerCategory, string]> = [
+    [LedgerCategory.RideConstruction, 'ride construction'],
+    [LedgerCategory.RideRunning, 'ride running'],
+    [LedgerCategory.Land, 'land'],
+    [LedgerCategory.Landscaping, 'landscaping'],
+    [LedgerCategory.Admission, 'admission'],
+    [LedgerCategory.RideTickets, 'ride tickets'],
+    [LedgerCategory.ShopSales, 'shop sales'],
+    [LedgerCategory.ShopStock, 'shop stock'],
+    [LedgerCategory.FoodDrinkSales, 'food and drink sales'],
+    [LedgerCategory.FoodDrinkStock, 'food and drink stock'],
+    [LedgerCategory.Wages, 'wages'],
+    [LedgerCategory.Marketing, 'marketing'],
+    [LedgerCategory.Research, 'research'],
+    [LedgerCategory.Interest, 'interest'],
+  ];
+  const selected = categories
+    .filter(([category]) => (categoryMask & (1 << category)) !== 0)
+    .map(([, label]) => label);
+  return selected.length > 0 ? `monthly net from ${selected.join(', ')}` : 'monthly income';
 }
