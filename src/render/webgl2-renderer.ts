@@ -905,10 +905,11 @@ export class WebGL2Renderer implements Renderer {
       const category = RIDE_CATALOG[snapshot.rideInfo[o + RideInfo.Type] as RideType]?.category;
       if (['shop', 'stall', 'facility'].includes(category ?? '')) continue;
       const flags = snapshot.rideInfo[o + RideInfo.Flags];
-      for (const [flag, xField, yField, part] of [
+      const markers: [number, number, number, string][] = [
         [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, 'entrance'],
         [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, 'exit'],
-      ]) {
+      ];
+      for (const [flag, xField, yField, part] of markers) {
         if ((flags & flag) === 0) continue;
         const x = snapshot.rideInfo[o + xField];
         const y = snapshot.rideInfo[o + yField];

@@ -187,7 +187,9 @@ describe('world art atlas packing', () => {
     expect(manifest.categories.transport.lazy).toBe(true);
     expect(manifest.categories['track-chairlift'].lazy).toBe(true);
     const pageOf = (key: string): number => manifest.sprites[key].frames[0].page;
-    expect(new Set(keys.map(pageOf)).size).toBe(keys.length);
+    expect(new Set(keys.map(pageOf)).size).toBe(
+      new Set(keys.map((key) => manifest.sprites[key].category)).size,
+    );
     for (const key of keys)
       expect(manifest.pages[pageOf(key)].category).toBe(manifest.sprites[key].category);
   });

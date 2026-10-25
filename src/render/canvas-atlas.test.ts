@@ -67,7 +67,7 @@ describe('canvas sprite helpers', () => {
   it('selects an animation frame with a #n key suffix', () => {
     const ctx = fakeContext();
     expect(drawAnchoredSprite(ctx, atlas, 'water/surface#1', 10, 20)).toBe(true);
-    expect(ctx.drawImage).toHaveBeenCalledWith(atlas.image, 0, 32, 32, 32, 10, 20, 32, 32);
+    expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 32, 32, 32, 10, 20, 32, 32);
   });
 
   it('reports missing sprites so callers can fall back to procedural drawing', () => {
