@@ -12,19 +12,21 @@ Path: @/src/worker
 
 - [SimClient](sim-client.ts) starts [sim.worker.ts](sim.worker.ts), sends commands and scheduler controls, and receives map data, snapshots, and statistics.
 - [SimRunner](sim-runner.ts) owns the [Simulation](../sim/core/simulation.ts) and advances it through [FixedStepScheduler](scheduler.ts). Its pump applies due ticks, updates timing statistics, and publishes a snapshot when a pooled buffer is available.
-- [snapshot.ts](snapshot.ts) translates simulation columns into render and UI data for [src/render](../render/docs.md) and [src/ui](../ui/docs.md). Along with buildability, it publishes per-tile ground care, stable staff IDs aligned with the staff render layer, staff names keyed by ID, guest details aligned with the guest layer, and ride information for the UI and ride markers.
+- [snapshot.ts](snapshot.ts) translates simulation columns into render and UI data for [src/render](../render/docs.md) and [src/ui](../ui/docs.md). Along with buildability, it publishes per-tile ground care, stable staff IDs aligned with the staff render layer, staff names keyed by ID, guest details aligned with the guest layer, ride information for the UI and ride markers, track operating modes, and successful build/demolish audio cues.
+- The browser's [audio engine](../audio/docs.md) consumes these snapshot cues and ride/weather state on the main thread. Sound playback is an observer of snapshots and does not send commands to or gate the simulation.
 - Snapshot buffers travel as transferable `ArrayBuffer`s. The client returns consumed buffers to the worker for reuse, keeping the simulation thread as the sole owner of live world state.
 
 ### Core Implementation
 
 - [protocol.ts](protocol.ts) defines initialization, simulation command, speed, pause, recycle, save, load, map, snapshot, stats, and reply messages. `init` may carry a scenario definition, which the worker applies with `prepareScenario` before the first tick. `save` replies with the game's bytes (`saved`). `load` replaces the running game with a save (`loaded`) or fails with `error`.
 - [SimClient](sim-client.ts) exposes `startGame`, `save()` and `load(bytes)` as promises. Replies to a save or load are matched to the oldest request of that kind. Snapshots that arrive between a start or load request and its confirmation belong to the previous game, so the client recycles and drops them.
-- A snapshot layer has a count and four `Int32` values per entity. For guests, staff, vehicles, and litter, the values are fixed-point x, y, z, then packed state and tint or kind. `staffIds` aligns stable IDs to staff rows, while `staffNames` maps those IDs to player-given names. Ride and track layers use their fourth value for renderer metadata.
+- A snapshot layer has a count and four `Int32` values per entity. For guests, staff, vehicles, and litter, the values are fixed-point x, y, z, then packed state and tint or kind. `staffIds` aligns stable IDs to staff rows, while `staffNames` maps those IDs to player-given names. Ride and track layers use their fourth value for renderer metadata; `trackModes` separately exposes each track row's operating mode, including chain-lift sections, to main-thread consumers.
 - Ride entries are positioned at their entrances and carry the stable ride ID in the fourth value. Track entries carry tile-centered position and height; their fourth value packs ride ID in the high 16 bits, direction in the next 8 bits, and piece type in the low 8 bits.
 - `guestDetails` contains needs, cash, a thought cursor, and the four-entry thought history in guest-layer order. `grounds` is a byte per tile for grass overgrowth and flower-bed state. The snapshot also includes weather, a park summary, and scenario state. Static map dimensions, heights, surface classes, slopes, water levels, and stacked path elements travel in a separate map message. Periodic statistics report tick, guest count, smoothed and peak simulation cost, and dropped ticks.
 - `buildable` is a `Uint8Array` indexed by map tile. Each snapshot fills it from the map's `canBuild` result, representing owned land or construction rights for that tile.
 - `rideInfo` carries `RIDE_INFO_STRIDE` ints per ride in ride-layer order: stable ID, type/state/phase, ratings, queue length, placement/test flags, guests served, price, track piece count, construction cursor, entrance/exit tiles, reliability, lifetime income in cents, and the ride's build tile (`RideX`/`RideY`). Cursor direction, slope, bank, and track presence are packed with `encodeCursor` / `decodeCursor`.
 - `feedback` copies `world.feedback` (`seq`, `domain`, `code`, `subject`) so the UI can show the outcome of its latest command.
+- Successful build and demolition commands append monotonically identified events to the world's transient audio-event queue. Snapshot publication copies and clears that queue; event ids let the audio consumer ignore cues already observed when snapshots are repeated or recycled.
 
 ### Things to Know
 
@@ -35,6 +37,7 @@ Path: @/src/worker
 - `economy` (price mode, admission price, loan limit, park value, this-month and last-month ledger totals by `LedgerCategory`) and `research` (funding, category mask, progress) are plain objects that travel with the snapshot message for the Park, Finances and Research windows.
 - The snapshot publishes `wageBillPerWeek` directly from the economy ledger. Staff salary constants retain the manual's monthly amounts, converted to rounded weekly cents when staff are hired. On load, pre-v16 saves rebuild the weekly input from the current staff roster; v16 saves retain the serialized weekly ledger input.
 - `rideInfo` is transferred and recycled like the other buffers; `feedback` is a plain object that travels with the snapshot message.
+- `audioEvents` is a plain transient array rather than a simulation-state column: it reports successful player actions to the browser, while `trackModes` is a pooled typed array aligned with the track layer and participates in the usual transfer/recycle lifecycle.
 - Ride and track layer counts are capped by their output-buffer capacities, while the park summary's ride count reflects the full simulation count. The track layer and `buildable` array follow the same pooled transfer and recycle lifecycle as the other snapshot buffers.
 
 Created and maintained by Nori.

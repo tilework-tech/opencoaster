@@ -63,6 +63,14 @@ export class World {
   readonly rideLines: RideLines;
   /** Outcome of the latest command, for UI display; not hashed or saved. */
   readonly feedback: CommandFeedback = createFeedback();
+  readonly audioEvents: Array<{
+    id: number;
+    type: 'build' | 'demolish' | 'scream' | 'clank';
+    rideId?: number;
+    intensity?: number;
+  }> = [];
+  readonly audioClankTick = new Map<number, number>();
+  audioEventSequence = 0;
 
   constructor(opts: WorldOptions) {
     this.seed = opts.seed;

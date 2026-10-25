@@ -189,7 +189,10 @@ export class GameUI {
 
     if (snapshot) {
       const fresh = this.news.observe(snapshot);
-      if (fresh.length > 0) this.statusBar.setMessage(fresh[fresh.length - 1]);
+      if (fresh.length > 0) {
+        this.statusBar.setMessage(fresh[fresh.length - 1]);
+        this.actions.playUiSound('news');
+      }
       let profit = 0;
       for (let c = 0; c < LedgerCategory.COUNT; c++) profit += snapshot.economy.thisMonth[c];
       this.series.cash.record(snapshot.tick, snapshot.park.cash - snapshot.park.loan);
@@ -289,8 +292,10 @@ export class GameUI {
   }
 
   toggleWindow(id: string): void {
-    if (this.windows.get(id)) this.windows.close(id);
-    else this.openWindow(id);
+    if (this.windows.get(id)) {
+      this.actions.playUiSound('close');
+      this.windows.close(id);
+    } else this.openWindow(id);
   }
 
   openWindow(id: string): void {
@@ -298,6 +303,7 @@ export class GameUI {
       this.windows.focus(this.windows.get(id)!);
       return;
     }
+    this.actions.playUiSound('open');
     if (CONSTRUCTION_WINDOWS.includes(id)) this.closeConstruction();
     const controller = this.createController(id);
     if (controller) this.controllers.set(id, controller);
@@ -310,6 +316,7 @@ export class GameUI {
       if (!top || z > top.z) top = { id, z };
     }
     if (!top) return false;
+    this.actions.playUiSound('close');
     this.windows.close(top.id);
     return true;
   }
@@ -492,13 +499,9 @@ export class GameUI {
       const soundPane = win.pane('sound');
       soundPane.append(
         element('p', 'ui-help', 'Sound and music settings'),
-        this.optionToggle('Sound effects', 'sound-effects'),
-        this.optionToggle('Music', 'music'),
-        this.optionSelect('Sound quality', 'sound-quality', [
-          ['low', 'Low'],
-          ['medium', 'Medium'],
-          ['high', 'High'],
-        ]),
+        this.audioRange('Sound volume', 'soundVolume'),
+        this.audioRange('Music volume', 'musicVolume'),
+        this.audioMute(),
       );
       const displayPane = win.pane('display');
       displayPane.append(
@@ -546,21 +549,30 @@ export class GameUI {
     return label;
   }
 
-  private optionSelect(
-    labelText: string,
-    key: string,
-    options: readonly (readonly [string, string])[],
-  ): HTMLElement {
-    const label = element('label', 'coaster-row');
-    const select = element('select');
-    select.setAttribute('aria-label', labelText);
-    for (const [value, text] of options) select.append(new Option(text, value));
-    const saved = localStorage.getItem(`opencoaster-option-${key}`);
-    if (saved && options.some(([value]) => value === saved)) select.value = saved;
-    select.addEventListener('change', () =>
-      localStorage.setItem(`opencoaster-option-${key}`, select.value),
-    );
-    label.append(element('span', '', labelText), select);
+  private audioRange(labelText: string, key: 'soundVolume' | 'musicVolume'): HTMLLabelElement {
+    const row = element('label', 'coaster-row');
+    const input = element('input');
+    input.type = 'range';
+    input.min = '0';
+    input.max = '1';
+    input.step = '0.05';
+    input.value = String(this.actions.audioSettings()[key]);
+    input.setAttribute('aria-label', labelText);
+    input.addEventListener('input', () => {
+      this.actions.setAudioSettings({ [key]: Number(input.value) });
+    });
+    row.append(element('span', '', labelText), input);
+    return row;
+  }
+
+  private audioMute(): HTMLLabelElement {
+    const label = element('label', 'check-row');
+    const input = element('input');
+    input.type = 'checkbox';
+    input.checked = this.actions.audioSettings().muted;
+    input.setAttribute('aria-label', 'Mute audio');
+    input.addEventListener('change', () => this.actions.setAudioSettings({ muted: input.checked }));
+    label.append(input, element('span', '', 'Mute'));
     return label;
   }
 

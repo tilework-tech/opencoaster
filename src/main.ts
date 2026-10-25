@@ -35,6 +35,7 @@ import { PointerInput } from './input/pointer-input';
 import type { PointerSample } from './input/pointer-input';
 import { findRideIdAtTile } from './input/object-picking';
 import { GUEST_DETAIL_STRIDE } from './worker/snapshot';
+import { AudioEngine } from './audio/audio';
 
 const root = document.getElementById('app') as HTMLElement;
 const selection = createRenderer(document.getElementById('game') as HTMLCanvasElement);
@@ -66,6 +67,22 @@ interface Session extends GameInfo {
 }
 
 const settings = loadSettings();
+const audio = new AudioEngine(settings);
+document.addEventListener(
+  'pointerdown',
+  () => {
+    void audio
+      .unlock()
+      .then(() => audio.playUi('click'))
+      .catch(() => undefined);
+  },
+  {
+    passive: true,
+  },
+);
+document.addEventListener('keydown', () => void audio.unlock().catch(() => undefined), {
+  passive: true,
+});
 let speed: GameSpeed = settings.speed;
 let userPaused = settings.paused;
 let hiddenPaused = document.visibilityState === 'hidden';
@@ -142,6 +159,15 @@ const gameUi = new GameUI(root, windows, {
   },
   map: () => sim.map,
   camera: () => camera,
+  audioSettings: () => settings,
+  setAudioSettings(next) {
+    Object.assign(settings, next);
+    audio.setSettings(settings);
+    persistSettings();
+  },
+  playUiSound(name) {
+    audio.playUi(name);
+  },
   setTool(tool) {
     selectedTool = tool;
     coasterPanel.setTool(tool);
@@ -234,7 +260,7 @@ const saveMenu = new SaveMenu(root, slots, {
 });
 
 function persistSettings(): void {
-  saveSettings({ speed, paused: userPaused });
+  saveSettings({ ...settings, speed, paused: userPaused });
 }
 
 function overlayOpen(): boolean {
@@ -854,8 +880,20 @@ function frame(now: number): void {
     renderer.backend,
   );
   gameUi.update(sim.latest, sim.stats, selectedGuest);
-  coasterPanel.update();
   const rect = canvas.getBoundingClientRect();
+  if (sim.latest && sim.map) {
+    audio.update(
+      sim.latest,
+      {
+        width: rect.width,
+        height: rect.height,
+        mapWidth: sim.map.width,
+        mapHeight: sim.map.height,
+      },
+      camera,
+    );
+  }
+  coasterPanel.update();
   trackPreview.draw(
     sim.map ? coasterPanel.ghost() : null,
     sim.map ?? { width: 0, height: 0 },
@@ -869,6 +907,7 @@ requestAnimationFrame(frame);
 
 window.addEventListener('beforeunload', () => {
   gameUi.dispose();
+  audio.dispose();
   coasterPanel.dispose();
   trackPreview.dispose();
   renderer.dispose();
