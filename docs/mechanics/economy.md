@@ -167,7 +167,7 @@ Guests should use existing SoA fields (cash, happiness, hunger/thirst, purchase/
 ### Fidelity
 
 9. Verify and implement original-game ride price valuation, ride aging, admission interaction, and guest price rejection.
-10. Add per-item stock costs, weather-dependent shop pricing and purchase rules, cash machines, toilets, and voucher fulfillment.
+10. Add per-item stock costs, weather-dependent shop pricing and purchase rules, cash machines, toilets, and voucher steering toward the named target.
 11. Reproduce marketing campaign prices, weekly guest multipliers, ride targeting, duration, and fulfillment complaints.
 12. Verify loan-interest rounding and exact charge boundary ordering; support scenario currency conversion/display.
 13. Implement park rating, park value, award predicates, spawn effects, objective failure/warning rules, and detailed report graphs.
