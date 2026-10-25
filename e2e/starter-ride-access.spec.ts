@@ -328,3 +328,33 @@ test('starts entrance setup on the newly created ride when ride types repeat', a
     duplicateWindow.locator('.ride-checklist').getByRole('button', { name: 'Place exit' }),
   ).toBeVisible();
 });
+
+test('does not mark boarding tiles inside another ride as valid', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(8_000);
+  await startStarterPark(page, false);
+  const mapCenter: readonly [number, number] = [28, 43];
+  await toolbarAction(page, 'Footpaths', false);
+  for (const [x, y] of [
+    [26, 43],
+    [27, 43],
+    [28, 43],
+    [29, 43],
+  ])
+    await mapTileClick(page, x, y, mapCenter, false);
+
+  await toolbarAction(page, 'New ride', false);
+  await page.getByRole('tab', { name: 'Gentle rides' }).click();
+  await page.locator('.ride-card[data-ride-type="1"]').click();
+  await mapTileClick(page, 27, 42, mapCenter, false);
+  await placeStationPart(page, 'Place exit', false, mapCenter, [27, 43]);
+  await placeStationPart(page, 'Ride setup complete', false, mapCenter, [26, 42]);
+  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+
+  await toolbarAction(page, 'New ride', false);
+  await page.getByRole('tab', { name: 'Gentle rides' }).click();
+  await page.locator('.ride-card[data-ride-type="1"]').click();
+  await mapTileClick(page, 28, 42, mapCenter, false);
+  await expect(page.locator('.tool-status')).toContainText('Place entrance');
+  await expect(page.getByRole('button', { name: 'Place entrance at tile 27, 42' })).toHaveCount(0);
+});

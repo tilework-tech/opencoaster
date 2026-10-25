@@ -1152,6 +1152,21 @@ function drawRidePlacementPreview(width: number, height: number): void {
     !allCandidates.some((cell) => cell.x === stallFrontTile?.[0] && cell.y === stallFrontTile?.[1])
   )
     allCandidates.push({ x: stallFrontTile[0], y: stallFrontTile[1] });
+  const occupiedRideTiles = new Set<number>();
+  for (let rideIndex = 0; rideIndex < snapshot.rides.count; rideIndex++) {
+    const offset = rideIndex * RIDE_INFO_STRIDE;
+    const def =
+      RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type] as keyof typeof RIDE_CATALOG];
+    if (!def) continue;
+    const rideX = snapshot.rideInfo[offset + RideInfo.RideX];
+    const rideY = snapshot.rideInfo[offset + RideInfo.RideY];
+    for (const [dx, dy] of def.footprint) {
+      const tileX = rideX + dx;
+      const tileY = rideY + dy;
+      if (tileX >= 0 && tileY >= 0 && tileX < map.width && tileY < map.height)
+        occupiedRideTiles.add(tileY * map.width + tileX);
+    }
+  }
   const point = new Float64Array(2);
   for (const candidate of allCandidates) {
     if (candidate.x < 0 || candidate.y < 0 || candidate.x >= map.width || candidate.y >= map.height)
@@ -1195,6 +1210,7 @@ function drawRidePlacementPreview(width: number, height: number): void {
           map.slope[index] === 0 &&
           (map.waterLevel?.[index] ?? 0) <= map.heights[index])) &&
       !occupiedByTrack &&
+      !occupiedRideTiles.has(index) &&
       !occupiedBoardingTile;
     context.fillStyle = valid ? 'rgba(70, 225, 115, .48)' : 'rgba(230, 70, 65, .46)';
     context.strokeStyle = 'rgba(255,255,220,.9)';
