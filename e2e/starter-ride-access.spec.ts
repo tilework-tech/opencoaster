@@ -285,7 +285,7 @@ async function playStarterRideAccess(
       await page.mouse.down();
       await page.mouse.move(74, 66, { steps: 6 });
       await page.mouse.up();
-    } else await titlebar.click();
+    }
     await rideDetail.getByRole('button', { name: 'Locate' }).click({ force: mobile });
     await page.getByRole('button', { name: 'Close Ride #2' }).click();
     await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
