@@ -1113,6 +1113,11 @@
 
 /* Phones and narrow windows */
 @media (max-width: 699px) {
+  .ride-rotate-button {
+    top: 216px;
+    right: 12px;
+    bottom: auto;
+  }
   :root {
     --status-h: 100px;
   }
