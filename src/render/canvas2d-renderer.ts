@@ -477,13 +477,16 @@ export class Canvas2DRenderer implements Renderer {
           x,
           y,
         );
-        if (!this.atlas || !drawAnchoredSprite(
-          ctx,
-          this.atlas,
-          rideHutSpriteKey(type, part, facing, cam.rotation),
-          this.tmp[0],
-          this.tmp[1],
-        )) {
+        if (
+          !this.atlas ||
+          !drawAnchoredSprite(
+            ctx,
+            this.atlas,
+            rideHutSpriteKey(type, part, facing, cam.rotation),
+            this.tmp[0],
+            this.tmp[1],
+          )
+        ) {
           ctx.fillStyle = part === 'entrance' ? '#46ae72' : '#d36355';
           ctx.beginPath();
           ctx.arc(this.tmp[0], this.tmp[1] - 4, 5, 0, Math.PI * 2);

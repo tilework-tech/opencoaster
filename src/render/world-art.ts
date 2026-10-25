@@ -71,9 +71,14 @@ export function rideHutSpriteKey(
           : slug.includes('wood')
             ? 'wood'
             : 'steel';
-  const group = family ? `rides/coaster/${family}` : def.category === 'transport' || def.category === 'water' ? 'transport' : 'rides/flat';
+  const group = family
+    ? `rides/coaster/${family}`
+    : def.category === 'transport' || def.category === 'water'
+      ? 'transport'
+      : 'rides/flat';
   const categorySegment = family ? '' : `${def.category}/`;
-  return `${group}/stations/${categorySegment}${part}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+  const facingView = `facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+  return `${group}/stations/${categorySegment}${part}/${facingView}`;
 }
 
 /** Atlas key for a non-track ride at the current camera rotation. */

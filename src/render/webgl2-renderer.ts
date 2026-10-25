@@ -932,22 +932,22 @@ export class WebGL2Renderer implements Renderer {
             14,
           )
         ) {
-        const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
-        const facing = rideHutFacing(
-          snapshot.rideInfo[o + RideInfo.RideX],
-          snapshot.rideInfo[o + RideInfo.RideY],
-          x,
-          y,
-        );
-        this.append(
-          centerX,
-          centerY,
-          z,
-          30,
-          28,
-          rideHutSpriteKey(type, part as 'entrance' | 'exit', facing, camera.rotation),
-          depth,
-        );
+          const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
+          const facing = rideHutFacing(
+            snapshot.rideInfo[o + RideInfo.RideX],
+            snapshot.rideInfo[o + RideInfo.RideY],
+            x,
+            y,
+          );
+          this.append(
+            centerX,
+            centerY,
+            z,
+            30,
+            28,
+            rideHutSpriteKey(type, part as 'entrance' | 'exit', facing, camera.rotation),
+            depth,
+          );
         }
       }
     }

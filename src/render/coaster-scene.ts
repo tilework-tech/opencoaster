@@ -118,7 +118,8 @@ export class CoasterScene {
         const y = tileY * TILE_UNITS + TILE_UNITS / 2;
         const depth = tileDepth(x, y, map, rotation);
         this.push(cells[c].key, x, y, z, depth + TRACK_OFFSET);
-        if (family) this.addSupports(pieceType, c, family, dir, rotation, map, tileX, tileY, z, depth);
+        if (family)
+          this.addSupports(pieceType, c, family, dir, rotation, map, tileX, tileY, z, depth);
       }
     }
   }

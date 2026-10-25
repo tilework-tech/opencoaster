@@ -929,7 +929,13 @@ function frame(now: number): void {
           x: rideHover[0],
           y: rideHover[1],
           facing: facilityFacingFromPaths(rideHover[0], rideHover[1], sim.map),
-          valid: ridePlacementValid(coasterPanel.rideType, rideHover[0], rideHover[1], sim.map, latest),
+          valid: ridePlacementValid(
+            coasterPanel.rideType,
+            rideHover[0],
+            rideHover[1],
+            sim.map,
+            latest,
+          ),
           tick: latest.tick,
         }
       : null;

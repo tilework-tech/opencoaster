@@ -7,9 +7,7 @@ import type { TrackGhost } from './coaster-panel';
 import { footprintTiles } from './track-tool';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
-import {
-  drawAnchoredSprite,
-} from '../render/canvas-atlas';
+import { drawAnchoredSprite } from '../render/canvas-atlas';
 import { spritePages } from '../render/sprite-pages';
 import type { CanvasAtlas } from '../render/canvas-atlas';
 import {

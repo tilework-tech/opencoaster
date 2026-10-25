@@ -104,9 +104,9 @@ describe('generated sprite catalogue', () => {
     for (let view = 0; view < 4; view++) {
       const sprite = sprites.get('rides/flat/go-karts/view-' + view);
       expect(sprite?.frames).toHaveLength(4);
-      expect(sprite?.frames.every((frame) => frame.pixels.some((pixel) => pixel !== TRANSPARENT))).toBe(
-        true,
-      );
+      expect(
+        sprite?.frames.every((frame) => frame.pixels.some((pixel) => pixel !== TRANSPARENT)),
+      ).toBe(true);
     }
   });
 
@@ -115,7 +115,9 @@ describe('generated sprite catalogue', () => {
       for (const piece of artPieces(art))
         for (let view = 0; view < 4; view++) {
           const cells = piece.footprint
-            .map((_, index) => sprites.has(`rides/coaster/${art}/track/${piece.name}/view-${view}/cell-${index}`))
+            .map((_, index) =>
+              sprites.has(`rides/coaster/${art}/track/${piece.name}/view-${view}/cell-${index}`),
+            )
             .filter(Boolean);
           expect(cells.length, `${art} ${piece.name} view ${view}`).toBeGreaterThan(0);
         }
@@ -125,16 +127,20 @@ describe('generated sprite catalogue', () => {
     for (const family of ['wood', 'steel', 'junior', 'mouse'])
       for (const part of ['column', 'cap1', 'cap2', 'cap3', 'base'])
         for (let view = 0; view < 4; view++)
-           expect(sprites.has(`rides/coaster/${family}/support-${part}/view-${view}`)).toBe(true);
+          expect(sprites.has(`rides/coaster/${family}/support-${part}/view-${view}`)).toBe(true);
   });
 
   it('has chain, brake and block-brake art for lift- and brake-capable pieces', () => {
     for (const art of TRACK_ARTS)
       for (const variant of ['chain', 'brake', 'block'])
         for (let view = 0; view < 4; view++)
-           expect(sprites.has(`rides/coaster/${art}/track/flat+${variant}/view-${view}/cell-0`)).toBe(true);
-     expect(sprites.get('rides/coaster/wood/track/flat+chain/view-0/cell-0')?.frames).toHaveLength(2);
-     expect(sprites.has('rides/coaster/wood/track/smallLeft+chain/view-0/cell-0')).toBe(false);
+          expect(
+            sprites.has(`rides/coaster/${art}/track/flat+${variant}/view-${view}/cell-0`),
+          ).toBe(true);
+    expect(
+      sprites.get('rides/coaster/wood/track/flat+chain/view-0/cell-0')?.frames,
+    ).toHaveLength(2);
+    expect(sprites.has('rides/coaster/wood/track/smallLeft+chain/view-0/cell-0')).toBe(false);
   });
 
   it('has cars at 8 headings for every pitch and bank class of every family', () => {
@@ -142,13 +148,21 @@ describe('generated sprite catalogue', () => {
       for (const pitch of ['down90', 'down60', 'down25', 'flat', 'up25', 'up60', 'up90'])
         for (const bank of ['level', 'left', 'right', 'inverted'])
           for (let heading = 0; heading < 8; heading++)
-             expect(sprites.has(`rides/coaster/${family}/vehicles/car/${pitch}/${bank}/heading-${heading}`)).toBe(
-               true,
-             );
+            expect(
+              sprites.has(
+                `rides/coaster/${family}/vehicles/car/${pitch}/${bank}/heading-${heading}`,
+              ),
+            ).toBe(true);
   });
 
   it('generates facilities, park gates and water rides for every camera view', () => {
-    for (const facility of ['food-stall', 'drink-stall', 'burger-stall', 'information-kiosk', 'toilets'])
+    for (const facility of [
+      'food-stall',
+      'drink-stall',
+      'burger-stall',
+      'information-kiosk',
+      'toilets',
+    ])
       for (let facing = 0; facing < 4; facing++)
         for (let view = 0; view < 4; view++)
           expect(
