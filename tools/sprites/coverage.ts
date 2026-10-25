@@ -27,6 +27,7 @@ import { transportTrackCells } from '../../src/render/coaster-art';
 import { buildSprites } from './generate';
 import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
 import { ICON_NAMES, iconArtKind } from '../../src/ui/icons';
+import { preparedSpriteKeys } from '../art/prepared-assets';
 
 export interface ArtCoverageRow {
   group: string;
@@ -40,26 +41,9 @@ export interface ArtCoverageRow {
 
 const SURFACES = ['grass', 'dirt', 'sand', 'rock'] as const;
 const PATHS = ['tarmac', 'crazy-paving', 'dirt', 'queue'] as const;
-const PROP_SPRITES = [
-  'trees/tree-oak',
-  'trees/tree-conifer',
-  'trees/tree-birch',
-  'trees/tree-blossom',
-  'trees/tree-autumn',
-  'trees/tree-topiary',
-  'scenery/shrub',
-  'scenery/flower-bed',
-  'scenery/wooden-fence',
-  'scenery/stone-fence',
-  'scenery/bench',
-  'scenery/bin',
-  'scenery/lamp',
-  'scenery/park-entrance',
-  'scenery/hedge',
-  'scenery/queue-rail',
-];
 const STAFF_ROLES = ['handyman', 'mechanic', 'security', 'entertainer'];
 let cachedRows: ArtCoverageRow[] | undefined;
+let cachedAvailable: Set<string> | undefined;
 
 function unique(keys: string[]): string[] {
   return [...new Set(keys.map((key) => key.split('#')[0]!))];
@@ -88,39 +72,44 @@ function trackKeys(family: NonNullable<ReturnType<typeof trackedRideFamily>>): s
   );
 }
 
-function generatedKeys(): Set<string> {
-  const keys = new Set(buildSprites().map((sprite) => sprite.key));
-  for (const surface of SURFACES) {
-    for (let slope = 0; slope < 16; slope++) keys.add(terrainSpriteName(surface, slope));
-    keys.add(terrainSurfaceSpriteName(surface));
-    for (let direction = 0; direction < 4; direction++)
-      keys.add(terrainCliffSpriteName(surface, direction));
-  }
-  for (const key of PROP_SPRITES) keys.add(key);
+export function availableSpriteKeys(): ReadonlySet<string> {
+  if (cachedAvailable) return cachedAvailable;
+  const keys = new Set([...buildSprites().map((sprite) => sprite.key), ...preparedSpriteKeys()]);
   keys.add('people/guest-walk');
   keys.add('people/staff-costumes');
-  keys.add('ui/icons');
-  return keys;
+  cachedAvailable = keys;
+  return cachedAvailable;
+}
+
+export function spriteCoverageStatus(
+  keys: readonly string[],
+  available: ReadonlySet<string>,
+): { webgl2: string; canvas2d: string } {
+  const hasEverySprite = keys.length > 0 && keys.every((key) => available.has(key));
+  return {
+    webgl2: hasEverySprite ? 'sprite' : 'placeholder',
+    canvas2d: hasEverySprite ? 'sprite' : 'placeholder',
+  };
 }
 
 export function buildArtCoverage(): ArtCoverageRow[] {
   if (cachedRows) return cachedRows;
-  const available = generatedKeys();
+  const available = availableSpriteKeys();
   const rows: ArtCoverageRow[] = [];
   const add = (
     group: string,
     item: string,
     assetKeys: string[],
     notes: string,
-    backends: readonly [string, string] = ['sprite', 'sprite'],
+    backends?: readonly [string, string],
   ): void => {
     const keys = unique(assetKeys);
     rows.push({
       group,
       item,
       assetKeys: keys,
-      webgl2: backends[0],
-      canvas2d: backends[1],
+      webgl2: backends?.[0] ?? spriteCoverageStatus(keys, available).webgl2,
+      canvas2d: backends?.[1] ?? spriteCoverageStatus(keys, available).canvas2d,
       missing: keys.filter((key) => !available.has(key)),
       notes,
     });

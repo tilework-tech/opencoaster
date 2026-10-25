@@ -32,7 +32,7 @@ describe('generated sprite catalogue', () => {
         expect(frame?.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
         views.push(Buffer.from(frame!.pixels).toString('base64'));
       }
-      expect(new Set(views).size, `${key} view variety`).toBeGreaterThan(1);
+      expect(new Set(views).size, `${key} distinct camera views`).toBe(4);
     }
   });
 
