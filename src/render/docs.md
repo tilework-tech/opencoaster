@@ -5,7 +5,7 @@ Path: @/src/render
 ### Overview
 
 - Turns worker snapshots and map data into the isometric park view without reading simulation state.
-- Uses a WebGL2 instanced renderer with generated world sprites, and keeps Canvas2D as a renderer fallback.
+- Uses a WebGL2 instanced renderer with generated sprites, and keeps Canvas2D as a renderer fallback with generated flat-ride sprites.
 - Shares projection and picking rules with the main-thread input layer.
 
 ### How it fits into the larger codebase
@@ -19,11 +19,12 @@ Path: @/src/render
 ### Core Implementation
 
 - [webgl2-renderer.ts](webgl2-renderer.ts) creates a procedural fallback atlas immediately, then asynchronously loads `public/sprites/atlas.png` and its manifest. When available, generated sprites and the fallback atlas are combined into one nearest-filtered texture; requested frames use manifest bounds and anchors, while missing sprites use procedural atlas cells. Packing caps the generated atlas at 1024×2048 so the combined texture remains within WebGL2's guaranteed 2048-pixel dimension limit; runtime setup also checks the device's reported texture limit.
+- Flat rides are selected from the ride snapshot by catalog type and origin tile. [sprite-art.ts](sprite-art.ts) derives the manifest key from ride type and camera rotation and selects idle frame 0 outside an active cycle, or frames 1–8 from the simulation tick during Loading, Running, and Unloading. Both renderers align the selected frame to the projected ride origin using its manifest anchor.
 - [world-art.ts](world-art.ts) maps terrain surface and slope masks, path connection and ramp flags, water ticks, and scenery identifiers to sprite names. Terrain and water, path elements, path additions, ground flower beds, and the park gate are submitted with snapshot entities in painter order.
 - [tools/art](../../tools/art/README.md) prepares the committed generated source sheets into PNG/JSON sprite pairs and packs a deterministic atlas and manifest before Vite development and production builds. This keeps generation out of the runtime path.
 - Terrain currently receives a 4-bit slope mask from map data. The art catalogue names 19 terrain variants per material, but only masks `00` through `0f` are addressable; the additional three variants are prepared but not selected by the renderer.
 - Ambient trees are a deterministic rendering decoration selected from grass-tile coordinates. They are not simulation entities or saved world objects. The snapshot carries park entrance coordinates so the renderer can place the generated gate.
-- [canvas2d-renderer.ts](canvas2d-renderer.ts) indexes path elements by tile and draws terrain and map additions during painter traversal. It retains procedural drawing and does not load the generated WebGL atlas.
+- [canvas2d-renderer.ts](canvas2d-renderer.ts) indexes path elements by tile and draws terrain and map additions during painter traversal. It loads the sprite manifest and atlas asynchronously for flat rides; the rest of its map and ride fallback drawing remains procedural.
 
 ### Things to Know
 
