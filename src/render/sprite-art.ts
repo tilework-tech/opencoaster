@@ -2,6 +2,7 @@ import { Z_STEP } from '../sim/core/constants';
 import { PIECES } from '../sim/track/catalog';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { Z_PIXELS } from './projection';
+import { PathFlag } from '../sim/map/tile-map';
 
 export type CoasterStyle = 'wood' | 'steel';
 export type CarPitch = 'flat' | 'up25' | 'up60' | 'down25' | 'down60';
@@ -27,6 +28,58 @@ function slug(name: string): string {
 export function rideSpriteKey(type: RideType, rotation: number): string {
   const def = RIDE_CATALOG[type];
   return `rides/${slug(def.name)}/view-${((rotation % 4) + 4) % 4}`;
+}
+
+/** Atlas key for a facility whose customer-facing side points toward `facing`. */
+export function facilitySpriteKey(type: RideType, facing: number, rotation: number): string {
+  const def = RIDE_CATALOG[type];
+  return `facilities/${slug(def.name)}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+}
+
+/** Selects the path-facing side for a facility from the five-value path element records. */
+export function facilityFacingFromPaths(
+  x: number,
+  y: number,
+  pathElements: Int32Array | undefined,
+  pathCount: number,
+): number {
+  if (!pathElements) return 1;
+  const adjacent = [false, false, false, false];
+  const count = Math.min(pathCount, Math.floor(pathElements.length / 5));
+  for (let index = 0; index < count; index++) {
+    const offset = index * 5;
+    if ((pathElements[offset + 3] & PathFlag.Queue) !== 0) continue;
+    const dx = pathElements[offset] - x;
+    const dy = pathElements[offset + 1] - y;
+    if (Math.abs(dx) + Math.abs(dy) !== 1) continue;
+    const direction = dx === 1 ? 0 : dy === 1 ? 1 : dx === -1 ? 2 : 3;
+    adjacent[direction] = true;
+  }
+  for (let direction = 0; direction < adjacent.length; direction++)
+    if (adjacent[direction]) return direction;
+  return 1;
+}
+
+/** Atlas key for a category-themed ride entrance or exit hut. */
+export function rideHutSpriteKey(
+  type: RideType,
+  part: 'entrance' | 'exit',
+  facing: number,
+  rotation: number,
+): string {
+  const category = RIDE_CATALOG[type].category;
+  return `stations/${category}/${part}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+}
+
+/** The outward direction from a ride footprint to its entrance or exit tile. */
+export function rideHutFacing(rideX: number, rideY: number, partX: number, partY: number): number {
+  const dx = partX - rideX;
+  const dy = partY - rideY;
+  if (dx === 1 && dy === 0) return 0;
+  if (dx === 0 && dy === 1) return 1;
+  if (dx === -1 && dy === 0) return 2;
+  if (dx === 0 && dy === -1) return 3;
+  return 1;
 }
 
 export function frameForTick(tick: number, frameCount: number): number {

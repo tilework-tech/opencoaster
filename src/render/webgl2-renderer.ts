@@ -12,9 +12,20 @@ import {
   viewTerrainCornerHeights,
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import type { Rotation } from './projection';
+import {
+  facilityFacingFromPaths,
+  facilitySpriteKey,
+  frameForTick,
+  rideHutFacing,
+  rideHutSpriteKey,
+  rideSpriteKey,
+  trackCells,
+  trackStyleForRide,
+} from './sprite-art';
 import {
   pathSpriteName,
   type PathSurface,
@@ -249,6 +260,7 @@ export class WebGL2Renderer implements Renderer {
   private orderedData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private readonly projected = new Float64Array(2);
   private readonly tileCoordinates = new Int32Array(2);
+  private readonly rideTypes = new Map<number, RideType>();
   private readonly order: number[] = [];
   private count = 0;
   private visibleCount = 0;
@@ -309,19 +321,8 @@ export class WebGL2Renderer implements Renderer {
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
-      if (snapshot.tracks)
-        this.appendLayer(
-          snapshot.tracks,
-          27,
-          map,
-          camera,
-          viewportWidth,
-          viewportHeight,
-          40,
-          28,
-          1,
-        );
-      this.appendLayer(snapshot.rides, 26, map, camera, viewportWidth, viewportHeight, 12, 14);
+      this.appendRideTracks(snapshot, map, camera, viewportWidth, viewportHeight);
+      this.appendRideSprites(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendVariantLayer(
         snapshot.litter,
         litterSpriteIndex,
@@ -728,7 +729,17 @@ export class WebGL2Renderer implements Renderer {
         40,
       )
     )
-      this.append(worldX, worldY, z, 46, 40, scenerySpriteName('park-entrance'), depth);
+      this.appendAtlasSprite(
+        worldX,
+        worldY,
+        z,
+        `${scenerySpriteName('park-entrance')}/view-${camera.rotation}`,
+        depth,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+      );
   }
 
   private appendPathElements(
@@ -856,13 +867,23 @@ export class WebGL2Renderer implements Renderer {
     for (let i = 0; i < snapshot.rides.count; i++) {
       const o = i * RIDE_INFO_STRIDE;
       const flags = snapshot.rideInfo[o + RideInfo.Flags];
-      for (const [flag, xField, yField, sprite] of [
-        [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, 31],
-        [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, 32],
-      ]) {
+      const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
+      const category = RIDE_CATALOG[type]?.category;
+      if (!category || ['shop', 'stall', 'facility'].includes(category)) continue;
+      this.rideTypes.set(snapshot.rideInfo[o + RideInfo.Id], type);
+      for (const [flag, xField, yField, part] of [
+        [RideFlag.EntrancePlaced, RideInfo.EntranceX, RideInfo.EntranceY, 'entrance'],
+        [RideFlag.ExitPlaced, RideInfo.ExitX, RideInfo.ExitY, 'exit'],
+      ] as const) {
         if ((flags & flag) === 0) continue;
         const x = snapshot.rideInfo[o + xField];
         const y = snapshot.rideInfo[o + yField];
+        const facing = rideHutFacing(
+          snapshot.rideInfo[o + RideInfo.RideX],
+          snapshot.rideInfo[o + RideInfo.RideY],
+          x,
+          y,
+        );
         const index = y * map.width + x;
         const z = map.heights[index] * Z_STEP + 1;
         const depth =
@@ -871,21 +892,147 @@ export class WebGL2Renderer implements Renderer {
           2;
         const centerX = x * TILE_UNITS + 128;
         const centerY = y * TILE_UNITS + 128;
-        project(centerX, centerY, z, map.width, map.height, camera.rotation, this.projected);
-        if (
-          inViewport(
-            this.projected[0],
-            this.projected[1],
-            camera,
-            viewportWidth,
-            viewportHeight,
-            10,
-            14,
-          )
-        )
-          this.append(centerX, centerY, z, 10, 14, sprite, depth);
+        this.appendAtlasSprite(
+          centerX,
+          centerY,
+          z,
+          rideHutSpriteKey(type, part, facing, camera.rotation),
+          depth,
+          map,
+          camera,
+          viewportWidth,
+          viewportHeight,
+        );
       }
     }
+  }
+
+  private appendRideSprites(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const o = i * RIDE_INFO_STRIDE;
+      const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
+      const def = RIDE_CATALOG[type];
+      if (!def || def.usesTrack) continue;
+      const x = snapshot.rideInfo[o + RideInfo.RideX];
+      const y = snapshot.rideInfo[o + RideInfo.RideY];
+      if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
+      const mapIndex = y * map.width + x;
+      const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+      const z = map.heights[mapIndex] * Z_STEP + 1;
+      const depth = 2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation);
+      const isFacility = ['shop', 'stall', 'facility'].includes(def.category);
+      const key = isFacility
+        ? facilitySpriteKey(
+            type,
+            facilityFacingFromPaths(x, y, map.pathElements, map.pathCount ?? 0),
+            camera.rotation,
+          )
+        : rideSpriteKey(type, camera.rotation);
+      const frameCount = this.atlasFrames[key]?.frames.length ?? 1;
+      this.appendAtlasSprite(
+        worldX,
+        worldY,
+        z,
+        `${key}#${frameForTick(snapshot.tick, frameCount)}`,
+        depth,
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+      );
+    }
+  }
+
+  private appendRideTracks(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    this.rideTypes.clear();
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const offset = i * RIDE_INFO_STRIDE;
+      this.rideTypes.set(
+        snapshot.rideInfo[offset + RideInfo.Id],
+        snapshot.rideInfo[offset + RideInfo.Type] as RideType,
+      );
+    }
+    const tracks = snapshot.tracks;
+    for (let i = 0; i < tracks.count; i++) {
+      const offset = i * SNAPSHOT_STRIDE;
+      const x = Math.floor(tracks.data[offset] / TILE_UNITS);
+      const y = Math.floor(tracks.data[offset + 1] / TILE_UNITS);
+      const z = tracks.data[offset + 2];
+      const packed = tracks.data[offset + 3];
+      const rideId = packed >>> 16;
+      const type = this.rideTypes.get(rideId);
+      if (type === undefined) continue;
+      const style = trackStyleForRide(type);
+      const direction = (packed >>> 8) & 0xff;
+      const cells = trackCells(packed & 0xff, direction, camera.rotation, style);
+      for (const cell of cells) {
+        const cellX = x + cell.dx;
+        const cellY = y + cell.dy;
+        const worldX = cellX * TILE_UNITS + TILE_UNITS / 2;
+        const worldY = cellY * TILE_UNITS + TILE_UNITS / 2;
+        const depth =
+          2 * rotatedPositionSum(cellX * TILE_UNITS, cellY * TILE_UNITS, map, camera.rotation) -
+          z / Z_STEP +
+          1;
+        this.appendAtlasSprite(
+          worldX,
+          worldY,
+          z,
+          cell.key,
+          depth,
+          map,
+          camera,
+          viewportWidth,
+          viewportHeight,
+        );
+      }
+    }
+  }
+
+  private appendAtlasSprite(
+    x: number,
+    y: number,
+    z: number,
+    sprite: string,
+    depth: number,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const name = sprite.replace(/#\d+$/, '');
+    const entry = this.atlasFrames[name];
+    const frameIndex = Number(/#(\d+)$/.exec(sprite)?.[1] ?? 0);
+    const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
+    const width = frame?.width ?? 64;
+    const height = frame?.height ?? 64;
+    project(x, y, z, map.width, map.height, camera.rotation, this.projected);
+    if (
+      !inViewport(
+        this.projected[0],
+        this.projected[1],
+        camera,
+        viewportWidth,
+        viewportHeight,
+        width,
+        height,
+      )
+    )
+      return;
+    this.append(x, y, z, width, height, sprite, depth);
   }
 
   private appendGuests(

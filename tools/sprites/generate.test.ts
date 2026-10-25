@@ -91,11 +91,14 @@ describe('generated sprite catalogue', () => {
     );
     for (const category of categories)
       for (const part of ['entrance', 'exit'])
-        for (let view = 0; view < 4; view++) {
-          const sprite = sprites.get(`stations/${category}/${part}/view-${view}`);
-          expect(sprite).toBeDefined();
-          expect(sprite!.frames[0].pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
-        }
+        for (let facing = 0; facing < 4; facing++)
+          for (let view = 0; view < 4; view++) {
+            const sprite = sprites.get(
+              `stations/${category}/${part}/facing-${facing}/view-${view}`,
+            );
+            expect(sprite).toBeDefined();
+            expect(sprite!.frames[0].pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+          }
   });
 
   it('renders the park entrance gate in four camera views', () => {
