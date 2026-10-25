@@ -10,6 +10,8 @@ export interface MapData {
   waterLevel?: Uint8Array;
   pathElements?: Int32Array;
   pathCount?: number;
+  sceneryElements?: Int32Array;
+  sceneryCount?: number;
 }
 
 export interface Camera {
@@ -18,6 +20,7 @@ export interface Camera {
   y: number;
   zoom: number;
   rotation: Rotation;
+  showGridlines?: boolean;
 }
 
 /**

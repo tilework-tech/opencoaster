@@ -10,6 +10,7 @@ import {
   setWaterLevel,
 } from './land';
 import { placePath, removePath, setPathAddition, type PathAddition } from './paths';
+import { placeScenery, removeScenery, SCENERY_CATALOG, type SceneryItem } from './scenery';
 import {
   LAND_SURFACE_COST_CENTS,
   LAND_PRICE_CENTS,
@@ -21,7 +22,7 @@ import {
   SALE_LAND,
   SALE_RIGHTS,
 } from './tile-map';
-import type { TileMap } from './tile-map';
+import type { PathStyle, TileMap } from './tile-map';
 import { TILE_UNITS } from '../core/constants';
 
 /** Map-owned player commands; the core `Command` union includes this type. */
@@ -31,9 +32,19 @@ export type MapCommand =
   | { type: 'lowerLand'; x: number; y: number; width: number; height: number; corner?: number }
   | { type: 'setWater'; x: number; y: number; width: number; height: number; level: number }
   | { type: 'paintLand'; x: number; y: number; width: number; height: number; surface: number }
-  | { type: 'placePath'; x: number; y: number; z?: number; slope?: number; queue?: boolean }
+  | {
+      type: 'placePath';
+      x: number;
+      y: number;
+      z?: number;
+      slope?: number;
+      queue?: boolean;
+      style?: PathStyle;
+    }
   | { type: 'removePath'; x: number; y: number; z?: number }
   | { type: 'setPathAddition'; x: number; y: number; addition: PathAddition }
+  | { type: 'placeScenery'; x: number; y: number; item: SceneryItem }
+  | { type: 'removeScenery'; x: number; y: number }
   | { type: 'buyLand'; x: number; y: number; width: number; height: number; rights: boolean };
 
 function canAfford(w: World, cents: number): boolean {
@@ -151,6 +162,19 @@ export function applyMapCommand(w: World, c: MapCommand): void {
     case 'setPathAddition':
       setPathAddition(m, c.x, c.y, c.addition);
       break;
+    case 'placeScenery': {
+      const item = SCENERY_CATALOG[c.item];
+      if (item && canAfford(w, item.priceCents) && placeScenery(m, c.x, c.y, c.item)) {
+        charge(w, LedgerCategory.Landscaping, item.priceCents);
+      }
+      break;
+    }
+    case 'removeScenery': {
+      const item = removeScenery(m, c.x, c.y);
+      if (item !== null)
+        charge(w, LedgerCategory.Landscaping, SCENERY_CATALOG[item].removalPriceCents);
+      break;
+    }
     case 'buyLand': {
       const x = c.x | 0;
       const y = c.y | 0;

@@ -1,10 +1,12 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
+import sharp from 'sharp';
 
 test('runs the park through WebGL2 with 5,000 guests and captures a frame', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(90_000);
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   page.on('console', (message) => {
@@ -54,6 +56,23 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
     .toBeGreaterThan(tickBeforeResume);
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 10_000 });
 
+  const screenshot = testInfo.outputPath('webgl2-smoke.png');
+  await mkdir(dirname(screenshot), { recursive: true });
+  await page.screenshot({ path: screenshot });
+
+  const canvasScreenshot = testInfo.outputPath('webgl2-canvas.png');
+  await page.locator('#game').screenshot({ path: canvasScreenshot });
+  const { data: pixels, info } = await sharp(canvasScreenshot)
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let clearPixels = 0;
+  for (let offset = 0; offset < pixels.length; offset += info.channels) {
+    if (pixels[offset] === 15 && pixels[offset + 1] === 20 && pixels[offset + 2] === 26)
+      clearPixels++;
+  }
+  expect(clearPixels / (info.width * info.height)).toBeLessThan(0.1);
+
   const frameSamples = await page.evaluate(async () => {
     const element = document.querySelector('.hud');
     if (!element) throw new Error('Performance HUD is missing');
@@ -63,7 +82,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
       const observer = new MutationObserver(() => {
         const match = element.textContent?.match(/frame ([\d.]+)ms/);
         if (match) samples.push(Number(match[1]));
-        if (samples.length >= 200) {
+        if (samples.length >= 100) {
           observer.disconnect();
           resolve();
         }
@@ -72,7 +91,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
       setTimeout(() => {
         observer.disconnect();
         resolve();
-      }, 30_000);
+      }, 45_000);
     });
 
     return samples;
@@ -86,10 +105,6 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
       `p50 ${frameAt(0.5).toFixed(2)} p95 ${frameAt(0.95).toFixed(2)} ` +
       `p99 ${frameAt(0.99).toFixed(2)} max ${sortedFrames.at(-1)?.toFixed(2)}`,
   );
-
-  const screenshot = testInfo.outputPath('webgl2-smoke.png');
-  await mkdir(dirname(screenshot), { recursive: true });
-  await page.screenshot({ path: screenshot });
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);

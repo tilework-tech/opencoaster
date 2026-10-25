@@ -13,6 +13,7 @@ import { serialize, deserialize } from '../../save/save';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { landEditCostCents } from './land';
 import { placePath, removePath } from './paths';
+import { SceneryItem, SCENERY_CATALOG } from './scenery';
 
 function sim(): Simulation {
   const s = new Simulation({ seed: 9, width: 32, height: 32, maxGuests: 100 });
@@ -204,6 +205,16 @@ describe('map commands', () => {
     s.step();
     expect(m.waterLevel[m.index(12, 12)]).toBe(31);
     expect(m.terrain[m.index(20, 20)]).toBe(1);
+  });
+
+  it('places scenery through simulation commands and charges the catalog price', () => {
+    const s = sim();
+    const tile = s.world.map.index(7, 7);
+    const cash = s.world.economy.cash;
+    s.enqueue({ type: 'placeScenery', x: 7, y: 7, item: SceneryItem.Shrub });
+    s.step();
+    expect(s.world.map.elData[s.world.map.firstElement(tile)]).toBe(SceneryItem.Shrub);
+    expect(cash - s.world.economy.cash).toBe(SCENERY_CATALOG[SceneryItem.Shrub].priceCents);
   });
 
   it('replays identically and survives save/load', () => {

@@ -121,7 +121,15 @@ for (const { name, device } of mobileProfiles) {
     await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
     await page.getByRole('button', { name: 'Park', exact: true }).click();
     const selectPathTool = async () => {
-      await page.getByRole('button', { name: 'Footpaths' }).click();
+      const pathButton = page
+        .locator('.game-toolbar')
+        .getByRole('button', { name: 'Footpaths', exact: true });
+      await pathButton.scrollIntoViewIfNeeded();
+      await pathButton.tap();
+      const paths = page.locator('[data-panel="paths"]');
+      await expect(paths).toBeVisible();
+      if (!(await paths.evaluate((window) => window.classList.contains('collapsed'))))
+        await paths.locator('.ui-titlebar').click();
     };
     await selectPathTool();
     const holdTarget = await savedGuestPoint(page);
@@ -143,7 +151,8 @@ for (const { name, device } of mobileProfiles) {
 
     const center = holdTarget;
     const placePath = async (point = center) => {
-      await page.mouse.click(point.x, point.y);
+      await dispatchTouches(cdp, 'touchStart', [{ id: 1, ...point }]);
+      await dispatchTouches(cdp, 'touchEnd', []);
       const status = page.locator('.tool-status');
       await expect(status).toContainText('Path placement requested');
       return status.innerText();
@@ -174,11 +183,10 @@ for (const { name, device } of mobileProfiles) {
     expect(afterZoom).not.toBe(beforeZoom);
 
     const beforePaint = tileAt(await placePath());
-    await page.mouse.move(center.x, center.y);
-    await page.mouse.down();
-    await page.mouse.move(center.x + 24, center.y + 12);
-    await page.mouse.move(center.x + 42, center.y + 20);
-    await page.mouse.up();
+    await dispatchTouches(cdp, 'touchStart', [{ id: 6, ...center }]);
+    await dispatchTouches(cdp, 'touchMove', [{ id: 6, x: center.x + 24, y: center.y + 12 }]);
+    await dispatchTouches(cdp, 'touchMove', [{ id: 6, x: center.x + 42, y: center.y + 20 }]);
+    await dispatchTouches(cdp, 'touchEnd', []);
     const afterPaint = tileAt(await page.locator('.tool-status').innerText());
     expect(afterPaint).not.toBe(beforePaint);
 

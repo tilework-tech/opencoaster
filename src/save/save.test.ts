@@ -13,10 +13,11 @@ import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
 import { StaffKind, StaffOrder, staffOrderEnabled, spawnStaff } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
+import { PathStyle } from '../sim/map/tile-map';
 
 describe('save', () => {
-  it('writes version 16 with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(16);
+  it('writes the current version with climate metadata', () => {
+    expect(SAVE_VERSION).toBe(17);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -24,7 +25,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(16);
+    expect(header.version).toBe(17);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -85,6 +86,34 @@ describe('save', () => {
 
     expect(loaded.staff.cols.sweeps[0]).toBe(23);
     expect(loaded.staff.cols.vandalsStopped[0]).toBe(0);
+  });
+
+  it('round-trips the selected path style and defaults older saves to tarmac', () => {
+    const world = flatWorld(16);
+    layPath(world, row(5, 5, 7));
+    const tile = world.map.index(5, 5);
+    const element = world.map.pathElement(tile, -1);
+    world.map.pathStyle[element] = PathStyle.CrazyPaving;
+
+    const loaded = deserialize(serialize(world));
+    const loadedElement = loaded.map.pathElement(tile, -1);
+
+    expect(loaded.map.pathStyle[loadedElement]).toBe(PathStyle.CrazyPaving);
+
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const legacy = withoutColumns(serialize(world), 14, views, [world.map.pathStyle]);
+    const migrated = deserialize(legacy);
+    const migratedElement = migrated.map.pathElement(tile, -1);
+    expect(migrated.map.pathStyle[migratedElement]).toBe(PathStyle.Tarmac);
   });
 
   it('round-trips individual worker task orders', () => {
@@ -182,6 +211,7 @@ describe('save', () => {
 
   it('migrates version 13 saves with worker and guest history but no ride rider windows', () => {
     const world = flatWorld(16);
+    layPath(world, row(5, 6, 8));
     const guestSlot = guestAt(world, 5, 5);
     spawnStaff(world, StaffKind.Entertainer);
     const staffId = world.staff.slotToId[0];
@@ -201,13 +231,19 @@ describe('save', () => {
       ...world.track.pieces.arrays(),
       ...world.track.rideTables(),
     ];
-    const legacy = withoutColumns(serialize(world), 13, views, riderHistoryColumns(world));
+    const legacy = withoutColumns(serialize(world), 13, views, [
+      world.map.pathStyle,
+      ...riderHistoryColumns(world),
+    ]);
 
     const loaded = deserialize(legacy);
 
     expect(loaded.guests.cols.rideHistoryCursor[guestSlot]).toBe(2);
     expect(loaded.guests.cols.rideHistory0[guestSlot]).toBe(17);
     expect(loaded.staff.cols.orderFlags[staffSlot]).toBe(world.staff.cols.orderFlags[staffSlot]);
+    expect(loaded.map.pathStyle[loaded.map.pathElement(world.map.index(6, 5), -1)]).toBe(
+      PathStyle.Tarmac,
+    );
     expect(staffOrderEnabled(loaded, staffId, StaffOrder.EntertainGuests)).toBe(false);
     expect(
       (loaded.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[rideSlot],
@@ -546,6 +582,7 @@ function withoutColumns(
         ]
       : []),
     ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
+    ...(version < 17 ? [newWorld.map.pathStyle] : []),
   ];
   const absentSet = new Set([
     ...absent,
@@ -605,6 +642,7 @@ describe('save: version 4 migration', () => {
     const headerBytes = new TextEncoder().encode(JSON.stringify(header));
     const arrays = world.map
       .arrays()
+      .slice(0, -1)
       .concat(
         legacyGuestArrays(world),
         world.staff.arrays().slice(0, -1),

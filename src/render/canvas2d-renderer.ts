@@ -4,6 +4,7 @@ import { SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
+import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 
 const SURFACE_COLORS = [
@@ -27,6 +28,10 @@ const GUEST_TINTS = [
 ];
 const PATH_DX = [1, 0, -1, 0];
 const PATH_DY = [0, 1, 0, -1];
+const PATH_STYLE_COLORS = ['#55565a', '#a9a193', '#987047'];
+const TREE_COLORS = ['#397b35', '#285f48', '#bf6c98'];
+const SHRUB_COLOR = '#397b35';
+const FLOWER_COLORS = ['#f4c542', '#e85b86', '#f2eeee'];
 
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
 export class Canvas2DRenderer implements Renderer {
@@ -42,6 +47,8 @@ export class Canvas2DRenderer implements Renderer {
   private readonly tile = new Int32Array(2);
   private pathOffsets = new Int32Array(0);
   private pathIndices = new Int32Array(0);
+  private sceneryOffsets = new Int32Array(0);
+  private sceneryIndices = new Int32Array(0);
   private visibleCount = 0;
 
   get visibleSpriteCount(): number {
@@ -68,21 +75,39 @@ export class Canvas2DRenderer implements Renderer {
   setMap(map: MapData): void {
     this.map = map;
     const paths = map.pathElements;
-    const count = Math.min(map.pathCount ?? 0, paths?.length ? paths.length / 5 : 0);
+    const count = Math.min(map.pathCount ?? 0, paths?.length ? paths.length / 6 : 0);
     this.pathOffsets = new Int32Array(map.width * map.height + 1);
     this.pathIndices = new Int32Array(count);
-    if (!paths || count === 0) return;
-
-    for (let i = 0; i < count; i++) {
-      const tile = paths[i * 5 + 1] * map.width + paths[i * 5];
-      if (tile >= 0 && tile < map.width * map.height) this.pathOffsets[tile + 1]++;
+    if (paths && count > 0) {
+      for (let i = 0; i < count; i++) {
+        const tile = paths[i * 6 + 1] * map.width + paths[i * 6];
+        if (tile >= 0 && tile < map.width * map.height) this.pathOffsets[tile + 1]++;
+      }
+      for (let tile = 1; tile < this.pathOffsets.length; tile++)
+        this.pathOffsets[tile] += this.pathOffsets[tile - 1];
+      const cursor = this.pathOffsets.slice(0, -1);
+      for (let i = 0; i < count; i++) {
+        const tile = paths[i * 6 + 1] * map.width + paths[i * 6];
+        if (tile >= 0 && tile < map.width * map.height) this.pathIndices[cursor[tile]++] = i;
+      }
     }
-    for (let tile = 1; tile < this.pathOffsets.length; tile++)
-      this.pathOffsets[tile] += this.pathOffsets[tile - 1];
-    const cursor = this.pathOffsets.slice(0, -1);
-    for (let i = 0; i < count; i++) {
-      const tile = paths[i * 5 + 1] * map.width + paths[i * 5];
-      if (tile >= 0 && tile < map.width * map.height) this.pathIndices[cursor[tile]++] = i;
+
+    const scenery = map.sceneryElements;
+    const sceneryCount = Math.min(map.sceneryCount ?? 0, scenery?.length ? scenery.length / 5 : 0);
+    this.sceneryOffsets = new Int32Array(map.width * map.height + 1);
+    this.sceneryIndices = new Int32Array(sceneryCount);
+    if (scenery && sceneryCount > 0) {
+      for (let i = 0; i < sceneryCount; i++) {
+        const tile = scenery[i * 5 + 1] * map.width + scenery[i * 5];
+        if (tile >= 0 && tile < map.width * map.height) this.sceneryOffsets[tile + 1]++;
+      }
+      for (let tile = 1; tile < this.sceneryOffsets.length; tile++)
+        this.sceneryOffsets[tile] += this.sceneryOffsets[tile - 1];
+      const cursor = this.sceneryOffsets.slice(0, -1);
+      for (let i = 0; i < sceneryCount; i++) {
+        const tile = scenery[i * 5 + 1] * map.width + scenery[i * 5];
+        if (tile >= 0 && tile < map.width * map.height) this.sceneryIndices[cursor[tile]++] = i;
+      }
     }
   }
 
@@ -149,6 +174,11 @@ export class Canvas2DRenderer implements Renderer {
         ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
         ctx.closePath();
         ctx.fill();
+        if (cam.showGridlines) {
+          ctx.strokeStyle = 'rgba(28, 34, 26, 0.18)';
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
+        }
         const waterLevel = map.waterLevel?.[i] ?? 0;
         if (waterLevel > map.heights[i]) {
           const waterLift = waterLevel * Z_PIXELS;
@@ -174,10 +204,9 @@ export class Canvas2DRenderer implements Renderer {
     tile: number,
   ): void {
     const paths = map.pathElements;
-    if (!paths) return;
-    for (let path = this.pathOffsets[tile]; path < this.pathOffsets[tile + 1]; path++) {
+    for (let path = this.pathOffsets[tile]; paths && path < this.pathOffsets[tile + 1]; path++) {
       const i = this.pathIndices[path];
-      const o = i * 5;
+      const o = i * 6;
       const x = paths[o];
       const y = paths[o + 1];
       const z = paths[o + 2] * Z_STEP;
@@ -196,7 +225,8 @@ export class Canvas2DRenderer implements Renderer {
         this.tmp,
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 22)) continue;
-      ctx.fillStyle = flags & PathFlag.Queue ? '#b77d9d' : '#b59a70';
+      ctx.fillStyle =
+        flags & PathFlag.Queue ? '#b77d9d' : (PATH_STYLE_COLORS[paths[o + 5]] ?? '#b59a70');
       if (sloped) {
         const dx = PATH_DX[direction] ?? 0;
         const dy = PATH_DY[direction] ?? 0;
@@ -255,6 +285,79 @@ export class Canvas2DRenderer implements Renderer {
         ctx.beginPath();
         ctx.arc(this.tmp[0], this.tmp[1] - 13, 3, 0, Math.PI * 2);
         ctx.fill();
+      }
+      if (flags & PathFlag.Queue) {
+        ctx.fillStyle = '#d7bb65';
+        ctx.fillRect(this.tmp[0] - 7, this.tmp[1] - 5, 14, 1.5);
+        ctx.fillRect(this.tmp[0] - 7, this.tmp[1] - 1, 14, 1.5);
+        ctx.fillRect(this.tmp[0] - 6, this.tmp[1] - 5, 1, 6);
+        ctx.fillRect(this.tmp[0] + 5, this.tmp[1] - 5, 1, 6);
+      }
+      this.visibleCount++;
+    }
+    this.drawSceneryElements(ctx, map, cam, tile);
+  }
+
+  private drawSceneryElements(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    tile: number,
+  ): void {
+    const scenery = map.sceneryElements;
+    if (!scenery) return;
+    for (
+      let sceneryIndex = this.sceneryOffsets[tile];
+      sceneryIndex < this.sceneryOffsets[tile + 1];
+      sceneryIndex++
+    ) {
+      const offset = this.sceneryIndices[sceneryIndex] * 5;
+      const x = scenery[offset];
+      const y = scenery[offset + 1];
+      const z = scenery[offset + 2] * Z_STEP;
+      const definition = SCENERY_CATALOG[scenery[offset + 4]];
+      if (!definition) continue;
+      project(
+        x * TILE_UNITS + TILE_UNITS / 2,
+        y * TILE_UNITS + TILE_UNITS / 2,
+        z,
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, definition.width)) continue;
+      const crownHeight = Math.max(5, definition.height * Z_PIXELS * 0.55);
+      if (definition.category === SceneryCategory.Trees) {
+        ctx.fillStyle = '#76502e';
+        ctx.fillRect(this.tmp[0] - 1.5, this.tmp[1] - crownHeight * 0.45, 3, crownHeight * 0.45);
+        ctx.fillStyle = TREE_COLORS[scenery[offset + 4]] ?? TREE_COLORS[0];
+        ctx.beginPath();
+        ctx.arc(
+          this.tmp[0],
+          this.tmp[1] - crownHeight * 0.7,
+          Math.max(5, definition.width * 0.22),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      } else if (definition.category === SceneryCategory.Gardens) {
+        ctx.fillStyle = '#745135';
+        ctx.fillRect(this.tmp[0] - 11, this.tmp[1] - 4, 22, 7);
+        for (let flower = 0; flower < 3; flower++) {
+          ctx.fillStyle = FLOWER_COLORS[flower];
+          ctx.beginPath();
+          ctx.arc(this.tmp[0] + (flower - 1) * 6, this.tmp[1] - 2, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (definition.category === SceneryCategory.Fences) {
+        ctx.fillStyle = scenery[offset + 4] === 7 ? '#8b8a84' : '#9a7048';
+        const vertical = (scenery[offset + 3] & 1) === 1;
+        ctx.fillRect(this.tmp[0] - (vertical ? 2 : 12), this.tmp[1] - 9, vertical ? 4 : 24, 3);
+        ctx.fillRect(this.tmp[0] - (vertical ? 2 : 12), this.tmp[1] - 3, vertical ? 4 : 24, 3);
+      } else {
+        ctx.fillStyle = SHRUB_COLOR;
+        ctx.fillRect(this.tmp[0] - 10, this.tmp[1] - 7, 20, 8);
       }
       this.visibleCount++;
     }

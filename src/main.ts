@@ -16,8 +16,9 @@ import { downloadBytes } from './ui/dom';
 import { loadSettings, saveSettings } from './ui/settings';
 import type { GameSpeed } from './ui/settings';
 import { DEFAULT_MAP_SIZE, TILE_UNITS, Z_STEP } from './sim/core/constants';
-import { PathFlag } from './sim/map/tile-map';
+import { PathFlag, PathStyle } from './sim/map/tile-map';
 import { PathAddition } from './sim/map/paths';
+import { SceneryItem } from './sim/map/scenery';
 import { CoasterPanel } from './ui/coaster-panel';
 import { RIDE_CATALOG } from './sim/rides/ride-types';
 import { TrackPreviewOverlay } from './ui/track-preview';
@@ -82,6 +83,8 @@ let patrolKind: number | null = null;
 let alternate = false;
 let pathQueue = false;
 let pathSlope = -1;
+let pathStyle = PathStyle.Tarmac;
+let sceneryItem = SceneryItem.OakTree;
 let brush = 1;
 const windows = new WindowManager(root);
 const coasterPanel = new CoasterPanel(windows, {
@@ -126,6 +129,12 @@ const gameUi = new GameUI(root, windows, {
   setPathOptions(queue, slope) {
     pathQueue = queue;
     pathSlope = slope;
+  },
+  setPathStyle(style) {
+    pathStyle = style as PathStyle;
+  },
+  setSceneryItem(item) {
+    sceneryItem = item as SceneryItem;
   },
   locate(x, y) {
     centreOnTile(x, y);
@@ -601,9 +610,25 @@ function handleCanvasClick(
         sim.command({ type: 'removePath', x, y });
         gameUi.setToolStatus(`Path removal requested at ${x}, ${y}.`);
       } else {
-        sim.command({ type: 'placePath', x, y, queue: pathQueue, slope: pathSlope });
+        sim.command({
+          type: 'placePath',
+          x,
+          y,
+          style: pathStyle,
+          queue: pathQueue,
+          slope: pathSlope,
+        });
         gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
       }
+    } else if (selectedTool === 'scenery') {
+      sim.command(
+        shiftKey || alternate
+          ? { type: 'removeScenery', x, y }
+          : { type: 'placeScenery', x, y, item: sceneryItem },
+      );
+      gameUi.setToolStatus(
+        `${shiftKey || alternate ? 'Scenery removal' : 'Scenery placement'} requested at ${x}, ${y}.`,
+      );
     } else if (
       selectedTool === 'bin' ||
       selectedTool === 'bench' ||
@@ -841,6 +866,7 @@ function frame(now: number): void {
     }
   }
   syncPause();
+  camera.showGridlines = localStorage.getItem('opencoaster-option-gridlines') === 'true';
   const renderStart = performance.now();
   renderer.draw(sim.latest, camera);
   drawPatrolOverlay();

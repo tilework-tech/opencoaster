@@ -86,18 +86,42 @@ const GLYPHS = {
 
 export type IconName = keyof typeof GLYPHS;
 
+const SPRITE_ICONS: Partial<Record<IconName, readonly [number, number]>> = {
+  land: [0, 0],
+  water: [1, 0],
+  scenery: [2, 0],
+  paths: [3, 0],
+  rides: [0, 1],
+  coaster: [1, 1],
+  entrance: [2, 1],
+  finances: [3, 1],
+  park: [0, 2],
+  staff: [1, 2],
+  guests: [2, 2],
+  research: [3, 2],
+  zoomIn: [0, 3],
+  rotateLeft: [1, 3],
+  play: [2, 3],
+  menu: [3, 3],
+};
+
 /** A decorative SVG icon; the caller supplies the accessible name on the control. */
 export function icon(name: IconName): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('class', 'ui-icon');
+  const sprite = SPRITE_ICONS[name];
+  svg.setAttribute('class', sprite ? 'ui-icon ui-icon-sheet' : 'ui-icon');
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
   svg.setAttribute('stroke-width', '2');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
-  svg.innerHTML = GLYPHS[name];
+  if (sprite) {
+    svg.style.backgroundPosition = `${(sprite[0] / 3) * 100}% ${(sprite[1] / 3) * 100}%`;
+  } else {
+    svg.innerHTML = GLYPHS[name];
+  }
   return svg;
 }
 

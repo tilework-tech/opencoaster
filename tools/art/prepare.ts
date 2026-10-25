@@ -1,9 +1,11 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import sharp from 'sharp';
+import { defringeRgba } from './image-cleanup';
 
 const sourceDirectory = new URL('./source/', import.meta.url);
 const outputDirectory = new URL('../../public/sprites/', import.meta.url);
+const PATH_SPRITE_SIZE = 96;
 
 interface FrameRegion {
   x: number;
@@ -38,13 +40,8 @@ async function cell(source: Buffer, bounds: FrameRegion): Promise<Buffer> {
   }
   if (right < left || bottom < top) throw new Error('Source sheet contains an empty cell');
 
-  for (let offset = 0; offset < crop.data.length; offset += 4) {
-    if (crop.data[offset + 3] !== 0) continue;
-    crop.data[offset] = 0;
-    crop.data[offset + 1] = 0;
-    crop.data[offset + 2] = 0;
-  }
-  return sharp(crop.data, {
+  const cleaned = defringeRgba(crop.data, crop.info.width, crop.info.height);
+  return sharp(cleaned, {
     raw: { width: crop.info.width, height: crop.info.height, channels: 4 },
   })
     .extract({ left, top, width: right - left + 1, height: bottom - top + 1 })
@@ -57,13 +54,8 @@ async function cleanedImage(source: Buffer, maxDimension: number): Promise<Buffe
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  for (let offset = 0; offset < data.length; offset += 4) {
-    if (data[offset + 3] !== 0) continue;
-    data[offset] = 0;
-    data[offset + 1] = 0;
-    data[offset + 2] = 0;
-  }
-  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
+  const cleaned = defringeRgba(data, info.width, info.height);
+  return sharp(cleaned, { raw: { width: info.width, height: info.height, channels: 4 } })
     .resize({
       width: maxDimension,
       height: maxDimension,
@@ -75,11 +67,54 @@ async function cleanedImage(source: Buffer, maxDimension: number): Promise<Buffe
     .toBuffer();
 }
 
-async function orientImage(source: Buffer, orientation: number): Promise<Buffer> {
-  let image = sharp(source);
-  if (orientation & 1) image = image.flop();
-  if (orientation & 2) image = image.flip();
-  return image.png().toBuffer();
+async function opaqueTexture(source: Buffer, size: number, seed: number): Promise<Buffer> {
+  const pixels = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const centerX = Math.floor(pixels.info.width / 2);
+  const centerY = Math.floor(pixels.info.height / 2);
+  const findOpaqueSample = (minimumAlpha: number): number => {
+    for (let radius = 0; radius < Math.max(pixels.info.width, pixels.info.height); radius++) {
+      for (
+        let y = Math.max(0, centerY - radius);
+        y <= Math.min(pixels.info.height - 1, centerY + radius);
+        y++
+      ) {
+        for (
+          let x = Math.max(0, centerX - radius);
+          x <= Math.min(pixels.info.width - 1, centerX + radius);
+          x++
+        ) {
+          const offset = (y * pixels.info.width + x) * 4;
+          if (pixels.data[offset + 3]! >= minimumAlpha) return offset;
+        }
+      }
+    }
+    return -1;
+  };
+  const opaqueSample = findOpaqueSample(250);
+  const sampleOffset = opaqueSample >= 0 ? opaqueSample : findOpaqueSample(1);
+  if (sampleOffset < 0) throw new Error('Generated texture source has no opaque pixels');
+
+  const texture = Buffer.alloc(size * size * 4);
+  let state = (0x9e3779b9 ^ seed) >>> 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const offset = (y * size + x) * 4;
+      state ^= state << 13;
+      state ^= state >>> 17;
+      state ^= state << 5;
+      state >>>= 0;
+      const noise = (state % 5) - 2;
+      for (let channel = 0; channel < 3; channel++)
+        texture[offset + channel] = Math.max(
+          0,
+          Math.min(255, pixels.data[sampleOffset + channel]! + noise),
+        );
+      texture[offset + 3] = 255;
+    }
+  }
+  return sharp(texture, { raw: { width: size, height: size, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
 async function recolorPath(
@@ -244,27 +279,45 @@ async function saveAnimation(spriteId: string, images: Buffer[], info: SpriteInf
 }
 
 async function prepareTerrain(): Promise<void> {
-  const source = await readFile(new URL('terrain-sheet.png', sourceDirectory));
+  const source = await readFile(new URL('terrain-shapes.png', sourceDirectory));
   const { width, height } = await sharp(source).metadata();
   if (!width || !height) throw new Error('Could not read terrain sheet dimensions');
   const materials = ['grass', 'sand', 'dirt', 'rock'];
   for (let row = 0; row < materials.length; row++) {
-    const sourceShapes = await Promise.all(
-      Array.from({ length: 4 }, async (_, column) =>
-        cleanedImage(await cell(source, gridBounds(width, height, 4, 4, column, row)), 128),
-      ),
-    );
-    for (let shape = 0; shape < 19; shape++) {
-      const oriented = await orientImage(
-        sourceShapes[shape % sourceShapes.length],
-        Math.floor(shape / sourceShapes.length) % 4,
+    let flatTerrain: Buffer | undefined;
+    for (let shape = 0; shape < 16; shape++) {
+      const cleaned = await cleanedImage(
+        await cell(source, gridBounds(width, height, 20, 4, shape, row)),
+        128,
       );
-      const cleaned = await cleanedImage(oriented, 128);
+      if (shape === 0) flatTerrain = cleaned;
       const dimensions = await sharp(cleaned).metadata();
       const spriteId = `terrain/${materials[row]}/shape-${shape.toString(16).padStart(2, '0')}`;
       if (!dimensions.width || !dimensions.height)
         throw new Error(`Could not read cleaned terrain sprite ${spriteId}`);
       await saveSprite(spriteId, cleaned, {
+        anchor: { x: Math.floor(dimensions.width / 2), y: dimensions.height },
+        footprint: { width: 1, height: 1 },
+      });
+    }
+    if (!flatTerrain) throw new Error(`Missing flat terrain texture for ${materials[row]}`);
+    const flatDimensions = await sharp(flatTerrain).metadata();
+    if (!flatDimensions.width || !flatDimensions.height)
+      throw new Error(`Could not read flat terrain texture for ${materials[row]}`);
+    const patch = await opaqueTexture(flatTerrain, 16, row);
+    await saveSprite(`terrain/${materials[row]}/surface`, patch, {
+      anchor: { x: 0, y: 0 },
+      footprint: { width: 1, height: 1 },
+    });
+    for (let direction = 0; direction < 4; direction++) {
+      const cleaned = await cleanedImage(
+        await cell(source, gridBounds(width, height, 20, 4, 16 + direction, row)),
+        128,
+      );
+      const dimensions = await sharp(cleaned).metadata();
+      if (!dimensions.width || !dimensions.height)
+        throw new Error(`Could not read terrain cliff face ${materials[row]} ${direction}`);
+      await saveSprite(`terrain/${materials[row]}/cliff-face-${direction}`, cleaned, {
         anchor: { x: Math.floor(dimensions.width / 2), y: dimensions.height },
         footprint: { width: 1, height: 1 },
       });
@@ -282,7 +335,7 @@ async function preparePaths(): Promise<void> {
         source,
         gridBounds(width, height, 4, 4, connection % 4, Math.floor(connection / 4)),
       );
-      return cleanedImage(image, 128);
+      return cleanedImage(image, PATH_SPRITE_SIZE);
     }),
   );
   const styles: Array<'tarmac' | 'crazy-paving' | 'dirt' | 'queue'> = [
@@ -298,7 +351,7 @@ async function preparePaths(): Promise<void> {
       ),
     );
     for (let connection = 0; connection < styleConnections.length; connection++) {
-      const cleaned = await cleanedImage(styleConnections[connection], 128);
+      const cleaned = await cleanedImage(styleConnections[connection], PATH_SPRITE_SIZE);
       const dimensions = await sharp(cleaned).metadata();
       const spriteId = `paths/${style}/connection-${String(connection).padStart(2, '0')}`;
       if (!dimensions.width || !dimensions.height)
@@ -312,7 +365,7 @@ async function preparePaths(): Promise<void> {
     for (let direction = 0; direction < 4; direction++) {
       const ramp = await cleanedImage(
         await rampImage(styleConnections[1 << direction], direction),
-        128,
+        PATH_SPRITE_SIZE,
       );
       const dimensions = await sharp(ramp).metadata();
       const spriteId = `paths/${style}/ramp-${String(direction).padStart(2, '0')}`;
@@ -333,7 +386,7 @@ async function prepareWater(): Promise<void> {
   const frames: Buffer[] = [];
   for (let frame = 0; frame < 4; frame++) {
     const image = await cell(source, gridBounds(width, height, 4, 1, frame, 0));
-    frames.push(await cleanedImage(image, 128));
+    frames.push(await opaqueTexture(image, 32, frame + 10));
   }
   await saveAnimation('water/surface', frames, {
     anchor: { x: 0, y: 0 },
@@ -377,11 +430,25 @@ async function prepareProps(): Promise<void> {
   }
 }
 
+async function prepareUi(): Promise<void> {
+  const source = await readFile(new URL('ui-icons.png', sourceDirectory));
+  const cleaned = await cleanedImage(source, 1024);
+  const destination = new URL('../../public/sprites/ui/icons.png', import.meta.url);
+  await mkdir(dirname(destination.pathname), { recursive: true });
+  await writeFile(destination, cleaned);
+}
+
 async function main(): Promise<void> {
   const destination = outputDirectory.pathname;
   await rm(destination, { recursive: true, force: true });
   await mkdir(destination, { recursive: true });
-  await Promise.all([prepareTerrain(), preparePaths(), prepareWater(), prepareProps()]);
+  await Promise.all([
+    prepareTerrain(),
+    preparePaths(),
+    prepareWater(),
+    prepareProps(),
+    prepareUi(),
+  ]);
 }
 
 await main();

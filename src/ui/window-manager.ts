@@ -191,7 +191,7 @@ export class WindowManager {
     const at = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
     win.root.style.setProperty('--x', `${at.x}px`);
     win.root.style.setProperty('--y', `${at.y}px`);
-    win.root.addEventListener('pointerdown', () => this.focus(win), true);
+    win.root.addEventListener('pointerdown', () => this.focus(win, true), true);
     this.windows.set(spec.id, win);
     this.layer.append(win.root);
     this.focus(win);
@@ -225,10 +225,12 @@ export class WindowManager {
     this.windows.clear();
   }
 
-  focus(win: UiWindow): void {
+  focus(win: UiWindow, preserveCollapsed = false): void {
+    const wasCollapsed = preserveCollapsed && win.root.classList.contains('collapsed');
     win.root.style.zIndex = String(win.pinned ? 1000 + ++this.z : ++this.z);
     for (const other of this.windows.values()) other.root.classList.toggle('front', other === win);
     this.relayout();
+    if (wasCollapsed && !win.pinned) win.root.classList.add('collapsed');
   }
 
   attachDrag(win: UiWindow, handle: HTMLElement): void {

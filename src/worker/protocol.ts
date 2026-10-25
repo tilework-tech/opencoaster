@@ -34,9 +34,12 @@ export interface MapMessage {
   /** Corner mask per tile (bit c set when corner c is one level above `heights`). */
   slope: Uint8Array;
   waterLevel: Uint8Array;
-  /** Five ints per path stack element: tile x, tile y, base level, flags, element data. */
+  /** Six ints per path element: tile x, y, base level, flags, element data, paving style. */
   pathElements: Int32Array;
   pathCount: number;
+  /** Five ints per scenery element: tile x, tile y, base level, rotation, catalog item. */
+  sceneryElements: Int32Array;
+  sceneryCount: number;
 }
 
 export interface Stats {

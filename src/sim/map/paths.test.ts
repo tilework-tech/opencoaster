@@ -178,3 +178,15 @@ describe('pathfinder integration', () => {
     expect(m.pathVersion).toBeGreaterThan(v1);
   });
 });
+
+describe('path surface styles', () => {
+  it('stores the selected paving style on ordinary and queue paths', () => {
+    const m = ownedMap();
+    expect(placePath(m, { x: 6, y: 6, style: 2 })).toBe(true);
+    const ordinary = m.pathElement(I(m, 6, 6), -1);
+    expect(m.pathStyle[ordinary]).toBe(2);
+    expect(placePath(m, { x: 7, y: 6, queue: true, style: 1 })).toBe(true);
+    const queue = m.pathElement(I(m, 7, 6), -1);
+    expect(m.pathStyle[queue]).toBe(1);
+  });
+});

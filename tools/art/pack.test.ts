@@ -120,4 +120,26 @@ describe('world art atlas packing', () => {
     expect(manifest.height).toBeLessThanOrEqual(2048);
     expect(manifest.sprites.sheet.frames).toHaveLength(65);
   });
+
+  it('keeps browser UI sheets out of the world sprite atlas', async () => {
+    const source = await makeFixture();
+    await mkdir(join(source, 'ui'), { recursive: true });
+    await sharp({
+      create: {
+        width: 1536,
+        height: 1024,
+        channels: 4,
+        background: { r: 20, g: 30, b: 40, alpha: 1 },
+      },
+    })
+      .png()
+      .toFile(join(source, 'ui', 'icons.png'));
+
+    const manifest = await packSprites(source, join(source, 'output'));
+
+    expect(manifest.sprites['ui/icons']).toBeUndefined();
+    expect(manifest.sprites['terrain/probe']).toBeDefined();
+    expect(manifest.width).toBeLessThanOrEqual(1024);
+    expect(manifest.height).toBeLessThanOrEqual(2048);
+  });
 });

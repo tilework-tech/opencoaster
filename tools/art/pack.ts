@@ -83,7 +83,9 @@ async function loadSprites(inputDir: string): Promise<{
   frames: SourceFrame[];
   metadata: Map<string, Omit<SpriteMetadata, 'frames'>>;
 }> {
-  const files = await listPngs(inputDir);
+  const files = (await listPngs(inputDir)).filter(
+    (file) => normalizeKey(relative(inputDir, file)).split('/')[0] !== 'ui',
+  );
   const frames: SourceFrame[] = [];
   const metadata = new Map<string, Omit<SpriteMetadata, 'frames'>>();
 

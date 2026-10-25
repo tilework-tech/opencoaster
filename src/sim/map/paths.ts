@@ -3,6 +3,7 @@ import {
   ElementType,
   MAX_ELEMENT_BASE,
   PathFlag,
+  PathStyle,
   repairPathElement,
   SLOPE_DIR_SHIFT,
 } from './tile-map';
@@ -19,6 +20,7 @@ export interface PathPlacement {
   /** Direction (0..3) the path rises toward, for a ramp. Omit for a flat piece. */
   slope?: number;
   queue?: boolean;
+  style?: PathStyle;
 }
 
 export interface PathRemoval {
@@ -113,6 +115,8 @@ export function placePath(m: TileMap, p: PathPlacement): boolean {
   if (!Number.isInteger(z) || z < m.heights[i] || z > MAX_ELEMENT_BASE) return false;
 
   const ramp = dir >= 0;
+  const style = p.style ?? PathStyle.Tarmac;
+  if (!Number.isInteger(style) || style < PathStyle.Tarmac || style > PathStyle.Dirt) return false;
   const top = m.heights[i] + (m.slope[i] !== 0 ? 1 : 0);
   if (z < top && !(ramp && z === m.heights[i] && m.slope[i] === rampMask(dir))) return false;
   if (m.waterLevel[i] > z) return false;
@@ -128,11 +132,19 @@ export function placePath(m: TileMap, p: PathPlacement): boolean {
     (p.queue ? PathFlag.Queue : 0) | (ramp ? PathFlag.Sloped | (dir << SLOPE_DIR_SHIFT) : 0);
   const keep = PathFlag.Queue | PathFlag.Sloped | PathFlag.SlopeDir;
   if (existing >= 0) {
-    if ((m.elFlags[existing] & keep) === flags && m.elClear[existing] === clear) return true;
+    if (
+      (m.elFlags[existing] & keep) === flags &&
+      m.elClear[existing] === clear &&
+      m.pathStyle[existing] === style
+    )
+      return true;
     m.elFlags[existing] = (m.elFlags[existing] & ~keep) | flags;
     m.elClear[existing] = clear;
+    m.pathStyle[existing] = style;
   } else if (m.addElement(i, ElementType.Path, z, clear, flags, 0) < 0) {
     return false;
+  } else {
+    m.pathStyle[m.pathElement(i, z)] = style;
   }
   recomputePathEdges(m, i);
   m.refreshTile(i);

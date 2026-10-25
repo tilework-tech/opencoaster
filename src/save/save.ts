@@ -19,7 +19,9 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
+const PRE_PATH_STYLE_SAVE_VERSION = 16;
+const PATH_STYLE_SAVE_VERSION = 17;
 const PREVIOUS_SAVE_VERSION = 15;
 const PRE_V15_SAVE_VERSION = 14;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
@@ -412,6 +414,7 @@ export function deserialize(bytes: Uint8Array): World {
     STAFF_ORDER_SAVE_VERSION,
     PREVIOUS_SAVE_VERSION,
     PRE_V15_SAVE_VERSION,
+    PRE_PATH_STYLE_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -458,6 +461,8 @@ export function deserialize(bytes: Uint8Array): World {
   const rideViewEnd = allViews.length - trackViews.length;
   const rideViewStart = rideViewEnd - world.rides.arrays().length;
   const guestViewStart = world.map.arrays().length;
+  const mapViews = allViews.slice(0, guestViewStart);
+  const savedMapViews = header.version < PATH_STYLE_SAVE_VERSION ? mapViews.slice(0, -1) : mapViews;
   const guestPayloadViews = legacyGuests
     ? legacyGuests.arrays()
     : allViews.slice(
@@ -470,7 +475,7 @@ export function deserialize(bytes: Uint8Array): World {
   const vehicleViewEnd = staffViewEnd + world.vehicles.arrays().length;
   const litterViewEnd = vehicleViewEnd + world.litter.arrays().length;
   const serializedViews = [
-    ...allViews.slice(0, guestViewStart),
+    ...savedMapViews,
     ...guestPayloadViews,
     ...(legacyStaff
       ? legacyStaff.arrays()
@@ -517,11 +522,11 @@ export function deserialize(bytes: Uint8Array): World {
   world.track.lastResult = header.track.lastResult;
   world.track.lastPiece = header.track.lastPiece;
   let economySave = header.economy;
-  if (header.version < SAVE_VERSION) {
+  if (header.version < PRE_PATH_STYLE_SAVE_VERSION) {
     economySave = header.economy;
   }
   restoreLedger(world.economy, economySave);
-  if (header.version < SAVE_VERSION) {
+  if (header.version < PRE_PATH_STYLE_SAVE_VERSION) {
     world.economy.inputs.wageBillPerWeek = calculateStaffWageBill(world);
   }
   if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
