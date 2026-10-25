@@ -4,6 +4,7 @@ import { SceneryItem } from '../sim/map/scenery';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
 import type { MapData } from './renderer';
+import { SpritePages } from './sprite-pages';
 
 class RecordingContext {
   readonly canvas = { width: 1, height: 1 };
@@ -112,19 +113,29 @@ describe('Canvas2D fallback map art', () => {
     renderer.attach(canvas);
     renderer.resize(800, 600, 1);
     renderer.setMap(map);
-    (renderer as unknown as { atlas: CanvasAtlas }).atlas = {
-      image: {} as ImageBitmap,
-      sprites: {
-        'terrain/grass/surface': {
-          frames: [{ x: 10, y: 0, width: 64, height: 32 }],
-          anchor: { x: 32, y: 16 },
-        },
-        'terrain/sand/surface': {
-          frames: [{ x: 20, y: 0, width: 64, height: 32 }],
-          anchor: { x: 32, y: 16 },
+    const atlas: CanvasAtlas = new SpritePages();
+    atlas.install(
+      {
+        pages: [{ file: 'atlas/world-0.png', width: 128, height: 64, category: 'world' }],
+        categories: { world: { lazy: false, pages: [0] } },
+        sprites: {
+          'terrain/grass/surface': {
+            category: 'world',
+            frames: [{ page: 0, x: 10, y: 0, width: 64, height: 32 }],
+            anchor: { x: 32, y: 16 },
+            footprint: { width: 1, height: 1 },
+          },
+          'terrain/sand/surface': {
+            category: 'world',
+            frames: [{ page: 0, x: 20, y: 0, width: 64, height: 32 }],
+            anchor: { x: 32, y: 16 },
+            footprint: { width: 1, height: 1 },
+          },
         },
       },
-    };
+      new Map([[0, {} as ImageBitmap]]),
+    );
+    (renderer as unknown as { atlas: CanvasAtlas }).atlas = atlas;
 
     renderer.draw(null, { x: 0, y: 0, zoom: 1, rotation: 0 });
 
