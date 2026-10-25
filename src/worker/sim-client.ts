@@ -2,6 +2,7 @@ import type { Command } from '../sim/core/commands';
 import type { PathPlacement } from '../sim/map/paths';
 import type { PathPiecePreview } from '../sim/map/map-commands';
 import type { InitMessage, MapMessage, Stats, ToWorker, FromWorker } from './protocol';
+import type { LandEdit, LandPlan } from '../sim/map/land-tool';
 import { snapshotBuffers } from './snapshot';
 import type { Snapshot } from './snapshot';
 
@@ -22,6 +23,10 @@ export class SimClient {
   latest: Snapshot | null = null;
   map: MapMessage | null = null;
   stats: Stats | null = null;
+  /** Newest land preview answer and the edit it answers; null until one arrives. */
+  landPreview: { edit: LandEdit; plan: LandPlan } | null = null;
+  private previewSeq = 0;
+  private readonly previewEdits = new Map<number, LandEdit>();
   /** Called for every published map; `newGame` is true only for the map of a started or loaded game. */
   onMap: ((m: MapMessage, newGame: boolean) => void) | null = null;
 
@@ -57,6 +62,12 @@ export class SimClient {
         this.recycleLatest();
         this.latest = msg.snapshot;
         break;
+      case 'landPreview': {
+        const edit = this.previewEdits.get(msg.id);
+        if (edit && msg.id === this.previewSeq) this.landPreview = { edit, plan: msg.plan };
+        this.previewEdits.delete(msg.id);
+        break;
+      }
       case 'stats':
         this.stats = msg.stats;
         break;
@@ -119,6 +130,19 @@ export class SimClient {
       this.pending.push({ kind: 'load', resolve: resolve as (v: unknown) => void, reject });
       this.worker.postMessage({ type: 'load', bytes: copy } satisfies ToWorker, [copy.buffer]);
     });
+  }
+
+  /** Asks the worker what a land edit would do; the answer lands in `landPreview`. */
+  previewLand(edit: LandEdit): void {
+    const id = ++this.previewSeq;
+    this.previewEdits.clear();
+    this.previewEdits.set(id, edit);
+    this.worker.postMessage({ type: 'previewLand', id, edit } satisfies ToWorker);
+  }
+  clearLandPreview(): void {
+    this.previewSeq++;
+    this.previewEdits.clear();
+    this.landPreview = null;
   }
 
   command(command: Command): void {
