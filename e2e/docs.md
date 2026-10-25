@@ -32,7 +32,7 @@ Path: @/e2e
 - Repository screenshots captured by the UI flow are stored in [docs/screenshots](../docs/screenshots).
 
 - The current UI does not expose stall placement or price controls, so those requested playtest actions remain uncovered. Coaster construction is available and exercised by the test.
-- The default `pnpm e2e` flow completes the build and save/import/load checks without advancing a full year. Set `E2E_RUN_YEAR=1` to opt into the year-one scenario outcome; that run exceeded the 850-second expectation, so it is kept out of the default suite.
+- The default `pnpm e2e` flow completes the build and save/import/load checks without advancing a full year. Set `E2E_RUN_YEAR=1` to opt into the longer year-one scenario outcome run.
 - Screenshot filenames encode the sequence and are stored under Playwright’s test output directory rather than committed as repository assets.
 - Mobile profiles and SwiftShader are browser emulation; their screenshots and FPS samples verify the browser integration path but do not characterize physical phone GPU performance.
 
