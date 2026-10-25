@@ -3,6 +3,7 @@ import type { RideType } from '../sim/rides/ride-types';
 import type { Camera, MapData } from '../render/renderer';
 import type { Stats } from '../worker/protocol';
 import type { Snapshot } from '../worker/snapshot';
+import type { PlayerSettings } from './settings';
 import type { SampleSeries } from './format';
 import type { WindowManager } from './window-manager';
 
@@ -53,6 +54,11 @@ export interface GameUIActions {
   editTrack(rideId: number): void;
   map(): MapData | null;
   camera(): Camera;
+  audioSettings(): Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'muted'>;
+  setAudioSettings(
+    settings: Partial<Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'muted'>>,
+  ): void;
+  playUiSound(name: 'click' | 'open' | 'close' | 'news'): void;
 }
 
 /** Structured guest selection; a point-in-time copy of the guest's snapshot values. */

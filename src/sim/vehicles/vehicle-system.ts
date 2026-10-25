@@ -335,6 +335,29 @@ function enterSegment(
       cols.inversionCount[slot] = Math.min(0xff, cols.inversionCount[slot] + 1);
     }
   }
+  if (cols.state[slot] === VehicleState.Running) {
+    if (flags & VehicleSegmentFlag.DropStart) {
+      const rideSlot =
+        track.rideId < world.rides.idToSlot.length ? world.rides.idToSlot[track.rideId]! : -1;
+      world.audioEvents.push({
+        id: ++world.audioEventSequence,
+        type: 'scream',
+        rideId: track.rideId,
+        intensity: rideSlot < 0 ? 50 : world.rides.cols.intensity[rideSlot],
+      });
+    }
+    if (flags & VehicleSegmentFlag.ChainLift) {
+      const last = world.audioClankTick.get(track.rideId) ?? -10;
+      if (world.tick - last >= 10) {
+        world.audioClankTick.set(track.rideId, world.tick);
+        world.audioEvents.push({
+          id: ++world.audioEventSequence,
+          type: 'clank',
+          rideId: track.rideId,
+        });
+      }
+    }
+  }
   cols.lastSegment[slot] = segment;
   return true;
 }

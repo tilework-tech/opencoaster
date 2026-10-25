@@ -10,6 +10,7 @@ import { flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/f
 import { RideType } from '../sim/rides/ride-types';
 import { LedgerCategory, PriceMode } from '../sim/economy/ledger';
 import { Funding } from '../sim/research/research';
+import { prepareFlat } from '../sim/integration/fixtures';
 import { StaffKind, StaffOrder } from '../sim/staff/staff-store';
 import {
   RideInfo,
@@ -21,6 +22,24 @@ import {
 } from './snapshot';
 
 describe('render snapshot', () => {
+  it('publishes successful build and demolition cues once', () => {
+    const simulation = new Simulation({ seed: 5, width: 16, height: 16 });
+    prepareFlat(simulation.world);
+    simulation.world.economy.cash = 1_000_000;
+    simulation.enqueue({ type: 'placePath', x: 4, y: 4 });
+    simulation.step();
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+    writeSnapshot(simulation.world, snapshot);
+    expect(snapshot.audioEvents).toEqual([{ id: 1, type: 'build' }]);
+    expect(simulation.world.audioEvents).toEqual([]);
+    simulation.enqueue({ type: 'removePath', x: 4, y: 4 });
+    simulation.step();
+    writeSnapshot(simulation.world, snapshot);
+    expect(snapshot.audioEvents).toEqual([{ id: 2, type: 'demolish' }]);
+    writeSnapshot(simulation.world, snapshot);
+    expect(snapshot.audioEvents).toEqual([]);
+  });
+
   it('publishes each worker task-order mask by stable staff id', () => {
     const simulation = new Simulation({ seed: 19, width: 8, height: 8 });
     simulation.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });

@@ -144,7 +144,20 @@ export class Simulation {
     if (this.pending.length > 0) {
       const cmds = this.pending;
       this.pending = [];
-      for (const c of cmds) this.apply(c);
+      for (const c of cmds) {
+        const mapRevision = w.map.revision;
+        const rides = w.rides.count;
+        const tracks = w.track.pieces.count;
+        this.apply(c);
+        if (
+          w.map.revision !== mapRevision ||
+          w.rides.count !== rides ||
+          w.track.pieces.count !== tracks
+        ) {
+          const removal = c.type === 'removePath' || c.type === 'removeTrack';
+          w.audioEvents.push({ id: ++w.audioEventSequence, type: removal ? 'demolish' : 'build' });
+        }
+      }
     }
     for (const system of SYSTEM_ORDER) system.update(w);
     w.tick++;

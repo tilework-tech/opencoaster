@@ -7,9 +7,24 @@ export type GameSpeed = (typeof GAME_SPEEDS)[number];
 export interface PlayerSettings {
   speed: GameSpeed;
   paused: boolean;
+  soundVolume: number;
+  musicVolume: number;
+  muted: boolean;
 }
 
-export const DEFAULT_SETTINGS: PlayerSettings = { speed: 1, paused: false };
+export const DEFAULT_SETTINGS: PlayerSettings = {
+  speed: 1,
+  paused: false,
+  soundVolume: 1,
+  musicVolume: 0.7,
+  muted: false,
+};
+
+function volume(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.min(1, value))
+    : fallback;
+}
 
 /** Reads saved settings, keeping each field that is valid and defaulting the rest. */
 export function parseSettings(raw: string | null): PlayerSettings {
@@ -27,6 +42,9 @@ export function parseSettings(raw: string | null): PlayerSettings {
       ? (record.speed as GameSpeed)
       : DEFAULT_SETTINGS.speed,
     paused: typeof record.paused === 'boolean' ? record.paused : DEFAULT_SETTINGS.paused,
+    soundVolume: volume(record.soundVolume, DEFAULT_SETTINGS.soundVolume),
+    musicVolume: volume(record.musicVolume, DEFAULT_SETTINGS.musicVolume),
+    muted: typeof record.muted === 'boolean' ? record.muted : DEFAULT_SETTINGS.muted,
   };
 }
 

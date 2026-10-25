@@ -87,6 +87,13 @@ export interface SnapshotLayer {
 
 export interface Snapshot {
   tick: number;
+  /** Successful construction commands produced since the previous simulation tick. */
+  audioEvents: Array<{
+    id: number;
+    type: 'build' | 'demolish' | 'scream' | 'clank' | 'register';
+    rideId?: number;
+    intensity?: number;
+  }>;
   guests: SnapshotLayer;
   staff: SnapshotLayer;
   /** Stable staff id per staff slot, in the same order as `staff`. */
@@ -172,6 +179,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
   });
   return {
     tick: 0,
+    audioEvents: [],
     guests: layer(caps.guests),
     staff: layer(caps.staff),
     staffIds: new Int32Array(caps.staff),
@@ -298,6 +306,8 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
 
 export function writeSnapshot(world: World, out: Snapshot): void {
   out.tick = world.tick;
+  out.audioEvents = world.audioEvents.map((event) => ({ ...event }));
+  world.audioEvents.length = 0;
   out.activeAwards = world.economy.activeAwards
     .filter((award) => award.expiresTick > world.tick)
     .map((award) => ({ ...award }));

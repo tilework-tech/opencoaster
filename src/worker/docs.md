@@ -12,7 +12,8 @@ Path: @/src/worker
 
 - [SimClient](sim-client.ts) starts [sim.worker.ts](sim.worker.ts), sends commands and scheduler controls, and receives map data, snapshots, and statistics.
 - [SimRunner](sim-runner.ts) owns the [Simulation](../sim/core/simulation.ts) and advances it through [FixedStepScheduler](scheduler.ts). Its pump applies due ticks, updates timing statistics, and publishes a snapshot when a pooled buffer is available.
-- [snapshot.ts](snapshot.ts) translates simulation columns into render and UI data for [src/render](../render/docs.md) and [src/ui](../ui/docs.md). Along with buildability, it publishes per-tile ground care, stable staff IDs aligned with the staff render layer, staff names keyed by ID, guest details aligned with the guest layer, and ride information for the UI and ride markers.
+- [snapshot.ts](snapshot.ts) translates simulation columns into render and UI data for [src/render](../render/docs.md) and [src/ui](../ui/docs.md). Along with buildability, it publishes per-tile ground care, stable staff IDs aligned with the staff render layer, staff names keyed by ID, guest details aligned with the guest layer, ride information for the UI and ride markers, track operating modes, and successful build/demolish audio cues.
+- The browser's [audio engine](../audio/docs.md) consumes these snapshot cues and ride/weather state on the main thread. Sound playback is an observer of snapshots and does not send commands to or gate the simulation.
 - Snapshot buffers travel as transferable `ArrayBuffer`s. The client returns consumed buffers to the worker for reuse, keeping the simulation thread as the sole owner of live world state.
 
 ### Core Implementation
@@ -25,6 +26,7 @@ Path: @/src/worker
 - `buildable` is a `Uint8Array` indexed by map tile. Each snapshot fills it from the map's `canBuild` result, representing owned land or construction rights for that tile.
 - `rideInfo` carries `RIDE_INFO_STRIDE` ints per ride in ride-layer order: stable ID, type/state/phase, ratings, queue length, placement/test flags, guests served, price, track piece count, construction cursor, entrance/exit tiles, reliability, lifetime income in cents, and the ride's build tile (`RideX`/`RideY`). Cursor direction, slope, bank, and track presence are packed with `encodeCursor` / `decodeCursor`.
 - `feedback` copies `world.feedback` (`seq`, `domain`, `code`, `subject`) so the UI can show the outcome of its latest command.
+- Successful build and demolition commands append monotonically identified events to the world's transient audio-event queue. Snapshot publication copies and clears that queue; event ids let the audio consumer ignore cues already observed when snapshots are repeated or recycled.
 
 ### Things to Know
 
@@ -35,6 +37,7 @@ Path: @/src/worker
 - `economy` (price mode, admission price, loan limit, park value, this-month and last-month ledger totals by `LedgerCategory`) and `research` (funding, category mask, progress) are plain objects that travel with the snapshot message for the Park, Finances and Research windows.
 - The snapshot publishes `wageBillPerWeek` directly from the economy ledger. Staff salary constants retain the manual's monthly amounts, converted to rounded weekly cents when staff are hired. On load, pre-v16 saves rebuild the weekly input from the current staff roster; v16 saves retain the serialized weekly ledger input.
 - `rideInfo` is transferred and recycled like the other buffers; `feedback` is a plain object that travels with the snapshot message.
+- `audioEvents` is a plain transient array rather than a simulation-state column: it reports purchases and player actions to the browser, while the vehicle system emits drop screams and chain-lift clanks. The browser consumes each snapshot's cue list independently of simulation decisions.
 - Ride and track layer counts are capped by their output-buffer capacities, while the park summary's ride count reflects the full simulation count. The track layer and `buildable` array follow the same pooled transfer and recycle lifecycle as the other snapshot buffers.
 
 Created and maintained by Nori.
