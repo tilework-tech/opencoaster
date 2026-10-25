@@ -10,6 +10,9 @@ import {
   terrainSurfaceSpriteName,
   WATER_BANK,
   nativeSpriteWorldOffset,
+  rideSpriteFrame,
+  rideSpriteKey,
+  rideSpriteName,
   waterFrameIndex,
   waterSpriteName,
 } from './world-art';
@@ -93,6 +96,20 @@ describe('world art sprite selection', () => {
     expect(scenerySpriteName('flower-bed')).toBe('scenery/flower-bed');
     expect(scenerySpriteName('bench')).toBe('scenery/bench');
     expect(scenerySpriteName('entrance-gate')).toBe('scenery/entrance-gate');
+  });
+
+  it('selects ride views and keeps idle rides in their empty frame', () => {
+    expect([0, 1, 2, 3].map((rotation) => rideSpriteKey(1, rotation))).toEqual([
+      'rides/flat/merry-go-round/view-0',
+      'rides/flat/merry-go-round/view-1',
+      'rides/flat/merry-go-round/view-2',
+      'rides/flat/merry-go-round/view-3',
+    ]);
+    expect(rideSpriteName(5)).toBe('stalls/food-stall');
+    expect(rideSpriteFrame(0, 80, 9)).toBe(0);
+    expect(rideSpriteFrame(2, 0, 9)).toBe(1);
+    expect(rideSpriteFrame(2, 64, 9)).toBe(1);
+    expect(rideSpriteFrame(2, 8, 9)).toBe(2);
   });
 
   it('aligns native sprites by moving the centred quad from the anchor to the projected point', () => {

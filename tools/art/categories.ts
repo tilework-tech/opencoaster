@@ -17,8 +17,10 @@ export interface AtlasCategoryRule {
 export const ATLAS_CATEGORIES: readonly AtlasCategoryRule[] = [
   { category: 'people', prefixes: ['people/', 'guests/', 'staff/'], lazy: false },
   { category: 'flat-rides', prefixes: ['rides/flat/'], lazy: true },
+  { category: 'transport', prefixes: ['transport/', 'rides/transport/'], lazy: true },
   { category: 'stalls', prefixes: ['stalls/', 'facilities/'], lazy: true },
   { category: 'coaster', prefixes: ['rides/coaster/'], lazy: true, perSubdirectory: true },
+  { category: 'track', prefixes: ['track/'], lazy: true, perSubdirectory: true },
   { category: 'vehicles', prefixes: ['vehicles/'], lazy: true },
 ];
 
