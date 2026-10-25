@@ -50,9 +50,10 @@ export function drawAnchoredSprite(
   key: string,
   x: number,
   y: number,
+  frameIndex = 0,
 ): boolean {
   const entry = atlas.sprites[key];
-  const frame = entry?.frames[0];
+  const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
   if (!entry || !frame) return false;
   ctx.drawImage(
     atlas.image,

@@ -3,6 +3,10 @@ import type { SpriteDef } from './output';
 import { renderMesh } from './raster';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
+import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
+import { RIDE_MODELS } from './models/ride-catalog';
+import { rideMesh } from './models/rides';
+import { rotateMesh } from './mesh';
 
 const ONE_TILE = { width: 1, height: 1 };
 
@@ -41,9 +45,34 @@ function waterSprites(): SpriteDef[] {
   return out;
 }
 
+function rideSprites(): SpriteDef[] {
+  return RIDE_MODELS.flatMap((model) => {
+    const ride = Object.values(RIDE_CATALOG).find(
+      (definition) =>
+        `rides/${definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` === model.key,
+    );
+    const xs = ride?.footprint.map(([x]) => x) ?? [0];
+    const ys = ride?.footprint.map(([, y]) => y) ?? [0];
+    const footprint = {
+      width: Math.max(...xs) - Math.min(...xs) + 1,
+      height: Math.max(...ys) - Math.min(...ys) + 1,
+    };
+    const frames = ride && !ride.usesTrack && (ride.category === 'gentle' || ride.category === 'thrill')
+      ? 9
+      : model.frames;
+    return Array.from({ length: 4 }, (_, view): SpriteDef => ({
+      key: `${model.key}/view-${view}`,
+      frames: Array.from({ length: frames }, (_, frame) =>
+        renderMesh(rotateMesh(rideMesh(model, frame), view)),
+      ),
+      footprint,
+    }));
+  });
+}
+
 /** Every sprite this tool renders, keyed as in the atlas manifest. */
 export function buildSprites(): SpriteDef[] {
-  return [...pathSprites(), ...waterSprites()];
+  return [...pathSprites(), ...waterSprites(), ...rideSprites()];
 }
 
 export async function renderSprites(outputDir: string): Promise<SpriteDef[]> {

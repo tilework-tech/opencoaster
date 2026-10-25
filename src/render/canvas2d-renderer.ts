@@ -6,9 +6,10 @@ import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
 import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { drawAnchoredSprite, drawTileTexture, loadCanvasAtlas } from './canvas-atlas';
 import type { CanvasAtlas } from './canvas-atlas';
-import { WATER_BANK, pathSpriteName, waterFrameIndex } from './world-art';
+import { WATER_BANK, pathSpriteName, rideSpriteFrame, rideSpriteKey, waterFrameIndex } from './world-art';
 import type { PathSurface } from './world-art';
 
 const SURFACE_COLORS = [
@@ -147,7 +148,7 @@ export class Canvas2DRenderer implements Renderer {
         '#855ea8',
         '#de8840',
       ]);
-      this.drawLayer(ctx, snapshot.rides, map, cam, 8, '#6f75bd');
+      this.drawRides(ctx, snapshot, map, cam);
       this.drawGuests(ctx, snapshot.guests, map, cam);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -446,6 +447,35 @@ export class Canvas2DRenderer implements Renderer {
         ctx.arc(this.tmp[0], this.tmp[1] - 4, 5, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+  }
+
+  private drawRides(ctx: CanvasRenderingContext2D, snapshot: Snapshot, map: MapData, cam: Camera): void {
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const offset = i * RIDE_INFO_STRIDE;
+      const type = snapshot.rideInfo[offset + RideInfo.Type] as RideType;
+      const definition = RIDE_CATALOG[type];
+      const tileX = snapshot.rideInfo[offset + RideInfo.RideX];
+      const tileY = snapshot.rideInfo[offset + RideInfo.RideY];
+      if (!definition || definition.usesTrack || tileX < 0 || tileY < 0 || tileX >= map.width || tileY >= map.height)
+        continue;
+
+      const z = map.heights[tileY * map.width + tileX] * Z_STEP;
+      project(tileX * TILE_UNITS + TILE_UNITS / 2, tileY * TILE_UNITS + TILE_UNITS / 2, z, map.width, map.height, cam.rotation, this.tmp);
+      const key = rideSpriteKey(type, cam.rotation);
+      const entry = this.atlas?.sprites[key];
+      const frameIndex = rideSpriteFrame(snapshot.rideInfo[offset + RideInfo.Phase], snapshot.tick, entry?.frames.length ?? 1);
+      const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
+      if (frame && this.atlas) {
+        const margin = Math.max(frame.width - entry!.anchor.x, entry!.anchor.x, frame.height);
+        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, margin)) continue;
+        drawAnchoredSprite(ctx, this.atlas, key, this.tmp[0], this.tmp[1], frameIndex);
+      } else {
+        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 8)) continue;
+        ctx.fillStyle = '#6f75bd';
+        ctx.fillRect(this.tmp[0] - 4, this.tmp[1] - 4, 8, 8);
+      }
+      this.visibleCount++;
     }
   }
 

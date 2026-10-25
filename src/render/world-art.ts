@@ -1,5 +1,29 @@
 import { Z_STEP } from '../sim/core/constants';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RidePhase } from '../sim/rides/ride-store';
 import { Z_PIXELS } from './projection';
+
+/** Simulation ticks each flat-ride animation frame is shown for. */
+export const TICKS_PER_ANIMATION_FRAME = 8;
+
+/** Atlas key for a non-track ride at the current camera rotation. */
+export function rideSpriteKey(type: RideType, rotation: number): string {
+  const definition = RIDE_CATALOG[type];
+  if (!definition) return '';
+  const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
+  const slug = definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  return `rides/${slug}/view-${view}`;
+}
+
+/** Frame zero is the idle pose; active cycle frames show riders. */
+export function rideSpriteFrame(phase: RidePhase | number, tick: number, frameCount: number): number {
+  if (
+    frameCount < 2 ||
+    (phase !== RidePhase.Loading && phase !== RidePhase.Running && phase !== RidePhase.Unloading)
+  )
+    return 0;
+  return 1 + (Math.floor(Math.max(0, tick) / TICKS_PER_ANIMATION_FRAME) % (frameCount - 1));
+}
 
 export const TERRAIN_SLOPE_NAMES = Array.from(
   { length: 16 },
