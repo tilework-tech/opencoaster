@@ -56,6 +56,8 @@ export class ParkGrid {
 export interface RideFrontage {
   ride: [number, number];
   dir: number;
+  /** Rows along the spine the footprint covers, counted from the front corner away from the gate. */
+  rows: number;
   entrance: [number, number];
   queue: Array<[number, number]>;
   exit: [number, number];
@@ -79,10 +81,11 @@ export function rideFrontage(
   for (let k = 1; k < reach; k++) queue.push(grid.tile(row, sign * k));
   const exitPath: Array<[number, number]> = [];
   for (let k = 1; k <= reach; k++) exitPath.push(grid.tile(row - 1, sign * k));
-  const { anchor, dir } = anchorForFrontCorner(grid, row, lateral, sign, footprint);
+  const { anchor, dir, rows } = anchorForFrontCorner(grid, row, lateral, sign, footprint);
   return {
     ride: anchor,
     dir,
+    rows,
     entrance: grid.tile(row, sign * (reach - 1)),
     queue,
     exit: grid.tile(row - 1, lateral),
@@ -101,8 +104,8 @@ function anchorForFrontCorner(
   lateral: number,
   sign: number,
   footprint: ReadonlyArray<readonly [number, number]>,
-): { anchor: [number, number]; dir: number } {
-  let best: { anchor: [number, number]; dir: number; reach: number } | null = null;
+): { anchor: [number, number]; dir: number; rows: number } {
+  let best: { anchor: [number, number]; dir: number; reach: number; rows: number } | null = null;
   const [originX, originY] = grid.tile(row, lateral);
   for (let dir = 0; dir < 4; dir++) {
     const cells = footprint.map(([i, j]) => rotateTile(i, j, dir));
@@ -116,10 +119,9 @@ function anchorForFrontCorner(
     if (best && reach >= best.reach) continue;
     const corner = grid0.findIndex(([r, l]) => r === minRow && l === nearLateral);
     const [cx, cy] = cells[corner];
-    best = { anchor: [originX - cx, originY - cy], dir, reach };
+    const rows = Math.max(...grid0.map(([r]) => r)) - minRow + 1;
+    best = { anchor: [originX - cx, originY - cy], dir, reach, rows };
   }
-  return {
-    anchor: (best as NonNullable<typeof best>).anchor,
-    dir: (best as NonNullable<typeof best>).dir,
-  };
+  const { anchor, dir, rows } = best as NonNullable<typeof best>;
+  return { anchor, dir, rows };
 }
