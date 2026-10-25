@@ -1,4 +1,17 @@
-import { expect, test, type Page } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { World } from '../src/sim/core/world';
+import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
+import { prepareScenario } from '../src/sim/scenario/scenario-layout';
+import { serialize } from '../src/save/save';
+import { RideType } from '../src/sim/rides/ride-types';
+
+const starterScenario = parseScenarioFile(
+  JSON.parse(
+    readFileSync(new URL('../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
+  ),
+);
 
 async function startStarterPark(page: Page): Promise<void> {
   await page.goto('/');
@@ -8,6 +21,22 @@ async function startStarterPark(page: Page): Promise<void> {
     .filter({ hasText: 'Starter Park' })
     .getByRole('button', { name: 'Start', exact: true })
     .click();
+}
+
+async function unlockSteelCoaster(page: Page, testInfo: TestInfo): Promise<void> {
+  const world = new World({
+    seed: starterScenario.seed,
+    width: starterScenario.mapWidth,
+    height: starterScenario.mapHeight,
+  });
+  prepareScenario(world, starterScenario);
+  world.research.unlocked.add(RideType.SteelLoopingCoaster);
+  const savePath = testInfo.outputPath('coaster-unlocked.park');
+  await writeFile(savePath, serialize(world));
+  await page.getByRole('button', { name: 'Save / Load', exact: true }).click();
+  await page.getByRole('button', { name: 'Import save file' }).click();
+  await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
+  await expect(page.locator('.hud')).toContainText('tick');
 }
 
 async function placeCoaster(page: Page): Promise<void> {
@@ -48,13 +77,14 @@ function tileScreenPoint(
   ];
 }
 
-test('desktop construction controls fit above the fold', async ({ page }) => {
+test('desktop construction controls fit above the fold', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   await startStarterPark(page);
   expect(
     await page.locator('#game').evaluate((canvas) => Boolean(canvas.getContext('webgl2'))),
   ).toBe(true);
   await expect(page.locator('.ownership-overlay')).toBeVisible();
+  await unlockSteelCoaster(page, testInfo);
   await page.getByRole('button', { name: 'New ride', exact: true }).click();
   const ridePicker = await page.locator('[data-panel="ride-select"]').boundingBox();
   expect(ridePicker).not.toBeNull();
