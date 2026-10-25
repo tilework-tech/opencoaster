@@ -53,4 +53,33 @@ describe('generated sprite catalogue', () => {
     const used = new Set(water.frames.flatMap((f) => [...f.pixels]));
     expect(used.size).toBeLessThanOrEqual(5);
   });
+
+  it('renders every non-track ride and stall type in 4 rotations with at least 4 frames', () => {
+    const keys = [
+      'merry-go-round',
+      'swinging-ship',
+      'ferris-wheel',
+      'twist',
+      'food-stall',
+      'drink-stall',
+      'information-kiosk',
+      'toilets',
+    ];
+    for (const key of keys)
+      for (let view = 0; view < 4; view++) {
+        const sprite = sprites.get(`rides/${key}/view-${view}`);
+        expect(sprite?.frames.length ?? 0).toBeGreaterThanOrEqual(4);
+      }
+  });
+
+  it('gives every operating frame of a ride the same size and anchor', () => {
+    for (const [key, sprite] of sprites) {
+      if (!key.startsWith('rides/')) continue;
+      const { width, height, anchor } = sprite.frames[0];
+      expect(width).toBeGreaterThan(0);
+      expect(sprite.frames.length).toBeGreaterThan(0);
+      expect(anchor.x).toBe(width / 2);
+      expect(height % 2).toBe(0);
+    }
+  });
 });

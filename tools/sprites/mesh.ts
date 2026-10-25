@@ -277,36 +277,3 @@ export function orientedBox(
     cy,
   );
 }
-
-/** Clips triangles to the vertical prism `minX <= x <= maxX`, `minY <= y <= maxY`. */
-export function clipMesh(mesh: Mesh, minX: number, maxX: number, minY: number, maxY: number): Mesh {
-  const planes: ReadonlyArray<readonly [axis: 0 | 1, sign: 1 | -1, limit: number]> = [
-    [0, 1, minX],
-    [0, -1, maxX],
-    [1, 1, minY],
-    [1, -1, maxY],
-  ];
-  const out: Mesh = [];
-  for (const triangle of mesh) {
-    let polygon: Vec3[] = [...triangle.v];
-    for (const [axis, sign, limit] of planes) {
-      const next: Vec3[] = [];
-      for (let i = 0; i < polygon.length; i++) {
-        const a = polygon[i];
-        const b = polygon[(i + 1) % polygon.length];
-        const da = (a[axis] - limit) * sign;
-        const db = (b[axis] - limit) * sign;
-        if (da >= 0) next.push(a);
-        if (da >= 0 !== db >= 0) {
-          const t = da / (da - db);
-          next.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
-        }
-      }
-      polygon = next;
-      if (polygon.length < 3) break;
-    }
-    for (let i = 1; i + 1 < polygon.length; i++)
-      out.push({ v: [polygon[0], polygon[i], polygon[i + 1]], material: triangle.material });
-  }
-  return out;
-}
