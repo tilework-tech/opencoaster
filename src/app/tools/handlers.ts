@@ -1,8 +1,8 @@
 import type { SimClient } from '../../worker/sim-client';
 import type { GameUI, ToolMode } from '../../ui/game-ui';
 import { PathAddition } from '../../sim/map/paths';
-import { PathStyle } from '../../sim/map/tile-map';
-import { SceneryItem } from '../../sim/map/scenery';
+import type { PathStyle } from '../../sim/map/tile-map';
+import type { SceneryItem } from '../../sim/map/scenery';
 
 export interface ToolHandlerDependencies {
   sim: SimClient;

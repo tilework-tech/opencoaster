@@ -22,6 +22,13 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
 
 `src/sim/{core,map,guests,rides,track,vehicles,economy,staff,weather,research,scenario,pathfinding}` deterministic simulation (runs in a worker); `src/worker` protocol/runner/client; `src/render` renderers; `src/ui` DOM UI; `src/save` serialisation; `bench/` benchmark; `docs/mechanics/` researched mechanics specs (with source URLs).
 
+## Generated sprite assets
+
+- `public/sprites/` is generated and Git-ignored. Commit authoritative art sources, prompts, and generators; do not commit generated sprite pages, manifests, PNGs, or per-sprite metadata.
+- `predev` and `prebuild` run `tools/art/prepare.ts` and `tools/art/pack-cli.ts`. The smoke and e2e Playwright servers use `pnpm dev`; CI and GitHub Pages use `pnpm build`, so these paths prepare sprites automatically. `pnpm smoke:subpath` also builds before serving the generated output.
+- Vite excludes `public/sprites/**` from its dev watcher because generation writes many files. The files remain available to the server and production build.
+- See [tools/art/README.md](tools/art/README.md) for the art pipeline and regeneration details.
+
 ## Conventions
 
 - TypeScript strict; ES modules; type-only imports use `import type`.

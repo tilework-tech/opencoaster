@@ -103,7 +103,9 @@ export async function bootstrap(): Promise<void> {
   ridePlacementTargets.classList.add('ride-placement-targets');
   ridePlacementTargets.setAttribute('aria-label', 'Valid ride placement tiles');
   root.append(ridePlacementTargets);
-  let rideSetup!: ReturnType<typeof createRideSetup>;
+  const rideSetupState: { current: ReturnType<typeof createRideSetup> } = {
+    current: undefined!,
+  };
   const gameUi = new GameUI(root, windows, {
     setPaused(value) {
       userPaused = value;
@@ -144,7 +146,7 @@ export async function bootstrap(): Promise<void> {
       centreOnTile(x, y, sim, camera);
     },
     chooseRideType(type) {
-      rideSetup.chooseRideType(type);
+      rideSetupState.current.chooseRideType(type);
     },
     editTrack(rideId) {
       coasterPanel.setActiveRide(rideId);
@@ -163,7 +165,7 @@ export async function bootstrap(): Promise<void> {
     },
     setTool(tool) {
       selectedTool = tool;
-      rideSetup.clearNotice();
+      rideSetupState.current?.clearNotice();
       coasterPanel.setTool(tool);
     },
     spawnGuests() {
@@ -194,13 +196,13 @@ export async function bootstrap(): Promise<void> {
       sim.command({ type: 'setRideStatus', rideId, status });
     },
     placeRidePart(rideId, part) {
-      rideSetup.placeRidePart(rideId, part);
+      rideSetupState.current.placeRidePart(rideId, part);
     },
   });
   gameUi.syncPaused(userPaused);
   gameUi.syncSpeed(speed);
 
-  rideSetup = createRideSetup({
+  rideSetupState.current = createRideSetup({
     sim,
     gameUi,
     coasterPanel,
@@ -299,8 +301,8 @@ export async function bootstrap(): Promise<void> {
     pathStyle: () => pathStyle,
     sceneryItem: () => sceneryItem,
     patrolKind: () => patrolKind,
-    clearRideSetupNotice: rideSetup.clearNotice,
-    rideTileClick: rideSetup.rideTileClick,
+    clearRideSetupNotice: rideSetupState.current.clearNotice,
+    rideTileClick: rideSetupState.current.rideTileClick,
   });
 
   const keys = connectCameraInput({
@@ -436,8 +438,8 @@ export async function bootstrap(): Promise<void> {
     );
     gameUi.update(sim.latest, sim.stats, selectedGuest);
     coasterPanel.update();
-    if (latest) rideSetup.advance(latest);
-    const rideNotice = rideSetup.notice();
+    if (latest) rideSetupState.current.advance(latest);
+    const rideNotice = rideSetupState.current.notice();
     if (rideNotice) gameUi.setToolStatus(rideNotice);
     const rect = canvas.getBoundingClientRect();
     if (sim.latest && sim.map) {
@@ -454,8 +456,12 @@ export async function bootstrap(): Promise<void> {
     }
     coasterPanel.update();
     const rideGhost =
-      selectedTool === 'ride' && !rideSetup.hasPlacement() && rideHover && sim.map && latest
-        ? rideSetup.createRideGhost(rideHover[0], rideHover[1], latest.tick)
+      selectedTool === 'ride' &&
+      !rideSetupState.current.hasPlacement() &&
+      rideHover &&
+      sim.map &&
+      latest
+        ? rideSetupState.current.createRideGhost(rideHover[0], rideHover[1], latest.tick)
         : null;
     trackPreview.draw(
       sim.map ? coasterPanel.ghost() : null,
@@ -465,7 +471,7 @@ export async function bootstrap(): Promise<void> {
       capDevicePixelRatio(window.devicePixelRatio || 1),
       rideGhost,
     );
-    rideSetup.drawPreview(rect.width, rect.height);
+    rideSetupState.current.drawPreview(rect.width, rect.height);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
