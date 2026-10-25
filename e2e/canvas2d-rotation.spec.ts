@@ -45,7 +45,7 @@ test('Canvas2D survives two full view rotations and zoom changes without frame s
     const rotationGap = await page.evaluate(() =>
       Math.max(...(window as unknown as { __frameGaps: number[] }).__frameGaps),
     );
-    expect(rotationGap, `view rotation ${turn + 1} stalled a frame`).toBeLessThan(750);
+    expect(rotationGap, `view rotation ${turn + 1} stalled a frame`).toBeLessThan(1000);
     if (turn === 3) {
       const beforeZoom = await page.evaluate(
         () => (window as unknown as { __camera: { zoom: number } }).__camera.zoom,

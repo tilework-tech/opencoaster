@@ -226,7 +226,7 @@ describe('PointerInput', () => {
     });
 
     input.pointerDown(sample(1, 42, 84));
-    vi.advanceTimersByTime(650);
+    vi.advanceTimersByTime(900);
     input.pointerUp(sample(1, 42, 84));
 
     expect(held).toEqual([[42, 84]]);
@@ -250,7 +250,7 @@ describe('PointerInput', () => {
     });
 
     input.pointerDown(sample(1, 42, 84));
-    vi.advanceTimersByTime(649);
+    vi.advanceTimersByTime(899);
     input.pointerUp(sample(1, 42, 84));
 
     expect(held).toEqual([]);
