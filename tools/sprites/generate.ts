@@ -12,7 +12,8 @@ import {
   supportSegmentMesh,
   trackPieceMesh,
 } from './models/coaster';
-import { RIDE_MODELS, rideMesh } from './models/rides';
+import { RIDE_MODELS } from './models/ride-catalog';
+import { rideMesh } from './models/rides';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { SHORE_FRAMES, WATER_FRAMES, shoreMesh, waterMesh } from './models/water';
 

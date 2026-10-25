@@ -5,6 +5,9 @@ import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
+import { rideSpriteFrame, rideSpriteKey } from './sprite-art';
 
 const SURFACE_COLORS = [
   '#5aa24a',
@@ -28,6 +31,22 @@ const GUEST_TINTS = [
 const PATH_DX = [1, 0, -1, 0];
 const PATH_DY = [0, 1, 0, -1];
 
+interface CanvasRideFrame {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface CanvasRideSprite {
+  frames: CanvasRideFrame[];
+  anchor: { x: number; y: number };
+}
+
+interface CanvasRideManifest {
+  sprites: Record<string, CanvasRideSprite>;
+}
+
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
 export class Canvas2DRenderer implements Renderer {
   readonly backend = 'Canvas2D';
@@ -43,6 +62,9 @@ export class Canvas2DRenderer implements Renderer {
   private pathOffsets = new Int32Array(0);
   private pathIndices = new Int32Array(0);
   private visibleCount = 0;
+  private rideAtlas: HTMLImageElement | null = null;
+  private rideSprites: Record<string, CanvasRideSprite> = {};
+  private rideAtlasRequestStarted = false;
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
@@ -52,6 +74,7 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('2D canvas unavailable');
     this.ctx = ctx;
+    this.loadRideAtlas();
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -110,7 +133,7 @@ export class Canvas2DRenderer implements Renderer {
         '#855ea8',
         '#de8840',
       ]);
-      this.drawLayer(ctx, snapshot.rides, map, cam, 8, '#6f75bd');
+      this.drawRides(ctx, snapshot, map, cam);
       this.drawGuests(ctx, snapshot.guests, map, cam);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -293,6 +316,82 @@ export class Canvas2DRenderer implements Renderer {
         ctx.fill();
       }
     }
+  }
+
+  private drawRides(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    ctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const o = i * RIDE_INFO_STRIDE;
+      const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
+      const def = RIDE_CATALOG[type];
+      const tileX = snapshot.rideInfo[o + RideInfo.RideX];
+      const tileY = snapshot.rideInfo[o + RideInfo.RideY];
+      if (
+        !def ||
+        def.usesTrack ||
+        tileX < 0 ||
+        tileY < 0 ||
+        tileX >= map.width ||
+        tileY >= map.height
+      )
+        continue;
+      const worldX = tileX * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = tileY * TILE_UNITS + TILE_UNITS / 2;
+      const z = map.heights[tileY * map.width + tileX] * Z_STEP;
+      project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
+
+      const key = rideSpriteKey(type, cam.rotation);
+      const sprite = this.rideSprites[key];
+      const frameIndex = rideSpriteFrame(
+        snapshot.rideInfo[o + RideInfo.Phase],
+        snapshot.tick,
+        sprite?.frames.length ?? 1,
+      );
+      const frame = sprite?.frames[frameIndex] ?? sprite?.frames[0];
+      if (frame && this.rideAtlas?.complete && this.rideAtlas.naturalWidth > 0) {
+        const margin = Math.max(frame.width - sprite.anchor.x, sprite.anchor.x, frame.height);
+        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, margin)) continue;
+        ctx.drawImage(
+          this.rideAtlas,
+          frame.x,
+          frame.y,
+          frame.width,
+          frame.height,
+          this.tmp[0] - sprite.anchor.x,
+          this.tmp[1] - sprite.anchor.y,
+          frame.width,
+          frame.height,
+        );
+      } else {
+        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 8)) continue;
+        ctx.fillStyle = '#6f75bd';
+        ctx.fillRect(this.tmp[0] - 4, this.tmp[1] - 4, 8, 8);
+      }
+      this.visibleCount++;
+    }
+  }
+
+  private loadRideAtlas(): void {
+    if (this.rideAtlasRequestStarted || typeof fetch !== 'function') return;
+    this.rideAtlasRequestStarted = true;
+    void fetch(`${import.meta.env.BASE_URL}sprites/manifest.json`)
+      .then(async (response) => {
+        if (!response.ok) return;
+        const manifest = (await response.json()) as CanvasRideManifest;
+        const image = new Image();
+        image.src = `${import.meta.env.BASE_URL}sprites/atlas.png`;
+        await image.decode();
+        this.rideSprites = manifest.sprites;
+        this.rideAtlas = image;
+      })
+      .catch(() => {
+        this.rideAtlasRequestStarted = false;
+      });
   }
 
   private drawLayer(

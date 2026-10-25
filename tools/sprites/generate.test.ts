@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PIECES } from '../../src/sim/track/catalog';
+import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import { buildSprites } from './generate';
+import { alignFrames } from './output';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -58,12 +60,60 @@ describe('generated sprite catalogue', () => {
       }
   });
 
+  it('renders every gentle and thrill flat ride with an idle frame and eight operating frames', () => {
+    const rideSprites = [...sprites].filter(([key]) => key.startsWith('rides/'));
+    const rideSpriteByName = new Map(rideSprites.map(([key, sprite]) => [key, sprite]));
+    const targetRides = Object.values(RIDE_CATALOG).filter(
+      (ride) => !ride.usesTrack && (ride.category === 'gentle' || ride.category === 'thrill'),
+    );
+
+    expect(targetRides.length).toBeGreaterThan(0);
+    for (const ride of targetRides) {
+      const slug = ride.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const footprint = ride.footprint.reduce(
+        (bounds, [x, y]) => ({
+          width: Math.max(bounds.width, x + 1),
+          height: Math.max(bounds.height, y + 1),
+        }),
+        { width: 0, height: 0 },
+      );
+      for (let view = 0; view < 4; view++) {
+        const sprite = rideSpriteByName.get(`rides/${slug}/view-${view}`);
+        expect(sprite?.frames.length, `${ride.name}, view ${view}`).toBeGreaterThanOrEqual(9);
+        expect(sprite?.footprint, `${ride.name}, view ${view}`).toEqual(footprint);
+        const alignedFrames = alignFrames(sprite!.frames);
+        const signatures = alignedFrames.slice(0, 9).map((frame) => {
+          const pixelBytes = Buffer.from(frame.pixels);
+          expect(frame.width).toBe(alignedFrames[0].width);
+          expect(frame.height).toBe(alignedFrames[0].height);
+          expect(frame.anchor).toEqual(alignedFrames[0].anchor);
+          expect(pixelBytes.some((pixel) => pixel !== 0)).toBe(true);
+          return pixelBytes.toString('base64');
+        });
+        for (const operatingPose of signatures.slice(1))
+          expect(operatingPose, `${ride.name}, view ${view} idle/operating distinction`).not.toBe(
+            signatures[0],
+          );
+        expect(
+          new Set(signatures).size,
+          `${ride.name}, view ${view} varied animation`,
+        ).toBeGreaterThanOrEqual(8);
+      }
+    }
+  });
+
   it('gives every operating frame of a ride the same size and anchor', () => {
     for (const [key, sprite] of sprites) {
       if (!key.startsWith('rides/')) continue;
-      const { width, height, anchor } = sprite.frames[0];
+      const frames = alignFrames(sprite.frames);
+      const { width, height, anchor } = frames[0];
       expect(width).toBeGreaterThan(0);
-      expect(sprite.frames.length).toBeGreaterThan(0);
+      expect(frames.length).toBeGreaterThan(0);
+      for (const frame of frames) {
+        expect(frame.width).toBe(width);
+        expect(frame.height).toBe(height);
+        expect(frame.anchor).toEqual(anchor);
+      }
       expect(anchor.x).toBe(width / 2);
       expect(height % 2).toBe(0);
     }

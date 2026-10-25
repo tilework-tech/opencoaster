@@ -1,6 +1,7 @@
 import { Z_STEP } from '../sim/core/constants';
 import { PIECES } from '../sim/track/catalog';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RidePhase } from '../sim/rides/ride-store';
 import { Z_PIXELS } from './projection';
 
 export type CoasterStyle = 'wood' | 'steel';
@@ -31,6 +32,20 @@ export function rideSpriteKey(type: RideType, rotation: number): string {
 
 export function frameForTick(tick: number, frameCount: number): number {
   return Math.floor(Math.max(0, tick) / TICKS_PER_ANIMATION_FRAME) % Math.max(1, frameCount);
+}
+
+/** Ride frame zero is the empty idle pose; active cycle frames include onboard riders. */
+export function rideSpriteFrame(
+  phase: RidePhase | number,
+  tick: number,
+  frameCount: number,
+): number {
+  if (
+    frameCount < 2 ||
+    (phase !== RidePhase.Loading && phase !== RidePhase.Running && phase !== RidePhase.Unloading)
+  )
+    return 0;
+  return 1 + frameForTick(tick, frameCount - 1);
 }
 
 export function trackStyleForRide(type: RideType): CoasterStyle {

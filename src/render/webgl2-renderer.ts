@@ -4,9 +4,12 @@ import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
 import type { Camera, MapData, Renderer } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import type { Rotation } from './projection';
+import { rideSpriteFrame, rideSpriteKey } from './sprite-art';
 import {
   pathSpriteName,
   scenerySpriteName,
@@ -258,7 +261,7 @@ export class WebGL2Renderer implements Renderer {
           28,
           1,
         );
-      this.appendLayer(snapshot.rides, 26, map, camera, viewportWidth, viewportHeight, 12, 14);
+      this.appendRides(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendVariantLayer(
         snapshot.litter,
         litterSpriteIndex,
@@ -788,6 +791,63 @@ export class WebGL2Renderer implements Renderer {
         height,
         depth,
       );
+    }
+  }
+
+  private appendRides(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const infoOffset = i * RIDE_INFO_STRIDE;
+      const type = snapshot.rideInfo[infoOffset + RideInfo.Type] as RideType;
+      const def = RIDE_CATALOG[type];
+      const tileX = snapshot.rideInfo[infoOffset + RideInfo.RideX];
+      const tileY = snapshot.rideInfo[infoOffset + RideInfo.RideY];
+      if (
+        !def ||
+        def.usesTrack ||
+        tileX < 0 ||
+        tileY < 0 ||
+        tileX >= map.width ||
+        tileY >= map.height
+      )
+        continue;
+
+      const worldX = tileX * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = tileY * TILE_UNITS + TILE_UNITS / 2;
+      const z = map.heights[tileY * map.width + tileX] * Z_STEP;
+      const key = rideSpriteKey(type, camera.rotation);
+      const entry = this.atlasFrames[key];
+      const frameIndex = rideSpriteFrame(
+        snapshot.rideInfo[infoOffset + RideInfo.Phase],
+        snapshot.tick,
+        entry?.frames.length ?? 1,
+      );
+      const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
+      const width = frame?.width ?? 12;
+      const height = frame?.height ?? 14;
+      const depth =
+        2 * rotatedPositionSum(tileX * TILE_UNITS, tileY * TILE_UNITS, map, camera.rotation) -
+        z / Z_STEP +
+        1;
+      project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          width,
+          height,
+        )
+      )
+        continue;
+      this.append(worldX, worldY, z, width, height, entry ? `${key}#${frameIndex}` : 26, depth);
     }
   }
 

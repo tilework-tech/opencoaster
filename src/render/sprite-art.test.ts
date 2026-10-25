@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { PIECES } from '../sim/track/catalog';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RidePhase } from '../sim/rides/ride-store';
 import {
   carSpriteKey,
   frameForTick,
   nativeSpriteWorldOffset,
   rideSpriteKey,
+  rideSpriteFrame,
   rotatePathEdges,
   trackCells,
   trackStyleForRide,
@@ -34,6 +36,15 @@ describe('ride sprites', () => {
     expect(frameForTick(8, 4)).toBe(1);
     expect(frameForTick(32, 4)).toBe(0);
     expect(frameForTick(-5, 4)).toBe(0);
+  });
+
+  it('shows the idle pose outside an active cycle and occupied operating poses during one', () => {
+    expect(rideSpriteFrame(RidePhase.Closed, 48, 9)).toBe(0);
+    expect(rideSpriteFrame(RidePhase.Waiting, 48, 9)).toBe(0);
+    expect(rideSpriteFrame(RidePhase.Broken, 48, 9)).toBe(0);
+    expect(rideSpriteFrame(RidePhase.Loading, 0, 9)).toBe(1);
+    expect(rideSpriteFrame(RidePhase.Running, 8, 9)).toBe(2);
+    expect(rideSpriteFrame(RidePhase.Unloading, 56, 9)).toBe(8);
   });
 });
 
