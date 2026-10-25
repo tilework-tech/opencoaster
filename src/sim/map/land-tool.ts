@@ -1,5 +1,6 @@
 import type { World } from '../core/world';
 import { Z_STEP } from '../core/constants';
+import { rideFootprintTiles } from '../rides/ride-footprint';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
 import { PIECES } from '../track/catalog';
@@ -216,9 +217,13 @@ function structureConflict(
   const ride = w.rides.cols;
   for (let slot = 0; slot < w.rides.count; slot++) {
     const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-    for (const [dx, dy] of def?.footprint ?? []) {
-      const x = ride.rideX[slot] + dx;
-      const y = ride.rideY[slot] + dy;
+    if (!def) continue;
+    for (const [x, y] of rideFootprintTiles(
+      def,
+      ride.rideX[slot],
+      ride.rideY[slot],
+      ride.dir[slot],
+    )) {
       if (m.inBounds(x, y) && flagged[m.index(x, y)])
         return hit(LandResult.RideInTheWay, m.index(x, y));
     }

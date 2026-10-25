@@ -158,6 +158,7 @@ export async function bootstrap(): Promise<void> {
       sceneryItem = item as SceneryItem;
     },
     rotatePiece() {
+      if (rideSetupState.current.rotatePlacement()) return;
       sceneryRotation = (sceneryRotation + 1) % 4;
     },
     locate(x, y) {

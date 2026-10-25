@@ -215,7 +215,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await chooseRide(page, ride.tab, ride.type);
   for (let turn = 0; turn < dir; turn++) {
     if (options.rotateWith === 'button')
-      await page.getByRole('button', { name: 'Rotate ride (Z)' }).click();
+      await page.getByRole('button', { name: 'Rotate ride (T)' }).click();
     else await page.keyboard.press('z');
   }
   if (dir > 0) await expect(status).toContainText('rotated');
@@ -368,7 +368,7 @@ test('the Rotate ride button clears the phone HUD and docked windows', async ({ 
   page.setDefaultTimeout(10_000);
   await startStarterPark(page, true);
   await chooseRide(page, 'Thrill rides', 14, true);
-  const rotate = page.getByRole('button', { name: 'Rotate ride (Z)' });
+  const rotate = page.getByRole('button', { name: 'Rotate ride (T)' });
   await expect(rotate).toBeVisible();
   const box = (await rotate.boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(44);

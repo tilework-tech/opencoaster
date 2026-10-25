@@ -13,6 +13,7 @@ function park(size = 24): World {
   w.map.fillFlat(4);
   w.map.ownership.fill(OWNED);
   w.economy.cash = 100_000_000;
+  w.research.unlocked.add(RideType.SwingingShip);
   return w;
 }
 

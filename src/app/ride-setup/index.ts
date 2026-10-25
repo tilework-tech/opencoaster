@@ -61,7 +61,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   rotateButton.type = 'button';
   rotateButton.className = 'ride-rotate-button';
   rotateButton.textContent = 'Rotate ride';
-  rotateButton.setAttribute('aria-label', 'Rotate ride (Z)');
+  rotateButton.setAttribute('aria-label', 'Rotate ride (T)');
   rotateButton.hidden = true;
   rotateButton.addEventListener('click', () => rotatePlacement());
   ridePlacementPreview.parentElement?.append(rotateButton);
@@ -79,7 +79,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
     gameUi.setToolStatus(
       `${def.name} selected. Tap a tile you own to build it${
-        def.footprint.length > 1 ? '; press Z to rotate it' : ''
+        def.footprint.length > 1 ? '; press T to rotate it' : ''
       }.`,
     );
   }

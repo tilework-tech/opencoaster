@@ -101,13 +101,13 @@ describe('Simulation', () => {
     sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 5, y: 6 });
     sim.step();
     const id = sim.world.rides.slotToId[0];
-    sim.enqueue({ type: 'placeRideEntrance', rideId: id, x: 5, y: 7 });
+    sim.enqueue({ type: 'placeRideEntrance', rideId: id, x: 5, y: 8 });
     sim.step();
     expect(sim.world.rides.cols.queueConnected[sim.world.rides.idToSlot[id]]).toBe(0);
 
     sim.enqueue({
       type: 'placePathRun',
-      placements: [{ x: 5, y: 8, queue: false }],
+      placements: [{ x: 5, y: 9, queue: false }],
     });
     sim.step();
 
