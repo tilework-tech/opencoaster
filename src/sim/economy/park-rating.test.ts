@@ -22,15 +22,22 @@ describe('park value', () => {
   it('adds $7 per guest to the ride value total', () => {
     expect(parkValueOf(10, { ...quiet, rideValue: 5_000 })).toBe(5_000 + 10 * 700);
   });
+
+  it('includes recent riders and a ride-type bonus in each ride contribution', async () => {
+    expect(
+      parkValueOf(0, quiet, [{ valueCents: 10_000, ridersLast5Minutes: 20, typeBonus: 30 }]),
+    ).toBe(1_400_000);
+  });
 });
 
 describe('park rating', () => {
+  const casualtyBase = { ...quiet, litter: 50 };
   it('always stays within 0..999', () => {
     const disaster = {
       ...quiet,
       lostGuests: 500,
       unhappyPercent: 100,
-      casualties: 50,
+      drowningCasualtyPenalty: 1_250,
       litter: 1000,
     };
     expect(computeParkRating(0, disaster)).toBe(0);
@@ -42,10 +49,36 @@ describe('park rating', () => {
     expect(computeParkRating(0, { ...quiet, lostGuests: 125 })).toBe(300);
   });
 
-  it('gets worse with ride downtime, litter and casualties', () => {
+  it('gets worse with ride downtime and litter', () => {
     expect(computeParkRating(0, { ...quiet, rideDowntimePercent: 10 })).toBe(980);
     expect(computeParkRating(0, { ...quiet, litter: 3 })).toBe(988);
-    expect(computeParkRating(0, { ...quiet, casualties: 2 })).toBe(800);
+  });
+
+  it('charges drowning casualties at 25 points each', () => {
+    const one = { ...casualtyBase, drowningCasualtyPenalty: 25 };
+    const two = { ...casualtyBase, drowningCasualtyPenalty: 50 };
+    expect(computeParkRating(0, one)).toBe(computeParkRating(0, casualtyBase) - 25);
+    expect(computeParkRating(0, two)).toBe(computeParkRating(0, casualtyBase) - 50);
+  });
+
+  it('charges an occupied ride crash at 200 points and caps all casualty penalties', () => {
+    const oneCrash = { ...casualtyBase, fatalRideCrashPenalty: 200 };
+    const twoCrashes = { ...casualtyBase, fatalRideCrashPenalty: 400 };
+    const manyDrownings = { ...casualtyBase, drowningCasualtyPenalty: 2_500 };
+    expect(computeParkRating(0, oneCrash)).toBe(computeParkRating(0, casualtyBase) - 200);
+    expect(computeParkRating(0, twoCrashes)).toBe(computeParkRating(0, casualtyBase) - 400);
+    expect(computeParkRating(0, manyDrownings)).toBe(
+      Math.max(0, computeParkRating(0, casualtyBase) - 1000),
+    );
+  });
+
+  it('subtracts the remaining per-type casualty penalty from park rating', () => {
+    expect(
+      computeParkRating(0, {
+        ...casualtyBase,
+        drowningCasualtyPenalty: 20,
+      }),
+    ).toBe(computeParkRating(0, casualtyBase) - 20);
   });
 });
 

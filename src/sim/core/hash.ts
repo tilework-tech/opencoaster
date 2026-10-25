@@ -61,6 +61,16 @@ export function hashWorld(world: World): number {
   }
   for (const v of e.monthlyTotals) mix(v);
   for (const v of e.history) mix(v);
+  for (const award of e.activeAwards) {
+    mix(award.awardId);
+    mix(award.expiresTick);
+  }
+  for (const item of e.parkNews) {
+    mix(item.tick);
+    mix(item.awardId);
+    mix(item.positive ? 1 : 0);
+    for (let i = 0; i < item.text.length; i++) mix(item.text.charCodeAt(i));
+  }
   const r = world.research;
   for (const v of [r.funding, r.enabledCategoryMask, r.currentIndex, r.progress, r.unlocked.size]) {
     mix(v);

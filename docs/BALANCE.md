@@ -44,17 +44,17 @@ Related guest changes: needs decay every 128 world ticks and happiness motives r
 
 `rating = base + guests/13 - 150 - penalties`, clamped to 0-999 (guest term unchanged). `base` is 1,150, or 1,050 when the scenario sets `difficultRating`. Penalties:
 
-| Term               | Value                                                                                                                                                             |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Average excitement | `min(50, abs(avg - 3.68) / 4 hundredths)`                                                                                                                         |
-| Average intensity  | `min(50, abs(avg - 5.20) / 4 hundredths)`                                                                                                                         |
-| Total excitement   | `100 - 100 x total / 80.00`, floored at 0                                                                                                                         |
-| Total intensity    | same                                                                                                                                                              |
-| Unhappy guests     | `500 - 2 x min(250, 3 x happy%)`: 500 with no happy guest, 200 at 50% happy, none from about 84% happy (an empty park has none). Replaces `(unhappy% - 50) x 10`. |
-| Lost guests        | 7 each beyond 25 (unchanged)                                                                                                                                      |
-| Ride downtime      | `2 x %`, up to 200 (unchanged)                                                                                                                                    |
-| Litter             | 4 each, up to 600 (unchanged)                                                                                                                                     |
-| Casualties         | 100 each, up to 1000 (unchanged)                                                                                                                                  |
+| Term               | Value                                                                                                                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Average excitement | `min(50, abs(avg - 3.68) / 4 hundredths)`                                                                                                                                                             |
+| Average intensity  | `min(50, abs(avg - 5.20) / 4 hundredths)`                                                                                                                                                             |
+| Total excitement   | `100 - 100 x total / 80.00`, floored at 0                                                                                                                                                             |
+| Total intensity    | same                                                                                                                                                                                                  |
+| Unhappy guests     | `500 - 2 x min(250, 3 x happy%)`: 500 with no happy guest, 200 at 50% happy, none from about 84% happy (an empty park has none). Replaces `(unhappy% - 50) x 10`.                                     |
+| Lost guests        | 7 each beyond 25 (unchanged)                                                                                                                                                                          |
+| Ride downtime      | `2 x %`, up to 200 (unchanged)                                                                                                                                                                        |
+| Litter             | 4 each, up to 600 (unchanged)                                                                                                                                                                         |
+| Casualties         | Legacy `casualties`: 100 each. Drownings add 25 to their pool; fatal ride crashes add 200 to theirs. Each typed pool independently retains 90% monthly; combined casualty penalty is capped at 1,000. |
 
 Averages and totals cover open attractions (rides, not stalls). With no open attraction both proximity terms are at their caps.
 
@@ -188,7 +188,40 @@ Difficulty-pass rating (happiness term above), same seeds, same tree, wins out o
 
 Before this pass (main, same seeds): minimal 26 - 77 guests and 157 - 327 rating; modest 134 - 158 and 675 - 755 (6 / 12 at 730, 12 / 12 at 650); ambitious 159 - 183 and 738 - 840 (12 / 12 at 730). The happiness term punishes the unhappiness every build shares, so the rating separates the profiles less. 650 keeps both attraction-heavy builds winning at least 10 of 12 seeds; 670 is the highest target that keeps both at 9 of 12.
 
-**Default seed:** before guest-needs fidelity, the combined navigation and ride model ended seed 2026 at rating 636 and cleared 575. With the audited guest needs and spawn distributions, the corrected satiation-scale model ends at rating 644 and clears the same target by 69 points. This is one seeded build, not a multi-seed difficulty claim.
+**Default seed:** before guest-needs fidelity, the combined navigation and ride model ended seed 2026 at rating 636 and cleared 575. With audited guest needs and spawn distributions, the corrected satiation-scale model ended at rating 644 and cleared 575 by 69 points. The final deferred-economy implementation ends at rating 554 against its recalibrated 450 target. These are individual scripted builds, not multi-seed difficulty claims.
+**PR #33 baseline:** the scenario's own seed (2026) with the scripted modest build ended year one at rating 653, three points above the then-current 650 target. The guest-needs update subsequently set the starter target to 550; the deferred economy pass below is compared with that current main baseline.
+
+## Results: deferred economy pass
+
+Starter scenario, one year (131,072 ticks), scripted modest build, default seed (2026), `pnpm balance` on the deferred economy branch rebased on main at `e93c5bd`:
+
+| Metric                         |      Before (main `e93c5bd`) | After (deferred economy pass) |
+| ------------------------------ | ---------------------------: | ----------------------------: |
+| Guests at objective check      |                          288 |                           290 |
+| Park rating at objective check |                          570 |                           554 |
+| Objective                      | Won (100 guests, rating 550) |  Won (100 guests, rating 450) |
+| Cash at year end               |              not in baseline |                       $35,164 |
+| Park value at year end         |              not in baseline |                        $4,803 |
+| Rides                          |              not in baseline |                            14 |
+
+The compared runs use the same default seed and modest scripted build on main and after the economy change. The final food-award correction increases natural arrivals enough to lower the year-end rating from the earlier pre-review result of 628 to 554. At the prior 550 target the corrected build still wins the default seed, but only 7 of 12 calibration seeds win, so the starter target is recalibrated to 450. The older PR #33 figures above belong to a different target and simulation baseline. Exact award predicates and park-value type bonus remain compatibility assumptions (see [DECISIONS.md](DECISIONS.md)).
+
+On the established 12-seed calibration set (11–16, 21–26), the corrected food-award behavior produced ratings from 386 to 688, and every seed exceeded the 100-guest target. At 550, 7 of 12 seeds won; at the current 450 target, 10 of 12 win, with seeds 22 and 26 missing on rating (412 and 386). The default scenario seed wins with 554 rating. This leaves a few deterministic seeds below target while keeping the default and most calibration seeds winnable.
+
+| Seed | Guests | Rating | At 450 |
+| ---: | -----: | -----: | :----- |
+|   11 |    291 |    632 | Won    |
+|   12 |    291 |    634 | Won    |
+|   13 |    286 |    616 | Won    |
+|   14 |    292 |    508 | Won    |
+|   15 |    297 |    670 | Won    |
+|   16 |    292 |    538 | Won    |
+|   21 |    297 |    618 | Won    |
+|   22 |    286 |    412 | Lost   |
+|   23 |    292 |    670 | Won    |
+|   24 |    291 |    452 | Won    |
+|   25 |    292 |    688 | Won    |
+|   26 |    293 |    386 | Lost   |
 
 ## Results: economy fidelity pass
 
@@ -227,8 +260,7 @@ Modest rating ranges: main 580 - 659, this PR 558 - 688. The starter objective s
 - Stall demand is not weather-sensitive beyond the kiosk (economy.md describes hot/cold item values).
 - Per-type wear, the age schedule, repair times and stall prices are tuned for plausibility, not measured against RCT2 (see DECISIONS.md).
 - Ride prices and the admission fee are not tuned; the scripted park keeps the scenario's admission price and free rides.
-- Awards and research-driven novelty are not modelled. The casualties term uses one 100-point charge per casualty; the guide's per-type charges (25 per drowning, 200 per fatal crash, with decay) need per-type inputs that no system publishes yet.
-- Park value is still the ride-value-plus-$7-per-guest placeholder: the guide's five-minute rider counts, ride-type bonus and duplicate-type reduction need ride rider counters that the rides module does not keep.
+- Award records, monthly announcements, guest-generation effects, per-type casualty rating terms, and recent-rider park value are implemented. There is still no drowning/fatal-crash event producer; scenario predicates also use proxies for several awards until scenery, water rides, colors, and guest-thought coverage exist.
 - Marketing: the six campaigns carry their target, but targeted campaigns (free ride vouchers, selected-ride advertising, free food or drink) still give the park-wide attraction bonus. Per-target effects and voucher fulfilment belong to the guests workstream.
 - Constants follow community descriptions but were tuned against this harness, not against the original game.
 

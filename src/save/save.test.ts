@@ -4,7 +4,7 @@ import { Simulation } from '../sim/core/simulation';
 import { hashWorld } from '../sim/core/hash';
 import { PieceId } from '../sim/track/catalog';
 import { SAVE_VERSION, deserialize, serialize } from './save';
-import { RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
+import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
@@ -15,12 +15,12 @@ import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { WeatherKind } from '../sim/weather/weather';
 
 describe('save', () => {
-  it('writes the version 13 guest-history and worker-order format', () => {
-    expect(SAVE_VERSION).toBe(13);
+  it('writes version 14 with guest, worker-order, and ride-history state', () => {
+    expect(SAVE_VERSION).toBe(14);
     const bytes = serialize(new Simulation({ seed: 1, width: 8, height: 8 }).world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(13);
+    expect(header.version).toBe(14);
   });
 
   it('round-trips individual worker task orders', () => {
@@ -63,6 +63,7 @@ describe('save', () => {
       sim.world.guests.cols.rideHistory2,
       sim.world.guests.cols.rideHistory3,
       sim.world.staff.cols.orderFlags,
+      ...riderHistoryColumns(sim.world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -71,7 +72,7 @@ describe('save', () => {
     expect(staffOrderEnabled(loaded, staffId, StaffOrder.InspectRides)).toBe(false);
   });
 
-  it('migrates version 12 guest stats and initializes ride history and staff orders', () => {
+  it('migrates version 12 guest stats and initializes guest history and staff orders', () => {
     const sim = new Simulation({ seed: 16, width: 8, height: 8 });
     sim.enqueue({ type: 'spawnGuests', count: 1 });
     sim.enqueue({ type: 'hireStaff', kind: StaffKind.Entertainer });
@@ -99,6 +100,7 @@ describe('save', () => {
       sim.world.guests.cols.rideHistory2,
       sim.world.guests.cols.rideHistory3,
       sim.world.staff.cols.orderFlags,
+      ...riderHistoryColumns(sim.world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -109,8 +111,43 @@ describe('save', () => {
     expect(loaded.guests.cols.lastRide[loadedGuest]).toBe(42);
     expect(loaded.guests.cols.rideHistoryCursor[loadedGuest]).toBe(0);
     expect(loaded.guests.cols.rideHistory0[loadedGuest]).toBe(0);
+    expect(loaded.staff.cols.orderFlags[0]).toBe(sim.world.staff.cols.orderFlags[0]);
     expect(staffOrderEnabled(loaded, staffId, StaffOrder.EntertainGuests)).toBe(true);
     expect(staffOrderEnabled(loaded, staffId, StaffOrder.InspectRides)).toBe(false);
+  });
+
+  it('migrates version 13 saves with worker and guest history but no ride rider windows', () => {
+    const world = flatWorld(16);
+    const guestSlot = guestAt(world, 5, 5);
+    spawnStaff(world, StaffKind.Entertainer);
+    const staffId = world.staff.slotToId[0];
+    const staffSlot = world.staff.idToSlot[staffId];
+    world.guests.cols.rideHistoryCursor[guestSlot] = 2;
+    world.guests.cols.rideHistory0[guestSlot] = 17;
+    world.staff.cols.orderFlags[staffSlot] &= ~(1 << StaffOrder.EntertainGuests);
+    const rideSlot = world.rides.spawn();
+    (world.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[rideSlot] = 25;
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const legacy = withoutColumns(serialize(world), 13, views, riderHistoryColumns(world));
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.guests.cols.rideHistoryCursor[guestSlot]).toBe(2);
+    expect(loaded.guests.cols.rideHistory0[guestSlot]).toBe(17);
+    expect(loaded.staff.cols.orderFlags[staffSlot]).toBe(world.staff.cols.orderFlags[staffSlot]);
+    expect(staffOrderEnabled(loaded, staffId, StaffOrder.EntertainGuests)).toBe(false);
+    expect(
+      (loaded.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[rideSlot],
+    ).toBe(0);
   });
 
   it('round-trips world state exactly', () => {
@@ -201,6 +238,7 @@ describe('save: guest history and satiation migration', () => {
             ]
           : []),
         ...(version <= 10 ? reliabilityColumns(world) : []),
+        ...(version <= 12 ? riderHistoryColumns(world) : []),
       ];
       const oldSave = withoutColumns(serialize(world), version, views, absent);
 
@@ -374,7 +412,7 @@ function navigationColumns(world: World): ArrayBufferView[] {
   return [c.navGoal, c.navGap, c.navSteps, c.lostTicks, c.hasMap];
 }
 
-/** Version 11 did not contain guest history or per-worker task orders. */
+/** Version 12 and earlier did not contain guest history or per-worker task orders. */
 function v12Columns(world: World): ArrayBufferView[] {
   const guests = world.guests.cols;
   return [
@@ -437,6 +475,14 @@ function reliabilityColumns(world: ReturnType<typeof flatWorld>): ArrayBufferVie
   ];
 }
 
+function riderHistoryColumns(world: ReturnType<typeof flatWorld>): ArrayBufferView[] {
+  const columns = world.rides.cols as unknown as Record<string, Uint16Array>;
+  return Array.from(
+    { length: RIDER_HISTORY_WINDOWS },
+    (_, index) => columns[`ridersWindow${String(index).padStart(2, '0')}`],
+  );
+}
+
 describe('save: version 4 migration', () => {
   function versionFourSave(world: ReturnType<typeof flatWorld>): Uint8Array {
     const current = serialize(world);
@@ -452,10 +498,10 @@ describe('save: version 4 migration', () => {
       .arrays()
       .concat(
         legacyGuestArrays(world),
-        world.staff.arrays(),
+        world.staff.arrays().slice(0, -1),
         world.vehicles.arrays(),
         world.litter.arrays(),
-        world.rides.arrays().slice(0, -3 - RIDE_COLUMNS_ADDED_IN_V10),
+        world.rides.arrays().slice(0, -3 - RIDE_COLUMNS_ADDED_IN_V10 - RIDER_HISTORY_WINDOWS),
         world.track.pieces.arrays(),
         world.track.rideTables(),
       );
@@ -553,6 +599,7 @@ describe('save: version 4 migration', () => {
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,
       ...reliabilityColumns(world),
+      ...riderHistoryColumns(world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -585,6 +632,7 @@ describe('save: version 4 migration', () => {
       world.guests.cols.ridesTaken,
       world.guests.cols.lastRide,
       ...v12Columns(world),
+      ...riderHistoryColumns(world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -623,6 +671,7 @@ describe('save: version 4 migration', () => {
       world.guests.cols.ridesTaken,
       world.guests.cols.lastRide,
       ...v12Columns(world),
+      ...riderHistoryColumns(world),
     ]);
 
     const loaded = deserialize(legacy);
@@ -636,6 +685,40 @@ describe('save: version 4 migration', () => {
     expect(loaded.rides.cols.reliabilityRaw[rideSlot]).toBe(64 * 256);
     expect(loaded.rides.cols.mode[rideSlot]).toBe(RIDE_CATALOG[RideType.FerrisWheel].modes[0].mode);
     expect(deserialize(serialize(loaded)).rides.cols.reliabilityRaw[rideSlot]).toBe(64 * 256);
+  });
+
+  it('migrates version 12 ride history as empty while preserving guest history', () => {
+    const world = flatWorld(16);
+    const rideSlot = world.rides.spawn();
+    world.rides.cols.reliabilityRaw[rideSlot] = 17_321;
+    (world.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[rideSlot] = 25;
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    world.guests.cols.visitTicks[0] = 64;
+    world.guests.cols.ridesTaken[0] = 3;
+    world.guests.cols.lastRide[0] = 7;
+    const legacy = withoutColumns(serialize(world), 12, views, [
+      ...v12Columns(world),
+      ...riderHistoryColumns(world),
+    ]);
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.rides.cols.reliabilityRaw[rideSlot]).toBe(17_321);
+    expect(loaded.guests.cols.visitTicks[0]).toBe(64);
+    expect(loaded.guests.cols.ridesTaken[0]).toBe(3);
+    expect(loaded.guests.cols.lastRide[0]).toBe(7);
+    expect(
+      (loaded.rides.cols as unknown as Record<string, Uint16Array>).ridersWindow00[rideSlot],
+    ).toBe(0);
   });
 
   it.each([6, 7])('migrates version %s ride records with zeroed lifetime income', (version) => {
@@ -669,6 +752,7 @@ describe('save: version 4 migration', () => {
       world.rides.cols.trainCount,
       world.rides.cols.carsPerTrain,
       ...reliabilityColumns(world),
+      ...riderHistoryColumns(world),
     ]);
 
     const loaded = deserialize(legacy);

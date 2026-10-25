@@ -8,6 +8,7 @@ import { getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
 import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/ledger';
+import type { ActiveAward, ParkNewsItem } from '../sim/economy/ledger';
 import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
 
@@ -116,6 +117,8 @@ export interface Snapshot {
   scenario: SnapshotScenario;
   economy: SnapshotEconomy;
   research: SnapshotResearch;
+  activeAwards: ActiveAward[];
+  parkNews: ParkNewsItem[];
 }
 
 /** Pricing and ledger figures for the finance window. Arrays are indexed by `LedgerCategory`, in cents. */
@@ -188,6 +191,8 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     patrolAreas: new Uint8Array((caps.mapTiles ?? 0) * 4),
     park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1 },
     scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
+    activeAwards: [],
+    parkNews: [],
     economy: {
       priceMode: PriceMode.Free,
       admissionPrice: 0,
@@ -293,6 +298,10 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
 
 export function writeSnapshot(world: World, out: Snapshot): void {
   out.tick = world.tick;
+  out.activeAwards = world.economy.activeAwards
+    .filter((award) => award.expiresTick > world.tick)
+    .map((award) => ({ ...award }));
+  out.parkNews = world.economy.parkNews.map((item) => ({ ...item }));
   recountRideLines(world);
   out.weather.kind = world.weather.kind;
   out.weather.temperature = world.weather.temperature;

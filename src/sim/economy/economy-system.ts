@@ -11,10 +11,12 @@ import { LedgerCategory, post, rollMonth } from './ledger';
 import { weeklyInterestCents } from './finance';
 import { chargeCampaignWeek } from './marketing';
 import { DIFFICULT_RATING_BASE, RATING_BASE, computeParkRating, parkValueOf } from './park-rating';
+import { evaluateMonthlyAward } from './awards';
 
 /**
  * Order at a shared boundary: weekly charges, then fortnightly upkeep, then the monthly
- * rollover (so the boundary's charges land in the month that just ended), then rating refresh.
+ * rollover (so the boundary's charges land in the month that just ended), then rating refresh
+ * and award assessment from the refreshed park state.
  */
 export const economySystem: System = {
   name: 'economy',
@@ -32,12 +34,18 @@ export const economySystem: System = {
       const upkeep = l.inputs.rideUpkeepPerFortnight;
       if (upkeep > 0) post(l, LedgerCategory.RideRunning, -upkeep);
     }
-    if (isBoundary(t, TICKS_PER_MONTH)) rollMonth(l);
+    const monthBoundary = isBoundary(t, TICKS_PER_MONTH);
+    if (monthBoundary) {
+      rollMonth(l);
+      l.inputs.drowningCasualtyPenalty = Math.floor((l.inputs.drowningCasualtyPenalty * 90) / 100);
+      l.inputs.fatalRideCrashPenalty = Math.floor((l.inputs.fatalRideCrashPenalty * 90) / 100);
+    }
     if (isBoundary(t, RATING_REFRESH_TICKS)) {
       const guests = world.guests.count;
       l.parkValue = parkValueOf(guests, l.inputs);
       const base = l.difficultRating ? DIFFICULT_RATING_BASE : RATING_BASE;
       l.parkRating = computeParkRating(guests, l.inputs, base);
     }
+    if (monthBoundary) evaluateMonthlyAward(world, t);
   },
 };

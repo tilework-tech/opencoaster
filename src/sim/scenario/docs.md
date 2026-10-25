@@ -1,60 +1,35 @@
-# sim/scenario
+# Noridoc: Scenario Simulation
 
-Responsibility: scenario definitions (starting finances, price mode, loan terms, research catalogue, park entrance, one objective), the JSON scenario format, the park layout a scenario lays down, and win/lose evaluation.
+Path: @/src/sim/scenario
 
-## Interface
+### Overview
 
-- `scenario.ts`: `ScenarioDef`, `ScenarioEntrance`, `EntranceSide`, `ScenarioObjective` (flat numeric record), `ObjectiveKind`, `ScenarioStatus`, `applyScenario(world, def)`. `applyScenario` sets finances, research catalogue and objective only.
-- `scenario-layout.ts`: `prepareScenario(world, def)` runs `applyScenario` and then `layOutEntrance`. The worker calls this for new games. `layOutEntrance(world, entrance)` lays the path and registers its edge tile as the park gate, returning the number of path pieces placed.
-- `scenario-file.ts`: `parseScenarioFile(raw: unknown): ScenarioDef` validates one scenario JSON document. Errors name the scenario id and the field path.
-- `catalog.ts`: `SCENARIOS` (every `scenarios/*.json`, parsed at import, in file-name order), `findScenario(id)`, `buildCatalog(modules)`. Adding a JSON file adds a playable scenario; duplicate ids fail the whole catalog.
-- `scenario-system.ts`: `scenarioSystem`, `objectiveMetric(world, objective)` (the live figure an objective compares with its target), and `meetsObjective(world, objective)`.
-- `scenarios/starter.json`: the shipped starter scenario.
+- Defines scenario starting finances, pricing, research, entrance placement and objective state.
+- Validates scenario JSON and evaluates dated or open-ended objectives against the simulation.
+- Keeps the active objective and win/loss status in `World` for deterministic saves and continuation.
 
-## Scenario JSON
+### How it fits into the larger codebase
 
-```json
-{
-  "id": "starter",
-  "name": "Starter Park",
-  "description": "…",
-  "seed": 2026,
-  "map": { "width": 64, "height": 64 },
-  "finance": {
-    "startingCash": 5000000,
-    "startingLoan": 2000000,
-    "maxLoan": 10000000,
-    "annualInterestBps": 1000
-  },
-  "pricing": { "mode": "admission", "admissionPrice": 300 },
-  "research": {
-    "availableItemIds": [1, 5],
-    "inventions": [{ "itemId": 2, "category": 0, "workUnits": 180 }]
-  },
-  "entrance": { "side": "south", "length": 4 },
-  "objective": { "kind": "guestsAndRating", "target": 10, "rating": 600, "byYear": 1 },
-  "difficultRating": true
-}
-```
+- The worker prepares new scenarios through [scenario-layout.ts](scenario-layout.ts), which applies scenario settings and builds the optional entrance path.
+- [scenario-file.ts](scenario-file.ts) validates documents loaded by [catalog.ts](catalog.ts); errors identify the scenario and field, while duplicate IDs invalidate the catalog.
+- [scenario-system.ts](scenario-system.ts) runs after economy processing and reads current guest, ride, track, economy and ledger state when evaluating a deadline.
+- [scenario.ts](scenario.ts) owns the flat objective record and terminal status in `World`; [save.ts](../../save/save.ts) preserves those fields without storing the source scenario document.
+- In the final headless balance sweep, the default seed (2026) wins at park rating 554 against the 450 target. At the calibrated target, 10 of 12 modest-build seeds win, with ratings from 386 to 688; seeds 22 and 26 miss at 412 and 386. See [docs/BALANCE.md](../../../docs/BALANCE.md#starter-objective) for the harness and assumptions.
 
-- Money is integer cents, capped at 10^12 so sums stay exact. `pricing.mode` is `free`, `admission` or `perRide`. The starting loan may not exceed the loan limit, and objective targets are never negative.
-- The ids `sandbox` and `imported` are reserved: they name non-scenario saves (`SANDBOX_ID`, `IMPORTED_ID` in `scenario.ts`).
-- `objective.kind` is one of `guests`, `parkValue`, `guestsAndRating`, `repayLoanAndParkValue`, `monthlyIncome` (needs `categories`, ledger category names such as `admission`), `qualifyingRides`.
-- `difficultRating` is optional (default `false`). When `true`, the park rating starts from 1,050 instead of 1,150.
-- Each invention has `workUnits`: the research work needed to finish it. A scenario-wide scale is in `research/research.ts` (`FUNDING_WORK_PER_WEEK`).
-- The deadline is `byYear` (whole years; year N ends at the start of year N+1) or a raw `byTick`.
-- `entrance` is optional. Without it the park has no path.
+### Core Implementation
 
-## Decisions
+- [scenario.ts](scenario.ts) defines objective kinds and the numeric objective record, and applies starting finance, price policy, research availability and objective state. [scenario-layout.ts](scenario-layout.ts) also places and registers an optional gate path.
+- [scenario-file.ts](scenario-file.ts) validates bounded numeric fields, enums, income category masks, optional coaster thresholds and deadlines. It converts `byYear` to simulation ticks; a `byTick` deadline is used as supplied. Scenario JSON does not need to match an embedded interface shape beyond the fields the parser accepts.
+- [scenario-system.ts](scenario-system.ts) judges dated objectives once, on the first tick at or after their deadline; the result is terminal. Families include guest count/rating, park value, loan repayment plus park value, monthly income, ride counts, qualifying or complete coasters, best-ride excitement and `HaveFun`. Aliases include `guestsByDate`, `parkValueByDate`, `monthlyRideIncome` and `monthlyFoodProfit`.
+- `monthlyFoodProfit` uses net food/drink sales and stock costs. Kiosk and toilet revenue is recorded as general shop sales and does not satisfy that objective.
+- Ride objectives scan ride and track stores at the evaluation tick. `QualifyingRides` counts open non-shop attractions; `BuildRides` counts current ride entities; `QualifyingCoasters` counts distinct open track-ride types meeting excitement and length thresholds; `CompleteCoasters` counts rides with a closed track and sufficient excitement; `BestRide` compares excitement for open rides. These criteria describe current state, not lifetime achievements.
+- `MonthlyIncome` reads the most recently completed month. `Guests` may require a minimum park rating; `GuestsAndRating` requires both guest and rating thresholds; `RepayLoanAndParkValue` also requires zero loan. Park-value objectives use the economy's latest published park value input. `HaveFun` has no deadline and remains active.
+- The [objective UI](../../ui/objective.ts) reads the objective and live metric. The park window shows the objective, active awards and current date; the HUD shows objective status and announces recent award news.
 
-- Objectives are judged once, on the first tick at or after `byTick`. Win if met, otherwise lose. Status is terminal. The game continues afterwards as a sandbox.
-- `Guests`, `GuestsAndRating`, `ParkValue`, `RepayLoanAndParkValue` and `QualifyingRides` compare live metrics at the deadline. `GuestsAndRating` also needs the stored park rating to reach `rating`. Rating is first computed at tick 512, so it reads 0 before then.
-- `MonthlyIncome` sums the masked categories for the most recently completed month. The economy rolls the month before scenarios evaluate, so a deadline on a month boundary judges the month that just ended.
-- The park entrance is laid on the owned-land edge on the requested side, with a straight path inward. The search runs outward from the edge midpoint and takes the first run of `length` tiles that is buildable, flat, dry and empty. It only depends on the terrain, so the same seed gives the same entrance. If no run qualifies, no path is placed.
-- The objective record and status are saved; the research catalogue is saved as part of research state. The scenario definition itself is not stored, and nothing about the scenario file is in the save format. A loaded game keeps its objective and outcome.
-- Starter objective: 100 live guests and park rating 550 by the end of year one. The current default-seed modest build reaches 570 and wins with 20 points of margin; the twelve-seed modest-build sweep wins 10 / 12 at this target. See [docs/BALANCE.md](../../../docs/BALANCE.md#guest-fidelity-on-the-combined-baseline).
-- The scenario entrance registers the outermost path tile as the park gate. Guest arrivals and departures use this gate and its connected footpath network.
+### Things to Know
 
-## Starter Objective Calibration
+- Park value includes the economy's valuation of closed non-shop rides and current guest count, but its ride inputs refresh periodically; an objective can therefore observe the most recently published value at its evaluation tick.
+- Coaster length uses the track system's stored centre-line tile length. Objective field semantics and thresholds remain compatibility assumptions where checked-in mechanics sources do not establish original RCT2 behavior; see [docs/DECISIONS.md](../../../docs/DECISIONS.md).
+- Entrance search starts at the owned-land edge midpoint and takes the first straight inward run of the requested length that is buildable, flat, dry and empty. If no run qualifies, no path or gate is placed.
 
-The target is calibrated with the headless balance harness (`pnpm balance`, [bench/docs.md](../../../bench/docs.md)) on flattened terrain. On the current combined guest, navigation and ride model, the default-seed modest build reaches 570; a sweep of seeds 11–16 and 21–26 reaches 484–690 and wins 10 / 12 at 550. This is a scripted-build calibration, not a claim about every player strategy. See [BALANCE.md](../../../docs/BALANCE.md#guest-fidelity-on-the-combined-baseline).
+Created and maintained by Nori.

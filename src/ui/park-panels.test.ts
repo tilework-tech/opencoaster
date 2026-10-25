@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createSnapshot } from '../worker/snapshot';
 import { financePanelText } from './hud';
 import { guestDetailsText, guestSelectionText, rideOptionsChanged } from './game-ui';
+import { formatParkDate } from './windows/park-window';
+import { TICKS_PER_MONTH } from '../sim/economy/calendar';
 
 describe('finance panel', () => {
   it('shows cash and outstanding loan from the latest worker snapshot', () => {
@@ -11,6 +13,12 @@ describe('finance panel', () => {
 
     expect(financePanelText(snapshot)).toContain('Cash  $1,234.56');
     expect(financePanelText(snapshot)).toContain('Loan  $75.00');
+  });
+});
+
+describe('park overview calendar', () => {
+  it('shows the current in-game date in the park panel', () => {
+    expect(formatParkDate(TICKS_PER_MONTH)).toBe('April 1, Year 1');
   });
 });
 

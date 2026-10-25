@@ -5,6 +5,9 @@ import { setRideOpen } from '../rides/ride-operations';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { INPUT_REFRESH_TICKS, RIDE_UPKEEP_DIVISOR } from './park-inputs';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
+import { completeCycle } from '../rides/ride-system';
+import { parkInputsSystem } from './park-inputs';
+import { rideSystem } from '../rides/ride-system';
 
 function park(): Simulation {
   const s = new Simulation({ seed: 2, width: 16, height: 16 });
@@ -45,7 +48,7 @@ describe('economy inputs from the park', () => {
     );
   });
 
-  it('reports running cost, value and qualifying rides for open rides only', () => {
+  it('reports running cost and qualifying rides for open rides while retaining closed ride value', () => {
     const s = park();
     refresh(s);
     const inputs = s.world.economy.inputs;
@@ -58,8 +61,23 @@ describe('economy inputs from the park', () => {
     setRideOpen(s.world, s.world.rides.slotToId[0], false);
     refresh(s);
     expect(s.world.economy.inputs.rideUpkeepPerFortnight).toBe(0);
-    expect(s.world.economy.inputs.rideValue).toBe(0);
+    expect(s.world.economy.inputs.rideValue).toBeGreaterThan(0);
     expect(s.world.economy.inputs.qualifyingRideCount).toBe(0);
+  });
+
+  it('counts completed riders in the five-minute park-value window, then ages them out', () => {
+    const s = park();
+    for (let i = 0; i < 12; i++) completeCycle(s.world, 0, 1);
+    parkInputsSystem.update(s.world);
+    const withRecentRiders = s.world.economy.inputs.rideValue;
+    expect(withRecentRiders).toBeGreaterThan(0);
+
+    s.world.tick = 60 * 200;
+    rideSystem.update(s.world);
+    s.world.tick += 160;
+    rideSystem.update(s.world);
+    parkInputsSystem.update(s.world);
+    expect(s.world.economy.inputs.rideValue).toBeLessThan(withRecentRiders);
   });
 
   it('reports the share of unhappy guests and the guests who are off the paths', () => {

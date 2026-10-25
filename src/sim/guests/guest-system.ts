@@ -30,6 +30,7 @@ import { hasParkEntrance, parkEntranceTile } from './park';
 import { exceedsNauseaLimit, intensityCeilingOf, preferredIntensityOf } from './preferences';
 import { recountRideLines } from './ride-lines';
 import { WeatherKind } from '../weather/weather';
+import { awardAttractionBps } from '../economy/awards';
 
 const UPDATE_STRIDE = 4;
 const GUEST_SPEED = 12;
@@ -76,6 +77,8 @@ export interface GuestAdmission {
   entranceFee: number;
   /** Arrival multiplier in basis points; 10000 (the default) means no campaign. */
   attractionBps?: number;
+  /** Natural guest-generation multiplier from active park awards. */
+  awardBps?: number;
 }
 
 export type GuestAdmissionProvider = (world: World) => GuestAdmission;
@@ -94,6 +97,7 @@ function admissionFromEconomy(world: World): GuestAdmission {
     parkRating: world.economy.parkRating,
     entranceFee: gateAdmissionCents(world),
     attractionBps: marketingAttraction(world),
+    awardBps: awardAttractionBps(world.economy.activeAwards, world.tick),
   };
 }
 
@@ -731,11 +735,16 @@ function comfortableGuests(world: World): number {
 function spawnArrival(world: World, admission: GuestAdmission): void {
   const feePenalty = Math.max(0, admission.entranceFee - Math.max(100, admission.parkRating * 2));
   const base = Math.max(0, Math.min(1000, admission.parkRating - feePenalty));
-  const campaign = Math.floor((base * (admission.attractionBps ?? BASIS_POINTS)) / BASIS_POINTS);
+  const campaignBps = admission.attractionBps ?? BASIS_POINTS;
+  const campaign = Math.floor((base * campaignBps) / BASIS_POINTS);
+  const attraction =
+    campaignBps === BASIS_POINTS
+      ? Math.floor((campaign * (admission.awardBps ?? BASIS_POINTS)) / BASIS_POINTS)
+      : campaign;
   const comfortable = comfortableGuests(world);
   const guests = world.guests.count;
   if (guests >= world.guests.capacity || guests >= comfortable) return;
-  const chance = Math.floor((campaign * (comfortable - guests)) / comfortable);
+  const chance = Math.floor((attraction * (comfortable - guests)) / comfortable);
   if (world.rng.int(1000) >= chance) return;
   if (!spawnGuest(world)) return;
   const slot = world.guests.count - 1;

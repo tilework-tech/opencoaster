@@ -18,6 +18,8 @@ import { getRideValueCents } from '../rides/ride-operations';
 import { applyEconomyAction } from './actions';
 import { PriceMode } from './ledger';
 import { CAMPAIGNS } from './marketing';
+import { economySystem } from './economy-system';
+import { recordDrowningCasualty, recordFatalRideCrash } from './api';
 
 function sim(): Simulation {
   return new Simulation({ seed: 9, width: 16, height: 16 });
@@ -73,6 +75,28 @@ describe('economy clock', () => {
     expect(l.monthlyTotals[LedgerCategory.Wages]).toBe(0);
   });
 
+  it('decays existing casualty penalties without restoring them when a new type is recorded', () => {
+    const s = sim();
+    recordDrowningCasualty(s.world);
+    runUntil(s, TICKS_PER_MONTH);
+    expect(s.world.economy.inputs.drowningCasualtyPenalty).toBe(22);
+    recordFatalRideCrash(s.world);
+    expect(s.world.economy.inputs.drowningCasualtyPenalty).toBe(22);
+    expect(s.world.economy.inputs.fatalRideCrashPenalty).toBe(200);
+  });
+
+  it('evaluates monthly awards using park value refreshed at that boundary', () => {
+    const s = sim();
+    s.world.tick = TICKS_PER_MONTH;
+    s.world.economy.inputs.rideValue = 1_000_000;
+    s.world.economy.parkValue = 0;
+
+    economySystem.update(s.world);
+
+    expect(s.world.economy.parkValue).toBe(1_000_000);
+    expect(s.world.economy.activeAwards.map((award) => award.awardId)).toContain(4);
+  });
+
   it('is deterministic for the same seed and command stream', () => {
     const cmds = [
       { tick: 0, action: { type: 'startCampaign' as const, campaignId: 1, weeks: 3 } },
@@ -110,7 +134,8 @@ describe('park rating and value refresh', () => {
     const s = simWithRide();
     s.enqueue({ type: 'spawnGuests', count: 3 });
     runUntil(s, 512);
-    const rideValue = getRideValueCents(s.world, s.world.rides.slotToId[0]);
+    const rideValue = s.world.economy.inputs.rideValue;
+    expect(getRideValueCents(s.world, s.world.rides.slotToId[0])).toBeGreaterThan(0);
     expect(rideValue).toBeGreaterThan(0);
     expect(s.world.economy.parkValue).toBe(rideValue + 3 * 700);
   });

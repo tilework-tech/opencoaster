@@ -88,6 +88,27 @@
       #app.title-open .objective-strip {
         display: none;
       }
+      #app.title-open .park-news {
+        display: none;
+      }
+      .park-news {
+        position: fixed;
+        z-index: 4;
+        top: 74px;
+        left: 50%;
+        width: min(520px, calc(100vw - 32px));
+        transform: translateX(-50%);
+        margin: 0;
+        padding: 8px 12px;
+        border: 1px solid #879073;
+        border-radius: 6px;
+        background: #18211eef;
+        color: #fff1bf;
+        font-size: 13px;
+        line-height: 1.4;
+        white-space: pre-line;
+        pointer-events: none;
+      }
       #app.title-open .weather-overlay {
         display: none;
       }

@@ -28,6 +28,24 @@ export const HISTORY_MONTHS = 5;
 export const NO_CAMPAIGN = -1;
 export const NO_TARGET = -1;
 
+export interface ParkValueRide {
+  valueCents: number;
+  ridersLast5Minutes: number;
+  typeBonus: number;
+}
+
+export interface ActiveAward {
+  awardId: number;
+  expiresTick: number;
+}
+
+export interface ParkNewsItem {
+  tick: number;
+  awardId: number;
+  text: string;
+  positive: boolean;
+}
+
 /** Values reported by other systems (rides, staff, guests) that the economy reads each refresh. */
 export interface EconomyInputs {
   /** Staff wages owed per week, cents. */
@@ -51,6 +69,11 @@ export interface EconomyInputs {
   rideDowntimePercent: number;
   litter: number;
   casualties: number;
+  drowningCasualties: number;
+  fatalRideCrashes: number;
+  /** Remaining rating penalty after monthly decay, in points. */
+  drowningCasualtyPenalty: number;
+  fatalRideCrashPenalty: number;
 }
 
 export interface Ledger {
@@ -75,6 +98,8 @@ export interface Ledger {
   campaignTarget: number;
   parkValue: number;
   parkRating: number;
+  activeAwards: ActiveAward[];
+  parkNews: ParkNewsItem[];
 }
 
 export function createLedger(): Ledger {
@@ -99,6 +124,10 @@ export function createLedger(): Ledger {
       rideDowntimePercent: 0,
       litter: 0,
       casualties: 0,
+      drowningCasualties: 0,
+      fatalRideCrashes: 0,
+      drowningCasualtyPenalty: 0,
+      fatalRideCrashPenalty: 0,
     },
     monthlyTotals: new Float64Array(LedgerCategory.COUNT),
     history: new Float64Array(HISTORY_MONTHS * LedgerCategory.COUNT),
@@ -109,6 +138,8 @@ export function createLedger(): Ledger {
     campaignTarget: NO_TARGET,
     parkValue: 0,
     parkRating: 0,
+    activeAwards: [],
+    parkNews: [],
   };
 }
 
@@ -149,6 +180,8 @@ export interface LedgerSave {
   campaignTarget?: number;
   parkValue: number;
   parkRating: number;
+  activeAwards?: ActiveAward[];
+  parkNews?: ParkNewsItem[];
 }
 
 export function saveLedger(l: Ledger): LedgerSave {
@@ -170,6 +203,8 @@ export function saveLedger(l: Ledger): LedgerSave {
     campaignTarget: l.campaignTarget,
     parkValue: l.parkValue,
     parkRating: l.parkRating,
+    activeAwards: l.activeAwards.map((award) => ({ ...award })),
+    parkNews: l.parkNews.map((item) => ({ ...item })),
   };
 }
 
@@ -191,4 +226,6 @@ export function restoreLedger(l: Ledger, s: LedgerSave): void {
   l.campaignTarget = s.campaignTarget ?? NO_TARGET;
   l.parkValue = s.parkValue;
   l.parkRating = s.parkRating;
+  l.activeAwards = (s.activeAwards ?? []).map((award) => ({ ...award }));
+  l.parkNews = (s.parkNews ?? []).map((item) => ({ ...item }));
 }

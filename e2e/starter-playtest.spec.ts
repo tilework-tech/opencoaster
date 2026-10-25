@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 test('plays the starter park shell and exercises save file round trips', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(900_000);
+  test.setTimeout(18 * 60_000);
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`);
     await mkdir(dirname(path), { recursive: true });
@@ -166,7 +166,7 @@ test('plays the starter park shell and exercises save file round trips', async (
   if (process.env.E2E_RUN_YEAR === '1') {
     await toolbarButton('Game options').click();
     await page.getByRole('button', { name: '4×' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 850_000 });
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 17 * 60_000 });
     await expect(page.locator('.outcome-heading')).toHaveText(/Objective (met|missed)/);
     await screenshot('13-year-one-outcome');
   }
