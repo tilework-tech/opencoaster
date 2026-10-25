@@ -90,7 +90,7 @@ Unverified, and chosen by OpenCoaster:
 - **Pivot.** Odd-sized footprints are centred on the anchor tile (the tile a build click targets); even sizes extend to the +x/+y side at orientation 0. This is an interface choice, not a claim about RCT2.
 - The Fandom RCT wiki could not be fetched while researching (HTTP 402), so its pages were not consulted.
 
-Saves from before footprints (version 18 and earlier) keep each flat ride on its old tile; the loader picks the orientation and anchor shift with the fewest collisions, and a ride whose entrance or exit ends up inside the new footprint loses that placement and is closed until the player places it again.
+Saves from before footprints (version 19 and earlier) keep each flat ride on its old tile; the loader picks the orientation and anchor shift with the fewest collisions, and a ride whose entrance or exit ends up inside the new footprint loses that placement and is closed until the player places it again.
 
 ## Reliability, inspections, and breakdowns
 
