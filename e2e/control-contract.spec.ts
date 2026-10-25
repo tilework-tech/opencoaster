@@ -318,18 +318,51 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
       if (mobile) await control.tap({ timeout: 5_000 });
       else await control.click({ timeout: 5_000 });
       await expect(page.locator('.tool-status')).toContainText('Patrol tool selected');
+    } else if (item.label === 'Queue line') {
+      await setSimulationPaused(page, mobile, false);
+      if (mobile) await control.tap({ timeout: 5_000 });
+      else await control.click({ timeout: 5_000 });
+      await expect(page.locator('.tool-status')).toContainText(/Queue line (on|off)\./);
+      await setSimulationPaused(page, mobile, true);
     } else if (item.ariaPressed !== null) {
-      if (item.ariaPressed === 'true') {
-        if (mobile) await control.tap({ timeout: 5_000 });
-        else await control.click({ timeout: 5_000 });
+      await setSimulationPaused(page, mobile, false);
+      const group = control.locator('xpath=..');
+      const before = await group.evaluateAll((buttons) =>
+        buttons.map((button) => button.getAttribute('aria-pressed')),
+      );
+      if (mobile) await control.tap({ timeout: 5_000 });
+      else await control.click({ timeout: 5_000 });
+      if (item.ariaPressed === 'false') {
         await expect(control).toHaveAttribute('aria-pressed', 'true');
       } else {
-        await setSimulationPaused(page, mobile, false);
-        if (mobile) await control.tap({ timeout: 5_000 });
-        else await control.click({ timeout: 5_000 });
-        await expect(control).toHaveAttribute('aria-pressed', 'true');
-        await setSimulationPaused(page, mobile, true);
+        const state = () =>
+          group.evaluateAll((buttons) =>
+            buttons.map((button) => button.getAttribute('aria-pressed')),
+          );
+        if (JSON.stringify(await state()) === JSON.stringify(before)) {
+          const alternative = group.locator('button[aria-pressed="false"]').first();
+          await expect(alternative).toBeVisible();
+          const alternativeLabel = (await alternative.innerText()).trim();
+          if (mobile) await alternative.tap({ timeout: 5_000 });
+          else await alternative.click({ timeout: 5_000 });
+          await expect(
+            group.getByRole('button', { name: alternativeLabel, exact: true }),
+          ).toHaveAttribute('aria-pressed', 'true');
+          await expect(control).toHaveAttribute('aria-pressed', 'false');
+        } else {
+          await expect.poll(state).not.toEqual(before);
+        }
       }
+      await setSimulationPaused(page, mobile, true);
+    } else if (item.label === 'Remove' && ownerPanel === 'paths') {
+      const slope = pane.getByRole('button', { name: 'Down', exact: true });
+      if (mobile) await slope.tap({ timeout: 5_000 });
+      else await slope.click({ timeout: 5_000 });
+      await expect(page.locator('.tool-status')).toHaveText('Slope: Down.');
+      await clickAndObserve(page, control, mobile);
+      await expect(page.locator('.tool-status')).toHaveText(
+        'Click a tile to set the cursor first.',
+      );
     } else {
       const existingDetailWindows = await page
         .locator('.ui-window:visible')
@@ -584,7 +617,7 @@ test('enabled desktop toolbar and window controls cause an observable effect', a
 test('enabled Pixel 8 toolbar and window controls cause an observable effect', async ({
   browser,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   visitedDetailTypes.clear();
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
