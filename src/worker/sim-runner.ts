@@ -82,6 +82,7 @@ export class SimRunner {
             id: msg.id,
             plan: planLand(this.sim.world, msg.edit),
           });
+        break;
       case 'previewScenery':
         this.previewScenery(msg.id, msg.spot);
         break;
