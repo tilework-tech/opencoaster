@@ -5,10 +5,11 @@ import type { GameUI, ToolMode } from '../../ui/game-ui';
 import type { RidePlacementGhost } from '../../ui/track-preview';
 import type { PlacementHover } from '../input';
 import type { CoasterPanel } from '../../ui/coaster-panel';
-import { ridePlacementValid } from '../../render/placement-art';
+import { ridePlacementLevel, ridePlacementValid } from '../../render/placement-art';
 import { facilityFacingFromPaths } from '../../render/world-art';
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import { FeedbackDomain } from '../../sim/core/feedback';
+import { rideFootprintTiles } from '../../sim/rides/ride-footprint';
 import { Surface } from '../../sim/map/tile-map';
 import { RIDE_INFO_STRIDE, RideFlag, RideInfo } from '../../worker/snapshot';
 import type { SimClient } from '../../worker/sim-client';
@@ -53,6 +54,17 @@ export function createRideSetup(deps: RideSetupDependencies) {
   let stallFrontTile: [number, number] | null = null;
   let rideSetupNotice: string | null = null;
   let ridePlacementTargetSignature = '';
+  /** Quarter turns the ride being placed is rotated by. */
+  let placementDir = 0;
+
+  const rotateButton = document.createElement('button');
+  rotateButton.type = 'button';
+  rotateButton.className = 'ride-rotate-button';
+  rotateButton.textContent = 'Rotate ride';
+  rotateButton.setAttribute('aria-label', 'Rotate ride (Z)');
+  rotateButton.hidden = true;
+  rotateButton.addEventListener('click', () => rotatePlacement());
+  ridePlacementPreview.parentElement?.append(rotateButton);
 
   function chooseRideType(type: number): void {
     coasterPanel.rideType = type;
@@ -62,10 +74,24 @@ export function createRideSetup(deps: RideSetupDependencies) {
     ridePlacementFeedbackMessage = null;
     pendingRideCreation = null;
     rideSetupNotice = null;
+    placementDir = 0;
     gameUi.selectTool('ride');
+    const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
     gameUi.setToolStatus(
-      `${RIDE_CATALOG[type as keyof typeof RIDE_CATALOG].name} selected. Tap a tile you own to build it.`,
+      `${def.name} selected. Tap a tile you own to build it${
+        def.footprint.length > 1 ? '; press Z to rotate it' : ''
+      }.`,
     );
+  }
+
+  /** Turns the ride about to be placed a quarter turn; false when nothing is being placed. */
+  function rotatePlacement(): boolean {
+    if (ridePlacement || deps.selectedTool() !== 'ride') return false;
+    const def = RIDE_CATALOG[coasterPanel.rideType];
+    if (def.footprint.length <= 1) return false;
+    placementDir = (placementDir + 1) & 3;
+    gameUi.setToolStatus(`${def.name} rotated.`);
+    return true;
   }
 
   function rideHoverClear(): void {
@@ -106,7 +132,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
           : [],
         rideType: coasterPanel.rideType,
       };
-      gameUi.setToolStatus(coasterPanel.createRideAt(x, y));
+      gameUi.setToolStatus(coasterPanel.createRideAt(x, y, placementDir));
     }
   }
 
@@ -270,6 +296,10 @@ export function createRideSetup(deps: RideSetupDependencies) {
     context.clearRect(0, 0, width, height);
     const snapshot = sim.latest;
     const map = sim.map;
+    rotateButton.hidden =
+      ridePlacement !== null ||
+      deps.selectedTool() !== 'ride' ||
+      RIDE_CATALOG[coasterPanel.rideType].footprint.length <= 1;
     ridePlacementTargets.setAttribute('viewBox', `0 0 ${width} ${height}`);
     ridePlacementTargets.setAttribute('width', String(width));
     ridePlacementTargets.setAttribute('height', String(height));
@@ -312,8 +342,13 @@ export function createRideSetup(deps: RideSetupDependencies) {
         }
         if (boardingCells.length === 0)
           boardingCells.push(
-            ...(def?.footprint ?? [[0, 0]]).map(([fx, fy]) => [x + fx, y + fy] as [number, number]),
+            ...(def
+              ? rideFootprintTiles(def, x, y, snapshot.rideInfo[offset + RideInfo.Dir])
+              : [[x, y] as [number, number]]),
           );
+        const ownTiles = def?.usesTrack
+          ? null
+          : new Set(boardingCells.map(([cellX, cellY]) => `${cellX},${cellY}`));
         for (const [cellX, cellY] of boardingCells) {
           for (const [dx, dy] of [
             [1, 0],
@@ -322,6 +357,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
             [0, -1],
           ]) {
             const candidate = { x: cellX + dx, y: cellY + dy };
+            if (ownTiles?.has(`${candidate.x},${candidate.y}`)) continue;
             if (!allCandidates.some((cell) => cell.x === candidate.x && cell.y === candidate.y))
               allCandidates.push(candidate);
           }
@@ -343,9 +379,12 @@ export function createRideSetup(deps: RideSetupDependencies) {
       if (!def) continue;
       const rideX = snapshot.rideInfo[offset + RideInfo.RideX];
       const rideY = snapshot.rideInfo[offset + RideInfo.RideY];
-      for (const [dx, dy] of def.footprint) {
-        const tileX = rideX + dx;
-        const tileY = rideY + dy;
+      for (const [tileX, tileY] of rideFootprintTiles(
+        def,
+        rideX,
+        rideY,
+        snapshot.rideInfo[offset + RideInfo.Dir],
+      )) {
         if (tileX >= 0 && tileY >= 0 && tileX < map.width && tileY < map.height)
           occupiedRideTiles.add(tileY * map.width + tileX);
       }
@@ -500,6 +539,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   }
   return {
     chooseRideType,
+    rotatePlacement,
     placeRidePart,
     rideTileClick,
     clearNotice: () => (rideSetupNotice = null),
@@ -516,7 +556,9 @@ export function createRideSetup(deps: RideSetupDependencies) {
         x,
         y,
         facing: facilityFacingFromPaths(x, y, map),
-        valid: ridePlacementValid(coasterPanel.rideType, x, y, map, snapshot),
+        dir: placementDir,
+        baseLevel: ridePlacementLevel(coasterPanel.rideType, x, y, placementDir, map),
+        valid: ridePlacementValid(coasterPanel.rideType, x, y, placementDir, map, snapshot),
       };
     },
   };

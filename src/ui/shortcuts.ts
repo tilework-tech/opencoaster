@@ -7,6 +7,7 @@ export type ShortcutAction =
   | { type: 'pause' }
   | { type: 'rotate'; direction: -1 | 1 }
   | { type: 'rotatePiece' }
+  | { type: 'rotateConstruction' }
   | { type: 'zoom'; direction: -1 | 1 }
   | { type: 'window'; id: string };
 
@@ -49,6 +50,9 @@ export function shortcutFor(event: KeyLike): ShortcutAction | null {
       return { type: 'zoom', direction: -1 };
     case 'PageDown':
       return { type: 'zoom', direction: 1 };
+    case 'z':
+    case 'Z':
+      return { type: 'rotateConstruction' };
     case ' ':
     case 'Pause':
       return { type: 'pause' };

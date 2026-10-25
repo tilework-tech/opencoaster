@@ -10,7 +10,14 @@ import type { RideType } from '../sim/rides/ride-types';
 import { drawAnchoredSprite } from '../render/canvas-atlas';
 import { spritePages } from '../render/sprite-pages';
 import type { CanvasAtlas } from '../render/canvas-atlas';
-import { facilitySpriteKey, rideHutSpriteKey, rideSpriteKey } from '../render/world-art';
+import {
+  facilitySpriteKey,
+  rideCellSpriteKey,
+  rideHutSpriteKey,
+  rideSpriteKey,
+} from '../render/world-art';
+import { isSlicedRide } from '../render/ride-scene';
+import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { trackPreviewSprites } from './track-preview-art';
 
 const VALID_FILL = 'rgba(90, 225, 130, 0.45)';
@@ -21,36 +28,53 @@ export interface RidePlacementGhost {
   type: RideType;
   x: number;
   y: number;
+  /** Quarter turns the footprint is rotated by. */
+  dir: number;
+  /** Height level of a flat ride's floor. */
+  baseLevel: number;
   facing: number;
   valid: boolean;
 }
 
 /**
- * The sprite a ride or stall preview draws in the world: the ride's entrance hut, the facility
- * sprite facing its path, or the ride itself, in the camera's rotation. Its tile level comes from
- * the map, so it stands on the ground where the ride would be built.
+ * The world-space sprites of a ride or stall preview: the ride's entrance hut, the facility
+ * sprite facing its path, or one slice per footprint tile of a flat ride, in the camera's
+ * rotation. Slices stand at the ride's floor level, so a large ride previews at its full footprint
+ * and depth-sorts per tile like the built ride.
  */
-export function rideGhostSprite(
+export function rideGhostSprites(
   ghost: RidePlacementGhost,
   map: PreviewMap,
   rotation: Rotation,
-): SpriteGhost | null {
-  const { x, y } = ghost;
-  if (x < 0 || y < 0 || x >= map.width || y >= map.height) return null;
+): SpriteGhost[] {
   const def = RIDE_CATALOG[ghost.type];
+  const tone = ghost.valid ? 'ok' : 'refused';
+  const inside = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < map.width && y < map.height;
+  if (isSlicedRide(ghost.type)) {
+    const tiles = rideFootprintTiles(def, ghost.x, ghost.y, ghost.dir);
+    const ghosts: SpriteGhost[] = [];
+    tiles.forEach(([x, y], cell) => {
+      if (!inside(x, y)) return;
+      ghosts.push({
+        x,
+        y,
+        level: ghost.baseLevel,
+        sprite: rideCellSpriteKey(ghost.type, cell, ghost.dir, rotation),
+        kind: 'ride',
+        tone,
+      });
+    });
+    return ghosts;
+  }
+  const { x, y } = ghost;
+  if (!inside(x, y)) return [];
   const sprite = def.usesTrack
     ? rideHutSpriteKey(ghost.type, 'entrance', ghost.facing, rotation)
     : ['shop', 'stall', 'facility'].includes(def.category)
       ? facilitySpriteKey(ghost.type, ghost.facing, rotation)
       : rideSpriteKey(ghost.type, rotation);
-  return {
-    x,
-    y,
-    level: map.heights?.[y * map.width + x] ?? 0,
-    sprite,
-    kind: 'ride',
-    tone: ghost.valid ? 'ok' : 'refused',
-  };
+  return [{ x, y, level: map.heights?.[y * map.width + x] ?? 0, sprite, kind: 'ride', tone }];
 }
 
 /** A tile a refused placement points at; drawn red. */

@@ -143,9 +143,8 @@ function waterSprites(): SpriteDef[] {
 }
 
 /** Flat rides are drawn as one slice per footprint tile; everything else is one sprite per view. */
-function isFlatRide(ride: RideTypeDef | undefined): ride is RideTypeDef {
+function isFlatRide(ride: RideTypeDef): boolean {
   return (
-    ride !== undefined &&
     ride.id !== RideType.GoKarts &&
     !ride.usesTrack &&
     (ride.category === 'gentle' || ride.category === 'thrill')
@@ -201,7 +200,7 @@ function rideSprites(): SpriteDef[] {
         ride.category === 'coaster')
     )
       return [];
-    if (isFlatRide(ride)) return flatRideCellSprites(ride, model);
+    if (ride && isFlatRide(ride)) return flatRideCellSprites(ride, model);
     const spriteName = ride ? rideSpriteName(ride.id) : model.key;
     const fit = rideFitScale(
       Array.from({ length: model.frames }, (_, frame) => rideMesh(model, frame)),

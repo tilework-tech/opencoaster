@@ -54,6 +54,8 @@ export interface GameUIActions {
   setPaused(paused: boolean): void;
   setSpeed(speed: number): void;
   rotate(direction: -1 | 1): void;
+  /** Turns the ride about to be placed a quarter turn; false when nothing is being placed. */
+  rotateConstruction(): boolean;
   zoom(direction: -1 | 1): void;
   setTool(tool: ToolMode): void;
   spawnGuests(): void;

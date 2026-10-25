@@ -24,6 +24,11 @@ describe('default shortcuts', () => {
     expect(key('x')).toEqual({ type: 'rotate', direction: -1 });
   });
 
+  it('rotates the ride being placed on Z, either case', () => {
+    expect(key('z')).toEqual({ type: 'rotateConstruction' });
+    expect(key('Z')).toEqual({ type: 'rotateConstruction' });
+  });
+
   it('zooms one step with Page Up (out) and Page Down (in)', () => {
     expect(key('PageUp')).toEqual({ type: 'zoom', direction: -1 });
     expect(key('PageDown')).toEqual({ type: 'zoom', direction: 1 });
