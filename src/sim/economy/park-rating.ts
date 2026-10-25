@@ -5,7 +5,7 @@ export const MAX_RATING = 999;
 export const RATING_BASE = 700;
 export const DIFFICULT_RATING_BASE = 600;
 /** New attractions gradually restore the points removed from the starting base. */
-const DEVELOPMENT_BONUS_MAX = 450;
+const DEVELOPMENT_BONUS_MAX = 480;
 const DEVELOPMENT_BONUS_ATTRACTIONS = 6;
 /** Happiness penalty when no guest is happy; each happiness point removed lowers it by 2. */
 const HAPPINESS_PENALTY_START = 500;

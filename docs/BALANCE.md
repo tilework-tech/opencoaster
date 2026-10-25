@@ -42,7 +42,7 @@ Related guest changes: needs decay every 128 world ticks and happiness motives r
 
 ### Rating
 
-`rating = base + guests/13 - 150 + development bonus - penalties`, clamped to 0-999 (guest term unchanged). `base` is 700, or 600 when the scenario sets `difficultRating`. The OpenCoaster development bonus adds 75 points per open attraction up to six (450 maximum); the guide-derived penalties remain unchanged:
+`rating = base + guests/13 - 150 + development bonus - penalties`, clamped to 0-999 (guest term unchanged). `base` is 700, or 600 when the scenario sets `difficultRating`. The OpenCoaster development bonus adds 80 points per open attraction up to six (480 maximum); the guide-derived penalties remain unchanged:
 
 | Term               | Value                                                                                                                                                                                                 |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -60,9 +60,9 @@ Averages and totals cover open attractions (rides, not stalls). With no open att
 
 Effect of the happiness term: the old term forgave everything until half the guests were unhappy, the rating-formula guide's term starts charging as soon as guests are below 84% happy. Mid-game happiness swings, so the scripted park's rating moves by hundreds of points between samples (see [Starter objective](#starter-objective)).
 
-Effect: an empty park starts at 250 (700 base − 150 guest term − 300 missing-attraction penalty). Opening six attractions restores 450 points; varied ride ratings further reduce ride penalties, while happy guests and low litter avoid their existing deductions. The 1,150/1,050 values remain the community guide's reported reference, not OpenCoaster's tuned base; see [the fidelity note](fidelity/economy.md#opencoaster-starting-rating-calibration).
+Effect: an empty park starts at 250 (700 base − 150 guest term − 100 missing-proximity terms − 200 missing-variety terms). Opening six attractions restores 480 development points; varied ride ratings further reduce ride penalties, while happy guests and low litter avoid their existing deductions. The 1,150/1,050 values remain the community guide's reported reference, not OpenCoaster's tuned base; see [the fidelity note](fidelity/economy.md#opencoaster-starting-rating-calibration).
 
-On the current tree, the default-seed modest starter build rises from the low opening value as attractions open, rates 440 after month one and 676 after month three, then fluctuates with guest happiness, litter and downtime. At the year-one objective check it has 290 guests, rating 567, and wins the existing 450-rating target.
+On the current tree, the default-seed modest starter build rates 453 after month one and 596 after month three as attractions open. It fluctuates with guest happiness, litter and downtime; at the October objective deadline it has 291 guests, rating 688, and wins the existing 450-rating target. In this run ratings sampled after month one range from 160 to 703, showing that opening rides builds capacity while cleanliness and guest conditions still affect the score.
 
 ### Guests
 
@@ -301,18 +301,18 @@ The scripts play a competent but imperfect player. All build gate-relative: a sp
 | Lantern Bay          | Beginner    | park value $7,000 by end of year 3                                | $50k, $10k loan, pay per ride, sand and sea, east gate | 12/12 |
 | Bramblewood Hollow   | Beginner    | $750 a month ride ticket income by end of year 3                  | $45k, $15k loan, pay per ride, dense trees, west gate  | 12/12 |
 | Copper Ridge         | Challenging | five coasters of 4.60+ excitement before the end of year 1        | $30k, $25k loan, pay per ride, hills, south gate       | 12/12 |
-| Tidewater Docks      | Challenging | repay the $6k loan and reach park value $5,500 by end of year 4   | $28k, $6k loan, pay per ride, west gate                | 12/12 |
-| Thunderhead Mesa     | Expert      | 460 guests and rating 700+ by end of year 4                       | $30k, $30k loan, difficult rating, hot and dry         | 6/12  |
+| Tidewater Docks      | Challenging | repay the $6k loan and reach park value $5,500 by end of year 4   | $28k, $6k loan, pay per ride, west gate                | 11/12 |
+| Thunderhead Mesa     | Expert      | 460 guests and rating 700+ by end of year 4                       | $30k, $30k loan, difficult rating, hot and dry         | 9/12  |
 | Glacier Point        | Expert      | six coasters of 4.90+ excitement within 22,528 ticks (1.4 months) | $33k, $20k loan, pay per ride, cold, hesitant script   | 6/12  |
 | Seaside Promenade    | Real        | $380 a month food and drink profit by end of year 3               | $40k, $20k loan, free entry and rides                  | 12/12 |
-| Riverside Fairground | Real        | 645 guests, rating 600+, by end of year 3                         | $50k, $25k loan, admission $3, north gate              | 6/12  |
-| Open Grounds         | Other       | Have Fun (no deadline)                                            | $80k, no loan                                          | 11/12 |
+| Riverside Fairground | Real        | 645 guests, rating 600+, by end of year 3                         | $50k, $25k loan, admission $3, north gate              | 5/12  |
+| Open Grounds         | Other       | Have Fun (no deadline)                                            | $80k, no loan                                          | 12/12 |
 
 Notes on reading the table:
 
-- All Beginner parks win 12/12 and the two Expert parks win 6/12 each, meeting the documented 10+ and 3 to 9 targets. Thunderhead Mesa lands at 453 to 468 guests and 697 to 749 rating, so its 460-guest / 700-rating objective splits the seeds. Riverside Fairground lands at 624 to 657 guests and 680 to 891 rating; its combined objective wins on six seeds.
-- Seaside Promenade, Copper Ridge and Tidewater Docks are 12/12 for this script (the last two hesitate, but not enough to miss). They are easy for a script that never misplaces a queue or skimps on bins; a human will find them harder. Tidewater's final park ratings range from 250 to 877 across seeds; rating is not part of its objective, which needs the loan at zero and value of $5,500 or more (the script holds a $6,000 reserve and repays as soon as cash allows).
-- Open Grounds has no objective to win. The harness counts a run as healthy when, after four years, the park is solvent, rated 600 or more and holds 200 or more guests; seed 4 ends at rating 538 (a litter spike at the final sample) and is the one miss. The game itself never marks the park complete.
+- All Beginner parks win 12/12 and the two Expert parks win 6/12 and 9/12, meeting the documented 10+ and 3 to 9 targets. Thunderhead Mesa ends at 458 to 467 guests and 743 to 778 rating; its three misses fall one or two guests short of the 460-person objective. Glacier Point's six coaster races remain dependent on the random start delay.
+- Seaside Promenade, Copper Ridge and Tidewater Docks win 12/12, 12/12 and 11/12 respectively. Tidewater's one miss ends at $5,437.90 park value; its rating is not part of the objective, which requires the loan at zero and value of $5,500 or more.
+- Riverside Fairground wins 5/12. Its five wins reach 646 to 653 guests with rating 795 to 915; the seven misses fall below the 645-guest condition. Open Grounds has no in-game objective to win. The harness counts a run as healthy when, after four years, the park is solvent, rated 600 or more and holds 200 or more guests; all twelve seeds meet that health check in this run.
 - Glacier Point is a race against the script's random start delay (up to three months). With $33k all six coasters are placed on the first decision after the delay; $30k only pays for five. The six losing seeds (3 and 7 to 11) were still waiting at the deadline with just the four opening items built.
 - Coaster ratings in the table are measured on the apron after a 7,000-tick test: the compact circuit rates 4.67, the "river run" 4.92 and the "switchback" 4.94 (see [bench/strategy/coasters.ts](../bench/strategy/coasters.ts)). These are the best of about 500 closed circuits found by randomised search over a 16-tile box; the wooden coaster's ratings top out near 5.2 for larger circuits, which is why coaster targets stay at 4.90 or below. Scenery within five tiles of a station would add 0.05 per item, but the apron is tree-free and the scripts place no scenery, so only trees just past its edge could add to a station's rating.
 

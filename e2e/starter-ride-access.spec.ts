@@ -228,7 +228,6 @@ async function playStarterRideAccess(
   await rideDetail.getByRole('button', { name: 'Locate' }).click();
   await page.getByRole('button', { name: 'Close Ride #0' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
-  await page.getByRole('button', { name: 'Close Ride construction' }).click();
   await toolbarAction(page, 'Zoom in', mobile);
   await toolbarAction(page, 'Zoom in', mobile);
   await screenshot(

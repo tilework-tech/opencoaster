@@ -94,19 +94,21 @@ describe('park rating', () => {
 
 describe('park rating ride terms', () => {
   it('starts an empty park with a low rating', () => {
-    expect(computeParkRating(0, createLedger().inputs)).toBeLessThanOrEqual(250);
+    expect(computeParkRating(0, createLedger().inputs)).toBe(250);
   });
 
   it('lets a developed park recover most of the rating lost at the start', () => {
     const developed = {
       ...quiet,
-      openAttractionCount: 20,
-      excitementTotal: 20 * IDEAL_EXCITEMENT,
-      intensityTotal: 20 * IDEAL_INTENSITY,
+      openAttractionCount: 6,
+      excitementTotal: 6 * IDEAL_EXCITEMENT,
+      intensityTotal: 6 * IDEAL_INTENSITY,
       litter: 0,
       unhappyPercent: 0,
     };
-    expect(computeParkRating(250, developed)).toBeGreaterThanOrEqual(700);
+    const rating = computeParkRating(250, developed);
+    expect(rating).toBeGreaterThanOrEqual(700);
+    expect(rating).toBeLessThan(MAX_RATING);
   });
 
   it('rewards attractions that approach the ideal averages', () => {
