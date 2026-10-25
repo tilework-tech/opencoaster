@@ -21,7 +21,7 @@ export function centreOnTile(x: number, y: number, sim: SimClient, camera: Camer
   project(
     x * TILE_UNITS + TILE_UNITS / 2,
     y * TILE_UNITS + TILE_UNITS / 2,
-    map.heights[y * map.width + x]! * Z_STEP,
+    0,
     map.width,
     map.height,
     camera.rotation,

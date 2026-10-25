@@ -13,6 +13,7 @@ async function startStarterPark(page: Page): Promise<void> {
 async function placeCoaster(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Map', exact: true }).click();
   const minimap = page.locator('.minimap');
+  await expect.poll(() => minimap.evaluate((canvas) => canvas.width)).toBe(128);
   const bounds = await minimap.boundingBox();
   if (!bounds) throw new Error('Park map is missing');
   const dimensions = await minimap.evaluate((canvas) => ({

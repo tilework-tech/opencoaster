@@ -74,7 +74,7 @@ test('shows land rights in Park information with purchase prices and distinct sa
   expect(landBefore).not.toBe(rightsBefore);
   await buyLand.click();
   await expect(buyLand).toHaveAttribute('aria-pressed', 'true');
-  await centerMapOnTile(page, 14, 40);
+  await centerMapOnTile(page, 13, 39);
   const viewport = await page.locator('#game').boundingBox();
   if (!viewport) throw new Error('Game viewport is missing');
   const cash = page.locator('.status-cash .status-value');
@@ -95,7 +95,7 @@ test('shows land rights in Park information with purchase prices and distinct sa
   await expect(rightsOffer).toContainText(`${rightsBefore - 1} tiles · $40.00 per tile`);
 
   await page.getByRole('button', { name: 'Footpaths', exact: true }).click();
-  await centerMapOnTile(page, 14, 40);
+  await centerMapOnTile(page, 13, 39);
   await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2);
   await expect(page.locator('.build-hover-tip')).toBeHidden();
   await centerMapOnTile(page, 10, 40);

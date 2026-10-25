@@ -161,7 +161,7 @@ test('plays the starter park shell and exercises save file round trips', async (
   await screenshot('08b-admission');
 
   const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
-  while (await closeButtons.count()) await closeButtons.first().click();
+  while (await closeButtons.count()) await closeButtons.last().click();
   await toolbarButton('Game options').click();
   await page.getByRole('button', { name: 'Save, load and quit…' }).click();
   const menu = page.locator('[aria-label="Game menu"]');
