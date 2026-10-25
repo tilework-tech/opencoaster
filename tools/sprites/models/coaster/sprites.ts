@@ -1,7 +1,7 @@
-import { PIECES } from '../../../../src/sim/track/catalog';
-import { CHAIN_FRAMES as RENDER_CHAIN_FRAMES } from '../../../../src/render/coaster-art';
+import { CHAIN_FRAMES as RENDER_CHAIN_FRAMES, artPieces } from '../../../../src/render/coaster-art';
 import { renderMesh } from '../../raster';
 import { clipMesh, rotateMesh, rotatePoint, translateMesh } from '../../mesh';
+import type { Mesh } from '../../mesh';
 import type { SpriteDef } from '../../output';
 import {
   CAR_BANK_NAMES,
@@ -22,7 +22,7 @@ const ONE_TILE = { width: 1, height: 1 };
 export function coasterSprites(): SpriteDef[] {
   const out: SpriteDef[] = [];
   for (const art of TRACK_ARTS) {
-    for (const piece of PIECES) {
+    for (const piece of artPieces(art)) {
       for (const variant of variantsOf(piece)) {
         const phases = variant === '+chain' ? CHAIN_FRAMES : 1;
         const locals = Array.from({ length: phases }, (_, phase) =>
@@ -31,24 +31,19 @@ export function coasterSprites(): SpriteDef[] {
         piece.footprint.forEach((cell, index) => {
           for (let view = 0; view < 4; view++) {
             const centre = rotatePoint([cell.i, cell.j, 0], view);
-            const frames = locals.map((local) =>
-              translateMesh(
-                clipMesh(
-                  rotateMesh(local, view),
-                  centre[0] - 0.5,
-                  centre[0] + 0.5,
-                  centre[1] - 0.5,
-                  centre[1] + 0.5,
-                ),
-                -centre[0],
-                -centre[1],
-                0,
+            const shift = (mesh: Mesh): Mesh => translateMesh(mesh, -centre[0], -centre[1], 0);
+            const turned = locals.map((local) => rotateMesh(local, view));
+            const cells = turned.map((mesh) =>
+              shift(
+                clipMesh(mesh, centre[0] - 0.5, centre[0] + 0.5, centre[1] - 0.5, centre[1] + 0.5),
               ),
             );
-            if (frames.every((mesh) => mesh.length === 0)) return;
+            if (cells.every((mesh) => mesh.length === 0)) return;
             out.push({
               key: `track/${art}/${piece.name}${variant}/view-${view}/cell-${index}`,
-              frames: frames.map((mesh) => renderMesh(mesh)),
+              frames: cells.map((mesh, phase) =>
+                renderMesh(mesh, { continuedBy: shift(turned[phase]) }),
+              ),
               footprint: ONE_TILE,
             });
           }

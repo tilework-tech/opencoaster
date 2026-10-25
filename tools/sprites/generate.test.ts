@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PIECES } from '../../src/sim/track/catalog';
+import { COASTER_FAMILIES, TRACK_ARTS, artPieces } from '../../src/render/coaster-art';
 import { buildSprites } from './generate';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
@@ -69,16 +69,16 @@ describe('generated sprite catalogue', () => {
     }
   });
 
-  it('renders every catalog track piece in the wood and steel styles in 4 rotations, with a sprite on its centre cell', () => {
-    for (const style of ['wood', 'steel'])
-      for (const piece of PIECES)
+  it('renders every piece a coaster family can build in 4 rotations, with a sprite on its cells', () => {
+    for (const art of TRACK_ARTS)
+      for (const piece of artPieces(art))
         for (let view = 0; view < 4; view++) {
           const cells = piece.footprint
             .map((_, index) =>
-              sprites.has(`track/${style}/${piece.name}/view-${view}/cell-${index}`),
+              sprites.has(`track/${art}/${piece.name}/view-${view}/cell-${index}`),
             )
             .filter(Boolean);
-          expect(cells.length, `${style} ${piece.name} view ${view}`).toBeGreaterThan(0);
+          expect(cells.length, `${art} ${piece.name} view ${view}`).toBeGreaterThan(0);
         }
   });
 
@@ -90,7 +90,7 @@ describe('generated sprite catalogue', () => {
   });
 
   it('has chain, brake and block-brake art for lift- and brake-capable pieces', () => {
-    for (const art of ['wood', 'steel'])
+    for (const art of TRACK_ARTS)
       for (const variant of ['chain', 'brake', 'block'])
         for (let view = 0; view < 4; view++)
           expect(sprites.has(`track/${art}/flat+${variant}/view-${view}/cell-0`)).toBe(true);

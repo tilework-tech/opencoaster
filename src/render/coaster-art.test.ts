@@ -6,6 +6,9 @@ import {
   CHAIN_FRAMES,
   carSpriteKey,
   coasterFamily,
+  artPieces,
+  familyPieces,
+  trackArt,
   supportStack,
   trackCellSprites,
   trackVariant,
@@ -18,6 +21,30 @@ describe('coaster families', () => {
     expect(coasterFamily(RideType.JuniorRollerCoaster)).toBe('junior');
     expect(coasterFamily(RideType.WildMouseCoaster)).toBe('mouse');
     expect(coasterFamily(RideType.MerryGoRound)).toBeUndefined();
+  });
+});
+
+describe('family pieces', () => {
+  it('limits each family to the pieces its ride type can build', () => {
+    const names = (family: Parameters<typeof familyPieces>[0]) =>
+      familyPieces(family).map((piece) => piece.name);
+    expect(names('wood')).not.toContain('up60');
+    expect(names('wood')).not.toContain('verticalLoopLeft');
+    expect(names('wood')).toContain('largeHelixLeftUp');
+    expect(names('steel')).toContain('verticalLoopLeft');
+    expect(names('steel')).toContain('up60');
+    expect(names('junior')).toHaveLength(16);
+    expect(names('mouse')).toContain('up60');
+    expect(names('mouse')).not.toContain('verticalLoopLeft');
+  });
+
+  it('draws Wild Mouse on timber track whose art also covers its steep pieces', () => {
+    expect(trackArt('mouse')).toBe('wood');
+    expect(trackArt('junior')).toBe('junior');
+    const wood = artPieces('wood').map((piece) => piece.name);
+    expect(wood).toContain('up60');
+    expect(wood).toContain('largeHelixLeftUp');
+    expect(wood).not.toContain('verticalLoopLeft');
   });
 });
 
@@ -37,7 +64,7 @@ describe('track variants', () => {
     const piece = pieceByName('smallRight')!;
     const cells = trackCellSprites(piece.id, 1, 2, 'junior', PieceMode.Normal, 0);
     expect(cells).toHaveLength(piece.footprint.length);
-    expect(cells[0].key).toBe('track/steel/smallRight/view-3/cell-0');
+    expect(cells[0].key).toBe('track/junior/smallRight/view-3/cell-0');
     const cell = piece.footprint[1];
     expect([cells[1].dx, cells[1].dy]).toEqual([-cell.j, cell.i]);
   });
@@ -66,9 +93,9 @@ describe('cars', () => {
 });
 
 describe('supports', () => {
-  it('stacks whole levels from the ground and tops them with quarter-level pieces', () => {
+  it('stops a quarter level short of the track centre line, in whole levels plus a quarter-level cap', () => {
     const flat = pieceByName('flat')!;
-    expect(supportStack(flat.id, 0, 2, 5)).toEqual({ full: 3, quarters: 0 });
+    expect(supportStack(flat.id, 0, 2, 5)).toEqual({ full: 2, quarters: 3 });
     expect(supportStack(flat.id, 0, 2, 2)).toEqual({ full: 0, quarters: 0 });
     const up = pieceByName('up25')!;
     const stack = supportStack(up.id, 0, 0, 3);

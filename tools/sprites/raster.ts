@@ -28,6 +28,11 @@ export interface Sprite {
 
 export interface RenderOptions {
   outline?: boolean;
+  /**
+   * Geometry that continues the mesh beyond where it was cut (the whole model a clipped cell was
+   * taken from): no outline is drawn on pixels it covers, so adjoining cells show no seam.
+   */
+  continuedBy?: Mesh;
 }
 
 /** Exact 2:1 dimetric orthographic projection: one tile is a 64x32 diamond, one level 16px. */
@@ -133,15 +138,48 @@ export function renderMesh(mesh: Mesh, options: RenderOptions = {}): Sprite {
     }
   });
 
-  if (margin > 0) addOutline(pixels, width, height);
+  if (margin > 0) {
+    const continued = options.continuedBy
+      ? coverage(options.continuedBy, left, top, width, height)
+      : undefined;
+    addOutline(pixels, width, height, continued);
+  }
   return { width, height, anchor: { x: half, y: -top }, pixels };
 }
 
-function addOutline(pixels: Uint8Array, width: number, height: number): void {
+/** Which pixels of a `width` x `height` grid whose origin is at screen (left, top) the mesh covers. */
+function coverage(mesh: Mesh, left: number, top: number, width: number, height: number): Uint8Array {
+  const covered = new Uint8Array(width * height);
+  for (const tri of mesh) {
+    const [pa, pb, pc] = tri.v.map((p) => project(p[0], p[1], p[2]));
+    const area = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]);
+    if (Math.abs(area) < 1e-9) continue;
+    const x0 = Math.max(0, Math.floor(Math.min(pa[0], pb[0], pc[0]) - left));
+    const x1 = Math.min(width - 1, Math.ceil(Math.max(pa[0], pb[0], pc[0]) - left));
+    const y0 = Math.max(0, Math.floor(Math.min(pa[1], pb[1], pc[1]) - top));
+    const y1 = Math.min(height - 1, Math.ceil(Math.max(pa[1], pb[1], pc[1]) - top));
+    for (let py = y0; py <= y1; py++)
+      for (let px = x0; px <= x1; px++) {
+        const sx = px + 0.5 + left;
+        const sy = py + 0.5 + top;
+        const w0 = ((pb[0] - sx) * (pc[1] - sy) - (pb[1] - sy) * (pc[0] - sx)) / area;
+        const w1 = ((pc[0] - sx) * (pa[1] - sy) - (pc[1] - sy) * (pa[0] - sx)) / area;
+        if (w0 >= 0 && w1 >= 0 && 1 - w0 - w1 >= 0) covered[py * width + px] = 1;
+      }
+  }
+  return covered;
+}
+
+function addOutline(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  continued?: Uint8Array,
+): void {
   const source = pixels.slice();
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (source[y * width + x] !== TRANSPARENT) continue;
+      if (source[y * width + x] !== TRANSPARENT || continued?.[y * width + x]) continue;
       const touches =
         (x > 0 && source[y * width + x - 1] !== TRANSPARENT) ||
         (x < width - 1 && source[y * width + x + 1] !== TRANSPARENT) ||

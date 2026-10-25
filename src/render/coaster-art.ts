@@ -1,8 +1,8 @@
-import { Z_STEP } from '../sim/core/constants';
-import { PIECES } from '../sim/track/catalog';
+import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { PIECES, SAMPLES } from '../sim/track/catalog';
 import { PieceFlag, PieceMode } from '../sim/track/track-types';
 import type { TrackPieceDef } from '../sim/track/track-types';
-import { RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 
 /** Art families of the track rides; each has its own track, supports and cars. */
 export const COASTER_FAMILIES = ['wood', 'steel', 'junior', 'mouse'] as const;
@@ -17,9 +17,30 @@ const BANK_NAMES = ['level', 'left', 'right', 'inverted'] as const;
 export const CAR_PITCH_NAMES = PITCH_NAMES;
 export const CAR_BANK_NAMES = BANK_NAMES;
 
-/** Track pieces are drawn in the wood or steel style; Wild Mouse and Junior share those. */
-export function trackArt(family: CoasterFamily): 'wood' | 'steel' {
-  return family === 'wood' || family === 'mouse' ? 'wood' : 'steel';
+const FAMILY_RIDES: Record<CoasterFamily, RideType> = {
+  wood: RideType.WoodenCoaster,
+  steel: RideType.SteelLoopingCoaster,
+  junior: RideType.JuniorRollerCoaster,
+  mouse: RideType.WildMouseCoaster,
+};
+
+export type TrackArt = 'wood' | 'steel' | 'junior';
+export const TRACK_ARTS: readonly TrackArt[] = ['wood', 'steel', 'junior'];
+
+/** Track and station art a family draws with; Wild Mouse rides on timber track. */
+export function trackArt(family: CoasterFamily): TrackArt {
+  return family === 'mouse' ? 'wood' : family;
+}
+
+/** Catalog pieces a family's ride type can build, which are the only ones it needs art for. */
+export function familyPieces(family: CoasterFamily): TrackPieceDef[] {
+  const rules = RIDE_CATALOG[FAMILY_RIDES[family]].trackRules;
+  return PIECES.filter((piece) => {
+    if (rules?.allowedPieces && !rules.allowedPieces.includes(piece.id)) return false;
+    const steep = Math.abs(piece.entrySlope) === 2 || Math.abs(piece.exitSlope) === 2;
+    if (steep && !rules?.steepSlopes) return false;
+    return !(piece.flags & PieceFlag.Inverted && !rules?.inversions);
+  });
 }
 
 export function coasterFamily(type: RideType): CoasterFamily | undefined {
@@ -100,6 +121,26 @@ export function carSpriteKey(
   return `vehicles/${family}/car/${PITCH_NAMES[pitch + 3]}/${BANK_NAMES[bank]}/heading-${view}`;
 }
 
+/** Height levels between the track centre line and the underside of its bed. */
+const BED_LEVELS = 0.25;
+
+/** Centre-line height (world z units) of the sample nearest the middle of a footprint cell. */
+function centreHeight(piece: TrackPieceDef, cell: number): number {
+  const { i, j } = piece.footprint[cell] ?? { i: 0, j: 0 };
+  let best = piece.sampleStart;
+  let bestDistance = Infinity;
+  for (let k = 0; k < piece.sampleCount; k++) {
+    const at = piece.sampleStart + k;
+    const distance =
+      (SAMPLES.x[at] / TILE_UNITS - 0.5 - i) ** 2 + (SAMPLES.y[at] / TILE_UNITS - 0.5 - j) ** 2;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = at;
+    }
+  }
+  return SAMPLES.z[best];
+}
+
 export interface SupportStack {
   /** Whole height levels of column, from the ground up. */
   full: number;
@@ -118,8 +159,16 @@ export function supportStack(
   pieceLevel: number,
 ): SupportStack {
   const piece = PIECES[pieceType];
-  const underside = pieceLevel + (piece?.footprint[cell]?.zMin ?? 0) / Z_STEP;
+  const underside = pieceLevel + (piece ? centreHeight(piece, cell) : 0) / Z_STEP - BED_LEVELS;
   const quarters = Math.round((underside - groundLevel) * 4);
   if (quarters <= 0) return { full: 0, quarters: 0 };
   return { full: Math.floor(quarters / 4), quarters: quarters % 4 };
+}
+
+/** Pieces a track art needs sprites for: everything any family using it can build. */
+export function artPieces(art: TrackArt): TrackPieceDef[] {
+  const wanted = new Set<number>();
+  for (const family of COASTER_FAMILIES)
+    if (trackArt(family) === art) for (const piece of familyPieces(family)) wanted.add(piece.id);
+  return PIECES.filter((piece) => wanted.has(piece.id));
 }
