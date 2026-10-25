@@ -39,7 +39,7 @@ Path: @/src/ui
 
 - The guest roster supports thought, tile, and recent-ride summaries. Individual guest windows show View, Stats, Rides, Cash Info, Recent Thoughts, and Carrying; the simulation records the four most recent ride IDs.
 - Staff windows list workers by role and open individual worker details, with role-specific task-order controls and worker statistics. Patrol masks are shared by staff role and shown as a map overlay while editing.
-- The footpath panel supports queue-line and slope-direction placement. Footpaths can be removed with the tool toggle, alternate click, context click, or a 550 ms touch hold.
+- The footpath panel supports queue-line and slope-direction placement. Footpaths can be removed with the tool toggle, alternate click, context click, or a 650 ms touch hold.
 - Desktop windows can be resized. Mobile uses bottom sheets and keeps touch targets at least 44 px. Options are grouped into Game, Sound, Display, and Controls; sound and music volumes and mute are available, while view-filter effects and shortcut reassignment remain unimplemented. Ctrl+S downloads the canvas as a PNG.
 - The UI specification leaves exact message colors and display durations unresolved; current values are not claimed as exact RCT2 behavior.
 

@@ -142,7 +142,7 @@ for (const { name, device } of mobileProfiles) {
     await selectPathTool();
     const holdTarget = await savedGuestPoint(page);
     await dispatchTouches(cdp, 'touchStart', [{ id: 6, ...holdTarget }]);
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(750);
     await dispatchTouches(cdp, 'touchEnd', []);
     await page
       .locator('#game')
@@ -199,7 +199,7 @@ for (const { name, device } of mobileProfiles) {
     expect(afterPaint).not.toBe(beforePaint);
 
     await dispatchTouches(cdp, 'touchStart', [{ id: 7, ...center }]);
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(750);
     await dispatchTouches(cdp, 'touchEnd', []);
     await expect(page.locator('.tool-status')).toContainText('Path removal requested');
 

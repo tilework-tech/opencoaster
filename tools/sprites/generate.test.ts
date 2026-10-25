@@ -188,7 +188,9 @@ describe('generated sprite catalogue', () => {
           Buffer.from(staff!.frames[0].pixels).equals(Buffer.from(staff!.frames[1].pixels)),
         ).toBe(false);
         expect(staff!.frames[0].height).toBeGreaterThanOrEqual(20);
-        const otherDirection = sprites.get(`people/staff/${kind}/direction-${(direction + 1) % 4}`)!;
+        const otherDirection = sprites.get(
+          `people/staff/${kind}/direction-${(direction + 1) % 4}`,
+        )!;
         expect(
           Buffer.from(staff!.frames[0].pixels).equals(Buffer.from(otherDirection.frames[0].pixels)),
         ).toBe(false);
