@@ -1,6 +1,8 @@
 import { button, element } from '../dom';
 import type { IconName } from '../icons';
 import type { ToolMode, UiContext, WindowController } from '../ui-types';
+import { SCENERY_CATALOG, SceneryCategory, SceneryItem } from '../../sim/map/scenery';
+import { PathStyle } from '../../sim/map/tile-map';
 
 interface ToolTab {
   id: string;
@@ -13,6 +15,7 @@ interface ToolTab {
   /** Offers the 1×1 to 5×5 brush size selector. */
   brush?: boolean;
   path?: boolean;
+  scenery?: boolean;
 }
 
 interface ToolWindowSpec {
@@ -41,6 +44,14 @@ export const SCENERY_WINDOW: ToolWindowSpec = {
   id: 'scenery',
   title: 'Scenery',
   tabs: [
+    {
+      id: 'place-scenery',
+      label: 'Place scenery',
+      icon: 'scenery',
+      tool: 'scenery',
+      help: 'Choose a scenery category and item, then place it on land you own.',
+      scenery: true,
+    },
     {
       id: 'flowerbed',
       label: 'Flower beds',
@@ -163,11 +174,21 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
         pane.append(toggle);
       }
       if (tab.path) {
+        const style = element('select', 'path-style');
+        style.setAttribute('aria-label', 'Path surface style');
+        for (const [value, label] of [
+          [PathStyle.Tarmac, 'Tarmac'],
+          [PathStyle.CrazyPaving, 'Crazy paving'],
+          [PathStyle.Dirt, 'Dirt'],
+        ] as const)
+          style.append(new Option(label, String(value)));
+        style.addEventListener('change', () => ctx.actions.setPathStyle(Number(style.value)));
         const queueToggle = button(
           'Queue line',
           () => {
             queue = !queue;
             queueToggle.setAttribute('aria-pressed', String(queue));
+            style.disabled = queue;
             ctx.actions.setPathOptions(queue, slopeDirection);
           },
           'ui-button',
@@ -203,7 +224,42 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
           'ui-button',
         );
         removeToggle.setAttribute('aria-pressed', 'false');
-        pane.append(queueToggle, slopeToggle, direction, removeToggle);
+        pane.append(style, queueToggle, slopeToggle, direction, removeToggle);
+      }
+      if (tab.scenery) {
+        const category = element('select', 'scenery-category');
+        category.setAttribute('aria-label', 'Scenery category');
+        const item = element('select', 'scenery-item');
+        item.setAttribute('aria-label', 'Scenery item');
+        const categories = [
+          [SceneryCategory.Trees, 'Trees'],
+          [SceneryCategory.Shrubs, 'Shrubs and ornaments'],
+          [SceneryCategory.Gardens, 'Gardens'],
+          [SceneryCategory.Fences, 'Fences and walls'],
+        ] as const;
+        for (const [value, label] of categories) category.append(new Option(label, value));
+        const updateItems = (): void => {
+          const definitions = SCENERY_CATALOG.map((definition, index) => ({
+            definition,
+            index,
+          })).filter(({ definition }) => definition.category === category.value);
+          item.replaceChildren(
+            ...definitions.map(
+              ({ definition, index }) =>
+                new Option(
+                  `${definition.name} · $${(definition.priceCents / 100).toFixed(2)}`,
+                  String(index),
+                ),
+            ),
+          );
+          ctx.actions.setSceneryItem(Number(item.value) as SceneryItem);
+        };
+        category.addEventListener('change', updateItems);
+        item.addEventListener('change', () =>
+          ctx.actions.setSceneryItem(Number(item.value) as SceneryItem),
+        );
+        updateItems();
+        pane.append(category, item);
       }
     }
     if (spec.tabs.length === 1) select(spec.tabs[0]);

@@ -72,7 +72,7 @@ function preRidesSave(w: World): Uint8Array {
   const headerBytes = new TextEncoder().encode(JSON.stringify(header));
   const [slotToId, idToSlot, freeIds] = w.rides.arrays();
   const oldArrays = [
-    ...w.map.arrays(),
+    ...w.map.arrays().slice(0, -1),
     ...legacyGuestArrays(w),
     ...w.staff
       .arrays()

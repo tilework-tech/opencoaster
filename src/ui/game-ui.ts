@@ -64,6 +64,7 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   select: 'Select',
   land: 'Land',
   path: 'Path',
+  scenery: 'Scenery',
   bin: 'Bin',
   bench: 'Bench',
   shelter: 'Shelter',

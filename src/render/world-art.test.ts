@@ -6,6 +6,7 @@ import {
   scenerySpriteName,
   spriteViewName,
   terrainSpriteName,
+  terrainSurfaceSpriteName,
   waterFrameIndex,
 } from './world-art';
 
@@ -19,8 +20,11 @@ describe('world art sprite selection', () => {
         );
       }
     }
-    expect(TERRAIN_SLOPE_NAMES).toHaveLength(19);
-    expect(new Set(TERRAIN_SLOPE_NAMES).size).toBe(19);
+    expect(TERRAIN_SLOPE_NAMES).toHaveLength(16);
+    expect(new Set(TERRAIN_SLOPE_NAMES).size).toBe(16);
+    expect(surfaces.map(terrainSurfaceSpriteName)).toEqual(
+      surfaces.map((surface) => `terrain/${surface}/surface`),
+    );
   });
 
   it('selects every connected-path shape for each path material and ramp direction', () => {

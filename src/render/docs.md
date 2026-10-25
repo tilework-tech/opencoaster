@@ -5,7 +5,7 @@ Path: @/src/render
 ### Overview
 
 - Turns worker snapshots and map data into the isometric park view without reading simulation state.
-- Uses a WebGL2 instanced renderer with generated world sprites, and keeps Canvas2D as a renderer fallback.
+- Uses a WebGL2 instanced renderer with generated world sprites and keeps Canvas2D as a renderer fallback.
 - Shares projection and picking rules with the main-thread input layer.
 
 ### How it fits into the larger codebase
@@ -18,19 +18,19 @@ Path: @/src/render
 
 ### Core Implementation
 
-- [webgl2-renderer.ts](webgl2-renderer.ts) creates a procedural fallback atlas immediately, then asynchronously loads `public/sprites/atlas.png` and its manifest. When available, generated sprites and the fallback atlas are combined into one nearest-filtered texture; requested frames use manifest bounds and anchors, while missing sprites use procedural atlas cells. Packing caps the generated atlas at 1024×2048 so the combined texture remains within WebGL2's guaranteed 2048-pixel dimension limit; runtime setup also checks the device's reported texture limit.
-- [world-art.ts](world-art.ts) maps terrain surface and slope masks, path connection and ramp flags, water ticks, and scenery identifiers to sprite names. Terrain and water, path elements, path additions, ground flower beds, and the park gate are submitted with snapshot entities in painter order.
+- [webgl2-renderer.ts](webgl2-renderer.ts) loads `public/sprites/atlas.png` and its manifest for generated world artwork, combining them with a small procedural fallback atlas in one nearest-filtered texture. Manifest bounds and anchors position sprites; fallback cells cover missing assets. The separate UI sheet is loaded by the DOM toolbar and does not consume WebGL atlas space.
+- [world-art.ts](world-art.ts) names material terrain textures, authored slope-shape assets, path connection/ramp/style/queue sprites, water frames, and scenery sprites. The current terrain draw uses the material texture; slope masks set projected corner heights, while generated slope and cliff-face assets remain catalogued. WebGL submits terrain, water, paths and queue rails, placeable scenery, ground flower beds, the gate, and snapshot entities in painter order.
 - [tools/art](../../tools/art/README.md) prepares the committed generated source sheets into PNG/JSON sprite pairs and packs a deterministic atlas and manifest before Vite development and production builds. This keeps generation out of the runtime path.
-- Terrain currently receives a 4-bit slope mask from map data. The art catalogue names 19 terrain variants per material, but only masks `00` through `0f` are addressable; the additional three variants are prepared but not selected by the renderer.
+- Terrain rendering selects the opaque material texture from `terrainSurfaceSpriteName`; the generated per-mask slope cells are not selected by this path. Each WebGL terrain quad projects its four corners from the tile's derived base height plus its four-bit corner mask, so adjacent tiles share their map corner elevations. A small directional light adjustment on sloped tiles brings out rolling relief. Directional cliff-face source assets remain catalogued but are not separately overlaid. The map encodes only one-level corner differences and has no steep-slope encoding, so vertical cliff walls and steeper cliffs are unsupported.
 - Ambient trees are a deterministic rendering decoration selected from grass-tile coordinates. They are not simulation entities or saved world objects. The snapshot carries park entrance coordinates so the renderer can place the generated gate.
-- [canvas2d-renderer.ts](canvas2d-renderer.ts) indexes path elements by tile and draws terrain and map additions during painter traversal. It retains procedural drawing and does not load the generated WebGL atlas.
+- [canvas2d-renderer.ts](canvas2d-renderer.ts) indexes paths and scenery by tile and draws them during painter traversal. It reads the persisted path-style column to color footpaths, marks queue rails, and draws placeable scenery with simple shapes; it retains procedural terrain drawing and does not load the generated WebGL atlas. [canvas2d-renderer.test.ts](canvas2d-renderer.test.ts) covers these fallback details.
 
 ### Things to Know
 
 - Render inputs are read-only frame data. Simulation behavior and placement validation stay in [src/sim](../sim/core/docs.md) and the main-thread command bridge; adding render-only trees does not mutate simulation state or save data.
-- WebGL sprite placement uses atlas frame bounds and bottom-centre anchor metadata to align props to their map position. Terrain instances instead use the slope mask to raise their corresponding tile corners in the vertex shader.
-- Water animation selects one of four atlas frames from the simulation tick; at the current 40 Hz target, each frame advances every eight ticks.
-- The currently integrated generated scenery includes ambient tree types, flower beds, the park gate, and path bins, benches, and lamps. Other prepared prop sprites remain available in the atlas but are not yet selected by world rendering.
+- WebGL sprite placement uses atlas frame bounds and bottom-centre anchor metadata to align props to their map position. Terrain quads project their four corners using map corner heights while sampling the material surface texture. Gridlines are disabled by default and can be toggled from the UI; the WebGL shader draws their subtle overlay on terrain tiles.
+- WebGL water is a planar tile mesh at the water level, drawn only when that level covers every terrain corner of the tile. Its generated water texture is opaque, and animation selects one of four atlas frames from the simulation tick; at the current 40 Hz target, each frame advances every eight ticks. Adjacent covered tiles therefore meet at a continuous water surface.
+- The integrated world art includes ambient trees, placeable scenery, flower beds, the park gate, path additions, and queue rails. Paths select tarmac, crazy paving, or dirt while queue paths use the dedicated queue sprite family.
 - Weather shading and rain remain a DOM overlay styled in [index.html](../../index.html); the main UI updates its class from snapshot weather while title/menu state controls visibility.
 - WebGL context loss pauses drawing until resources are restored. Initial WebGL setup failure is handled by the Canvas2D fallback; the [browser smoke check](../../smoke/webgl2.spec.ts) exercises the rendered game and samples frame times.
 

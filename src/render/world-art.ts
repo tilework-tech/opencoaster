@@ -1,5 +1,5 @@
 export const TERRAIN_SLOPE_NAMES = Array.from(
-  { length: 19 },
+  { length: 16 },
   (_, index) => `shape-${index.toString(16).padStart(2, '0')}`,
 );
 
@@ -9,6 +9,10 @@ export type PathSurface = 'tarmac' | 'crazy-paving' | 'dirt' | 'queue';
 export function terrainSpriteName(surface: TerrainSurface, slopeMask: number): string {
   const shape = Number.isInteger(slopeMask) && slopeMask >= 0 && slopeMask <= 15 ? slopeMask : 0;
   return `terrain/${surface}/shape-${shape.toString(16).padStart(2, '0')}`;
+}
+
+export function terrainSurfaceSpriteName(surface: TerrainSurface): string {
+  return `terrain/${surface}/surface`;
 }
 
 export function pathSpriteName(

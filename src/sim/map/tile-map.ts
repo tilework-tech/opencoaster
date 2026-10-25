@@ -11,6 +11,12 @@ export const enum Surface {
   Queue = 6,
 }
 
+export const enum PathStyle {
+  Tarmac = 0,
+  CrazyPaving = 1,
+  Dirt = 2,
+}
+
 /** Land type stored per tile; the other `Surface` values are derived (water, paths). */
 export const TERRAIN_TYPES: readonly number[] = [
   Surface.Grass,
@@ -128,6 +134,8 @@ export class TileMap {
   /** Type-specific payload (e.g. owning ride id). */
   readonly elData: Int32Array;
   readonly elNext: Int32Array;
+  /** Selected paving style per element; non-path elements keep zero. */
+  readonly pathStyle: Uint8Array;
   private readonly meta: Int32Array;
 
   /** Bumped by every change a renderer could see; not part of saved state. */
@@ -159,6 +167,7 @@ export class TileMap {
     this.elFlags = new Uint16Array(elementCapacity);
     this.elData = new Int32Array(elementCapacity);
     this.elNext = new Int32Array(elementCapacity);
+    this.pathStyle = new Uint8Array(elementCapacity);
     this.meta = Int32Array.of(-1, 0, 0);
   }
 
@@ -181,6 +190,7 @@ export class TileMap {
       this.elData,
       this.elNext,
       this.meta,
+      this.pathStyle,
     ];
   }
 
@@ -284,6 +294,7 @@ export class TileMap {
     this.elClear[e] = clear;
     this.elFlags[e] = flags;
     this.elData[e] = data;
+    this.pathStyle[e] = PathStyle.Tarmac;
     let prev = -1;
     let cur = this.tileHead[i];
     while (cur >= 0 && this.elBase[cur] <= base) {

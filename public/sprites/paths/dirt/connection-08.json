@@ -3,13 +3,13 @@
     {
       "x": 0,
       "y": 0,
-      "width": 128,
-      "height": 101
+      "width": 96,
+      "height": 75
     }
   ],
   "anchor": {
-    "x": 64,
-    "y": 101
+    "x": 48,
+    "y": 75
   },
   "footprint": {
     "width": 1,

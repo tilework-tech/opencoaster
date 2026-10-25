@@ -10,6 +10,7 @@ export type ToolMode =
   | 'select'
   | 'land'
   | 'path'
+  | 'scenery'
   | 'bin'
   | 'bench'
   | 'shelter'
@@ -42,6 +43,8 @@ export interface GameUIActions {
   /** Land brush edge length in tiles (1-5). */
   setBrush(size: number): void;
   setPathOptions(queue: boolean, slopeDirection: number): void;
+  setPathStyle(style: number): void;
+  setSceneryItem(item: number): void;
   /** Centres the camera on a tile. */
   locate(x: number, y: number): void;
   /** Selects the ride type the Ride tool places. */
