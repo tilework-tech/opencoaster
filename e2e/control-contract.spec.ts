@@ -356,6 +356,27 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
         }
       }
       await setSimulationPaused(page, mobile, true);
+    } else if (item.label === 'Rotate scenery piece') {
+      await pane.getByLabel('Scenery category').selectOption({ label: 'Fences and walls' });
+      await pane.getByLabel('Scenery item').selectOption('6');
+      const target = await page.evaluate(() => {
+        const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
+        const rect = canvas.getBoundingClientRect();
+        for (let y = rect.top + 8; y < rect.bottom; y += 12) {
+          for (let x = rect.left + 8; x < rect.right; x += 12) {
+            if (document.elementFromPoint(x, y) === canvas) return { x, y };
+          }
+        }
+        return null;
+      });
+      expect(target, 'a visible map point is available for the scenery preview').not.toBeNull();
+      await page.mouse.move(target!.x, target!.y);
+      const canvas = page.locator('#game');
+      const before = await canvas.screenshot();
+      if (mobile) await control.tap({ timeout: 5_000 });
+      else await control.click({ timeout: 5_000 });
+      await page.mouse.move(target!.x, target!.y);
+      await expect.poll(async () => !(await canvas.screenshot()).equals(before)).toBe(true);
     } else if (item.label === 'Remove' && ownerPanel === 'paths') {
       const slope = pane.getByRole('button', { name: 'Down', exact: true });
       if (mobile) await slope.tap({ timeout: 5_000 });
