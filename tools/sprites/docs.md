@@ -35,7 +35,8 @@ Path: @/tools/sprites
 
 ### Things to Know
 
-- Atlas size: `tools/art/pack.ts` caps the atlas at 1024x2048 and packs identical frames once; large sprite families must account for that budget.
+- Atlas pages: `tools/art/pack.ts` packs each category into its own pages of at most 2048x2048 with MaxRects, so a large ride or coaster family adds pages instead of exhausting one atlas. Category membership comes from the sprite key prefix in [tools/art/categories.ts](../art/categories.ts). Add a family by adding one rule there, for example `{ category: 'flat-rides', prefixes: ['rides/flat/'], lazy: true }`, then name keys under that prefix in `generate.ts`; `perSubdirectory: true` gives each directory under the prefix its own category (one per coaster family, `rides/coaster/<family>/...` becomes `coaster-<family>`). Lazy categories load the first time the renderer draws or is asked about one of their sprites (`spritePages.requestCategory(name)` from a build menu prefetches one); until then the renderer uses its procedural fallback. Keys matching no rule go to the eager `world` category.
+- Trimming: sprites marked `native` (everything this tool renders) have transparent borders trimmed shared across their frames and the anchor shifted to match, so the packed frame is the tight box. Non-native sprites keep their frame size because the renderer stretches them to a fixed quad.
 - The smoke test `smoke/terrain-visual.spec.ts` recognises water by colour (blue well above red and green), so the water ramp must stay saturated blue.
 - A rendered sprite with an outline is one pixel larger on each side than the geometry; ground tiles are not outlined.
 
