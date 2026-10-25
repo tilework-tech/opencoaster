@@ -18,7 +18,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-01": {
       "frames": [
@@ -36,7 +37,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-02": {
       "frames": [
@@ -54,7 +56,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-03": {
       "frames": [
@@ -72,7 +75,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-04": {
       "frames": [
@@ -90,7 +94,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-05": {
       "frames": [
@@ -108,7 +113,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-06": {
       "frames": [
@@ -126,7 +132,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-07": {
       "frames": [
@@ -144,7 +151,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-08": {
       "frames": [
@@ -162,7 +170,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-09": {
       "frames": [
@@ -180,7 +189,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-0a": {
       "frames": [
@@ -198,7 +208,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-0b": {
       "frames": [
@@ -216,7 +227,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-0c": {
       "frames": [
@@ -234,7 +246,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-0d": {
       "frames": [
@@ -252,7 +265,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-0e": {
       "frames": [
@@ -270,7 +284,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/connection-0f": {
       "frames": [
@@ -288,7 +303,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/ramp-0": {
       "frames": [
@@ -306,7 +322,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/ramp-1": {
       "frames": [
@@ -324,7 +341,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/ramp-2": {
       "frames": [
@@ -342,7 +360,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/crazy-paving/ramp-3": {
       "frames": [
@@ -360,7 +379,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-00": {
       "frames": [
@@ -378,7 +398,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-01": {
       "frames": [
@@ -396,7 +417,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-02": {
       "frames": [
@@ -414,7 +436,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-03": {
       "frames": [
@@ -432,7 +455,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-04": {
       "frames": [
@@ -450,7 +474,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-05": {
       "frames": [
@@ -468,7 +493,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-06": {
       "frames": [
@@ -486,7 +512,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-07": {
       "frames": [
@@ -504,7 +531,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-08": {
       "frames": [
@@ -522,7 +550,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-09": {
       "frames": [
@@ -540,7 +569,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-0a": {
       "frames": [
@@ -558,7 +588,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-0b": {
       "frames": [
@@ -576,7 +607,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-0c": {
       "frames": [
@@ -594,7 +626,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-0d": {
       "frames": [
@@ -612,7 +645,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-0e": {
       "frames": [
@@ -630,7 +664,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/connection-0f": {
       "frames": [
@@ -648,7 +683,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/ramp-0": {
       "frames": [
@@ -666,7 +702,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/ramp-1": {
       "frames": [
@@ -684,7 +721,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/ramp-2": {
       "frames": [
@@ -702,7 +740,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/dirt/ramp-3": {
       "frames": [
@@ -720,7 +759,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-00": {
       "frames": [
@@ -738,7 +778,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-01": {
       "frames": [
@@ -756,7 +797,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-02": {
       "frames": [
@@ -774,7 +816,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-03": {
       "frames": [
@@ -792,7 +835,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-04": {
       "frames": [
@@ -810,7 +854,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-05": {
       "frames": [
@@ -828,7 +873,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-06": {
       "frames": [
@@ -846,7 +892,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-07": {
       "frames": [
@@ -864,7 +911,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-08": {
       "frames": [
@@ -882,7 +930,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-09": {
       "frames": [
@@ -900,7 +949,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-0a": {
       "frames": [
@@ -918,7 +968,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-0b": {
       "frames": [
@@ -936,7 +987,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-0c": {
       "frames": [
@@ -954,7 +1006,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-0d": {
       "frames": [
@@ -972,7 +1025,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-0e": {
       "frames": [
@@ -990,7 +1044,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/connection-0f": {
       "frames": [
@@ -1008,7 +1063,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/ramp-0": {
       "frames": [
@@ -1026,7 +1082,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/ramp-1": {
       "frames": [
@@ -1044,7 +1101,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/ramp-2": {
       "frames": [
@@ -1062,7 +1120,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/queue/ramp-3": {
       "frames": [
@@ -1080,7 +1139,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-00": {
       "frames": [
@@ -1098,7 +1158,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-01": {
       "frames": [
@@ -1116,7 +1177,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-02": {
       "frames": [
@@ -1134,7 +1196,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-03": {
       "frames": [
@@ -1152,7 +1215,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-04": {
       "frames": [
@@ -1170,7 +1234,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-05": {
       "frames": [
@@ -1188,7 +1253,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-06": {
       "frames": [
@@ -1206,7 +1272,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-07": {
       "frames": [
@@ -1224,7 +1291,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-08": {
       "frames": [
@@ -1242,7 +1310,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-09": {
       "frames": [
@@ -1260,7 +1329,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-0a": {
       "frames": [
@@ -1278,7 +1348,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-0b": {
       "frames": [
@@ -1296,7 +1367,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-0c": {
       "frames": [
@@ -1314,7 +1386,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-0d": {
       "frames": [
@@ -1332,7 +1405,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-0e": {
       "frames": [
@@ -1350,7 +1424,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/connection-0f": {
       "frames": [
@@ -1368,7 +1443,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/ramp-0": {
       "frames": [
@@ -1386,7 +1462,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/ramp-1": {
       "frames": [
@@ -1404,7 +1481,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/ramp-2": {
       "frames": [
@@ -1422,7 +1500,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "paths/tarmac/ramp-3": {
       "frames": [
@@ -1440,7 +1519,8 @@
       "footprint": {
         "width": 1,
         "height": 1
-      }
+      },
+      "native": true
     },
     "scenery/bench": {
       "frames": [

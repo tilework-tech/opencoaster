@@ -21,6 +21,8 @@ import {
   terrainCliffSpriteName,
   scenerySpriteName,
   terrainSurfaceSpriteName,
+  WATER_BANK,
+  nativeSpriteWorldOffset,
   waterFrameIndex,
   waterSpriteName,
 } from './world-art';
@@ -50,6 +52,8 @@ interface SpriteEntry {
   frames: SpriteFrame[];
   anchor: { x: number; y: number };
   footprint: { width: number; height: number };
+  /** Drawn at frame size with the anchor on the projected point. */
+  native?: boolean;
 }
 
 interface SpriteAtlasManifest {
@@ -198,6 +202,15 @@ out vec4 outColor;
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = texture(uAtlas, vUv);
+  if (vMeshMode > 2.5 && vMeshMode < 3.5) {
+    float depth = vWaterDepth;
+    float foam = 1.0 - step(${glslFloat(WATER_BANK.foamDepth)}, depth);
+    float shallow = 1.0 - smoothstep(${glslFloat(WATER_BANK.foamDepth)}, ${glslFloat(WATER_BANK.shallowDepth)}, depth);
+    float deep = smoothstep(${glslFloat(WATER_BANK.shallowDepth)}, ${glslFloat(WATER_BANK.deepDepth)}, depth);
+    outColor.rgb = mix(outColor.rgb, vec3(0.16, 0.42, 0.66), deep * 0.55);
+    outColor.rgb = mix(outColor.rgb, vec3(0.62, 0.86, 0.95), shallow * 0.4);
+    outColor.rgb = mix(outColor.rgb, vec3(0.95, 0.99, 1.0), foam * 0.7);
+  }
   if (vMeshMode > 0.5 && vMeshMode < 1.5) outColor.rgb *= vTerrainShade;
   if (vGridlines > 0.5 && vMeshMode > 0.5 && vMeshMode < 1.5) {
     vec2 edge = min(vTileUv, 1.0 - vTileUv);
@@ -600,7 +613,7 @@ export class WebGL2Renderer implements Renderer {
           this.append(
             rx * TILE_UNITS,
             ry * TILE_UNITS,
-            map.waterLevel![index] * 64,
+            map.waterLevel![index] * 64 - WATER_BANK.surfaceInset,
             TILE_W,
             TILE_H,
             waterSpriteName(waterFrameIndex(tick)),
@@ -743,6 +756,7 @@ export class WebGL2Renderer implements Renderer {
           : ((['tarmac', 'crazy-paving', 'dirt'][paths[o + 5]] ?? 'tarmac') as PathSurface),
         edges,
         slope ? direction : undefined,
+        camera.rotation,
       );
       const depth =
         2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) - z / Z_STEP;
@@ -1037,7 +1051,12 @@ export class WebGL2Renderer implements Renderer {
       v0 = 1 - (frame.y + frame.height - 0.5) / this.atlasHeight;
       u1 = (frame.x + frame.width - 0.5) / this.atlasWidth;
       v1 = 1 - (frame.y + 0.5) / this.atlasHeight;
-      if (!meshMode && entry) z += (entry.anchor.y / frame.height - 0.5) * height * (Z_PIXELS / 64);
+      if (!meshMode && entry?.native) {
+        width = frame.width;
+        height = frame.height;
+        z += nativeSpriteWorldOffset(frame.height, entry.anchor.y);
+      } else if (!meshMode && entry)
+        z += (entry.anchor.y / frame.height - 0.5) * height * (Z_PIXELS / 64);
       if (meshMode === 2) {
         const insetX = 0.28;
         const oldU0 = u0;

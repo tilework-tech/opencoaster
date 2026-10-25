@@ -62,6 +62,7 @@ export async function writeSpriteDef(outputDir: string, def: SpriteDef): Promise
     frames: frames.map((_, i) => ({ x: 0, y: i * height, width, height })),
     anchor,
     footprint: def.footprint,
+    ...(def.raw ? {} : { native: true }),
   };
   await writeFile(target.replace(/\.png$/, '.json'), `${JSON.stringify(metadata, null, 2)}\n`);
 }

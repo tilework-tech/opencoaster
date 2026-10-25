@@ -6,6 +6,10 @@ import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
 import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { drawAnchoredSprite, drawTileTexture, loadCanvasAtlas } from './canvas-atlas';
+import type { CanvasAtlas } from './canvas-atlas';
+import { WATER_BANK, pathSpriteName, waterFrameIndex } from './world-art';
+import type { PathSurface } from './world-art';
 
 const SURFACE_COLORS = [
   '#5aa24a',
@@ -16,6 +20,8 @@ const SURFACE_COLORS = [
   '#77716b',
   '#b08a8a',
 ];
+/** Colour of terrain under water, seen as the bank above the lowered water surface. */
+const LAKE_BED_COLOR = '#b9a76b';
 const GUEST_TINTS = [
   '#e63946',
   '#f1c40f',
@@ -50,6 +56,8 @@ export class Canvas2DRenderer implements Renderer {
   private sceneryOffsets = new Int32Array(0);
   private sceneryIndices = new Int32Array(0);
   private visibleCount = 0;
+  private atlas: CanvasAtlas | null = null;
+  private tick = 0;
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
@@ -59,6 +67,9 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('2D canvas unavailable');
     this.ctx = ctx;
+    void loadCanvasAtlas().then((atlas) => {
+      this.atlas = atlas;
+    });
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -116,6 +127,7 @@ export class Canvas2DRenderer implements Renderer {
     const map = this.map;
     if (!ctx) return;
     this.visibleCount = 0;
+    this.tick = snapshot?.tick ?? 0;
     ctx.fillStyle = '#10151b';
     ctx.fillRect(0, 0, this.cw, this.ch);
     if (!map) return;
@@ -166,7 +178,9 @@ export class Canvas2DRenderer implements Renderer {
         const liftRight = lift + ((mask >> ((top + 1) & 3)) & 1) * Z_PIXELS;
         const liftBottom = lift + ((mask >> ((top + 2) & 3)) & 1) * Z_PIXELS;
         const liftLeft = lift + ((mask >> ((top + 3) & 3)) & 1) * Z_PIXELS;
-        ctx.fillStyle = SURFACE_COLORS[map.surface[i]] ?? '#f0f';
+        const waterLevel = map.waterLevel?.[i] ?? 0;
+        ctx.fillStyle =
+          waterLevel > map.heights[i] ? LAKE_BED_COLOR : (SURFACE_COLORS[map.surface[i]] ?? '#f0f');
         ctx.beginPath();
         ctx.moveTo(sx, sy - liftTop);
         ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - liftRight);
@@ -179,21 +193,57 @@ export class Canvas2DRenderer implements Renderer {
           ctx.lineWidth = 0.7;
           ctx.stroke();
         }
-        const waterLevel = map.waterLevel?.[i] ?? 0;
         if (waterLevel > map.heights[i]) {
-          const waterLift = waterLevel * Z_PIXELS;
-          ctx.fillStyle = 'rgba(61, 141, 188, 0.72)';
-          ctx.beginPath();
-          ctx.moveTo(sx, sy - waterLift);
-          ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - waterLift);
-          ctx.lineTo(sx, sy + TILE_H - waterLift);
-          ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - waterLift);
-          ctx.closePath();
-          ctx.fill();
+          const waterLift = waterLevel * Z_PIXELS - WATER_BANK.surfaceInset / (Z_STEP / Z_PIXELS);
+          if (
+            !this.atlas ||
+            !drawTileTexture(
+              ctx,
+              this.atlas,
+              'water/surface',
+              waterFrameIndex(this.tick),
+              sx,
+              sy - waterLift,
+              TILE_W,
+              TILE_H,
+            )
+          ) {
+            ctx.fillStyle = 'rgba(61, 141, 188, 0.72)';
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - waterLift);
+            ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - waterLift);
+            ctx.lineTo(sx, sy + TILE_H - waterLift);
+            ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - waterLift);
+            ctx.closePath();
+            ctx.fill();
+          }
         }
         this.drawMapElements(ctx, map, cam, i);
         this.visibleCount++;
       }
+    }
+  }
+
+  private drawPathAddition(ctx: CanvasRenderingContext2D, flags: number): void {
+    if (flags & PathFlag.Bin) {
+      ctx.fillStyle = '#547d58';
+      ctx.fillRect(this.tmp[0] - 3, this.tmp[1] - 13, 6, 9);
+    } else if (flags & PathFlag.Bench) {
+      ctx.fillStyle = '#805535';
+      ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 11, 18, 3);
+    } else if (flags & PathFlag.Shelter) {
+      ctx.fillStyle = '#5c6fa1';
+      ctx.beginPath();
+      ctx.moveTo(this.tmp[0] - 7, this.tmp[1] - 9);
+      ctx.quadraticCurveTo(this.tmp[0], this.tmp[1] - 19, this.tmp[0] + 7, this.tmp[1] - 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(this.tmp[0] - 1, this.tmp[1] - 9, 2, 9);
+    } else if (flags & PathFlag.Lamp) {
+      ctx.fillStyle = '#e9d784';
+      ctx.beginPath();
+      ctx.arc(this.tmp[0], this.tmp[1] - 13, 3, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -225,6 +275,26 @@ export class Canvas2DRenderer implements Renderer {
         this.tmp,
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 22)) continue;
+      const edges = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
+      const surface: PathSurface =
+        flags & PathFlag.Queue
+          ? 'queue'
+          : ((['tarmac', 'crazy-paving', 'dirt'][paths[o + 5]] ?? 'tarmac') as PathSurface);
+      project(centerX, centerY, z, map.width, map.height, cam.rotation, this.pathLow);
+      if (
+        this.atlas &&
+        drawAnchoredSprite(
+          ctx,
+          this.atlas,
+          pathSpriteName(surface, edges, sloped ? direction : undefined, cam.rotation),
+          this.pathLow[0],
+          this.pathLow[1],
+        )
+      ) {
+        this.drawPathAddition(ctx, flags);
+        this.visibleCount++;
+        continue;
+      }
       ctx.fillStyle =
         flags & PathFlag.Queue ? '#b77d9d' : (PATH_STYLE_COLORS[paths[o + 5]] ?? '#b59a70');
       if (sloped) {
@@ -266,26 +336,7 @@ export class Canvas2DRenderer implements Renderer {
       } else {
         ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 4, 18, 8);
       }
-      if (flags & PathFlag.Bin) {
-        ctx.fillStyle = '#547d58';
-        ctx.fillRect(this.tmp[0] - 3, this.tmp[1] - 13, 6, 9);
-      } else if (flags & PathFlag.Bench) {
-        ctx.fillStyle = '#805535';
-        ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 11, 18, 3);
-      } else if (flags & PathFlag.Shelter) {
-        ctx.fillStyle = '#5c6fa1';
-        ctx.beginPath();
-        ctx.moveTo(this.tmp[0] - 7, this.tmp[1] - 9);
-        ctx.quadraticCurveTo(this.tmp[0], this.tmp[1] - 19, this.tmp[0] + 7, this.tmp[1] - 9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillRect(this.tmp[0] - 1, this.tmp[1] - 9, 2, 9);
-      } else if (flags & PathFlag.Lamp) {
-        ctx.fillStyle = '#e9d784';
-        ctx.beginPath();
-        ctx.arc(this.tmp[0], this.tmp[1] - 13, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      this.drawPathAddition(ctx, flags);
       if (flags & PathFlag.Queue) {
         ctx.fillStyle = '#d7bb65';
         ctx.fillRect(this.tmp[0] - 7, this.tmp[1] - 5, 14, 1.5);

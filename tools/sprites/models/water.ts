@@ -4,13 +4,16 @@ import type { Sprite } from '../raster';
 
 export const WATER_FRAMES = 8;
 
-/** Ripple slot (0-7) of a water pixel; the shimmer is this slot advancing through the palette cycle. */
-export function waterSlot(x: number, y: number): number {
-  const i = Math.floor((x + 0.5) * 32);
-  const j = Math.floor((y + 0.5) * 32);
-  const wave = (i + 2 * j) & 7;
-  const jitter = Math.floor(hash2(i >> 1, j >> 1, 21) * 3);
-  return (wave + jitter) & 7;
+/**
+ * Ripple slot (0-7) of a water texel at cell (i, j) of the periodic 32x32 tile texture. Crests run
+ * along lines of constant i + j (screen-horizontal in the dimetric view) and are broken into
+ * dashes by a hash of the cell along i - j; the shimmer is this slot advancing through the cycle.
+ */
+export function waterSlot(i: number, j: number): number {
+  const band = (i + j) >> 2;
+  const dash = ((((i - j) % 32) + 32) % 32) >> 3;
+  const jitter = Math.floor(hash2(dash, band & 7, 21) * 2);
+  return (band + jitter) & 7;
 }
 
 export const WATER_TEXTURE_SIZE = 32;
@@ -23,10 +26,6 @@ export function waterTexture(frame: number): Sprite {
   const size = WATER_TEXTURE_SIZE;
   const pixels = new Uint8Array(size * size);
   for (let j = 0; j < size; j++)
-    for (let i = 0; i < size; i++)
-      pixels[j * size + i] = waterColor(
-        waterSlot((i + 0.5) / size - 0.5, (j + 0.5) / size - 0.5),
-        frame,
-      );
+    for (let i = 0; i < size; i++) pixels[j * size + i] = waterColor(waterSlot(i, j), frame);
   return { width: size, height: size, anchor: { x: 0, y: 0 }, pixels };
 }

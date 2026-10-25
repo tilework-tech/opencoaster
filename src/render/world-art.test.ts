@@ -8,7 +8,10 @@ import {
   terrainSpriteName,
   terrainCliffSpriteName,
   terrainSurfaceSpriteName,
+  WATER_BANK,
+  nativeSpriteWorldOffset,
   waterFrameIndex,
+  waterSpriteName,
 } from './world-art';
 
 describe('world art sprite selection', () => {
@@ -50,8 +53,23 @@ describe('world art sprite selection', () => {
     }
   });
 
-  it('cycles four water frames at five frames per second on the 40 Hz simulation clock', () => {
-    expect([0, 7, 8, 16, 24, 31, 32].map(waterFrameIndex)).toEqual([0, 0, 1, 2, 3, 3, 0]);
+  it('turns path connection masks and ramp directions with the camera rotation', () => {
+    expect(pathSpriteName('tarmac', 0b0001, undefined, 1)).toBe('paths/tarmac/connection-02');
+    expect(pathSpriteName('tarmac', 0b1000, undefined, 1)).toBe('paths/tarmac/connection-01');
+    expect(pathSpriteName('queue', 0b0101, undefined, 2)).toBe('paths/queue/connection-05');
+    expect(pathSpriteName('dirt', 0, 3, 2)).toBe('paths/dirt/ramp-1');
+  });
+
+  it('cycles eight water palette frames at five frames per second on the 40 Hz simulation clock', () => {
+    expect([0, 7, 8, 16, 56, 63, 64].map(waterFrameIndex)).toEqual([0, 0, 1, 2, 7, 7, 0]);
+    expect(waterSpriteName(9)).toBe('water/surface#1');
+  });
+
+  it('keeps the water bank bands ordered from the shoreline outwards', () => {
+    expect(WATER_BANK.foamDepth).toBeGreaterThan(0);
+    expect(WATER_BANK.shallowDepth).toBeGreaterThan(WATER_BANK.foamDepth);
+    expect(WATER_BANK.deepDepth).toBeGreaterThan(WATER_BANK.shallowDepth);
+    expect(WATER_BANK.surfaceInset).toBeGreaterThan(0);
   });
 
   it('uses a documented sprite when the requested art is missing', () => {
@@ -75,5 +93,11 @@ describe('world art sprite selection', () => {
     expect(scenerySpriteName('flower-bed')).toBe('scenery/flower-bed');
     expect(scenerySpriteName('bench')).toBe('scenery/bench');
     expect(scenerySpriteName('entrance-gate')).toBe('scenery/entrance-gate');
+  });
+
+  it('aligns native sprites by moving the centred quad from the anchor to the projected point', () => {
+    expect(nativeSpriteWorldOffset(64, 32)).toBe(0);
+    expect(nativeSpriteWorldOffset(64, 48)).toBe(64);
+    expect(nativeSpriteWorldOffset(64, 16)).toBe(-64);
   });
 });

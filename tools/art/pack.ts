@@ -16,6 +16,8 @@ export interface SpriteMetadata {
   frames: SpriteFrame[];
   anchor: { x: number; y: number };
   footprint: { width: number; height: number };
+  /** Drawn at its frame size with the anchor on the projected point, not stretched to a quad. */
+  native?: boolean;
 }
 
 export interface AtlasManifest {
@@ -121,7 +123,11 @@ async function loadSprites(inputDir: string): Promise<{
       throw new Error(`Invalid sprite metadata in ${metadataPath}`);
     }
 
-    metadata.set(spriteKey, { anchor: authored.anchor, footprint: authored.footprint });
+    metadata.set(spriteKey, {
+      anchor: authored.anchor,
+      footprint: authored.footprint,
+      ...(authored.native ? { native: true } : {}),
+    });
     authored.frames.forEach((region, frameIndex) => {
       validateRegion(region, width, height, metadataPath);
       frames.push({

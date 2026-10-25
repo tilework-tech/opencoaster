@@ -142,4 +142,27 @@ describe('world art atlas packing', () => {
     expect(manifest.width).toBeLessThanOrEqual(1024);
     expect(manifest.height).toBeLessThanOrEqual(2048);
   });
+
+  it('passes the native flag through to the manifest', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'opencoaster-art-native-'));
+    temporaryDirectories.push(root);
+    const source = join(root, 'source');
+    await mkdir(source, { recursive: true });
+    await sharp({
+      create: { width: 4, height: 4, channels: 4, background: { r: 200, g: 60, b: 20, alpha: 1 } },
+    })
+      .png()
+      .toFile(join(source, 'tile.png'));
+    await writeFile(
+      join(source, 'tile.json'),
+      JSON.stringify({
+        frames: [{ x: 0, y: 0, width: 4, height: 4 }],
+        anchor: { x: 2, y: 2 },
+        footprint: { width: 1, height: 1 },
+        native: true,
+      }),
+    );
+    const manifest = await packSprites(source, join(root, 'output'));
+    expect(manifest.sprites.tile.native).toBe(true);
+  });
 });

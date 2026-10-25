@@ -1,3 +1,6 @@
+import { Z_STEP } from '../sim/core/constants';
+import { Z_PIXELS } from './projection';
+
 export const TERRAIN_SLOPE_NAMES = Array.from(
   { length: 16 },
   (_, index) => `shape-${index.toString(16).padStart(2, '0')}`,
@@ -20,23 +23,46 @@ export function terrainCliffSpriteName(surface: TerrainSurface, direction: numbe
   return `terrain/${surface}/cliff-face-${edge}`;
 }
 
+/**
+ * Path sprites are rendered for the unrotated camera; a connection on world side `d` is looked up
+ * as side `d + rotation`, and a ramp rising toward world direction `d` as direction `d + rotation`.
+ */
 export function pathSpriteName(
   surface: PathSurface,
   edges: number,
   slopeDirection?: number,
+  rotation = 0,
 ): string {
+  const turns = ((rotation % 4) + 4) % 4;
   if (slopeDirection !== undefined && slopeDirection >= 0 && slopeDirection <= 3)
-    return `paths/${surface}/ramp-${slopeDirection}`;
-  return `paths/${surface}/connection-${(edges & 0x0f).toString(16).padStart(2, '0')}`;
+    return `paths/${surface}/ramp-${(slopeDirection + turns) & 3}`;
+  const mask = edges & 0x0f;
+  const viewMask = ((mask << turns) | (mask >> (4 - turns))) & 0x0f;
+  return `paths/${surface}/connection-${viewMask.toString(16).padStart(2, '0')}`;
 }
 
+/** Palette-cycle frames of the water texture. */
+export const WATER_FRAMES = 8;
+
 export function waterFrameIndex(tick: number): number {
-  return Math.floor(Math.max(0, tick) / 8) % 4;
+  return Math.floor(Math.max(0, tick) / 8) % WATER_FRAMES;
 }
 
 export function waterSpriteName(frame: number): string {
-  return `water/surface#${((frame % 4) + 4) % 4}`;
+  return `water/surface#${((frame % WATER_FRAMES) + WATER_FRAMES) % WATER_FRAMES}`;
 }
+
+/**
+ * How water is drawn against the terrain, in height units (64 per level, 16px): the surface sits
+ * `surfaceInset` below the recorded water level so the shore reads as a bank, and the colour
+ * changes with depth below the surface (foam line, shallows, deep water).
+ */
+export const WATER_BANK = {
+  surfaceInset: 32,
+  foamDepth: 5,
+  shallowDepth: 24,
+  deepDepth: 96,
+};
 
 export function scenerySpriteName(name: string): string {
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
@@ -53,4 +79,12 @@ export function atlasFrameOrFallback<T>(
   fallback: T,
 ): T {
   return sprites?.[requested]?.frames[0] ?? fallback;
+}
+
+/**
+ * Vertical world offset (height units) that moves a quad centred on the projected point so that
+ * the sprite's anchor pixel lands on that point.
+ */
+export function nativeSpriteWorldOffset(frameHeight: number, anchorY: number): number {
+  return ((anchorY - frameHeight / 2) * Z_STEP) / Z_PIXELS;
 }
