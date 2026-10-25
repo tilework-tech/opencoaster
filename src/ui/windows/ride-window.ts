@@ -44,6 +44,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const p = (tab: string): HTMLElement => win.pane(tab);
 
   const status = element('div', 'ride-status');
+  let rideX: number | null = null;
+  let rideY: number | null = null;
   status.setAttribute('role', 'status');
   const excitement = gauge('Excitement');
   const intensity = gauge('Intensity');
@@ -65,13 +67,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const locate = button(
     'Locate',
     () => {
-      const snapshot = ctx.snapshot();
-      const row = snapshot && findRow(snapshot, rideId);
-      if (snapshot && row !== null)
-        ctx.actions.locate(
-          snapshot.rideInfo[row * RIDE_INFO_STRIDE + RideInfo.RideX],
-          snapshot.rideInfo[row * RIDE_INFO_STRIDE + RideInfo.RideY],
-        );
+      if (rideX !== null && rideY !== null) ctx.actions.locate(rideX, rideY);
     },
     'ui-button',
   );
@@ -212,6 +208,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       }
       const o = row * RIDE_INFO_STRIDE;
       const info = snapshot.rideInfo;
+      rideX = info[o + RideInfo.RideX];
+      rideY = info[o + RideInfo.RideY];
       const type = info[o + RideInfo.Type];
       const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
       const flags = info[o + RideInfo.Flags];

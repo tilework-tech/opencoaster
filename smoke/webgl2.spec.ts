@@ -37,8 +37,21 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
   }
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 30_000 });
   await page.getByRole('button', { name: 'Save, load and quit…' }).click();
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await page.waitForTimeout(500);
+  const menu = page.locator('[aria-label="Game menu"]');
+  await expect(menu).toBeVisible();
+  const tickBeforeResume = await hud.evaluate((element) => {
+    const match = element.textContent?.match(/\btick (\d+)\b/);
+    if (!match) throw new Error('Simulation tick is missing from the HUD');
+    return Number(match[1]);
+  });
+  await menu.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(menu).toBeHidden();
+  await expect
+    .poll(async () => {
+      const match = (await hud.innerText()).match(/\btick (\d+)\b/);
+      return match ? Number(match[1]) : tickBeforeResume;
+    })
+    .toBeGreaterThan(tickBeforeResume);
   await expect(hud).toContainText(/\bguests 5000\b/, { timeout: 10_000 });
 
   const frameSamples = await page.evaluate(async () => {
@@ -59,7 +72,7 @@ test('runs the park through WebGL2 with 5,000 guests and captures a frame', asyn
       setTimeout(() => {
         observer.disconnect();
         resolve();
-      }, 10_000);
+      }, 30_000);
     });
 
     return samples;

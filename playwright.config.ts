@@ -4,7 +4,9 @@ export default defineConfig({
   testDir: './smoke',
   outputDir: './.local/playwright-results',
   reporter: 'list',
-  timeout: 45_000,
+  timeout: 90_000,
+  workers: 1,
+  trace: 'retain-on-failure',
   use: {
     baseURL: 'http://127.0.0.1:4173',
     viewport: { width: 1280, height: 800 },

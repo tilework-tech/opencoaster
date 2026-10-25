@@ -100,7 +100,6 @@ export class GameUI {
   private paused = false;
   private tool: ToolMode = 'select';
   private selectedGuest: GuestSelection | null = null;
-  private latestSnapshot: Snapshot | null = null;
   private speed = 1;
 
   constructor(
@@ -111,7 +110,6 @@ export class GameUI {
     this.ctx = {
       windows,
       actions,
-      snapshot: () => this.latestSnapshot,
       selectedGuest: () => this.selectedGuest,
       series: this.series,
       openRide: (id) => this.openRide(id),
@@ -173,7 +171,6 @@ export class GameUI {
     stats: Stats | null,
     selectedGuest: GuestSelection | null,
   ): void {
-    this.latestSnapshot = snapshot;
     this.selectedGuest = selectedGuest;
     const weather = snapshot?.weather.kind ?? 0;
     const weatherClass = `weather-${['sunny', 'cloudy', 'rain', 'storm'][weather] ?? 'sunny'}`;
@@ -232,6 +229,7 @@ export class GameUI {
   onGameStart(openPark: boolean): void {
     this.closeAllWindows();
     this.controllers.clear();
+    this.selectedGuest = null;
     this.chooseTool('select');
     if (openPark) this.openWindow('park');
   }

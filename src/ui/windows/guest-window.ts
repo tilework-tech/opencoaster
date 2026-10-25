@@ -168,6 +168,8 @@ export function openGuestWindow(ctx: UiContext): WindowController {
   const lists = new Map<string, HTMLElement>();
   const counts = new Map<string, HTMLElement>();
   const average = statRow('Average happiness');
+  let currentRows: GuestSummaryRow[] = [];
+  let currentRideNames = new Map<number, string>();
   if (created) {
     win.body.prepend(average.row);
     for (const tab of SUMMARY_TABS) {
@@ -182,11 +184,13 @@ export function openGuestWindow(ctx: UiContext): WindowController {
       optionSignatures.set(tab.id, '');
       lists.set(tab.id, list);
       counts.set(tab.id, count);
-      control.addEventListener('change', () => refreshSummary(ctx.snapshot()));
+      control.addEventListener('change', () => refreshSummary(currentRows, currentRideNames));
     }
   }
-  function refreshSummary(snapshot: Snapshot | null): void {
-    const rows = summaryRows(snapshot);
+  function refreshSummary(
+    rows: readonly GuestSummaryRow[],
+    rideNames: ReadonlyMap<number, string>,
+  ): void {
     for (const [tab, control] of controls) {
       const old = control.value;
       const options: Array<[string, string]> = [['all', 'All guests']];
@@ -198,9 +202,9 @@ export function openGuestWindow(ctx: UiContext): WindowController {
         for (const row of rows)
           locations.set(`${row.tileX},${row.tileY}`, `Tile ${row.tileX}, ${row.tileY}`);
         for (const [key, label] of locations) options.push([`location:${key}`, label]);
-      } else if (tab === 'ride' && snapshot) {
+      } else if (tab === 'ride') {
         const ids = new Set(rows.flatMap((row) => row.rideIds).filter((id) => id > 0));
-        for (const id of ids) options.push([`ride:${id}`, rideName(snapshot, id)]);
+        for (const id of ids) options.push([`ride:${id}`, rideNames.get(id) ?? `Ride #${id}`]);
       }
       const optionSignature = options.map(([value, label]) => `${value}:${label}`).join('|');
       if (optionSignatures.get(tab) !== optionSignature) {
@@ -246,12 +250,20 @@ export function openGuestWindow(ctx: UiContext): WindowController {
   return {
     update(snapshot: Snapshot | null) {
       const rows = summaryRows(snapshot);
+      currentRows = rows;
+      currentRideNames = new Map();
+      if (snapshot) {
+        for (const row of rows)
+          for (const id of row.rideIds)
+            if (id > 0 && !currentRideNames.has(id))
+              currentRideNames.set(id, rideName(snapshot, id));
+      }
       const n = Math.min(rows.length, snapshot?.guests.count ?? 0);
       let sum = 0;
       for (let i = 0; snapshot && i < n; i++)
         sum += snapshot.guestDetails[i * GUEST_DETAIL_STRIDE] ?? 0;
       setText(average.value, n ? String(Math.round(sum / n)) : '-');
-      refreshSummary(snapshot);
+      refreshSummary(rows, currentRideNames);
     },
   };
 }
@@ -280,16 +292,10 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
   thoughts.setAttribute('aria-label', 'Guest thoughts');
   const rides = element('ul', 'guest-ride-history');
   rides.setAttribute('aria-label', 'Ride history');
+  let location: { x: number; y: number } | null = null;
   if (created) {
     const locate = () => {
-      const row = guestRow(ctx.snapshot(), guestId);
-      if (row !== null) {
-        const pos = row * 4;
-        ctx.actions.locate(
-          Math.floor((ctx.snapshot()!.guests.data[pos] ?? 0) / TILE_UNITS),
-          Math.floor((ctx.snapshot()!.guests.data[pos + 1] ?? 0) / TILE_UNITS),
-        );
-      }
+      if (location) ctx.actions.locate(location.x, location.y);
     };
     win
       .pane('view')
@@ -309,6 +315,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
     update(snapshot: Snapshot | null) {
       const row = guestRow(snapshot, guestId);
       if (!snapshot || row === null) {
+        location = null;
         win.setTitle(`Guest ${guestId} · left park`);
         setText(where.value, 'No longer in the park');
         return;
@@ -318,6 +325,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       const data = snapshot.guestDetails;
       const x = Math.floor((snapshot.guests.data[layer] ?? 0) / TILE_UNITS);
       const y = Math.floor((snapshot.guests.data[layer + 1] ?? 0) / TILE_UNITS);
+      location = { x, y };
       const state =
         (['walking', 'queueing', 'riding', 'leaving', 'shopping', 'waiting to board'] as const)[
           snapshot.guests.data[layer + 3]! >>> 8

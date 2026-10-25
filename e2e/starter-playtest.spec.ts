@@ -5,11 +5,11 @@ import { expect, test } from '@playwright/test';
 test('plays the starter park shell and exercises save file round trips', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(18 * 60_000);
+  test.setTimeout(1_200_000);
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`);
     await mkdir(dirname(path), { recursive: true });
-    await page.screenshot({ path, fullPage: true });
+    await page.screenshot({ path, fullPage: true, timeout: 60_000 });
     await testInfo.attach(name, { path, contentType: 'image/png' });
   };
   const currentTick = async () => {
@@ -137,8 +137,22 @@ test('plays the starter park shell and exercises save file round trips', async (
     await expect(page.locator('[data-panel="staff"]')).toContainText('Staff employed  2');
     await page.getByRole('button', { name: 'Close Staff' }).click();
     await toolbarButton('Rides').click();
-    await expect(page.locator('[data-panel="ride-list"]')).toContainText('Steel Looping Coaster');
-    await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
+    const coasterRow = page
+      .locator('[data-panel="ride-list"] .list-row')
+      .filter({ hasText: 'Steel Looping Coaster' });
+    await expect(coasterRow).toBeVisible();
+    const rideId = await coasterRow.getAttribute('data-ride-id');
+    if (!rideId) throw new Error('Coaster ride row is missing its ride id');
+    await coasterRow.click();
+    const rideWindow = page.locator(`[data-panel="ride-${rideId}"]`);
+    await expect(rideWindow).toBeVisible();
+    const statisticsTab = rideWindow.getByRole('tab', { name: 'Ride statistics' });
+    await statisticsTab.click();
+    await expect(statisticsTab).toHaveAttribute('aria-selected', 'true');
+    const statisticsPanel = rideWindow.locator('[role="tabpanel"][data-tab="measurements"]');
+    await expect(statisticsPanel).toBeVisible();
+    await expect(statisticsPanel).toContainText('13 pieces, closed circuit');
+    await page.keyboard.press('Shift+Backspace');
   };
 
   const exportPromise = page.waitForEvent('download');
@@ -166,7 +180,7 @@ test('plays the starter park shell and exercises save file round trips', async (
   if (process.env.E2E_RUN_YEAR === '1') {
     await toolbarButton('Game options').click();
     await page.getByRole('button', { name: '4×' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 17 * 60_000 });
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 1_100_000 });
     await expect(page.locator('.outcome-heading')).toHaveText(/Objective (met|missed)/);
     await screenshot('13-year-one-outcome');
   }
