@@ -8,6 +8,7 @@ import { RideType } from '../rides/ride-types';
 import { WeatherKind } from '../weather/weather';
 import { LedgerCategory } from '../economy/ledger';
 import { PathAddition, setPathAddition } from '../map/paths';
+import { TILE_UNITS } from '../core/constants';
 
 function chooseRide(weather: WeatherKind, umbrella: boolean) {
   const world = flatWorld(24, 8);
@@ -103,6 +104,11 @@ describe('rain shelters', () => {
     layPath(world, [[5, 5]]);
     if (shelter) setPathAddition(world.map, 5, 5, PathAddition.Shelter);
     const guest = guestAt(world, 5, 5);
+    for (let i = 0; i < 2; i++) {
+      const slot = world.litter.spawn();
+      world.litter.cols.x[slot] = 5 * TILE_UNITS + TILE_UNITS / 2;
+      world.litter.cols.y[slot] = 5 * TILE_UNITS + TILE_UNITS / 2;
+    }
     world.guests.cols.happiness[guest] = 200;
     world.weather.kind = WeatherKind.Rain;
     const system = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));

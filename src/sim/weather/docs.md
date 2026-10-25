@@ -4,7 +4,7 @@ Path: @/src/sim/weather
 
 ### Overview
 
-- Holds the park's current weather kind, temperature, and ticks remaining before a transition; weather is not yet selected from a scenario climate or calendar month.
+- Holds the park's selected climate, current represented weather kind, temperature, and ticks remaining before a transition. Monthly base temperature follows the climate's March-to-October table.
 - Seeds weather transitions from the world's shared pseudo-random generator so replays and saves preserve the same sequence.
 - Guest ride scoring reads weather state to model a provisional rain preference effect.
 
@@ -17,15 +17,16 @@ Path: @/src/sim/weather
 
 ### Core Implementation
 
-- [weather.ts](weather.ts) defines the four weather kinds and initializes a sunny state with a temperature and transition countdown.
-- [weather-system.ts](weather-system.ts) decrements the countdown once per tick. At transition it draws a new kind without immediately repeating the previous kind, selects a temperature, and schedules the next transition from named duration constants.
+- [weather.ts](weather.ts) defines four represented weather kinds, four climates, monthly base temperatures, weather deltas, and the named warm default.
+- [weather-system.ts](weather-system.ts) decrements the transition countdown once per tick and updates temperature from the current calendar month, climate, and weather kind. Transitions draw a non-repeating kind and schedule a new duration.
 - The system uses `World.rng`; weather therefore participates in the same deterministic random stream as other simulation systems.
 - Rain and storm currently share the guest-facing rain threshold. Uncovered thrill and coaster categories receive a scoring penalty for guests without an umbrella; weather does not yet implement rain shelter or other ride-demand effects.
 
 ### Things to Know
 
-- Transition durations, temperature ranges, and ride-score penalty are provisional OpenCoaster values. The reachable sources do not establish exact state durations, transition probabilities, or numeric demand effects.
-- Transitions do not read the in-game month and there is no monthly climate table yet. The current four-state model and partial rain effects do not implement the full reference weather behavior.
+- The current four kinds map to sunny, cloudy, rain and thunderstorm temperature deltas. The remaining five original weather kinds, climate weather weights, 128-tick update cadence, and forecast transitions are not modeled.
+- Scenario climate is saved and hashed. Missing climate in a v14 save or scenario defaults to warm; the starter scenario names warm explicitly.
+- Transition durations, transition probabilities, and ride-score penalty remain provisional OpenCoaster values. The current model does not implement weather visuals or shelter behavior.
 - An umbrella flag belongs to the guest's stable id in [World](../core/world.ts), not its dense store slot. This keeps ownership attached to a guest when entity slots are swap-removed. The guest system deducts cash for a successful kiosk purchase and posts the price to `ShopSales`; nearby kiosks the guest cannot afford are skipped.
 - This module only advances weather state. Kiosk purchases and ride preference effects are implemented by the guest system; rendering weather visuals and shelter behavior are not part of this module.
 

@@ -26,6 +26,8 @@ export const enum GuestThought {
   QueueTooLong = 7,
   Leaving = 8,
   Lost = 9,
+  Scenery = 10,
+  VeryClean = 11,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */

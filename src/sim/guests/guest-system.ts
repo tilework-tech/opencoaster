@@ -31,6 +31,7 @@ import { exceedsNauseaLimit, intensityCeilingOf, preferredIntensityOf } from './
 import { recountRideLines } from './ride-lines';
 import { WeatherKind } from '../weather/weather';
 import { awardAttractionBps } from '../economy/awards';
+import { updateGuestSurroundings } from './surroundings';
 
 const UPDATE_STRIDE = 4;
 const GUEST_SPEED = 12;
@@ -561,6 +562,7 @@ function loseWayOut(world: World, slot: number): void {
 /** Returns true when the guest has left the park and should be despawned. */
 function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   const g = world.guests.cols;
+  updateGuestSurroundings(world, slot);
   tickLost(world, slot, UPDATE_STRIDE);
   g.visitTicks[slot] = Math.min(0x7fffffff, g.visitTicks[slot] + UPDATE_STRIDE);
   const guestTick = world.tick + world.guests.slotToId[slot];

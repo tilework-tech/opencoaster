@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
-import { OWNED, SALE_LAND, SALE_RIGHTS, RIGHTS_OWNED, LAND_PRICE_CENTS } from './tile-map';
+import {
+  OWNED,
+  SALE_LAND,
+  SALE_RIGHTS,
+  RIGHTS_OWNED,
+  LAND_PRICE_CENTS,
+  MAX_HEIGHT,
+} from './tile-map';
 import { serialize, deserialize } from '../../save/save';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { landEditCostCents } from './land';
@@ -70,6 +77,36 @@ describe('map commands', () => {
     m.refreshTile(m.index(x + 1, y));
 
     expect(landEditCostCents(m, x, y, 2, 1, false)).toBe(2_000);
+  });
+
+  it('charges only selected vertices that can move in the requested direction', () => {
+    const s = sim();
+    const m = s.world.map;
+    const x = 10;
+    const y = 10;
+    const northWest = m.vertexIndex(x, y);
+    m.vertexHeights[northWest] = MAX_HEIGHT;
+    m.refreshTile(m.index(x, y));
+
+    expect(landEditCostCents(m, x, y, 1, 1, true)).toBe(1_500);
+
+    m.vertexHeights[northWest] = 0;
+    m.refreshTile(m.index(x, y));
+    expect(landEditCostCents(m, x, y, 1, 1, false)).toBe(1_500);
+  });
+
+  it('does not charge a saturated corner raise or lower', () => {
+    const s = sim();
+    const m = s.world.map;
+    const x = 10;
+    const y = 10;
+    m.vertexHeights[m.vertexIndex(x, y)] = MAX_HEIGHT;
+    m.refreshTile(m.index(x, y));
+    expect(landEditCostCents(m, x, y, 1, 1, true, 0)).toBe(0);
+
+    m.vertexHeights[m.vertexIndex(x, y)] = 0;
+    m.refreshTile(m.index(x, y));
+    expect(landEditCostCents(m, x, y, 1, 1, false, 0)).toBe(0);
   });
 
   it('removes litter from tiles whose terrain is changed', () => {

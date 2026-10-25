@@ -258,13 +258,13 @@ Default seed 2026, modest harness, one year on flattened terrain. The first worl
 
 | Metric                 | First world-fidelity run | Rebased current tree |
 | ---------------------- | -----------------------: | -------------------: |
-| Year-end guests        |                      115 |                  261 |
-| Year-end rating        |                      456 |                  208 |
+| Year-end guests        |                      115 |                  278 |
+| Year-end rating        |                      456 |                  269 |
 | Objective              |         Won (target 450) |     Won (target 200) |
-| Cash                   |                  $37,090 |              $34,016 |
+| Cash                   |                  $37,090 |              $34,320 |
 | Staff wages, whole run |                   $2,360 |               $2,360 |
 
-The rating target is an OpenCoaster balance decision based on the default seed: 200 leaves an 8-point margin in this scripted run. It is not a claim about original-game difficulty or a guarantee across seeds. Terrain edits, staff hiring and park layout can change the result.
+The intervening rebased run before monthly climate and surroundings thoughts ended at 261 guests, rating 208, and $34,016. With monthly base temperatures and the documented scenery/cleanliness thoughts, it ends at 278 guests, rating 269, and $34,320. The rating target is an OpenCoaster balance decision, not a claim about original-game difficulty or a guarantee across seeds. Terrain edits, staff hiring and park layout can change the result.
 
 ## Known gaps
 

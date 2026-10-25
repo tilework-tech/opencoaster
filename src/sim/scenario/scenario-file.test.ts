@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory } from '../economy/ledger';
+import { Climate } from '../weather/weather';
 import { ObjectiveKind } from './scenario';
 import { parseScenarioFile } from './scenario-file';
 
@@ -61,6 +62,11 @@ describe('parseScenarioFile', () => {
         minimumRating: 0,
       },
     });
+  });
+
+  it('parses the four supported climates and rejects an unknown climate', () => {
+    expect(parseScenarioFile({ ...valid, climate: 'coolAndWet' }).climate).toBe(Climate.CoolAndWet);
+    expect(() => parseScenarioFile({ ...valid, climate: 'tropical' })).toThrow(/climate/);
   });
 
   it('accepts the difficulty category used by scenario selection', () => {

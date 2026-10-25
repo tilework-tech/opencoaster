@@ -6,6 +6,15 @@ import { rideQueueCapacity } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
 import { RideType } from '../rides/ride-types';
 import type { World } from '../core/world';
+import { TILE_UNITS } from '../core/constants';
+
+function addNearbyRubbish(world: World, x: number, y: number): void {
+  for (let i = 0; i < 2; i++) {
+    const slot = world.litter.spawn();
+    world.litter.cols.x[slot] = x * TILE_UNITS + TILE_UNITS / 2;
+    world.litter.cols.y[slot] = y * TILE_UNITS + TILE_UNITS / 2;
+  }
+}
 
 const admission = () => ({ parkRating: 0, entranceFee: 0 });
 
@@ -21,6 +30,7 @@ function oneRide(ratings: { excitement: number; intensity: number; nausea: numbe
   const world = flatWorld(24, 8);
   layPath(world, row(5, 3, 15));
   const guest = guestAt(world, 5, 5);
+  addNearbyRubbish(world, 5, 5);
   world.guests.cols.preferredIntensity[guest] = 100;
   world.guests.cols.nauseaTolerance[guest] = 150;
   const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
@@ -55,6 +65,7 @@ describe('ride lines', () => {
     const world = flatWorld(24, 8);
     layPath(world, row(5, 3, 15));
     const guest = guestAt(world, 5, 5);
+    addNearbyRubbish(world, 5, 5);
     world.guests.cols.preferredIntensity[guest] = 100;
     const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
     world.rides.cols.excitement[ride] = 500;

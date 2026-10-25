@@ -234,7 +234,14 @@ export function landEditCostCents(
   corner?: number,
 ): number {
   if (!rectOwned(m, x, y, w, h)) return 0;
-  if (corner !== undefined) return LAND_HEIGHT_STEP_COST_CENTS;
+  const canMove = (vertex: number): boolean =>
+    up ? m.vertexHeights[vertex] < MAX_HEIGHT : m.vertexHeights[vertex] > 0;
+  if (corner !== undefined) {
+    if (w !== 1 || h !== 1 || corner < 0 || corner >= 4) return 0;
+    const vx = x + CORNER_DX[corner];
+    const vy = y + CORNER_DY[corner];
+    return canMove(m.vertexIndex(vx, vy)) ? LAND_HEIGHT_STEP_COST_CENTS : 0;
+  }
   let extreme = up ? MAX_HEIGHT : 0;
   for (let ty = y; ty < y + h; ty++)
     for (let tx = x; tx < x + w; tx++) {
@@ -247,7 +254,10 @@ export function landEditCostCents(
     for (let tx = x; tx < x + w; tx++) {
       const index = m.index(tx, ty);
       if (tileExtremeHeight(m, index, up) !== extreme) continue;
-      for (let c = 0; c < 4; c++) selected.add(m.vertexIndex(tx + CORNER_DX[c], ty + CORNER_DY[c]));
+      for (let c = 0; c < 4; c++) {
+        const vertex = m.vertexIndex(tx + CORNER_DX[c], ty + CORNER_DY[c]);
+        if (canMove(vertex)) selected.add(vertex);
+      }
     }
   }
   return selected.size * LAND_HEIGHT_STEP_COST_CENTS;

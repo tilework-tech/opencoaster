@@ -8,6 +8,7 @@ import { RideState } from '../rides/ride-store';
 import { RideType } from '../rides/ride-types';
 import { meetsObjective } from './scenario-system';
 import { spawnGuest } from '../guests/guest-store';
+import { Climate, DEFAULT_CLIMATE } from '../weather/weather';
 
 function def(objective: ScenarioObjective): ScenarioDef {
   return {
@@ -38,6 +39,14 @@ function play(objective: ScenarioObjective, setup: (s: Simulation) => void): Sce
 }
 
 describe('scenario objectives', () => {
+  it('applies a scenario climate and defaults scenarios without one to warm', () => {
+    const sim = new Simulation({ seed: 1, width: 16, height: 16 });
+    applyScenario(sim.world, { ...def({ kind: ObjectiveKind.HaveFun, target: 0, rating: 0, categoryMask: 0, byTick: 0 }), climate: Climate.Cold });
+    expect(sim.world.weather.climate).toBe(Climate.Cold);
+    applyScenario(sim.world, def({ kind: ObjectiveKind.HaveFun, target: 0, rating: 0, categoryMask: 0, byTick: 0 }));
+    expect(sim.world.weather.climate).toBe(DEFAULT_CLIMATE);
+  });
+
   it('wins a park-value goal when the value meets the target at the deadline', () => {
     const status = play(
       { kind: ObjectiveKind.ParkValue, target: 5_000, rating: 0, categoryMask: 0, byTick: 512 },
