@@ -53,6 +53,10 @@ const PIXEL_PALETTE = [
   [246, 219, 187],
 ] as const;
 
+/** Largest share of a cell's width and height a figure may fill; the feet sit one pixel above the cell bottom. */
+const FIGURE_WIDTH = 0.75;
+const FIGURE_HEIGHT = 0.72;
+
 function decodePng(bytes: Buffer): Png {
   if (!bytes.subarray(0, 8).equals(SIGNATURE)) throw new Error('Input is not a PNG file');
   let width = 0;
@@ -238,11 +242,14 @@ function nearestResize(
 ): { pixels: Buffer; mask: Buffer } {
   const cropWidth = cell.bounds.maxX - cell.bounds.minX + 1;
   const cropHeight = cell.bounds.maxY - cell.bounds.minY + 1;
-  const fit = Math.min((cellSize - 12) / cropWidth, (cellSize - 10) / cropHeight);
+  const fit = Math.min(
+    (cellSize * FIGURE_WIDTH) / cropWidth,
+    (cellSize * FIGURE_HEIGHT) / cropHeight,
+  );
   const width = Math.max(1, Math.round(cropWidth * fit));
   const height = Math.max(1, Math.round(cropHeight * fit));
   const xOffset = Math.floor((cellSize - width) / 2);
-  const yOffset = cellSize - height - 4;
+  const yOffset = cellSize - height - 1;
   const pixels = Buffer.alloc(cellSize * cellSize * 4);
   const mask = Buffer.alloc(cellSize * cellSize * 4);
   for (let y = 0; y < height; y++) {

@@ -1,6 +1,6 @@
 import { writeSpriteDef } from './output';
 import type { SpriteDef } from './output';
-import { renderMesh } from './raster';
+import { TILE_W, renderMesh } from './raster';
 import { coasterSprites } from './models/coaster/sprites';
 import { PATH_STYLES, pathMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
@@ -8,7 +8,14 @@ import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import { rideSpriteName } from '../../src/render/world-art';
 import { RIDE_MODELS } from './models/ride-catalog';
 import { rideMesh } from './models/rides';
-import { clipMesh, physicalToLevels, rotateMesh, rotatePoint, translateMesh } from './mesh';
+import {
+  clipMesh,
+  mapMesh,
+  physicalToLevels,
+  rotateMesh,
+  rotatePoint,
+  translateMesh,
+} from './mesh';
 import type { Mesh } from './mesh';
 import { FACILITY_MODELS } from './models/facilities';
 import { parkEntranceMesh } from './models/park-entrance';
@@ -23,6 +30,29 @@ import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
 import type { TrackPieceDef } from '../../src/sim/track/track-types';
 
 const ONE_TILE = { width: 1, height: 1 };
+
+/** Distance from a tile centre to its edge, in tile units. */
+const TILE_HALF_EXTENT = 0.5;
+/** Flat rides are enlarged at most this much to reach the tile edge. */
+const MAX_RIDE_FIT = 1.3;
+
+/**
+ * Uniform scale that brings a ride's widest ground extent to its tile edge without drawing wider
+ * than the 64px tile diamond. Rides that already fill their tile keep their size.
+ */
+export function rideFitScale(poses: readonly Mesh[]): number {
+  let extent = 0;
+  let width = 0;
+  for (const mesh of poses) {
+    for (const triangle of mesh)
+      for (const [x, y] of triangle.v) extent = Math.max(extent, Math.abs(x), Math.abs(y));
+    width = Math.max(width, renderMesh(mesh).width);
+  }
+  if (extent === 0) return 1;
+  const toEdge = TILE_HALF_EXTENT / extent;
+  const toTileWidth = TILE_W / width;
+  return Math.min(MAX_RIDE_FIT, Math.max(1, Math.min(toEdge, toTileWidth)));
+}
 
 function hex2(value: number): string {
   return value.toString(16).padStart(2, '0');
@@ -86,10 +116,16 @@ function rideSprites(): SpriteDef[] {
       (ride.category === 'gentle' || ride.category === 'thrill')
         ? 9
         : model.frames;
+    const fit = rideFitScale(Array.from({ length: frames }, (_, frame) => rideMesh(model, frame)));
     return Array.from({ length: 4 }, (_, view): SpriteDef => ({
       key: `${spriteName}/view-${view}`,
       frames: Array.from({ length: frames }, (_, frame) =>
-        renderMesh(rotateMesh(rideMesh(model, frame), view)),
+        renderMesh(
+          rotateMesh(
+            mapMesh(rideMesh(model, frame), (p) => [p[0] * fit, p[1] * fit, p[2] * fit]),
+            view,
+          ),
+        ),
       ),
       footprint,
     }));

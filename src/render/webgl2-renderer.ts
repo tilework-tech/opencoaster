@@ -21,6 +21,7 @@ import type { Camera, MapData, Renderer } from './renderer';
 import {
   AMBIENT_TREE_BOX,
   FLOWER_BED_BOX,
+  GUEST_BOX,
   PARK_GATE_BOX,
   SCENERY_PIXELS_PER_HEIGHT,
 } from './sprite-layout';
@@ -1503,8 +1504,8 @@ export class WebGL2Renderer implements Renderer {
         camera,
         viewportWidth,
         viewportHeight,
-        7,
-        9,
+        GUEST_BOX.width,
+        GUEST_BOX.height,
         depth,
       );
     }
