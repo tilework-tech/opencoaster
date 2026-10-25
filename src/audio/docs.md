@@ -4,23 +4,25 @@ Path: @/src/audio
 
 ### Overview
 
-- Synthesizes park ambience, weather, interface cues, ride effects, and ride music with the Web Audio API.
+- Synthesizes park ambience, weather, interface cues, ride effects, a park theme, and per-ride music with the Web Audio API.
 - Keeps browser audio playback on the main thread; snapshots carry simulation-generated construction cues.
-- Reads volume and mute preferences from browser settings and creates no audio context until a user gesture.
+- Reads sound volume, music volume, Music on, and mute from browser settings and creates no audio context until a user gesture.
 
 ### How it fits into the larger codebase
 
 - [AudioEngine](audio.ts) consumes the latest transferable snapshot in [main.ts](../main.ts); simulation state remains authoritative and does not wait for sound playback.
 - Successful map, ride, and track construction changes are copied into `Snapshot.audioEvents` by [worker/snapshot.ts](../worker/snapshot.ts), then consumed once by the audio engine.
-- The Options window calls back into the main-thread settings owner, which persists sound volume, music volume, and mute with the existing player settings.
+- The Options window calls back into the main-thread settings owner, which persists sound volume, music volume, Music on, and mute with the existing player settings.
 
 ### Core Implementation
 
-- `AudioEngine.unlock()` lazily creates and resumes one `AudioContext` in response to pointer or keyboard input. It synthesizes noise beds, short oscillator envelopes, and per-ride tones without game audio assets.
+- `AudioEngine.unlock()` lazily creates and resumes one `AudioContext` in response to pointer or keyboard input. It renders the crowd bed, rain, and music loops once, then starts the park theme. No game audio assets are used.
+- [synth.ts](synth.ts) holds the pure, deterministic generators. The crowd murmur and rain are band-limited noise (murmur 180–1200 Hz with a slow swell, rain 1.5–6 kHz) made into seamless loops. Music is written as note events (reed, pad, lead, bass, pluck, kick, hat voices) and rendered into one loop per style: `park` (C major, 100 BPM, eight bars), `organ` (fairground-style G major waltz, 120 BPM), and `upbeat` (E minor, 150 BPM).
+- `rideMusicStyle()` maps a ride category to a style: `gentle` and `transport` rides get the organ loop, everything else the upbeat loop.
 - Snapshot updates scale the crowd bed by the guest count, adjust rain ambience, consume purchase and construction cues, detect weather and station-phase changes, and start or stop panned music for active rides inside the camera viewport.
 - Actual vehicle drop and chain-lift segment events produce intensity-scaled screams and ride-specific clanks. Purchases are coalesced to one register event per simulation tick and rate-limited by the audio engine; recurring park income does not produce purchase sounds. Storm transitions can produce thunder.
 - UI callbacks provide click, window open/close, and ticker chime cues. Each ride's procedural tone changes with simulation tick and is positioned from its projected screen location.
-- Shared gain nodes control sound and music levels. Audio nodes for completed effects are disconnected, and ride voices stop when their ride leaves view or the engine is disposed.
+- Shared gain nodes control sound and music levels. Music on turns the music bus to zero and ride voices are not created. The park theme ducks while any ride voice is audible. Audio nodes for completed effects are disconnected. Ride voices fade out before they stop, so leaving view or disposing the engine does not click.
 - `bench:audio` measures the main-thread snapshot update with a warmed synthetic park and reports p50/p95/p99; `--strict` enforces p99 below 0.5 ms.
 
 ### Things to Know
