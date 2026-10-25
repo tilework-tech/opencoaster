@@ -244,19 +244,24 @@ function chooseRide(world: World, slot: number, tile: number): number {
   return selected;
 }
 
-/** Nearest open, affordable, visible and reachable ride whose type passes `accepts`, or -1. */
-function nearestMatching(
+/**
+ * Nearest open, affordable, visible and reachable stall that is either of type `want` or, for
+ * `'food'` and `'drink'`, sells that; -1 when there is none.
+ */
+function nearestStall(
   world: World,
   slot: number,
   tile: number,
-  accepts: (type: RideType) => boolean,
+  want: RideType | 'food' | 'drink',
 ): number {
   const r = world.rides.cols;
   const cash = world.guests.cols.cash[slot];
   let selected = -1;
   let best = SIGHT_TILES + 1;
   for (let ride = 0; ride < world.rides.count; ride++) {
-    if (!accepts(r.typeId[ride] as RideType) || r.state[ride] !== RideState.Open) continue;
+    const type = r.typeId[ride] as RideType;
+    const matches = typeof want === 'number' ? type === want : RIDE_CATALOG[type]?.serves === want;
+    if (!matches || r.state[ride] !== RideState.Open) continue;
     if (r.entrancePlaced[ride] === 0) continue;
     const fare = guestPriceCents(
       world,
@@ -278,37 +283,23 @@ function nearestMatching(
   return selected;
 }
 
-function nearestService(world: World, slot: number, tile: number, type: RideType): number {
-  return nearestMatching(world, slot, tile, (rideType) => rideType === type);
-}
-
-/** Nearest stall selling food or drink, whichever type it is. */
-function nearestServing(
-  world: World,
-  slot: number,
-  tile: number,
-  serves: 'food' | 'drink',
-): number {
-  return nearestMatching(world, slot, tile, (type) => RIDE_CATALOG[type]?.serves === serves);
-}
-
 /** Picks what a wandering guest heads for next: a need first, then a ride. */
 function chooseDestination(world: World, slot: number, tile: number): number {
   const g = world.guests.cols;
   if (isLost(world, slot)) {
     return g.hasMap[slot] === 0 && g.cash[slot] >= MAP_PRICE
-      ? nearestService(world, slot, tile, RideType.InformationKiosk)
+      ? nearestStall(world, slot, tile, RideType.InformationKiosk)
       : -1;
   }
   if (g.toilet[slot] >= TOILET_SEEK) {
-    const toilets = nearestService(world, slot, tile, RideType.Toilets);
+    const toilets = nearestStall(world, slot, tile, RideType.Toilets);
     if (toilets >= 0) return toilets;
   }
   if (
     world.weather.kind >= WeatherKind.Rain &&
     world.umbrellas[world.guests.slotToId[slot]] === 0
   ) {
-    const kiosk = nearestService(world, slot, tile, RideType.InformationKiosk);
+    const kiosk = nearestStall(world, slot, tile, RideType.InformationKiosk);
     if (kiosk >= 0) return kiosk;
   }
   const hungry = g.hunger[slot] <= HUNGER_SEEK;
@@ -317,10 +308,10 @@ function chooseDestination(world: World, slot: number, tile: number): number {
     const foodFirst = hungry && (!thirsty || g.hunger[slot] <= g.thirst[slot]);
     const first = foodFirst ? 'food' : 'drink';
     const second = foodFirst ? 'drink' : 'food';
-    const stall = nearestServing(world, slot, tile, first);
+    const stall = nearestStall(world, slot, tile, first);
     if (stall >= 0) return stall;
     if (hungry && thirsty) {
-      const other = nearestServing(world, slot, tile, second);
+      const other = nearestStall(world, slot, tile, second);
       if (other >= 0) return other;
     }
   }
