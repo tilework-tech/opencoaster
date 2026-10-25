@@ -11,7 +11,7 @@ function arg(name: string, fallback: number): number {
 
 const guests = arg('guests', 5000);
 const ticks = arg('ticks', 400);
-const warmup = arg('warmup', 40);
+const warmup = arg('warmup', 150);
 const staff = arg('staff', 100);
 const litter = arg('litter', 1000);
 const strict = process.argv.includes('--strict');

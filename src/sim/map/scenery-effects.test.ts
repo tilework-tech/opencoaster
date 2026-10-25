@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countScenerySurroundings } from './scenery-effects';
+import { countScenerySurroundings, emptyScenerySurroundings } from './scenery-effects';
 import { ElementType, markPathElementBroken, TileMap } from './tile-map';
 
 function mapWithElements(): TileMap {
@@ -60,6 +60,26 @@ describe('guest scenery surroundings', () => {
       rubbishCount: 0,
       suppressed: false,
     });
+  });
+
+  it('fills a caller-owned result and returns that same object', () => {
+    const map = mapWithElements();
+    add(map, 10, 10, ElementType.SmallScenery);
+    const out = emptyScenerySurroundings();
+
+    expect(countScenerySurroundings(map, 10, 10, 4, 3, out)).toBe(out);
+    expect(out).toEqual({
+      smallScenery: 1,
+      largeScenery: 0,
+      brokenPaths: 0,
+      rubbishCount: 3,
+      suppressed: false,
+    });
+
+    map.fillFlat(6);
+    countScenerySurroundings(map, 10, 10, 5, 0, out);
+    expect(out.suppressed).toBe(true);
+    expect(out.smallScenery).toBe(0);
   });
 
   it('reflects scenery added after an earlier scan', () => {
