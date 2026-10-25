@@ -139,27 +139,33 @@ export class Simulation {
     this.pending.push(command);
   }
 
+  /** Applies accepted commands without advancing time or running simulation systems. */
+  applyPendingCommands(): boolean {
+    if (this.pending.length === 0) return false;
+    const w = this.world;
+    const commands = this.pending;
+    this.pending = [];
+    for (const command of commands) {
+      const mapRevision = w.map.revision;
+      const rides = w.rides.count;
+      const tracks = w.track.pieces.count;
+      this.apply(command);
+      if (
+        w.map.revision !== mapRevision ||
+        w.rides.count !== rides ||
+        w.track.pieces.count !== tracks
+      ) {
+        const removal = command.type === 'removePath' || command.type === 'removeTrack';
+        w.audioEvents.push({ id: ++w.audioEventSequence, type: removal ? 'demolish' : 'build' });
+      }
+    }
+    return true;
+  }
+
   /** Advances the world by exactly one tick. */
   step(): void {
     const w = this.world;
-    if (this.pending.length > 0) {
-      const cmds = this.pending;
-      this.pending = [];
-      for (const c of cmds) {
-        const mapRevision = w.map.revision;
-        const rides = w.rides.count;
-        const tracks = w.track.pieces.count;
-        this.apply(c);
-        if (
-          w.map.revision !== mapRevision ||
-          w.rides.count !== rides ||
-          w.track.pieces.count !== tracks
-        ) {
-          const removal = c.type === 'removePath' || c.type === 'removeTrack';
-          w.audioEvents.push({ id: ++w.audioEventSequence, type: removal ? 'demolish' : 'build' });
-        }
-      }
-    }
+    this.applyPendingCommands();
     for (const system of SYSTEM_ORDER) system.update(w);
     w.tick++;
   }

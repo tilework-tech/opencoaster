@@ -8,6 +8,7 @@ export interface RenderMapData {
   surface: Uint8Array;
   slope: Uint8Array;
   waterLevel: Uint8Array;
+  ownership: Uint8Array;
   pathElements: Int32Array;
   pathCount: number;
   sceneryElements: Int32Array;
@@ -47,6 +48,7 @@ export function extractMapData(map: TileMap): RenderMapData {
     surface: map.surface.slice(),
     slope: map.slope.slice(),
     waterLevel: map.waterLevel.slice(),
+    ownership: map.ownership.slice(),
     pathElements: pathElements.slice(0, pathCount * 6),
     pathCount,
     sceneryElements: sceneryElements.slice(0, sceneryCount * 5),

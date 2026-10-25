@@ -8,6 +8,7 @@ import { NewsTracker } from './news';
 import type { NewsItem } from './news';
 import { objectiveLines } from './objective';
 import { StatusBar } from './status-bar';
+import { effectiveGameSpeed } from './window-layout';
 import { Toolbar } from './toolbar';
 import type { ToolbarButton } from './toolbar';
 import type {
@@ -516,8 +517,8 @@ export class GameUI {
         const b = button(
           `${speed}×`,
           () => {
-            this.speed = speed;
-            this.actions.setSpeed(speed);
+            this.speed = effectiveGameSpeed(speed, this.tool === 'track');
+            this.actions.setSpeed(this.speed);
           },
           'ui-button',
         );
@@ -628,6 +629,11 @@ export class GameUI {
   private chooseTool(tool: ToolMode): void {
     this.tool = tool;
     this.actions.setTool(tool);
+    const effectiveSpeed = effectiveGameSpeed(this.speed, tool === 'track');
+    if (effectiveSpeed !== this.speed) {
+      this.speed = effectiveSpeed;
+      this.actions.setSpeed(effectiveSpeed);
+    }
     this.status.textContent =
       tool === 'select'
         ? 'Select a guest or tile. Drag to pan; Page Up/Down or pinch to zoom.'

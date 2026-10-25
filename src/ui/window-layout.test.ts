@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MOBILE_MAX_WIDTH, cascadePosition, clampPosition, isMobileWidth } from './window-layout';
+import {
+  MOBILE_MAX_WIDTH,
+  cascadePosition,
+  clampPosition,
+  effectiveGameSpeed,
+  isMobileWidth,
+  positionAwayFromPoint,
+} from './window-layout';
 
 describe('window layout', () => {
   it('treats viewports narrower than 700px as mobile', () => {
@@ -24,5 +31,22 @@ describe('window layout', () => {
     const far = clampPosition(5000, 5000, size, 1280, 800);
     expect(far.x).toBe(1240);
     expect(far.y).toBeLessThanOrEqual(800 - 30);
+  });
+
+  it('places new windows away from the current pointer when there is room', () => {
+    const position = positionAwayFromPoint(
+      { x: 640, y: 400 },
+      { width: 340, height: 260 },
+      { x: 640, y: 400 },
+      1280,
+      800,
+    );
+
+    expect(position.x + 340).toBeLessThanOrEqual(640);
+  });
+
+  it('limits four-times speed to two-times while construction is active', () => {
+    expect(effectiveGameSpeed(4, true)).toBe(2);
+    expect(effectiveGameSpeed(4, false)).toBe(4);
   });
 });

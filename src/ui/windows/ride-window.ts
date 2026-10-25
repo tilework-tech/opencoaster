@@ -8,14 +8,15 @@ import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 import { RIDE_STATE_NAMES } from './ride-list';
 import { priceControl } from './price-control';
+import { drawAnchoredSprite } from '../../render/canvas-atlas';
+import { spritePages } from '../../render/sprite-pages';
+import { rideHutSpriteKey, rideSpriteFrame, rideSpriteKey } from '../../render/world-art';
 
 const TABS: readonly TabSpec[] = [
   { id: 'main', label: 'View', icon: 'rides' },
   { id: 'vehicle', label: 'Description', icon: 'coaster' },
   { id: 'operating', label: 'Mechanics', icon: 'options' },
   { id: 'maintenance', label: 'Maintenance record', icon: 'build' },
-  { id: 'colour', label: 'Colour and style', icon: 'scenery' },
-  { id: 'music', label: 'Music', icon: 'news' },
   { id: 'measurements', label: 'Ride statistics', icon: 'info' },
   { id: 'graphs', label: 'Data log', icon: 'map' },
   { id: 'income', label: 'Financial data', icon: 'finances' },
@@ -44,6 +45,12 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const p = (tab: string): HTMLElement => win.pane(tab);
 
   const status = element('div', 'ride-status');
+  const preview = element('canvas', 'ride-preview');
+  preview.width = 360;
+  preview.height = 180;
+  preview.setAttribute('role', 'img');
+  preview.setAttribute('aria-label', 'Ride preview');
+  spritePages.start();
   let rideX: number | null = null;
   let rideY: number | null = null;
   let rideName = `Ride #${rideId}`;
@@ -144,6 +151,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
 
   if (created) {
     p('main').append(
+      preview,
       status,
       statusButtons,
       demolish,
@@ -181,17 +189,6 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         'Hire mechanics in the Staff window; they inspect and repair rides they can reach.',
       ),
     );
-    const swatches = element('div', 'swatches');
-    for (const colour of ['#c0392b', '#2e86c1', '#28b463', '#f1c40f', '#8e44ad', '#ecf0f1']) {
-      const swatch = element('span', 'swatch');
-      swatch.style.background = colour;
-      swatches.append(swatch);
-    }
-    p('colour').append(
-      swatches,
-      element('p', 'ui-help', 'Colour schemes are not customisable yet.'),
-    );
-    p('music').append(element('p', 'ui-help', 'Ride music is not available yet.'));
     p('measurements').append(
       measurements.tested.row,
       measurements.excitement.row,
@@ -231,9 +228,32 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       const flags = info[o + RideInfo.Flags];
       refund = info[o + RideInfo.DemolitionRefund];
       rideName = `${def?.name ?? 'Ride'} #${rideId}`;
-      win.setTitle(rideName);
       const tested = (flags & RideFlag.Tested) !== 0;
       const state = info[o + RideInfo.State];
+      win.setTitle(rideName);
+      preview.setAttribute('aria-label', `${rideName} preview`);
+      const previewContext = preview.getContext('2d');
+      if (previewContext && def) {
+        previewContext.clearRect(0, 0, preview.width, preview.height);
+        previewContext.save();
+        previewContext.translate(preview.width / 2, preview.height - 12);
+        previewContext.scale(1.5, 1.5);
+        const rotation = ctx.actions.camera().rotation;
+        const key =
+          def.category === 'coaster'
+            ? rideHutSpriteKey(type as keyof typeof RIDE_CATALOG, 'entrance', 1, rotation)
+            : rideSpriteKey(type as keyof typeof RIDE_CATALOG, rotation);
+        const frame = spritePages.resolve(key);
+        drawAnchoredSprite(
+          previewContext,
+          spritePages,
+          key,
+          0,
+          0,
+          rideSpriteFrame(state, snapshot.tick, frame?.frames.length ?? 1),
+        );
+        previewContext.restore();
+      }
       setText(status, `${RIDE_STATE_NAMES[state] ?? ''}`);
       excitement.set(
         info[o + RideInfo.Excitement] / 1000,

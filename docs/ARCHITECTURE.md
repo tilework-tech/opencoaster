@@ -19,7 +19,7 @@ The simulation owns all game state and runs in a Web Worker. The main thread ren
 - 40 ticks per second (`TICK_RATE`), fixed step, 25 ms per tick at 1x speed.
 - The worker polls a timer; `FixedStepScheduler` converts elapsed wall time to a whole number of ticks (speed multiplier, pause, catch-up cap of 8 ticks). Timer jitter changes _when_ ticks run, never _what_ they compute.
 - If the sim falls behind past the cap, ticks are dropped and counted (`droppedTicks` in stats) instead of spiralling.
-- `Simulation.step()`: apply queued commands, run `SYSTEM_ORDER` in fixed order, increment `tick`.
+- `Simulation.step()`: apply queued commands, run `SYSTEM_ORDER` in fixed order, increment `tick`. While paused, `SimRunner` drains each arriving command immediately and publishes changed state without running systems or incrementing `tick`, allowing construction while time is frozen.
 
 ## Determinism
 
@@ -28,7 +28,7 @@ Same seed + same ordered commands ⇒ bit-identical state, on every machine.
 - All randomness comes from `Prng` (sfc32, 32-bit integer ops via `Math.imul`).
 - Stored state is integers only (typed arrays, no Float32/64). Positions are fixed-point: `TILE_UNITS` = 256 per tile, `Z_STEP` = 64 per height level. Money is integer cents.
 - No clock or `Math.random` in `src/sim` (ESLint `no-restricted-properties`).
-- Commands apply at tick boundaries in arrival order; a replay is `(seed, [(tick, command)])`.
+- Commands apply in arrival order. During active simulation they apply at tick boundaries; while paused the worker applies commands immediately without a tick. Replay ordering remains deterministic, with paused commands occurring between tick boundaries.
 - `hashWorld` hashes all live state; tests assert equal hashes for equal runs and for save→load→continue.
 - Avoid `Map`/`Set` iteration in hot sim paths (`ResearchState.unlocked` is cold).
 
@@ -44,7 +44,7 @@ Chosen: **transferable snapshot buffers**, three pooled per run.
 - Snapshot storage is 64 B per guest (16 B render layer plus 48 B details), plus staff, litter, vehicle, ride, and feedback arrays. At 5000 guests, guest data alone is about 320 KB per snapshot; map data is sent separately when the map revision changes.
 - Why not SharedArrayBuffer: it requires cross-origin isolation (COOP/COEP), which static hosts like GitHub Pages cannot set, and shared mutable memory invites torn reads without extra synchronisation. The renderer only needs a consistent frame, which snapshots give for free.
 - Headers: `vite.config.ts` serves COOP `same-origin` and COEP `require-corp` in dev/preview anyway, so a later SAB upgrade (e.g. a double-buffered shared position array with an atomic frame index) does not hit surprises. Nothing depends on them today; production hosting does not need to set them.
-- Static data (terrain heights, corner slopes, surface class, water levels, and path element stacks for elevation, queues, and accessories) is sent in a `map` message and re-sent whenever `TileMap.revision` changes, not per frame.
+- Static data (terrain heights, corner slopes, surface class, water levels, ownership flags, and path element stacks for elevation, queues, and accessories) is sent in a `map` message and re-sent whenever `TileMap.revision` changes, not per frame. The ownership flags drive a renderer overlay for unowned boundaries and sale markers.
 - Rendering uses the latest snapshot without interpolation for now. Interpolating between the last two snapshots is a planned renderer-side change that needs no protocol change.
 
 ## Rendering
@@ -59,13 +59,14 @@ The WebGL2 frame is built in layers so per-frame cost tracks what actually chang
 - **Dynamic sprites.** Guests, staff, litter, vehicles and rides are culled before they are appended, merged with the static entries, depth-sorted with an allocation-free counting sort (`painter-order.ts`) and uploaded with `bufferSubData`.
 - **Adaptive resolution.** `AdaptiveResolution` scales the backing-buffer DPR (1 → 0.3 of the capped DPR) when frames stay slow and cautiously restores it after sustained on-budget frames, backing off when a restored scale proves too slow. A drop that does not speed up a steady frame cadence (a display capped below 60 Hz) is undone and further drops are suspended for a minute. Pointer and picking math stay in CSS pixels.
 - **Snapshot rate.** The main thread tells the worker (`setSnapshotInterval`) not to publish snapshots faster than frames are drawn, so slow displays skip snapshot writes and transfers; the simulation keeps its fixed tick regardless.
+- **Ownership overlay.** Both renderers draw unowned parcel shading, dashed borders, and sale markers on a separate Canvas2D overlay positioned over the world canvas. Owned land is not marked; the overlay follows camera rotation, zoom, viewport size, and device-pixel ratio without changing terrain cache contents.
 - **UI cost.** HUD text refreshes at 20 Hz, management panels at 10 Hz, the canvas rectangle is cached instead of read every frame, and the track preview canvas is hidden while idle.
 
 The Playwright smoke run launches Chromium with SwiftShader, checks the game's active canvas and HUD report WebGL2, exercises the Rides window, verifies there are no browser console or page errors, and writes a screenshot. A capability check on a separate canvas is not sufficient because startup can fall back to Canvas2D after a shader error. It also runs the mobile frame-rate cases described under [Performance budget](#frame-loop-performance-2026-10-25).
 
 ## Browser input and mobile runtime
 
-The browser main thread owns UI, pointer gestures, camera state, rendering, and the simulation command bridge. The thin [src/main.ts](../src/main.ts) entry point awaits [bootstrap](../src/app/bootstrap/docs.md), which assembles the renderer, UI, worker client, and app controllers. [Camera input](../src/app/input/docs.md) recognizes gestures and routes them through callbacks; [tool handling](../src/app/tools/docs.md) performs tile picking and sends existing simulation commands; [ride setup](../src/app/ride-setup/docs.md) coordinates multi-step ride placement; and [save/load](../src/app/save-load/docs.md) owns session and persistence flows. These controllers receive app dependencies through callbacks, keeping browser orchestration on the main thread and simulation authority in the worker. Forced holds resolve guests and ride footprints from the latest snapshot. Pointer and projection coordinates use CSS pixels, while canvas and track-preview backing buffers use a device-pixel ratio capped at 2.
+The browser main thread owns UI, pointer gestures, camera state, rendering, and the simulation command bridge. The thin [src/main.ts](../src/main.ts) entry point awaits [bootstrap](../src/app/bootstrap/docs.md), which assembles the renderer, UI, worker client, and app controllers. [Camera input](../src/app/input/docs.md) recognizes gestures and routes them through callbacks; [tool handling](../src/app/tools/docs.md) performs tile picking and sends existing simulation commands; [ride setup](../src/app/ride-setup/docs.md) coordinates multi-step ride placement; and [save/load](../src/app/save-load/docs.md) owns session and persistence flows. The UI window manager places new windows away from the pointer and remembers desktop positions per window; the coaster panel uses a compact layout and caps speed at 2× while the track tool is active. These controllers receive app dependencies through callbacks, keeping browser orchestration on the main thread and simulation authority in the worker. Forced holds resolve guests and ride footprints from the latest snapshot. Pointer and projection coordinates use CSS pixels, while canvas and track-preview backing buffers use a device-pixel ratio capped at 2.
 
 The app shell uses a cover viewport and safe-area CSS offsets, resizes from canvas bounds and viewport/orientation changes, and pauses the worker while the document is hidden. [src/pwa](../src/pwa/docs.md) registers a service worker scoped to the deploy base (origin root in dev, `/opencoaster/` on GitHub Pages) and caches the app shell and same-origin resources for offline startup after an online install/load. Service-worker caches contain app assets; save data stays in the save subsystem.
 

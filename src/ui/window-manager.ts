@@ -1,6 +1,12 @@
 import { element, iconButton } from './dom';
 import type { IconName } from './icons';
-import { MOBILE_QUERY, TOP_INSET, cascadePosition, clampPosition } from './window-layout';
+import {
+  MOBILE_QUERY,
+  TOP_INSET,
+  cascadePosition,
+  clampPosition,
+  positionAwayFromPoint,
+} from './window-layout';
 
 /** Selects the title-bar and body colour scheme. */
 export type WindowKind =
@@ -160,12 +166,17 @@ export class WindowManager {
   private readonly media = window.matchMedia(MOBILE_QUERY);
   private z = 10;
   private opened = 0;
+  private readonly positions = new Map<string, { x: number; y: number }>();
+  private pointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
   constructor(parent: HTMLElement) {
     this.layer = element('div', 'ui-windows');
     parent.append(this.layer);
     this.media.addEventListener('change', () => this.relayout());
     window.addEventListener('resize', () => this.relayout());
+    window.addEventListener('pointermove', (event) => {
+      this.pointer = { x: event.clientX, y: event.clientY };
+    });
   }
 
   get mobile(): boolean {
@@ -188,12 +199,29 @@ export class WindowManager {
       return { window: existing, created: false };
     }
     const win = new UiWindow(spec, this);
-    const at = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
-    win.root.style.setProperty('--x', `${at.x}px`);
-    win.root.style.setProperty('--y', `${at.y}px`);
-    win.root.addEventListener('pointerdown', () => this.focus(win, true), true);
     this.windows.set(spec.id, win);
     this.layer.append(win.root);
+    const fallback = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
+    const remembered = this.positions.get(spec.id);
+    const place = (): void => {
+      if (!win.root.isConnected || this.mobile) return;
+      const bounds = win.root.getBoundingClientRect();
+      const size = { width: bounds.width || spec.width || 340, height: bounds.height || 260 };
+      const at = remembered
+        ? clampPosition(remembered.x, remembered.y, size, window.innerWidth, window.innerHeight)
+        : positionAwayFromPoint(
+            fallback,
+            size,
+            this.pointer,
+            window.innerWidth,
+            window.innerHeight,
+          );
+      win.root.style.setProperty('--x', `${at.x}px`);
+      win.root.style.setProperty('--y', `${at.y}px`);
+    };
+    place();
+    requestAnimationFrame(place);
+    win.root.addEventListener('pointerdown', () => this.focus(win, true), true);
     this.focus(win);
     return { window: win, created: true };
   }
@@ -201,6 +229,12 @@ export class WindowManager {
   close(id: string): void {
     const win = this.windows.get(id);
     if (!win) return;
+    if (!this.mobile) {
+      this.positions.set(id, {
+        x: Number.parseFloat(win.root.style.getPropertyValue('--x')),
+        y: Number.parseFloat(win.root.style.getPropertyValue('--y')),
+      });
+    }
     this.windows.delete(id);
     win.root.remove();
     win.spec.onClose?.();
