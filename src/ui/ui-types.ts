@@ -54,9 +54,9 @@ export interface GameUIActions {
   editTrack(rideId: number): void;
   map(): MapData | null;
   camera(): Camera;
-  audioSettings(): Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'muted'>;
+  audioSettings(): Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'musicOn' | 'muted'>;
   setAudioSettings(
-    settings: Partial<Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'muted'>>,
+    settings: Partial<Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'musicOn' | 'muted'>>,
   ): void;
   playUiSound(name: 'click' | 'open' | 'close' | 'news'): void;
 }

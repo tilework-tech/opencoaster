@@ -14,8 +14,14 @@ describe('player settings', () => {
       paused: true,
       soundVolume: 1,
       musicVolume: 0.7,
+      musicOn: true,
       muted: false,
     });
+  });
+
+  it('restores the music on/off choice that was saved', () => {
+    expect(parseSettings(JSON.stringify({ musicOn: false })).musicOn).toBe(false);
+    expect(parseSettings(JSON.stringify({ musicOn: 'no' })).musicOn).toBe(true);
   });
 
   it('falls back to defaults when nothing is saved', () => {

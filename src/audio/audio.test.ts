@@ -78,14 +78,50 @@ describe('audio level controls', () => {
   });
 
   it('applies mute without changing the saved source levels', () => {
-    expect(soundLevels({ soundVolume: 0.5, musicVolume: 0.8, muted: true })).toEqual({
-      sound: 0,
-      music: 0,
-    });
-    expect(soundLevels({ soundVolume: 0.5, musicVolume: 0.8, muted: false })).toEqual({
+    expect(soundLevels({ soundVolume: 0.5, musicVolume: 0.8, musicOn: true, muted: true })).toEqual(
+      {
+        sound: 0,
+        music: 0,
+      },
+    );
+    expect(
+      soundLevels({ soundVolume: 0.5, musicVolume: 0.8, musicOn: true, muted: false }),
+    ).toEqual({
       sound: 0.5,
       music: 0.8,
     });
+  });
+
+  it('silences music alone when the Music on setting is off', () => {
+    expect(
+      soundLevels({ soundVolume: 0.5, musicVolume: 0.8, musicOn: false, muted: false }),
+    ).toEqual({
+      sound: 0.5,
+      music: 0,
+    });
+  });
+
+  it('keeps ride music silent while Music is switched off', async () => {
+    RecordingContext.started = 0;
+    const engine = new AudioEngine(
+      { ...DEFAULT_SETTINGS, musicOn: false },
+      () => new RecordingContext() as unknown as AudioContext,
+    );
+    await engine.unlock();
+    const started = RecordingContext.started;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0, rides: 1 });
+    snapshot.rides.count = 1;
+    snapshot.rideInfo[RideInfo.Id] = 4;
+    snapshot.rideInfo[RideInfo.State] = 1;
+    snapshot.rideInfo[RideInfo.RideX] = 4;
+    snapshot.rideInfo[RideInfo.RideY] = 4;
+    engine.update(
+      snapshot,
+      { width: 800, height: 600, mapWidth: 8, mapHeight: 8 },
+      { x: 0, y: 0, zoom: 1, rotation: 0 },
+    );
+    expect(RecordingContext.started).toBe(started);
+    engine.dispose();
   });
 
   it('starts no audio before a gesture and consumes snapshot cues after unlock', async () => {

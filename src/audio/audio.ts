@@ -3,18 +3,32 @@ import { RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import { project } from '../render/projection';
 import type { Camera } from '../render/renderer';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType, RideTypeDef } from '../sim/rides/ride-types';
+import { renderCrowdMurmur, renderMusicLoop, renderRain, rideMusicStyle } from './synth';
+import type { MusicStyle, RideMusicStyle } from './synth';
 
 export interface AudioLevels {
   sound: number;
   music: number;
 }
 
+/** Bed levels are relative to the sound volume. Crowd murmur reaches its peak at 500 guests. */
+const CROWD_BED_LEVEL = 0.08;
+const RAIN_BED_LEVEL = 0.03;
+const RIDE_MUSIC_LEVEL = 0.35;
+const PARK_THEME_LEVEL = 0.3;
+/** Park theme steps back while a ride's music is audible, so the two never pile up. */
+const PARK_THEME_DUCK = 0.4;
+
 export function soundLevels(
-  settings: Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'muted'>,
+  settings: Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'musicOn' | 'muted'>,
 ): AudioLevels {
-  return settings.muted
-    ? { sound: 0, music: 0 }
-    : { sound: settings.soundVolume, music: settings.musicVolume };
+  if (settings.muted) return { sound: 0, music: 0 };
+  return {
+    sound: settings.soundVolume,
+    music: settings.musicOn ? settings.musicVolume : 0,
+  };
 }
 
 export function crowdLevel(guests: number): number {
@@ -38,7 +52,13 @@ type SoundName =
   | 'clank'
   | 'thunder';
 
-const MELODY = [392, 494, 587, 494, 440, 523, 659, 523];
+interface MusicVoice {
+  style: RideMusicStyle;
+  gain: GainNode;
+  panner: StereoPannerNode;
+  source: AudioBufferSourceNode;
+  visibleFrame: number;
+}
 
 /** Main-thread, original procedural audio. It never owns or mutates simulation state. */
 export class AudioEngine {
@@ -47,6 +67,7 @@ export class AudioEngine {
   private music: GainNode | null = null;
   private ambience: GainNode | null = null;
   private rain: GainNode | null = null;
+  private parkTheme: GainNode | null = null;
   private lastTick = -1;
   private lastWeather = 0;
   private lastAudioEvent = 0;
@@ -55,10 +76,8 @@ export class AudioEngine {
   private updateFrame = 0;
   private readonly rideStates = new Map<number, number>();
   private readonly pendingUiSounds: Array<'click' | 'open' | 'close' | 'news'> = [];
-  private readonly musicVoices = new Map<
-    number,
-    { gain: GainNode; panner: StereoPannerNode; oscillator: OscillatorNode; visibleFrame: number }
-  >();
+  private readonly musicBuffers = new Map<MusicStyle, AudioBuffer>();
+  private readonly musicVoices = new Map<number, MusicVoice>();
   private readonly projected = new Float64Array(2);
 
   constructor(
@@ -74,11 +93,8 @@ export class AudioEngine {
   }
 
   reset(): void {
-    for (const voice of this.musicVoices.values()) {
-      voice.gain.disconnect();
-      voice.panner.disconnect();
-      voice.oscillator.stop();
-    }
+    const now = this.context?.currentTime ?? 0;
+    for (const voice of this.musicVoices.values()) this.stopVoice(voice, now);
     this.musicVoices.clear();
     this.rideStates.clear();
     this.pendingUiSounds.length = 0;
@@ -92,17 +108,21 @@ export class AudioEngine {
 
   async unlock(): Promise<void> {
     if (!this.context) {
-      this.context = this.createContext();
-      this.effects = this.context.createGain();
-      this.music = this.context.createGain();
-      this.ambience = this.context.createGain();
-      this.rain = this.context.createGain();
-      this.effects.connect(this.context.destination);
-      this.music.connect(this.context.destination);
+      const ctx = this.createContext();
+      this.context = ctx;
+      this.effects = ctx.createGain();
+      this.music = ctx.createGain();
+      this.ambience = ctx.createGain();
+      this.rain = ctx.createGain();
+      this.ambience.gain.value = 0;
+      this.rain.gain.value = 0;
+      this.effects.connect(ctx.destination);
+      this.music.connect(ctx.destination);
       this.ambience.connect(this.effects);
       this.rain.connect(this.effects);
       this.setSettings(this.settings);
       this.startAmbience();
+      this.startParkTheme();
     }
     if (this.context.state !== 'running') await this.context.resume();
     for (const name of this.pendingUiSounds.splice(0)) this.play(name);
@@ -135,9 +155,13 @@ export class AudioEngine {
     }
     const now = ctx.currentTime;
     const level = soundLevels(this.settings);
-    this.ambience!.gain.setTargetAtTime(crowdLevel(snapshot.guests.count), now, 0.4);
+    this.ambience!.gain.setTargetAtTime(
+      crowdLevel(snapshot.guests.count) * CROWD_BED_LEVEL,
+      now,
+      0.4,
+    );
     const raining = snapshot.weather.kind >= 2;
-    this.rain!.gain.setTargetAtTime(raining ? 0.16 : 0, now, 0.6);
+    this.rain!.gain.setTargetAtTime(raining ? RAIN_BED_LEVEL : 0, now, 0.6);
     if (snapshot.tick !== this.lastTick) {
       if (snapshot.weather.kind === 3 && this.lastWeather !== 3) this.play('thunder');
       for (const event of snapshot.audioEvents) {
@@ -160,6 +184,7 @@ export class AudioEngine {
       const id = snapshot.rideInfo[o + RideInfo.Id];
       const phase = snapshot.rideInfo[o + RideInfo.Phase];
       const state = snapshot.rideInfo[o + RideInfo.State];
+      const type = snapshot.rideInfo[o + RideInfo.Type];
       const x = snapshot.rideInfo[o + RideInfo.RideX];
       const y = snapshot.rideInfo[o + RideInfo.RideY];
       project(
@@ -181,8 +206,9 @@ export class AudioEngine {
         if (phase === 5) this.play('bell');
       }
       this.rideStates.set(id, key);
-      if (state === 1 && Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
-        this.syncMusic(id, distance, dx, level.music, snapshot.tick);
+      if (state === 1 && Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && level.music > 0) {
+        const def: RideTypeDef | undefined = RIDE_CATALOG[type as RideType];
+        this.syncMusic(id, rideMusicStyle(def?.category), distance, dx);
       }
     }
     if (this.lastRideCount !== snapshot.rides.count) {
@@ -200,75 +226,107 @@ export class AudioEngine {
     }
     for (const [id, voice] of this.musicVoices) {
       if (voice.visibleFrame !== this.updateFrame) {
-        voice.gain.gain.setTargetAtTime(0, now, 0.18);
-        voice.gain.disconnect();
-        voice.panner.disconnect();
-        voice.oscillator.stop();
+        this.releaseVoice(voice, now);
         this.musicVoices.delete(id);
       }
     }
+    this.parkTheme!.gain.setTargetAtTime(
+      this.musicVoices.size > 0 ? PARK_THEME_LEVEL * PARK_THEME_DUCK : PARK_THEME_LEVEL,
+      now,
+      0.6,
+    );
   }
 
   dispose(): void {
-    for (const voice of this.musicVoices.values()) {
-      voice.gain.disconnect();
-      voice.panner.disconnect();
-      voice.oscillator.stop();
-    }
+    const now = this.context?.currentTime ?? 0;
+    for (const voice of this.musicVoices.values()) this.stopVoice(voice, now);
     this.musicVoices.clear();
     void this.context?.close();
     this.context = null;
   }
 
   private startAmbience(): void {
+    const sampleRate = this.context!.sampleRate;
+    this.loopSource(renderCrowdMurmur(sampleRate), this.ambience!).start();
+    this.loopSource(renderRain(sampleRate), this.rain!).start();
+  }
+
+  private startParkTheme(): void {
     const ctx = this.context!;
-    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const channel = buffer.getChannelData(0);
-    for (let i = 0; i < channel.length; i++) channel[i] = (Math.random() * 2 - 1) * 0.025;
+    this.parkTheme = ctx.createGain();
+    this.parkTheme.gain.value = PARK_THEME_LEVEL;
+    this.parkTheme.connect(this.music!);
+    const source = ctx.createBufferSource();
+    source.buffer = this.musicBuffer('park');
+    source.loop = true;
+    source.connect(this.parkTheme);
+    source.start();
+  }
+
+  private loopSource(samples: Float32Array, destination: AudioNode): AudioBufferSourceNode {
+    const ctx = this.context!;
+    const buffer = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+    buffer.getChannelData(0).set(samples);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
-    source.connect(this.ambience!);
-    source.start();
-    const rainBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const rainData = rainBuffer.getChannelData(0);
-    for (let i = 0; i < rainData.length; i++) rainData[i] = (Math.random() * 2 - 1) * 0.05;
-    const rainSource = ctx.createBufferSource();
-    rainSource.buffer = rainBuffer;
-    rainSource.loop = true;
-    rainSource.connect(this.rain!);
-    rainSource.start();
+    source.connect(destination);
+    return source;
   }
 
-  private syncMusic(id: number, distance: number, pan: number, volume: number, tick: number): void {
-    if (volume <= 0) return;
+  private musicBuffer(style: MusicStyle): AudioBuffer {
+    let buffer = this.musicBuffers.get(style);
+    if (!buffer) {
+      const ctx = this.context!;
+      const samples = renderMusicLoop(style, ctx.sampleRate);
+      buffer = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+      buffer.getChannelData(0).set(samples);
+      this.musicBuffers.set(style, buffer);
+    }
+    return buffer;
+  }
+
+  private syncMusic(id: number, style: RideMusicStyle, distance: number, pan: number): void {
     const ctx = this.context!;
+    const now = ctx.currentTime;
     let voice = this.musicVoices.get(id);
+    if (voice && voice.style !== style) {
+      this.releaseVoice(voice, now);
+      this.musicVoices.delete(id);
+      voice = undefined;
+    }
     if (!voice) {
       const gain = ctx.createGain();
+      gain.gain.value = 0;
       const panner = ctx.createStereoPanner();
+      const source = ctx.createBufferSource();
+      source.buffer = this.musicBuffer(style);
+      source.loop = true;
+      source.connect(panner);
       panner.connect(gain);
       gain.connect(this.music!);
-      const osc = ctx.createOscillator();
-      const noteGain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = MELODY[id % MELODY.length]!;
-      noteGain.gain.value = 0.045;
-      osc.connect(noteGain);
-      noteGain.connect(panner);
-      osc.start();
-      osc.onended = () => osc.disconnect();
-      voice = { gain, panner, oscillator: osc, visibleFrame: this.updateFrame };
+      source.start();
+      voice = { style, gain, panner, source, visibleFrame: this.updateFrame };
       this.musicVoices.set(id, voice);
     }
     voice.visibleFrame = this.updateFrame;
-    voice.oscillator.frequency.setTargetAtTime(
-      MELODY[Math.floor(tick / 20 + id) % MELODY.length]!,
-      ctx.currentTime,
-      0.02,
-    );
-    voice.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), ctx.currentTime, 0.08);
-    voice.gain.gain.setTargetAtTime(volume * rideMusicGain(distance) * 0.25, ctx.currentTime, 0.12);
+    voice.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), now, 0.08);
+    voice.gain.gain.setTargetAtTime(rideMusicGain(distance) * RIDE_MUSIC_LEVEL, now, 0.12);
+  }
+
+  /** Fades a ride loop out, then stops and disconnects it, so leaving view does not click. */
+  private releaseVoice(voice: MusicVoice, now: number): void {
+    voice.gain.gain.setTargetAtTime(0, now, 0.05);
+    this.stopVoice(voice, now + 0.25);
+  }
+
+  private stopVoice(voice: MusicVoice, when: number): void {
+    voice.source.onended = () => {
+      voice.source.disconnect();
+      voice.panner.disconnect();
+      voice.gain.disconnect();
+    };
+    voice.source.stop(when);
   }
 
   private play(name: SoundName, intensity = 1): void {
