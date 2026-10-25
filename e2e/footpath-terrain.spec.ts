@@ -79,6 +79,10 @@ async function startStarterPark(page: Page): Promise<void> {
     .getByRole('button', { name: 'Start', exact: true })
     .click();
   await expect(page.locator('.game-toolbar')).toBeVisible();
+  // The opening camera is applied when the map arrives, which can land after the toolbar shows.
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __camera: { x: number } }).__camera.x))
+    .not.toBe(0);
 }
 
 async function toolbarTool(page: Page, name: string): Promise<void> {
