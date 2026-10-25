@@ -36,6 +36,7 @@ export interface CoasterPanelActions {
 
 /** What the track tool would place right now, for the hover preview. */
 export interface TrackGhost {
+  rideType: RideType;
   piece: TrackPieceDef;
   placement: Placement;
   /** Placement height in height levels. */
@@ -343,7 +344,7 @@ export class CoasterPanel {
       return null;
     }
     const status = previewStatus(map, snap.buildable, piece, placement, snap.park.cash);
-    return { piece, placement, level, status };
+    return { rideType: ride.type, piece, placement, level, status };
   }
 
   update(): void {
