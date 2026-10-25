@@ -37,7 +37,10 @@ export function rolled(right: Vec3, up: Vec3, bankDegrees: number): { right: Vec
   };
 }
 
-/** Rotation-minimising frames along the piece centre line, rolled by the sampled bank angle. */
+/**
+ * Rotation-minimising frames along the piece centre line, rolled by the sampled bank angle. The
+ * world is left-handed (+x heading, +y to the right, +z up), so up is forward x right.
+ */
 export function pieceFrames(piece: TrackPieceDef): Frame[] {
   const points: Vec3[] = [];
   for (let i = 0; i < piece.sampleCount; i++) {
@@ -48,26 +51,59 @@ export function pieceFrames(piece: TrackPieceDef): Frame[] {
       SAMPLES.z[at] / TILE_UNITS,
     ]);
   }
-  const frames: Frame[] = [];
-  let right: Vec3 = [0, -1, 0];
-  for (let i = 0; i < points.length; i++) {
-    const a = points[Math.max(0, i - 1)];
-    const b = points[Math.min(points.length - 1, i + 1)];
-    const forward = unit([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
-    const projection = dot(right, forward);
-    right = unit([
-      right[0] - projection * forward[0],
-      right[1] - projection * forward[1],
-      right[2] - projection * forward[2],
+  const forwards = points.map((_, i): Vec3 => {
+    const at = piece.sampleStart + i;
+    return unit([SAMPLES.tx[at], SAMPLES.ty[at], SAMPLES.tz[at]]);
+  });
+  const lateral: Vec3 = [0, 1, 0];
+  const across = (forward: Vec3, from: Vec3): Vec3 => {
+    const projection = dot(from, forward);
+    return unit([
+      from[0] - projection * forward[0],
+      from[1] - projection * forward[1],
+      from[2] - projection * forward[2],
     ]);
-    const up = cross(right, forward);
-    frames.push({
-      position: points[i],
-      forward,
-      ...rolled(right, up, SAMPLES.bank[piece.sampleStart + i]),
+  };
+  const rights: Vec3[] = [];
+  if (piece.shape === 'loopLeft' || piece.shape === 'loopRight') {
+    // The loop plane stays square to the lateral axis, so transporting a frame around it would
+    // only accumulate twist.
+    for (const forward of forwards) rights.push(across(forward, lateral));
+  } else {
+    let right = lateral;
+    for (const forward of forwards) {
+      right = across(forward, right);
+      rights.push(right);
+    }
+    // Transport drifts by a net twist over winding pieces; spread it out so the exit cross-section
+    // is the one the next piece starts with.
+    const last = forwards.length - 1;
+    const turned: Vec3 = [
+      [0, -1, 0, 1][piece.headingDelta & 3] ?? 0,
+      [1, 0, -1, 0][piece.headingDelta & 3] ?? 0,
+      0,
+    ];
+    const wanted = across(forwards[last], turned);
+    const twist = Math.atan2(
+      dot(cross(rights[last], wanted), forwards[last]),
+      dot(rights[last], wanted),
+    );
+    rights.forEach((r, i) => {
+      const angle = (twist * i) / last;
+      const f = forwards[i];
+      const side = cross(f, r);
+      rights[i] = unit([
+        r[0] * Math.cos(angle) + side[0] * Math.sin(angle),
+        r[1] * Math.cos(angle) + side[1] * Math.sin(angle),
+        r[2] * Math.cos(angle) + side[2] * Math.sin(angle),
+      ]);
     });
   }
-  return frames;
+  return points.map((position, i) => ({
+    position,
+    forward: forwards[i],
+    ...rolled(rights[i], cross(forwards[i], rights[i]), SAMPLES.bank[piece.sampleStart + i]),
+  }));
 }
 
 /** Point `sideways` to the right of and `vertical` above the frame's track centre. */

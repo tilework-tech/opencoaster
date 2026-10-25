@@ -50,6 +50,7 @@ import {
   spriteAnchorWorldOffset,
   terrainSurfaceSpriteName,
   WATER_BANK,
+  nativeSpriteAnchorShift,
   nativeSpriteWorldOffset,
   waterFrameIndex,
   waterSpriteName,
@@ -62,7 +63,7 @@ const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 5;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
-const INSTANCE_FLOATS = 17;
+const INSTANCE_FLOATS = 18;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
 const TEXTURE_SLOTS = 8;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
@@ -138,6 +139,7 @@ layout(location=5) in vec4 aCornerHeights;
 layout(location=6) in float aGridlines;
 layout(location=7) in float aTerrainShade;
 layout(location=8) in float aSlot;
+layout(location=9) in float aAnchorShift;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -195,6 +197,7 @@ void main() {
       screen.y -= (cornerHeight - baseZ) * ${glslFloat(Z_PIXELS / Z_STEP)} * uZoom;
   } else if (!faceMesh) {
     screen += (aCorner - 0.5) * aSize * uZoom;
+    screen.x += aAnchorShift * uZoom;
   }
   gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
                      1.0 - screen.y / uViewport.y * 2.0, 0.0, 1.0);
@@ -601,7 +604,8 @@ export class WebGL2Renderer implements Renderer {
       [5, 4, 10],
       [6, 1, 14],
       [7, 1, 15],
-      [8, 1, 16],
+      [8, 1, 17],
+      [9, 1, 16],
     ] as const;
     for (const [location, size, floatOffset] of layout) {
       gl.enableVertexAttribArray(location);
@@ -1827,6 +1831,7 @@ export class WebGL2Renderer implements Renderer {
     let entry: SpriteEntry | undefined;
     let frameIndex = 0;
     let fallbackIndex = -1;
+    let anchorShift = 0;
     if (typeof sprite === 'string') {
       const match = /#(\d+)$/.exec(sprite);
       const spriteName = match ? sprite.slice(0, match.index) : sprite;
@@ -1853,6 +1858,7 @@ export class WebGL2Renderer implements Renderer {
         width = frame.width;
         height = frame.height;
         z += nativeSpriteWorldOffset(frame.height, entry.anchor.y);
+        anchorShift = nativeSpriteAnchorShift(frame.width, entry.anchor.x);
       } else if (!meshMode && entry)
         z += spriteAnchorWorldOffset(frame.height, entry.anchor.y, height);
       if (meshMode === 2) {
@@ -1904,6 +1910,7 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 13] = cornerHeights[3] ?? z;
     this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 : 0;
     this.instanceData[offset + 15] = terrainShade;
+    this.instanceData[offset + 16] = anchorShift;
     this.depths[this.count] = Math.round(depth * 2);
     this.pageIds[this.count] = page;
     this.count++;

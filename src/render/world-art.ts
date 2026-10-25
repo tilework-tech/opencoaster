@@ -212,3 +212,11 @@ export function atlasFrameOrFallback<T>(
 export function nativeSpriteWorldOffset(frameHeight: number, anchorY: number): number {
   return ((anchorY - frameHeight / 2) * Z_STEP) / Z_PIXELS;
 }
+
+/**
+ * Horizontal screen shift (pixels) that moves a quad centred on the projected point so that the
+ * sprite's anchor pixel lands on that point.
+ */
+export function nativeSpriteAnchorShift(frameWidth: number, anchorX: number): number {
+  return frameWidth / 2 - anchorX;
+}

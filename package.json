@@ -14,6 +14,7 @@
     "predev": "pnpm art:prepare && pnpm art:pack",
     "prebuild": "pnpm art:prepare && pnpm art:pack",
     "sprites:render": "tsx tools/sprites/cli.ts",
+    "sprites:track-sheet": "tsx tools/sprites/track-sheet.ts",
     "art:prepare": "tsx tools/art/prepare.ts && pnpm art:characters",
     "art:pack": "tsx tools/art/pack-cli.ts",
     "art:characters": "tsx tools/art/process-sprites.ts --input tools/art/source/guest-walk.png --output public/sprites/people/guest-walk.png --name guest-walk --columns 4 --rows 4 --cell-size 32 --palette-variants 8 --mask-output .local/art-processing/guest-walk-mask.png && tsx tools/art/process-sprites.ts --input tools/art/source/staff-costumes.png --output public/sprites/people/staff-costumes.png --name staff-costumes --columns 4 --rows 4 --cell-size 32 --palette-variants 1",

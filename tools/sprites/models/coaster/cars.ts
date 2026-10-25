@@ -122,15 +122,14 @@ function carShape(family: CoasterFamily): Mesh {
 
 /** A car at one of 8 world headings, pitched and rolled to sit on track of the given class. */
 export function carMesh(family: CoasterFamily, heading: number, pitch: number, bank: number): Mesh {
-  const frame = rolled([0, -1, 0], [0, 0, 1], BANK_DEGREES[bank]);
+  const frame = rolled([0, 1, 0], [0, 0, 1], BANK_DEGREES[bank]);
   const rolledMesh: Mesh = carShape(family).map((t) => ({
     material: t.material,
     v: t.v.map((p): Vec3 => {
-      const lateral = -p[1];
       return [
         p[0],
-        lateral * frame.right[1] + p[2] * frame.up[1],
-        lateral * frame.right[2] + p[2] * frame.up[2],
+        p[1] * frame.right[1] + p[2] * frame.up[1],
+        p[1] * frame.right[2] + p[2] * frame.up[2],
       ];
     }) as unknown as (typeof t)['v'],
   }));

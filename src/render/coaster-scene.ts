@@ -5,6 +5,7 @@ import type { Snapshot } from '../worker/snapshot';
 import {
   carSpriteKey,
   trackedRideFamily,
+  supportOffset,
   supportStack,
   trackCellSprites,
   transportCarSpriteKey,
@@ -139,8 +140,9 @@ export class CoasterScene {
     const ground = map.heights[tileY * map.width + tileX];
     const stack = supportStack(pieceType, cell, ground, z / Z_STEP);
     const view = (dir + rotation) & 3;
-    const x = tileX * TILE_UNITS + TILE_UNITS / 2;
-    const y = tileY * TILE_UNITS + TILE_UNITS / 2;
+    const [offsetX, offsetY] = supportOffset(pieceType, cell, dir);
+    const x = tileX * TILE_UNITS + TILE_UNITS / 2 + offsetX;
+    const y = tileY * TILE_UNITS + TILE_UNITS / 2 + offsetY;
     const prefix = `rides/coaster/${family}/support`;
     for (let level = 0; level < stack.full; level++)
       this.push(
