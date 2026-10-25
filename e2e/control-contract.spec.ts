@@ -19,7 +19,8 @@ const toolbarActions = [
   'Game options',
   'Zoom out',
   'Zoom in',
-  'Rotate view',
+  'Rotate clockwise',
+  'Rotate anticlockwise',
   'View options',
   'Map',
   'Clear scenery',
@@ -269,6 +270,7 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
       if (mobile) await control.tap({ timeout: 5_000 });
       else await control.click({ timeout: 5_000 });
       expect((await downloadPromise).suggestedFilename()).toMatch(/\.ocsave$/);
+      await expect(page.locator('[aria-label="Game menu"]')).toContainText('Save file downloaded.');
     } else if (item.label === 'Import save file') {
       const chooserPromise = page.waitForEvent('filechooser');
       if (mobile) await control.tap({ timeout: 5_000 });
@@ -512,7 +514,7 @@ async function auditToolbar(page: Page, mobile = false): Promise<void> {
       await expect(action).toHaveAttribute('title', /not available/i);
       continue;
     }
-    if (label === 'Rotate view') {
+    if (label === 'Rotate clockwise' || label === 'Rotate anticlockwise') {
       const hud = page.locator('.hud');
       const before = (await hud.innerText()).match(/rot (\d+)/)?.[1];
       if (mobile) await action.tap({ timeout: 5_000 });
