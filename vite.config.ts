@@ -51,7 +51,10 @@ function pwaPlugin(): Plugin {
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? (process.env.OC_BASE ?? './') : '/',
   plugins: [pwaPlugin()],
-  server: { headers: isolationHeaders },
+  server: {
+    headers: isolationHeaders,
+    watch: { ignored: ['**/public/sprites/**'] },
+  },
   preview: { headers: isolationHeaders },
   worker: { format: 'es' },
   build: { target: 'es2022' },

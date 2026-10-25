@@ -1,6 +1,6 @@
 # World art pipeline
 
-The art pipeline keeps OpenCoaster independent of original game files and copied code. The committed source sheets under [source/](source/) are newly generated artwork; their generation prompts are kept in [prompts/](prompts/). Normal development and production builds consume these saved sheets and do not call an image-generation service.
+The art pipeline keeps OpenCoaster independent of original game files and copied code. The committed source sheets under [source/](source/), the saved generation prompts in [prompts/](prompts/), and the generators are authoritative. `public/sprites/` is generated output and is ignored by Git; do not commit its pages, manifest, per-sprite PNGs, or metadata. Normal development and production builds consume the saved artwork and do not call an image-generation service.
 
 ## Preparation
 
@@ -12,4 +12,6 @@ The terrain sheet supplies distinct source cells for the 16 combinations of the 
 
 Footpaths and the water texture are not prepared from source sheets: [tools/sprites](../sprites/docs.md) renders them from 3D models into the same output directory (after the sheets are prepared), and the packer treats them like any other sprite. The props sheet supplies ambient trees, placeable scenery, queue rails, and other park props; the saved prompt and source image remain the reproducible inputs. Source sheets are newly generated artwork and must not be replaced with original game sprites.
 
-Run `pnpm art:prepare` to regenerate the individual PNG/JSON pairs, then `pnpm art:pack` to build the atlas and manifest. The `predev` and `prebuild` hooks run both steps automatically. `public/sprites/` is generated output; make source-sheet or prompt changes in `source/` and `prompts/`, then regenerate the output.
+Run `pnpm art:prepare` to regenerate sprite PNG/JSON inputs, then `pnpm art:pack` to build the atlas pages and manifest. `prepare.ts` also runs the model-based renderer in [tools/sprites](../sprites/docs.md). The `predev` and `prebuild` package hooks run both steps automatically, so a fresh checkout prepares the assets before `pnpm dev` or `pnpm build`. The smoke and e2e Playwright configs start their server with `pnpm dev`, so they use the same preparation hook; `pnpm smoke:subpath` builds first. CI and the GitHub Pages workflow invoke `pnpm build`, which prepares assets through `prebuild` before bundling. The Pages workflow's additional `vite build --base /opencoaster/` runs after that generated output exists.
+
+Vite's dev-server watcher ignores `public/sprites/**`; regenerating the large tree therefore does not consume the Linux file-watcher limit or trigger app reloads. The browser still serves and bundles the generated files normally. Make art changes in committed sources, prompts, or generators, then let the package lifecycle hooks recreate the ignored output.
