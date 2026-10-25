@@ -21,6 +21,7 @@ import type {
 import type { WindowManager } from './window-manager';
 import { openFinanceWindow } from './windows/finance-window';
 import { openGuestWindow, openIndividualGuestWindow } from './windows/guest-window';
+import { openLandRightsWindow } from './windows/land-rights-window';
 import { openMapWindow } from './windows/map-window';
 import { openNewsWindow } from './windows/news-window';
 import { openParkWindow } from './windows/park-window';
@@ -69,11 +70,21 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   lamp: 'Lamp',
   ride: 'Ride',
   track: 'Coaster',
+  'buy-land': 'Buy land',
+  'buy-rights': 'Buy construction rights',
   patrol: 'Patrol area',
 };
 
 /** Windows that arm a map tool; only one of them is open at a time. */
-const CONSTRUCTION_WINDOWS = ['land', 'water', 'scenery', 'paths', 'clear', 'ride-select'];
+const CONSTRUCTION_WINDOWS = [
+  'land',
+  'water',
+  'scenery',
+  'paths',
+  'clear',
+  'ride-select',
+  'land-rights',
+];
 
 const SERIES_INTERVAL_TICKS = 160;
 const SERIES_LENGTH = 120;
@@ -430,6 +441,8 @@ export class GameUI {
         return openRideList(this.ctx);
       case 'park':
         return openParkWindow(this.ctx);
+      case 'land-rights':
+        return openLandRightsWindow(this.ctx);
       case 'finance':
         return openFinanceWindow(this.ctx);
       case 'research':
@@ -638,9 +651,13 @@ export class GameUI {
       tool === 'select'
         ? 'Select a guest or tile. Drag to pan; Page Up/Down or pinch to zoom.'
         : tool === 'land'
-          ? 'Land tool selected. Tap to change land; drag up or down to raise or lower repeatedly.'
-          : tool === 'patrol'
-            ? 'Patrol tool selected. Tap tiles to add them; use Remove tiles (or Shift) to remove.'
-            : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
+          ? 'Land tool selected. Tap to raise; use Lower (or Shift) to dig.'
+          : tool === 'buy-land'
+            ? 'Land purchase selected. Click a marked land tile to buy it.'
+            : tool === 'buy-rights'
+              ? 'Construction rights selected. Click a marked tile to buy the rights.'
+              : tool === 'patrol'
+                ? 'Patrol tool selected. Tap tiles to add them; use Remove tiles (or Shift) to remove.'
+                 : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
   }
 }

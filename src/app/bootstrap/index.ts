@@ -29,6 +29,7 @@ import { capDevicePixelRatio, rotateCameraAtCenter } from '../../input/camera-co
 import { centreOnTile, connectCameraInput } from '../input';
 import { AudioEngine } from '../../audio/audio';
 import { createToolController } from '../tools';
+import { BuildHoverFeedback, buildHoverGhost } from '../tools/build-hover-feedback';
 import { PathFeedback } from '../tools/path-feedback';
 import { PathTool } from '../tools/path/controller';
 import { LandController } from '../tools/land-controller';
@@ -82,6 +83,7 @@ export async function bootstrap(): Promise<void> {
   let selectedTool: ToolMode = 'select';
   let selectedGuest: GuestSelection | null = null;
   let placementHover: PlacementHover | null = null;
+  let buildHoverTile: [number, number] | null = null;
   let sceneryRotation = 0;
   let patrolKind: number | null = null;
   let alternate = false;
@@ -113,6 +115,7 @@ export async function bootstrap(): Promise<void> {
     overlay: root,
     setStatus: (text) => gameUi.setToolStatus(text),
   });
+  const buildHoverFeedback = new BuildHoverFeedback(root);
   const ridePlacementPreview = document.createElement('canvas');
   ridePlacementPreview.className = 'ride-placement-preview';
   ridePlacementPreview.setAttribute('aria-hidden', 'true');
@@ -356,6 +359,10 @@ export async function bootstrap(): Promise<void> {
     pathDrag: toolController.pathDrag,
     land: landController,
     setPlacementHover: (hover) => (placementHover = hover),
+    setBuildHover: (tile, x, y) => {
+      buildHoverTile = tile;
+      buildHoverFeedback.pointAt(x, y);
+    },
     viewport,
     renderScale: () => appliedScale,
     registerResize: (resize) => (resizeCanvas = resize),
@@ -565,13 +572,25 @@ export async function bootstrap(): Promise<void> {
     renderer.setSpriteGhosts(spriteGhosts);
     const pathGhost =
       latest && sim.map ? pathFeedback.update(latest.feedback, sim.map.width, now) : null;
+    const hoverGhost =
+      latest && sim.map
+        ? buildHoverGhost(
+            selectedTool,
+            buildHoverTile,
+            sim.map.width,
+            sim.map.height,
+            latest.buildable,
+          )
+        : null;
+    buildHoverFeedback.update(hoverGhost);
     trackPreview.draw(
       sim.map ? coasterPanel.ghost() : null,
       sim.map ?? { width: 0, height: 0 },
       camera,
       viewport,
       capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
-      pathGhost,
+      rideGhost,
+      pathGhost ?? hoverGhost,
     );
     landController.update(now);
     rideSetupState.current.drawPreview(viewport.width, viewport.height);
@@ -587,6 +606,7 @@ export async function bootstrap(): Promise<void> {
     scenerySpot.dispose();
     pathFeedback.dispose();
     landController.dispose();
+    buildHoverFeedback.dispose();
     renderer.dispose();
   });
 }

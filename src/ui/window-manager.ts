@@ -178,6 +178,9 @@ export class WindowManager {
     window.addEventListener('pointermove', (event) => {
       this.pointer = { x: event.clientX, y: event.clientY };
     });
+    window.addEventListener('pointerdown', (event) => {
+      this.pointer = { x: event.clientX, y: event.clientY };
+    });
   }
 
   get mobile(): boolean {
@@ -221,6 +224,13 @@ export class WindowManager {
           const rect = other.root.getBoundingClientRect();
           return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
         });
+      for (const element of this.layer.parentElement?.querySelectorAll<HTMLElement>(
+        '.objective-strip, .hud, .tool-status',
+      ) ?? []) {
+        const rect = element.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0)
+          occupied.push({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+      }
       const rememberedAt = remembered
         ? clampPosition(remembered.x, remembered.y, size, window.innerWidth, window.innerHeight)
         : undefined;

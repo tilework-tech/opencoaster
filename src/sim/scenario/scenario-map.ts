@@ -1,14 +1,6 @@
 import { Prng } from '../core/prng';
 import { relaxTerrain } from '../map/land';
-import {
-  ElementType,
-  MAP_BORDER,
-  MAX_HEIGHT,
-  OWNED,
-  SALE_LAND,
-  SALE_RIGHTS,
-  Surface,
-} from '../map/tile-map';
+import { ElementType, expansionOwnership, MAP_BORDER, MAX_HEIGHT, Surface } from '../map/tile-map';
 import type { TileMap } from '../map/tile-map';
 import { SceneryItem } from '../map/scenery';
 import type {
@@ -185,10 +177,9 @@ function paintTiles(map: TileMap, t: ScenarioTerrain, land: ScenarioLand): void 
         y < MAP_BORDER ||
         x >= map.width - MAP_BORDER ||
         y >= map.height - MAP_BORDER;
-      const inOwned = x >= owned.x0 && x <= owned.x1 && y >= owned.y0 && y <= owned.y1;
       const unsellable =
         x < saleX || y < saleY || x >= map.width - saleX || y >= map.height - saleY;
-      map.ownership[i] = border ? 0 : inOwned ? OWNED : unsellable ? 0 : SALE_LAND | SALE_RIGHTS;
+      map.ownership[i] = border || unsellable ? 0 : expansionOwnership(x, y, owned);
       map.refreshTile(i);
     }
   }

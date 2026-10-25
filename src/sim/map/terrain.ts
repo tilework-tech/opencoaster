@@ -1,6 +1,6 @@
 import type { Prng } from '../core/prng';
 import { relaxTerrain } from './land';
-import { MAP_BORDER, OWNED, SALE_LAND, SALE_RIGHTS, Surface } from './tile-map';
+import { expansionOwnership, MAP_BORDER, Surface } from './tile-map';
 import type { TileMap } from './tile-map';
 
 const CELL = 8;
@@ -51,11 +51,7 @@ export function generateTerrain(map: TileMap, rng: Prng): void {
         y < MAP_BORDER ||
         x >= map.width - MAP_BORDER ||
         y >= map.height - MAP_BORDER;
-      map.ownership[i] = border
-        ? 0
-        : x >= x0 && x < x1 && y >= y0 && y < y1
-          ? OWNED
-          : SALE_LAND | SALE_RIGHTS;
+      map.ownership[i] = border ? 0 : expansionOwnership(x, y, { x0, x1: x1 - 1, y0, y1: y1 - 1 });
       map.refreshTile(i);
     }
   }

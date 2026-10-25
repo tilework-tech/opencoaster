@@ -783,11 +783,14 @@
   stroke: #fff0bd;
 }
 .path-ghost-label,
-.placement-label {
+.placement-label,
+.build-hover-tip {
   position: fixed;
   z-index: 46;
   max-width: 260px;
   pointer-events: none;
+}
+.path-ghost-label {
   padding: 3px 8px;
   font-size: 12px;
   background: rgba(20, 24, 21, 0.9);
@@ -799,6 +802,15 @@
   background: rgba(46, 16, 14, 0.92);
   border-color: #c85a4e;
   color: #ffd9d3;
+}
+.build-hover-tip {
+  padding: 4px 8px;
+  background: rgba(74, 17, 12, 0.96);
+  border: 2px solid #e44b3f;
+  color: #fff0eb;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px #17120d;
 }
 .path-surfaces,
 .path-arrows,
@@ -850,6 +862,25 @@
 .path-slopes > *,
 .path-piece-actions > * {
   flex: 1;
+}
+.land-rights-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 12px;
+}
+.land-rights-swatch {
+  display: inline-block;
+  width: 25px;
+  height: 15px;
+  box-sizing: border-box;
+  background: rgba(10, 14, 10, 0.48);
+  border: 2px dotted var(--sale-color);
+}
+.land-rights-count {
+  margin: 1px 0 5px 33px;
+  font-size: 12px;
 }
 .tool-status {
   position: fixed;

@@ -105,8 +105,9 @@ test('captures the WebGL2 starter park terrain', async ({ page }, testInfo) => {
   await expect(gridlines).toBeChecked();
   await page.getByRole('button', { name: 'Game options' }).click();
   await page.waitForTimeout(100);
-  await page.screenshot({ path: testInfo.outputPath('terrain-starter-gridlines.png') });
-  const withGridlines = await terrainCanvas.screenshot();
+  const withGridlines = await terrainCanvas.screenshot({
+    path: testInfo.outputPath('terrain-starter-gridlines.png'),
+  });
   const beforePixels = await sharp(withoutGridlines).removeAlpha().raw().toBuffer();
   const afterPixels = await sharp(withGridlines).removeAlpha().raw().toBuffer();
   let changedPixels = 0;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../core/world';
 import { hashWorld } from '../core/hash';
-import { ElementType, OWNED, SALE_LAND, Surface } from '../map/tile-map';
+import { ElementType, OWNED, SALE_LAND, SALE_RIGHTS, Surface } from '../map/tile-map';
 import { SceneryItem } from '../map/scenery';
 import { RideState } from '../rides/ride-store';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
@@ -98,7 +98,10 @@ describe('scenario terrain generation', () => {
     const o = ownedBounds(80, 80, def.land);
     expect(o).toEqual({ x0: 16, y0: 16, x1: 63, y1: 63 });
     expect(m.ownership[m.index(40, 40)] & OWNED).toBe(OWNED);
-    expect(m.ownership[m.index(10, 40)] & SALE_LAND).toBe(SALE_LAND);
+    expect(m.ownership[m.index(15, 40)] & SALE_LAND).toBe(SALE_LAND);
+    expect(m.ownership[m.index(15, 40)] & SALE_RIGHTS).toBe(0);
+    expect(m.ownership[m.index(10, 40)] & SALE_RIGHTS).toBe(SALE_RIGHTS);
+    expect(m.ownership[m.index(10, 40)] & SALE_LAND).toBe(0);
     expect(m.ownership[m.index(2, 40)]).toBe(0);
   });
 
