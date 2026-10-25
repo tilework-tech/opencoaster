@@ -208,6 +208,21 @@ The compared runs use the same default seed and modest scripted build on main an
 
 On the established 12-seed calibration set (11–16, 21–26), the corrected food-award behavior produced ratings from 386 to 688, and every seed exceeded the 100-guest target. At 550, 7 of 12 seeds won; at the current 450 target, 10 of 12 win, with seeds 22 and 26 missing on rating (412 and 386). The default scenario seed wins with 554 rating. This leaves a few deterministic seeds below target while keeping the default and most calibration seeds winnable.
 
+| Seed | Guests | Rating | At 450 |
+| ---: | -----: | -----: | :----- |
+|   11 |    291 |    632 | Won    |
+|   12 |    291 |    634 | Won    |
+|   13 |    286 |    616 | Won    |
+|   14 |    292 |    508 | Won    |
+|   15 |    297 |    670 | Won    |
+|   16 |    292 |    538 | Won    |
+|   21 |    297 |    618 | Won    |
+|   22 |    286 |    412 | Lost   |
+|   23 |    292 |    670 | Won    |
+|   24 |    291 |    452 | Won    |
+|   25 |    292 |    688 | Won    |
+|   26 |    293 |    386 | Lost   |
+
 ## Results: economy fidelity pass
 
 Starter scenario, one year, default seed (2026), scripted modest build, `pnpm balance`, both on main at 339fecc:
