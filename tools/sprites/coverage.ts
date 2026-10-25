@@ -196,7 +196,12 @@ export function buildArtCoverage(): ArtCoverageRow[] {
   for (const style of TRANSPORT_STYLES) {
     for (const piece of TRANSPORT_PIECES) {
       const keys = [0, 1, 2, 3].flatMap((rotation) =>
-        transportTrackCells(piece.id, 0, rotation, style.style).map((cell) => cell.key),
+        transportTrackCells(
+          piece.id,
+          0,
+          rotation,
+          style.style as NonNullable<ReturnType<typeof transportFamily>>,
+        ).map((cell) => cell.key),
       );
       add(
         'Transport piece',
@@ -280,8 +285,8 @@ export function buildArtCoverage(): ArtCoverageRow[] {
       item === 'rain shelter' ? [0, 1, 2, 3].map((view) => `${base}/view-${view}`) : [base];
     add('Path addition', item, views, 'Rendered from the path element flags.');
   }
-  for (const item of ['vandalised bench', 'vandalised bin']) {
-    const base = item === 'vandalised bench' ? 'scenery/bench-broken' : 'scenery/bin-broken';
+  for (const item of ['vandalised bench', 'vandalised bin', 'vandalised lamp']) {
+    const base = `scenery/${item.replace('vandalised ', '')}-broken`;
     add(
       'Path addition',
       item,

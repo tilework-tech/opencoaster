@@ -191,7 +191,8 @@ export function pathAdditionSpriteName(flags: number, rotation: number, data: nu
     return data & PATH_ADDITION_BROKEN ? `scenery/bench-broken/view-${view}` : 'scenery/bench';
   if (flags & PathFlag.Bin)
     return data & PATH_ADDITION_BROKEN ? `scenery/bin-broken/view-${view}` : 'scenery/bin';
-  if (flags & PathFlag.Lamp) return 'scenery/lamp';
+  if (flags & PathFlag.Lamp)
+    return data & PATH_ADDITION_BROKEN ? `scenery/lamp-broken/view-${view}` : 'scenery/lamp';
   return '';
 }
 

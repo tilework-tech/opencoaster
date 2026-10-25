@@ -26,7 +26,14 @@ describe('art coverage inventory', () => {
   });
 
   it('reports path additions, weather, UI, litter, and placement previews', () => {
-    for (const item of ['rain shelter', 'Flower bed', 'lamp', 'vandalised bench', 'vandalised bin'])
+    for (const item of [
+      'rain shelter',
+      'Flower bed',
+      'lamp',
+      'vandalised bench',
+      'vandalised bin',
+      'vandalised lamp',
+    ])
       expect(
         rows.some((row) => row.item === item),
         item,

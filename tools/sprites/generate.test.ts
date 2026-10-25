@@ -16,6 +16,7 @@ describe('generated sprite catalogue', () => {
       'scenery/shelter',
       'scenery/bench-broken',
       'scenery/bin-broken',
+      'scenery/lamp-broken',
       'litter/trash',
       'litter/vomit',
     ]) {
@@ -24,7 +25,7 @@ describe('generated sprite catalogue', () => {
         const sprite = sprites.get(`${key}/view-${view}`);
         expect(sprite, `${key}, view ${view}`).toBeDefined();
         const frame = sprite?.frames[0];
-        const minimumWidth = key.startsWith('litter/') ? 10 : 24;
+        const minimumWidth = key.startsWith('litter/') || key.includes('lamp-broken') ? 10 : 24;
         const minimumHeight = key.startsWith('litter/') ? 6 : 16;
         expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
         expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
