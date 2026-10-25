@@ -1,5 +1,105 @@
 import { Z_STEP } from '../sim/core/constants';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import type { RideType } from '../sim/rides/ride-types';
+import { RidePhase } from '../sim/rides/ride-store';
+import { PathFlag } from '../sim/map/tile-map';
+import type { MapData } from './renderer';
 import { Z_PIXELS } from './projection';
+
+/** Simulation ticks each flat-ride animation frame is shown for. */
+export const TICKS_PER_ANIMATION_FRAME = 8;
+
+/** Category and stable slug used by generated ride sprite pages. */
+export function rideSpriteName(type: RideType): string {
+  const definition = RIDE_CATALOG[type];
+  if (!definition) return '';
+  const slug = definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const group =
+    definition.category === 'gentle' || definition.category === 'thrill'
+      ? 'rides/flat'
+      : definition.category === 'transport' || definition.category === 'water'
+        ? 'transport'
+        : 'stalls';
+  return `${group}/${slug}`;
+}
+
+export function facilityFacingFromPaths(x: number, y: number, map: MapData): number {
+  const adjacent = [false, false, false, false];
+  const count = Math.min(map.pathCount ?? 0, Math.floor((map.pathElements?.length ?? 0) / 6));
+  for (let index = 0; index < count; index++) {
+    const offset = index * 6;
+    if ((map.pathElements![offset + 3] & PathFlag.Queue) !== 0) continue;
+    const dx = map.pathElements![offset] - x;
+    const dy = map.pathElements![offset + 1] - y;
+    if (Math.abs(dx) + Math.abs(dy) !== 1) continue;
+    adjacent[dx === 1 ? 0 : dy === 1 ? 1 : dx === -1 ? 2 : 3] = true;
+  }
+  return adjacent.findIndex(Boolean) < 0 ? 1 : adjacent.findIndex(Boolean);
+}
+
+export function facilitySpriteKey(type: RideType, facing: number, rotation: number): string {
+  const def = RIDE_CATALOG[type];
+  const slug = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  return `stalls/${slug}/facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+}
+
+export function rideHutFacing(rideX: number, rideY: number, partX: number, partY: number): number {
+  const dx = partX - rideX;
+  const dy = partY - rideY;
+  if (dx === 1 && dy === 0) return 0;
+  if (dx === 0 && dy === 1) return 1;
+  if (dx === -1 && dy === 0) return 2;
+  if (dx === 0 && dy === -1) return 3;
+  return 1;
+}
+
+export function rideHutSpriteKey(
+  type: RideType,
+  part: 'entrance' | 'exit',
+  facing: number,
+  rotation: number,
+): string {
+  const def = RIDE_CATALOG[type];
+  const slug = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const family =
+    def.category !== 'coaster'
+      ? ''
+      : slug.includes('junior')
+        ? 'junior'
+        : slug.includes('mouse')
+          ? 'mouse'
+          : slug.includes('wood')
+            ? 'wood'
+            : 'steel';
+  const group = family
+    ? `rides/coaster/${family}`
+    : def.category === 'transport' || def.category === 'water'
+      ? 'transport'
+      : 'rides/flat';
+  const categorySegment = family ? '' : `${def.category}/`;
+  const facingView = `facing-${((facing % 4) + 4) % 4}/view-${((rotation % 4) + 4) % 4}`;
+  return `${group}/stations/${categorySegment}${part}/${facingView}`;
+}
+
+/** Atlas key for a non-track ride at the current camera rotation. */
+export function rideSpriteKey(type: RideType, rotation: number): string {
+  const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
+  return `${rideSpriteName(type)}/view-${view}`;
+}
+
+/** Frame zero is the idle pose; active cycle frames show riders. */
+export function rideSpriteFrame(
+  phase: RidePhase | number,
+  tick: number,
+  frameCount: number,
+): number {
+  if (
+    frameCount < 2 ||
+    (phase !== RidePhase.Loading && phase !== RidePhase.Running && phase !== RidePhase.Unloading)
+  )
+    return 0;
+  return 1 + (Math.floor(Math.max(0, tick) / TICKS_PER_ANIMATION_FRAME) % (frameCount - 1));
+}
 
 export const TERRAIN_SLOPE_NAMES = Array.from(
   { length: 16 },

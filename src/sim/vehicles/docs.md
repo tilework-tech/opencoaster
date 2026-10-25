@@ -14,7 +14,7 @@ Path: @/src/sim/vehicles
 - The vehicle system refreshes `World.vehicleTracks` from [`getTrackPath`](../track/track-path.ts) when a ride's track version changes. The registry is derived runtime state and is not part of the typed-array world state or its save/hash columns.
 - [`createVehicleTrackFromPath`](./vehicle-track.ts) maps track piece events/modes, roll orientation, bank, and sampled tangent changes into vehicle segment metadata. Tests can still provide synthetic polylines directly to isolate physics.
 - Train state references rides by stable ride ID. On test completion, ratings are written to the ride store only if that ride ID is still alive.
-- Vehicle coordinates are available in the world snapshot path for rendering; renderers consume snapshots rather than reading simulation stores directly, as described in [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md).
+- Vehicle coordinates are available in the world snapshot path for rendering; renderers consume snapshots rather than reading simulation stores directly, as described in [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md). Per-car poses for the coaster sprites are derived from `VehicleTrack` and `CAR_LENGTH_Q8` in [src/worker/car-poses.ts](../../worker/car-poses.ts).
 
 ### Core Implementation
 
