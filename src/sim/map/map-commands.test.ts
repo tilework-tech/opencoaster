@@ -12,7 +12,8 @@ import {
 import { serialize, deserialize } from '../../save/save';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { landEditCostCents } from './land';
-import { placePath, removePath } from './paths';
+import { PathResult, placePath, removePath } from './paths';
+import { FeedbackDomain } from '../core/feedback';
 import { SceneryItem, SCENERY_CATALOG } from './scenery';
 
 function sim(): Simulation {
@@ -240,5 +241,34 @@ describe('map commands', () => {
       a.world.map.pathEdges(a.world.map.index(5, 4)),
     );
     expect(loaded.map.elementCount).toBe(a.world.map.elementCount);
+  });
+});
+
+describe('footpath feedback', () => {
+  it('reports why a footpath was refused, on the tile that was clicked', () => {
+    const s = sim();
+    s.world.map.ownership[s.world.map.index(7, 3)] = 0;
+    s.enqueue({ type: 'placePath', x: 7, y: 3 });
+    s.step();
+    expect(s.world.feedback.domain).toBe(FeedbackDomain.Path);
+    expect(s.world.feedback.code).toBe(PathResult.NotOwned);
+    expect(s.world.feedback.subject).toBe(s.world.map.index(7, 3));
+  });
+
+  it('reports refusals caused by insufficient cash', () => {
+    const s = sim();
+    s.world.economy.cash = 0;
+    s.enqueue({ type: 'placePath', x: 4, y: 4 });
+    s.step();
+    expect(s.world.feedback.code).toBe(PathResult.InsufficientFunds);
+    expect(s.world.map.pathEdges(s.world.map.index(4, 4))).toBe(0);
+  });
+
+  it('reports a successful footpath as accepted, with no refusal to show', () => {
+    const s = sim();
+    s.enqueue({ type: 'placePath', x: 4, y: 4 });
+    s.step();
+    expect(s.world.map.elementCount).toBe(1);
+    expect(s.world.feedback.domain).not.toBe(FeedbackDomain.Path);
   });
 });

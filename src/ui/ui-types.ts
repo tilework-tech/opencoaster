@@ -43,7 +43,7 @@ export interface GameUIActions {
   setAlternate(on: boolean): void;
   /** Land brush edge length in tiles (1-5). */
   setBrush(size: number): void;
-  setPathOptions(queue: boolean, slopeDirection: number): void;
+  setPathQueue(queue: boolean): void;
   setPathStyle(style: number): void;
   setSceneryItem(item: number): void;
   /** Centres the camera on a tile. */

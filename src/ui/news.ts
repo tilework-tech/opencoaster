@@ -22,6 +22,8 @@ export interface NewsItem {
 }
 
 const GUEST_MILESTONE = 100;
+/** Lost guests at which the park warns that guests cannot find their way. */
+const LOST_GUESTS_WARNING = 5;
 
 /** Turns successive snapshots into the park's news messages (breakdowns, openings, milestones). */
 export class NewsTracker {
@@ -32,6 +34,7 @@ export class NewsTracker {
   private guestMilestone = 0;
   private status: ScenarioStatus = ScenarioStatus.Active;
   private weather = 0;
+  private lostWarning = false;
   private nextId = 1;
   private primed = false;
 
@@ -90,6 +93,14 @@ export class NewsTracker {
     }
     this.weather = snapshot.weather.kind;
 
+    const lostWarning = snapshot.economy.lostGuests >= LOST_GUESTS_WARNING;
+    if (this.primed && lostWarning && !this.lostWarning)
+      say(
+        'park',
+        "Guests can't find their way around. Connect the entrance to the rides with footpath.",
+      );
+    this.lostWarning = lostWarning;
+
     this.primed = true;
     for (const item of fresh) this.history.unshift(item);
     this.history.length = Math.min(this.history.length, this.capacity);
@@ -102,5 +113,6 @@ export class NewsTracker {
     this.guestMilestone = 0;
     this.status = ScenarioStatus.Active;
     this.weather = 0;
+    this.lostWarning = false;
   }
 }

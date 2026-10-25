@@ -12,12 +12,28 @@ import type { TileMap } from './tile-map';
 /** Levels of headroom above a flat path; ramps add one for their raised end. */
 export const PATH_CLEARANCE = 2;
 
+/** Why a footpath placement was refused, or `Ok`. Codes are shared with the UI feedback channel. */
+export const enum PathResult {
+  Ok = 0,
+  OutOfBounds = 1,
+  NotOwned = 2,
+  InvalidPiece = 3,
+  BelowGround = 4,
+  Underwater = 5,
+  UnevenGround = 6,
+  Blocked = 7,
+  InsufficientFunds = 8,
+}
+
 export interface PathPlacement {
   x: number;
   y: number;
   /** Base level; defaults to the ground height of the tile. */
   z?: number;
-  /** Direction (0..3) the path rises toward, for a ramp. Omit for a flat piece. */
+  /**
+   * Direction (0..3) the path rises toward, for a ramp. Omit (or pass -1) to follow the terrain:
+   * flat ground gets a flat piece and a one-level slope gets a ramp facing its rise.
+   */
   slope?: number;
   queue?: boolean;
   style?: PathStyle;
@@ -100,31 +116,45 @@ export function recomputePathEdges(m: TileMap, i: number): void {
   m.revision++;
 }
 
+/** Ramp direction the terrain of tile `i` forms, -1 for flat ground, or null when it is neither. */
+function terrainPathDirection(m: TileMap, i: number): number | null {
+  const mask = m.slope[i];
+  if (mask === 0) return -1;
+  for (let dir = 0; dir < 4; dir++) if (rampMask(dir) === mask) return dir;
+  return null;
+}
+
 /**
- * Places (or replaces in place) a path piece. A piece must rest on the ground (flat on a flat
- * tile, or a ramp on a matching slope) or float at or above the tile's highest corner, must
- * not be under water, and must not overlap another element's volume.
+ * Places (or replaces in place) a path piece and reports the outcome. A piece must rest on the
+ * ground (flat on a flat tile, or a ramp on a matching slope) or float at or above the tile's
+ * highest corner, must not be under water, and must not overlap another element's volume.
  */
-export function placePath(m: TileMap, p: PathPlacement): boolean {
-  if (!m.inBounds(p.x, p.y)) return false;
+export function placePathOutcome(m: TileMap, p: PathPlacement): PathResult {
+  if (!m.inBounds(p.x, p.y)) return PathResult.OutOfBounds;
   const i = m.index(p.x, p.y);
-  if (!m.canBuild(i)) return false;
-  const dir = p.slope ?? -1;
-  if (!Number.isInteger(dir) || dir < -1 || dir > 3) return false;
+  if (!m.canBuild(i)) return PathResult.NotOwned;
+  const requested = p.slope ?? -1;
+  if (!Number.isInteger(requested) || requested < -1 || requested > 3)
+    return PathResult.InvalidPiece;
+  const style = p.style ?? PathStyle.Tarmac;
+  if (!Number.isInteger(style) || style < PathStyle.Tarmac || style > PathStyle.Dirt)
+    return PathResult.InvalidPiece;
+  const dir = requested >= 0 ? requested : terrainPathDirection(m, i);
+  if (dir === null) return PathResult.UnevenGround;
   const z = p.z ?? m.heights[i];
-  if (!Number.isInteger(z) || z < m.heights[i] || z > MAX_ELEMENT_BASE) return false;
+  if (!Number.isInteger(z) || z > MAX_ELEMENT_BASE) return PathResult.InvalidPiece;
+  if (z < m.heights[i]) return PathResult.BelowGround;
 
   const ramp = dir >= 0;
-  const style = p.style ?? PathStyle.Tarmac;
-  if (!Number.isInteger(style) || style < PathStyle.Tarmac || style > PathStyle.Dirt) return false;
   const top = m.heights[i] + (m.slope[i] !== 0 ? 1 : 0);
-  if (z < top && !(ramp && z === m.heights[i] && m.slope[i] === rampMask(dir))) return false;
-  if (m.waterLevel[i] > z) return false;
+  if (z < top && !(ramp && z === m.heights[i] && m.slope[i] === rampMask(dir)))
+    return PathResult.UnevenGround;
+  if (m.waterLevel[i] > z) return PathResult.Underwater;
 
   const clear = z + PATH_CLEARANCE + (ramp ? 1 : 0);
   const existing = m.pathElement(i, z);
   for (let e = m.firstElement(i); e >= 0; e = m.nextElement(e)) {
-    if (e !== existing && m.elBase[e] < clear && z < m.elClear[e]) return false;
+    if (e !== existing && m.elBase[e] < clear && z < m.elClear[e]) return PathResult.Blocked;
   }
   repairPathElement(m, existing);
 
@@ -137,18 +167,23 @@ export function placePath(m: TileMap, p: PathPlacement): boolean {
       m.elClear[existing] === clear &&
       m.pathStyle[existing] === style
     )
-      return true;
+      return PathResult.Ok;
     m.elFlags[existing] = (m.elFlags[existing] & ~keep) | flags;
     m.elClear[existing] = clear;
     m.pathStyle[existing] = style;
   } else if (m.addElement(i, ElementType.Path, z, clear, flags, 0) < 0) {
-    return false;
+    return PathResult.Blocked;
   } else {
     m.pathStyle[m.pathElement(i, z)] = style;
   }
   recomputePathEdges(m, i);
   m.refreshTile(i);
-  return true;
+  return PathResult.Ok;
+}
+
+/** Boolean form of `placePathOutcome` for callers that only need to know whether it was placed. */
+export function placePath(m: TileMap, p: PathPlacement): boolean {
+  return placePathOutcome(m, p) === PathResult.Ok;
 }
 
 export function removePath(m: TileMap, p: PathRemoval): boolean {

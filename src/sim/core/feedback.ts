@@ -7,6 +7,8 @@ export const enum FeedbackDomain {
   Ride = 2,
   /** `EconomyResult` */
   Economy = 3,
+  /** `PathResult` */
+  Path = 4,
 }
 
 /**
@@ -18,7 +20,7 @@ export interface CommandFeedback {
   seq: number;
   domain: FeedbackDomain;
   code: number;
-  /** Ride id the outcome concerns, or -1. */
+  /** Ride id the outcome concerns, tile index for path results, or -1. */
   subject: number;
 }
 

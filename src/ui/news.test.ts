@@ -61,6 +61,22 @@ describe('news tracker', () => {
     expect(news.observe(snap(3, [], 130))).toEqual([]);
   });
 
+  it('warns once while enough guests cannot find their way, and again after it clears', () => {
+    const news = new NewsTracker();
+    const lost = (tick: number, count: number) => {
+      const s = snap(tick, []);
+      s.economy.lostGuests = count;
+      return news.observe(s).map((n) => n.text);
+    };
+    lost(1, 0);
+    expect(lost(2, 5)).toEqual([
+      "Guests can't find their way around. Connect the entrance to the rides with footpath.",
+    ]);
+    expect(lost(3, 9)).toEqual([]);
+    expect(lost(4, 0)).toEqual([]);
+    expect(lost(5, 6)).toHaveLength(1);
+  });
+
   it('reports the scenario outcome', () => {
     const news = new NewsTracker();
     const before = snap(1, []);

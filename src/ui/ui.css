@@ -694,6 +694,17 @@
   width: 24px;
   height: 22px;
 }
+.path-tip {
+  position: fixed;
+  z-index: 46;
+  max-width: 260px;
+  pointer-events: none;
+  padding: 3px 8px;
+  background: rgba(46, 16, 14, 0.92);
+  border: 1px solid #c85a4e;
+  color: #ffd9d3;
+  font-size: 12px;
+}
 .tool-status {
   position: fixed;
   z-index: 44;

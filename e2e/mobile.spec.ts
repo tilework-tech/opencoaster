@@ -103,14 +103,10 @@ test('guest and footpath controls stay reachable on a phone', async ({ page }) =
   await toolbar.getByRole('button', { name: 'Footpaths', exact: true }).tap();
   const paths = page.locator('[data-panel="paths"]');
   await expect(paths.getByRole('button', { name: 'Queue line' })).toBeVisible();
-  await expect(paths.getByRole('button', { name: 'Follow terrain slope' })).toBeVisible();
   await expect(paths.getByRole('button', { name: 'Remove footpath' })).toBeVisible();
   const queue = paths.getByRole('button', { name: 'Queue line' });
   await queue.tap();
   await expect(queue).toHaveAttribute('aria-pressed', 'true');
-  const slope = paths.getByRole('button', { name: 'Follow terrain slope' });
-  await slope.tap();
-  await expect(paths.getByLabel('Slope direction')).toBeVisible();
   const remove = paths.getByRole('button', { name: 'Remove footpath' });
   await remove.tap();
   await expect(remove).toHaveAttribute('aria-pressed', 'true');

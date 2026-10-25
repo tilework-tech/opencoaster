@@ -15,6 +15,7 @@ import {
   handleSceneryTool,
 } from './handlers';
 import { findGuestAt } from './selection';
+import type { PathFeedback } from './path-feedback';
 
 export interface ToolControllerDependencies {
   canvas: HTMLCanvasElement;
@@ -27,7 +28,8 @@ export interface ToolControllerDependencies {
   setSelectedGuest: (guest: GuestSelection | null) => void;
   alternate: () => boolean;
   brush: () => number;
-  pathOptions: () => { queue: boolean; slope: number };
+  pathQueue: () => boolean;
+  pathFeedback: PathFeedback;
   pathStyle: () => PathStyle;
   sceneryItem: () => SceneryItem;
   patrolKind: () => number | null;
@@ -42,7 +44,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     selectedTool: deps.selectedTool,
     alternate: deps.alternate,
     brush: deps.brush,
-    pathOptions: deps.pathOptions,
+    pathQueue: deps.pathQueue,
     pathStyle: deps.pathStyle,
     sceneryItem: deps.sceneryItem,
     patrolKind: deps.patrolKind,
@@ -68,6 +70,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     forceSelect = false,
   ): void {
     deps.clearRideSetupNotice();
+    deps.pathFeedback.pointAt(clientX, clientY);
     const rect = deps.canvas.getBoundingClientRect();
     const localX = clientX - rect.left;
     const localY = clientY - rect.top;

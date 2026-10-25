@@ -16,7 +16,8 @@ Path: @/src/app/tools
 ### Core Implementation
 
 - `createToolController` converts CSS-pixel canvas positions to map tiles, dispatches the active tool, and updates selection/UI state.
-- [handlers.ts](handlers.ts) maps land, path, scenery, path additions, flowerbed and patrol actions to existing worker commands.
+- [handlers.ts](handlers.ts) maps land, path, scenery, path additions, flowerbed and patrol actions to existing worker commands. Path placements send no slope, so the simulation follows the terrain.
+- [path-feedback.ts](path-feedback.ts) shows a refused footpath: it reads the `Path` feedback domain from the snapshot, marks the tile with a red ghost, and shows the reason in a tooltip at the last pointer position for 2.5 seconds.
 - [selection.ts](selection.ts) hit-tests guest positions from the current snapshot and builds the UI's guest-selection data.
 
 ### Things to Know

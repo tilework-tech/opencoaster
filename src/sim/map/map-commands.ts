@@ -1,5 +1,6 @@
 import type { World } from '../core/world';
 import { LedgerCategory, post } from '../economy/ledger';
+import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import {
   lowerLand,
   paintLand,
@@ -9,7 +10,13 @@ import {
   setTileHeight,
   setWaterLevel,
 } from './land';
-import { placePath, removePath, setPathAddition, type PathAddition } from './paths';
+import {
+  PathResult,
+  placePathOutcome,
+  removePath,
+  setPathAddition,
+  type PathAddition,
+} from './paths';
 import { placeScenery, removeScenery, SCENERY_CATALOG, type SceneryItem } from './scenery';
 import {
   LAND_SURFACE_COST_CENTS,
@@ -152,10 +159,20 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       if (canAfford(w, LAND_SURFACE_COST_CENTS))
         paintLand(m, c.x | 0, c.y | 0, c.width | 0, c.height | 0, c.surface | 0);
       break;
-    case 'placePath':
-      if (canAfford(w, PATH_COST_CENTS) && placePath(m, c))
-        charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
+    case 'placePath': {
+      const result = canAfford(w, PATH_COST_CENTS)
+        ? placePathOutcome(m, c)
+        : PathResult.InsufficientFunds;
+      if (result === PathResult.Ok) charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
+      else
+        reportFeedback(
+          w.feedback,
+          FeedbackDomain.Path,
+          result,
+          m.inBounds(c.x, c.y) ? m.index(c.x, c.y) : -1,
+        );
       break;
+    }
     case 'removePath':
       removePath(m, c);
       break;

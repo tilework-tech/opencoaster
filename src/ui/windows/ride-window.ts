@@ -254,7 +254,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
           label: 'Entrance not connected to a path',
           action: 'Build path',
           onClick: () => {
-            ctx.actions.setPathOptions(false, -1);
+            ctx.actions.setPathQueue(false);
             ctx.chooseTool('path');
           },
         });

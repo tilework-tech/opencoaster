@@ -10,7 +10,7 @@ export interface ToolHandlerDependencies {
   selectedTool: () => ToolMode;
   alternate: () => boolean;
   brush: () => number;
-  pathOptions: () => { queue: boolean; slope: number };
+  pathQueue: () => boolean;
   pathStyle: () => PathStyle;
   sceneryItem: () => SceneryItem;
   patrolKind: () => number | null;
@@ -41,14 +41,12 @@ export function handlePathTool(deps: ToolHandlerDependencies, x: number, y: numb
     deps.gameUi.setToolStatus(`Path removal requested at ${x}, ${y}.`);
     return;
   }
-  const options = deps.pathOptions();
   deps.sim.command({
     type: 'placePath',
     x,
     y,
     style: deps.pathStyle(),
-    queue: options.queue,
-    slope: options.slope,
+    queue: deps.pathQueue(),
   });
   deps.gameUi.setToolStatus(`Path placement requested at ${x}, ${y}.`);
 }

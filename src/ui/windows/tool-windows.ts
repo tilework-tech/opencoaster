@@ -101,7 +101,7 @@ export const PATH_WINDOW: ToolWindowSpec = {
       label: 'Footpath',
       icon: 'paths',
       tool: 'path',
-      help: 'Tap tiles to lay footpath. Connect it to the park entrance and to each ride entrance and exit.',
+      help: 'Tap tiles to lay footpath. It follows the terrain slope; a tile that cannot take a path shows why.',
       path: true,
     },
   ],
@@ -126,7 +126,6 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
   const byId = new Map(spec.tabs.map((tab) => [tab.id, tab]));
   const toggles: HTMLButtonElement[] = [];
   let queue = false;
-  let slopeDirection = -1;
   const select = (tab: ToolTab | undefined): void => {
     if (!tab) return;
     ctx.actions.setAlternate(false);
@@ -142,7 +141,7 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
     onTab: (id) => select(byId.get(id)),
     onClose: () => {
       ctx.actions.setAlternate(false);
-      ctx.actions.setPathOptions(false, -1);
+      ctx.actions.setPathQueue(false);
       ctx.actions.setBrush(1);
       ctx.chooseTool('select');
     },
@@ -190,31 +189,11 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
             queue = !queue;
             queueToggle.setAttribute('aria-pressed', String(queue));
             style.disabled = queue;
-            ctx.actions.setPathOptions(queue, slopeDirection);
+            ctx.actions.setPathQueue(queue);
           },
           'ui-button',
         );
         queueToggle.setAttribute('aria-pressed', 'false');
-        const slopeToggle = button(
-          'Follow terrain slope',
-          () => {
-            slopeDirection = slopeDirection < 0 ? 0 : -1;
-            slopeToggle.setAttribute('aria-pressed', String(slopeDirection >= 0));
-            direction.hidden = slopeDirection < 0;
-            ctx.actions.setPathOptions(queue, slopeDirection);
-          },
-          'ui-button',
-        );
-        slopeToggle.setAttribute('aria-pressed', 'false');
-        const direction = element('select', 'path-slope-direction');
-        direction.setAttribute('aria-label', 'Slope direction');
-        for (const [value, label] of ['North', 'East', 'South', 'West'].entries())
-          direction.append(new Option(label, String(value)));
-        direction.hidden = true;
-        direction.addEventListener('change', () => {
-          slopeDirection = Number(direction.value);
-          ctx.actions.setPathOptions(queue, slopeDirection);
-        });
         const removeToggle = button(
           'Remove footpath',
           () => {
@@ -225,7 +204,7 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
           'ui-button',
         );
         removeToggle.setAttribute('aria-pressed', 'false');
-        pane.append(style, queueToggle, slopeToggle, direction, removeToggle);
+        pane.append(style, queueToggle, removeToggle);
       }
       if (tab.scenery) {
         const category = element('select', 'scenery-category');

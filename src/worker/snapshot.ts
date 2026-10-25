@@ -146,6 +146,8 @@ export interface SnapshotEconomy {
   thisMonth: number[];
   lastMonth: number[];
   monthsCompleted: number;
+  /** Guests the park rating counts as lost: lost, stranded, or off the footpaths. */
+  lostGuests: number;
 }
 
 export interface SnapshotResearch {
@@ -220,6 +222,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
       thisMonth: new Array<number>(LedgerCategory.COUNT).fill(0),
       lastMonth: new Array<number>(LedgerCategory.COUNT).fill(0),
       monthsCompleted: 0,
+      lostGuests: 0,
     },
     research: {
       funding: 0,
@@ -446,6 +449,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   const ledger = world.economy;
   const economy = out.economy;
   economy.priceMode = ledger.priceMode;
+  economy.lostGuests = world.economy.inputs.lostGuests;
   economy.admissionPrice = ledger.admissionPrice;
   economy.maxLoan = ledger.maxLoan;
   economy.parkValue = ledger.parkValue;
