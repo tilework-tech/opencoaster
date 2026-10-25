@@ -231,7 +231,14 @@ describe('generated sprite catalogue', () => {
       expect(sprites.has(`scenery/park-entrance/view-${view}`)).toBe(true);
       expect(sprites.has(`transport/log-flume/view-${view}`)).toBe(true);
       expect(sprites.has(`transport/river-rapids/view-${view}`)).toBe(true);
+      expect(sprites.has(`rides/water/log-flume/track/flat/view-${view}/cell-0`)).toBe(true);
+      expect(sprites.has(`rides/water/river-rapids/track/flat/view-${view}/cell-0`)).toBe(true);
     }
+    for (const family of ['log-flume', 'river-rapids'])
+      for (let heading = 0; heading < 8; heading++)
+        expect(sprites.has(`rides/water/${family}/vehicles/car/flat/heading-${heading}`)).toBe(
+          true,
+        );
   });
 
   it('renders palm and cactus trees on a single tile with a centred bottom anchor', () => {

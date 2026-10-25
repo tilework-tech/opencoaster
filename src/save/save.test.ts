@@ -6,6 +6,7 @@ import { PieceId } from '../sim/track/catalog';
 import { SAVE_VERSION, deserialize, serialize } from './save';
 import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { RidePhase, RideState } from '../sim/rides/ride-store';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
@@ -18,7 +19,7 @@ import { PathStyle } from '../sim/map/tile-map';
 
 describe('save', () => {
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(18);
+    expect(SAVE_VERSION).toBe(19);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -26,7 +27,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(18);
+    expect(header.version).toBe(19);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -305,6 +306,46 @@ describe('save', () => {
   it('rejects garbage input', () => {
     expect(() => deserialize(new Uint8Array(32))).toThrow();
   });
+});
+
+describe('save: legacy flat water rides', () => {
+  it.each([RideType.LogFlume, RideType.RiverRapids])(
+    'loads version 18 %s closed and ready for track reconstruction',
+    (type) => {
+      const world = flatWorld(16);
+      const slot = world.rides.spawn();
+      const rideId = world.rides.slotToId[slot];
+      world.rides.cols.typeId[slot] = type;
+      world.rides.cols.state[slot] = RideState.Open;
+      world.rides.cols.phase[slot] = RidePhase.Running;
+      world.rides.cols.rideX[slot] = 12;
+      world.rides.cols.rideY[slot] = 14;
+      world.rides.cols.entrancePlaced[slot] = 1;
+      world.rides.cols.exitPlaced[slot] = 1;
+      world.rides.cols.queueConnected[slot] = 1;
+      world.rides.cols.queueLength[slot] = 5;
+      world.rides.cols.boarded[slot] = 3;
+      world.rides.cols.tested[slot] = 1;
+      world.rides.cols.excitement[slot] = 620;
+      const legacy = withoutColumns(serialize(world), 18, allWorldViews(world), []);
+
+      const loaded = deserialize(legacy);
+      const ride = loaded.rides.idToSlot[rideId];
+
+      expect(loaded.rides.slotToId[ride]).toBe(rideId);
+      expect(loaded.rides.cols.typeId[ride]).toBe(type);
+      expect(loaded.rides.cols.state[ride]).toBe(RideState.Closed);
+      expect(loaded.rides.cols.phase[ride]).toBe(RidePhase.Closed);
+      expect(loaded.rides.cols.entrancePlaced[ride]).toBe(0);
+      expect(loaded.rides.cols.exitPlaced[ride]).toBe(0);
+      expect(loaded.rides.cols.queueConnected[ride]).toBe(0);
+      expect(loaded.rides.cols.queueLength[ride]).toBe(0);
+      expect(loaded.rides.cols.boarded[ride]).toBe(0);
+      expect(loaded.rides.cols.tested[ride]).toBe(0);
+      expect(loaded.rides.cols.excitement[ride]).toBe(0);
+      expect(loaded.economy.cash).toBe(world.economy.cash);
+    },
+  );
 });
 
 describe('save: campaign vouchers', () => {

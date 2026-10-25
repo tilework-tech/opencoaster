@@ -54,6 +54,7 @@ describe('track catalog', () => {
       'largeRightBanked',
       'verticalLoopLeft',
       'verticalLoopRight',
+      'waterSplashDrop',
     ]) {
       expect(pieceByName(n), n).toBeDefined();
     }
@@ -62,6 +63,13 @@ describe('track catalog', () => {
   it('assigns dense ids matching table position', () => {
     PIECES.forEach((p, i) => expect(p.id).toBe(i));
     expect(PieceId.Station).toBe(pieceByName('station')!.id);
+  });
+
+  it('defines the water splash drop as a descending track element', () => {
+    const splash = pieceByName('waterSplashDrop');
+    expect(splash).toBeDefined();
+    expect(splash?.entrySlope).toBe(Slope.Flat);
+    expect(splash?.exitSlope).toBe(Slope.Down25);
   });
 
   it('starts every piece at the entry point heading +x at its entry slope and bank', () => {
@@ -251,7 +259,8 @@ describe('corkscrew, helix, S-bend and banked slope pieces', () => {
   it('keeps piece ids stable: new pieces are appended after the original 34', () => {
     expect(PieceId.VerticalLoopRight).toBe(33);
     expect(PieceId.SBendLeft).toBe(34);
-    expect(PIECES.length).toBe(66);
+    expect(PieceId.WaterSplashDrop).toBe(66);
+    expect(PIECES.length).toBe(67);
   });
 
   it('evaluates sine and cosine without Math.sin so tables match on every engine', () => {

@@ -24,6 +24,7 @@ export const enum PieceMode {
   Brake = 2,
   BlockBrake = 3,
   Launch = 4,
+  WaterLift = 5,
 }
 
 /** Static per-piece-type capability flags. */
@@ -36,6 +37,7 @@ export const enum PieceFlag {
   Crest = 1 << 5,
   DropStart = 1 << 6,
   LaunchOk = 1 << 7,
+  WaterSplash = 1 << 8,
 }
 
 /** Outcome of validating or applying a track edit. */
@@ -90,7 +92,8 @@ export type PieceShape =
   | 'largeHelixLeftDown'
   | 'largeHelixRightDown'
   | 'largeHelixLeftUp'
-  | 'largeHelixRightUp';
+  | 'largeHelixRightUp'
+  | 'waterSplashDrop';
 
 /** A placeable track piece type; geometry lives in the shared sample table (see catalog.ts). */
 export interface TrackPieceDef {

@@ -596,6 +596,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     4,
     16,
     8,
+    {
+      usesTrack: true,
+      allowedPieces: [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 66],
+      maxLevel: 24,
+    },
   ),
   [RideType.RiverRapids]: addedRide(
     RideType.RiverRapids,
@@ -609,6 +614,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     4,
     17,
     10,
+    {
+      usesTrack: true,
+      allowedPieces: [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 66],
+      maxLevel: 16,
+    },
   ),
   [RideType.MiniatureRailway]: addedRide(
     RideType.MiniatureRailway,

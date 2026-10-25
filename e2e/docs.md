@@ -18,7 +18,7 @@ Path: @/e2e
 ### Core Implementation
 
 - [starter-playtest.spec.ts](starter-playtest.spec.ts) starts Starter Park, hires staff, places and completes a flat ride, sets park admission pricing, and creates, exports, imports, and loads a named save. It confirms staff and ride state after restoration.
-- [starter-ride-access.spec.ts](starter-ride-access.spec.ts) runs the ride-access flow on desktop and emulated Pixel 8: it builds and opens a flat ride, places and opens a food stall, then builds, tests, and opens a coaster before checking guest use. A separate desktop case verifies that repeating a ride type starts entrance setup on the newly created ride and exposes its missing access checklist.
+- [starter-ride-access.spec.ts](starter-ride-access.spec.ts) runs ride-access flows on desktop and emulated Pixel 8: the shared flow builds and opens a flat ride and food stall, then builds, tests, and opens a coaster and checks guest use. Additional desktop runs cover Wooden, Junior, and Wild Mouse coaster families, rotate the view through all four orientations, and capture screenshots. A Log Flume flow constructs a water track with a powered climb and splash drop, tests and opens it, then checks that guests ride. A separate desktop case verifies that repeating a ride type starts entrance setup on the newly created ride and exposes its missing access checklist.
 - [scenario-selection.spec.ts](scenario-selection.spec.ts) checks scenario tabs and previews, plus persistence of completed-park status across reloads.
 - When enabled with `E2E_RUN_YEAR=1`, the final stage runs at 4× speed until the year-one outcome dialog appears and captures whether the objective was met or missed.
 - The playtest exposed a camera offset that left 64×64 Starter Park mis-centered in the default 128×128 view. The map callback now centers the camera from the loaded map dimensions.
@@ -32,7 +32,7 @@ Path: @/e2e
 
 - The UI exposes stall placement, covered by the desktop and Pixel 8 ride-access playthroughs; ride and stall pricing controls remain unavailable. Park admission pricing is still exercised by the Starter Park playtest.
 - `pnpm e2e` runs against the Vite development server and does not build the app. The Starter Park save round-trip completes without advancing a full year; set `E2E_RUN_YEAR=1` to opt into the longer year-one objective outcome run.
-- Screenshot filenames encode the sequence and are stored under Playwright’s test output directory rather than committed as repository assets.
+- Screenshot filenames encode the sequence and are stored under Playwright’s test output directory rather than committed as repository assets. The Starter Park ride-access runs attach their screenshots to the Playwright report for review.
 - Mobile profiles and SwiftShader are browser emulation; their screenshots and FPS samples verify the browser integration path but do not characterize physical phone GPU performance.
 
 - `mobile.spec.ts` runs at a 390 px phone viewport with touch: it checks the scrolling toolbar, stacked bottom sheets, a 44 px minimum for every visible control, and tap-to-build.

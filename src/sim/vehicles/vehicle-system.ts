@@ -36,6 +36,7 @@ const HOLD_BRAKE_DECEL_Q8 = 320;
 const ARRIVAL_CREEP_Q8 = 128;
 const DRAG_DIVISOR = 1 << 22;
 const LIFT_SPEED_Q8 = 1280;
+const WATER_CURRENT_SPEED_Q8 = 768;
 const LAUNCH_SPEED_Q8 = 4096;
 const LAUNCH_ACCEL_Q8 = 96;
 const BRAKE_SPEED_Q8 = 512;
@@ -121,9 +122,12 @@ function sampleForces(
 }
 
 function controlSpeed(flags: number, speed: number, timeQ8 = Q8, arriving = false): number {
+  if (flags & VehicleSegmentFlag.WaterCurrent && !(flags & VehicleSegmentFlag.StationDrive))
+    speed = Math.max(speed, WATER_CURRENT_SPEED_Q8);
   if (flags & VehicleSegmentFlag.StationDrive && !arriving)
     return Math.max(speed, STATION_DRIVE_Q8);
   if (flags & VehicleSegmentFlag.ChainLift) return Math.max(speed, LIFT_SPEED_Q8);
+  if (flags & VehicleSegmentFlag.WaterLift) return Math.max(speed, LIFT_SPEED_Q8);
   if (flags & VehicleSegmentFlag.Launch) {
     return Math.min(LAUNCH_SPEED_Q8, speed + Math.trunc((LAUNCH_ACCEL_Q8 * timeQ8) / Q8));
   }

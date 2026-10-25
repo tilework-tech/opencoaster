@@ -4,14 +4,14 @@ import { RideInfo, RIDE_INFO_STRIDE, SNAPSHOT_STRIDE } from '../worker/snapshot'
 import type { Snapshot } from '../worker/snapshot';
 import {
   carSpriteKey,
-  coasterFamily,
+  trackedRideFamily,
   supportStack,
   trackCellSprites,
   transportCarSpriteKey,
   transportFamily,
   transportTrackCells,
 } from './coaster-art';
-import type { CoasterFamily, TransportFamily } from './coaster-art';
+import type { CoasterFamily, TrackRideFamily, TransportFamily } from './coaster-art';
 import type { MapData } from './renderer';
 import type { Rotation } from './projection';
 
@@ -48,7 +48,7 @@ const CAR_OFFSET = 1.5;
 export class CoasterScene {
   readonly items: CoasterDrawItem[] = [];
   private count = 0;
-  private readonly families = new Map<number, CoasterFamily>();
+  private readonly families = new Map<number, TrackRideFamily>();
   private readonly transports = new Map<number, TransportFamily>();
 
   get length(): number {
@@ -83,7 +83,7 @@ export class CoasterScene {
       const o = i * RIDE_INFO_STRIDE;
       const type = snapshot.rideInfo[o + RideInfo.Type];
       const id = snapshot.rideInfo[o + RideInfo.Id];
-      const family = coasterFamily(type);
+      const family = trackedRideFamily(type);
       const transport = transportFamily(type);
       if (family) this.families.set(id, family);
       else if (transport) this.transports.set(id, transport);
@@ -118,7 +118,7 @@ export class CoasterScene {
         const y = tileY * TILE_UNITS + TILE_UNITS / 2;
         const depth = tileDepth(x, y, map, rotation);
         this.push(cells[c].key, x, y, z, depth + TRACK_OFFSET);
-        if (family)
+        if (family && family !== 'log-flume' && family !== 'river-rapids')
           this.addSupports(pieceType, c, family, dir, rotation, map, tileX, tileY, z, depth);
       }
     }

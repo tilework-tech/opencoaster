@@ -5,7 +5,7 @@ import { MAX_TRACK_RIDES } from '../track/track-store';
 import { PieceFlag, PieceMode } from '../track/track-types';
 import type { TrackPath } from '../track/track-path';
 import { RIDE_CATALOG } from '../rides/ride-types';
-import type { RideType } from '../rides/ride-types';
+import { RideType } from '../rides/ride-types';
 import { CREST_CRASH_SPEED_Q8, DROP_CRASH_SPEED_Q8 } from './speed-units';
 import { measureTrackElements, NO_TRACK_ELEMENTS } from './track-elements';
 import type { TrackElementStats } from './vehicle-ratings';
@@ -21,6 +21,8 @@ export const enum VehicleSegmentFlag {
   Inversion = 1 << 7,
   /** Every segment of a station piece; the drive that moves a dispatched train out. */
   StationDrive = 1 << 8,
+  WaterLift = 1 << 9,
+  WaterCurrent = 1 << 10,
 }
 
 export interface VehicleTrackInput {
@@ -122,6 +124,8 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
   const invertedSegments = new Uint8Array(segmentCount);
   const pieceCols = world.track.pieces.cols;
   let currentPiece = -1;
+  const rideType = world.rides.cols.typeId[world.rides.idToSlot[path.rideId]];
+  const waterRide = rideType === RideType.LogFlume || rideType === RideType.RiverRapids;
   let entryTx = 0;
   let entryTy = 0;
   let entryTz = 0;
@@ -130,6 +134,7 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     const pieceSlot = world.track.pieces.idToSlot[pieceId];
     const pieceDef = PIECES[pieceCols.pieceType[pieceSlot]];
     const firstPieceSegment = pieceId !== currentPiece;
+    if (waterRide) segmentFlags[segment] |= VehicleSegmentFlag.WaterCurrent;
     const mode = pieceCols.mode[pieceSlot];
     if (firstPieceSegment) {
       currentPiece = pieceId;
@@ -138,6 +143,7 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
       entryTz = path.tz[segment];
     }
     if (mode === PieceMode.ChainLift) segmentFlags[segment] |= VehicleSegmentFlag.ChainLift;
+    if (mode === PieceMode.WaterLift) segmentFlags[segment] |= VehicleSegmentFlag.WaterLift;
     if (mode === PieceMode.Brake) segmentFlags[segment] |= VehicleSegmentFlag.Brake;
     if (mode === PieceMode.BlockBrake) segmentFlags[segment] |= VehicleSegmentFlag.Block;
     if (mode === PieceMode.Launch) segmentFlags[segment] |= VehicleSegmentFlag.Launch;
