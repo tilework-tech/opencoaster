@@ -40,6 +40,8 @@ The following is the vanilla toolbar sequence in left-to-right functional order.
 
 The bottom status blocks and news strip are separate from the top toolbar. Do not merge them into a single modern navbar if the goal is visual and interaction fidelity.
 
+OpenCoaster's narrow-screen adaptation uses an **Actions** menu to expose the toolbar controls together. At 412 px, Pause, Footpaths, New ride, Rides, Finances, Staff, Park, and Save / Load are labeled and reachable after one menu action, with touch targets at least 44×44 CSS px. The park viewport keeps its pan, zoom, and pinch gestures. This is an OpenCoaster usability adaptation, not a claim about the desktop-oriented RCT2 toolbar.
+
 ## Window and tab inventory
 
 The source manual documents the following park-play windows. A tab can be conditional on ride type or scenario state; the listed inventory is not a claim that every tab is visible in every park.

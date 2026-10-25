@@ -106,7 +106,7 @@ let ridePlacement: { rideId: number; part: 'entrance' | 'exit' } | null = null;
 let rideHover: [number, number] | null = null;
 let ridePlacementCommandPending = false;
 let ridePlacementFeedbackSeq = -1;
-let pendingRideCreation: { rideCount: number; rideType: number } | null = null;
+let pendingRideCreation: { rideIds: number[]; rideType: number } | null = null;
 let openingStallRideId: number | null = null;
 let stallFrontTile: [number, number] | null = null;
 let rideSetupNotice: string | null = null;
@@ -748,8 +748,14 @@ function handleCanvasClick(
         ridePlacementCommandPending = true;
         ridePlacementFeedbackSeq = sim.latest?.feedback.seq ?? -1;
       } else {
+        const latest = sim.latest;
         pendingRideCreation = {
-          rideCount: sim.latest?.rides.count ?? 0,
+          rideIds: latest
+            ? Array.from(
+                { length: latest.rides.count },
+                (_, index) => latest.rideInfo[index * RIDE_INFO_STRIDE + RideInfo.Id],
+              )
+            : [],
           rideType: coasterPanel.rideType,
         };
         gameUi.setToolStatus(coasterPanel.createRideAt(x, y));
@@ -934,8 +940,13 @@ function recordScenarioWin(scenarioId: string): void {
 }
 
 function advanceRideSetup(snapshot: NonNullable<typeof sim.latest>): void {
-  if (pendingRideCreation && snapshot.rides.count > pendingRideCreation.rideCount) {
-    const created = rideRow(snapshot, pendingRideCreation.rideType);
+  if (pendingRideCreation && snapshot.rides.count > pendingRideCreation.rideIds.length) {
+    const created = rideRow(
+      snapshot,
+      pendingRideCreation.rideType,
+      undefined,
+      pendingRideCreation.rideIds,
+    );
     pendingRideCreation = null;
     if (created !== null) {
       const type = snapshot.rideInfo[created * RIDE_INFO_STRIDE + RideInfo.Type];
@@ -1009,12 +1020,14 @@ function rideRow(
   snapshot: NonNullable<typeof sim.latest>,
   type?: number,
   rideId?: number,
+  excludedRideIds: readonly number[] = [],
 ): number | null {
   for (let index = 0; index < snapshot.rides.count; index++) {
     const offset = index * RIDE_INFO_STRIDE;
     if (
       (type === undefined || snapshot.rideInfo[offset + RideInfo.Type] === type) &&
-      (rideId === undefined || snapshot.rideInfo[offset + RideInfo.Id] === rideId)
+      (rideId === undefined || snapshot.rideInfo[offset + RideInfo.Id] === rideId) &&
+      !excludedRideIds.includes(snapshot.rideInfo[offset + RideInfo.Id]!)
     )
       return index;
   }

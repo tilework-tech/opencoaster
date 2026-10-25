@@ -33,7 +33,8 @@ async function mapTileClick(
   await page.waitForTimeout(50);
   const status = await page.locator('.tool-status').innerText();
   const actual = status.match(/(?:requested at| at) (\d+), (\d+)/);
-  if (actual) expect([Number(actual[1]), Number(actual[2])]).toEqual([x, y]);
+  expect(actual, `Expected a tile coordinate in tool status: ${status}`).not.toBeNull();
+  expect([Number(actual![1]), Number(actual![2])]).toEqual([x, y]);
 }
 
 async function centerMapOnTile(page: Page, x: number, y: number, mobile: boolean): Promise<void> {
@@ -118,7 +119,7 @@ async function playStarterRideAccess(
   mobile: boolean,
   testInfo: TestInfo,
 ): Promise<void> {
-  test.setTimeout(1_200_000);
+  test.setTimeout(600_000);
   page.setDefaultTimeout(8_000);
   await startStarterPark(page, mobile);
   const mapCenter: readonly [number, number] = [28, 43];
@@ -141,7 +142,7 @@ async function playStarterRideAccess(
 
   await toolbarAction(page, 'New ride', mobile);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
-  await page.getByRole('button', { name: /^Merry-Go-Round/ }).click();
+  await page.locator('.ride-card[data-ride-type="1"]').click();
   await mapTileClick(page, 27, 42, mapCenter, mobile);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   await expect(page.locator('.ride-placement-preview')).toBeVisible();
@@ -158,7 +159,7 @@ async function playStarterRideAccess(
     .locator('[data-panel="ride-list"] .list-row')
     .filter({ hasText: 'Merry-Go-Round' });
   await flatRide.click();
-  const flatWindow = page.locator('[data-panel^="ride-"]');
+  const flatWindow = page.locator('[data-panel="ride-0"]');
   await expect(flatWindow.locator('.ride-status')).toHaveText('Closed');
   await flatWindow.getByRole('button', { name: 'Open' }).click();
   await expect(flatWindow.locator('.ride-status')).toHaveText('Open');
@@ -281,4 +282,49 @@ test('new Starter Park builds and opens rides and a stall before guests ride (Pi
   const page = await context.newPage();
   await playStarterRideAccess(page, true, testInfo);
   await context.close();
+});
+
+test('starts entrance setup on the newly created ride when ride types repeat', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(8_000);
+  await startStarterPark(page, false);
+  const mapCenter: readonly [number, number] = [28, 43];
+  await toolbarAction(page, 'Footpaths', false);
+  for (const [x, y] of [
+    [26, 43],
+    [27, 43],
+    [28, 43],
+    [29, 43],
+  ])
+    await mapTileClick(page, x, y, mapCenter, false);
+
+  await toolbarAction(page, 'New ride', false);
+  await page.getByRole('tab', { name: 'Gentle rides' }).click();
+  await page.locator('.ride-card[data-ride-type="1"]').click();
+  await mapTileClick(page, 27, 42, mapCenter, false);
+  await placeStationPart(page, 'Place exit', false, mapCenter, [27, 43]);
+  await placeStationPart(page, 'Ride setup complete', false, mapCenter);
+  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+
+  await toolbarAction(page, 'New ride', false);
+  await page.getByRole('tab', { name: 'Gentle rides' }).click();
+  await page.locator('.ride-card[data-ride-type="1"]').click();
+  await mapTileClick(page, 29, 42, mapCenter, false);
+  await expect(page.locator('.tool-status')).toContainText('Place entrance');
+
+  await toolbarAction(page, 'Rides', false);
+  await page
+    .locator('[data-panel="ride-list"] .list-row')
+    .filter({ hasText: 'Merry-Go-Round' })
+    .last()
+    .click();
+  const duplicateWindow = page.locator('[data-panel="ride-1"]');
+  await expect(duplicateWindow.locator('.ride-checklist')).toContainText('No entrance');
+  await expect(duplicateWindow.locator('.ride-checklist')).toContainText('No exit');
+  await expect(
+    duplicateWindow.locator('.ride-checklist').getByRole('button', { name: 'Place entrance' }),
+  ).toBeVisible();
+  await expect(
+    duplicateWindow.locator('.ride-checklist').getByRole('button', { name: 'Place exit' }),
+  ).toBeVisible();
 });

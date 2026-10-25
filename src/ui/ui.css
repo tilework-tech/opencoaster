@@ -101,7 +101,7 @@
 }
 .ride-placement-targets {
   position: fixed;
-  z-index: 41;
+  z-index: 39;
   inset: 0;
   width: 100vw;
   height: 100dvh;
