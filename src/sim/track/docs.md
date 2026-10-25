@@ -62,7 +62,7 @@ Commands: `{ type: 'placeTrack', rideId, pieceType, x, y, z, dir, mode }` and `{
 
 `validatePlaceCommand` checks, in order:
 
-1. Ride-type rules from `RideTypeDef.trackRules` (`maxLevel`, `steepSlopes`, `inversions`, `launch`) -> `PieceNotAllowed`.
+1. Ride-type rules from `RideTypeDef.trackRules` (`maxLevel`, `steepSlopes`, `inversions`, `launch`, and optional `allowedPieces`) -> `PieceNotAllowed`. The Junior and Wild Mouse family lists are approximations and their full vanilla piece sets remain unverified.
 2. Geometry via `validatePlacement`.
 3. Ownership of every footprint tile via `map.canBuild` -> `NotOwned`.
 4. Funds -> `InsufficientFunds`.

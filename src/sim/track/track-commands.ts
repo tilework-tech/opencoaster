@@ -31,6 +31,9 @@ function checkRideRules(world: World, req: PlaceRequest): TrackResult {
   const rules =
     RIDE_CATALOG[world.rides.cols.typeId[world.rides.idToSlot[req.rideId]] as RideType]?.trackRules;
   if (!rules) return TrackResult.Ok;
+  if (rules.allowedPieces && !rules.allowedPieces.includes(req.pieceType)) {
+    return TrackResult.PieceNotAllowed;
+  }
   const steep =
     Math.abs(def.entrySlope) === Math.abs(Slope.Up60) ||
     Math.abs(def.exitSlope) === Math.abs(Slope.Up60);

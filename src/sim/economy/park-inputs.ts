@@ -53,7 +53,9 @@ export const parkInputsSystem: System = {
         });
       }
       if (ride.state[slot] !== RideState.Open) continue;
-      upkeep += Math.floor(definition.cost / (shop ? SHOP_UPKEEP_DIVISOR : RIDE_UPKEEP_DIVISOR));
+      upkeep +=
+        definition.runningCostPerFortnightCents ??
+        Math.floor(definition.cost / (shop ? SHOP_UPKEEP_DIVISOR : RIDE_UPKEEP_DIVISOR));
       if (!shop) {
         qualifying++;
         excitement += ride.excitement[slot];

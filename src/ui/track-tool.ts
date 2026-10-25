@@ -44,9 +44,16 @@ export function classifyPiece(piece: TrackPieceDef): TurnKind {
 const PIECE_TURNS: readonly TurnKind[] = PIECES.map(classifyPiece);
 
 /** The piece that matches the controls and attaches to the cursor, if the catalog has one. */
-export function resolvePiece(cursor: CursorShape, choice: PieceChoice): TrackPieceDef | undefined {
+export function resolvePiece(
+  cursor: CursorShape,
+  choice: PieceChoice,
+  rideType?: RideType,
+): TrackPieceDef | undefined {
+  const allowedPieces =
+    rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackRules?.allowedPieces;
   return PIECES.find(
     (piece, index) =>
+      (!allowedPieces || allowedPieces.includes(piece.id)) &&
       PIECE_TURNS[index] === choice.turn &&
       piece.exitSlope === choice.slope &&
       piece.exitBank === choice.bank &&
