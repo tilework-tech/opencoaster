@@ -787,7 +787,7 @@ export class Canvas2DRenderer implements Renderer {
     const t = this.tmp;
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
       project(d[o], d[o + 1], d[o + 2], map.width, map.height, cam.rotation, t);
-      if (!this.isVisible(t[0], t[1], cam, 3)) continue;
+      if (!this.isVisible(t[0], t[1], cam, GUEST_BOX.height)) continue;
       const metadata = d[o + 3];
       const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, (metadata >>> 16) & 0xff, tick >>> 2) - 40}`;
       if (

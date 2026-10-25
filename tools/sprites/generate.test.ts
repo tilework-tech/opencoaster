@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import { rideSpriteName } from '../../src/render/world-art';
 import { TRACK_ARTS, artPieces } from '../../src/render/coaster-art';
-import { buildSprites } from './generate';
+import { buildSprites, rideFitScale } from './generate';
 import { alignFrames } from './output';
 import { TRANSPARENT } from './raster';
 import { TRANSPORT_STYLES } from './models/transport';
@@ -99,6 +99,35 @@ describe('generated sprite catalogue', () => {
         expect(signatures.slice(1).every((signature) => signature !== signatures[0])).toBe(true);
       }
     }
+  });
+
+  it('enlarges flat rides that stop short of their tile edge without exceeding the tile width', () => {
+    const thrill = (name: string) =>
+      Object.values(RIDE_CATALOG).find((ride) => ride.name === name)!;
+    const width = (name: string) =>
+      sprites.get(`${rideSpriteName(thrill(name).id)}/view-0`)!.frames[0].width;
+    expect(width('Swinging Ship')).toBeGreaterThanOrEqual(54);
+    expect(width('Top Spin')).toBeGreaterThanOrEqual(54);
+    for (const ride of Object.values(RIDE_CATALOG)) {
+      if (ride.usesTrack || (ride.category !== 'gentle' && ride.category !== 'thrill')) continue;
+      expect(width(ride.name), ride.name).toBeLessThanOrEqual(66);
+    }
+  });
+
+  it('never shrinks a ride and caps how much it enlarges one', () => {
+    const slab = (half: number) => [
+      {
+        material: { ramp: [0, 1, 2, 3, 4] } as never,
+        v: [
+          [-half, -half, 0],
+          [half, -half, 0],
+          [half, half, 0],
+        ] as never,
+      },
+    ];
+    expect(rideFitScale([slab(0.4)])).toBeGreaterThan(1);
+    expect(rideFitScale([slab(0.1)])).toBeCloseTo(1.3);
+    expect(rideFitScale([slab(0.5)])).toBe(1);
   });
 
   it('uses the detailed Go-Karts circuit model with four animated poses', () => {

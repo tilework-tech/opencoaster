@@ -16,7 +16,7 @@
     "sprites:render": "tsx tools/sprites/cli.ts",
     "art:prepare": "tsx tools/art/prepare.ts && pnpm art:characters",
     "art:pack": "tsx tools/art/pack-cli.ts",
-    "art:characters": "tsx tools/art/process-sprites.ts --input tools/art/source/guest-walk.png --output public/sprites/people/guest-walk.png --name guest-walk --columns 4 --rows 4 --cell-size 16 --palette-variants 8 --mask-output .local/art-processing/guest-walk-mask.png && tsx tools/art/process-sprites.ts --input tools/art/source/staff-costumes.png --output public/sprites/people/staff-costumes.png --name staff-costumes --columns 4 --rows 4 --cell-size 16 --palette-variants 1",
+    "art:characters": "tsx tools/art/process-sprites.ts --input tools/art/source/guest-walk.png --output public/sprites/people/guest-walk.png --name guest-walk --columns 4 --rows 4 --cell-size 32 --palette-variants 8 --mask-output .local/art-processing/guest-walk-mask.png && tsx tools/art/process-sprites.ts --input tools/art/source/staff-costumes.png --output public/sprites/people/staff-costumes.png --name staff-costumes --columns 4 --rows 4 --cell-size 32 --palette-variants 1",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",

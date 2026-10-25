@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
+import { GUEST_BOX } from './sprite-layout';
 
 describe('sprite sheet processing', () => {
   it('writes a transparent 4 by 4 sheet and frame metadata from generated source art', async () => {
@@ -29,7 +30,7 @@ describe('sprite sheet processing', () => {
           '--rows',
           '4',
           '--cell-size',
-          '16',
+          '32',
           '--mask-output',
           maskPath,
         ],
@@ -53,8 +54,8 @@ describe('sprite sheet processing', () => {
         image: { height: number; width: number };
       };
       expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-      expect(png.readUInt32BE(16)).toBe(256);
-      expect(png.readUInt32BE(20)).toBe(128);
+      expect(png.readUInt32BE(16)).toBe(512);
+      expect(png.readUInt32BE(20)).toBe(256);
       expect(png[25]).toBe(6);
       const { data: pixels } = await sharp(imagePath)
         .ensureAlpha()
@@ -62,20 +63,34 @@ describe('sprite sheet processing', () => {
         .toBuffer({ resolveWithObject: true });
       expect(pixels.some((_, offset) => offset % 4 === 3 && pixels[offset] === 0)).toBe(true);
       expect(pixels.some((_, offset) => offset % 4 === 3 && pixels[offset] === 255)).toBe(true);
-      expect(metadata.image).toEqual({ width: 256, height: 128 });
-      expect(metadata.anchor).toEqual({ x: 8, y: 16 });
+      expect(metadata.image).toEqual({ width: 512, height: 256 });
+      expect(metadata.anchor).toEqual({ x: 16, y: 32 });
       expect(metadata.footprint).toEqual({ width: 1, height: 1 });
       expect(metadata.frames).toHaveLength(128);
       expect(metadata.frames[0]).toEqual({
         x: 0,
         y: 0,
-        width: 16,
-        height: 16,
+        width: 32,
+        height: 32,
         index: 0,
         direction: 'front',
         tint: 0,
         walkingFrame: 0,
       });
+      expect(GUEST_BOX).toEqual({ width: 32, height: 32 });
+      const figureHeights = metadata.frames.map((frame) => {
+        let top = frame.height;
+        let bottom = -1;
+        for (let y = 0; y < frame.height; y++)
+          for (let x = 0; x < frame.width; x++)
+            if (pixels[((frame.y + y) * metadata.image.width + frame.x + x) * 4 + 3] > 0) {
+              top = Math.min(top, y);
+              bottom = Math.max(bottom, y);
+            }
+        return bottom - top + 1;
+      });
+      expect(Math.min(...figureHeights)).toBeGreaterThanOrEqual(16);
+      expect(Math.max(...figureHeights)).toBeLessThanOrEqual(24);
       expect(existsSync(maskPath)).toBe(true);
       expect(existsSync(join(output, 'characters', 'guest-walk-mask.png'))).toBe(false);
     } finally {
