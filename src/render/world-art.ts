@@ -14,7 +14,7 @@ export function rideSpriteName(type: RideType): string {
   const slug = definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const group =
     definition.category === 'gentle' || definition.category === 'thrill'
-      ? 'flat-rides'
+      ? 'rides/flat'
       : definition.category === 'transport' || definition.category === 'water'
         ? 'transport'
         : 'stalls';

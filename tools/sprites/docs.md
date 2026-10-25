@@ -22,7 +22,7 @@ Path: @/tools/sprites
 - [models/paths.ts](models/paths.ts): tarmac, crazy paving, dirt and queue (with rails). 16 connection masks and 4 ramps per style; kerbs are drawn only on unconnected sides and no end caps are drawn so neighbours join seamlessly; surface patterns are periodic per tile.
 - [models/water.ts](models/water.ts): `water/surface`, a square 32x32 tile-space texture in eight frames that differ only by palette cycle (the renderer maps it onto the terrain mesh). The renderer, not this tool, draws the bank: it lowers the surface by `WATER_BANK.surfaceInset`, clips water where terrain is above it and shades by depth below the surface (foam line, shallows, deep water).
 - [models/ride-catalog.ts](models/ride-catalog.ts) combines shared ride meshes with detailed models. Flat rides use frame 0 for an empty idle pose and frames 1–8 for occupied operation; ride footprints are copied from the simulation catalog into the manifest.
-- Keys: `paths/<style>/connection-XX` (XX = hex connection mask, bit d = world direction d) and `paths/<style>/ramp-N` (rises toward direction N), `water/surface#frame`, `flat-rides/<slug>/view-N`, `stalls/<slug>/view-N`, and `transport/<slug>/view-N`.
+- Keys: `paths/<style>/connection-XX` (XX = hex connection mask, bit d = world direction d) and `paths/<style>/ramp-N` (rises toward direction N), `water/surface#frame`, `rides/flat/<slug>/view-N`, `stalls/<slug>/view-N`, and `transport/<slug>/view-N`.
 
 ### How to add a new model
 
