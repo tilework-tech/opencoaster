@@ -23,7 +23,7 @@ import {
   rideHutSpriteKey,
   waterFrameIndex,
 } from './world-art';
-import { terrainSurfaceSpriteName } from './world-art';
+import { scenerySpriteName, terrainSurfaceSpriteName } from './world-art';
 import type { PathSurface } from './world-art';
 import {
   clipTerrainTileTrianglesBelowHeight,
@@ -492,6 +492,21 @@ export class Canvas2DRenderer implements Renderer {
         cam.rotation,
         this.tmp,
       );
+      const treeKey =
+        definition.category === SceneryCategory.Trees ? scenerySpriteName(definition.sprite) : null;
+      const treeEntry = treeKey && this.atlas ? this.atlas.resolve(treeKey) : undefined;
+      const treeFrame = treeEntry?.frames[0];
+      if (treeEntry && treeFrame && this.atlas) {
+        const margin = Math.max(
+          treeFrame.width - treeEntry.anchor.x,
+          treeEntry.anchor.x,
+          treeFrame.height,
+        );
+        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, margin)) continue;
+        drawAnchoredSprite(ctx, this.atlas, treeKey!, this.tmp[0], this.tmp[1]);
+        this.visibleCount++;
+        continue;
+      }
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, definition.width)) continue;
       const crownHeight = Math.max(5, definition.height * Z_PIXELS * 0.55);
       if (definition.category === SceneryCategory.Trees) {

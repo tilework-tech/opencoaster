@@ -95,6 +95,40 @@ describe('Canvas2D fallback map art', () => {
     expect(render(map).arcs).toContain('#397b35');
   });
 
+  it('draws placed trees from the world atlas when its tree sprite is available', () => {
+    const map = flatMap();
+    map.sceneryElements = Int32Array.of(2, 2, 0, 0, SceneryItem.OakTree);
+    map.sceneryCount = 1;
+    const context = new RecordingContext();
+    const canvas = { getContext: () => context } as unknown as HTMLCanvasElement;
+    const renderer = new Canvas2DRenderer();
+    renderer.attach(canvas);
+    renderer.resize(800, 600, 1);
+    renderer.setMap(map);
+    const atlas: CanvasAtlas = new SpritePages();
+    atlas.install(
+      {
+        pages: [{ file: 'atlas/world-0.png', width: 256, height: 128, category: 'world' }],
+        categories: { world: { lazy: false, pages: [0] } },
+        sprites: {
+          'trees/tree-oak': {
+            category: 'world',
+            frames: [{ page: 0, x: 40, y: 0, width: 128, height: 105 }],
+            anchor: { x: 64, y: 105 },
+            footprint: { width: 1, height: 1 },
+          },
+        },
+      },
+      new Map([[0, {} as ImageBitmap]]),
+    );
+    (renderer as unknown as { atlas: CanvasAtlas }).atlas = atlas;
+
+    renderer.draw(null, { x: 0, y: 0, zoom: 1, rotation: 0 });
+
+    expect(context.spriteSources).toContain(40);
+    expect(context.arcs).toEqual([]);
+  });
+
   it('draws queue rails over queue paths', () => {
     const map = flatMap();
     map.pathElements = Int32Array.of(2, 2, 0, PathFlag.Queue, 0, PathStyle.Tarmac);
