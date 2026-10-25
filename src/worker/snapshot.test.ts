@@ -245,6 +245,8 @@ describe('render snapshot', () => {
     world.guests.cols.thought0[guest] = 6;
     world.guests.cols.thought1[guest] = 2;
     world.guests.cols.thoughtCursor[guest] = 2;
+    world.guests.cols.voucherKind[guest] = 3;
+    world.guests.cols.voucherTarget[guest] = 12;
     world.weather.kind = 3;
     const snapshot = createSnapshot({ guests: 4, staff: 0, vehicles: 0, litter: 0 });
 
@@ -253,6 +255,7 @@ describe('render snapshot', () => {
     expect(Array.from(snapshot.guestDetails.slice(0, 10))).toEqual([
       177, 88, 43, 29, 17, 222, 3456, 2, 6, 2,
     ]);
+    expect(Array.from(snapshot.guestDetails.slice(17, 19))).toEqual([3, 12]);
     expect(snapshot.weather.kind).toBe(3);
     expect(snapshotBuffers(snapshot)).toContain(snapshot.guestDetails.buffer);
   });

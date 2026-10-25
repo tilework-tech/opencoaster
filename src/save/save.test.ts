@@ -8,6 +8,7 @@ import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/r
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
+import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
 import { StaffKind, StaffOrder, staffOrderEnabled, spawnStaff } from '../sim/staff/staff-store';
@@ -17,7 +18,7 @@ import { PathStyle } from '../sim/map/tile-map';
 
 describe('save', () => {
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(17);
+    expect(SAVE_VERSION).toBe(18);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -25,7 +26,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(17);
+    expect(header.version).toBe(18);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -306,6 +307,41 @@ describe('save', () => {
   });
 });
 
+describe('save: campaign vouchers', () => {
+  it('round trips the voucher each guest carries', () => {
+    const world = flatWorld(16);
+    const guest = guestAt(world, 4, 5);
+    world.guests.cols.voucherKind[guest] = VoucherKind.FreeFoodOrDrink;
+    world.guests.cols.voucherTarget[guest] = 9;
+
+    const loaded = deserialize(serialize(world));
+
+    expect(loaded.guests.cols.voucherKind[guest]).toBe(VoucherKind.FreeFoodOrDrink);
+    expect(loaded.guests.cols.voucherTarget[guest]).toBe(9);
+  });
+
+  it('loads version 17 guests as carrying no voucher', () => {
+    const world = flatWorld(16);
+    const guest = guestAt(world, 4, 5);
+    const views = [
+      ...world.map.arrays(),
+      ...world.guests.arrays(),
+      ...world.staff.arrays(),
+      ...world.vehicles.arrays(),
+      ...world.litter.arrays(),
+      ...world.rides.arrays(),
+      ...world.track.pieces.arrays(),
+      ...world.track.rideTables(),
+    ];
+    const oldSave = withoutColumns(serialize(world), 17, views, []);
+
+    const loaded = deserialize(oldSave);
+
+    expect(loaded.guests.cols.voucherKind[guest]).toBe(VoucherKind.None);
+    expect(loaded.guests.cols.voucherTarget[guest]).toBe(-1);
+  });
+});
+
 describe('save: guest history and satiation migration', () => {
   it.each([8, 9, 10, 11])(
     'migrates version %s guest columns and hunger/thirst scale',
@@ -583,6 +619,7 @@ function withoutColumns(
       : []),
     ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
     ...(version < 17 ? [newWorld.map.pathStyle] : []),
+    ...(version < 18 ? [newWorld.guests.cols.voucherKind, newWorld.guests.cols.voucherTarget] : []),
   ];
   const absentSet = new Set([
     ...absent,

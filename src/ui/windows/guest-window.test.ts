@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { filterGuestSummary, orderedHistory } from './guest-window';
+import { VoucherKind } from '../../sim/economy/vouchers';
+import { filterGuestSummary, orderedHistory, voucherText } from './guest-window';
+
+describe('guest vouchers', () => {
+  it('names the ride or stall a carried voucher is for', () => {
+    expect(voucherText(VoucherKind.FreeRide, 'Merry-Go-Round #3')).toBe(
+      'Voucher: free ride on Merry-Go-Round #3',
+    );
+    expect(voucherText(VoucherKind.FreeFoodOrDrink, 'Burger Stall #7')).toBe(
+      'Voucher: free food or drink at Burger Stall #7',
+    );
+  });
+
+  it('says so when the guest carries no voucher', () => {
+    expect(voucherText(VoucherKind.None, 'nothing')).toBe('Carrying no vouchers.');
+  });
+});
 
 describe('guest summary filters', () => {
   const guests = [

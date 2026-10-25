@@ -64,6 +64,34 @@ describe('campaign commands with targets', () => {
     expect(world.economy.campaignWeeksLeft).toBe(0);
   });
 
+  it('accepts any food or drink stall as the target of a food offer', () => {
+    const world = flatWorld(16, 3);
+    const burgerId = createRide(world, RideType.BurgerStall, 4, 4);
+    expect(
+      applyEconomyCommand(world, {
+        type: 'startCampaign',
+        campaignId: FOOD_OFFER,
+        weeks: 2,
+        targetId: burgerId,
+      }),
+    ).toBe(EconomyResult.Ok);
+    expect(world.economy.campaignTarget).toBe(burgerId);
+  });
+
+  it('refuses an information kiosk as the target of a food offer', () => {
+    const world = flatWorld(16, 3);
+    const kioskId = createRide(world, RideType.InformationKiosk, 4, 4);
+    expect(
+      applyEconomyCommand(world, {
+        type: 'startCampaign',
+        campaignId: FOOD_OFFER,
+        weeks: 2,
+        targetId: kioskId,
+      }),
+    ).toBe(EconomyResult.NotAFoodOrDrinkStall);
+    expect(world.economy.campaignWeeksLeft).toBe(0);
+  });
+
   it('refuses a stall as the ride target of a ride campaign', () => {
     const world = flatWorld(16, 3);
     const stallId = createRide(world, RideType.FoodStall, 4, 4);

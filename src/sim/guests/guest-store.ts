@@ -84,6 +84,10 @@ export const GUEST_SCHEMA = {
   litterMemory: Uint16Array,
   /** Ticks remaining before this guest stops being angry. */
   angriness: Uint16Array,
+  /** `VoucherKind` of the voucher the guest carries; zero when it carries none. */
+  voucherKind: Uint8Array,
+  /** Ride or stall the carried voucher names, or -1. */
+  voucherTarget: Int32Array,
 } as const;
 
 export function recordRideHistory(w: World, slot: number, rideId: number): void {
@@ -150,5 +154,7 @@ export function spawnGuest(w: World): boolean {
   g.cols.visitTicks[slot] = 0;
   g.cols.ridesTaken[slot] = 0;
   g.cols.lastRide[slot] = -1;
+  g.cols.voucherKind[slot] = 0;
+  g.cols.voucherTarget[slot] = -1;
   return true;
 }

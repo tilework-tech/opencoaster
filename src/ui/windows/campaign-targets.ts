@@ -1,5 +1,6 @@
 import { isShopCategory } from '../../sim/rides/ride-operations';
-import { RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
+import { RIDE_CATALOG } from '../../sim/rides/ride-types';
+import type { RideType } from '../../sim/rides/ride-types';
 import { EconomyResult } from '../../sim/economy/actions';
 import { RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 
@@ -30,7 +31,7 @@ export function isPromotableRide(type: RideType): boolean {
 }
 
 export function isFoodOrDrinkStall(type: RideType): boolean {
-  return type === RideType.FoodStall || type === RideType.DrinkStall;
+  return RIDE_CATALOG[type]?.serves !== undefined;
 }
 
 /** The rides in a snapshot roster, as `RideInfo` rows, filtered by an eligibility rule. */

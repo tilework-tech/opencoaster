@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hashWorld } from '../core/hash';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
+import { VoucherKind } from '../economy/vouchers';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
 import { RideType } from '../rides/ride-types';
 import { rideQueueSystem } from '../rides/queue-system';
@@ -562,5 +563,108 @@ describe('determinism', () => {
     run(first, 1500);
     run(second, 1500);
     expect(hashWorld(first)).toBe(hashWorld(second));
+  });
+});
+
+describe('campaign vouchers', () => {
+  /** One guest arrives at the gate, under a campaign granting `kind` to `target`. */
+  function admitUnder(kind: VoucherKind, target: number, fee: number): World {
+    const w = flatWorld(16);
+    layPath(w, row(5, 2, 9));
+    expect(setParkEntrance(w, 2, 5)).toBe(true);
+    const admission = () => ({ parkRating: 1000, entranceFee: fee, voucher: { kind, target } });
+    createGuestSystem(admission).update(w);
+    expect(w.guests.count).toBe(1);
+    return w;
+  }
+
+  it('lets a free park-entry voucher in for nothing and uses it up at the gate', () => {
+    const w = admitUnder(VoucherKind.FreeEntry, -1, 300);
+    expect(w.economy.monthlyTotals[LedgerCategory.Admission]).toBe(0);
+    expect(w.guests.cols.voucherKind[0]).toBe(VoucherKind.None);
+  });
+
+  it('halves the gate fee for a half-price park-entry voucher', () => {
+    const w = admitUnder(VoucherKind.HalfPriceEntry, -1, 301);
+    expect(w.economy.monthlyTotals[LedgerCategory.Admission]).toBe(150);
+    expect(w.guests.cols.voucherKind[0]).toBe(VoucherKind.None);
+  });
+
+  it('charges the full gate fee to a guest the campaign carries no voucher for', () => {
+    const w = admitUnder(VoucherKind.None, -1, 300);
+    expect(w.economy.monthlyTotals[LedgerCategory.Admission]).toBe(300);
+  });
+
+  it('carries a free ride voucher with the guest, naming the ride it is for', () => {
+    const w = admitUnder(VoucherKind.FreeRide, 7, 0);
+    expect(w.guests.cols.voucherKind[0]).toBe(VoucherKind.FreeRide);
+    expect(w.guests.cols.voucherTarget[0]).toBe(7);
+  });
+
+  it('rides the named ride for nothing and spends the voucher', () => {
+    const { w, ride } = corridorWithRide();
+    const id = w.rides.slotToId[ride];
+    w.economy.priceMode = PriceMode.PerRide;
+    w.rides.cols.price[ride] = 150;
+    const slot = guestAt(w, 2, 5);
+    w.guests.cols.happiness[slot] = 255;
+    w.guests.cols.voucherKind[slot] = VoucherKind.FreeRide;
+    w.guests.cols.voucherTarget[slot] = id;
+    const cash = w.guests.cols.cash[slot];
+    runUntil(w, () => w.guests.cols.state[slot] === GuestState.Riding);
+    expect(w.guests.cols.cash[slot]).toBe(cash);
+    expect(w.economy.monthlyTotals[LedgerCategory.RideTickets]).toBe(0);
+    expect(w.guests.cols.voucherKind[slot]).toBe(VoucherKind.None);
+  });
+
+  it('keeps a free ride voucher that names a different ride and pays the fare', () => {
+    const { w, ride } = corridorWithRide();
+    const id = w.rides.slotToId[ride];
+    w.economy.priceMode = PriceMode.PerRide;
+    w.rides.cols.price[ride] = 150;
+    const slot = guestAt(w, 2, 5);
+    w.guests.cols.happiness[slot] = 255;
+    w.guests.cols.voucherKind[slot] = VoucherKind.FreeRide;
+    w.guests.cols.voucherTarget[slot] = id + 100;
+    const cash = w.guests.cols.cash[slot];
+    runUntil(w, () => w.guests.cols.state[slot] === GuestState.Riding);
+    expect(w.guests.cols.cash[slot]).toBe(cash - 150);
+    expect(w.guests.cols.voucherKind[slot]).toBe(VoucherKind.FreeRide);
+    expect(w.guests.cols.voucherTarget[slot]).toBe(id + 100);
+  });
+
+  it.each([
+    ['food stall', RideType.FoodStall],
+    ['burger stall', RideType.BurgerStall],
+  ])('feeds a guest holding a food voucher at the named %s for nothing', (_label, type) => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 20));
+    const stall = openRide(w, type, [9, 4], [9, 5], [10, 4]);
+    const id = w.rides.slotToId[stall];
+    const slot = guestAt(w, 4, 5);
+    const g = w.guests.cols;
+    g.hunger[slot] = 10;
+    g.thirst[slot] = 200;
+    g.voucherKind[slot] = VoucherKind.FreeFoodOrDrink;
+    g.voucherTarget[slot] = id;
+    const cash = g.cash[slot];
+    runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
+    expect(g.hunger[slot]).toBeGreaterThan(170);
+    expect(g.cash[slot]).toBe(cash);
+    expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkSales]).toBe(0);
+    expect(g.voucherKind[slot]).toBe(VoucherKind.None);
+  });
+
+  it('walks a hungry guest to a burger stall, which serves food rather than drink', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 20));
+    const stall = openRide(w, RideType.BurgerStall, [9, 4], [9, 5], [10, 4]);
+    const slot = guestAt(w, 4, 5);
+    const g = w.guests.cols;
+    g.hunger[slot] = 10;
+    g.thirst[slot] = 200;
+    runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
+    expect(g.hunger[slot]).toBeGreaterThan(170);
+    expect(g.thirst[slot]).toBeGreaterThan(150);
   });
 });

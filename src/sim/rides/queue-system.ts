@@ -4,6 +4,8 @@ import { TILE_UNITS } from '../core/constants';
 import { earn, ridePricingEnabled } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
 import { GuestState, recordRideHistory } from '../guests/guest-store';
+import { spendVoucher } from '../guests/vouchers';
+import { VoucherKind } from '../economy/vouchers';
 import { RidePhase } from './ride-store';
 import { addRideIncome } from './ride-operations';
 import { RIDE_CATALOG } from './ride-types';
@@ -38,7 +40,9 @@ export function seatQueuedGuests(world: World, slot: number, count: number, tag:
   let seated = 0;
   for (let g = 0; g < world.guests.count && seated < count; g++) {
     if (guests.state[g] !== GuestState.Waiting || guests.targetRide[g] !== id) continue;
-    const fare = Math.min(price, guests.cash[g]);
+    const fare = spendVoucher(world, g, id, VoucherKind.FreeRide)
+      ? 0
+      : Math.min(price, guests.cash[g]);
     guests.cash[g] -= fare;
     if (fare > 0) {
       earn(world, LedgerCategory.RideTickets, fare);

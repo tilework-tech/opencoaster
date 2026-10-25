@@ -1,4 +1,5 @@
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
+import { VoucherKind } from '../../sim/economy/vouchers';
 import { TILE_UNITS } from '../../sim/core/constants';
 import { RideInfo, RIDE_INFO_STRIDE, GUEST_DETAIL_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
@@ -83,6 +84,13 @@ export function guestDetailsText(details: GuestDetails): string {
     'Thoughts',
     ...(thoughts.length ? thoughts : ['No recent thoughts']),
   ].join('\n');
+}
+
+/** Describes the voucher a guest carries and the ride or stall it names. */
+export function voucherText(kind: number, targetName: string): string {
+  if (kind === VoucherKind.FreeRide) return `Voucher: free ride on ${targetName}`;
+  if (kind === VoucherKind.FreeFoodOrDrink) return `Voucher: free food or drink at ${targetName}`;
+  return 'Carrying no vouchers.';
 }
 
 export function guestSelectionText(details: string, tick: number): string {
@@ -288,6 +296,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
     energy: gauge('Energy'),
   };
   const cash = statRow('Cash');
+  const voucher = element('p', 'ui-help', 'Carrying no vouchers.');
   const thoughts = element('ul', 'thought-list');
   thoughts.setAttribute('aria-label', 'Guest thoughts');
   const rides = element('ul', 'guest-ride-history');
@@ -308,7 +317,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
     win.pane('rides').append(rides);
     win.pane('cash').append(cash.row);
     win.pane('thoughts').append(thoughts);
-    win.pane('items').append(element('p', 'ui-help', 'Guest belongings are not tracked yet.'));
+    win.pane('items').append(voucher);
   }
   let signature = '';
   return {
@@ -339,6 +348,15 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       gauges.nausea.set((data[offset + 4] ?? 0) / NEED_MAX, String(data[offset + 4] ?? 0));
       gauges.energy.set((data[offset + 5] ?? 0) / NEED_MAX, String(data[offset + 5] ?? 0));
       setText(cash.value, formatMoney(data[offset + 6] ?? 0));
+      const voucherKind = data[offset + 17] ?? 0;
+      const voucherTarget = data[offset + 18] ?? -1;
+      setText(
+        voucher,
+        voucherText(
+          voucherKind,
+          voucherTarget >= 0 ? rideName(snapshot, voucherTarget) : 'nothing',
+        ),
+      );
       const thoughtsByTime = orderedHistory(
         data[offset + 7] ?? 0,
         Array.from({ length: 4 }, (_, i) => data[offset + 8 + i] ?? 0),
