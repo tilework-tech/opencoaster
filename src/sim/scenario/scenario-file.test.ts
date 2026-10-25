@@ -162,6 +162,31 @@ describe('parseScenarioFile', () => {
     expect(guestsWithRatingFloor.objective).toMatchObject({ target: 100, minimumRating: 700 });
   });
 
+  it('parses a highland band and a tree species list', () => {
+    const def = parseScenarioFile({
+      ...valid,
+      terrain: {
+        seaLevel: 3,
+        baseLevel: 6,
+        relief: 3,
+        cell: 8,
+        buildLevel: 7,
+        buildLength: 12,
+        buildWidth: 8,
+        highland: { surface: 'rock', level: 9 },
+      },
+      trees: { count: 40, groves: 3, species: ['palm', 'cactus'] },
+    });
+    expect(def.terrain?.highland).toEqual({ surface: 'rock', level: 9 });
+    expect(def.trees).toEqual({ count: 40, groves: 3, species: ['palm', 'cactus'] });
+  });
+
+  it('rejects an unknown tree species with the field path in the message', () => {
+    expect(() =>
+      parseScenarioFile({ ...valid, trees: { count: 5, groves: 1, species: ['baobab'] } }),
+    ).toThrow(/trees\.species/);
+  });
+
   it('defaults the entrance to none when the file omits it', () => {
     const rest: Record<string, unknown> = { ...valid };
     delete rest.entrance;

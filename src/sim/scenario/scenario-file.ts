@@ -1,7 +1,7 @@
 import { TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { Climate } from '../weather/weather';
-import { IMPORTED_ID, ObjectiveKind, SANDBOX_ID } from './scenario';
+import { IMPORTED_ID, ObjectiveKind, SANDBOX_ID, TREE_SPECIES } from './scenario';
 import { MAX_HEIGHT } from '../map/tile-map';
 import { buildApron, DEFAULT_LAND, ownedBounds } from './scenario-map';
 import { PREBUILT_TYPES } from './scenario-prebuilt';
@@ -11,12 +11,14 @@ import type {
   ScenarioCategory,
   ScenarioDef,
   ScenarioEntrance,
+  ScenarioHighland,
   ScenarioHill,
   ScenarioLake,
   ScenarioLand,
   ScenarioTerrain,
   ScenarioTrees,
   TerrainSurface,
+  TreeSpecies,
 } from './scenario';
 
 type Json = Record<string, unknown>;
@@ -90,6 +92,11 @@ const TERRAIN_SURFACES: Record<TerrainSurface, TerrainSurface> = {
   dirt: 'dirt',
   rock: 'rock',
 };
+
+const TREE_SPECIES_BY_NAME = Object.fromEntries(TREE_SPECIES.map((s) => [s, s])) as Record<
+  TreeSpecies,
+  TreeSpecies
+>;
 
 const MAX_TREES = 2000;
 const MAX_PREBUILT = 40;
@@ -279,6 +286,7 @@ function terrain(v: unknown, def: ScenarioDef): ScenarioTerrain {
     lakes: array(t.lakes ?? [], 'terrain.lakes').map((l, i) => lake(l, `terrain.lakes[${i}]`)),
     hills: array(t.hills ?? [], 'terrain.hills').map((h, i) => hill(h, `terrain.hills[${i}]`)),
   };
+  if (t.highland !== undefined) out.highland = highland(t.highland);
   if (def.entrance === undefined)
     throw new Error('terrain needs an entrance to orient the build apron');
   const owned = ownedBounds(def.mapWidth, def.mapHeight, def.land);
@@ -287,6 +295,14 @@ function terrain(v: unknown, def: ScenarioDef): ScenarioTerrain {
     throw new Error('terrain build apron must fit inside the owned land');
   }
   return out;
+}
+
+function highland(v: unknown): ScenarioHighland {
+  const h = object(v, 'terrain.highland');
+  return {
+    surface: oneOf(h.surface, 'terrain.highland.surface', TERRAIN_SURFACES),
+    level: integer(h.level, 'terrain.highland.level', 1, MAX_HEIGHT - 4),
+  };
 }
 
 function lake(v: unknown, path: string): ScenarioLake {
@@ -312,10 +328,16 @@ function hill(v: unknown, path: string): ScenarioHill {
 
 function trees(v: unknown): ScenarioTrees {
   const t = object(v, 'trees');
-  return {
+  const out: ScenarioTrees = {
     count: integer(t.count, 'trees.count', 0, MAX_TREES),
     groves: integer(t.groves, 'trees.groves', 1, 100),
   };
+  if (t.species !== undefined) {
+    const species = array(t.species, 'trees.species');
+    if (species.length === 0) throw new Error('trees.species must list at least one species');
+    out.species = species.map((s) => oneOf(s, 'trees.species', TREE_SPECIES_BY_NAME));
+  }
+  return out;
 }
 
 function prebuilt(v: unknown, def: ScenarioDef): PrebuiltRide[] {

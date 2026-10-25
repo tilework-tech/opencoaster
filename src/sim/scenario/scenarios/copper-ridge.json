@@ -43,7 +43,7 @@
     "baseLevel": 8,
     "relief": 5,
     "cell": 10,
-    "surface": "dirt",
+    "surface": "grass",
     "buildLevel": 9,
     "buildLength": 48,
     "buildWidth": 35,
@@ -69,7 +69,11 @@
         "radius": 10,
         "height": 4
       }
-    ]
+    ],
+    "highland": {
+      "surface": "dirt",
+      "level": 10
+    }
   },
   "land": {
     "ownedMarginPercent": 22,

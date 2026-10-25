@@ -177,6 +177,20 @@ describe('generated sprite catalogue', () => {
     }
   });
 
+  it('renders palm and cactus trees on a single tile with a centred bottom anchor', () => {
+    for (const key of ['trees/tree-palm', 'trees/tree-cactus']) {
+      const sprite = sprites.get(key);
+      expect(sprite, key).toBeDefined();
+      expect(sprite?.footprint).toEqual({ width: 1, height: 1 });
+      const [frame] = alignFrames(sprite!.frames);
+      expect(frame.anchor.x).toBe(frame.width / 2);
+      expect(frame.anchor.y).toBeGreaterThan(frame.height * 0.8);
+      expect(frame.height).toBeGreaterThan(80);
+      expect(frame.height).toBeLessThan(160);
+      expect(frame.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+    }
+  });
+
   it('generates transport track and vehicle keys matching the runtime family names', () => {
     for (const { style } of TRANSPORT_STYLES) {
       expect(sprites.has(`track/${style}/flat/view-0/cell-0`), style).toBe(true);

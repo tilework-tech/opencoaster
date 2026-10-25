@@ -35,7 +35,7 @@ describe('scenario strategies', () => {
   }
 
   it(
-    'opens every ride the script places, coasters included, within three months',
+    'opens every ride the script places, coasters included, within three months (a random breakdown does not count as unopened)',
     () => {
       const def = defs.find((d) => d.objective.kind === ObjectiveKind.CompleteCoasters);
       if (!def) throw new Error('no coaster scenario');
@@ -48,7 +48,8 @@ describe('scenario strategies', () => {
           if (month !== 3) return;
           total = world.rides.count;
           for (let s = 0; s < world.rides.count; s++) {
-            if (world.rides.cols.state[s] === RideState.Open) open++;
+            const state = world.rides.cols.state[s];
+            if (state === RideState.Open || state === RideState.Broken) open++;
           }
         },
       });

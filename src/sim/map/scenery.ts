@@ -17,6 +17,11 @@ export const enum SceneryItem {
   Hedge = 5,
   WoodenFence = 6,
   StoneFence = 7,
+  BirchTree = 8,
+  AutumnTree = 9,
+  TopiaryTree = 10,
+  PalmTree = 11,
+  CactusTree = 12,
 }
 
 export interface SceneryDefinition {
@@ -101,6 +106,51 @@ export const SCENERY_CATALOG: readonly SceneryDefinition[] = [
     removalPriceCents: 0,
     height: 2,
     width: 38,
+  },
+  {
+    name: 'Birch',
+    sprite: 'tree-birch',
+    category: SceneryCategory.Trees,
+    priceCents: 150,
+    removalPriceCents: 25,
+    height: 4,
+    width: 30,
+  },
+  {
+    name: 'Autumn tree',
+    sprite: 'tree-autumn',
+    category: SceneryCategory.Trees,
+    priceCents: 175,
+    removalPriceCents: 25,
+    height: 3,
+    width: 36,
+  },
+  {
+    name: 'Topiary',
+    sprite: 'tree-topiary',
+    category: SceneryCategory.Trees,
+    priceCents: 225,
+    removalPriceCents: 25,
+    height: 3,
+    width: 30,
+  },
+  {
+    name: 'Palm tree',
+    sprite: 'tree-palm',
+    category: SceneryCategory.Trees,
+    priceCents: 250,
+    removalPriceCents: 25,
+    height: 4,
+    width: 36,
+  },
+  {
+    name: 'Cactus',
+    sprite: 'tree-cactus',
+    category: SceneryCategory.Trees,
+    priceCents: 125,
+    removalPriceCents: 15,
+    height: 2,
+    width: 24,
   },
 ];
 

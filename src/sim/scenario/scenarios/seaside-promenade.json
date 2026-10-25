@@ -64,7 +64,8 @@
   },
   "trees": {
     "count": 40,
-    "groves": 3
+    "groves": 3,
+    "species": ["palm"]
   },
   "prebuilt": [
     {
