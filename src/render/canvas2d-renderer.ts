@@ -1,4 +1,4 @@
-import { occluderDepth, sceneryDepth } from './terrain-occlusion';
+import { occluderDepth, pathDepthOverTerrain, sceneryDepth } from './terrain-occlusion';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import {
@@ -77,6 +77,8 @@ import {
   clipTerrainTileTrianglesBelowHeight,
   terrainContourViewEdges,
   terrainEdgeFace,
+  terrainEdgeFacesViewer,
+  terrainNeighborEdgeBase,
   terrainLightFactor,
   terrainShorelineSegments,
   terrainTileCorners,
@@ -483,10 +485,9 @@ export class Canvas2DRenderer implements Renderer {
             this.patrolPreviewRemove ? 'remove' : 'add',
           );
         }
-        if (terrainSurface === 'rock')
-          this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 0.25, () =>
-            this.drawRockCliffFaces(ctx, map, cam, x, y, i, mask),
-          );
+        this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 0.25, () =>
+          this.drawCliffFaces(ctx, map, cam, x, y, i, mask, terrainSurface),
+        );
         if (cam.showGridlines) {
           ctx.strokeStyle = 'rgba(28, 34, 26, 0.18)';
           ctx.lineWidth = 0.7;
@@ -654,14 +655,20 @@ export class Canvas2DRenderer implements Renderer {
           path++
         ) {
           const element = this.pathIndices[path]! * 6;
-          const slabDepth = pathSlabDepth(
+          const slabDepth = pathDepthOverTerrain(
             map,
             cam.rotation,
             x,
             y,
-            map.pathElements[element + 2]!,
-            map.pathElements[element + 3]!,
-            map.heights[i]!,
+            pathSlabDepth(
+              map,
+              cam.rotation,
+              x,
+              y,
+              map.pathElements[element + 2]!,
+              map.pathElements[element + 3]!,
+              map.heights[i]!,
+            ),
           );
           this.queueAtDepth(slabDepth, () => this.drawMapElements(ctx, map, cam, i, 'slab'));
           break;
@@ -831,7 +838,7 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
-  private drawRockCliffFaces(
+  private drawCliffFaces(
     ctx: CanvasRenderingContext2D,
     map: MapData,
     cam: Camera,
@@ -839,19 +846,12 @@ export class Canvas2DRenderer implements Renderer {
     y: number,
     index: number,
     mask: number,
+    surface: TerrainSurface,
   ): void {
     const corners = terrainTileCorners(x, y, map.heights[index]!, mask);
-    const neighbors = [
-      [x + 1, y],
-      [x, y + 1],
-      [x - 1, y],
-      [x, y - 1],
-    ] as const;
-    for (let direction = 0; direction < neighbors.length; direction++) {
-      const [neighborX, neighborY] = neighbors[direction]!;
-      const onMapEdge =
-        neighborX < 0 || neighborX >= map.width || neighborY < 0 || neighborY >= map.height;
-      const neighborBase = onMapEdge ? 0 : map.heights[neighborY * map.width + neighborX]!;
+    for (let direction = 0; direction < 4; direction++) {
+      if (!terrainEdgeFacesViewer(direction, cam.rotation)) continue;
+      const neighborBase = terrainNeighborEdgeBase(map, x, y, direction);
       const face = terrainEdgeFace(corners, direction, neighborBase);
       if (!face || Math.max(face.start.height, face.end.height) <= face.bottomHeight) continue;
 
@@ -901,7 +901,7 @@ export class Canvas2DRenderer implements Renderer {
       ctx.lineTo(startBottom![0]!, startBottom![1]!);
       ctx.closePath();
       const cliff = this.atlas?.resolve(
-        terrainCliffSpriteName('rock', (direction + cam.rotation) & 3),
+        terrainCliffSpriteName(surface, (direction + cam.rotation) & 3),
       );
       const frame = cliff?.frames[0];
       const image = frame && this.atlas?.pageImage(frame.page);

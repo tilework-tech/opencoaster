@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  terrainEdgeFacesViewer,
+  terrainNeighborEdgeBase,
   clipTerrainTileBelowHeight,
   clipTerrainTileTrianglesBelowHeight,
   tileBankDepth,
@@ -220,5 +222,34 @@ describe('terrain contour edges', () => {
     expect(terrainContourViewEdges(map, 0, 0, 1)).toBe(0b0100);
     expect(terrainContourViewEdges(map, 0, 0, 2)).toBe(0b1000);
     expect(terrainContourViewEdges(map, 0, 0, 3)).toBe(0b0001);
+  });
+});
+
+describe('terrain edge face bases', () => {
+  const map = {
+    width: 3,
+    height: 3,
+    heights: new Uint8Array([4, 4, 4, 4, 4, 1, 4, 4, 4]),
+    slope: new Uint8Array(9),
+  };
+
+  it('uses the neighbour edge height, and sea level beyond the map border', () => {
+    expect(terrainNeighborEdgeBase(map, 0, 1, 0)).toBe(4);
+    expect(terrainNeighborEdgeBase(map, 1, 1, 0)).toBe(1);
+    expect(terrainNeighborEdgeBase(map, 2, 1, 0)).toBe(0);
+    expect(terrainNeighborEdgeBase(map, 0, 0, 3)).toBe(0);
+  });
+
+  it('takes the lowest corner of a sloped neighbour edge', () => {
+    const sloped = { ...map, slope: new Uint8Array([0, 0, 0, 0, 0, 0b0011, 0, 0, 0]) };
+    expect(terrainNeighborEdgeBase(sloped, 1, 1, 0)).toBe(1);
+    const edgeUp = { ...map, slope: new Uint8Array([0, 0, 0, 0, 0, 0b1001, 0, 0, 0]) };
+    expect(terrainNeighborEdgeBase(edgeUp, 1, 1, 0)).toBe(2);
+  });
+
+  it('shows only the edges that turn toward the viewer', () => {
+    expect([0, 1, 2, 3].filter((d) => terrainEdgeFacesViewer(d, 0))).toEqual([0, 1]);
+    expect([0, 1, 2, 3].filter((d) => terrainEdgeFacesViewer(d, 1))).toEqual([0, 3]);
+    expect([0, 1, 2, 3].filter((d) => terrainEdgeFacesViewer(d, 2))).toEqual([2, 3]);
   });
 });

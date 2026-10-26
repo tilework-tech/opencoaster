@@ -57,3 +57,5 @@ Path: @/e2e
 - [mobile.spec.ts](mobile.spec.ts) runs at a 390 px phone viewport with touch: it checks the scrolling toolbar, stacked bottom sheets, a 44 px minimum for every visible control, and tap-to-build.
 
 Created and maintained by Nori.
+
+- [terrain-edge-faces.spec.ts](terrain-edge-faces.spec.ts) replaces the sandbox map with a fixture from [support/terrain-fixture.ts](support/terrain-fixture.ts) (pit, plateau, terraces; plus map-corner and footpath-ramp fixtures for proof captures) and asserts that essentially no clear-colour pixels remain inside the terrain in all four rotations under WebGL2 and Canvas2D (`TERRAIN_PROOF_DIR` also saves screenshots). [construction-marker.spec.ts](construction-marker.spec.ts) checks the construction marker's pole while the footpath and track tools are active.

@@ -49,6 +49,13 @@ function worldCornerLevels(map: ContourMap, x: number, y: number): number[] {
   ];
 }
 
+const EDGE_NEIGHBOUR_BY_DIRECTION: readonly (readonly [number, number])[] = [
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+  [0, -1],
+];
+
 const EDGE_NEIGHBOUR: readonly (readonly [number, number])[] = [
   [0, -1],
   [1, 0],
@@ -213,18 +220,43 @@ export function terrainShorelineSegments(
   return segments;
 }
 
+const EDGE_CORNERS: readonly (readonly [number, number])[] = [
+  [1, 2],
+  [2, 3],
+  [3, 0],
+  [0, 1],
+];
+
+/**
+ * Lowest height of the neighbouring tile's edge that meets this tile's `direction` edge, or 0
+ * beyond the map border. A cliff face hangs from the tile's edge down to this height.
+ */
+export function terrainNeighborEdgeBase(
+  map: ContourMap,
+  x: number,
+  y: number,
+  direction: number,
+): number {
+  const [dx, dy] = EDGE_NEIGHBOUR_BY_DIRECTION[direction]!;
+  const nx = x + dx;
+  const ny = y + dy;
+  if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) return 0;
+  const levels = worldCornerLevels(map, nx, ny);
+  const [a, b] = EDGE_CORNERS[(direction + 2) & 3]!;
+  return Math.min(levels[a]!, levels[b]!);
+}
+
+/** Whether a face on the tile's `direction` edge turns toward the viewer at this rotation. */
+export function terrainEdgeFacesViewer(direction: number, rotation: number): boolean {
+  return ((direction + rotation) & 3) < 2;
+}
+
 export function terrainEdgeFace(
   corners: readonly TerrainCorner[],
   direction: number,
   neighborBase: number,
 ): TerrainEdgeFace | null {
-  const edgeCorners: readonly (readonly [number, number])[] = [
-    [1, 2],
-    [2, 3],
-    [3, 0],
-    [0, 1],
-  ];
-  const edge = edgeCorners[direction];
+  const edge = EDGE_CORNERS[direction];
   if (!edge) return null;
   const [start, end] = edge.map((corner) => corners[corner]!);
   if (start.height <= neighborBase && end.height <= neighborBase) return null;

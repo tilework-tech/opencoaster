@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { MapData } from './renderer';
 import { SOLID_BIAS, rotatedPositionSum } from './depth-key';
 import type { Rotation } from './projection';
-import { occluderDepth, sceneryDepth, tileRisesOverBehind } from './terrain-occlusion';
+import { PathFlag } from '../sim/map/tile-map';
+import { pathSlabDepth } from './depth-key';
+import {
+  occluderDepth,
+  pathDepthOverTerrain,
+  sceneryDepth,
+  tileRisesOverBehind,
+} from './terrain-occlusion';
 
 const ROTATIONS: Rotation[] = [0, 1, 2, 3];
 
@@ -68,6 +75,33 @@ describe('terrain occlusion', () => {
         .map(([x, y]) => occluderDepth(map, x!, y!, rotation));
       for (const depth of nearer)
         if (depth > occluderDepth(map, 2, 2, rotation)) expect(standing).toBeLessThan(depth);
+    }
+  });
+});
+
+describe('footpaths on sloped ground', () => {
+  it('draw after the redraw of the sloped tile they lie on, in every rotation', () => {
+    const map = mapWithSlopeAt(2, 2, 0b0110);
+    for (const rotation of ROTATIONS) {
+      for (let direction = 0; direction < 4; direction++) {
+        const flags = PathFlag.Sloped | (direction << 10);
+        const slab = pathSlabDepth(map, rotation, 2, 2, 2, flags, 2);
+        const depth = pathDepthOverTerrain(map, rotation, 2, 2, slab);
+        expect(depth, `rotation ${rotation} direction ${direction}`).toBeGreaterThan(
+          occluderDepth(map, 2, 2, rotation),
+        );
+      }
+    }
+  });
+
+  it('keep their slab depth on flat ground, and stay under a guest standing on them', () => {
+    const flat = mapWithSlopeAt(2, 2, 0);
+    const sloped = mapWithSlopeAt(2, 2, 0b0110);
+    for (const rotation of ROTATIONS) {
+      const slab = pathSlabDepth(flat, rotation, 2, 2, 2, 0, 2);
+      expect(pathDepthOverTerrain(flat, rotation, 2, 2, slab)).toBe(slab);
+      const over = pathDepthOverTerrain(sloped, rotation, 2, 2, slab);
+      expect(sceneryDepth(sloped, 2, 2, rotation, 2 * 64)).toBeGreaterThan(over);
     }
   });
 });
