@@ -75,7 +75,25 @@ async function edgeScreenPoint(
       game.y + game.height / 2 + (out[1]! - camera.y) * camera.zoom,
     ];
   });
-  return [(screen[0]![0]! + screen[1]![0]!) / 2, (screen[0]![1]! + screen[1]![1]!) / 2];
+  const midpoint: [number, number] = [
+    (screen[0]![0]! + screen[1]![0]!) / 2,
+    (screen[0]![1]! + screen[1]![1]!) / 2,
+  ];
+  const centreWorld = new Float64Array(2);
+  project(
+    (tile.x + 0.5) * TILE_UNITS,
+    (tile.y + 0.5) * TILE_UNITS,
+    map.heights[index]! * Z_STEP,
+    map.width,
+    map.height,
+    camera.rotation,
+    centreWorld,
+  );
+  const centre: [number, number] = [
+    game.x + game.width / 2 + (centreWorld[0]! - camera.x) * camera.zoom,
+    game.y + game.height / 2 + (centreWorld[1]! - camera.y) * camera.zoom,
+  ];
+  return [midpoint[0] * 0.8 + centre[0] * 0.2, midpoint[1] * 0.8 + centre[1] * 0.2];
 }
 
 async function scenery(page: Page): Promise<SceneryRecord[]> {
