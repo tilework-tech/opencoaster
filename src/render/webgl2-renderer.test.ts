@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { PathFlag } from '../sim/map/tile-map';
-import { sceneryGroundZ } from './ground-anchor';
+import { PATH_SURFACE_Z, sceneryGroundZ } from './ground-anchor';
 import { worldToScreen } from './projection';
 import type { Rotation } from './projection';
 import { spritePages } from './sprite-pages';
@@ -48,7 +48,7 @@ describe('WebGL2 sprite preview ordering', () => {
     const pivotX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
     const pivotY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
     expect(appended).toHaveLength(1);
-    expect(appended[0]![6]).toBe(2 * rotatedPositionSum(pivotX, pivotY, map, 0) - ghost.level + 2);
+    expect(appended[0]![6]).toBe(2 * rotatedPositionSum(pivotX, pivotY, map, 0) - ghost.level);
   });
 });
 
@@ -100,7 +100,7 @@ describe('WebGL2 path additions on open edges', () => {
     for (const rotation of [0, 1, 2, 3] as const) {
       const items = appendedPathAdditions(PathFlag.Bench | PathFlag.Sloped | 0b0101, rotation);
       expect(items).toHaveLength(2);
-      for (const args of items) expect(args[2]).toBe(2 * 64 + 32 + 1);
+      for (const args of items) expect(args[2]).toBe(2 * 64 + 32 + PATH_SURFACE_Z);
     }
   });
 
@@ -126,11 +126,11 @@ describe('WebGL2 raised terrain', () => {
       const renderer = new WebGL2Renderer();
       const appended: unknown[][] = [];
       const testRenderer = renderer as unknown as {
-        appendWaterAndOccluders(m: MapData, c: object, w: number, h: number, tick: number): void;
+        appendWater(m: MapData, c: object, w: number, h: number, tick: number): void;
         append: (...args: unknown[]) => void;
       };
       testRenderer.append = (...args) => appended.push(args);
-      testRenderer.appendWaterAndOccluders(sloped, { x: 0, y: 0, zoom: 1, rotation }, 800, 600, 0);
+      testRenderer.appendWater(sloped, { x: 0, y: 0, zoom: 1, rotation }, 800, 600, 0);
       expect(appended.filter((args) => String(args[5]).startsWith('terrain/'))).toEqual([]);
     }
   });

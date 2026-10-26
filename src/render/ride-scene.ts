@@ -3,7 +3,6 @@ import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
-import { SOLID_BIAS } from './depth-key';
 import type { MapData } from './renderer';
 import { rotateFootprint } from './projection';
 import type { Rotation } from './projection';
@@ -86,7 +85,7 @@ export class RideCellScene {
         const x = tx * TILE_UNITS + TILE_UNITS / 2;
         const y = ty * TILE_UNITS + TILE_UNITS / 2;
         const [rx, ry] = view[cell];
-        const depth = 2 * (rx + ry + 1) - base + SOLID_BIAS;
+        const depth = 2 * (rx + ry + 1) - base;
         this.push(
           rideCellSpriteKey(type, cell, dir, rotation),
           snapshot.rideInfo[o + RideInfo.Id]!,

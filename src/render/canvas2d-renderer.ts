@@ -1,4 +1,3 @@
-import { occluderDepth, pathDepthOverTerrain, sceneryDepth } from './terrain-occlusion';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import {
@@ -57,18 +56,12 @@ import type { TerrainSurface } from './world-art';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
 import type { ObjectPickTarget } from '../input/object-picking';
 import { guestFrame, guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
-import {
-  SOLID_BIAS,
-  SurfaceDepths,
-  pathSlabDepth,
-  personDepth,
-  queueRailDepth,
-  rotatedPositionSum,
-} from './depth-key';
+import { anchorKey } from './depth-key';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
 import {
+  PATH_SURFACE_Z,
   pathAdditionBox,
   pathAdditionPlacements,
   pathAdditionGroundZ,
@@ -112,6 +105,8 @@ const GUEST_TINTS = [
 /** Largest coaster sprite half-extent in pixels, for viewport culling. */
 const COASTER_CULL_RADIUS = 160;
 const SEAM = 0.5;
+/** Ground-layer key offset of a raised tile repainted over the cliff faces behind it. */
+const RAISED_TILE_REDRAW = 5;
 const PATH_DX = [1, 0, -1, 0];
 const PATH_DY = [0, 1, 0, -1];
 const PATH_STYLE_COLORS = ['#55565a', '#a9a193', '#987047'];
@@ -121,7 +116,6 @@ const FLOWER_COLORS = ['#f4c542', '#e85b86', '#f2eeee'];
 
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
 /** Litter sorts just behind a person standing on the same spot. */
-const LITTER_DEPTH_BIAS = 0.01;
 
 export class Canvas2DRenderer implements Renderer {
   private ownershipOverlay: OwnershipOverlay | null = null;
@@ -158,7 +152,6 @@ export class Canvas2DRenderer implements Renderer {
   /** Bumped with every new map, keying the composite's cached ground heights. */
   private groundRevision = 0;
   private nextDrawOrder = 0;
-  private readonly surfaceDepths = new SurfaceDepths();
   private pickCacheKey = '';
   private pickCacheSnapshot: Snapshot | null = null;
   private pickTargets: ObjectPickTarget[] = [];
@@ -329,7 +322,6 @@ export class Canvas2DRenderer implements Renderer {
         '#c0392b',
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
-      this.surfaceDepths.prepare(map, cam.rotation);
       this.drawLitter(ctx, snapshot.litter, map, cam);
       if (this.atlas) this.drawStaff(ctx, snapshot.staff, map, cam, snapshot.tick);
       else
@@ -386,14 +378,16 @@ export class Canvas2DRenderer implements Renderer {
     x: number,
     y: number,
     z: number,
-    offset: number,
     draw: () => void,
   ): void {
-    const sum = rotatedPositionSum(x, y, map, cam.rotation);
-    this.queueAtDepth(2 * sum - z / Z_STEP + offset, draw);
+    this.queueAtDepth(anchorKey(map, cam.rotation, x, y, z), draw);
   }
 
-  /** Queues ground drawing: painted onto the canvas before world sprites are depth-composited. */
+  /**
+   * Queues ground drawing (cliff faces, raised-tile redraws), painted onto the canvas in key order
+   * before world sprites are depth-composited over it. `offset` orders ground pieces among
+   * themselves only; it never decides what hides a world object.
+   */
   private enqueueGround(
     map: MapData,
     cam: Camera,
@@ -403,8 +397,7 @@ export class Canvas2DRenderer implements Renderer {
     offset: number,
     draw: () => void,
   ): void {
-    const sum = rotatedPositionSum(x, y, map, cam.rotation);
-    this.queueAtDepth(2 * sum - z / Z_STEP + offset, draw, true);
+    this.queueAtDepth(anchorKey(map, cam.rotation, x, y, z) + offset, draw, true);
   }
 
   private queueAtDepth(depth: number, draw: () => void, ground = false): void {
@@ -693,11 +686,16 @@ export class Canvas2DRenderer implements Renderer {
         const rideFloor = this.rideCells.floor[i]!;
         const belowRide = rideFloor > 0 && terrainPeak <= rideFloor - 1;
         if (!belowRide && (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1))) {
-          this.queueAtDepth(
-            occluderDepth(map, x, y, cam.rotation),
+          // Redrawn from its rearmost corner, after the cliff faces of the tiles behind it.
+          this.enqueueGround(
+            map,
+            cam,
+            (cam.rotation >= 2 ? x + 1 : x) * TILE_UNITS,
+            (cam.rotation === 1 || cam.rotation === 2 ? y + 1 : y) * TILE_UNITS,
+            terrainZ,
+            RAISED_TILE_REDRAW,
             () =>
               this.drawTerrainOccluder(ctx, map, cam, x, y, i, mask, terrainSurface, sx, sy, lift),
-            true,
           );
         }
         const centerX = x * TILE_UNITS + TILE_UNITS / 2;
@@ -716,17 +714,14 @@ export class Canvas2DRenderer implements Renderer {
           }
         }
         if (this.atlas)
-          this.queueAtDepth(
-            sceneryDepth(
-              map,
-              x,
-              y,
-              cam.rotation,
-              groundFlowerBed || sceneryFlowerBed
-                ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
-                : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-              groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
-            ),
+          this.enqueue(
+            map,
+            cam,
+            centerX,
+            centerY,
+            groundFlowerBed || sceneryFlowerBed
+              ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
+              : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
             () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         for (
@@ -735,22 +730,9 @@ export class Canvas2DRenderer implements Renderer {
           path++
         ) {
           const element = this.pathIndices[path]! * 6;
-          const slabDepth = pathDepthOverTerrain(
-            map,
-            cam.rotation,
-            x,
-            y,
-            pathSlabDepth(
-              map,
-              cam.rotation,
-              x,
-              y,
-              map.pathElements[element + 2]!,
-              map.pathElements[element + 3]!,
-              map.heights[i]!,
-            ),
+          this.enqueue(map, cam, centerX, centerY, map.pathElements[element + 2]! * Z_STEP, () =>
+            this.drawMapElements(ctx, map, cam, i, 'slab'),
           );
-          this.queueAtDepth(slabDepth, () => this.drawMapElements(ctx, map, cam, i, 'slab'));
           break;
         }
         for (
@@ -761,50 +743,30 @@ export class Canvas2DRenderer implements Renderer {
           const element = this.pathIndices[path]! * 6;
           const flags = map.pathElements[element + 3]!;
           for (const rail of queueRailSprites(flags, cam.rotation))
-            this.queueAtDepth(
-              queueRailDepth(
-                map,
-                cam.rotation,
-                x,
-                y,
-                rail.worldDir,
-                map.pathElements[element + 2]!,
-              ),
-              () =>
-                this.drawQueueRail(
-                  ctx,
-                  map,
-                  cam,
-                  x,
-                  y,
-                  map.pathElements![element + 2]!,
-                  rail.sprite,
-                ),
+            this.enqueue(map, cam, centerX, centerY, map.pathElements[element + 2]! * Z_STEP, () =>
+              this.drawQueueRail(ctx, map, cam, x, y, map.pathElements![element + 2]!, rail.sprite),
             );
         }
-        this.enqueue(map, cam, centerX, centerY, terrainZ, 1, () =>
+        this.enqueue(map, cam, centerX, centerY, terrainZ, () =>
           this.drawMapElements(ctx, map, cam, i, 'additions'),
         );
         for (const ghost of this.ghostsAt(map, i))
-          this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 0, () =>
+          this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, () =>
             this.drawPathGhost(ctx, map, cam, ghost),
           );
-        this.queueAtDepth(
-          sceneryDepth(
-            map,
-            x,
-            y,
-            cam.rotation,
-            sceneryFlowerBed
-              ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
-              : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-            sceneryFlowerBed ? SOLID_BIAS : 2,
-          ),
+        this.enqueue(
+          map,
+          cam,
+          centerX,
+          centerY,
+          sceneryFlowerBed
+            ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
+            : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
           () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
           if (ghost.kind === 'scenery')
-            this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 2, () =>
+            this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, () =>
               this.drawSpriteGhost(ctx, map, cam, ghost),
             );
           else if (ghost.kind === 'path-addition')
@@ -814,7 +776,6 @@ export class Canvas2DRenderer implements Renderer {
               ghost.x * TILE_UNITS + TILE_UNITS / 2,
               ghost.y * TILE_UNITS + TILE_UNITS / 2,
               ghost.level * Z_STEP,
-              -1,
               () => this.drawSpriteGhost(ctx, map, cam, ghost),
             );
         }
@@ -1502,7 +1463,7 @@ export class Canvas2DRenderer implements Renderer {
         const worldX = x * TILE_UNITS + 128;
         const worldY = y * TILE_UNITS + 128;
         const z = map.heights[y * map.width + x]! * Z_STEP;
-        this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
+        this.enqueue(map, cam, worldX, worldY, z, () => {
           this.anchor(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
           if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 24)) return;
           const facing = rideHutFacingForFootprint(
@@ -1545,7 +1506,7 @@ export class Canvas2DRenderer implements Renderer {
     const worldX = x * TILE_UNITS + TILE_UNITS / 2;
     const worldY = y * TILE_UNITS + TILE_UNITS / 2;
     const z = map.heights[y * map.width + x]! * Z_STEP;
-    this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
+    this.enqueue(map, cam, worldX, worldY, z, () => {
       this.anchor(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
       if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 40)) return;
       const key = `scenery/park-entrance/view-${cam.rotation}`;
@@ -1583,7 +1544,7 @@ export class Canvas2DRenderer implements Renderer {
       const z = map.heights[tileY * map.width + tileX] * Z_STEP;
       const worldX = tileX * TILE_UNITS + TILE_UNITS / 2;
       const worldY = tileY * TILE_UNITS + TILE_UNITS / 2;
-      this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
+      this.enqueue(map, cam, worldX, worldY, z, () => {
         this.anchor(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
         const isFacility = ['shop', 'stall', 'facility'].includes(definition.category);
         const key = isFacility
@@ -1612,7 +1573,7 @@ export class Canvas2DRenderer implements Renderer {
       if (ghost.kind !== 'ride') continue;
       const worldX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
-      this.enqueue(map, cam, worldX, worldY, ghost.level * Z_STEP, 0, () =>
+      this.enqueue(map, cam, worldX, worldY, ghost.level * Z_STEP, () =>
         this.drawSpriteGhost(ctx, map, cam, ghost),
       );
     }
@@ -1690,7 +1651,7 @@ export class Canvas2DRenderer implements Renderer {
       const y = d[o + 1]!;
       const z = d[o + 2]!;
       const metadata = d[o + 3]!;
-      this.enqueue(map, cam, x, y, z, 0, () => {
+      this.enqueue(map, cam, x, y, z, () => {
         ctx.fillStyle = typeof color === 'string' ? color : (color[metadata & 0xff] ?? color[0]);
         this.anchor(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, r * 2)) return;
@@ -1711,31 +1672,28 @@ export class Canvas2DRenderer implements Renderer {
     for (let index = 0, offset = 0; index < layer.count; index++, offset += SNAPSHOT_STRIDE) {
       const x = data[offset]!;
       const y = data[offset + 1]!;
-      const z = data[offset + 2]!;
+      const z = data[offset + 2]! + PATH_SURFACE_Z;
       const kind = data[offset + 3]! & 0xff;
-      this.queueAtDepth(
-        personDepth(map, cam.rotation, this.surfaceDepths, x, y, z) - LITTER_DEPTH_BIAS,
-        () => {
-          this.anchor(x, y, z, map.width, map.height, cam.rotation, t);
-          if (!this.isVisible(t[0]!, t[1]!, cam, 8)) return;
-          if (
-            !this.atlas ||
-            !drawBoxedSprite(
-              ctx,
-              this.atlas,
-              litterSpriteName(kind, cam.rotation),
-              t[0]!,
-              t[1]!,
-              LITTER_SPRITE_SIZE.width,
-              LITTER_SPRITE_SIZE.height,
-            )
-          ) {
-            ctx.fillStyle = kind === 1 ? '#9fc35b' : '#6b4f2a';
-            ctx.fillRect(t[0]! - 2, t[1]! - 1, 4, 2);
-          }
-          this.visibleCount++;
-        },
-      );
+      this.enqueue(map, cam, x, y, z, () => {
+        this.anchor(x, y, z, map.width, map.height, cam.rotation, t);
+        if (!this.isVisible(t[0]!, t[1]!, cam, 8)) return;
+        if (
+          !this.atlas ||
+          !drawBoxedSprite(
+            ctx,
+            this.atlas,
+            litterSpriteName(kind, cam.rotation),
+            t[0]!,
+            t[1]!,
+            LITTER_SPRITE_SIZE.width,
+            LITTER_SPRITE_SIZE.height,
+          )
+        ) {
+          ctx.fillStyle = kind === 1 ? '#9fc35b' : '#6b4f2a';
+          ctx.fillRect(t[0]! - 2, t[1]! - 1, 4, 2);
+        }
+        this.visibleCount++;
+      });
     }
   }
 
@@ -1751,10 +1709,10 @@ export class Canvas2DRenderer implements Renderer {
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
       const x = d[o]!;
       const y = d[o + 1]!;
-      const z = d[o + 2]!;
+      const z = d[o + 2]! + PATH_SURFACE_Z;
       const metadata = d[o + 3]!;
       if (isRidingGuestRow(metadata) || i === this.heldGuestSlot) continue;
-      this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
+      this.enqueue(map, cam, x, y, z, () => {
         this.anchor(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
         const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), guestFrame(tick, guestRowIdle(metadata)), cam.rotation) - 40}`;
@@ -1779,10 +1737,10 @@ export class Canvas2DRenderer implements Renderer {
     for (let i = 0, o = 0; i < layer.count; i++, o += SNAPSHOT_STRIDE) {
       const x = d[o]!;
       const y = d[o + 1]!;
-      const z = d[o + 2]!;
+      const z = d[o + 2]! + PATH_SURFACE_Z;
       const metadata = d[o + 3]!;
       if (i === this.heldStaffSlot) continue;
-      this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
+      this.enqueue(map, cam, x, y, z, () => {
         this.anchor(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, Math.max(STAFF_BOX.height, 24))) return;
         const kind = metadata & 0xff;

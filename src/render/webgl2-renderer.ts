@@ -13,8 +13,6 @@ import { SCENERY_CATALOG, isWallScenery } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import {
-  tileBankDepth,
-  tileWaterDepth,
   terrainEdgeFace,
   terrainEdgeFacesViewer,
   terrainNeighborEdgeBase,
@@ -28,7 +26,7 @@ import {
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
 import {
-  adjustDepthForGroundZ,
+  PATH_SURFACE_Z,
   pathAdditionBox,
   pathAdditionPlacements,
   pathAdditionGroundZ,
@@ -45,7 +43,6 @@ import {
   project,
   rotateDirection,
   rotateTile,
-  unrotateTile,
   worldToScreen,
 } from './projection';
 import type { MapExtent } from './projection';
@@ -65,16 +62,8 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
-import { pathDepthOverTerrain, sceneryDepth } from './terrain-occlusion';
 import { RideCellScene, isSlicedRide } from './ride-scene';
-import {
-  SOLID_BIAS,
-  SurfaceDepths,
-  pathSlabDepth,
-  personDepth,
-  queueRailDepth,
-  rotatedPositionSum,
-} from './depth-key';
+import { anchorKey, rotatedPositionSum } from './depth-key';
 import { OwnershipOverlay } from './ownership-overlay';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
 import type { ObjectPickTarget } from '../input/object-picking';
@@ -571,12 +560,8 @@ interface TileLists {
   rotation: Rotation;
   /** Tile indices whose water plane intersects their terrain. */
   water: Int32Array;
-  /** Tile indices whose terrain rises above the tiles behind them and so must overdraw sprites. */
-  occluders: Int32Array;
   waterX: Float32Array;
   waterY: Float32Array;
-  occluderX: Float32Array;
-  occluderY: Float32Array;
 }
 
 interface GroundIndex {
@@ -629,7 +614,6 @@ export class WebGL2Renderer implements Renderer {
   private captureRecords: (CaptureRecord | undefined)[] | null = null;
   private instanceData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private depths = new Int32Array(INITIAL_INSTANCE_CAPACITY);
-  private readonly surfaceDepths = new SurfaceDepths();
   private pageIds = new Int16Array(INITIAL_INSTANCE_CAPACITY);
   /** 1 for instances drawn in the translucent pass: water, patrol overlays and previews. */
   private translucent = new Uint8Array(INITIAL_INSTANCE_CAPACITY);
@@ -897,7 +881,7 @@ export class WebGL2Renderer implements Renderer {
     if (snapshot) this.rideCells.build(snapshot, map, camera.rotation);
     else this.rideCells.reset();
     if (snapshot) this.appendPatrolAreas(snapshot, map, camera, viewportWidth, viewportHeight);
-    this.appendWaterAndOccluders(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
+    this.appendWater(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
       this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
       this.appendGrounds(snapshot, map, camera, viewportWidth, viewportHeight);
@@ -949,7 +933,6 @@ export class WebGL2Renderer implements Renderer {
         0,
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
-      this.surfaceDepths.prepare(map, camera.rotation);
       this.appendStaff(snapshot.staff, snapshot.tick, map, camera, viewportWidth, viewportHeight);
       this.appendGuests(snapshot.guests, snapshot.tick, map, camera, viewportWidth, viewportHeight);
     }
@@ -1600,13 +1583,8 @@ export class WebGL2Renderer implements Renderer {
 
   private buildTileLists(map: MapData, rotation: Rotation): TileLists {
     const water: number[] = [];
-    const occluders: number[] = [];
     const waterX: number[] = [];
     const waterY: number[] = [];
-    const occluderX: number[] = [];
-    const occluderY: number[] = [];
-    const behind = new Int32Array(2);
-    const peak = (index: number): number => map.heights[index] + (map.slope[index] !== 0 ? 1 : 0);
     for (let index = 0; index < map.width * map.height; index++) {
       const x = index % map.width;
       const y = (index - x) / map.width;
@@ -1625,50 +1603,19 @@ export class WebGL2Renderer implements Renderer {
         waterX.push(this.projected[0]);
         waterY.push(this.projected[1]);
       }
-      rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
-      const viewX = this.tileCoordinates[0];
-      const viewY = this.tileCoordinates[1];
-      let rises = false;
-      for (const [dx, dy] of [
-        [-1, 0],
-        [0, -1],
-      ] as const) {
-        const nx = viewX + dx;
-        const ny = viewY + dy;
-        const [vw, vh] = rotation % 2 === 0 ? [map.width, map.height] : [map.height, map.width];
-        if (nx < 0 || ny < 0 || nx >= vw || ny >= vh) continue;
-        unrotateForDraw(nx, ny, map.width, map.height, rotation, behind);
-        if (peak(index) > peak(behind[1] * map.width + behind[0])) rises = true;
-      }
-      if (!rises) continue;
-      project(
-        x * TILE_UNITS,
-        y * TILE_UNITS,
-        map.heights[index] * 64,
-        map.width,
-        map.height,
-        rotation,
-        this.projected,
-      );
-      occluders.push(index);
-      occluderX.push(this.projected[0]);
-      occluderY.push(this.projected[1]);
     }
     return {
       map,
       rotation,
       water: Int32Array.from(water),
-      occluders: Int32Array.from(occluders),
       waterX: Float32Array.from(waterX),
       waterY: Float32Array.from(waterY),
-      occluderX: Float32Array.from(occluderX),
-      occluderY: Float32Array.from(occluderY),
     };
   }
 
   /** Adds the on-screen water planes and the raised terrain that must hide sprites behind it. */
   /** Terrain no higher than a flat ride's floor must not be redrawn over the ride. */
-  private appendWaterAndOccluders(
+  private appendWater(
     map: MapData,
     camera: Camera,
     viewportWidth: number,
@@ -1707,7 +1654,13 @@ export class WebGL2Renderer implements Renderer {
         TILE_W,
         TILE_H,
         frame,
-        tileWaterDepth(this.tileCoordinates[0], this.tileCoordinates[1], level),
+        anchorKey(
+          map,
+          camera.rotation,
+          (x + 0.5) * TILE_UNITS,
+          (y + 0.5) * TILE_UNITS,
+          level * Z_STEP,
+        ),
         3,
         corners,
       );
@@ -1728,7 +1681,13 @@ export class WebGL2Renderer implements Renderer {
           (end.x - start.x) * TILE_UNITS,
           (end.y - start.y) * TILE_UNITS,
           terrainCliffSpriteName(terrainSurface, 0),
-          tileBankDepth(this.tileCoordinates[0], this.tileCoordinates[1], level),
+          anchorKey(
+            map,
+            camera.rotation,
+            (x + 0.5) * TILE_UNITS,
+            (y + 0.5) * TILE_UNITS,
+            level * Z_STEP,
+          ),
           5,
           [level * 64, level * 64, level * 64, level * 64],
         );
@@ -1902,7 +1861,7 @@ export class WebGL2Renderer implements Renderer {
         const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-        const depth = sceneryDepth(map, x, y, camera.rotation, z);
+        const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
         project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1944,8 +1903,7 @@ export class WebGL2Renderer implements Renderer {
       const z = flowerBedGroundZ(baseHeight, map.slope[index]!, camera.rotation);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth =
-        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1982,8 +1940,7 @@ export class WebGL2Renderer implements Renderer {
     const z = map.heights[entranceY * map.width + entranceX] * Z_STEP + 1;
     const worldX = entranceX * TILE_UNITS + TILE_UNITS / 2;
     const worldY = entranceY * TILE_UNITS + TILE_UNITS / 2;
-    const depth =
-      2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+    const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
     project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
     if (
       inViewport(
@@ -2017,9 +1974,7 @@ export class WebGL2Renderer implements Renderer {
       const z = ghost.level * Z_STEP;
       const worldX = ghost.x * TILE_UNITS + 128;
       const worldY = ghost.y * TILE_UNITS + 128;
-      const depth =
-        2 * rotatedPositionSum(ghost.x * TILE_UNITS, ghost.y * TILE_UNITS, map, camera.rotation) -
-        ghost.level;
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         !inViewport(
@@ -2041,7 +1996,7 @@ export class WebGL2Renderer implements Renderer {
         40,
         26,
         pathElementSprite(ghost.flags, ghost.surface, camera.rotation),
-        depth + 1,
+        depth,
       );
       for (const rail of queueRailSprites(ghost.flags, camera.rotation))
         this.append(
@@ -2051,7 +2006,7 @@ export class WebGL2Renderer implements Renderer {
           40,
           26,
           rail.sprite,
-          queueRailDepth(map, camera.rotation, ghost.x, ghost.y, rail.worldDir, ghost.level) + 0.1,
+          anchorKey(map, camera.rotation, worldX, worldY, z),
         );
       this.ghostMode = 0;
     }
@@ -2068,11 +2023,7 @@ export class WebGL2Renderer implements Renderer {
       const z = ghost.level * Z_STEP;
       const worldX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
-      const rotated = rotatedPositionSum(worldX, worldY, map, camera.rotation);
-      const depth =
-        ghost.kind === 'ride'
-          ? 2 * rotated - ghost.level + 1
-          : 2 * rotated - ghost.level + (ghost.kind === 'scenery' ? 2 : 1);
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       const [spriteName, frameSuffix] = ghost.sprite.split('#');
       const entry = spritePages.resolve(spriteName!);
       const frame = entry?.frames[Number(frameSuffix ?? 0)] ?? entry?.frames[0];
@@ -2122,22 +2073,7 @@ export class WebGL2Renderer implements Renderer {
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
       const worldX = x * TILE_UNITS + 128;
       const worldY = y * TILE_UNITS + 128;
-      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP - 1;
-      const slabDepth = pathDepthOverTerrain(
-        map,
-        camera.rotation,
-        x,
-        y,
-        pathSlabDepth(
-          map,
-          camera.rotation,
-          x,
-          y,
-          baseHeight,
-          flags,
-          map.heights[y * map.width + x]!,
-        ),
-      );
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -2150,17 +2086,9 @@ export class WebGL2Renderer implements Renderer {
           26,
         )
       ) {
-        this.append(worldX, worldY, z, 40, 26, sprite, slabDepth);
+        this.append(worldX, worldY, z, 40, 26, sprite, depth);
         for (const rail of queueRailSprites(flags, camera.rotation))
-          this.append(
-            worldX,
-            worldY,
-            z,
-            40,
-            26,
-            rail.sprite,
-            queueRailDepth(map, camera.rotation, x, y, rail.worldDir, baseHeight),
-          );
+          this.append(worldX, worldY, z, 40, 26, rail.sprite, depth);
       }
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
         if (flags & PathFlag.Shelter) {
@@ -2173,7 +2101,7 @@ export class WebGL2Renderer implements Renderer {
             box.width,
             box.height,
             pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]),
-            adjustDepthForGroundZ(depth + 2, baseHeight, shelterZ),
+            anchorKey(map, camera.rotation, worldX, worldY, shelterZ),
           );
         } else
           for (const placement of pathAdditionPlacements(flags, baseHeight)) {
@@ -2186,18 +2114,11 @@ export class WebGL2Renderer implements Renderer {
               box.width,
               box.height,
               pathAdditionSpriteName(flags, view, paths[o + 4]),
-              adjustDepthForGroundZ(
-                2 *
-                  rotatedPositionSum(
-                    worldX + placement.x,
-                    worldY + placement.y,
-                    map,
-                    camera.rotation,
-                  ) -
-                  baseHeight -
-                  1 +
-                  2,
-                baseHeight,
+              anchorKey(
+                map,
+                camera.rotation,
+                worldX + placement.x,
+                worldY + placement.y,
                 placement.groundZ,
               ),
             );
@@ -2230,7 +2151,7 @@ export class WebGL2Renderer implements Renderer {
       const box = sceneryBox(item);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth = sceneryDepth(map, x, y, camera.rotation, z);
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       const spriteHeight = box.height;
       if (
@@ -2287,8 +2208,7 @@ export class WebGL2Renderer implements Renderer {
         const z = map.heights[index] * Z_STEP + 1;
         const centerX = x * TILE_UNITS + 128;
         const centerY = y * TILE_UNITS + 128;
-        const depth =
-          2 * rotatedPositionSum(centerX, centerY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+        const depth = anchorKey(map, camera.rotation, centerX, centerY, z);
         project(centerX, centerY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -2337,13 +2257,12 @@ export class WebGL2Renderer implements Renderer {
       if (isRidingGuestRow(metadata) || i === this.heldGuestSlot) continue;
       const tint = metadata & 0xff;
       const heading = guestRowHeading(metadata);
-      const depth = personDepth(
+      const depth = anchorKey(
         map,
         camera.rotation,
-        this.surfaceDepths,
         layer.data[offset],
         layer.data[offset + 1],
-        layer.data[offset + 2],
+        layer.data[offset + 2] + PATH_SURFACE_Z,
       );
       this.appendLayerSprite(
         layer,
@@ -2356,6 +2275,7 @@ export class WebGL2Renderer implements Renderer {
         GUEST_BOX.width,
         GUEST_BOX.height,
         depth,
+        PATH_SURFACE_Z,
       );
     }
   }
@@ -2523,8 +2443,7 @@ export class WebGL2Renderer implements Renderer {
       const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
       const width = frame?.width ?? 12;
       const height = frame?.height ?? 14;
-      const depth =
-        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         !inViewport(
@@ -2555,9 +2474,13 @@ export class WebGL2Renderer implements Renderer {
     for (let i = 0; i < layer.count; i++) {
       const offset = i * SNAPSHOT_STRIDE;
       const dataOffset = offset + 3;
-      const depth =
-        2 * rotatedPositionSum(layer.data[offset], layer.data[offset + 1], map, camera.rotation) -
-        layer.data[offset + 2] / 64;
+      const depth = anchorKey(
+        map,
+        camera.rotation,
+        layer.data[offset],
+        layer.data[offset + 1],
+        layer.data[offset + 2] + PATH_SURFACE_Z,
+      );
       this.appendLayerSprite(
         layer,
         offset,
@@ -2569,6 +2492,7 @@ export class WebGL2Renderer implements Renderer {
         width,
         height,
         depth,
+        PATH_SURFACE_Z,
       );
     }
   }
@@ -2588,13 +2512,13 @@ export class WebGL2Renderer implements Renderer {
       const direction = (metadata >>> 8) & 3;
       const x = layer.data[offset];
       const y = layer.data[offset + 1];
-      const z = layer.data[offset + 2];
+      const z = layer.data[offset + 2] + PATH_SURFACE_Z;
       const key = `${peopleSpriteKey(kind, direction, camera.rotation)}#${walkingFrame(tick)}`;
       const entry = spritePages.resolve(key.split('#')[0]);
       const frame = entry?.frames[0];
       const width = frame?.width ?? 16;
       const height = frame?.height ?? 24;
-      const depth = personDepth(map, camera.rotation, this.surfaceDepths, x, y, z);
+      const depth = anchorKey(map, camera.rotation, x, y, z);
       project(x, y, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -2622,10 +2546,11 @@ export class WebGL2Renderer implements Renderer {
     width: number,
     height: number,
     depth: number,
+    lift = 0,
   ): void {
     const x = layer.data[offset];
     const y = layer.data[offset + 1];
-    const z = layer.data[offset + 2];
+    const z = layer.data[offset + 2] + lift;
     project(x, y, z, map.width, map.height, camera.rotation, this.projected);
     if (
       !inViewport(
@@ -3111,19 +3036,6 @@ function rotateForDraw(
 
 function chunkKey(cx: number, cy: number): number {
   return (cy + 4096) * 8192 + (cx + 4096);
-}
-
-function unrotateForDraw(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  rotation: Rotation,
-  out: Int32Array,
-): void {
-  const [ux, uy] = unrotateTile(x, y, width, height, rotation);
-  out[0] = ux;
-  out[1] = uy;
 }
 
 function inViewport(

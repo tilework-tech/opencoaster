@@ -8,8 +8,8 @@ import {
   pathAdditionEdgeOffset,
   pathAdditionView,
   pathAdditionBox,
+  PATH_SURFACE_Z,
   pathAdditionGroundZ,
-  adjustDepthForGroundZ,
   flowerBedGroundZ,
   sceneryGroundZ,
   spriteAnchorScreenShift,
@@ -89,21 +89,16 @@ describe('ground anchors', () => {
     expect(pathAdditionEdgeOffset(0)).toEqual({ x: 96, y: 0 });
     expect(pathAdditionEdgeOffset(1)).toEqual({ x: 0, y: 96 });
     const rampEast = PathFlag.Sloped;
-    expect(pathAdditionEdgeGroundZ(3, rampEast, 0)).toBe(3 * Z_STEP + Z_STEP + 1);
-    expect(pathAdditionEdgeGroundZ(3, rampEast, 1)).toBe(3 * Z_STEP + Z_STEP / 2 + 1);
-    expect(pathAdditionEdgeGroundZ(3, rampEast, 2)).toBe(3 * Z_STEP + 1);
-  });
-
-  it('keeps painter depth aligned with the anchored surface elevation', () => {
-    expect(adjustDepthForGroundZ(10, 2, 2 * Z_STEP)).toBe(10);
-    expect(adjustDepthForGroundZ(10, 2, 2 * Z_STEP + Z_STEP / 2)).toBe(9.5);
+    expect(pathAdditionEdgeGroundZ(3, rampEast, 0)).toBe(3 * Z_STEP + Z_STEP + PATH_SURFACE_Z);
+    expect(pathAdditionEdgeGroundZ(3, rampEast, 1)).toBe(3 * Z_STEP + Z_STEP / 2 + PATH_SURFACE_Z);
+    expect(pathAdditionEdgeGroundZ(3, rampEast, 2)).toBe(3 * Z_STEP + PATH_SURFACE_Z);
   });
 
   it('places path additions at the path surface for flat and sloped paths', () => {
     const flat = pathAdditionGroundZ(3, PathFlag.Bench);
     const sloped = pathAdditionGroundZ(3, PathFlag.Bench | PathFlag.Sloped);
     expect(flat).toBeGreaterThan(3 * Z_STEP);
-    expect(sloped - flat).toBe(Z_STEP / 2 - 1);
+    expect(sloped - flat).toBe(Z_STEP / 2);
   });
 
   it('uses one shared render box for intact and vandalised path additions', () => {

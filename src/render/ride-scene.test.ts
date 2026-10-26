@@ -6,16 +6,11 @@ import { RideInfo, RIDE_INFO_STRIDE, createSnapshot } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import { project } from './projection';
 import type { Rotation } from './projection';
-import { PERSON_BIAS, rotatedPositionSum } from './depth-key';
 import { isSlicedRide, RideCellScene } from './ride-scene';
 import { rideCellSpriteKey } from './world-art';
 import type { MapData } from './renderer';
 
 const SIZE = 30;
-
-function tileViewSum(x: number, y: number, m: MapData, rotation: Rotation): number {
-  return rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, m, rotation);
-}
 
 function map(): MapData {
   return {
@@ -135,49 +130,6 @@ describe('RideCellScene', () => {
           project(second.x, second.y, 0, SIZE, SIZE, rotation, out);
           if (sumA < out[1]) expect(first.depth).toBeLessThan(second.depth);
         }
-    }
-  });
-
-  it('orders guests in neighbouring tiles before or after a slice, in every rotation', () => {
-    const scene = new RideCellScene();
-    const m = map();
-    const def = RIDE_CATALOG[RideType.TopSpin];
-    const guestDepth = (x: number, y: number, rotation: Rotation): number =>
-      2 * rotatedPositionSum(x, y, m, rotation) + PERSON_BIAS;
-    for (let rotation = 0 as Rotation; rotation < 4; rotation = (rotation + 1) as Rotation) {
-      scene.build(
-        snapshotWith([{ type: RideType.TopSpin, x: 12, y: 12, dir: 0, base: 0 }]),
-        m,
-        rotation,
-      );
-      for (let i = 0; i < scene.length; i++) {
-        const slice = scene.items[i];
-        const tx = Math.floor(slice.x / TILE_UNITS);
-        const ty = Math.floor(slice.y / TILE_UNITS);
-        const covered = rideFootprintTiles(def, 12, 12, 0).some(([x, y]) => x === tx && y === ty);
-        expect(covered).toBe(true);
-        for (const [dx, dy] of [
-          [-1, 0],
-          [0, -1],
-          [1, 0],
-          [0, 1],
-          [-2, 1],
-          [1, -2],
-        ]) {
-          const sumDelta =
-            tileViewSum(tx + dx, ty + dy, m, rotation) - tileViewSum(tx, ty, m, rotation);
-          if (sumDelta === 0) continue;
-          for (const [fx, fy] of [[0.5, 0.5]]) {
-            const depth = guestDepth(
-              (tx + dx + fx) * TILE_UNITS,
-              (ty + dy + fy) * TILE_UNITS,
-              rotation,
-            );
-            if (sumDelta < 0) expect(depth).toBeLessThanOrEqual(slice.depth);
-            else expect(depth).toBeGreaterThanOrEqual(slice.depth);
-          }
-        }
-      }
     }
   });
 

@@ -34,14 +34,21 @@ export function pathAdditionView(edge: number, rotation: number): number {
   return (((edge + rotation) % 4) + 4) % 4;
 }
 
+/**
+ * Height of a footpath's walking surface above its base (the `SURFACE` of
+ * tools/sprites/models/paths.ts). People, litter and path props stand on it, so the slab never
+ * covers their feet.
+ */
+export const PATH_SURFACE_Z = Z_STEP / 16;
+
 export function pathAdditionEdgeGroundZ(baseHeight: number, flags: number, edge: number): number {
-  const baseZ = baseHeight * Z_STEP;
-  if ((flags & PathFlag.Sloped) === 0) return baseZ + 1;
+  const baseZ = baseHeight * Z_STEP + PATH_SURFACE_Z;
+  if ((flags & PathFlag.Sloped) === 0) return baseZ;
   const slopeDirection = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
   const direction = ((edge % 4) + 4) % 4;
-  if (direction === slopeDirection) return baseZ + Z_STEP + 1;
-  if (direction === ((slopeDirection + 2) & 3)) return baseZ + 1;
-  return baseZ + Z_STEP / 2 + 1;
+  if (direction === slopeDirection) return baseZ + Z_STEP;
+  if (direction === ((slopeDirection + 2) & 3)) return baseZ;
+  return baseZ + Z_STEP / 2;
 }
 
 export function pathAdditionBox(flags: number, view = 0): GroundBox {
@@ -59,7 +66,7 @@ export function pathConnectionEdges(flags: number): number {
 }
 
 export function pathAdditionGroundZ(baseHeight: number, flags: number): number {
-  return baseHeight * Z_STEP + ((flags & PathFlag.Sloped) !== 0 ? Z_STEP / 2 : 1);
+  return baseHeight * Z_STEP + ((flags & PathFlag.Sloped) !== 0 ? Z_STEP / 2 : 0) + PATH_SURFACE_Z;
 }
 
 export function sceneryGroundZ(baseHeight: number, slopeMask: number, rotation: number): number {
@@ -79,14 +86,6 @@ export function sceneryBox(definition: SceneryDefinition): GroundBox {
     width: definition.width,
     height: definition.height * SCENERY_PIXELS_PER_HEIGHT,
   };
-}
-
-export function adjustDepthForGroundZ(
-  depthAtBaseHeight: number,
-  baseHeight: number,
-  groundZ: number,
-): number {
-  return depthAtBaseHeight - (groundZ / Z_STEP - baseHeight);
 }
 
 export function spriteAnchorScreenShift(
