@@ -244,3 +244,30 @@ export function planArea(w: World, e: AreaEdit): AreaPlan {
 export function applyArea(w: World, e: AreaEdit): AreaPlan {
   return evaluate(w, e, true);
 }
+
+/**
+ * Brings every connected body of water to one flat surface, the lowest any of its tiles had, so
+ * ground above that surface goes dry. Used for worlds saved before water was one sheet per body.
+ */
+export function flattenWaterBodies(m: TileMap): void {
+  const seen = new Uint8Array(m.width * m.height);
+  for (let start = 0; start < seen.length; start++) {
+    if (seen[start] || m.waterLevel[start] <= m.heights[start]) continue;
+    const body = [start];
+    seen[start] = 1;
+    let surface = m.waterLevel[start];
+    for (let head = 0; head < body.length; head++) {
+      surface = Math.min(surface, m.waterLevel[body[head]]);
+      for (let n = 0; n < 4; n++) {
+        const o = neighbour(m, body[head], n);
+        if (o < 0 || seen[o] || m.waterLevel[o] <= m.heights[o]) continue;
+        seen[o] = 1;
+        body.push(o);
+      }
+    }
+    for (const t of body) {
+      m.waterLevel[t] = surface > m.heights[t] ? surface : 0;
+      m.refreshTile(t);
+    }
+  }
+}
