@@ -395,8 +395,12 @@ async function inspectScenery(
         expect(ride.outlineCellIndices.sort((a, b) => a - b)).toEqual(expectedCells);
         if (ride.hasEntranceAndExit) expect(ride.outlineIncludesEntranceAndExit).toBe(true);
       }
-      if (mobile) await longPress(page, ride);
-      else {
+      if (mobile) {
+        await page.mouse.move(ride.x, ride.y);
+        await expect(page.locator('.object-hover-outline')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`${kind}-hover.png`) });
+        await longPress(page, ride);
+      } else {
         await page.mouse.move(ride.x, ride.y);
         await expect(page.locator('.tool-status')).toContainText(ride.name);
         await expect(page.locator('.object-hover-outline')).toBeVisible();
