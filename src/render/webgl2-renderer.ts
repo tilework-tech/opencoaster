@@ -9,7 +9,7 @@ import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, Surface } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
-import { SCENERY_CATALOG } from '../sim/map/scenery';
+import { SCENERY_CATALOG, isWallScenery } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import {
@@ -84,6 +84,7 @@ import {
   spriteViewName,
   terrainCliffSpriteName,
   scenerySpriteName,
+  wallSpriteName,
   shrubSpriteName,
   spriteAnchorWorldOffset,
   terrainSurfaceSpriteName,
@@ -1838,7 +1839,11 @@ export class WebGL2Renderer implements Renderer {
       const x = items[offset];
       const y = items[offset + 1];
       const tile = y * map.width + x;
-      const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation);
+      const flags = items[offset + 3]!;
+      const wall = isWallScenery(items[offset + 4]!);
+      const z = wall
+        ? map.heights[tile]! * Z_STEP
+        : sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation);
       const item = SCENERY_CATALOG[items[offset + 4]];
       if (!item) continue;
       const box = sceneryBox(item);
@@ -1865,11 +1870,13 @@ export class WebGL2Renderer implements Renderer {
         z,
         box.width,
         spriteHeight,
-        item.sprite === 'flower-bed'
-          ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
-          : item.sprite === 'shrub'
-            ? shrubSpriteName(x, y, camera.rotation)
-            : scenerySpriteName(item.sprite, camera.rotation),
+        wall
+          ? wallSpriteName(item.sprite, flags, map.slope[tile]!, camera.rotation)
+          : item.sprite === 'flower-bed'
+            ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
+            : item.sprite === 'shrub'
+              ? shrubSpriteName(x, y, camera.rotation)
+              : scenerySpriteName(item.sprite, camera.rotation),
         depth,
       );
     }

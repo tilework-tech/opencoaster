@@ -1,7 +1,7 @@
 import { rideFootprintContains } from '../sim/rides/ride-footprint';
 import { RIDE_CATALOG, type RideType } from '../sim/rides/ride-types';
 import { PathFlag, PATH_ADDITION_BROKEN } from '../sim/map/tile-map';
-import { type SceneryItem, SCENERY_CATALOG } from '../sim/map/scenery';
+import { type SceneryItem, SCENERY_CATALOG, isWallScenery } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import {
   RideFlag,
@@ -32,6 +32,7 @@ import {
   rideSpriteFrame,
   rideSpriteKey,
   scenerySpriteName,
+  wallSpriteName,
 } from '../render/world-art';
 import { project, rotateDirection, rotateTile } from '../render/projection';
 import type { Camera, MapData } from '../render/renderer';
@@ -353,10 +354,15 @@ export function buildObjectPickTargets(
     const definition = SCENERY_CATALOG[item];
     if (!definition) continue;
     const tile = y * map.width + x;
-    const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation);
+    const flags = scenery[o + 3]!;
+    const wall = isWallScenery(item);
+    const z = wall
+      ? map.heights[tile]! * Z_STEP
+      : sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation);
     const box = sceneryBox(definition);
-    const key =
-      definition.sprite === 'flower-bed'
+    const key = wall
+      ? wallSpriteName(definition.sprite, flags, map.slope[tile]!, camera.rotation)
+      : definition.sprite === 'flower-bed'
         ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
         : scenerySpriteName(definition.sprite);
     add(

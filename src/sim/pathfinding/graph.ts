@@ -1,5 +1,6 @@
 import type { TileMap } from '../map/tile-map';
-import { Surface } from '../map/tile-map';
+import { ElementType, Surface } from '../map/tile-map';
+import { isWallScenery, type SceneryItem } from '../map/scenery';
 
 /**
  * The footpath graph as the pathfinder sees it. Tiles are row-major (`y * width + x`). Edges must
@@ -42,12 +43,28 @@ export class TileMapPathGraph implements PathGraph {
     const x = i % w;
     const y = (i / w) | 0;
     let m = 0;
-    if (x + 1 < w && s[i + 1] === Surface.Path) m |= 1;
-    if (y + 1 < this.height && s[i + w] === Surface.Path) m |= 2;
-    if (x > 0 && s[i - 1] === Surface.Path) m |= 4;
-    if (y > 0 && s[i - w] === Surface.Path) m |= 8;
+    if (x + 1 < w && s[i + 1] === Surface.Path && !wallBlocks(this.map, i, 0)) m |= 1;
+    if (y + 1 < this.height && s[i + w] === Surface.Path && !wallBlocks(this.map, i, 1)) m |= 2;
+    if (x > 0 && s[i - 1] === Surface.Path && !wallBlocks(this.map, i, 2)) m |= 4;
+    if (y > 0 && s[i - w] === Surface.Path && !wallBlocks(this.map, i, 3)) m |= 8;
     return m;
   }
+}
+
+function wallBlocks(map: TileMap, tile: number, direction: number): boolean {
+  const neighbor = map.neighbor(tile, direction);
+  const hasWall = (at: number, edge: number): boolean => {
+    for (let element = map.firstElement(at); element >= 0; element = map.nextElement(element)) {
+      if (
+        map.elType[element] === ElementType.SmallScenery &&
+        isWallScenery(map.elData[element] as SceneryItem) &&
+        map.elFlags[element] === edge
+      )
+        return true;
+    }
+    return false;
+  };
+  return hasWall(tile, direction) || (neighbor >= 0 && hasWall(neighbor, (direction + 2) & 3));
 }
 
 const adapters = new WeakMap<TileMap, TileMapPathGraph>();

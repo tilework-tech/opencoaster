@@ -12,6 +12,7 @@ import {
   atlasFrameOrFallback,
   pathSpriteName,
   scenerySpriteName,
+  wallSpriteName,
   spriteAnchorWorldOffset,
   spriteViewName,
   terrainSpriteName,
@@ -44,6 +45,19 @@ describe('world art sprite selection', () => {
     expect(new Set(names).size).toBe(4);
     for (const name of names) expect(name).toMatch(/^scenery\/shrub\/variant-[0-3]\/view-2$/);
     expect(shrubSpriteName(5, 7, 3)).toBe(shrubSpriteName(5, 7, 7));
+  });
+  it('selects wall art by edge orientation, terrain slope and camera view', () => {
+    for (const wall of ['hedge', 'wooden-fence', 'stone-fence']) {
+      for (let edge = 0; edge < 4; edge++) {
+        for (let slope = 0; slope < 16; slope++) {
+          for (let view = 0; view < 4; view++) {
+            expect(wallSpriteName(wall, edge, slope, view)).toBe(
+              `scenery/${wall}/edge-${edge}/slope-${slope}/view-${view}`,
+            );
+          }
+        }
+      }
+    }
   });
   it('chooses desert trees on sand and temperate trees on grass', () => {
     expect(ambientTreeName(1, 4, 1)).toBe('tree-cactus');

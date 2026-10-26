@@ -24,8 +24,12 @@ import {
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
+import { ElementType } from '../sim/map/tile-map';
+import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
+const WALL_EDGE_SAVE_VERSION = 24;
+const PRE_WALL_EDGE_SAVE_VERSION = 23;
 /** Flat rides gained multi-tile footprints and a stored orientation in version 22. */
 const FOOTPRINT_SAVE_VERSION = 22;
 /** Last version before guests and rides carried queue-order counters and queue limits. */
@@ -481,6 +485,7 @@ export function deserialize(bytes: Uint8Array): World {
     PER_STAFF_PATROL_SAVE_VERSION,
     FLAT_WATER_SAVE_VERSION,
     PRE_QUEUE_ORDER_SAVE_VERSION,
+    PRE_WALL_EDGE_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -626,6 +631,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version < PRE_TRACKED_WATER_RIDES_SAVE_VERSION) migrateFlatWaterRides(world);
   if (header.version < FLAT_WATER_SAVE_VERSION) flattenWaterBodies(world.map);
   if (header.version < FOOTPRINT_SAVE_VERSION) migrateSingleTileRides(world);
+  if (header.version < WALL_EDGE_SAVE_VERSION) migrateWallEdges(world);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION
@@ -635,6 +641,19 @@ export function deserialize(bytes: Uint8Array): World {
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
   return world;
+}
+
+function migrateWallEdges(world: World): void {
+  const map = world.map;
+  for (let tile = 0; tile < map.width * map.height; tile++) {
+    for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element)) {
+      if (
+        map.elType[element] === ElementType.SmallScenery &&
+        isWallScenery(map.elData[element] as SceneryItem)
+      )
+        map.elFlags[element] = 0;
+    }
+  }
 }
 
 export interface SaveSummary {

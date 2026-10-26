@@ -9,7 +9,7 @@ import { PATH_STYLES, pathMesh, queueRailMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import type { RideCategory, RideTypeDef } from '../../src/sim/rides/ride-types';
-import { rideSpriteName } from '../../src/render/world-art';
+import { rideSpriteName, wallSpriteName } from '../../src/render/world-art';
 import { RIDE_MODELS } from './models/ride-catalog';
 import { rideMesh } from './models/rides';
 import type { RideModel } from './models/rides';
@@ -28,6 +28,7 @@ import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
 import { cactusTreeMesh, palmTreeMesh } from './models/trees';
 import { flowerBedMesh } from './models/flower-bed';
 import { shrubMesh } from './models/shrub';
+import { wallMesh } from './models/walls';
 import { LOG_FLUME_MODEL } from './models/log-flume';
 import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
 import { personMesh, seatedRiderMesh } from './models/people';
@@ -342,6 +343,27 @@ function shrubSprites(): SpriteDef[] {
   ).flat();
 }
 
+function wallSprites(): SpriteDef[] {
+  return (['hedge', 'wooden-fence', 'stone-fence'] as const)
+    .flatMap((wall) =>
+      Array.from({ length: 4 }, (_, edge) =>
+        Array.from({ length: 16 }, (_, slope) =>
+          Array.from({ length: 4 }, (_, view) => ({
+            key: wallSpriteName(wall, edge, slope, view),
+            frames: [
+              renderMesh(
+                rotateMesh(physicalToLevels(wallMesh(wall, edge, slope)), view),
+                wall === 'hedge' ? { outline: false } : undefined,
+              ),
+            ],
+            footprint: ONE_TILE,
+          })),
+        ),
+      ),
+    )
+    .flat(2);
+}
+
 function parkEntranceSprites(): SpriteDef[] {
   return Array.from({ length: 4 }, (_, view) => ({
     key: `scenery/park-entrance/view-${view}`,
@@ -529,6 +551,7 @@ export function buildSprites(): SpriteDef[] {
     ...pathAdditionSprites(),
     ...litterSprites(),
     ...treeSprites(),
+    ...wallSprites(),
     ...shrubSprites(),
     ...flowerBedSprites(),
     ...coasterSprites(),

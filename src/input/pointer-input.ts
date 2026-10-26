@@ -28,6 +28,10 @@ export interface PointerInputActions {
   pathDragMove(x: number, y: number): void;
   pathDragEnd(): void;
   pathDragCancel(): void;
+  wallDragStart?(x: number, y: number): boolean;
+  wallDragMove?(x: number, y: number): void;
+  wallDragEnd?(): void;
+  wallDragCancel?(): void;
   /** A single pointer went down on the map; tools with a live preview show it straight away. */
   press?(x: number, y: number): void;
   /** Land tool: the pointer moved past the tap threshold; the drag began at (x, y). */
@@ -44,6 +48,7 @@ interface ActivePointer {
   held: boolean;
   /** This pointer is laying a footpath run rather than panning. */
   pathDrag: boolean;
+  wallDrag: boolean;
   paintDrag: boolean;
   personDrag: boolean;
   timer: ReturnType<typeof setTimeout> | null;
@@ -74,6 +79,7 @@ export class PointerInput {
       moved: false,
       held: false,
       pathDrag: false,
+      wallDrag: false,
       paintDrag: false,
       personDrag: false,
       timer: null,
@@ -154,6 +160,8 @@ export class PointerInput {
         this.actions.paint(active.startX, active.startY, sample.shiftKey);
       else if (this.actions.tool() === 'path')
         active.pathDrag = this.actions.pathDragStart(active.startX, active.startY);
+      else if (this.actions.tool() === 'scenery')
+        active.wallDrag = this.actions.wallDragStart?.(active.startX, active.startY) ?? false;
       else if (this.actions.tool() === 'select' && sample.pointerType === 'mouse')
         active.personDrag = this.actions.personDragStart?.(active.startX, active.startY) ?? false;
       else if (this.actions.tool() === 'patrol') {
@@ -169,6 +177,7 @@ export class PointerInput {
     else if (active.paintDrag)
       this.paintBetween(startsDrag ? { x: active.startX, y: active.startY } : previous, sample);
     else if (active.pathDrag) this.actions.pathDragMove(sample.x, sample.y);
+    else if (active.wallDrag) this.actions.wallDragMove?.(sample.x, sample.y);
     else if (startsDrag) this.actions.pan(dx, dy);
     else this.actions.pan(sample.x - previous.x, sample.y - previous.y);
   }
@@ -180,6 +189,7 @@ export class PointerInput {
     this.cancelHold(active);
     this.pointers.delete(sample.pointerId);
     if (active.pathDrag) this.actions.pathDragEnd();
+    if (active.wallDrag) this.actions.wallDragEnd?.();
     if (active.personDrag) this.actions.personDragEnd?.(sample.x, sample.y);
     this.endLandDrag();
 
@@ -206,6 +216,7 @@ export class PointerInput {
     const active = this.pointers.get(pointerId);
     if (active) this.cancelHold(active);
     if (active?.pathDrag) this.actions.pathDragCancel();
+    if (active?.wallDrag) this.actions.wallDragCancel?.();
     if (active?.personDrag) this.actions.personDragCancel?.();
     this.endLandDrag();
     this.pointers.clear();

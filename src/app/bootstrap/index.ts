@@ -42,6 +42,8 @@ import { createPathState } from '../tools/path/state';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
 import { scenarioOpeningPosition } from './opening-camera';
+import { nearestWallEdge } from '../../input/wall-edge';
+import { isWallScenery } from '../../sim/map/scenery';
 
 export async function bootstrap(): Promise<void> {
   const root = document.getElementById('app') as HTMLElement;
@@ -92,6 +94,7 @@ export async function bootstrap(): Promise<void> {
   let buildHoverTile: [number, number] | null = null;
   let buildHoverClient = { x: 0, y: 0 };
   let sceneryRotation = 0;
+  let sceneryWallEdge: number | null = null;
   let patrolStaffId: number | null = null;
   let patrolPreviewRemove = false;
   let alternate = false;
@@ -171,10 +174,28 @@ export async function bootstrap(): Promise<void> {
     footpath: pathTool,
     setSceneryItem(item) {
       sceneryItem = item as SceneryItem;
+      sceneryWallEdge = null;
     },
     rotatePiece() {
       if (rideSetupState.current.rotatePlacement()) return;
-      sceneryRotation = (sceneryRotation + 1) % 4;
+      if (isWallScenery(sceneryItem)) {
+        let edge = sceneryWallEdge;
+        if (edge === null && placementHover && sim.map) {
+          const rect = canvas.getBoundingClientRect();
+          edge = nearestWallEdge(
+            placementHover.clientX - rect.left,
+            placementHover.clientY - rect.top,
+            sim.map,
+            camera,
+            viewport,
+            placementHover.tile[0],
+            placementHover.tile[1],
+          );
+        }
+        sceneryWallEdge = ((edge ?? 3) + 1) & 3;
+      } else {
+        sceneryRotation = (sceneryRotation + 1) % 4;
+      }
     },
     locate(x, y) {
       centreOnTile(x, y, sim, camera);
@@ -381,6 +402,7 @@ export async function bootstrap(): Promise<void> {
     pathTool,
     sceneryItem: () => sceneryItem,
     sceneryRotation: () => sceneryRotation,
+    sceneryEdge: () => sceneryWallEdge,
     patrolStaffId: () => patrolStaffId,
     clearRideSetupNotice: rideSetupState.current.clearNotice,
     rideTileClick: rideSetupState.current.rideTileClick,
@@ -413,6 +435,7 @@ export async function bootstrap(): Promise<void> {
     },
     removePathAt: toolController.removePathAt,
     pathDrag: toolController.pathDrag,
+    wallDrag: toolController.wallDrag,
     land: landController,
     areaTools,
     setPlacementHover: (hover) => (placementHover = hover),
@@ -549,6 +572,19 @@ export async function bootstrap(): Promise<void> {
       spriteGhosts.push(...rideGhostSprites(rideGhost, sim.map, camera.rotation));
     if (selectedTool === 'scenery' && placementHover && sim.map) {
       const [x, y] = placementHover.tile;
+      const rect = canvas.getBoundingClientRect();
+      const edge = isWallScenery(sceneryItem)
+        ? (sceneryWallEdge ??
+          nearestWallEdge(
+            placementHover.clientX - rect.left,
+            placementHover.clientY - rect.top,
+            sim.map,
+            camera,
+            viewport,
+            x,
+            y,
+          ))
+        : sceneryRotation;
       const sceneryGhost = scenerySpot.update(
         {
           x,
@@ -556,7 +592,7 @@ export async function bootstrap(): Promise<void> {
           level: sim.map.heights[y * sim.map.width + x] ?? 0,
           slopeMask: sim.map.slope[y * sim.map.width + x] ?? 0,
           item: sceneryItem,
-          rotation: sceneryRotation,
+          rotation: edge,
           viewRotation: camera.rotation,
           clientX: placementHover.clientX,
           clientY: placementHover.clientY,

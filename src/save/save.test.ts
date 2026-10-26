@@ -23,13 +23,14 @@ import {
 } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
-import { PATH_BOARDING_MARKS, PathStyle } from '../sim/map/tile-map';
+import { PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
+import { placeScenery, SceneryItem } from '../sim/map/scenery';
 import { refreshQueueIndex } from '../sim/rides/queue-lines';
 import { createRide, placeRideEntranceExit } from '../sim/rides/ride-operations';
 
 describe('save', () => {
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(23);
+    expect(SAVE_VERSION).toBe(24);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -37,11 +38,31 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(23);
+    expect(header.version).toBe(24);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
     expect(restored.staff.cols.vandalsStopped[0]).toBe(27);
+  });
+
+  it('migrates legacy walls to the edge that preserves their previous default appearance', () => {
+    const sim = new Simulation({ seed: 22, width: 8, height: 8 });
+    sim.world.map.ownership[sim.world.map.index(4, 4)] = OWNED;
+    expect(placeScenery(sim.world.map, 4, 4, SceneryItem.WoodenFence, 3)).toBe(true);
+    const current = serialize(sim.world);
+    const headerLength = new DataView(current.buffer).getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, 8 + headerLength)));
+    header.version = 23;
+    const encoded = new TextEncoder().encode(JSON.stringify(header));
+    const legacy = new Uint8Array(8 + encoded.length + current.length - 8 - headerLength);
+    legacy.set(current.subarray(0, 8));
+    new DataView(legacy.buffer).setUint32(4, encoded.length, true);
+    legacy.set(encoded, 8);
+    legacy.set(current.subarray(8 + headerLength), 8 + encoded.length);
+
+    const loaded = deserialize(legacy);
+    const tile = loaded.map.index(4, 4);
+    expect(loaded.map.elFlags[loaded.map.firstElement(tile)]).toBe(0);
   });
 
   it('migrates version 14 world state while preserving its ride-history windows', () => {

@@ -10,7 +10,7 @@ import {
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
-import { SCENERY_CATALOG, SceneryCategory } from '../sim/map/scenery';
+import { SCENERY_CATALOG, SceneryCategory, isWallScenery } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
@@ -34,6 +34,7 @@ import {
   pathAdditionSpriteName,
   litterSpriteName,
   scenerySpriteName,
+  wallSpriteName,
   shrubSpriteName,
   rideSpriteFrame,
   rideSpriteKey,
@@ -1227,7 +1228,7 @@ export class Canvas2DRenderer implements Renderer {
       this.pathLow,
     );
     if (!this.isVisible(this.pathLow[0]!, this.pathLow[1]!, cam, 40)) return;
-    if (ghost.sprite.startsWith('scenery/flower-bed/'))
+    if (ghost.sprite.startsWith('scenery/flower-bed/') || ghost.sprite.includes('/edge-'))
       drawGhostSprite(
         ctx,
         this.atlas,
@@ -1319,7 +1320,11 @@ export class Canvas2DRenderer implements Renderer {
       const x = scenery[offset];
       const y = scenery[offset + 1];
       const tile = y * map.width + x;
-      const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation);
+      const flags = scenery[offset + 3]!;
+      const wall = isWallScenery(scenery[offset + 4]!);
+      const z = wall
+        ? map.heights[tile]! * Z_STEP
+        : sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation);
       const definition = SCENERY_CATALOG[scenery[offset + 4]];
       if (!definition) continue;
       const box = sceneryBox(definition);
@@ -1333,15 +1338,16 @@ export class Canvas2DRenderer implements Renderer {
         this.tmp,
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, Math.max(box.width, box.height))) continue;
-      const sprite =
-        definition.sprite === 'flower-bed'
+      const sprite = wall
+        ? wallSpriteName(definition.sprite, flags, map.slope[tile]!, cam.rotation)
+        : definition.sprite === 'flower-bed'
           ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
           : definition.sprite === 'shrub'
             ? shrubSpriteName(x, y, cam.rotation)
             : scenerySpriteName(definition.sprite, cam.rotation);
       const drewSprite =
         this.atlas &&
-        (definition.sprite === 'flower-bed'
+        (wall || definition.sprite === 'flower-bed'
           ? drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0]!, this.tmp[1]!)
           : drawBoxedSprite(
               ctx,

@@ -277,6 +277,15 @@ export function scenerySpriteName(name: string, rotation = 0): string {
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
 }
 
+export function wallSpriteName(
+  name: string,
+  edge: number,
+  slopeMask: number,
+  view: number,
+): string {
+  return `scenery/${name}/edge-${((edge % 4) + 4) % 4}/slope-${slopeMask & 15}/view-${((view % 4) + 4) % 4}`;
+}
+
 /** Stable tile-based shrub variant with a camera-specific generated sprite. */
 export function shrubSpriteName(x: number, y: number, rotation: number): string {
   const variant = (((x * 3 + y * 5) % 4) + 4) % 4;

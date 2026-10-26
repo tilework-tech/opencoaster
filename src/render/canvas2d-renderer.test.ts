@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PATH_ADDITION_BROKEN, PathFlag, PathStyle } from '../sim/map/tile-map';
-import { SceneryItem } from '../sim/map/scenery';
+import { SceneryItem, isWallScenery } from '../sim/map/scenery';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { SceneryResult } from '../sim/map/scenery';
 import { sceneryBox } from './ground-anchor';
@@ -18,7 +18,12 @@ import { ScenerySpotPreview } from '../app/tools/scenery-preview';
 import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
 import { pathAdditionPreviewGhosts } from '../app/tools/path-addition-preview';
 import { FLOWER_BED } from '../sim/staff/grounds';
-import { flowerBedSpriteName, scenerySpriteName, shrubSpriteName } from './world-art';
+import {
+  flowerBedSpriteName,
+  scenerySpriteName,
+  shrubSpriteName,
+  wallSpriteName,
+} from './world-art';
 
 class RecordingContext {
   readonly canvas = { width: 1, height: 1 };
@@ -452,8 +457,10 @@ describe('Canvas2D fallback map art', () => {
           map.sceneryElements = Int32Array.of(tileX, tileY, 0, 0, item);
           map.sceneryCount = 1;
           const definition = SCENERY_CATALOG[item]!;
-          const key =
-            definition.sprite === 'flower-bed'
+          const wall = isWallScenery(item as SceneryItem);
+          const key = wall
+            ? wallSpriteName(definition.sprite, 0, map.slope[tile]!, rotation)
+            : definition.sprite === 'flower-bed'
               ? flowerBedSpriteName(tileX, tileY, rotation, map.slope[tile]!)
               : definition.sprite === 'shrub'
                 ? shrubSpriteName(tileX, tileY, rotation)
@@ -477,7 +484,7 @@ describe('Canvas2D fallback map art', () => {
             level: 2,
             slopeMask: map.slope[tile]!,
             item: item as SceneryItem,
-            rotation: (rotation + 1) % 4,
+            rotation: wall ? 0 : (rotation + 1) % 4,
             viewRotation: rotation,
             clientX: 0,
             clientY: 0,
@@ -497,7 +504,7 @@ describe('Canvas2D fallback map art', () => {
             [ghost],
           );
           const { width: boxWidth, height: boxHeight } =
-            definition.sprite === 'flower-bed' ? STUB_FRAME : sceneryBox(definition);
+            definition.sprite === 'flower-bed' || wall ? STUB_FRAME : sceneryBox(definition);
           const placedRect = screenRect(placed, boxWidth, boxHeight);
           const ghostRect = screenRect(previewDraw, boxWidth, boxHeight);
           expect(placedRect, `placed ${key} rotation=${rotation} zoom=${zoom}`).toBeDefined();

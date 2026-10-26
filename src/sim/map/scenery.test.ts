@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { OWNED, ElementType } from './tile-map';
-import { placeScenery, SceneryItem, sceneryPlacementResult, SceneryResult } from './scenery';
+import { OWNED, ElementType, PathFlag } from './tile-map';
+import {
+  placeScenery,
+  removeScenery,
+  SceneryItem,
+  sceneryPlacementResult,
+  SceneryResult,
+} from './scenery';
 import { World } from '../core/world';
 
 describe('place scenery', () => {
@@ -72,5 +78,62 @@ describe('scenery placement result', () => {
     map.ownership[tile] = OWNED;
     expect(placeScenery(map, 4, 4, SceneryItem.WoodenFence, 3)).toBe(true);
     expect(map.elFlags[map.firstElement(tile)]).toBe(3);
+  });
+
+  it('stores four walls on separate edges of one tile and rejects a duplicate edge', () => {
+    const world = new World({ seed: 8, width: 12, height: 12 });
+    const map = world.map;
+    map.ownership.fill(0);
+    map.ownership[map.index(4, 4)] = OWNED;
+
+    expect(
+      [0, 1, 2, 3].map((edge) => placeScenery(map, 4, 4, SceneryItem.WoodenFence, edge)),
+    ).toEqual([true, true, true, true]);
+    expect(placeScenery(map, 4, 4, SceneryItem.StoneFence, 2)).toBe(false);
+    const flags: number[] = [];
+    for (
+      let element = map.firstElement(map.index(4, 4));
+      element >= 0;
+      element = map.nextElement(element)
+    )
+      if (map.elType[element] === ElementType.SmallScenery) flags.push(map.elFlags[element]!);
+    expect(flags.sort()).toEqual([0, 1, 2, 3]);
+  });
+
+  it('removes the selected wall edge when several walls share a tile', () => {
+    const world = new World({ seed: 8, width: 12, height: 12 });
+    const map = world.map;
+    map.ownership.fill(OWNED);
+    const tile = map.index(4, 4);
+    while (map.firstElement(tile) >= 0) map.removeElement(tile, map.firstElement(tile));
+    for (const edge of [0, 1, 2, 3])
+      expect(placeScenery(map, 4, 4, SceneryItem.WoodenFence, edge)).toBe(true);
+
+    expect(removeScenery(map, 4, 4, 2)).toBe(SceneryItem.WoodenFence);
+    const flags: number[] = [];
+    for (
+      let element = map.firstElement(map.index(4, 4));
+      element >= 0;
+      element = map.nextElement(element)
+    )
+      if (map.elType[element] === ElementType.SmallScenery) flags.push(map.elFlags[element]!);
+    expect(flags.sort()).toEqual([0, 1, 3]);
+  });
+
+  it('blocks path movement only across the wall edge', () => {
+    const world = new World({ seed: 8, width: 12, height: 12 });
+    const map = world.map;
+    map.ownership.fill(0);
+    const tile = map.index(4, 4);
+    map.ownership[tile] = OWNED;
+    const east = tile + 1;
+    map.ownership[east] = OWNED;
+    map.addElement(tile, ElementType.Path, 0, 1, PathFlag.Edges & 1, 0);
+    map.addElement(east, ElementType.Path, 0, 1, PathFlag.Edges & 4, 0);
+    expect(map.edgeMask(tile) & 1).toBe(1);
+    expect(placeScenery(map, 4, 4, SceneryItem.Hedge, 0)).toBe(true);
+
+    expect(map.edgeMask(tile) & 1).toBe(0);
+    expect(map.edgeMask(east) & 4).toBe(0);
   });
 });

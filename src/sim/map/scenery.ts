@@ -1,5 +1,6 @@
 import { ElementType, MAX_ELEMENT_BASE, OWNED, RIGHTS_OWNED } from './tile-map';
 import type { TileMap } from './tile-map';
+import { markPathsChanged } from '../pathfinding/graph';
 
 export const enum SceneryCategory {
   Trees = 'trees',
@@ -154,6 +155,14 @@ export const SCENERY_CATALOG: readonly SceneryDefinition[] = [
   },
 ];
 
+export function isWallScenery(item: SceneryItem): boolean {
+  return (
+    item === SceneryItem.Hedge ||
+    item === SceneryItem.WoodenFence ||
+    item === SceneryItem.StoneFence
+  );
+}
+
 /** Why a scenery item cannot be placed on a tile; `Ok` means it can. */
 export const enum SceneryResult {
   Ok = 0,
@@ -187,6 +196,16 @@ export function sceneryPlacementResult(
   const base = map.heights[tile] + (map.slope[tile] ? 1 : 0);
   const clear = Math.min(MAX_ELEMENT_BASE, base + Math.max(1, definition.height));
   for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element)) {
+    if (isWallScenery(item)) {
+      if (map.elType[element] === ElementType.SmallScenery) {
+        const otherItem = map.elData[element] as SceneryItem;
+        if (isWallScenery(otherItem)) {
+          if (map.elFlags[element] === rotation) return SceneryResult.Blocked;
+          continue;
+        }
+      }
+      if (map.elType[element] === ElementType.Path) continue;
+    }
     if (map.elBase[element] < clear && base < map.elClear[element]) return SceneryResult.Blocked;
   }
   return SceneryResult.Ok;
@@ -204,17 +223,26 @@ export function placeScenery(
   const base = map.heights[tile] + (map.slope[tile] ? 1 : 0);
   const clear = Math.min(MAX_ELEMENT_BASE, base + Math.max(1, SCENERY_CATALOG[item]!.height));
   const element = map.addElement(tile, ElementType.SmallScenery, base, clear, rotation, item);
+  if (element >= 0 && isWallScenery(item)) markPathsChanged(map);
   return element >= 0;
 }
 
-export function removeScenery(map: TileMap, x: number, y: number): SceneryItem | null {
+export function removeScenery(
+  map: TileMap,
+  x: number,
+  y: number,
+  edge?: number,
+): SceneryItem | null {
   if (!map.inBounds(x, y)) return null;
   const tile = map.index(x, y);
   if ((map.ownership[tile] & (OWNED | RIGHTS_OWNED)) === 0) return null;
   for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element)) {
     if (map.elType[element] !== ElementType.SmallScenery) continue;
     const item = map.elData[element] as SceneryItem;
+    if (isWallScenery(item) && edge !== undefined && map.elFlags[element] !== edge) continue;
+    if (!isWallScenery(item) && edge !== undefined) continue;
     map.removeElement(tile, element);
+    if (isWallScenery(item)) markPathsChanged(map);
     return SCENERY_CATALOG[item] ? item : null;
   }
   return null;
