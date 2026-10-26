@@ -100,8 +100,9 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
       snapshot.rideInfo[o + RideInfo.RideY] = y;
       if (hut) {
         snapshot.rideInfo[o + RideInfo.Flags] = RideFlag.EntrancePlaced | RideFlag.ExitPlaced;
-        snapshot.rideInfo[o + RideInfo.EntranceX] = x;
-        snapshot.rideInfo[o + RideInfo.EntranceY] = y - 1;
+        // The entrance stands clear of the ride art, which occludes the tiles around its 3x3 footprint.
+        snapshot.rideInfo[o + RideInfo.EntranceX] = x - 3;
+        snapshot.rideInfo[o + RideInfo.EntranceY] = y;
         snapshot.rideInfo[o + RideInfo.ExitX] = x + 1;
         snapshot.rideInfo[o + RideInfo.ExitY] = y;
       }
@@ -131,8 +132,8 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
         name: 'entrance',
         prefix: 'rides/flat/stations/',
         colour: [120, 60, 250],
-        x: 9.5,
-        y: 7.5,
+        x: 6.5,
+        y: 8.5,
       },
       { name: 'gate', prefix: 'scenery/park-entrance', colour: [250, 120, 160], x: 12.5, y: 6.5 },
       { name: 'guest', prefix: 'people/guest-walk', colour: [255, 255, 255], x: 10.5, y: 5.5 },
