@@ -25,9 +25,10 @@ import { guestRowState } from '../../worker/snapshot';
 import { RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import { RIDE_CATALOG, type RideType } from '../../sim/rides/ride-types';
 import type { ObjectPickTarget } from '../../input/object-picking';
+import { drawHeldSprite, drawSpriteOutline, heldLiftPixels } from './object-overlay';
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 
-type MovingPerson = { person: 'guest' | 'staff'; id: number };
+type MovingPerson = { person: 'guest' | 'staff'; id: number; sprite?: ObjectPickTarget };
 
 export interface ToolControllerDependencies {
   canvas: HTMLCanvasElement;
@@ -53,10 +54,11 @@ export interface ToolControllerDependencies {
 
 export function createToolController(deps: ToolControllerDependencies) {
   let movingPerson: MovingPerson | null = null;
-  let hoverOutline: HTMLDivElement | null = null;
+  let hoverOutline: HTMLCanvasElement | null = null;
+  let hoveredTargetKey = '';
   let hoveredObjectName: string | null = null;
   let objectPopup: HTMLDivElement | null = null;
-  let liftedPerson: HTMLDivElement | null = null;
+  let liftedPerson: HTMLCanvasElement | null = null;
   let dropMarker: HTMLDivElement | null = null;
   let dropShadow: HTMLDivElement | null = null;
   const handlerDeps = {
@@ -105,7 +107,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     if (!movingPerson) return;
     const map = deps.sim.map;
     const rect = deps.canvas.getBoundingClientRect();
-    liftedPerson ??= Object.assign(document.createElement('div'), {
+    liftedPerson ??= Object.assign(document.createElement('canvas'), {
       className: 'person-pickup-ghost',
     });
     dropMarker ??= Object.assign(document.createElement('div'), {
@@ -117,8 +119,16 @@ export function createToolController(deps: ToolControllerDependencies) {
     if (!liftedPerson.isConnected) document.body.append(liftedPerson);
     if (!dropMarker.isConnected) document.body.append(dropMarker);
     if (!dropShadow.isConnected) document.body.append(dropShadow);
-    liftedPerson.textContent = movingPerson.person === 'guest' ? '●' : '◆';
-    Object.assign(liftedPerson.style, { left: `${clientX - 8}px`, top: `${clientY - 34}px` });
+    const sprite = movingPerson.sprite;
+    if (sprite && liftedPerson.dataset.person !== `${movingPerson.person}:${movingPerson.id}`) {
+      drawHeldSprite(liftedPerson, sprite);
+      liftedPerson.dataset.person = `${movingPerson.person}:${movingPerson.id}`;
+    }
+    const lift = heldLiftPixels(deps.camera.zoom);
+    Object.assign(liftedPerson.style, {
+      left: `${clientX - (sprite?.anchorX ?? 8)}px`,
+      top: `${clientY - lift - (sprite?.anchorY ?? 20)}px`,
+    });
     const tile = tileAt(clientX, clientY);
     const check = dropCheck(tile);
     dropMarker.dataset.valid = String(check.ok);
@@ -136,12 +146,21 @@ export function createToolController(deps: ToolControllerDependencies) {
       );
       const x = rect.left + rect.width / 2 + (point[0]! - deps.camera.x) * deps.camera.zoom;
       const y = rect.top + rect.height / 2 + (point[1]! - deps.camera.y) * deps.camera.zoom;
+      const zoom = deps.camera.zoom;
       Object.assign(dropMarker.style, {
-        left: `${x - 14}px`,
-        top: `${y - 14}px`,
+        left: `${x - 22 * zoom}px`,
+        top: `${y - 11 * zoom}px`,
+        width: `${44 * zoom}px`,
+        height: `${22 * zoom}px`,
         display: 'block',
       });
-      Object.assign(dropShadow.style, { left: `${x - 9}px`, top: `${y - 4}px`, display: 'block' });
+      Object.assign(dropShadow.style, {
+        left: `${clientX - 10 * zoom}px`,
+        top: `${clientY - 4 * zoom}px`,
+        width: `${20 * zoom}px`,
+        height: `${8 * zoom}px`,
+        display: 'block',
+      });
     } else {
       dropMarker.style.display = 'none';
       dropShadow.style.display = 'none';
@@ -150,6 +169,8 @@ export function createToolController(deps: ToolControllerDependencies) {
   }
 
   function hidePersonMoveVisual(): void {
+    deps.renderer.setHeldPerson(null);
+    if (liftedPerson) delete liftedPerson.dataset.person;
     if (liftedPerson) liftedPerson.remove();
     if (dropMarker) dropMarker.remove();
     if (dropShadow) dropShadow.remove();
@@ -177,6 +198,19 @@ export function createToolController(deps: ToolControllerDependencies) {
   }
 
   function hoverCanvas(clientX: number, clientY: number): void {
+    if (movingPerson) {
+      clearObjectHover();
+      if (!movingPerson.sprite) {
+        const rect = deps.canvas.getBoundingClientRect();
+        const held = movingPerson;
+        movingPerson.sprite = deps.renderer
+          .objectTargets(deps.sim.latest, deps.camera, { width: rect.width, height: rect.height })
+          .find((t) => t.personId === held.id && t.kind === held.person);
+        deps.renderer.setHeldPerson(held.person, held.id);
+      }
+      updatePersonMoveVisual(clientX, clientY);
+      return;
+    }
     if (deps.selectedTool() !== 'select') {
       clearObjectHover();
       return;
@@ -189,23 +223,29 @@ export function createToolController(deps: ToolControllerDependencies) {
     deps.gameUi.setToolStatus(target.name);
     hoveredObjectName = target.name;
     if (!hoverOutline) {
-      hoverOutline = document.createElement('div');
+      hoverOutline = document.createElement('canvas');
       hoverOutline.className = 'object-hover-outline';
       hoverOutline.setAttribute('aria-hidden', 'true');
       document.body.append(hoverOutline);
     }
     const rect = deps.canvas.getBoundingClientRect();
+    const key = `${target.id}:${target.x}:${target.y}:${target.width}:${target.height}`;
+    if (key !== hoveredTargetKey) {
+      drawSpriteOutline(hoverOutline, target);
+      hoveredTargetKey = key;
+    }
+    const padX = Number(hoverOutline.dataset.padX);
+    const padY = Number(hoverOutline.dataset.padY);
     Object.assign(hoverOutline.style, {
-      left: `${rect.left + target.x}px`,
-      top: `${rect.top + target.y}px`,
-      width: `${target.width}px`,
-      height: `${target.height}px`,
+      left: `${rect.left + target.x - padX}px`,
+      top: `${rect.top + target.y - padY}px`,
       display: 'block',
     });
   }
 
   function clearObjectHover(): void {
     if (hoverOutline) hoverOutline.style.display = 'none';
+    hoveredTargetKey = '';
     if (hoveredObjectName !== null) {
       deps.gameUi.setToolStatus('');
       hoveredObjectName = null;
@@ -495,12 +535,14 @@ export function createToolController(deps: ToolControllerDependencies) {
         deps.gameUi.setToolStatus('Pick up refused: guests on rides or in queues cannot be moved.');
         return true;
       }
-      movingPerson = { person: 'guest', id: target.personId };
+      movingPerson = { person: 'guest', id: target.personId, sprite: target };
+      deps.renderer.setHeldPerson('guest', target.personId);
       updatePersonMoveVisual(clientX, clientY);
       return true;
     }
     if (target?.kind !== 'staff' || target.personId === undefined) return false;
-    movingPerson = { person: 'staff', id: target.personId };
+    movingPerson = { person: 'staff', id: target.personId, sprite: target };
+    deps.renderer.setHeldPerson('staff', target.personId);
     updatePersonMoveVisual(clientX, clientY);
     return true;
   }

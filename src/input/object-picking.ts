@@ -46,6 +46,11 @@ export interface SpritePickTarget {
   alphaHeight: number;
   /** Row-major alpha values for the unscaled source sprite. */
   alpha: Uint8Array;
+  /** Screen-space offset of the sprite's world anchor (its ground point) from x, y. */
+  anchorX?: number;
+  anchorY?: number;
+  /** Atlas rectangle of the unscaled source sprite, for redrawing the object elsewhere. */
+  source?: { image: CanvasImageSource; x: number; y: number; width: number; height: number };
 }
 
 export interface ObjectPickTarget extends SpritePickTarget {
@@ -149,6 +154,9 @@ export function buildObjectPickTargets(
       alphaWidth: mask.width,
       alphaHeight: mask.height,
       alpha: mask.alpha,
+      anchorX: anchorX - targetX,
+      anchorY: anchorY - targetY,
+      source: { image, x: frame.x, y: frame.y, width: frame.width, height: frame.height },
       kind,
       name,
       tileX,
