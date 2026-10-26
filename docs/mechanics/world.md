@@ -242,7 +242,7 @@ Fetched and read:
 - https://rct2.rctspace.com/rct2_manual.pdf (RollerCoaster Tycoon 2 manual; staff roles and the cited handyman monthly wage)
 - https://docs.openrct2.io/en/latest/playing/landscaping/index.html (OpenRCT2 landscaping docs; land and water tools)
 
-Cited for the Clear scenery and Water tools and patrol right-click (public pages; not re-fetched when this section was written, so treat the [S] tags as single-source):
+Cited for the Clear scenery and Water tools and patrol right-click:
 - https://rct.fandom.com/wiki/Water (water in the reference games)
 - https://github.com/OpenRCT2/OpenRCT2/blob/develop/distribution/changelog.txt (OpenRCT2 changelog; clear scenery behaviour changes)
 - https://github.com/OpenRCT2/OpenRCT2/issues/6530 (clearing a partly owned selection)
