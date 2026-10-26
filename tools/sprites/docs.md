@@ -7,7 +7,7 @@ Path: @/tools/sprites
 - Renders the game's generated world art from small 3D models with a deterministic software rasterizer; generation runs at build time and does not require a browser or GPU.
 - Produces PNG and JSON sprite definitions for [tools/art](../art/README.md), which prepares and packs them into the runtime atlas and manifest. Generated rock keys replace the prepared rock surface and add directional cliff faces.
 - `pnpm art:prepare` calls `renderSprites`, which writes every sprite from `buildSprites()` into `public/sprites/`. `pnpm sprites:render` only writes contact sheets under `docs/art/` for visual review.
-- `renderUiIcons` in [ui-icons.ts](ui-icons.ts) writes each of the 74 shared UI icon IDs at native 16px and 24px sizes under `public/sprites/ui-icons/`. Object icons use the same deterministic `renderMesh` rasterizer as world art; abstract controls use code-authored pixel shapes. These files are generated after the world sprites during `art:prepare` and are intentionally excluded from the world atlas.
+- `renderUiIcons` in [ui-icons.ts](ui-icons.ts) writes each registered UI icon at native 16px and 24px sizes under `public/sprites/ui-icons/`. Object icons use the same deterministic `renderMesh` rasterizer as world art; abstract controls use code-authored pixel shapes. These files are generated after the world sprites during `art:prepare` and are intentionally excluded from the world atlas.
 
 ### How it fits into the larger codebase
 

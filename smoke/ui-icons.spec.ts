@@ -12,7 +12,30 @@ test('UI icon controls keep their accessible names and use native pixel art', as
   );
   expect(labels).toContain('Pause');
   expect(labels).toContain('New ride');
+  expect(labels).toContain('Rotate right');
+  expect(labels).toContain('Rotate left');
   expect(await toolbar.locator('svg.ui-icon').count()).toBe(0);
+
+  const actionIcons = Object.fromEntries(
+    await buttons.evaluateAll((items) =>
+      items.map((item) => [
+        item.getAttribute('data-action'),
+        item.querySelector('img.ui-icon')?.getAttribute('data-icon-id'),
+      ]),
+    ),
+  );
+  expect(actionIcons['options']).toBe('options');
+  expect(actionIcons['save-load']).toBe('saveLoad');
+  expect(actionIcons['ride-select']).toBe('newRide');
+  expect(actionIcons['ride-list']).toBe('wheel');
+
+  await toolbar.getByRole('button', { name: 'Game options' }).click();
+  const optionTabs = page.locator('.ui-window[data-panel="options"] .ui-tab');
+  const optionTabIcons = await optionTabs
+    .locator('img.ui-icon')
+    .evaluateAll((images) => images.map((image) => image.getAttribute('data-icon-id')));
+  expect(optionTabIcons).toEqual(['options', 'sound', 'news', 'view', 'info']);
+  expect(new Set(optionTabIcons).size).toBe(5);
 
   const rendered = await buttons.locator('img.ui-icon').evaluateAll(async (images) => {
     await Promise.all(images.map((image) => image.decode()));
@@ -38,6 +61,16 @@ test('UI icon controls keep their accessible names and use native pixel art', as
   ).toBe(true);
   expect(rendered.every((image) => image.imageRendering === 'pixelated')).toBe(true);
 
+  const speedButtons = toolbar.locator('.toolbar-speed-button');
+  expect(await speedButtons.count()).toBe(3);
+  expect(
+    await speedButtons.evaluateAll((items) =>
+      items.every(
+        (item) => item.querySelector('img.ui-icon') && item.querySelector('.toolbar-speed-label'),
+      ),
+    ),
+  ).toBe(true);
+
   await expect(page.locator('.ui-window[data-panel="park"]')).toBeVisible();
   const windowIcons = page.locator('.ui-window img.ui-icon');
   expect(await windowIcons.count()).toBeGreaterThan(0);
@@ -51,4 +84,12 @@ test('UI icon controls keep their accessible names and use native pixel art', as
   await page.getByRole('button', { name: 'Actions' }).click();
   await expect(page.locator('#toolbar-actions-menu')).toHaveClass(/open/);
   expect(await page.locator('#toolbar-actions-menu img.ui-icon').count()).toBeGreaterThan(0);
+  await expect(page.getByRole('button', { name: 'Rotate right' })).toHaveAttribute(
+    'title',
+    /Enter or Z/,
+  );
+  await expect(page.getByRole('button', { name: 'Rotate left' })).toHaveAttribute(
+    'title',
+    /Shift\+Enter or X/,
+  );
 });

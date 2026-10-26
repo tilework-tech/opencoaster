@@ -167,6 +167,33 @@ function iconShapes(name: string): Sprite {
         colors.orange[2],
       );
       break;
+    case 'fastForward':
+    case 'fastForwardDouble':
+    case 'fastForwardTriple': {
+      const count = name === 'fastForward' ? 1 : name === 'fastForwardDouble' ? 2 : 3;
+      const starts = count === 1 ? [5] : count === 2 ? [3, 11] : [1, 8, 15];
+      const end = count === 1 ? 17 : 20;
+      const top = count === 1 ? 3 : 4;
+      const bottom = count === 1 ? 21 : 20;
+      for (const x of starts)
+        polygon(
+          s,
+          [
+            [x, top],
+            [count === 1 ? end : x + 7, 12],
+            [x, bottom],
+          ],
+          colors.yellow[3],
+        );
+      break;
+    }
+    case 'saveLoad':
+      framed(4, 3, 16, 18, 'blue');
+      rect(s, 7, 5, 10, 6, colors.steel[2]);
+      rect(s, 8, 14, 8, 5, colors.wood[3]);
+      rect(s, 10, 15, 4, 4, colors.yellow[3]);
+      rect(s, 14, 5, 2, 4, colors.white[4]);
+      break;
     case 'close':
       line(s, 6, 6, 17, 17, outline, 5);
       line(s, 17, 6, 6, 17, outline, 5);
@@ -186,32 +213,75 @@ function iconShapes(name: string): Sprite {
       break;
     case 'rotateLeft':
     case 'rotateRight':
-      line(s, name === 'rotateLeft' ? 16 : 8, 6, 6, 6, outline, 3);
-      line(s, 6, 6, 4, 12, outline, 3);
-      line(s, 4, 12, 7, 18, outline, 3);
-      line(s, 7, 18, 14, 20, outline, 3);
-      line(s, 14, 20, 19, 16, outline, 3);
-      polygon(
-        s,
-        name === 'rotateLeft'
-          ? [
-              [4, 4],
-              [10, 4],
-              [6, 9],
-            ]
-          : [
-              [18, 4],
-              [12, 4],
-              [16, 9],
-            ],
-        colors.yellow[3],
-      );
+      line(s, 7, 5, 16, 5, outline, 4);
+      line(s, 6, 6, 4, 12, outline, 4);
+      line(s, 4, 12, 7, 18, outline, 4);
+      line(s, 7, 18, 14, 20, outline, 4);
+      line(s, 14, 20, 19, 16, outline, 4);
+      line(s, 7, 5, 16, 5, colors.yellow[3], 2);
+      line(s, 6, 7, 5, 12, colors.yellow[3], 2);
+      line(s, 5, 12, 8, 17, colors.yellow[3], 2);
+      line(s, 8, 17, 14, 18, colors.yellow[3], 2);
+      line(s, 14, 18, 17, 16, colors.yellow[3], 2);
+      if (name === 'rotateRight')
+        polygon(
+          s,
+          [
+            [15, 2],
+            [23, 5],
+            [16, 10],
+          ],
+          colors.yellow[3],
+        );
+      else
+        polygon(
+          s,
+          [
+            [9, 2],
+            [1, 5],
+            [8, 10],
+          ],
+          colors.yellow[3],
+        );
       break;
     case 'options':
-      framed(9, 3, 6, 18, 'steel');
-      framed(3, 9, 18, 6, 'steel');
+      for (let y = 2; y <= 21; y++)
+        for (let x = 2; x <= 21; x++) {
+          const radius = (x - 12) ** 2 + (y - 12) ** 2;
+          if (radius >= 25 && radius <= 81)
+            pixel(s, x, y, radius >= 65 ? outline : colors.steel[3]);
+        }
+      for (const [x, y, w, h] of [
+        [9, 2, 6, 4],
+        [9, 18, 6, 4],
+        [2, 9, 4, 6],
+        [18, 9, 4, 6],
+        [4, 4, 4, 4],
+        [16, 4, 4, 4],
+        [4, 16, 4, 4],
+        [16, 16, 4, 4],
+      ]) {
+        rect(s, x, y, w, h, outline);
+        rect(s, x + 1, y + 1, w - 2, h - 2, colors.steel[3]);
+      }
       rect(s, 8, 8, 8, 8, outline);
-      rect(s, 10, 10, 4, 4, colors.orange[3]);
+      rect(s, 10, 10, 4, 4, colors.yellow[3]);
+      break;
+    case 'sound':
+      polygon(
+        s,
+        [
+          [3, 9],
+          [8, 9],
+          [16, 4],
+          [16, 20],
+          [8, 15],
+          [3, 15],
+        ],
+        colors.blue[3],
+      );
+      line(s, 18, 8, 21, 12, colors.yellow[3], 2);
+      line(s, 21, 12, 18, 16, colors.yellow[3], 2);
       break;
     case 'map':
       polygon(
@@ -799,7 +869,7 @@ function objectMesh(name: string): Mesh | undefined {
       ...cylinder(0, 0, 0.1, 0.95, 0.52, 0.3, 8, material(colors.purple)),
       ...beam([-0.3, 0, 0.95], [0.3, 0, 0.95], 0.12, steel),
     ];
-  if (name === 'coaster') {
+  if (name === 'coaster' || name === 'newRide') {
     const path: Vec3[] = [
       [-0.8, 0, 0.5],
       [-0.5, 0, 1.1],
@@ -914,11 +984,48 @@ function nearestSprite(source: Sprite, size: number): Sprite {
   return { width: size, height: size, anchor: { x: size / 2, y: size / 2 }, pixels };
 }
 
+function removeDetachedSinglePixels(sprite: Sprite): Sprite {
+  const pixels = sprite.pixels.slice();
+  const seen = new Set<number>();
+  for (let start = 0; start < pixels.length; start++) {
+    if (pixels[start] === TRANSPARENT || seen.has(start)) continue;
+    const pending = [start];
+    const component = [start];
+    seen.add(start);
+    while (pending.length) {
+      const index = pending.pop()!;
+      const x = index % sprite.width;
+      const y = Math.floor(index / sprite.width);
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          const next = ny * sprite.width + nx;
+          if (
+            (dx || dy) &&
+            nx >= 0 &&
+            ny >= 0 &&
+            nx < sprite.width &&
+            ny < sprite.height &&
+            pixels[next] !== TRANSPARENT &&
+            !seen.has(next)
+          ) {
+            seen.add(next);
+            pending.push(next);
+            component.push(next);
+          }
+        }
+    }
+    if (component.length === 1) pixels[start] = TRANSPARENT;
+  }
+  return { ...sprite, pixels };
+}
+
 export function renderUiIconSprite(name: string, size: 16 | 24): Sprite {
   const mesh = objectMesh(name);
   if (!mesh) return nearestSprite(iconShapes(name), size);
   const rendered = renderMesh(mesh);
-  return nearestSprite(rendered, size);
+  return removeDetachedSinglePixels(nearestSprite(rendered, size));
 }
 
 function rgba(sprite: Sprite): Buffer {

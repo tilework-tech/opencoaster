@@ -10,4 +10,13 @@ describe('UI icon artwork', () => {
       expect(iconAssetPath(name, 24), name).toBe(`/sprites/ui-icons/24/${name}.png`);
     }
   });
+
+  it('keeps actions with different meanings on distinct icon ids', () => {
+    expect(ICON_NAMES).toContain('newRide');
+    expect(ICON_NAMES).toContain('saveLoad');
+    expect(ICON_NAMES).toContain('sound');
+    expect(ICON_NAMES).toContain('fastForward');
+    expect(ICON_NAMES).toContain('fastForwardDouble');
+    expect(ICON_NAMES).toContain('fastForwardTriple');
+  });
 });

@@ -101,6 +101,16 @@
   min-width: 36px;
   padding: 0 6px;
   font-weight: 700;
+  flex-direction: column;
+  gap: 0;
+}
+.toolbar-speed-button .ui-icon {
+  width: 16px;
+  height: 16px;
+}
+.toolbar-speed-label {
+  font-size: 9px;
+  line-height: 10px;
 }
 .toolbar-speed-note {
   padding-left: 4px;
@@ -1312,6 +1322,10 @@
   .toolbar-menu .toolbar-button .ui-icon {
     width: 24px;
     height: 24px;
+  }
+  .toolbar-menu .toolbar-speed-button .ui-icon {
+    width: 16px;
+    height: 16px;
   }
   .ui-windows {
     inset: auto env(safe-area-inset-right) calc(var(--status-h) + env(safe-area-inset-bottom))
