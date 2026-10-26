@@ -7,7 +7,6 @@ import {
 } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
-import { PathFlag, Surface } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG, isWallScenery } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -16,6 +15,8 @@ import {
   tileBankDepth,
   tileWaterDepth,
   terrainEdgeFace,
+  terrainEdgeFacesViewer,
+  terrainNeighborEdgeBase,
   terrainContourViewEdges,
   terrainLightFactor,
   terrainShorelineSegments,
@@ -941,7 +942,7 @@ export class WebGL2Renderer implements Renderer {
         previous.heights[index],
         width,
         height,
-        previous.surface[index] === Surface.Rock || next.surface[index] === Surface.Rock,
+        true,
       );
       this.dropChunksAround(
         x,
@@ -949,7 +950,7 @@ export class WebGL2Renderer implements Renderer {
         next.heights[index],
         width,
         height,
-        previous.surface[index] === Surface.Rock || next.surface[index] === Surface.Rock,
+        true,
       );
       for (const [dx, dy] of [
         [1, 0],
@@ -961,8 +962,6 @@ export class WebGL2Renderer implements Renderer {
         const ny = y + dy;
         if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
         const neighbor = ny * width + nx;
-        if (previous.surface[neighbor] !== Surface.Rock && next.surface[neighbor] !== Surface.Rock)
-          continue;
         this.dropChunksAround(nx, ny, previous.heights[neighbor]!, width, height, true);
         this.dropChunksAround(nx, ny, next.heights[neighbor]!, width, height, true);
       }
@@ -1029,7 +1028,7 @@ export class WebGL2Renderer implements Renderer {
         map.width,
         map.height,
         rotation,
-        map.surface[index] === Surface.Rock,
+        true,
       );
       ranges[index * 4] = r.x0;
       ranges[index * 4 + 1] = r.y0;
@@ -1462,26 +1461,8 @@ export class WebGL2Renderer implements Renderer {
     );
     const tileCorners = terrainTileCorners(x, y, height, mask);
     for (let direction = 0; direction < 4; direction++) {
-      const onMapEdge =
-        (direction === 0 && x === map.width - 1) ||
-        (direction === 1 && y === map.height - 1) ||
-        (direction === 2 && x === 0) ||
-        (direction === 3 && y === 0);
-      if (!onMapEdge && terrainSurface !== 'rock') continue;
-      const neighbor = [
-        [x + 1, y],
-        [x, y + 1],
-        [x - 1, y],
-        [x, y - 1],
-      ][direction]!;
-      const neighborBase =
-        onMapEdge ||
-        neighbor[0] < 0 ||
-        neighbor[0] >= map.width ||
-        neighbor[1] < 0 ||
-        neighbor[1] >= map.height
-          ? 0
-          : map.heights[neighbor[1] * map.width + neighbor[0]]!;
+      if (!terrainEdgeFacesViewer(direction, rotation)) continue;
+      const neighborBase = terrainNeighborEdgeBase(map, x, y, direction);
       const face = terrainEdgeFace(tileCorners, direction, neighborBase);
       if (!face) continue;
       const top = Math.max(face.start.height, face.end.height);
