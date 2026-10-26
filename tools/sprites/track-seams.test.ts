@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TILE_UNITS, Z_STEP } from '../../src/sim/core/constants';
-import { PIECES, pieceByName } from '../../src/sim/track/catalog';
+import { PIECES, TRANSPORT_PIECES as CATALOG_TRANSPORT_PIECES, pieceByName } from '../../src/sim/track/catalog';
 import { pieceExit } from '../../src/sim/track/construction';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import { supportOffset, supportStack } from '../../src/render/coaster-art';
@@ -104,6 +104,16 @@ const CONTINUITY_ROUTES = [
 ];
 
 describe('placeable track sprite coverage', () => {
+  it('keeps transport atlas eligibility limited to generated small turns', () => {
+    const eligible = CATALOG_TRANSPORT_PIECES.map(({ name }) => name);
+    expect(eligible).toContain('smallRight');
+    expect(eligible).toContain('smallLeft');
+    expect(eligible).not.toContain('mediumRight');
+    expect(eligible).not.toContain('mediumLeft');
+    expect(eligible).not.toContain('largeRight');
+    expect(eligible).not.toContain('largeLeft');
+  });
+
   for (const kind of KINDS) {
     it(`${kind.name}: every piece has opaque sprites in every direction and camera rotation`, () => {
       for (const piece of kind.pieces)

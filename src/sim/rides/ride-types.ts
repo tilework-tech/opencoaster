@@ -4,6 +4,7 @@ import { FERRIS_BACKWARD_EXCITEMENT, RideMode, modeDef } from './ride-modes';
 import type { RideModeDef } from './ride-modes';
 import { kmhToSpeedQ8 } from '../vehicles/speed-units';
 import type { RatingProfile } from '../vehicles/vehicle-ratings';
+import { TRANSPORT_PIECES } from '../track/catalog';
 
 export enum RideType {
   MerryGoRound = 1,
@@ -662,7 +663,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     0,
     18,
     5,
-    { usesTrack: true, maxLevel: 30 },
+    {
+      usesTrack: true,
+      maxLevel: 30,
+      allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
+    },
   ),
   [RideType.Monorail]: addedRide(
     RideType.Monorail,
@@ -679,7 +684,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     0,
     19,
     7,
-    { usesTrack: true, maxLevel: 50 },
+    {
+      usesTrack: true,
+      maxLevel: 50,
+      allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
+    },
   ),
   [RideType.Chairlift]: addedRide(
     RideType.Chairlift,
@@ -693,7 +702,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     0,
     20,
     6,
-    { usesTrack: true, maxLevel: 40 },
+    {
+      usesTrack: true,
+      maxLevel: 40,
+      allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
+    },
   ),
   [RideType.JuniorRollerCoaster]: addedRide(
     RideType.JuniorRollerCoaster,

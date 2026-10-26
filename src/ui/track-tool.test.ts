@@ -190,4 +190,16 @@ describe('family-specific piece selection', () => {
     const climbingCursor = { ...flatCursor, hasTrack: true, slope: Slope.Up25 };
     expect(resolvePiece(climbingCursor, choice({ slope: Slope.Up60 }), wildMouse)).toBeDefined();
   });
+
+  it('keeps transport curves buildable and blocks track without transport art', () => {
+    for (const rideType of [RideType.MiniatureRailway, RideType.Monorail, RideType.Chairlift]) {
+      expect(resolvePiece(flatCursor, choice({ turn: 'smallRight' }), rideType)?.id).toBe(
+        PieceId.SmallRight,
+      );
+      expect(
+        resolvePiece(flatCursor, choice({ turn: 'mediumRight', bank: Bank.Right }), rideType),
+      ).toBeUndefined();
+      expect(resolvePiece(flatCursor, choice({ slope: Slope.Up60 }), rideType)).toBeUndefined();
+    }
+  });
 });

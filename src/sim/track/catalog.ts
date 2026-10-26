@@ -644,6 +644,18 @@ const catalog = buildCatalog();
 export const PIECES: readonly TrackPieceDef[] = catalog.pieces;
 export const SAMPLES: SampleTable = catalog.samples;
 
+/** Track geometry supported by transport art, including the small turns used by normal circuits. */
+const TRANSPORT_TURNS = new Set(['smallLeft', 'smallRight']);
+export const TRANSPORT_PIECES: readonly TrackPieceDef[] = PIECES.filter(
+  (piece) =>
+    !(piece.flags & PieceFlag.Inverted) &&
+    Math.abs(piece.entrySlope) < Math.abs(Slope.Up60) &&
+    Math.abs(piece.exitSlope) < Math.abs(Slope.Up60) &&
+    (piece.headingDelta === 0 || TRANSPORT_TURNS.has(piece.name)) &&
+    piece.entryBank === Bank.None &&
+    piece.exitBank === Bank.None,
+);
+
 const BY_NAME = new Map(PIECES.map((p) => [p.name, p]));
 export function pieceByName(name: string): TrackPieceDef | undefined {
   return BY_NAME.get(name);
