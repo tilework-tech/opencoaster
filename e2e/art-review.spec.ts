@@ -44,8 +44,8 @@ const OUTPUT_DIR = resolve(process.env.ART_REVIEW_OUTPUT ?? 'docs/art/review');
 const FLOWERBEDS_ONLY = process.env.ART_REVIEW_FLOWERBEDS_ONLY === '1';
 const test = process.env.ART_REVIEW_CDP
   ? baseTest.extend<{ page: Page }>({
-      page: async (fixtures, use) => {
-        void fixtures;
+      page: async ({ browserName }, use) => {
+        void browserName;
         const browser = await chromium.connectOverCDP(process.env.ART_REVIEW_CDP!);
         const context = browser.contexts()[0];
         if (!context) throw new Error('The connected browser has no default context');
