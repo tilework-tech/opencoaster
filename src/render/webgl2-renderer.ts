@@ -75,6 +75,7 @@ import {
   spriteViewName,
   terrainCliffSpriteName,
   scenerySpriteName,
+  shrubSpriteName,
   spriteAnchorWorldOffset,
   terrainSurfaceSpriteName,
   WATER_BANK,
@@ -437,6 +438,21 @@ export class WebGL2Renderer implements Renderer {
     return this.visibleCount;
   }
 
+  objectTargets(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    viewport: { width: number; height: number },
+  ): readonly ObjectPickTarget[] {
+    if (!this.map) return [];
+    const key = `${snapshot?.revision ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${spritePages.version}`;
+    if (key !== this.pickCacheKey || snapshot !== this.pickCacheSnapshot) {
+      this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, spritePages);
+      this.pickCacheKey = key;
+      this.pickCacheSnapshot = snapshot;
+    }
+    return this.pickTargets;
+  }
+
   pickObject(
     snapshot: Snapshot | null,
     camera: Camera,
@@ -444,14 +460,7 @@ export class WebGL2Renderer implements Renderer {
     screenY: number,
     viewport: { width: number; height: number },
   ): ObjectPickTarget | null {
-    if (!this.map) return null;
-    const key = `${snapshot?.revision ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${spritePages.version}`;
-    if (key !== this.pickCacheKey || snapshot !== this.pickCacheSnapshot) {
-      this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, spritePages);
-      this.pickCacheKey = key;
-      this.pickCacheSnapshot = snapshot;
-    }
-    return pickTopmostObject(this.pickTargets, screenX, screenY);
+    return pickTopmostObject(this.objectTargets(snapshot, camera, viewport), screenX, screenY);
   }
 
   attach(canvas: HTMLCanvasElement): void {
@@ -489,6 +498,22 @@ export class WebGL2Renderer implements Renderer {
     this.spriteGhosts = ghosts;
   }
 
+  private heldPerson: { person: 'guest' | 'staff'; id: number } | null = null;
+  private heldGuestSlot = -1;
+  private heldStaffSlot = -1;
+
+  setHeldPerson(person: 'guest' | 'staff' | null, id = -1): void {
+    this.heldPerson = person ? { person, id } : null;
+  }
+
+  private resolveHeldSlots(snapshot: Snapshot | null): void {
+    const held = this.heldPerson;
+    this.heldGuestSlot =
+      held?.person === 'guest' && snapshot ? snapshot.guestIds.indexOf(held.id) : -1;
+    this.heldStaffSlot =
+      held?.person === 'staff' && snapshot ? snapshot.staffIds.indexOf(held.id) : -1;
+  }
+
   setPatrolStaff(staffId: number | null): void {
     this.patrolStaffId = staffId;
   }
@@ -499,6 +524,7 @@ export class WebGL2Renderer implements Renderer {
   }
 
   draw(snapshot: Snapshot | null, camera: Camera): void {
+    this.resolveHeldSlots(snapshot);
     const gl = this.gl;
     const canvas = this.canvas;
     const map = this.map;
@@ -1804,7 +1830,9 @@ export class WebGL2Renderer implements Renderer {
         spriteHeight,
         item.sprite === 'flower-bed'
           ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
-          : scenerySpriteName(item.sprite, camera.rotation),
+          : item.sprite === 'shrub'
+            ? shrubSpriteName(x, y, camera.rotation)
+            : scenerySpriteName(item.sprite, camera.rotation),
         depth,
       );
     }
@@ -1881,7 +1909,7 @@ export class WebGL2Renderer implements Renderer {
   ): void {
     for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
       const metadata = layer.data[offset + 3];
-      if (isRidingGuestRow(metadata)) continue;
+      if (isRidingGuestRow(metadata) || i === this.heldGuestSlot) continue;
       const tint = metadata & 0xff;
       const heading = guestRowHeading(metadata);
       const depth = personDepth(
@@ -2129,6 +2157,7 @@ export class WebGL2Renderer implements Renderer {
     viewportHeight: number,
   ): void {
     for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
+      if (i === this.heldStaffSlot) continue;
       const metadata = layer.data[offset + 3];
       const kind = metadata & 0xff;
       const direction = (metadata >>> 8) & 3;

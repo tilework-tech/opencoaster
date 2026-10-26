@@ -84,9 +84,17 @@ export interface Renderer {
   setSpriteGhosts(ghosts: readonly SpriteGhost[]): void;
   /** Selects the individual worker whose patrol blocks are shown; null hides them. */
   setPatrolStaff(staffId: number | null): void;
+  /** Hides one guest or staff member from the park while the player holds them. */
+  setHeldPerson(person: 'guest' | 'staff' | null, id?: number): void;
   /** Sets the 4×4 block shown under the pointer while editing the selected worker's area. */
   setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void;
   draw(snapshot: Snapshot | null, camera: Camera): void;
+  /** Every pickable atlas sprite, in back-to-front order, in viewport-local coordinates. */
+  objectTargets(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    viewport: { width: number; height: number },
+  ): readonly ObjectPickTarget[];
   /** Returns the topmost visible atlas sprite at a viewport-local pointer position. */
   pickObject(
     snapshot: Snapshot | null,

@@ -134,6 +134,39 @@ const helix = (
   cost: 3500 + radiusTiles * 1200,
 });
 
+const slopedTurn = (
+  size: string,
+  radiusTiles: number,
+  side: 1 | -1,
+  slope: Slope.Up25 | Slope.Down25,
+  bank: Bank,
+): Spec => {
+  const turn = side < 0 ? 'Left' : 'Right';
+  const bankName = bank === Bank.Left ? 'LeftBanked' : bank === Bank.Right ? 'RightBanked' : '';
+  const slopeName = slope === Slope.Up25 ? 'Up25' : 'Down25';
+  return {
+    name: `${size}${turn}${bankName}${slopeName}`,
+    horizontal: { kind: 'arc', radiusTiles, side },
+    entrySlope: slope,
+    exitSlope: slope,
+    entryBank: bank,
+    exitBank: bank,
+    flags: bank === Bank.None ? BASIC : 0,
+    cost: 1800 + radiusTiles * 500,
+  };
+};
+
+const SLOPED_TURNS: Spec[] = [1.5, 2.5, 3.5].flatMap((radiusTiles, index) => {
+  const size = ['small', 'medium', 'large'][index]!;
+  return ([-1, 1] as const).flatMap((side) =>
+    ([Slope.Up25, Slope.Down25] as const).flatMap((slope) =>
+      ([Bank.None, bankOf(side)] as const).map((bank) =>
+        slopedTurn(size, radiusTiles, side, slope, bank),
+      ),
+    ),
+  );
+});
+
 const SPECS: Spec[] = [
   {
     name: 'station',
@@ -268,6 +301,7 @@ const SPECS: Spec[] = [
     flags: PieceFlag.DropStart | PieceFlag.WaterSplash,
     cost: 2400,
   },
+  ...SLOPED_TURNS,
 ];
 
 export const PieceId = {
@@ -338,6 +372,30 @@ export const PieceId = {
   Down25FlatToRightBank: 64,
   Down25RightBankToFlat: 65,
   WaterSplashDrop: 66,
+  SmallLeftUp25: 67,
+  SmallLeftLeftBankedUp25: 68,
+  SmallLeftDown25: 69,
+  SmallLeftLeftBankedDown25: 70,
+  SmallRightUp25: 71,
+  SmallRightRightBankedUp25: 72,
+  SmallRightDown25: 73,
+  SmallRightRightBankedDown25: 74,
+  MediumLeftUp25: 75,
+  MediumLeftLeftBankedUp25: 76,
+  MediumLeftDown25: 77,
+  MediumLeftLeftBankedDown25: 78,
+  MediumRightUp25: 79,
+  MediumRightRightBankedUp25: 80,
+  MediumRightDown25: 81,
+  MediumRightRightBankedDown25: 82,
+  LargeLeftUp25: 83,
+  LargeLeftLeftBankedUp25: 84,
+  LargeLeftDown25: 85,
+  LargeLeftLeftBankedDown25: 86,
+  LargeRightUp25: 87,
+  LargeRightRightBankedUp25: 88,
+  LargeRightDown25: 89,
+  LargeRightRightBankedDown25: 90,
 } as const;
 
 /** Shared centre-line point table, struct-of-arrays over every piece's samples. */
@@ -384,8 +442,25 @@ function buildCurve(spec: Spec): { curve: Curve; dz: number; headingDelta: numbe
     return { curve: withProfile(base, h.rise * Z_STEP, 0, 0), dz: h.rise, headingDelta: 0 };
   }
   if (h.kind === 'arc') {
+    const base = arcCurve(h.radiusTiles * TILE_UNITS, h.side, HALF);
+    if (g0 !== 0 || g1 !== 0) {
+      let horizontalLength = 0;
+      let previous = base.pos(0);
+      for (let i = 1; i <= 1024; i++) {
+        const point = base.pos(i / 1024);
+        horizontalLength += Math.hypot(point.x - previous.x, point.y - previous.y);
+        previous = point;
+      }
+      const rise = (horizontalLength * (g0 + g1)) / 2;
+      const dz = Math.round(rise / Z_STEP);
+      return {
+        curve: withProfile(base, dz * Z_STEP, g0, g1),
+        dz,
+        headingDelta: h.side === 1 ? 1 : 3,
+      };
+    }
     return {
-      curve: arcCurve(h.radiusTiles * TILE_UNITS, h.side, HALF),
+      curve: base,
       dz: 0,
       headingDelta: h.side === 1 ? 1 : 3,
     };
@@ -568,6 +643,18 @@ function buildCatalog(): { pieces: TrackPieceDef[]; samples: SampleTable } {
 const catalog = buildCatalog();
 export const PIECES: readonly TrackPieceDef[] = catalog.pieces;
 export const SAMPLES: SampleTable = catalog.samples;
+
+/** Track geometry supported by transport art, including the small turns used by normal circuits. */
+const TRANSPORT_TURNS = new Set(['smallLeft', 'smallRight']);
+export const TRANSPORT_PIECES: readonly TrackPieceDef[] = PIECES.filter(
+  (piece) =>
+    !(piece.flags & PieceFlag.Inverted) &&
+    Math.abs(piece.entrySlope) < Math.abs(Slope.Up60) &&
+    Math.abs(piece.exitSlope) < Math.abs(Slope.Up60) &&
+    (piece.headingDelta === 0 || TRANSPORT_TURNS.has(piece.name)) &&
+    piece.entryBank === Bank.None &&
+    piece.exitBank === Bank.None,
+);
 
 const BY_NAME = new Map(PIECES.map((p) => [p.name, p]));
 export function pieceByName(name: string): TrackPieceDef | undefined {

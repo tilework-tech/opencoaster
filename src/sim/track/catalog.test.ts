@@ -260,7 +260,50 @@ describe('corkscrew, helix, S-bend and banked slope pieces', () => {
     expect(PieceId.VerticalLoopRight).toBe(33);
     expect(PieceId.SBendLeft).toBe(34);
     expect(PieceId.WaterSplashDrop).toBe(66);
-    expect(PIECES.length).toBe(67);
+    expect(PIECES.length).toBe(91);
+  });
+
+  it('provides small, medium and large curves on gentle slopes in each bank state', () => {
+    for (const size of ['small', 'medium', 'large'])
+      for (const turn of ['Left', 'Right'])
+        for (const slope of ['Up25', 'Down25'])
+          for (const bank of ['', `${turn}Banked`]) {
+            const name = `${size}${turn}${bank}${slope}`;
+            const { p, a, b } = sampled(name);
+            const sign = slope === 'Up25' ? 1 : -1;
+            expect(p.entrySlope, name).toBe(sign);
+            expect(p.exitSlope, name).toBe(sign);
+            expect(p.entryBank, name).toBe(
+              bank === 'LeftBanked' ? Bank.Left : bank ? Bank.Right : Bank.None,
+            );
+            expect(p.exitBank, name).toBe(p.entryBank);
+            const horizontalLength = Array.from({ length: b - a }, (_, i) =>
+              Math.hypot(
+                SAMPLES.x[a + i + 1]! - SAMPLES.x[a + i]!,
+                SAMPLES.y[a + i + 1]! - SAMPLES.y[a + i]!,
+              ),
+            ).reduce((sum, length) => sum + length, 0);
+            expect(
+              Math.abs(Math.abs(p.dz * Z_STEP) - horizontalLength * 0.5),
+              name,
+            ).toBeLessThanOrEqual(Z_STEP / 2);
+            expect(SAMPLES.z[b], name).toBe(p.dz * Z_STEP);
+            expect(
+              SAMPLES.tz[a] / Math.hypot(SAMPLES.tx[a]!, SAMPLES.ty[a]!),
+              `${name} entry grade`,
+            ).toBeCloseTo(sign * 0.5, 1);
+            expect(
+              SAMPLES.tz[b] / Math.hypot(SAMPLES.tx[b]!, SAMPLES.ty[b]!),
+              `${name} exit grade`,
+            ).toBeCloseTo(sign * 0.5, 1);
+            const heights = Array.from({ length: b - a + 1 }, (_, i) => SAMPLES.z[a + i]);
+            expect(
+              heights.every(
+                (z, i) => i === 0 || (sign > 0 ? z >= heights[i - 1] : z <= heights[i - 1]),
+              ),
+              name,
+            ).toBe(true);
+          }
   });
 
   it('evaluates sine and cosine without Math.sin so tables match on every engine', () => {

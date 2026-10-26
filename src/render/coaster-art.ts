@@ -3,6 +3,8 @@ import { PIECES, SAMPLES } from '../sim/track/catalog';
 import { PieceFlag, PieceMode } from '../sim/track/track-types';
 import type { TrackPieceDef } from '../sim/track/track-types';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { rotateDirection, rotateOffset } from './projection';
+import type { Rotation } from './projection';
 
 /** Art families of the track rides; each has its own track, supports and cars. */
 export const COASTER_FAMILIES = ['wood', 'steel', 'junior', 'mouse'] as const;
@@ -95,16 +97,9 @@ export function transportTrackCells(
   const piece = PIECES[pieceType];
   if (!piece) return [];
   const turns = ((dir % 4) + 4) % 4;
-  const view = (turns + (((rotation % 4) + 4) % 4)) & 3;
+  const view = rotateDirection(turns, normalizeRotation(rotation));
   return piece.footprint.map((cell, index) => {
-    const [dx, dy] = (
-      [
-        [cell.i, cell.j],
-        [-cell.j, cell.i],
-        [-cell.i, -cell.j],
-        [cell.j, -cell.i],
-      ] as const
-    )[turns];
+    const [dx, dy] = rotateOffset(cell.i, cell.j, turns as Rotation);
     return { key: `track/${style}/${piece.name}/view-${view}/cell-${index}`, dx, dy };
   });
 }
@@ -118,7 +113,7 @@ export function transportCarSpriteKey(
   const pitchName = (['down60', 'down25', 'flat', 'up25', 'up60'] as const)[
     Math.max(0, Math.min(4, pitch + 2))
   ];
-  const view = (heading + 2 * (((rotation % 4) + 4) % 4)) & 7;
+  const view = rotateDirection(heading >>> 1, normalizeRotation(rotation)) * 2 + (heading & 1);
   return `vehicles/${style}/car/${pitchName}/heading-${view}`;
 }
 
@@ -151,21 +146,14 @@ export function trackCellSprites(
   const piece = PIECES[pieceType];
   if (!piece) return [];
   const turns = ((dir % 4) + 4) % 4;
-  const view = (turns + (((rotation % 4) + 4) % 4)) & 3;
+  const view = rotateDirection(turns, normalizeRotation(rotation));
   const variant = trackVariant(piece, mode);
   const frame =
     variant === '+chain'
       ? `#${Math.floor(Math.max(0, tick) / TICKS_PER_CHAIN_FRAME) % CHAIN_FRAMES}`
       : '';
   return piece.footprint.map((cell, index) => {
-    const [dx, dy] = (
-      [
-        [cell.i, cell.j],
-        [-cell.j, cell.i],
-        [-cell.i, -cell.j],
-        [cell.j, -cell.i],
-      ] as const
-    )[turns];
+    const [dx, dy] = rotateOffset(cell.i, cell.j, turns as Rotation);
     return {
       key:
         family === 'log-flume' || family === 'river-rapids'
@@ -186,10 +174,14 @@ export function carSpriteKey(
   rotation: number,
   passengers = 0,
 ): string {
-  const view = (heading + 2 * (((rotation % 4) + 4) % 4)) & 7;
+  const view = rotateDirection(heading >>> 1, normalizeRotation(rotation)) * 2 + (heading & 1);
   return family === 'log-flume' || family === 'river-rapids'
     ? `rides/water/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/heading-${view}/passengers-${Math.min(7, passengers)}`
     : `rides/coaster/${family}/vehicles/car/${PITCH_NAMES[pitch + 3]}/${BANK_NAMES[bank]}/heading-${view}`;
+}
+
+function normalizeRotation(rotation: number): Rotation {
+  return (((rotation % 4) + 4) % 4) as Rotation;
 }
 
 /** Height levels between the track centre line and the underside of its bed. */
@@ -233,16 +225,7 @@ export function supportOffset(pieceType: number, cell: number, dir: number): [nu
   const at = supportSample(piece, cell);
   const x = SAMPLES.x[at] - (def.i + 0.5) * TILE_UNITS;
   const y = SAMPLES.y[at] - (def.j + 0.5) * TILE_UNITS;
-  switch (dir & 3) {
-    case 0:
-      return [x, y];
-    case 1:
-      return [-y, x];
-    case 2:
-      return [-x, -y];
-    default:
-      return [y, -x];
-  }
+  return rotateOffset(x, y, normalizeRotation(dir));
 }
 
 export interface SupportStack {

@@ -78,7 +78,10 @@ if (!options) {
       ? { ART_REVIEW_CDP: process.env.ART_REVIEW_CDP ?? 'http://127.0.0.1:9222' }
       : {}),
   };
-  const backends = ['webgl2', 'canvas2d'] as const;
+  const backends =
+    process.env.ART_REVIEW_BACKENDS === 'canvas2d'
+      ? (['canvas2d'] as const)
+      : (['webgl2', 'canvas2d'] as const);
   const zooms = [1, 4] as const;
   const rotations = [0, 1, 2, 3] as const;
   if (!options.flowerbedsOnly) {
@@ -95,4 +98,10 @@ if (!options) {
     env,
     'captures flowerbeds across renderers, zooms, and rotations @art-review',
   );
+  if (process.exitCode === 0)
+    process.exitCode = runReviewTests(
+      root,
+      env,
+      'captures placeable art in a populated path scene @art-context-review',
+    );
 }

@@ -51,9 +51,15 @@ export function resolvePiece(
 ): TrackPieceDef | undefined {
   const allowedPieces =
     rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackRules?.allowedPieces;
+  const rules = rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackRules;
   return PIECES.find(
     (piece, index) =>
       (!allowedPieces || allowedPieces.includes(piece.id)) &&
+      (!rules ||
+        rules.steepSlopes ||
+        (Math.abs(piece.entrySlope) !== Math.abs(Slope.Up60) &&
+          Math.abs(piece.exitSlope) !== Math.abs(Slope.Up60))) &&
+      (!rules || rules.inversions || !(piece.flags & PieceFlag.Inverted)) &&
       PIECE_TURNS[index] === choice.turn &&
       piece.exitSlope === choice.slope &&
       piece.exitBank === choice.bank &&

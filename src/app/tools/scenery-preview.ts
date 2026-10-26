@@ -1,6 +1,6 @@
 import { formatMoney } from '../../ui/format';
 import type { SpriteGhost } from '../../render/renderer';
-import { flowerBedSpriteName, scenerySpriteName } from '../../render/world-art';
+import { flowerBedSpriteName, scenerySpriteName, shrubSpriteName } from '../../render/world-art';
 import { SCENERY_CATALOG, SceneryResult } from '../../sim/map/scenery';
 import type { SceneryItem } from '../../sim/map/scenery';
 import type { SimClient } from '../../worker/sim-client';
@@ -94,7 +94,9 @@ export class ScenerySpotPreview {
       sprite:
         definition.sprite === 'flower-bed'
           ? flowerBedSpriteName(hover.x, hover.y, hover.viewRotation, hover.slopeMask)
-          : scenerySpriteName(definition.sprite, hover.viewRotation),
+          : definition.sprite === 'shrub'
+            ? shrubSpriteName(hover.x, hover.y, hover.viewRotation)
+            : scenerySpriteName(definition.sprite, hover.viewRotation),
       kind: 'scenery',
       tone: this.result === SceneryResult.Ok ? 'ok' : 'refused',
     };

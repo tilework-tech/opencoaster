@@ -1,12 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { PIECES } from '../sim/track/catalog';
+import {
+  buildCircuit,
+  connectStation,
+  createCoaster,
+  flatOwnedSim,
+  run,
+} from '../sim/rides/coaster-fixtures';
 import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
-import { RideFlag, RideInfo, RIDE_INFO_STRIDE, createSnapshot } from '../worker/snapshot';
+import {
+  RideFlag,
+  RideInfo,
+  RIDE_INFO_STRIDE,
+  createSnapshot,
+  writeSnapshot,
+} from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
@@ -18,6 +32,7 @@ import {
   rotateOffset,
   worldToScreen,
   screenToWorld,
+  viewDepth,
 } from './projection';
 import type { Rotation } from './projection';
 import type { Camera, MapData, PathPieceGhost, SpriteGhost } from './renderer';
@@ -26,6 +41,7 @@ import { rideCellSpriteKey } from './world-art';
 import { spritePages } from './sprite-pages';
 import type { SpriteEntry } from './sprite-pages';
 import { WebGL2Renderer } from './webgl2-renderer';
+import { CoasterScene } from './coaster-scene';
 
 const ROTATIONS: Rotation[] = [0, 1, 2, 3];
 const W = 12;
@@ -400,6 +416,103 @@ describe('rotation consistency', () => {
     vi.spyOn(spritePages, 'resolve').mockImplementation((name: string) => atlas.resolve(name));
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it.each(ROTATIONS)(
+    'places every cell of a real coaster circuit at its world tile in rotation %i',
+    (rotation) => {
+      const sim = flatOwnedSim(29);
+      const rideId = createCoaster(sim, RideType.WoodenCoaster);
+      buildCircuit(sim, rideId);
+      connectStation(sim, rideId);
+      sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
+      sim.step();
+      run(sim, 20);
+      const snapshot = createSnapshot({
+        guests: 0,
+        staff: 0,
+        vehicles: 4,
+        litter: 0,
+        rides: 4,
+        mapTiles: sim.world.map.width * sim.world.map.height,
+      });
+      writeSnapshot(sim.world, snapshot);
+      const map: MapData = {
+        width: sim.world.map.width,
+        height: sim.world.map.height,
+        heights: sim.world.map.heights,
+        surface: sim.world.map.surface,
+        slope: sim.world.map.slope,
+        waterLevel: sim.world.map.waterLevel,
+      };
+      const scene = new CoasterScene();
+      scene.build(snapshot, map, rotation);
+
+      let trackItems = 0;
+      for (let i = 0; i < snapshot.tracks.count; i++) {
+        const o = i * 4;
+        const packed = snapshot.tracks.data[o + 3]!;
+        if (packed >>> 16 !== rideId) continue;
+        const piece = PIECES[packed & 0xff]!;
+        const dir = (packed >>> 8) & 3;
+        const originX = Math.floor(snapshot.tracks.data[o]! / TILE_UNITS);
+        const originY = Math.floor(snapshot.tracks.data[o + 1]! / TILE_UNITS);
+        const z = snapshot.tracks.data[o + 2]!;
+        for (const cell of piece.footprint) {
+          let dx = cell.i;
+          let dy = cell.j;
+          for (let turn = 0; turn < dir; turn++) [dx, dy] = [-dy, dx];
+          const x = (originX + dx + 0.5) * TILE_UNITS;
+          const y = (originY + dy + 0.5) * TILE_UNITS;
+          const [expectedX, expectedY] = worldToScreen(
+            x / TILE_UNITS,
+            y / TILE_UNITS,
+            z / Z_STEP,
+            rotation,
+            map,
+          );
+          const matching = scene.items.filter(
+            (item) =>
+              item.key.includes(`/cell-${piece.footprint.indexOf(cell)}`) &&
+              item.key.includes('/track/') &&
+              item.x === x &&
+              item.y === y,
+          );
+          expect(matching.length, `track tile ${originX + dx},${originY + dy}`).toBeGreaterThan(0);
+          const [actualX, actualY] = worldToScreen(
+            matching[0]!.x / TILE_UNITS,
+            matching[0]!.y / TILE_UNITS,
+            matching[0]!.z / Z_STEP,
+            rotation,
+            map,
+          );
+          expect([actualX, actualY]).toEqual([expectedX, expectedY]);
+          trackItems++;
+        }
+      }
+      expect(trackItems).toBeGreaterThan(20);
+      const entranceX = snapshot.rideInfo[RideInfo.EntranceX]!;
+      const entranceY = snapshot.rideInfo[RideInfo.EntranceY]!;
+      expect([entranceX, entranceY]).toEqual([20, 19]);
+      const station = scene.items.find((item) => item.key.includes('/station/'));
+      expect(station, 'station art is part of the circuit draw list').toBeDefined();
+      const stationAnchor = worldToScreen(
+        station!.x / TILE_UNITS,
+        station!.y / TILE_UNITS,
+        station!.z / Z_STEP,
+        rotation,
+        map,
+      );
+      const expectedStationAnchor = worldToScreen(20.5, 20.5, 2, rotation, map);
+      expect(stationAnchor).toEqual(expectedStationAnchor);
+      const cars = scene.items.filter((item) => item.key.includes('/vehicles/car/'));
+      expect(cars.length).toBeGreaterThan(0);
+      for (const car of cars)
+        expect(car.depth).toBeCloseTo(
+          2 * viewDepth(car.x / TILE_UNITS, car.y / TILE_UNITS, rotation, map) + 1.5,
+          10,
+        );
+    },
+  );
 
   describe.each(Object.entries(PROBES))('%s anchors', (_backend, probe) => {
     it.each(ROTATIONS)(

@@ -365,6 +365,8 @@ async function inspectScenery(
       else {
         await page.mouse.move(person.x, person.y);
         await expect(page.locator('.tool-status')).toContainText(person.name);
+        await expect(page.locator('.object-hover-outline')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`${kind}-hover.png`) });
         await page.mouse.click(person.x, person.y);
       }
       const panel = page.locator(

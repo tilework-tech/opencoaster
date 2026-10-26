@@ -243,6 +243,13 @@ export function scenerySpriteName(name: string, rotation = 0): string {
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
 }
 
+/** Stable tile-based shrub variant with a camera-specific generated sprite. */
+export function shrubSpriteName(x: number, y: number, rotation: number): string {
+  const variant = (((x * 3 + y * 5) % 4) + 4) % 4;
+  const view = ((rotation % 4) + 4) % 4;
+  return `scenery/shrub/variant-${variant}/view-${view}`;
+}
+
 /** Deterministic color and camera-view key for a flowerbed on a map tile. */
 export function flowerBedSpriteName(x: number, y: number, rotation: number, slopeMask = 0): string {
   const variant = (((x + 2 * y) % 4) + 4) % 4;

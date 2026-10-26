@@ -18,7 +18,7 @@ import { ScenerySpotPreview } from '../app/tools/scenery-preview';
 import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
 import { pathAdditionPreviewGhosts } from '../app/tools/path-addition-preview';
 import { FLOWER_BED } from '../sim/staff/grounds';
-import { flowerBedSpriteName, scenerySpriteName } from './world-art';
+import { flowerBedSpriteName, scenerySpriteName, shrubSpriteName } from './world-art';
 
 class RecordingContext {
   readonly canvas = { width: 1, height: 1 };
@@ -455,7 +455,9 @@ describe('Canvas2D fallback map art', () => {
           const key =
             definition.sprite === 'flower-bed'
               ? flowerBedSpriteName(tileX, tileY, rotation, map.slope[tile]!)
-              : scenerySpriteName(definition.sprite, rotation);
+              : definition.sprite === 'shrub'
+                ? shrubSpriteName(tileX, tileY, rotation)
+                : scenerySpriteName(definition.sprite, rotation);
           const placed = await renderWithAtlas(map, [key], null, {
             x: 0,
             y: 0,

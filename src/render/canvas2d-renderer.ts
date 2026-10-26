@@ -28,6 +28,7 @@ import {
   pathAdditionSpriteName,
   litterSpriteName,
   scenerySpriteName,
+  shrubSpriteName,
   rideSpriteFrame,
   rideSpriteKey,
   facilityFacingFromPaths,
@@ -142,6 +143,21 @@ export class Canvas2DRenderer implements Renderer {
     return this.visibleCount;
   }
 
+  objectTargets(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    viewport: { width: number; height: number },
+  ): readonly ObjectPickTarget[] {
+    if (!this.map || !this.atlas) return [];
+    const key = `${snapshot?.revision ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${this.atlas.version}`;
+    if (key !== this.pickCacheKey || snapshot !== this.pickCacheSnapshot) {
+      this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, this.atlas);
+      this.pickCacheKey = key;
+      this.pickCacheSnapshot = snapshot;
+    }
+    return this.pickTargets;
+  }
+
   pickObject(
     snapshot: Snapshot | null,
     camera: Camera,
@@ -149,14 +165,23 @@ export class Canvas2DRenderer implements Renderer {
     screenY: number,
     viewport: { width: number; height: number },
   ): ObjectPickTarget | null {
-    if (!this.map || !this.atlas) return null;
-    const key = `${snapshot?.revision ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${this.atlas.version}`;
-    if (key !== this.pickCacheKey || snapshot !== this.pickCacheSnapshot) {
-      this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, this.atlas);
-      this.pickCacheKey = key;
-      this.pickCacheSnapshot = snapshot;
-    }
-    return pickTopmostObject(this.pickTargets, screenX, screenY);
+    return pickTopmostObject(this.objectTargets(snapshot, camera, viewport), screenX, screenY);
+  }
+
+  private heldPerson: { person: 'guest' | 'staff'; id: number } | null = null;
+  private heldGuestSlot = -1;
+  private heldStaffSlot = -1;
+
+  setHeldPerson(person: 'guest' | 'staff' | null, id = -1): void {
+    this.heldPerson = person ? { person, id } : null;
+  }
+
+  private resolveHeldSlots(snapshot: Snapshot | null): void {
+    const held = this.heldPerson;
+    this.heldGuestSlot =
+      held?.person === 'guest' && snapshot ? snapshot.guestIds.indexOf(held.id) : -1;
+    this.heldStaffSlot =
+      held?.person === 'staff' && snapshot ? snapshot.staffIds.indexOf(held.id) : -1;
   }
 
   setPatrolStaff(staffId: number | null): void {
@@ -245,6 +270,7 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx;
     const map = this.map;
     if (!ctx) return;
+    this.resolveHeldSlots(snapshot);
     this.visibleCount = 0;
     this.tick = snapshot?.tick ?? 0;
     this.drawOrder = [];
@@ -1201,7 +1227,9 @@ export class Canvas2DRenderer implements Renderer {
       const sprite =
         definition.sprite === 'flower-bed'
           ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
-          : scenerySpriteName(definition.sprite, cam.rotation);
+          : definition.sprite === 'shrub'
+            ? shrubSpriteName(x, y, cam.rotation)
+            : scenerySpriteName(definition.sprite, cam.rotation);
       const drewSprite =
         this.atlas &&
         (definition.sprite === 'flower-bed'
@@ -1529,7 +1557,7 @@ export class Canvas2DRenderer implements Renderer {
       const y = d[o + 1]!;
       const z = d[o + 2]!;
       const metadata = d[o + 3]!;
-      if (isRidingGuestRow(metadata)) continue;
+      if (isRidingGuestRow(metadata) || i === this.heldGuestSlot) continue;
       this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
         project(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
@@ -1557,6 +1585,7 @@ export class Canvas2DRenderer implements Renderer {
       const y = d[o + 1]!;
       const z = d[o + 2]!;
       const metadata = d[o + 3]!;
+      if (i === this.heldStaffSlot) continue;
       this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
         project(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, Math.max(STAFF_BOX.height, 24))) return;
