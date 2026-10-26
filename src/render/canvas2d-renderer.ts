@@ -442,8 +442,11 @@ export class Canvas2DRenderer implements Renderer {
     const z = cam.zoom;
     const minX = cam.x - this.cw / 2 / (z * this.dpr) - TILE_W;
     const maxX = cam.x + this.cw / 2 / (z * this.dpr) + TILE_W;
+    // Raised terrain draws above its tile's base row and anything standing up to 32 levels above
+    // the terrain (raised paths, track) draws above it, so tiles are kept 32 levels beyond both
+    // edges.
     const minY = cam.y - this.ch / 2 / (z * this.dpr) - TILE_H - 32 * Z_PIXELS;
-    const maxY = cam.y + this.ch / 2 / (z * this.dpr) + TILE_H;
+    const maxY = cam.y + this.ch / 2 / (z * this.dpr) + TILE_H + 32 * Z_PIXELS;
     // Painter's order in view space: far (small rx+ry) to near.
     for (let ry = 0; ry < vh; ry++) {
       for (let rx = 0; rx < vw; rx++) {

@@ -303,15 +303,12 @@ const encodeObjectIdSource = `highp vec4 encodeObjectId(highp float id) {
   return vec4(low, mid, high, 255.0) / 255.0;
 }`;
 
-/** GLSL helpers for the RGBA8 height encoding of height-encoding.ts. */
+/** GLSL decoder for the RGBA8 height encoding of height-encoding.ts. */
 const heightCodecSource = `highp float decodeHeight(highp vec4 texel) {
   highp float value = floor(texel.r * 255.0 + 0.5) * 256.0 + floor(texel.g * 255.0 + 0.5);
   return (value - ${glslFloat(HEIGHT_OFFSET)}) / ${glslFloat(HEIGHT_RESOLUTION)};
 }
-highp vec4 encodeHeight(highp float levels) {
-  highp float value = clamp(floor(levels * ${glslFloat(HEIGHT_RESOLUTION)} + 0.5) + ${glslFloat(HEIGHT_OFFSET)}, 0.0, 65535.0);
-  return vec4(floor(value / 256.0), mod(value, 256.0), 0.0, 255.0) / 255.0;
-}`;
+`;
 
 const vertexSource = `#version 300 es
 precision highp float;
@@ -431,8 +428,7 @@ in float vHeight;
 uniform float uIdMode;
 ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uAtlas${slot};`).join('\n')}
 ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uHeights${slot};`).join('\n')}
-layout(location=0) out vec4 outColor;
-layout(location=1) out vec4 outHeight;
+out vec4 outColor;
 ${encodeObjectIdSource}
 ${heightCodecSource}
 vec4 sampleHeights(vec2 uv) {
@@ -455,8 +451,6 @@ void main() {
     if (baked.a > 0.5) height = vAnchorZ + decodeHeight(baked) * vHeightScale;
   }
   gl_FragDepth = clamp(0.5 - height * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0);
-  // Only the ground cache reads this: sprites painted into it are ground cover at their anchor.
-  outHeight = encodeHeight(vMeshMode < 0.5 ? vAnchorZ : height);
   if (vMeshMode > 1.4 && vMeshMode < 2.0) outColor = vec4(0.26, 0.53, 1.0, 0.32);
   if (vMeshMode > 1.9 && vMeshMode < 2.5) outColor = vec4(0.96, 0.2, 0.16, 0.38);
   if (vMeshMode > 1.4 && vMeshMode < 2.5) {
@@ -531,29 +525,17 @@ const groundFragmentSource = `#version 300 es
 precision highp float;
 in vec2 vUv;
 uniform sampler2D uGround;
-uniform sampler2D uGroundHeights;
 uniform float uIdMode;
 out vec4 outColor;
 ${encodeObjectIdSource}
-${heightCodecSource}
 void main() {
   outColor = texture(uGround, vUv);
-  vec4 height = texture(uGroundHeights, vUv);
-  gl_FragDepth = height.a > 0.5
-    ? clamp(0.5 - decodeHeight(height) * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0)
-    : 1.0;
   if (uIdMode > 0.5) {
     vec3 background = vec3(${BACKGROUND.slice(0, 3).map(glslFloat).join(', ')});
     if (all(lessThan(abs(outColor.rgb - background), vec3(0.5 / 255.0)))) discard;
     outColor = encodeObjectId(${glslFloat(GROUND_OBJECT_ID)});
   }
 }`;
-
-/** A cached ground chunk: its colour and the encoded world height of every pixel. */
-interface GroundChunk {
-  colour: WebGLTexture;
-  heights: WebGLTexture;
-}
 
 interface TileLists {
   map: MapData;
@@ -630,7 +612,6 @@ export class WebGL2Renderer implements Renderer {
   private groundProgram: WebGLProgram | null = null;
   private groundUniforms: {
     ground: WebGLUniformLocation | null;
-    groundHeights: WebGLUniformLocation | null;
     rect: WebGLUniformLocation | null;
     viewport: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
@@ -638,10 +619,12 @@ export class WebGL2Renderer implements Renderer {
     idMode: WebGLUniformLocation | null;
   } | null = null;
   private groundFramebuffer: WebGLFramebuffer | null = null;
-  private readonly groundChunks = new LruCache<GroundChunk>(GROUND_CHUNK_CAPACITY, (chunk) => {
-    this.gl?.deleteTexture(chunk.colour);
-    this.gl?.deleteTexture(chunk.heights);
-  });
+  private readonly groundChunks = new LruCache<WebGLTexture>(GROUND_CHUNK_CAPACITY, (texture) =>
+    this.gl?.deleteTexture(texture),
+  );
+  /** Frame stamp per tile, so the terrain depth pass draws each visible tile once. */
+  private groundStamps = new Uint32Array(0);
+  private groundStamp = 0;
   private groundIndex: GroundIndex | null = null;
   private groundRotation: Rotation = 0;
   private groundArtReady = false;
@@ -874,6 +857,7 @@ export class WebGL2Renderer implements Renderer {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     this.drawGroundChunks(camera, viewportWidth, viewportHeight, idMode);
+    this.drawGroundDepth(map, camera, viewportWidth, viewportHeight);
 
     this.count = 0;
     this.nextObjectId = FIRST_INSTANCE_OBJECT_ID;
@@ -1261,7 +1245,6 @@ export class WebGL2Renderer implements Renderer {
     this.groundFramebuffer = framebuffer;
     this.groundUniforms = {
       ground: gl.getUniformLocation(program, 'uGround'),
-      groundHeights: gl.getUniformLocation(program, 'uGroundHeights'),
       rect: gl.getUniformLocation(program, 'uRect'),
       viewport: gl.getUniformLocation(program, 'uViewport'),
       camera: gl.getUniformLocation(program, 'uCamera'),
@@ -1464,7 +1447,6 @@ export class WebGL2Renderer implements Renderer {
     const framebuffer = this.groundFramebuffer;
     if (!gl || !framebuffer) return;
     const texture = this.createChunkTexture();
-    const heights = this.createChunkTexture();
 
     this.count = 0;
     const column = cx - index.minCx;
@@ -1478,11 +1460,9 @@ export class WebGL2Renderer implements Renderer {
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, heights, 0);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.viewport(0, 0, GROUND_CHUNK_SIZE, GROUND_CHUNK_SIZE);
-    gl.clearBufferfv(gl.COLOR, 0, BACKGROUND);
-    gl.clearBufferfv(gl.COLOR, 1, [0, 0, 0, 0]);
+    gl.clearColor(...BACKGROUND);
+    gl.clear(gl.COLOR_BUFFER_BIT);
     // Ground tiles within a chunk are painted back to front; the chunk has no depth buffer.
     gl.disable(gl.DEPTH_TEST);
     enableSpriteAlphaBlending(gl);
@@ -1495,11 +1475,9 @@ export class WebGL2Renderer implements Renderer {
       1,
       rotation,
     );
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, null, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     this.count = 0;
-    this.groundChunks.set(chunkKey(cx, cy), { colour: texture, heights });
+    this.groundChunks.set(chunkKey(cx, cy), texture);
   }
 
   private createChunkTexture(): WebGLTexture {
@@ -1553,22 +1531,21 @@ export class WebGL2Renderer implements Renderer {
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     gl.disable(gl.BLEND);
+    // The cached chunks only paint colour; drawGroundDepth lays the ground's depth exactly.
+    gl.disable(gl.DEPTH_TEST);
     gl.useProgram(program);
     gl.uniform1f(uniforms.idMode, idMode ? 1 : 0);
     gl.bindVertexArray(this.vao);
     gl.uniform1i(uniforms.ground, 0);
-    gl.uniform1i(uniforms.groundHeights, 1);
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
     gl.uniform2f(uniforms.camera, camera.x, camera.y);
     gl.uniform1f(uniforms.zoom, camera.zoom);
     for (let cy = range.y0; cy <= range.y1; cy++) {
       for (let cx = range.x0; cx <= range.x1; cx++) {
-        const chunk = this.groundChunks.get(chunkKey(cx, cy));
-        if (!chunk) continue;
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, chunk.heights);
+        const texture = this.groundChunks.get(chunkKey(cx, cy));
+        if (!texture) continue;
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, chunk.colour);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.uniform4f(
           uniforms.rect,
           cx * GROUND_CHUNK_SIZE,
@@ -1579,6 +1556,57 @@ export class WebGL2Renderer implements Renderer {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       }
     }
+  }
+
+  /**
+   * Lays the depth of every visible tile's terrain and cliff faces, with colour writes off. The
+   * meshes carry their true height per vertex, so ground depth is exact at every zoom, unlike the
+   * zoom-1 colour cache drawn under it.
+   */
+  private drawGroundDepth(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const gl = this.gl;
+    if (!gl) return;
+    const index = (this.groundIndex ??= this.buildGroundIndex(map, camera.rotation));
+    if (this.groundStamps.length !== map.width * map.height) {
+      this.groundStamps = new Uint32Array(map.width * map.height);
+      this.groundStamp = 0;
+    }
+    const stamp = ++this.groundStamp;
+    const range = this.visibleChunkRange(camera, viewportWidth, viewportHeight);
+    this.count = 0;
+    for (let cy = range.y0; cy <= range.y1; cy++)
+      for (let cx = range.x0; cx <= range.x1; cx++) {
+        const column = cx - index.minCx;
+        const row = cy - index.minCy;
+        if (column < 0 || column >= index.columns || row < 0 || row >= index.rows) continue;
+        const cell = row * index.columns + column;
+        for (let i = index.starts[cell]; i < index.starts[cell + 1]; i++) {
+          const tile = index.tiles[i];
+          if (this.groundStamps[tile] === stamp) continue;
+          this.groundStamps[tile] = stamp;
+          this.appendGroundTile(map, tile, camera.rotation, true);
+        }
+      }
+    this.uploadInPainterOrder();
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.colorMask(false, false, false, false);
+    this.drawRuns(
+      viewportWidth,
+      viewportHeight,
+      map,
+      camera.x,
+      camera.y,
+      camera.zoom,
+      camera.rotation,
+    );
+    gl.colorMask(true, true, true, true);
+    this.count = 0;
   }
 
   private buildTileLists(map: MapData, rotation: Rotation): TileLists {
@@ -1778,10 +1806,15 @@ export class WebGL2Renderer implements Renderer {
   }
 
   /**
-   * Appends one tile's terrain, edge cliff faces and flat path fill. A redraw over scenery
-   * (`depthOffset` set) lays only the surface again.
+   * Appends one tile's terrain, edge cliff faces and flat path fill; `meshesOnly` leaves out the
+   * path fill sprite, for the terrain depth pass.
    */
-  private appendGroundTile(map: MapData, index: number, rotation: Rotation, depthOffset = 0): void {
+  private appendGroundTile(
+    map: MapData,
+    index: number,
+    rotation: Rotation,
+    meshesOnly = false,
+  ): void {
     const x = index % map.width;
     const y = (index - x) / map.width;
     rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
@@ -1806,7 +1839,7 @@ export class WebGL2Renderer implements Renderer {
       TILE_W,
       TILE_H,
       terrainSurfaceSpriteName(terrainSurface),
-      2 * (rx + ry) - height + depthOffset,
+      2 * (rx + ry) - height,
       1,
       corners,
       terrainLightFactor(corners),
@@ -1814,7 +1847,7 @@ export class WebGL2Renderer implements Renderer {
     );
     const tileCorners = terrainTileCorners(x, y, height, mask);
     for (let direction = 0; direction < 4; direction++) {
-      if (depthOffset !== 0 || !terrainEdgeFacesViewer(direction, rotation)) continue;
+      if (!terrainEdgeFacesViewer(direction, rotation)) continue;
       const neighborBase = terrainNeighborEdgeBase(map, x, y, direction);
       const face = terrainEdgeFace(tileCorners, direction, neighborBase);
       if (!face) continue;
@@ -1834,7 +1867,11 @@ export class WebGL2Renderer implements Renderer {
       );
     }
     const waterLevel = map.waterLevel?.[index] ?? 0;
-    if (!waterIntersectsTerrainTile(waterLevel, mask, height) && (surface === 3 || surface === 6))
+    if (
+      !meshesOnly &&
+      !waterIntersectsTerrainTile(waterLevel, mask, height) &&
+      (surface === 3 || surface === 6)
+    )
       this.append(
         (x + 0.5) * TILE_UNITS,
         (y + 0.5) * TILE_UNITS,

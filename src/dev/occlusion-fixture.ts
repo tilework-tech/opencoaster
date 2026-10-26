@@ -1,16 +1,11 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
-import { GROUND_OBJECT_ID, objectKindBit } from '../render/object-kinds';
-import { compositeScene } from '../render/occlusion-oracle';
-import type { OraclePage } from '../render/occlusion-oracle';
-import { scoreOcclusion } from '../render/occlusion-metric';
-import { terrainTriangles } from '../render/oracle-terrain';
 import { project } from '../render/projection';
 import type { Rotation } from '../render/projection';
 import type { Camera } from '../render/renderer';
-import { spritePages } from '../render/sprite-pages';
 import { WebGL2Renderer } from '../render/webgl2-renderer';
 import { Canvas2DRenderer } from '../render/canvas2d-renderer';
 import { buildFuzzPark } from './occlusion-fuzz';
+import { pairPixels, scoreFrame } from './oracle-score';
 
 /**
  * Dev-only page scoring a renderer's per-pixel object ownership against the occlusion oracle on
@@ -24,53 +19,6 @@ const zoom = Number(params.get('zoom') ?? 1);
 const viewWidth = Number(params.get('w') ?? 800);
 const viewHeight = Number(params.get('h') ?? 600);
 const backend = params.get('renderer') === 'canvas2d' ? 'canvas2d' : 'webgl2';
-
-const pageCache = new Map<number, OraclePage>();
-
-function texels(image: ImageBitmap): Uint8ClampedArray {
-  const canvas = new OffscreenCanvas(image.width, image.height);
-  const context = canvas.getContext('2d')!;
-  context.drawImage(image, 0, 0);
-  return context.getImageData(0, 0, image.width, image.height).data;
-}
-
-function oraclePage(page: number): OraclePage {
-  let cached = pageCache.get(page);
-  if (!cached) {
-    const colour = spritePages.pageImage(page)!;
-    const heights = spritePages.pageHeights(page)!;
-    cached = {
-      width: colour.width,
-      height: colour.height,
-      colour: texels(colour),
-      heights: texels(heights),
-    };
-    pageCache.set(page, cached);
-  }
-  return cached;
-}
-
-/** Object ids as a PNG data URL: each id hashed to a colour, mismatches optionally overlaid. */
-function idImage(ids: Int32Array, width: number, height: number, heat?: Uint8Array): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext('2d')!;
-  const image = context.createImageData(width, height);
-  for (let i = 0; i < ids.length; i++) {
-    const id = ids[i];
-    const hash = Math.imul(id, 2654435761) >>> 0;
-    let r = id === 0 ? 0 : id === GROUND_OBJECT_ID ? 60 : 80 + (hash & 127);
-    let g = id === 0 ? 0 : id === GROUND_OBJECT_ID ? 70 : 80 + ((hash >> 8) & 127);
-    let b = id === 0 ? 0 : id === GROUND_OBJECT_ID ? 55 : 80 + ((hash >> 16) & 127);
-    if (heat?.[i] === 1) [r, g, b] = [255, 0, 40];
-    else if (heat?.[i] === 2) [r, g, b] = [255, 200, 0];
-    else if (heat) [r, g, b] = [r * 0.35, g * 0.35, b * 0.35];
-    image.data.set([r, g, b, 255], i * 4);
-  }
-  context.putImageData(image, 0, 0);
-  return canvas.toDataURL('image/png');
-}
 
 async function main(): Promise<void> {
   const park = buildFuzzPark(seed);
@@ -114,69 +62,11 @@ async function main(): Promise<void> {
   }
   renderer.draw(park.snapshot, camera);
 
-  /** Pixels where the oracle shows kind `want` and the renderer kind `got`, for diagnosis. */
-  const pairPixels = (want: string, got: string) => {
-    const capture = renderer.captureObjectIds(park.snapshot, camera);
-    const pages: OraclePage[] = [];
-    for (const page of capture.pages) pages[page] = oraclePage(page);
-    const oracle = compositeScene({
-      width: capture.width,
-      height: capture.height,
-      pages,
-      sprites: capture.sprites,
-      triangles: terrainTriangles(park.map, camera, viewWidth, viewHeight, 1),
-    });
-    const out: { x: number; y: number; oracle: number; rendered: number; heights: number }[] = [];
-    for (let i = 0; i < oracle.ids.length; i++) {
-      const o = oracle.ids[i];
-      const r = capture.ids[i];
-      if (o === r || capture.kinds.get(o) !== want || capture.kinds.get(r) !== got) continue;
-      out.push({
-        x: i % capture.width,
-        y: Math.floor(i / capture.width),
-        oracle: o,
-        rendered: r,
-        heights: oracle.heights[i],
-      });
-    }
-    const sprites = capture.sprites.filter((sprite) =>
-      out.some((p) => p.oracle === sprite.id || p.rendered === sprite.id),
-    );
-    return { pixels: out, sprites };
-  };
-  const score = (images = false) => {
-    const capture = renderer.captureObjectIds(park.snapshot, camera);
-    const pages: OraclePage[] = [];
-    for (const page of capture.pages) pages[page] = oraclePage(page);
-    const oracle = compositeScene({
-      width: capture.width,
-      height: capture.height,
-      pages,
-      sprites: capture.sprites,
-      triangles: terrainTriangles(park.map, camera, viewWidth, viewHeight, 1),
-      kindBit: (id) => objectKindBit(capture.kinds.get(id) ?? 'other'),
-    });
-    const result = scoreOcclusion({
-      oracle: oracle.ids,
-      rendered: capture.ids,
-      kindMasks: oracle.kindMasks,
-      kinds: capture.kinds,
-      kindBit: objectKindBit,
-    });
-    return {
-      objectPixels: result.objectPixels,
-      mismatched: result.mismatched,
-      coverage: result.coverage,
-      pairs: result.pairs,
-      ...(images
-        ? {
-            rendered: idImage(capture.ids, capture.width, capture.height),
-            oracle: idImage(oracle.ids, capture.width, capture.height),
-            heat: idImage(capture.ids, capture.width, capture.height, result.heat),
-          }
-        : {}),
-    };
-  };
+  const view = { map: park.map, camera, width: viewWidth, height: viewHeight, dpr: 1 };
+  const score = (images = false) =>
+    scoreFrame(renderer.captureObjectIds(park.snapshot, camera), view, images);
+  const pairs = (want: string, got: string) =>
+    pairPixels(renderer.captureObjectIds(park.snapshot, camera), view, want, got);
   /** Median and worst wall time, in ms, of `frames` draws of the fixture view. */
   const time = (frames = 30) => {
     const samples: number[] = [];
@@ -189,7 +79,7 @@ async function main(): Promise<void> {
     samples.sort((a, b) => a - b);
     return { median: samples[Math.floor(frames / 2)], worst: samples[frames - 1] };
   };
-  Object.assign(window, { __score: score, __time: time, __pairPixels: pairPixels, __ready: true });
+  Object.assign(window, { __score: score, __time: time, __pairPixels: pairs, __ready: true });
 }
 
 void main();

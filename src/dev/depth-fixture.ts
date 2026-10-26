@@ -8,6 +8,7 @@ import { project } from '../render/projection';
 import type { Rotation } from '../render/projection';
 import type { Camera, MapData, Renderer } from '../render/renderer';
 import { RIDE_INFO_STRIDE, RideInfo, createSnapshot } from '../worker/snapshot';
+import { kindString, pairPixels, scoreFrame } from './oracle-score';
 import type { Snapshot } from '../worker/snapshot';
 
 /**
@@ -31,6 +32,8 @@ interface Scene {
   paths: PathPiece[];
   scenery: Array<{ x: number; y: number; item: SceneryItem }>;
   stall?: { x: number; y: number };
+  /** Tiles raised above the ground level, in levels. */
+  raised?: Array<{ x: number; y: number; height: number }>;
 }
 
 function row(y: number, from: number, to: number, base = GROUND): PathPiece[] {
@@ -98,6 +101,12 @@ const SCENES: Record<string, Scene> = {
     ],
   },
   stall: { paths: row(8, 3, 12), scenery: [], stall: { x: 8, y: 7 } },
+  /** A block of raised ground around the middle of the map, two levels up. */
+  hill: {
+    paths: [],
+    scenery: [],
+    raised: [7, 8, 9].flatMap((x) => [7, 8, 9].map((y) => ({ x, y, height: GROUND + 2 }))),
+  },
 };
 
 const params = new URLSearchParams(location.search);
@@ -149,10 +158,12 @@ function buildMap(scene: Scene): MapData {
     sceneryElements[o + 3] = 0;
     sceneryElements[o + 4] = item.item;
   });
+  const heights = new Uint8Array(count).fill(GROUND);
+  for (const tile of scene.raised ?? []) heights[tile.y * SIZE + tile.x] = tile.height;
   return {
     width: SIZE,
     height: SIZE,
-    heights: new Uint8Array(count).fill(GROUND),
+    heights,
     surface: new Uint8Array(count).fill(4),
     slope: new Uint8Array(count),
     ownership: new Uint8Array(count).fill(1),
@@ -198,7 +209,7 @@ async function main(): Promise<void> {
   const scene = SCENES[sceneName];
   if (!scene) throw new Error(`unknown scene ${sceneName}`);
   const canvas = document.getElementById('game') as HTMLCanvasElement;
-  const renderer: Renderer =
+  const renderer: Renderer & Pick<WebGL2Renderer, 'captureObjectIds'> =
     params.get('renderer') === 'canvas2d' ? new Canvas2DRenderer() : new WebGL2Renderer();
   renderer.attach(canvas);
   renderer.resize(viewWidth, viewHeight, dpr);
@@ -257,6 +268,14 @@ async function main(): Promise<void> {
   }
   frame();
   frame();
+  const view = { map, camera, width: viewWidth, height: viewHeight, dpr };
+  Object.assign(window, {
+    __score: (images = false) =>
+      scoreFrame(renderer.captureObjectIds(snapshot, camera), view, images),
+    __pairPixels: (want: string, got: string) =>
+      pairPixels(renderer.captureObjectIds(snapshot, camera), view, want, got),
+    __kinds: () => kindString(renderer.captureObjectIds(snapshot, camera)),
+  });
   (window as unknown as { __ready: boolean; __backend: string }).__backend = renderer.backend;
   (window as unknown as { __ready: boolean }).__ready = true;
 }
