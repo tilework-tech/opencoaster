@@ -30,6 +30,8 @@ export function drawAnchoredSprite(
   const found = resolveFrame(atlas, key, frameIndex);
   if (!found) return false;
   const { entry, frame, image } = found;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     image,
     frame.x,
@@ -41,6 +43,7 @@ export function drawAnchoredSprite(
     frame.width,
     frame.height,
   );
+  ctx.restore();
   return true;
 }
 
@@ -168,6 +171,8 @@ export function drawBoxedSprite(
   const frame = entry.frames[(((Number(frameText ?? 0) % count) + count) % count) | 0];
   const image = atlas.pageImage(frame.page);
   if (!image) return false;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     image,
     frame.x,
@@ -179,5 +184,6 @@ export function drawBoxedSprite(
     width,
     height,
   );
+  ctx.restore();
   return true;
 }
