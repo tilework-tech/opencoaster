@@ -39,14 +39,13 @@ const FLOWERBED_ZOOMS = [0.5, 1, 2, 4];
 const ROTATIONS = [0, 1, 2, 3];
 const CELL_WIDTH = 192;
 const CELL_HEIGHT = 220;
-const SCREEN_WIDTH = 640;
-const SCREEN_HEIGHT = 640;
 const CROP = { left: 160, top: 120, width: 320, height: 400 };
 const OUTPUT_DIR = resolve(process.env.ART_REVIEW_OUTPUT ?? 'docs/art/review');
 const FLOWERBEDS_ONLY = process.env.ART_REVIEW_FLOWERBEDS_ONLY === '1';
 const test = process.env.ART_REVIEW_CDP
   ? baseTest.extend<{ page: Page }>({
-      page: async ({}, use) => {
+      page: async (fixtures, use) => {
+        void fixtures;
         const browser = await chromium.connectOverCDP(process.env.ART_REVIEW_CDP!);
         const context = browser.contexts()[0];
         if (!context) throw new Error('The connected browser has no default context');
@@ -134,7 +133,7 @@ function flowerbedReviewItems(): ReviewItem[] {
   ];
 }
 
-async function initialise(page: import('@playwright/test').Page): Promise<void> {
+async function initialise(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const reviewSize = 640;
     const [
@@ -341,7 +340,7 @@ async function initialise(page: import('@playwright/test').Page): Promise<void> 
 }
 
 async function makeCell(
-  page: import('@playwright/test').Page,
+  page: Page,
   item: ReviewItem,
   backend: 'webgl2' | 'canvas2d',
   zoom: number,
