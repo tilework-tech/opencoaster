@@ -51,3 +51,5 @@ Path: @/src/render
 - [src/sim](../sim/core/docs.md) owns simulation behavior and placement validation. [smoke/docs.md](../../smoke/docs.md) describes browser-level rendering and build-control checks.
 
 Created and maintained by Nori.
+
+- Canvas2D queues litter in the painter's-depth list (just behind a person on the same spot) rather than drawing it immediately, so path tiles queued earlier in the frame do not cover it.

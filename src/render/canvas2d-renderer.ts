@@ -111,6 +111,9 @@ const SHRUB_COLOR = '#397b35';
 const FLOWER_COLORS = ['#f4c542', '#e85b86', '#f2eeee'];
 
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
+/** Litter sorts just behind a person standing on the same spot. */
+const LITTER_DEPTH_BIAS = 0.01;
+
 export class Canvas2DRenderer implements Renderer {
   private ownershipOverlay: OwnershipOverlay | null = null;
   readonly backend = 'Canvas2D';
@@ -299,7 +302,6 @@ export class Canvas2DRenderer implements Renderer {
       const coasterSprites = this.drawCoasters(ctx, snapshot, map, cam);
       if (snapshot.tracks && !coasterSprites)
         this.drawLayer(ctx, snapshot.tracks, map, cam, 5, '#cf5650');
-      this.drawLitter(ctx, snapshot.litter, map, cam);
       this.drawLayer(
         ctx,
         snapshot.vehicles,
@@ -310,6 +312,7 @@ export class Canvas2DRenderer implements Renderer {
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
       this.surfaceDepths.prepare(map, cam.rotation);
+      this.drawLitter(ctx, snapshot.litter, map, cam);
       if (this.atlas) this.drawStaff(ctx, snapshot.staff, map, cam, snapshot.tick);
       else
         this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
@@ -1575,34 +1578,35 @@ export class Canvas2DRenderer implements Renderer {
     cam: Camera,
   ): void {
     const data = layer.data;
+    const t = this.tmp;
     for (let index = 0, offset = 0; index < layer.count; index++, offset += SNAPSHOT_STRIDE) {
-      project(
-        data[offset],
-        data[offset + 1],
-        data[offset + 2],
-        map.width,
-        map.height,
-        cam.rotation,
-        this.tmp,
+      const x = data[offset]!;
+      const y = data[offset + 1]!;
+      const z = data[offset + 2]!;
+      const kind = data[offset + 3]! & 0xff;
+      this.queueAtDepth(
+        personDepth(map, cam.rotation, this.surfaceDepths, x, y, z) - LITTER_DEPTH_BIAS,
+        () => {
+          project(x, y, z, map.width, map.height, cam.rotation, t);
+          if (!this.isVisible(t[0]!, t[1]!, cam, 8)) return;
+          if (
+            !this.atlas ||
+            !drawBoxedSprite(
+              ctx,
+              this.atlas,
+              litterSpriteName(kind, cam.rotation),
+              t[0]!,
+              t[1]!,
+              LITTER_SPRITE_SIZE.width,
+              LITTER_SPRITE_SIZE.height,
+            )
+          ) {
+            ctx.fillStyle = kind === 1 ? '#9fc35b' : '#6b4f2a';
+            ctx.fillRect(t[0]! - 2, t[1]! - 1, 4, 2);
+          }
+          this.visibleCount++;
+        },
       );
-      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 8)) continue;
-      const kind = data[offset + 3] & 0xff;
-      if (
-        !this.atlas ||
-        !drawBoxedSprite(
-          ctx,
-          this.atlas,
-          litterSpriteName(kind, cam.rotation),
-          this.tmp[0],
-          this.tmp[1],
-          LITTER_SPRITE_SIZE.width,
-          LITTER_SPRITE_SIZE.height,
-        )
-      ) {
-        ctx.fillStyle = kind === 1 ? '#9fc35b' : '#6b4f2a';
-        ctx.fillRect(this.tmp[0] - 2, this.tmp[1] - 1, 4, 2);
-      }
-      this.visibleCount++;
     }
   }
 
