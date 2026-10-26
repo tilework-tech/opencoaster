@@ -66,6 +66,38 @@ describe('generated sprite catalogue', () => {
     }
   });
 
+  it('keeps every flowerbed view inside its tile footprint with only a low flower crown above it', () => {
+    const flowerHeightAllowance = 8;
+    for (let slopeMask = 0; slopeMask < 16; slopeMask++) {
+      const slopeRise = slopeMask === 0 ? 0 : 16;
+      for (let variant = 0; variant < 4; variant++) {
+        for (let view = 0; view < 4; view++) {
+          const key =
+            slopeMask === 0
+              ? `scenery/flower-bed/variant-${variant}/view-${view}`
+              : `scenery/flower-bed/slope-${slopeMask}/variant-${variant}/view-${view}`;
+          const frame = sprites.get(key)!.frames[0]!;
+          for (let y = 0; y < frame.height; y++) {
+            for (let x = 0; x < frame.width; x++) {
+              if (frame.pixels[y * frame.width + x] === TRANSPARENT) continue;
+              const dx = Math.abs(x + 0.5 - frame.anchor.x);
+              const dy = y + 0.5 - frame.anchor.y;
+              const lowerEdge = 16 - dx / 2;
+              const upperEdge = -16 + dx / 2 - slopeRise - flowerHeightAllowance;
+              expect(dx, `${key} opaque pixel (${x},${y}) leaves its tile width`).toBeLessThanOrEqual(33);
+              expect(dy, `${key} opaque pixel (${x},${y}) hangs below its tile`).toBeLessThanOrEqual(
+                lowerEdge + 1.5,
+              );
+              expect(dy, `${key} opaque pixel (${x},${y}) rises above its flower crown`).toBeGreaterThanOrEqual(
+                upperEdge - 1.5,
+              );
+            }
+          }
+        }
+      }
+    }
+  });
+
   it('anchors generated scenery trees at ground level', () => {
     for (const key of ['trees/tree-palm', 'trees/tree-cactus']) {
       const sprite = sprites.get(key)!;

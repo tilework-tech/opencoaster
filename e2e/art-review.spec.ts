@@ -5,11 +5,13 @@ import { chromium, expect as baseExpect, test as baseTest } from '@playwright/te
 import type { Page } from '@playwright/test';
 import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import { SCENERY_CATALOG } from '../src/sim/map/scenery';
+import { project } from '../src/render/projection';
+import { TILE_UNITS } from '../src/sim/core/constants';
 
 interface ReviewItem {
   key: string;
   label: string;
-  kind: 'scenery' | 'ground-bed' | 'path' | 'addition' | 'ride';
+  kind: 'scenery' | 'ground-bed' | 'path' | 'addition' | 'ride' | 'garden-fixture';
   index?: number;
   type?: number;
   surface?: number;
@@ -17,6 +19,7 @@ interface ReviewItem {
   broken?: boolean;
   slope?: boolean;
   legacy?: boolean;
+  withBeds?: boolean;
 }
 
 declare global {
@@ -266,7 +269,10 @@ async function initialise(page: Page): Promise<void> {
           item.broken ? 0x40000000 : 0,
           item.surface ?? 0,
         ]);
-      else if (item.kind === 'ground-bed' || item.legacy) {
+      else if (item.kind === 'garden-fixture') {
+        for (let x = 2; x <= 5; x++)
+          pathRows.push([x, 4, 0, x === 2 ? 0x1000 | 0b1110 : 0x0f, 0, 0]);
+      } else if (item.kind === 'ground-bed' || item.legacy) {
         const pathTile = 3 * width + 4;
         pathRows.push([4, 3, heights[pathTile]!, 0x0f, 0, 0]);
       }
@@ -301,6 +307,19 @@ async function initialise(page: Page): Promise<void> {
           mapTiles: 64,
         });
         if (item.kind === 'ground-bed') snapshot.grounds[tile] = 0x10;
+        if (item.kind === 'garden-fixture') {
+          if (item.withBeds) {
+            for (let y = 2; y <= 5; y++)
+              for (let x = 2; x <= 5; x++) {
+                if (y === 4) continue;
+                snapshot.grounds[y * 8 + x] = 0x10;
+              }
+            snapshot.grounds[2 * 8 + 6] = 0x10;
+            snapshot.grounds[3 * 8 + 6] = 0x10;
+          }
+          snapshot.guests.count = 1;
+          snapshot.guests.data.set([3 * TILE_UNITS + TILE_UNITS / 2, 4 * TILE_UNITS + TILE_UNITS / 2, 0, 0]);
+        }
         if (item.kind === 'ride') {
           snapshot.rides.count = 1;
           snapshot.rideInfo[0] = 1;
@@ -351,14 +370,7 @@ async function makeCell(
   zoom: number,
   rotation: number,
 ): Promise<Buffer> {
-  await page.evaluate(
-    ({ item, backend, zoom, rotation }) => {
-      window.__artReview!.aliasLegacyFlowerbed(item.legacy === true);
-      window.__artReview!.render(item, backend, zoom, rotation);
-    },
-    { item, backend, zoom, rotation },
-  );
-  const screenshot = await page.locator(`#art-review-${backend}`).screenshot({ type: 'png' });
+  const screenshot = await renderItem(page, item, backend, zoom, rotation);
   const label = Buffer.from(
     `<svg width="${CELL_WIDTH}" height="${CELL_HEIGHT}"><rect width="100%" height="100%" fill="#f1ecd9"/><text x="8" y="16" font-family="sans-serif" font-size="12" fill="#25261f">${item.label.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</text></svg>`,
   );
@@ -377,6 +389,23 @@ async function makeCell(
     .composite([{ input: label }, { input: crop, left: 0, top: 20 }])
     .png()
     .toBuffer();
+}
+
+async function renderItem(
+  page: Page,
+  item: ReviewItem,
+  backend: 'webgl2' | 'canvas2d',
+  zoom: number,
+  rotation: number,
+): Promise<Buffer> {
+  await page.evaluate(
+    ({ item, backend, zoom, rotation }) => {
+      window.__artReview!.aliasLegacyFlowerbed(item.legacy === true);
+      window.__artReview!.render(item, backend, zoom, rotation);
+    },
+    { item, backend, zoom, rotation },
+  );
+  return page.locator(`#art-review-${backend}`).screenshot({ type: 'png' });
 }
 
 async function writeSheet(name: string, cells: readonly Buffer[]): Promise<void> {
@@ -442,4 +471,42 @@ test('captures flowerbeds across renderers, zooms, and rotations @art-review', a
       }
   expect(await page.locator('#art-review-webgl2').count()).toBe(1);
   expect(await page.locator('#art-review-canvas2d').count()).toBe(1);
+});
+
+test('keeps path pixels visible beside a garden row, guests, and a bin in every renderer and rotation', async ({
+  page,
+}) => {
+  test.setTimeout(1_200_000);
+  await setupReviewPage(page);
+  for (const backend of backends) {
+    for (let rotation = 0; rotation < 4; rotation++) {
+      const baseline = await renderItem(
+        page,
+        { key: 'garden-path-only', label: 'Path only', kind: 'garden-fixture', withBeds: false },
+        backend,
+        1,
+        rotation,
+      );
+      const withBeds = await renderItem(
+        page,
+        { key: 'garden-row', label: 'Garden row', kind: 'garden-fixture', withBeds: true },
+        backend,
+        1,
+        rotation,
+      );
+      const baselinePixels = await sharp(baseline).raw().toBuffer({ resolveWithObject: true });
+      const bedPixels = await sharp(withBeds).raw().toBuffer({ resolveWithObject: true });
+      const rotationCenter = new Float64Array(2);
+      const rotationSample = new Float64Array(2);
+      project(4.5 * TILE_UNITS, 4.5 * TILE_UNITS, 0, 8, 8, rotation as 0 | 1 | 2 | 3, rotationCenter);
+      project(4.5 * TILE_UNITS, 4.05 * TILE_UNITS, 0, 8, 8, rotation as 0 | 1 | 2 | 3, rotationSample);
+      const x = Math.round(rotationSample[0]! - rotationCenter[0]! + 320);
+      const y = Math.round(rotationSample[1]! - rotationCenter[1]! + 320);
+      const offset = (y * baselinePixels.info.width + x) * baselinePixels.info.channels;
+      expect(
+        bedPixels.data.subarray(offset, offset + 3),
+        `${backend} path pixel beside beds, rotation ${rotation}`,
+      ).toEqual(baselinePixels.data.subarray(offset, offset + 3));
+    }
+  }
 });
