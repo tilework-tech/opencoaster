@@ -138,7 +138,19 @@ async function main(): Promise<void> {
         : {}),
     };
   };
-  Object.assign(window, { __score: score, __ready: true });
+  /** Median and worst wall time, in ms, of `frames` draws of the fixture view. */
+  const time = (frames = 30) => {
+    const samples: number[] = [];
+    for (let i = 0; i < frames; i++) {
+      const start = performance.now();
+      renderer.draw(park.snapshot, camera);
+      if (backend === 'webgl2') canvas.getContext('webgl2')?.finish();
+      samples.push(performance.now() - start);
+    }
+    samples.sort((a, b) => a - b);
+    return { median: samples[Math.floor(frames / 2)], worst: samples[frames - 1] };
+  };
+  Object.assign(window, { __score: score, __time: time, __ready: true });
 }
 
 void main();

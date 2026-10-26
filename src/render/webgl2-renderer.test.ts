@@ -114,35 +114,24 @@ describe('WebGL2 path additions on open edges', () => {
   });
 });
 
-describe('WebGL2 scenery on raised tiles', () => {
-  it('sorts a tree after the redraw of the sloped tile it stands on in every rotation', () => {
+describe('WebGL2 raised terrain', () => {
+  it('leaves occlusion by raised tiles to the depth test instead of redrawing terrain', () => {
     for (const rotation of [0, 1, 2, 3] as const) {
       const sloped: MapData = {
         ...map,
         heights: new Uint8Array(25).fill(2),
         slope: new Uint8Array(25),
-        sceneryElements: Int32Array.of(2, 2, 0, 0, 0),
-        sceneryCount: 1,
       };
-      sloped.slope[2 * 5 + 2] = 0b0110;
-      const camera = { x: 0, y: 0, zoom: 1, rotation };
+      sloped.heights[2 * 5 + 2] = 6;
       const renderer = new WebGL2Renderer();
       const appended: unknown[][] = [];
       const testRenderer = renderer as unknown as {
         appendWaterAndOccluders(m: MapData, c: object, w: number, h: number, tick: number): void;
-        appendSceneryElements(m: MapData, c: object, w: number, h: number): void;
         append: (...args: unknown[]) => void;
       };
       testRenderer.append = (...args) => appended.push(args);
-
-      testRenderer.appendWaterAndOccluders(sloped, camera, 800, 600, 0);
-      const occluders = appended.filter((args) => String(args[5]).startsWith('terrain/'));
-      appended.length = 0;
-      testRenderer.appendSceneryElements(sloped, camera, 800, 600);
-
-      expect(occluders, `occluder at rotation ${rotation}`).toHaveLength(1);
-      expect(appended, `tree at rotation ${rotation}`).toHaveLength(1);
-      expect(appended[0]![6] as number).toBeGreaterThan(occluders[0]![6] as number);
+      testRenderer.appendWaterAndOccluders(sloped, { x: 0, y: 0, zoom: 1, rotation }, 800, 600, 0);
+      expect(appended.filter((args) => String(args[5]).startsWith('terrain/'))).toEqual([]);
     }
   });
 });

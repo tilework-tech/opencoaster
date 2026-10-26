@@ -155,6 +155,8 @@ export class Canvas2DRenderer implements Renderer {
   private drawOrder: { depth: number; order: number; draw: () => void; ground: boolean }[] = [];
   private surface: DepthSurface | null = null;
   private recordIds = false;
+  /** Bumped with every new map, keying the composite's cached ground heights. */
+  private groundRevision = 0;
   private nextDrawOrder = 0;
   private readonly surfaceDepths = new SurfaceDepths();
   private pickCacheKey = '';
@@ -216,7 +218,8 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   attach(canvas: HTMLCanvasElement): void {
-    const ctx = canvas.getContext('2d', { alpha: false });
+    // Sprites are depth-composited in memory each frame, so keep the canvas readable cheaply.
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     if (!ctx) throw new Error('2D canvas unavailable');
     this.ctx = ctx;
     const surface = new DepthSurface(ctx, spritePages);
@@ -240,6 +243,7 @@ export class Canvas2DRenderer implements Renderer {
 
   setMap(map: MapData): void {
     this.map = map;
+    this.groundRevision++;
     this.pickCacheKey = '';
     this.pickCacheSnapshot = null;
     this.ghostsByTile = null;
@@ -346,7 +350,8 @@ export class Canvas2DRenderer implements Renderer {
         real.canvas.width,
         real.canvas.height,
         { scale, x: this.cw / 2 - cam.x * scale, y: this.ch / 2 - cam.y * scale },
-        terrainTriangles(map, cam, this.cw / this.dpr, this.ch / this.dpr, this.dpr),
+        `${this.groundRevision}:${cam.x}:${cam.y}:${cam.zoom}:${cam.rotation}:${this.dpr}`,
+        () => terrainTriangles(map, cam, this.cw / this.dpr, this.ch / this.dpr, this.dpr),
         this.recordIds,
       );
     for (const item of this.drawOrder) if (!item.ground) item.draw();

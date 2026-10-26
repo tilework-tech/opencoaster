@@ -75,33 +75,67 @@ export class DepthComposite {
     this.ids = recordIds ? new Int32Array(width * height) : null;
   }
 
-  /** Rasterises ground and water: each pixel keeps the highest triangle covering its centre. */
+  /**
+   * Rasterises ground and water: each pixel keeps the highest triangle covering its centre. Height
+   * is affine in screen space over a triangle, so each row is one span with a constant step.
+   */
   ground(triangles: readonly OracleTriangle[]): void {
     const { width, height, heights, ids } = this;
     for (const t of triangles) {
       const { a, b, c } = t;
       const area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
       if (Math.abs(area) < 1e-9) continue;
-      const x0 = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x)));
-      const x1 = Math.min(width - 1, Math.ceil(Math.max(a.x, b.x, c.x)));
       const y0 = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y)));
       const y1 = Math.min(height - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
+      if (y1 < y0) continue;
+      const minX = Math.min(a.x, b.x, c.x);
+      const maxX = Math.max(a.x, b.x, c.x);
+      if (maxX < 0 || minX > width) continue;
+      // h = gx * x + gy * y + h0 over the triangle's plane.
+      const gx = ((b.height - a.height) * (c.y - a.y) - (c.height - a.height) * (b.y - a.y)) / area;
+      const gy = ((c.height - a.height) * (b.x - a.x) - (b.height - a.height) * (c.x - a.x)) / area;
+      const h0 = a.height - gx * a.x - gy * a.y;
       for (let py = y0; py <= y1; py++) {
         const sy = py + 0.5;
-        for (let px = x0; px <= x1; px++) {
-          const sx = px + 0.5;
-          const w0 = ((b.x - sx) * (c.y - sy) - (b.y - sy) * (c.x - sx)) / area;
-          const w1 = ((c.x - sx) * (a.y - sy) - (c.y - sy) * (a.x - sx)) / area;
-          const w2 = 1 - w0 - w1;
-          if (w0 < 0 || w1 < 0 || w2 < 0) continue;
-          const h = w0 * a.height + w1 * b.height + w2 * c.height;
-          const at = py * width + px;
+        let left = Infinity;
+        let right = -Infinity;
+        const edge = (p: OracleTriangle['a'], q: OracleTriangle['a']): void => {
+          if ((sy < p.y && sy < q.y) || (sy > p.y && sy > q.y)) return;
+          if (p.y === q.y) {
+            left = Math.min(left, p.x, q.x);
+            right = Math.max(right, p.x, q.x);
+            return;
+          }
+          const x = p.x + ((sy - p.y) * (q.x - p.x)) / (q.y - p.y);
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+        };
+        edge(a, b);
+        edge(b, c);
+        edge(c, a);
+        const x0 = Math.max(0, Math.ceil(left - 0.5));
+        const x1 = Math.min(width - 1, Math.floor(right - 0.5));
+        let h = gx * (x0 + 0.5) + gy * sy + h0;
+        const line = py * width;
+        for (let px = x0; px <= x1; px++, h += gx) {
+          const at = line + px;
           if (h < heights[at]) continue;
           heights[at] = h;
           if (ids) ids[at] = t.id;
         }
       }
     }
+  }
+
+  /** Copies the current per-pixel heights (and ids) so an unchanged view can restore them. */
+  saveGround(): { heights: Float32Array; ids: Int32Array | null } {
+    return { heights: this.heights.slice(), ids: this.ids?.slice() ?? null };
+  }
+
+  /** Restores heights saved by `saveGround` for the same view. */
+  restoreGround(saved: { heights: Float32Array; ids: Int32Array | null }): void {
+    this.heights.set(saved.heights);
+    if (this.ids && saved.ids) this.ids.set(saved.ids);
   }
 
   /**

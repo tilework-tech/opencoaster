@@ -21,7 +21,8 @@ const FLOWER_HEIGHT = 0.18;
  * The bed rests on the terrain rather than in it: one screen pixel up, like a path surface, so the
  * soil is always nearer the camera than the ground under it.
  */
-const SOIL_LIFT = 1 / 16 / PHYSICAL_Z;
+export const FLOWER_BED_LIFT_PX = 1;
+const SOIL_LIFT = FLOWER_BED_LIFT_PX / 16 / PHYSICAL_Z;
 
 function surfaceHeight(x: number, y: number, slopeMask: number, view: number): number {
   const pointX = x + 0.5;

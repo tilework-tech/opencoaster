@@ -72,20 +72,29 @@ export class DepthSurface {
 
   /**
    * Starts compositing over what the real context already shows (the painted ground), with
-   * `ground` giving that ground's height per pixel. With `recordIds`, ids are kept per pixel and
-   * every composited sprite is recorded for the occlusion oracle.
+   * `ground` giving that ground's height per pixel. Ground heights are reused while `groundKey`
+   * (the view and map) is unchanged. With `recordIds`, ids are kept per pixel and every
+   * composited sprite is recorded for the occlusion oracle.
    */
   compose(
     width: number,
     height: number,
     transform: SurfaceTransform,
-    ground: readonly OracleTriangle[],
+    groundKey: string,
+    ground: () => readonly OracleTriangle[],
     recordIds = false,
   ): void {
     const image = this.real.getImageData(0, 0, width, height);
     this.image = image;
     this.target.begin(width, height, image.data, recordIds);
-    this.target.ground(ground);
+    const key = `${groundKey}:${width}:${height}:${recordIds}`;
+    if (this.savedGround && this.savedGroundKey === key)
+      this.target.restoreGround(this.savedGround);
+    else {
+      this.target.ground(ground());
+      this.savedGround = this.target.saveGround();
+      this.savedGroundKey = key;
+    }
     this.transform = transform;
     this.alpha = 1;
     this.alphaStack.length = 0;
@@ -122,6 +131,8 @@ export class DepthSurface {
   }
 
   private image: ImageData | null = null;
+  private savedGround: ReturnType<DepthComposite['saveGround']> | null = null;
+  private savedGroundKey = '';
 
   private composingGet(property: string | symbol): unknown {
     const real = this.real;
