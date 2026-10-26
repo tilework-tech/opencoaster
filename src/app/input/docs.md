@@ -37,3 +37,5 @@ Path: @/src/app/input
 - The returned key set is read by bootstrap's frame loop for continuous WASD panning.
 
 Created and maintained by Nori.
+
+- Hover refresh: `connectCameraInput` remembers the last hovering mouse position and exposes `refreshHover` (via `registerRefreshHover`); the frame loop calls it whenever the camera (x, y, zoom, rotation) or `sim.map` changes, so outlines, tooltips and tool previews follow what is under a stationary cursor. Covered by `e2e/hover-refresh.spec.ts`.

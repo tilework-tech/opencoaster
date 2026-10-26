@@ -10,10 +10,93 @@ export interface TerrainEdgeFace {
   bottomHeight: number;
 }
 
+/** How strongly a slope's lean toward the light darkens or brightens a tile. */
+const LIGHT_ACROSS = 0.16;
+const LIGHT_VERTICAL = 0.06;
+const LIGHT_MIN = 0.74;
+const LIGHT_MAX = 1.26;
+
+/**
+ * Brightness multiplier for a terrain tile from its corner heights in view order (top, right,
+ * bottom, left; 64 per level). The light is fixed on screen, so a slope rising toward the right
+ * reads lighter, one rising toward the left reads darker, and a slope climbing toward the viewer
+ * is a little lighter than one climbing away. Flat tiles are unchanged.
+ */
 export function terrainLightFactor(corners: readonly [number, number, number, number]): number {
-  const slopeX = (corners[1] + corners[2] - corners[0] - corners[3]) / 2 / 64;
-  const slopeY = (corners[2] + corners[3] - corners[0] - corners[1]) / 2 / 64;
-  return Math.max(0.92, Math.min(1.08, 1 + (slopeX - slopeY) * 0.05));
+  const alongRight = (corners[1] + corners[2] - corners[0] - corners[3]) / 2 / 64;
+  const alongLeft = (corners[2] + corners[3] - corners[0] - corners[1]) / 2 / 64;
+  const factor =
+    1 + (alongRight - alongLeft) * LIGHT_ACROSS + (alongRight + alongLeft) * LIGHT_VERTICAL;
+  return Math.max(LIGHT_MIN, Math.min(LIGHT_MAX, factor));
+}
+
+export interface ContourMap {
+  width: number;
+  height: number;
+  heights: Uint8Array;
+  slope: Uint8Array;
+}
+
+function worldCornerLevels(map: ContourMap, x: number, y: number): number[] {
+  const index = y * map.width + x;
+  const base = map.heights[index]!;
+  const mask = map.slope[index]!;
+  return [
+    base + (mask & 1),
+    base + ((mask >> 1) & 1),
+    base + ((mask >> 2) & 1),
+    base + ((mask >> 3) & 1),
+  ];
+}
+
+const EDGE_NEIGHBOUR: readonly (readonly [number, number])[] = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+];
+
+/**
+ * Bit mask of a tile's world edges (edge j joins corners j and j+1) that lie on a contour: a
+ * level edge where the ground changes inclination, or where it steps to a different height than
+ * the neighbouring tile's matching edge.
+ */
+export function terrainContourEdges(map: ContourMap, x: number, y: number): number {
+  const corners = worldCornerLevels(map, x, y);
+  let mask = 0;
+  for (let edge = 0; edge < 4; edge++) {
+    const level = corners[edge]!;
+    const next = corners[(edge + 1) & 3]!;
+    if (level !== next) continue;
+    const [dx, dy] = EDGE_NEIGHBOUR[edge]!;
+    const nx = x + dx;
+    const ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
+    const other = worldCornerLevels(map, nx, ny);
+    const shared = (edge + 2) & 3;
+    if (other[shared] !== next || other[(shared + 1) & 3] !== level) {
+      mask |= 1 << edge;
+      continue;
+    }
+    const ownRise = (corners[(edge + 2) & 3]! + corners[(edge + 3) & 3]!) / 2 - level;
+    const otherRise = (other[edge]! + other[(edge + 1) & 3]!) / 2 - level;
+    if (ownRise + otherRise !== 0) mask |= 1 << edge;
+  }
+  return mask;
+}
+
+/** `terrainContourEdges` re-indexed to the view: bit k is the edge from view corner k to k+1. */
+export function terrainContourViewEdges(
+  map: ContourMap,
+  x: number,
+  y: number,
+  rotation: number,
+): number {
+  const world = terrainContourEdges(map, x, y);
+  const top = viewTopCorner(rotation);
+  let mask = 0;
+  for (let edge = 0; edge < 4; edge++) if (world & (1 << ((top + edge) & 3))) mask |= 1 << edge;
+  return mask;
 }
 
 /** World corner index shown at the view's top-left corner after the given rotation. */

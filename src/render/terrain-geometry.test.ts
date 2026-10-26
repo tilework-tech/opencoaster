@@ -5,6 +5,8 @@ import {
   tileBankDepth,
   tileWaterDepth,
   terrainEdgeFace,
+  terrainContourEdges,
+  terrainContourViewEdges,
   terrainLightFactor,
   terrainShorelineSegments,
   terrainTileCorners,
@@ -148,5 +150,75 @@ describe('terrain tile geometry', () => {
     expect(terrainShorelineSegments(corners(0b0101), 2.5, 0)).toHaveLength(2);
     const atCorner = clipTerrainTileBelowHeight(corners(0b0100), 3);
     expect(new Set(atCorner.map(({ x, y }) => `${x},${y}`)).size).toBe(atCorner.length);
+  });
+});
+
+describe('terrain lighting', () => {
+  it('lights slopes from one side so facing slopes differ clearly', () => {
+    const rightUp = terrainLightFactor([0, 64, 64, 0]);
+    const leftUp = terrainLightFactor([64, 0, 0, 64]);
+    expect(rightUp).toBeGreaterThan(1.15);
+    expect(leftUp).toBeLessThan(0.85);
+  });
+
+  it('darkens a slope that climbs away from the light and lightens one toward it', () => {
+    expect(terrainLightFactor([64, 0, 0, 0])).toBeLessThan(1);
+    expect(terrainLightFactor([0, 0, 64, 0])).toBeGreaterThan(1);
+  });
+});
+
+describe('terrain contour edges', () => {
+  function grid(width: number, height: number, level: number) {
+    return {
+      width,
+      height,
+      heights: new Uint8Array(width * height).fill(level),
+      slope: new Uint8Array(width * height),
+    };
+  }
+
+  it('has no contours on flat ground', () => {
+    const map = grid(3, 3, 2);
+    expect(terrainContourEdges(map, 1, 1)).toBe(0);
+  });
+
+  it('marks the edge where flat ground meets the foot of a slope', () => {
+    const map = grid(3, 3, 2);
+    // tile (1,1) rises along its far x edge: corners 1 and 2 raised
+    map.slope[1 * 3 + 1] = 0b0110;
+    // its foot (edge 3, corners 3 and 0) is level at 2 and the neighbour at x-1 is flat
+    expect(terrainContourEdges(map, 1, 1) & 0b1000).toBe(0b1000);
+    // the flat neighbour sees the same crease on its edge 1
+    expect(terrainContourEdges(map, 0, 1) & 0b0010).toBe(0b0010);
+  });
+
+  it('does not mark an edge where a slope continues across the tile boundary', () => {
+    const map = grid(3, 1, 2);
+    map.slope[0] = 0b0110;
+    map.heights[1] = 3;
+    map.slope[1] = 0b0110;
+    expect(terrainContourEdges(map, 0, 0) & 0b0010).toBe(0);
+  });
+
+  it('marks a step between tiles of different heights', () => {
+    const map = grid(2, 1, 2);
+    map.heights[1] = 4;
+    expect(terrainContourEdges(map, 0, 0) & 0b0010).toBe(0b0010);
+    expect(terrainContourEdges(map, 1, 0) & 0b1000).toBe(0b1000);
+  });
+
+  it('does not mark the outer edge of the map', () => {
+    const map = grid(1, 1, 5);
+    expect(terrainContourEdges(map, 0, 0)).toBe(0);
+  });
+
+  it('re-indexes world edges to view edges by rotation', () => {
+    const map = grid(2, 1, 2);
+    map.heights[1] = 4;
+    // world edge 1 of tile (0,0); view edge index = (1 - top) & 3, top = (4 - rotation) & 3
+    expect(terrainContourViewEdges(map, 0, 0, 0)).toBe(0b0010);
+    expect(terrainContourViewEdges(map, 0, 0, 1)).toBe(0b0100);
+    expect(terrainContourViewEdges(map, 0, 0, 2)).toBe(0b1000);
+    expect(terrainContourViewEdges(map, 0, 0, 3)).toBe(0b0001);
   });
 });
