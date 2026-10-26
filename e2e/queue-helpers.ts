@@ -23,6 +23,8 @@ export interface Layout {
   exit: Tile;
   /** Queue tiles to drag, ordered from the open end toward the entrance; empty for an entrance-only queue. */
   queue: Tile[];
+  /** Separate drags that lay `queue`, in order; one drag over `queue` when absent. */
+  queueDrags?: Tile[][];
   /** Path from the exit back to the walkway. */
   exitRun: Tile[];
 }
@@ -33,6 +35,38 @@ export const LONG_QUEUE: Layout = {
   entrance: { x: 53, y: 64 },
   exit: { x: 51, y: 63 },
   queue: Array.from({ length: 5 }, (_, k) => ({ x: 48 + k, y: 64 })),
+  exitRun: [
+    { x: 50, y: 63 },
+    { x: 49, y: 63 },
+    { x: 48, y: 63 },
+  ],
+};
+
+/**
+ * A compact snake: three rows of five queue tiles in a 5x3 block, laid in three drags from the open
+ * end beside the walkway, switching back twice before the entrance.
+ *
+ *   y=64   49 50 51 52 -> entrance (53,64)
+ *   y=65   49 50 51 52
+ *   y=66   48 49 50 51 52, open end (48,66) beside the walkway at (47,66)
+ */
+export const SNAKE_QUEUE: Layout = {
+  ride: { x: 53, y: 62 },
+  entrance: { x: 53, y: 64 },
+  exit: { x: 51, y: 63 },
+  queueDrags: [
+    [48, 49, 50, 51, 52].map((x) => ({ x, y: 66 })).concat([{ x: 52, y: 65 }]),
+    [
+      { x: 51, y: 65 },
+      { x: 50, y: 65 },
+      { x: 49, y: 65 },
+      { x: 49, y: 64 },
+    ],
+    [50, 51, 52].map((x) => ({ x, y: 64 })),
+  ],
+  get queue(): Tile[] {
+    return this.queueDrags!.flat();
+  },
   exitRun: [
     { x: 50, y: 63 },
     { x: 49, y: 63 },
@@ -307,16 +341,21 @@ export async function buildQueuedRide(
   }
 
   if (layout.queue.length > 0) {
-    await focus(page, layout.queue[2]!, lift);
-    const release = await pressAndDrag(page, layout.queue, mobile);
-    if (!legacy) {
-      const label = page.locator('.path-ghost-label');
-      await expect(label).toContainText('links to a ride entrance');
-      await expect(label).toContainText('open end joins the path');
-    } else await page.waitForTimeout(500);
-    if (!legacy) await screenshot(page, testInfo, 'queue-ghost');
-    await release();
-    await expect(page.locator('.tool-status')).toContainText(/Laid|Queue connected/);
+    await focus(page, layout.queue[Math.floor(layout.queue.length / 2)]!, lift);
+    const drags = layout.queueDrags ?? [layout.queue];
+    for (const [k, tiles] of drags.entries()) {
+      const release = await pressAndDrag(page, tiles, mobile);
+      if (drags.length === 1) {
+        if (!legacy) {
+          const label = page.locator('.path-ghost-label');
+          await expect(label).toContainText('links to a ride entrance');
+          await expect(label).toContainText('open end joins the path');
+        } else await page.waitForTimeout(500);
+        if (!legacy) await screenshot(page, testInfo, 'queue-ghost');
+      } else if (k === drags.length - 1) await screenshot(page, testInfo, 'queue-ghost');
+      await release();
+      await expect(page.locator('.tool-status')).toContainText(/Laid|Queue connected/);
+    }
   }
   if (layout.exitRun.length > 0) {
     if (layout.queue.length === 0) await toolbarTool(page, 'Footpaths');
