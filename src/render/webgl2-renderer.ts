@@ -1463,7 +1463,7 @@ export class WebGL2Renderer implements Renderer {
         const index = y * map.width + x;
         const tree = ambientTreeName(map.surface[index]!, x, y);
         if (!tree) continue;
-        const sprite = scenerySpriteName(tree);
+        const sprite = scenerySpriteName(tree, camera.rotation);
         const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
@@ -1800,7 +1800,7 @@ export class WebGL2Renderer implements Renderer {
         spriteHeight,
         item.sprite === 'flower-bed'
           ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
-          : scenerySpriteName(item.sprite),
+          : scenerySpriteName(item.sprite, camera.rotation),
         depth,
       );
     }

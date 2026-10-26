@@ -237,7 +237,9 @@ export const WATER_BANK = {
   deepDepth: 96,
 };
 
-export function scenerySpriteName(name: string): string {
+export function scenerySpriteName(name: string, rotation = 0): string {
+  if (name === 'tree-palm' || name === 'tree-cactus')
+    return `trees/${name}/view-${((rotation % 4) + 4) % 4}`;
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
 }
 

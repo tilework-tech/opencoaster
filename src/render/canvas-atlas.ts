@@ -93,6 +93,7 @@ export function drawGhostSprite(
   }
   ctx.save();
   ctx.globalAlpha *= GHOST_ALPHA;
+  ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     tintCanvas,
     0,

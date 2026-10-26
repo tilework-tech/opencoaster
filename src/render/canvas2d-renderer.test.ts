@@ -394,7 +394,7 @@ describe('Canvas2D fallback map art', () => {
           const key =
             definition.sprite === 'flower-bed'
               ? flowerBedSpriteName(tileX, tileY, rotation, map.slope[tile]!)
-              : scenerySpriteName(definition.sprite);
+              : scenerySpriteName(definition.sprite, rotation);
           const placed = await renderWithAtlas(map, [key], null, {
             x: 0,
             y: 0,
@@ -622,7 +622,7 @@ describe('Canvas2D fallback map art', () => {
     const camera = { x: (x - y) * 32, y: (x + y) * 16, zoom: 1, rotation: 0 as const };
     const context = await renderWithAtlas(
       map,
-      ['trees/tree-palm', 'trees/tree-cactus'],
+      ['trees/tree-palm/view-0', 'trees/tree-cactus/view-0'],
       null,
       camera,
     );

@@ -297,7 +297,7 @@ export function buildArtCoverage(): ArtCoverageRow[] {
               ),
             ),
           ).flat()
-        : [scenerySpriteName(item.sprite)],
+        : [...new Set([0, 1, 2, 3].map((rotation) => scenerySpriteName(item.sprite, rotation)))],
       item.sprite === 'flower-bed'
         ? `${item.category}; generated raised flowerbed with four colour variants, four camera views, and all 16 slope masks.`
         : `${item.category}; prepared original prop sprite.`,

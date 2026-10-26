@@ -94,7 +94,7 @@ export class ScenerySpotPreview {
       sprite:
         definition.sprite === 'flower-bed'
           ? flowerBedSpriteName(hover.x, hover.y, hover.viewRotation, hover.slopeMask)
-          : scenerySpriteName(definition.sprite),
+          : scenerySpriteName(definition.sprite, hover.viewRotation),
       kind: 'scenery',
       tone: this.result === SceneryResult.Ok ? 'ok' : 'refused',
     };

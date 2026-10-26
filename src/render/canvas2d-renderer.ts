@@ -1195,7 +1195,7 @@ export class Canvas2DRenderer implements Renderer {
       const sprite =
         definition.sprite === 'flower-bed'
           ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
-          : scenerySpriteName(definition.sprite);
+          : scenerySpriteName(definition.sprite, cam.rotation);
       const drewSprite =
         this.atlas &&
         (definition.sprite === 'flower-bed'
@@ -1596,7 +1596,13 @@ export class Canvas2DRenderer implements Renderer {
       if (drawn) this.visibleCount++;
     };
     const tree = ambientTreeName(map.surface[tile]!, x, y);
-    if (tree) place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
+    if (tree)
+      place(
+        scenerySpriteName(tree, cam.rotation),
+        0,
+        AMBIENT_TREE_BOX.width,
+        AMBIENT_TREE_BOX.height,
+      );
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
       place(
         flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!),

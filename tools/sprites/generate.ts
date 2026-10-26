@@ -275,20 +275,18 @@ function stationSprites(): SpriteDef[] {
 }
 
 function treeSprites(): SpriteDef[] {
-  return [
-    {
-      key: 'trees/tree-palm',
-      frames: [renderMesh(physicalToLevels(palmTreeMesh()))],
+  return (['palm', 'cactus'] as const).flatMap((tree) =>
+    Array.from({ length: 4 }, (_, view) => ({
+      key: `trees/tree-${tree}/view-${view}`,
+      frames: [
+        renderMesh(
+          rotateMesh(physicalToLevels(tree === 'palm' ? palmTreeMesh() : cactusTreeMesh()), view),
+        ),
+      ],
       footprint: ONE_TILE,
       raw: true,
-    },
-    {
-      key: 'trees/tree-cactus',
-      frames: [renderMesh(physicalToLevels(cactusTreeMesh()))],
-      footprint: ONE_TILE,
-      raw: true,
-    },
-  ];
+    })),
+  );
 }
 
 function flowerBedSprites(): SpriteDef[] {
