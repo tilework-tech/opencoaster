@@ -1,4 +1,5 @@
 import type { SpritePages } from './sprite-pages';
+import { spriteAnchorScreenShift } from './ground-anchor';
 
 export type CanvasAtlas = SpritePages;
 
@@ -169,7 +170,7 @@ export function drawBoxedSprite(
     frame.y,
     frame.width,
     frame.height,
-    x - width / 2,
+    x - width / 2 + spriteAnchorScreenShift(frame.width, entry.anchor.x, width),
     y - (entry.anchor.y / frame.height) * height,
     width,
     height,

@@ -34,3 +34,11 @@ export function sceneryBox(definition: SceneryDefinition): GroundBox {
     height: definition.height * SCENERY_PIXELS_PER_HEIGHT,
   };
 }
+
+export function spriteAnchorScreenShift(
+  frameWidth: number,
+  anchorX: number,
+  renderedWidth: number,
+): number {
+  return renderedWidth * (0.5 - anchorX / frameWidth);
+}

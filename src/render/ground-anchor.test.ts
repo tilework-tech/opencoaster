@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { PathFlag } from '../sim/map/tile-map';
 import { Z_STEP } from '../sim/core/constants';
-import { pathAdditionBox, pathAdditionGroundZ, sceneryGroundZ } from './ground-anchor';
+import {
+  pathAdditionBox,
+  pathAdditionGroundZ,
+  sceneryGroundZ,
+  spriteAnchorScreenShift,
+} from './ground-anchor';
 
 describe('ground anchors', () => {
   it('places path additions at the path surface for flat and sloped paths', () => {
@@ -26,5 +31,10 @@ describe('ground anchors', () => {
       sceneryGroundZ(2, 0b0101, 3),
     ];
     expect(heights).toEqual([2 * Z_STEP, 3 * Z_STEP, 2 * Z_STEP, 3 * Z_STEP]);
+  });
+
+  it('keeps trimmed sprite ground pivots aligned after scaling', () => {
+    expect(spriteAnchorScreenShift(128, 70, 40)).toBe(-1.875);
+    expect(spriteAnchorScreenShift(128, 64, 40)).toBe(0);
   });
 });

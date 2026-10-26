@@ -20,6 +20,7 @@ import {
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
 import { pathAdditionBox, pathAdditionGroundZ, sceneryBox, sceneryGroundZ } from './ground-anchor';
+import { spriteAnchorScreenShift } from './ground-anchor';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import { spritePages } from './sprite-pages';
 import { peopleSpriteKey, walkingFrame } from './people-art';
@@ -48,7 +49,6 @@ import {
   spriteAnchorWorldOffset,
   terrainSurfaceSpriteName,
   WATER_BANK,
-  nativeSpriteAnchorShift,
   nativeSpriteWorldOffset,
   waterFrameIndex,
   waterSpriteName,
@@ -1957,9 +1957,11 @@ export class WebGL2Renderer implements Renderer {
         width = frame.width;
         height = frame.height;
         z += nativeSpriteWorldOffset(frame.height, entry.anchor.y);
-        anchorShift = nativeSpriteAnchorShift(frame.width, entry.anchor.x);
-      } else if (!meshMode && entry)
+        anchorShift = spriteAnchorScreenShift(frame.width, entry.anchor.x, width);
+      } else if (!meshMode && entry) {
         z += spriteAnchorWorldOffset(frame.height, entry.anchor.y, height);
+        anchorShift = spriteAnchorScreenShift(frame.width, entry.anchor.x, width);
+      }
       if (meshMode === 2) {
         const insetX = 0.28;
         const oldU0 = u0;
