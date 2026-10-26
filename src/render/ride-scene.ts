@@ -15,6 +15,7 @@ const SLICE_OVERHANG = 3;
 /** One tile-sized slice of a flat ride: the atlas key anchored at world (x, y, z). */
 export interface RideCellDraw {
   key: string;
+  rideId: number;
   /** Ride phase, which selects the animation frame of the slice. */
   phase: number;
   x: number;
@@ -86,7 +87,15 @@ export class RideCellScene {
         const y = ty * TILE_UNITS + TILE_UNITS / 2;
         const [rx, ry] = view[cell];
         const depth = 2 * (rx + ry + 1) - base + SOLID_BIAS;
-        this.push(rideCellSpriteKey(type, cell, dir, rotation), phase, x, y, base * Z_STEP, depth);
+        this.push(
+          rideCellSpriteKey(type, cell, dir, rotation),
+          snapshot.rideInfo[o + RideInfo.Id]!,
+          phase,
+          x,
+          y,
+          base * Z_STEP,
+          depth,
+        );
       }
     }
   }
@@ -102,13 +111,22 @@ export class RideCellScene {
       }
   }
 
-  private push(key: string, phase: number, x: number, y: number, z: number, depth: number): void {
+  private push(
+    key: string,
+    rideId: number,
+    phase: number,
+    x: number,
+    y: number,
+    z: number,
+    depth: number,
+  ): void {
     let item = this.items[this.count];
     if (!item) {
-      item = { key, phase, x, y, z, depth };
+      item = { key, rideId, phase, x, y, z, depth };
       this.items.push(item);
     } else {
       item.key = key;
+      item.rideId = rideId;
       item.phase = phase;
       item.x = x;
       item.y = y;

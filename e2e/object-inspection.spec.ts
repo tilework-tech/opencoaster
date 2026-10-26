@@ -63,16 +63,31 @@ async function visibleSceneryPoint(page: Page): Promise<{ name: string; x: numbe
 async function visibleRidePoint(
   page: Page,
   kind: 'flat-ride' | 'facility',
-): Promise<{ id: number; name: string; x: number; y: number }> {
+): Promise<{
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+  bodyCellIndices: number[];
+  expectedBodySliceCount: number;
+  outlineCellIndices: number[];
+  outlineIncludesEntranceAndExit: boolean;
+  hasEntranceAndExit: boolean;
+  outlineBounds: { x: number; y: number; width: number; height: number };
+}> {
   return page.locator('#game').evaluate(async (canvas, kind) => {
     const [
       { RIDE_CATALOG },
       { RideInfo, RIDE_INFO_STRIDE },
+      { isSlicedRide },
+      { hoverGroup },
       { buildObjectPickTargets, pickTopmostObject },
       { spritePages },
     ] = await Promise.all([
       import('/src/sim/rides/ride-types.ts'),
       import('/src/worker/snapshot.ts'),
+      import('/src/render/ride-scene.ts'),
+      import('/src/app/tools/object-overlay.ts'),
       import('/src/input/object-picking.ts'),
       import('/src/render/sprite-pages.ts'),
     ]);
@@ -110,15 +125,52 @@ async function visibleRidePoint(
           }
           return null;
         };
-        const point = findPixel(target);
-        if (point) return point;
+        const describe = (candidate: (typeof targets)[number]) => {
+          const point = findPixel(candidate);
+          if (!point) return null;
+          const group = hoverGroup(candidate, targets, new Set([rideId]));
+          const left = Math.min(...group.map((item) => item.x));
+          const top = Math.min(...group.map((item) => item.y));
+          const right = Math.max(...group.map((item) => item.x + item.width));
+          const bottom = Math.max(...group.map((item) => item.y + item.height));
+          const entranceTargets = targets.filter(
+            (item) =>
+              item.kind === 'ride' && item.rideId === rideId && item.sprite?.includes('/entrance/'),
+          );
+          const exitTargets = targets.filter(
+            (item) =>
+              item.kind === 'ride' && item.rideId === rideId && item.sprite?.includes('/exit/'),
+          );
+          return {
+            ...point,
+            bodyCellIndices: targets
+              .filter(
+                (candidate) =>
+                  candidate.kind === 'ride' &&
+                  candidate.rideId === rideId &&
+                  candidate.sprite?.includes('/cell-'),
+              )
+              .map((candidate) => Number(candidate.sprite!.match(/\/cell-(\d+)/)?.[1])),
+            expectedBodySliceCount: isSlicedRide(definition.id) ? definition.footprint.length : 1,
+            outlineCellIndices: group
+              .filter((candidate) => candidate.sprite?.includes('/cell-'))
+              .map((candidate) => Number(candidate.sprite!.match(/\/cell-(\d+)/)?.[1])),
+            outlineIncludesEntranceAndExit:
+              entranceTargets.every((target) => group.some((item) => item.id === target.id)) &&
+              exitTargets.every((target) => group.some((item) => item.id === target.id)),
+            hasEntranceAndExit: entranceTargets.length > 0 && exitTargets.length > 0,
+            outlineBounds: { x: left, y: top, width: right - left, height: bottom - top },
+          };
+        };
+        const match = describe(target);
+        if (match) return match;
         camera.x += (target.x + target.width / 2 - viewport.width / 2) / camera.zoom;
         camera.y += (target.y + target.height / 2 - viewport.height / 2) / camera.zoom;
         targets = buildObjectPickTargets(snapshot, map, camera, viewport, spritePages);
         const centeredTarget = targets.find((candidate) => candidate.id === target.id);
         if (centeredTarget) {
-          const pointAfterCentering = findPixel(centeredTarget);
-          if (pointAfterCentering) return pointAfterCentering;
+          const matchAfterCentering = describe(centeredTarget);
+          if (matchAfterCentering) return matchAfterCentering;
         }
       }
     }
@@ -337,11 +389,33 @@ async function inspectScenery(
     await popup.getByRole('button', { name: 'Done' }).click();
     for (const kind of ['flat-ride', 'facility'] as const) {
       const ride = await visibleRidePoint(page, kind);
-      if (mobile) await longPress(page, ride);
-      else {
+      if (kind === 'flat-ride') {
+        const expectedCells = Array.from({ length: ride.expectedBodySliceCount }, (_, i) => i);
+        expect(ride.bodyCellIndices.sort((a, b) => a - b)).toEqual(expectedCells);
+        expect(ride.outlineCellIndices.sort((a, b) => a - b)).toEqual(expectedCells);
+        if (ride.hasEntranceAndExit) expect(ride.outlineIncludesEntranceAndExit).toBe(true);
+      }
+      if (mobile) {
+        await page.mouse.move(ride.x, ride.y);
+        await expect(page.locator('.object-hover-outline')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`${kind}-hover.png`) });
+        await page.mouse.move(2, 2);
+        await expect(page.locator('.object-hover-outline')).toBeHidden();
+        await longPress(page, ride);
+      } else {
         await page.mouse.move(ride.x, ride.y);
         await expect(page.locator('.tool-status')).toContainText(ride.name);
         await expect(page.locator('.object-hover-outline')).toBeVisible();
+        if (kind === 'flat-ride') {
+          const outline = await page.locator('.object-hover-outline').boundingBox();
+          const canvas = await page.locator('#game').boundingBox();
+          expect(outline).not.toBeNull();
+          expect(canvas).not.toBeNull();
+          expect(outline!.x).toBeCloseTo(canvas!.x + ride.outlineBounds.x - 2, 0);
+          expect(outline!.y).toBeCloseTo(canvas!.y + ride.outlineBounds.y - 2, 0);
+          expect(outline!.width).toBeGreaterThan(ride.outlineBounds.width);
+          expect(outline!.height).toBeGreaterThan(ride.outlineBounds.height);
+        }
         await page.screenshot({ path: testInfo.outputPath(`${kind}-hover.png`) });
         await page.mouse.click(ride.x, ride.y);
       }

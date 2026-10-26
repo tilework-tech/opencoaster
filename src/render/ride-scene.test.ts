@@ -7,7 +7,7 @@ import type { Snapshot } from '../worker/snapshot';
 import { project } from './projection';
 import type { Rotation } from './projection';
 import { PERSON_BIAS, rotatedPositionSum } from './depth-key';
-import { RideCellScene } from './ride-scene';
+import { isSlicedRide, RideCellScene } from './ride-scene';
 import { rideCellSpriteKey } from './world-art';
 import type { MapData } from './renderer';
 
@@ -65,6 +65,31 @@ describe('RideCellScene floor', () => {
 });
 
 describe('RideCellScene', () => {
+  it('retains ride identity and a unique slice for every tile of every flat ride', () => {
+    const scene = new RideCellScene();
+    const m = map();
+    const flatRides = Object.values(RIDE_CATALOG).filter((definition) =>
+      isSlicedRide(definition.id),
+    );
+
+    expect(flatRides.length).toBeGreaterThan(0);
+    for (const definition of flatRides) {
+      const rideId = 100;
+      scene.build(snapshotWith([{ type: definition.id, x: 12, y: 14, dir: 0, base: 3 }]), m, 0);
+
+      expect(scene.length, definition.name).toBe(definition.footprint.length);
+      const activeItems = scene.items.slice(0, scene.length);
+      expect(
+        activeItems.map((item) => item.rideId),
+        definition.name,
+      ).toEqual(Array.from({ length: definition.footprint.length }, () => rideId));
+      expect(new Set(activeItems.map((item) => item.key)).size, definition.name).toBe(
+        definition.footprint.length,
+      );
+      scene.reset();
+    }
+  });
+
   it('draws one slice per footprint tile at the centre of the tile it covers', () => {
     const scene = new RideCellScene();
     const m = map();

@@ -15,6 +15,7 @@ import {
 } from '../worker/snapshot';
 import { peopleSpriteKey } from '../render/people-art';
 import { CoasterScene } from '../render/coaster-scene';
+import { RideCellScene, isSlicedRide } from '../render/ride-scene';
 import {
   sceneryBox,
   sceneryGroundZ,
@@ -32,7 +33,7 @@ import {
   rideSpriteKey,
   scenerySpriteName,
 } from '../render/world-art';
-import { project, rotateTile } from '../render/projection';
+import { project, rotateDirection, rotateTile } from '../render/projection';
 import type { Camera, MapData } from '../render/renderer';
 import type { SpritePages } from '../render/sprite-pages';
 
@@ -73,8 +74,12 @@ const alphaCache = new WeakMap<
   Map<string, { width: number; height: number; alpha: Uint8Array }>
 >();
 
-function guestSpriteIndex(tint: number, heading: number, frame: number): number {
-  return 40 + (((tint % 8) + 8) % 8) * 16 + heading * 4 + (frame % 4);
+function guestSpriteIndex(tint: number, heading: number, frame: number, rotation: number): number {
+  const direction =
+    Number.isInteger(heading) && heading >= 0 && heading < 4
+      ? rotateDirection(heading, rotation as 0 | 1 | 2 | 3)
+      : 0;
+  return 40 + (((tint % 8) + 8) % 8) * 16 + direction * 4 + (frame % 4);
 }
 
 /** Builds the shared alpha-mask pick list from the same world positions used by both renderers. */
@@ -100,7 +105,7 @@ export function buildObjectPickTargets(
     tileY: number,
     sortDepth: number,
     meta: Partial<
-      Pick<ObjectPickTarget, 'rideId' | 'personId' | 'sceneryIndex' | 'pathIndex' | 'state'>
+      Pick<ObjectPickTarget, 'id' | 'rideId' | 'personId' | 'sceneryIndex' | 'pathIndex' | 'state'>
     > = {},
     boxed?: { width: number; height: number },
   ) => {
@@ -175,15 +180,17 @@ export function buildObjectPickTargets(
   const groundZ = (x: number, y: number) => (map.heights[y * map.width + x] ?? 0) * Z_STEP;
 
   if (snapshot) {
+    const rideTypes = new Map<number, RideType>();
     for (let i = 0; i < snapshot.rides.count; i++) {
       const offset = i * RIDE_INFO_STRIDE;
       const id = snapshot.rideInfo[offset + RideInfo.Id]!;
       const type = snapshot.rideInfo[offset + RideInfo.Type]! as RideType;
       const definition = RIDE_CATALOG[type];
+      rideTypes.set(id, type);
       const x = snapshot.rideInfo[offset + RideInfo.RideX]!;
       const y = snapshot.rideInfo[offset + RideInfo.RideY]!;
       if (!definition || x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
-      if (!definition.usesTrack) {
+      if (!definition.usesTrack && !isSlicedRide(type)) {
         const key = ['shop', 'stall', 'facility'].includes(definition.category)
           ? facilitySpriteKey(type, facilityFacingFromPaths(x, y, map), camera.rotation)
           : rideSpriteKey(type, camera.rotation);
@@ -224,6 +231,21 @@ export function buildObjectPickTargets(
         );
       }
     }
+    const rideCellScene = new RideCellScene();
+    rideCellScene.build(snapshot, map, camera.rotation);
+    for (let i = 0; i < rideCellScene.length; i++) {
+      const item = rideCellScene.items[i]!;
+      const definition = RIDE_CATALOG[rideTypes.get(item.rideId)!];
+      if (!definition) continue;
+      const key = `${item.key}#${rideSpriteFrame(item.phase, snapshot.tick, atlas.resolve(item.key)?.frames.length ?? 1)}`;
+      const x = Math.floor(item.x / TILE_UNITS);
+      const y = Math.floor(item.y / TILE_UNITS);
+      add(key, item.x, item.y, item.z, 'ride', definition.name, x, y, item.depth, {
+        id: `ride:${item.rideId}:${item.key}`,
+        rideId: item.rideId,
+      });
+    }
+
     const coasterScene = new CoasterScene();
     coasterScene.build(snapshot, map, camera.rotation);
     const rideDefinitions = new Map<number, string>();
@@ -269,7 +291,7 @@ export function buildObjectPickTargets(
       const tileY = Math.floor(y / TILE_UNITS);
       const id = snapshot.guestIds[i]!;
       add(
-        `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), snapshot.tick >>> 2) - 40}`,
+        `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), snapshot.tick >>> 2, camera.rotation) - 40}`,
         x,
         y,
         z,

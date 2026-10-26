@@ -1682,7 +1682,8 @@
   z-index: 80;
   image-rendering: pixelated;
   pointer-events: none;
-  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 45%));
+  filter: drop-shadow(1px 0 0 #17150f) drop-shadow(-1px 0 0 #17150f) drop-shadow(0 1px 0 #17150f)
+    drop-shadow(0 -1px 0 #17150f);
 }
 
 .person-drop-marker,
@@ -1710,6 +1711,6 @@
 
 .person-drop-shadow {
   border-radius: 50%;
-  background: rgb(20 24 20 / 45%);
-  filter: blur(1.5px);
+  background: rgb(20 24 20 / 58%);
+  filter: blur(2px);
 }

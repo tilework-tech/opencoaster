@@ -156,10 +156,10 @@ export function createToolController(deps: ToolControllerDependencies) {
         display: 'block',
       });
       Object.assign(dropShadow.style, {
-        left: `${clientX - 10 * zoom}px`,
-        top: `${clientY - 4 * zoom}px`,
-        width: `${20 * zoom}px`,
-        height: `${8 * zoom}px`,
+        left: `${clientX - 14 * zoom}px`,
+        top: `${clientY - 6 * zoom}px`,
+        width: `${28 * zoom}px`,
+        height: `${12 * zoom}px`,
         display: 'block',
       });
     } else {
@@ -569,12 +569,14 @@ export function createToolController(deps: ToolControllerDependencies) {
         return true;
       }
       movingPerson = { person: 'guest', id: target.personId, sprite: target };
+      clearObjectHover();
       deps.renderer.setHeldPerson('guest', target.personId);
       updatePersonMoveVisual(clientX, clientY);
       return true;
     }
     if (target?.kind !== 'staff' || target.personId === undefined) return false;
     movingPerson = { person: 'staff', id: target.personId, sprite: target };
+    clearObjectHover();
     deps.renderer.setHeldPerson('staff', target.personId);
     updatePersonMoveVisual(clientX, clientY);
     return true;
