@@ -29,7 +29,7 @@ export const STRATEGIES: Record<string, StrategyFactory> = {
     opening: OPENING,
     growth: LONG_GROWTH,
     reserveCents: 500_000,
-    itemsPerHandyman: 2,
+    itemsPerHandyman: 1,
     attractionsPerMechanic: 3,
   }),
   meadowbrook: growthStrategy({
@@ -41,7 +41,7 @@ export const STRATEGIES: Record<string, StrategyFactory> = {
   }),
 };
 
-const BASE = { reserveCents: 500_000, itemsPerHandyman: 2, attractionsPerMechanic: 3 };
+const BASE = { reserveCents: 500_000, itemsPerHandyman: 1, attractionsPerMechanic: 3 };
 
 STRATEGIES['bramblewood-hollow'] = growthStrategy({
   ...BASE,

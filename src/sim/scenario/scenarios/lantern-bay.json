@@ -130,7 +130,7 @@
     "cell": 10,
     "surface": "sand",
     "buildLevel": 7,
-    "buildLength": 30,
+    "buildLength": 50,
     "buildWidth": 25,
     "lakes": [
       {
@@ -158,7 +158,7 @@
     ]
   },
   "land": {
-    "ownedMarginPercent": 24,
+    "ownedMarginPercent": 16,
     "saleMarginPercent": 2
   },
   "trees": {
