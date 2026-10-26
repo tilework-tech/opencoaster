@@ -406,12 +406,12 @@ function pathAdditionSprites(): SpriteDef[] {
     ['scenery/lamp-broken', brokenLampMesh, false],
   ] as const;
   return models.flatMap(([key, build, raw]) =>
-    Array.from({ length: 4 }, (_, view) => ({
-      key: `${key}/view-${view}`,
-      frames: [renderMesh(rotateMesh(physicalToLevels(build()), view))],
-      footprint: ONE_TILE,
-      raw,
-    })),
+    Array.from({ length: 4 }, (_, view) => {
+      const mesh = rotateMesh(physicalToLevels(build()), view);
+      return key === 'scenery/shelter'
+        ? layeredSprites(`${key}/view-${view}`, mesh, raw)
+        : [{ key: `${key}/view-${view}`, frames: [renderMesh(mesh)], footprint: ONE_TILE, raw }];
+    }).flat(),
   );
 }
 

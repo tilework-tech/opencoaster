@@ -373,6 +373,34 @@ export class Canvas2DRenderer implements Renderer {
     if (!sliced) this.enqueue(map, cam, x, y, z, SOLID_BIAS, () => draw(key));
   }
 
+  private enqueueShelter(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    tileX: number,
+    tileY: number,
+    baseHeight: number,
+    flags: number,
+    data: number,
+  ): void {
+    const worldX = tileX * TILE_UNITS + 128;
+    const worldY = tileY * TILE_UNITS + 128;
+    const z = pathAdditionGroundZ(baseHeight, flags);
+    this.enqueueStructure(
+      map,
+      cam,
+      worldX,
+      worldY,
+      z,
+      pathAdditionSpriteName(flags, cam.rotation, data),
+      (spriteKey) => {
+        project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
+        if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 22)) return;
+        this.drawPathAddition(ctx, flags, data, cam.rotation, spriteKey);
+      },
+    );
+  }
+
   private queueAtDepth(depth: number, draw: () => void): void {
     this.drawOrder.push({
       depth,
@@ -700,6 +728,17 @@ export class Canvas2DRenderer implements Renderer {
         ) {
           const element = this.pathIndices[path]! * 6;
           const flags = map.pathElements[element + 3]!;
+          if (flags & PathFlag.Shelter)
+            this.enqueueShelter(
+              ctx,
+              map,
+              cam,
+              x,
+              y,
+              map.pathElements[element + 2]!,
+              flags,
+              map.pathElements[element + 4]!,
+            );
           for (const rail of queueRailSprites(flags, cam.rotation))
             this.queueAtDepth(
               queueRailDepth(
@@ -1022,8 +1061,9 @@ export class Canvas2DRenderer implements Renderer {
     flags: number,
     data: number,
     view: number,
+    spriteKey?: string,
   ): void {
-    const sprite = pathAdditionSpriteName(flags, view, data);
+    const sprite = spriteKey ?? pathAdditionSpriteName(flags, view, data);
     const box = pathAdditionBox(flags, view);
     if (this.atlas && sprite) {
       const drawn =
@@ -1085,19 +1125,7 @@ export class Canvas2DRenderer implements Renderer {
     centerY: number,
   ): void {
     if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) === 0) return;
-    if (flags & PathFlag.Shelter) {
-      project(
-        centerX,
-        centerY,
-        pathAdditionGroundZ(baseHeight, flags),
-        map.width,
-        map.height,
-        cam.rotation,
-        this.tmp,
-      );
-      this.drawPathAddition(ctx, flags, data, cam.rotation);
-      return;
-    }
+    if (flags & PathFlag.Shelter) return;
     for (const placement of pathAdditionPlacements(flags, baseHeight)) {
       project(
         centerX + placement.x,

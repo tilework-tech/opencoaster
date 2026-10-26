@@ -1790,7 +1790,6 @@ export class WebGL2Renderer implements Renderer {
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
       const worldX = x * TILE_UNITS + 128;
       const worldY = y * TILE_UNITS + 128;
-      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP - 1;
       const slabDepth = pathSlabDepth(
         map,
         camera.rotation,
@@ -1828,14 +1827,15 @@ export class WebGL2Renderer implements Renderer {
         if (flags & PathFlag.Shelter) {
           const shelterZ = pathAdditionGroundZ(baseHeight, flags);
           const box = pathAdditionBox(flags);
-          this.append(
+          this.appendStructure(
+            map,
+            camera,
             worldX,
             worldY,
             shelterZ,
             box.width,
             box.height,
             pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]),
-            adjustDepthForGroundZ(depth + 2, baseHeight, shelterZ),
           );
         } else
           for (const placement of pathAdditionPlacements(flags, baseHeight)) {
