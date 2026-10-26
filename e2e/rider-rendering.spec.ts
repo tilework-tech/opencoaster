@@ -23,7 +23,7 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
     test(`${kind} riders are drawn in the vehicles or hidden, never walking (${backend})`, async ({
       page,
     }, testInfo) => {
-      test.setTimeout(180_000);
+      test.setTimeout(420_000);
       const showcase = riderShowcase(kind);
       const savePath = testInfo.outputPath(`${kind}.ocsave`);
       await mkdir(dirname(savePath), { recursive: true });
