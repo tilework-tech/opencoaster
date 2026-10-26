@@ -46,7 +46,16 @@ import {
   rotateDirection,
   rotateTile,
   unrotateTile,
+  worldToScreen,
 } from './projection';
+import type { MapExtent } from './projection';
+import {
+  FIRST_INSTANCE_OBJECT_ID,
+  GROUND_OBJECT_ID,
+  WATER_OBJECT_ID,
+  objectKind,
+} from './object-kinds';
+import type { OracleSprite } from './occlusion-oracle';
 import { spritePages } from './sprite-pages';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
@@ -107,10 +116,16 @@ const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 7;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
-const INSTANCE_FLOATS = 19;
+const INSTANCE_FLOATS = 21;
 /** Instance float holding the atlas page slot, then the ghost mode (0 none, 1 accepted, 2 refused). */
 const SLOT_FLOAT = 17;
+/** Instance float holding the horizontal anchor shift of a sprite quad, in sprite pixels. */
+const ANCHOR_SHIFT_FLOAT = 16;
 const GHOST_FLOAT = 18;
+/** Instance float holding the object id written in ID mode (see object-kinds.ts). */
+const OBJECT_ID_FLOAT = 19;
+/** Instance float holding the world height of the sprite's ground anchor, before quad offsets. */
+const ANCHOR_Z_FLOAT = 20;
 /** Opacity of footpath placement previews drawn in the world. */
 const GHOST_ALPHA = 0.55;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
@@ -187,6 +202,113 @@ export function guestSpriteIndex(
   return 40 + palette * 16 + direction * 4 + animationFrame;
 }
 
+/** Object-ID image of one frame, drawn with the same instances and order as `draw`. */
+export interface ObjectIdCapture {
+  /** Backing-buffer pixels. */
+  width: number;
+  height: number;
+  /** Object id per pixel, row-major with the top row first; 0 where nothing is drawn. */
+  ids: Int32Array;
+  /** Every atlas sprite instance drawn this frame, in painter order, in backing-buffer pixels. */
+  sprites: OracleSprite[];
+  /** Object kind of every id in the frame, ground and water included. */
+  kinds: Map<number, string>;
+  /** Atlas pages referenced by `sprites`. */
+  pages: number[];
+}
+
+/** A sprite quad as the instance buffer holds it: world anchor after the quad-centre offset. */
+export interface SpriteQuad {
+  x: number;
+  y: number;
+  /** Height of the quad centre (fixed point, Z_STEP per level). */
+  z: number;
+  width: number;
+  height: number;
+  /** Horizontal screen shift in sprite pixels. */
+  anchorShift: number;
+}
+
+/**
+ * Screen rectangle of a sprite quad exactly as the WebGL2 vertex shader places it, in backing
+ * pixels (CSS pixels times `devicePixelRatio`).
+ */
+export function spriteScreenRect(
+  quad: SpriteQuad,
+  map: MapExtent,
+  camera: Pick<Camera, 'x' | 'y' | 'zoom' | 'rotation'>,
+  viewportWidth: number,
+  viewportHeight: number,
+  devicePixelRatio: number,
+): { left: number; top: number; width: number; height: number } {
+  const [sx, sy] = worldToScreen(
+    quad.x / TILE_UNITS,
+    quad.y / TILE_UNITS,
+    quad.z / Z_STEP,
+    camera.rotation,
+    map,
+  );
+  const centreX = (sx - camera.x) * camera.zoom + viewportWidth / 2;
+  const centreY = (sy - camera.y) * camera.zoom + viewportHeight / 2;
+  return {
+    left: (centreX + (quad.anchorShift - quad.width / 2) * camera.zoom) * devicePixelRatio,
+    top: (centreY - (quad.height / 2) * camera.zoom) * devicePixelRatio,
+    width: quad.width * camera.zoom * devicePixelRatio,
+    height: quad.height * camera.zoom * devicePixelRatio,
+  };
+}
+
+/**
+ * The oracle sprite of instance `index` of a WebGL2 instance buffer drawn with atlas `frame`:
+ * its on-screen rectangle in backing pixels and the world height of its ground anchor.
+ */
+export function instanceOracleSprite(
+  instanceData: Float32Array,
+  index: number,
+  id: number,
+  frame: PageFrame,
+  map: MapExtent,
+  camera: Pick<Camera, 'x' | 'y' | 'zoom' | 'rotation'>,
+  viewportWidth: number,
+  viewportHeight: number,
+  devicePixelRatio: number,
+): OracleSprite {
+  const at = index * INSTANCE_FLOATS;
+  const quad: SpriteQuad = {
+    x: instanceData[at],
+    y: instanceData[at + 1],
+    z: instanceData[at + 2],
+    width: instanceData[at + 3],
+    height: instanceData[at + 4],
+    anchorShift: instanceData[at + ANCHOR_SHIFT_FLOAT],
+  };
+  return {
+    id,
+    page: frame.page,
+    frame: { x: frame.x, y: frame.y, width: frame.width, height: frame.height },
+    ...spriteScreenRect(quad, map, camera, viewportWidth, viewportHeight, devicePixelRatio),
+    anchorHeight: instanceData[at + ANCHOR_Z_FLOAT] / Z_STEP,
+    heightScale: quad.height / frame.height,
+  };
+}
+
+/** What `captureObjectIds` needs to know about an instance beyond the instance buffer. */
+interface CaptureRecord {
+  id: number;
+  kind: string;
+  /** Atlas frame of a sprite instance; absent for meshes and fallback-atlas instances. */
+  frame?: PageFrame;
+}
+
+/** GLSL helper writing an object id as RGB bytes (low byte in red) with alpha 1. */
+const encodeObjectIdSource = `highp vec4 encodeObjectId(highp float id) {
+  highp float value = floor(id + 0.5);
+  highp float low = mod(value, 256.0);
+  highp float mid = mod(floor(value / 256.0), 256.0);
+  highp float high = floor(value / 65536.0);
+  return vec4(low, mid, high, 255.0) / 255.0;
+}`;
+
 const vertexSource = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 aCorner;
@@ -200,6 +322,8 @@ layout(location=7) in float aTerrainShade;
 layout(location=8) in float aSlot;
 layout(location=9) in float aAnchorShift;
 layout(location=10) in float aGhost;
+layout(location=11) in float aObjectId;
+layout(location=12) in float aAnchorZ;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -213,6 +337,8 @@ out float vTerrainShade;
 out float vWaterDepth;
 flat out float vSlot;
 flat out float vGhost;
+flat out float vObjectId;
+flat out float vAnchorZ;
 void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
   bool faceMesh = aMeshMode > 3.5;
@@ -271,6 +397,8 @@ void main() {
   vWaterDepth = aWorld.z - cornerHeight;
   vSlot = aSlot;
   vGhost = aGhost;
+  vObjectId = aObjectId;
+  vAnchorZ = aAnchorZ;
 }`;
 
 const fragmentSource = `#version 300 es
@@ -283,8 +411,12 @@ in float vTerrainShade;
 in float vWaterDepth;
 flat in float vSlot;
 flat in float vGhost;
+flat in highp float vObjectId;
+flat in highp float vAnchorZ;
+uniform float uIdMode;
 ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uAtlas${slot};`).join('\n')}
 out vec4 outColor;
+${encodeObjectIdSource}
 vec4 sampleAtlas(vec2 uv) {
   int slot = int(vSlot + 0.5);
 ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uAtlas${slot}, uv);`).join('\n')}
@@ -341,6 +473,10 @@ void main() {
       contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, vTileUv.x));
     outColor.rgb = mix(outColor.rgb, vec3(0.07, 0.1, 0.05), contour * 0.45);
   }
+  if (uIdMode > 0.5) {
+    if (vGhost > 0.5 || (vMeshMode > 1.4 && vMeshMode < 2.5) || outColor.a < 0.5) discard;
+    outColor = encodeObjectId(vObjectId);
+  }
 }`;
 
 const groundVertexSource = `#version 300 es
@@ -363,9 +499,16 @@ const groundFragmentSource = `#version 300 es
 precision mediump float;
 in vec2 vUv;
 uniform sampler2D uGround;
+uniform float uIdMode;
 out vec4 outColor;
+${encodeObjectIdSource}
 void main() {
   outColor = texture(uGround, vUv);
+  if (uIdMode > 0.5) {
+    vec3 background = vec3(${BACKGROUND.slice(0, 3).map(glslFloat).join(', ')});
+    if (all(lessThan(abs(outColor.rgb - background), vec3(0.5 / 255.0)))) discard;
+    outColor = encodeObjectId(${glslFloat(GROUND_OBJECT_ID)});
+  }
 }`;
 
 interface TileLists {
@@ -419,7 +562,12 @@ export class WebGL2Renderer implements Renderer {
     camera: WebGLUniformLocation | null;
     zoom: WebGLUniformLocation | null;
     rotation: WebGLUniformLocation | null;
+    idMode: WebGLUniformLocation | null;
   } | null = null;
+  private idMode = false;
+  private nextObjectId = FIRST_INSTANCE_OBJECT_ID;
+  /** Per-instance capture data, indexed like `instanceData`, while `captureObjectIds` runs. */
+  private captureRecords: (CaptureRecord | undefined)[] | null = null;
   private instanceData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private depths = new Int32Array(INITIAL_INSTANCE_CAPACITY);
   private readonly surfaceDepths = new SurfaceDepths();
@@ -438,6 +586,7 @@ export class WebGL2Renderer implements Renderer {
     viewport: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
     zoom: WebGLUniformLocation | null;
+    idMode: WebGLUniformLocation | null;
   } | null = null;
   private groundFramebuffer: WebGLFramebuffer | null = null;
   private readonly groundChunks = new LruCache<WebGLTexture>(GROUND_CHUNK_CAPACITY, (texture) =>
@@ -557,23 +706,118 @@ export class WebGL2Renderer implements Renderer {
   }
 
   draw(snapshot: Snapshot | null, camera: Camera): void {
+    if (!this.renderFrame(snapshot, camera, null)) return;
+    this.visibleCount = this.count;
+    if (this.map) this.ownershipOverlay?.draw(this.map, camera);
+  }
+
+  /**
+   * Draws one frame exactly like `draw` in ID mode: every pixel holds the id of the object drawn
+   * last over it (see object-kinds.ts), read back top row first.
+   */
+  captureObjectIds(snapshot: Snapshot | null, camera: Camera): ObjectIdCapture {
+    const gl = this.gl;
+    const canvas = this.canvas;
+    const map = this.map;
+    if (!gl || !canvas || !map) throw new Error('WebGL2 renderer has no canvas or map');
+    const { width, height } = canvas;
+    const framebuffer = gl.createFramebuffer();
+    const renderbuffer = gl.createRenderbuffer();
+    if (!framebuffer || !renderbuffer) throw new Error('Could not allocate object-ID target');
+    gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, renderbuffer);
+    const records: (CaptureRecord | undefined)[] = [];
+    this.captureRecords = records;
+    const pixels = new Uint8Array(width * height * 4);
+    let drawn: boolean;
+    try {
+      drawn = this.renderFrame(snapshot, camera, framebuffer);
+      if (drawn) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      }
+    } finally {
+      this.captureRecords = null;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      gl.deleteFramebuffer(framebuffer);
+      gl.deleteRenderbuffer(renderbuffer);
+    }
+    if (!drawn) throw new Error('WebGL2 renderer could not draw the object-ID frame');
+
+    const ids = new Int32Array(width * height);
+    for (let row = 0; row < height; row++) {
+      const source = (height - 1 - row) * width * 4;
+      const target = row * width;
+      for (let column = 0; column < width; column++) {
+        const at = source + column * 4;
+        ids[target + column] = pixels[at] | (pixels[at + 1] << 8) | (pixels[at + 2] << 16);
+      }
+    }
+    const kinds = new Map<number, string>([
+      [GROUND_OBJECT_ID, 'ground'],
+      [WATER_OBJECT_ID, 'water'],
+    ]);
+    const sprites: OracleSprite[] = [];
+    const pages = new Set<number>();
+    const viewportWidth = width / this.dpr;
+    const viewportHeight = height / this.dpr;
+    for (let i = 0; i < this.count; i++) {
+      const source = this.order[i];
+      const record = records[source];
+      if (!record) continue;
+      kinds.set(record.id, record.kind);
+      const frame = record.frame;
+      if (!frame) continue;
+      sprites.push(
+        instanceOracleSprite(
+          this.instanceData,
+          source,
+          record.id,
+          frame,
+          map,
+          camera,
+          viewportWidth,
+          viewportHeight,
+          this.dpr,
+        ),
+      );
+      pages.add(frame.page);
+    }
+    return { width, height, ids, sprites, kinds, pages: [...pages].sort((a, b) => a - b) };
+  }
+
+  /**
+   * Draws one frame into `target` (the canvas when null). A non-null target draws in ID mode.
+   * Returns false when the renderer is not ready to draw.
+   */
+  private renderFrame(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    target: WebGLFramebuffer | null,
+  ): boolean {
     this.resolveHeldSlots(snapshot);
     const gl = this.gl;
     const canvas = this.canvas;
     const map = this.map;
     if (!gl || !canvas || !map || this.lost || !this.program || !this.vao || !this.fallbackTexture)
-      return;
+      return false;
+    const idMode = target !== null;
 
     this.syncPageTextures();
     const viewportWidth = canvas.width / this.dpr;
     const viewportHeight = canvas.height / this.dpr;
     this.prepareGroundCache(map, camera);
     this.ensureGroundChunks(map, camera, viewportWidth, viewportHeight);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target);
     gl.viewport(0, 0, canvas.width, canvas.height);
-    this.drawGroundChunks(camera, viewportWidth, viewportHeight);
+    this.drawGroundChunks(camera, viewportWidth, viewportHeight, idMode);
 
     this.count = 0;
+    this.nextObjectId = FIRST_INSTANCE_OBJECT_ID;
+    if (this.captureRecords) this.captureRecords.length = 0;
     if (snapshot) this.rideCells.build(snapshot, map, camera.rotation);
     else this.rideCells.reset();
     if (snapshot) this.appendPatrolAreas(snapshot, map, camera, viewportWidth, viewportHeight);
@@ -635,7 +879,9 @@ export class WebGL2Renderer implements Renderer {
     }
     this.uploadInPainterOrder();
 
-    enableSpriteAlphaBlending(gl);
+    if (idMode) gl.disable(gl.BLEND);
+    else enableSpriteAlphaBlending(gl);
+    this.idMode = idMode;
     this.drawRuns(
       viewportWidth,
       viewportHeight,
@@ -645,8 +891,8 @@ export class WebGL2Renderer implements Renderer {
       camera.zoom,
       camera.rotation,
     );
-    this.visibleCount = this.count;
-    this.ownershipOverlay?.draw(map, camera);
+    this.idMode = false;
+    return true;
   }
 
   /** Draws the uploaded instance runs, binding each run's atlas pages to the texture slots. */
@@ -670,6 +916,7 @@ export class WebGL2Renderer implements Renderer {
     gl.uniform2f(uniforms.camera, cameraX, cameraY);
     gl.uniform1f(uniforms.zoom, zoom);
     gl.uniform1f(uniforms.rotation, rotation);
+    gl.uniform1f(uniforms.idMode, this.idMode ? 1 : 0);
     for (const run of this.runs) {
       for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
         const page = run.pages[slot];
@@ -733,6 +980,7 @@ export class WebGL2Renderer implements Renderer {
       camera: gl.getUniformLocation(shaderProgram, 'uCamera'),
       zoom: gl.getUniformLocation(shaderProgram, 'uZoom'),
       rotation: gl.getUniformLocation(shaderProgram, 'uRotation'),
+      idMode: gl.getUniformLocation(shaderProgram, 'uIdMode'),
     };
 
     this.groundChunks.clear();
@@ -782,8 +1030,10 @@ export class WebGL2Renderer implements Renderer {
       [6, 1, 14],
       [7, 1, 15],
       [8, 1, 17],
-      [9, 1, 16],
+      [9, 1, ANCHOR_SHIFT_FLOAT],
       [10, 1, GHOST_FLOAT],
+      [11, 1, OBJECT_ID_FLOAT],
+      [12, 1, ANCHOR_Z_FLOAT],
     ] as const;
     for (const [location, size, floatOffset] of layout) {
       gl.enableVertexAttribArray(location);
@@ -893,6 +1143,7 @@ export class WebGL2Renderer implements Renderer {
       viewport: gl.getUniformLocation(program, 'uViewport'),
       camera: gl.getUniformLocation(program, 'uCamera'),
       zoom: gl.getUniformLocation(program, 'uZoom'),
+      idMode: gl.getUniformLocation(program, 'uIdMode'),
     };
   }
 
@@ -1139,7 +1390,12 @@ export class WebGL2Renderer implements Renderer {
   }
 
   /** Draws the visible cached chunks, clearing first only when one is still missing. */
-  private drawGroundChunks(camera: Camera, viewportWidth: number, viewportHeight: number): void {
+  private drawGroundChunks(
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+    idMode = false,
+  ): void {
     const gl = this.gl;
     const program = this.groundProgram;
     const uniforms = this.groundUniforms;
@@ -1152,12 +1408,16 @@ export class WebGL2Renderer implements Renderer {
           covered = false;
           break;
         }
-    if (!covered) {
+    if (idMode) {
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    } else if (!covered) {
       gl.clearColor(...BACKGROUND);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     gl.disable(gl.BLEND);
     gl.useProgram(program);
+    gl.uniform1f(uniforms.idMode, idMode ? 1 : 0);
     gl.bindVertexArray(this.vao);
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uniforms.ground, 0);
@@ -2256,6 +2516,7 @@ export class WebGL2Renderer implements Renderer {
     contourEdges = 0,
   ): void {
     if (this.count === this.depths.length) this.grow();
+    const anchorZ = z;
     const offset = this.count * INSTANCE_FLOATS;
     let frame: PageFrame | undefined;
     let entry: SpriteEntry | undefined;
@@ -2351,11 +2612,34 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 13] = cornerHeights[3] ?? z;
     this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 + contourEdges : 0;
     this.instanceData[offset + 15] = terrainShade;
-    this.instanceData[offset + 16] = anchorShift;
+    this.instanceData[offset + ANCHOR_SHIFT_FLOAT] = anchorShift;
     this.instanceData[offset + GHOST_FLOAT] = this.ghostMode;
+    const objectId = this.objectIdFor(meshMode);
+    this.instanceData[offset + OBJECT_ID_FLOAT] = objectId;
+    this.instanceData[offset + ANCHOR_Z_FLOAT] = anchorZ;
+    if (this.captureRecords)
+      this.captureRecords[this.count] =
+        objectId < FIRST_INSTANCE_OBJECT_ID
+          ? undefined
+          : {
+              id: objectId,
+              kind: frame && typeof sprite === 'string' ? objectKind(sprite) : 'other',
+              frame: frame && meshMode === 0 ? frame : undefined,
+            };
     this.depths[this.count] = Math.round(depth * 2);
     this.pageIds[this.count] = page;
     this.count++;
+  }
+
+  /**
+   * Ground meshes share one id and water another; patrol overlays and placement previews have
+   * none; every other instance gets its own.
+   */
+  private objectIdFor(meshMode: number): number {
+    if (meshMode === 1 || meshMode === 4 || meshMode === 5) return GROUND_OBJECT_ID;
+    if (meshMode === 3) return WATER_OBJECT_ID;
+    if (meshMode !== 0 || this.ghostMode !== 0) return 0;
+    return this.nextObjectId++;
   }
 
   private grow(): void {
