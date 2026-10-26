@@ -26,6 +26,29 @@ function findOwnedEmptyTile(world: World, near: Tile): Tile {
   throw new Error('No empty owned tile found near the park centre');
 }
 
+function findOwnedEmptyRun(world: World, near: Tile, length: number): Tile[] {
+  for (let radius = 0; radius < 12; radius++)
+    for (let y = near.y - radius; y <= near.y + radius; y++)
+      for (let x = near.x - radius; x <= near.x + radius; x++) {
+        if (Math.max(Math.abs(x - near.x), Math.abs(y - near.y)) !== radius) continue;
+        const run = Array.from({ length }, (_, offset) => ({ x: x + offset, y }));
+        if (
+          run.every(({ x: tx, y: ty }) => {
+            if (tx < 2 || ty < 2 || tx >= world.map.width - 2 || ty >= world.map.height - 2)
+              return false;
+            const index = world.map.index(tx, ty);
+            return (
+              world.map.ownership[index]! & OWNED &&
+              world.map.slope[index] === 0 &&
+              world.map.firstElement(index) < 0
+            );
+          })
+        )
+          return run;
+      }
+  throw new Error('No contiguous owned empty run found near the park centre');
+}
+
 async function edgeScreenPoint(
   page: Page,
   world: World,
@@ -146,11 +169,7 @@ test.describe('wall edge placement', () => {
         .sort(),
     ).toEqual([0, 1, 2, 3]);
 
-    const runStart = findOwnedEmptyTile(world, { x: tile.x + 4, y: tile.y + 4 });
-    const run = Array.from({ length: 4 }, (_, offset) => ({
-      x: runStart.x + offset,
-      y: runStart.y,
-    }));
+    const run = findOwnedEmptyRun(world, { x: tile.x + 4, y: tile.y + 4 }, 4);
     await dragThrough(page, world, run);
     await page.mouse.up();
     await expect
@@ -197,11 +216,7 @@ test.describe('wall edge placement', () => {
         .sort(),
     ).toEqual([0, 1, 2, 3]);
 
-    const runStart = findOwnedEmptyTile(world, { x: tile.x + 4, y: tile.y + 4 });
-    const run = Array.from({ length: 4 }, (_, offset) => ({
-      x: runStart.x + offset,
-      y: runStart.y,
-    }));
+    const run = findOwnedEmptyRun(world, { x: tile.x + 4, y: tile.y + 4 }, 4);
     await dragThrough(page, world, run);
     await page.mouse.up();
     await expect
