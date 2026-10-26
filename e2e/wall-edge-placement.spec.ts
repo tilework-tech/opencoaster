@@ -4,13 +4,7 @@ import { project } from '../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { OWNED } from '../src/sim/map/tile-map';
 import type { World } from '../src/sim/core/world';
-import {
-  createStarterWorld,
-  dragThrough,
-  startStarterPark,
-  tileScreenPoint,
-  toolbarTool,
-} from './footpath-helpers';
+import { createStarterWorld, dragThrough, startStarterPark, toolbarTool } from './footpath-helpers';
 import type { Tile } from './footpath-helpers';
 
 type SceneryRecord = { x: number; y: number; edge: number; item: number };
