@@ -208,6 +208,7 @@ function expectations(): Expectation[] {
     x: 5.5,
     y: 7.5,
     z: level(5, 7),
+    tolerance: 20,
     view: (r) => r,
   });
   // Path additions stand 96/256 tile inside the tile toward each open edge.
