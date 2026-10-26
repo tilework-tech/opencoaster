@@ -402,27 +402,35 @@ async function writeSheet(name: string, cells: readonly Buffer[]): Promise<void>
   await sharp(sheet).toFile(join(OUTPUT_DIR, `${name}.png`));
 }
 
-test('generates Playwright visual review contact sheets @art-review', async ({ page }) => {
-  test.setTimeout(1_200_000);
+async function setupReviewPage(page: Page): Promise<void> {
   await mkdir(OUTPUT_DIR, { recursive: true });
   await page.goto(process.env.ART_REVIEW_BASE_URL ?? 'http://127.0.0.1:4173/');
   if (!(await page.locator('.game-toolbar').isVisible()))
     await page.getByRole('button', { name: 'Sandbox' }).click();
   await expect(page.locator('.game-toolbar')).toBeVisible();
   await initialise(page);
+}
 
-  const backends = ['webgl2', 'canvas2d'] as const;
-  if (!FLOWERBEDS_ONLY) {
-    for (const backend of backends)
-      for (const zoom of INVENTORY_ZOOMS)
-        for (const rotation of ROTATIONS) {
+const backends = ['webgl2', 'canvas2d'] as const;
+
+if (!FLOWERBEDS_ONLY) {
+  for (const backend of backends)
+    for (const zoom of INVENTORY_ZOOMS)
+      for (const rotation of ROTATIONS)
+        test(`captures ${backend} inventory at zoom ${zoom}, rotation ${rotation} @art-review`, async ({
+          page,
+        }) => {
+          test.setTimeout(1_200_000);
+          await setupReviewPage(page);
           const cells: Buffer[] = [];
-          for (const item of inventory())
-            cells.push(await makeCell(page, item, backend, zoom, rotation));
+          for (const item of inventory()) cells.push(await makeCell(page, item, backend, zoom, rotation));
           await writeSheet(`inventory-${backend}-zoom-${zoom}-rotation-${rotation}`, cells);
-        }
-  }
+        });
+}
 
+test('captures flowerbeds across renderers, zooms, and rotations @art-review', async ({ page }) => {
+  test.setTimeout(1_200_000);
+  await setupReviewPage(page);
   for (const backend of backends)
     for (const zoom of FLOWERBED_ZOOMS)
       for (const rotation of ROTATIONS) {
@@ -431,7 +439,6 @@ test('generates Playwright visual review contact sheets @art-review', async ({ p
           cells.push(await makeCell(page, item, backend, zoom, rotation));
         await writeSheet(`flowerbeds-${backend}-zoom-${zoom}-rotation-${rotation}`, cells);
       }
-
   expect(await page.locator('#art-review-webgl2').count()).toBe(1);
   expect(await page.locator('#art-review-canvas2d').count()).toBe(1);
 });
