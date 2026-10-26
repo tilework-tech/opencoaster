@@ -154,6 +154,7 @@ function raiseStep(w: World, selected: Int32Array): WaterStep | WaterRefusal {
     }
   const blocked = floodBlocker(w, queue, level);
   if (blocked) return blocked;
+  let unowned = -1;
   for (let head = 0; head < queue.length; head++) {
     if (queue.length > MAX_WATER_BODY_TILES) return refusal(LandResult.WaterSpills, queue[0]);
     const t = queue[head];
@@ -163,11 +164,12 @@ function raiseStep(w: World, selected: Int32Array): WaterStep | WaterRefusal {
       if (m.waterLevel[o] > level && m.waterLevel[o] > m.heights[o])
         return refusal(LandResult.WaterLevelClash, o);
       if (m.heights[o] >= level) continue;
-      if (!owned(m, o)) return refusal(LandResult.NotOwned, o);
+      if (unowned < 0 && !owned(m, o)) unowned = o;
       seen[o] = 1;
       queue.push(o);
     }
   }
+  if (unowned >= 0) return refusal(LandResult.NotOwned, unowned);
   const tiles = queue.filter((t) => m.waterLevel[t] !== level);
   return floodBlocker(w, tiles, level) ?? { tiles, level };
 }

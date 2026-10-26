@@ -331,6 +331,17 @@ describe('water tool', () => {
     expect(plan.subject).toBe(m.index(11, 9));
   });
 
+  it('reports a spill rather than ownership when open ground also lies beyond the park', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    for (let i = 0; i < 2; i++) {
+      s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 1, height: 1 });
+      s.step();
+    }
+    m.ownership[m.index(0, 0)] = 0;
+    expect(planArea(s.world, water(9, 9, 1)).result).toBe(LandResult.WaterSpills);
+  });
+
   it('refuses to flood land beyond the park boundary', () => {
     const s = basin(8, 8, 3, 2);
     const m = s.world.map;
