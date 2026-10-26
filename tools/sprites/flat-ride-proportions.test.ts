@@ -31,8 +31,14 @@ describe('flat-ride art proportions', () => {
     const allowance = 0.08;
     for (const ride of FLAT_RIDES) {
       const model = modelFor(ride.name);
-      const width = Math.max(...ride.footprint.map(([x]) => x)) - Math.min(...ride.footprint.map(([x]) => x)) + 1;
-      const depth = Math.max(...ride.footprint.map(([, y]) => y)) - Math.min(...ride.footprint.map(([, y]) => y)) + 1;
+      const width =
+        Math.max(...ride.footprint.map(([x]) => x)) -
+        Math.min(...ride.footprint.map(([x]) => x)) +
+        1;
+      const depth =
+        Math.max(...ride.footprint.map(([, y]) => y)) -
+        Math.min(...ride.footprint.map(([, y]) => y)) +
+        1;
       for (let frame = 0; frame < model.frames; frame++) {
         const triangles = model.build(frame);
         for (let view = 0; view < 4; view++) {
@@ -50,12 +56,14 @@ describe('flat-ride art proportions', () => {
               extentX = Math.max(extentX, Math.abs(footprintX));
               extentY = Math.max(extentY, Math.abs(footprintY));
             }
-          expect(extentX, `${ride.name} frame ${frame} view ${view} footprint x`).toBeLessThanOrEqual(
-            projectedWidth / 2 + allowance,
-          );
-          expect(extentY, `${ride.name} frame ${frame} view ${view} footprint y`).toBeLessThanOrEqual(
-            projectedDepth / 2 + allowance,
-          );
+          expect(
+            extentX,
+            `${ride.name} frame ${frame} view ${view} footprint x`,
+          ).toBeLessThanOrEqual(projectedWidth / 2 + allowance);
+          expect(
+            extentY,
+            `${ride.name} frame ${frame} view ${view} footprint y`,
+          ).toBeLessThanOrEqual(projectedDepth / 2 + allowance);
         }
       }
     }
@@ -83,8 +91,12 @@ describe('flat-ride art proportions', () => {
         model.build(frame).flatMap((triangle) => triangle.v.map(([, , z]) => z)),
       ).flat();
       const heightInGuestUnits = (Math.max(...heights) - Math.min(...heights)) / GUEST_HEIGHT;
-      expect(heightInGuestUnits, `${ride.name} height in guest-heights`).toBeGreaterThanOrEqual(minimum);
-      expect(heightInGuestUnits, `${ride.name} height in guest-heights`).toBeLessThanOrEqual(maximum);
+      expect(heightInGuestUnits, `${ride.name} height in guest-heights`).toBeGreaterThanOrEqual(
+        minimum,
+      );
+      expect(heightInGuestUnits, `${ride.name} height in guest-heights`).toBeLessThanOrEqual(
+        maximum,
+      );
     }
   });
 });
