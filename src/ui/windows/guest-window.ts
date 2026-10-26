@@ -1,7 +1,12 @@
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import { VoucherKind } from '../../sim/economy/vouchers';
 import { TILE_UNITS } from '../../sim/core/constants';
-import { RideInfo, RIDE_INFO_STRIDE, GUEST_DETAIL_STRIDE } from '../../worker/snapshot';
+import {
+  RideInfo,
+  RIDE_INFO_STRIDE,
+  GUEST_DETAIL_STRIDE,
+  guestRowState,
+} from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, setText, statRow } from '../dom';
 import { formatMoney } from '../format';
@@ -338,7 +343,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       location = { x, y };
       const state =
         (['walking', 'queueing', 'riding', 'leaving', 'shopping', 'waiting to board'] as const)[
-          snapshot.guests.data[layer + 3]! >>> 8
+          guestRowState(snapshot.guests.data[layer + 3]!)
         ] ?? 'unknown';
       win.setTitle(`Guest ${guestId}`);
       setText(where.value, `tile ${x}, ${y} · ${state}`);

@@ -1,5 +1,5 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
-import { SNAPSHOT_STRIDE } from '../worker/snapshot';
+import { SNAPSHOT_STRIDE, guestRowHeading, isRidingGuestRow } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, Surface } from '../sim/map/tile-map';
@@ -1655,8 +1655,9 @@ export class WebGL2Renderer implements Renderer {
   ): void {
     for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
       const metadata = layer.data[offset + 3];
+      if (isRidingGuestRow(metadata)) continue;
       const tint = metadata & 0xff;
-      const heading = (metadata >>> 16) & 0xff;
+      const heading = guestRowHeading(metadata);
       const depth =
         2 * rotatedPositionSum(layer.data[offset], layer.data[offset + 1], map, camera.rotation) -
         layer.data[offset + 2] / 64;

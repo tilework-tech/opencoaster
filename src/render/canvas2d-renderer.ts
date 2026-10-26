@@ -1,6 +1,6 @@
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
-import { SNAPSHOT_STRIDE } from '../worker/snapshot';
+import { SNAPSHOT_STRIDE, guestRowHeading, isRidingGuestRow } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
@@ -1250,10 +1250,11 @@ export class Canvas2DRenderer implements Renderer {
       const y = d[o + 1]!;
       const z = d[o + 2]!;
       const metadata = d[o + 3]!;
+      if (isRidingGuestRow(metadata)) continue;
       this.enqueue(map, cam, x, y, z, 0, () => {
         project(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
-        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, (metadata >>> 16) & 0xff, tick >>> 2) - 40}`;
+        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), tick >>> 2) - 40}`;
         if (!this.atlas || !drawAnchoredSprite(ctx, this.atlas, sprite, t[0]!, t[1]!)) {
           ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
           ctx.fillRect(t[0]! - 1.5, t[1]! - 1.5, 3, 3);

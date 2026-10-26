@@ -47,3 +47,23 @@ export function personMesh(kind: number, direction: number, frame: number, staff
     ((direction & 3) * Math.PI) / 2,
   );
 }
+
+/** Guest sitting in a ride vehicle: torso, head and arms forward on a lap bar, no legs. */
+function seated(clothes: string): Mesh {
+  const garment = material(ramp(clothes));
+  return [
+    ...cylinder(0, 0, 0.0, 0.17, 0.034, 0.04, 6, garment, { phase: Math.PI / 6 }),
+    ...cylinder(0, 0, 0.17, 0.25, 0.034, 0.034, 8, SKIN),
+    ...cylinder(0, 0, 0.245, 0.272, 0.035, 0.035, 8, HAIR),
+    ...box([0.03, -0.045, 0.07], [0.075, -0.025, 0.12], garment),
+    ...box([0.03, 0.025, 0.07], [0.075, 0.045, 0.12], garment),
+  ];
+}
+
+/** Small seated rider facing a cardinal world direction, tinted like the guest palette. */
+export function seatedRiderMesh(kind: number, direction: number): Mesh {
+  return rotateZ(
+    physicalToLevels(seated(GUEST_CLOTHES[kind % 8])),
+    ((direction & 3) * Math.PI) / 2,
+  );
+}
