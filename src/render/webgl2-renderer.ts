@@ -1414,7 +1414,10 @@ export class WebGL2Renderer implements Renderer {
     );
   }
 
-  /** Appends one tile's terrain, boundary cliff faces and flat path fill. */
+  /**
+   * Appends one tile's terrain, edge cliff faces and flat path fill. A redraw over scenery
+   * (`depthOffset` set) lays only the surface again.
+   */
   private appendGroundTile(map: MapData, index: number, rotation: Rotation, depthOffset = 0): void {
     const x = index % map.width;
     const y = (index - x) / map.width;
@@ -1448,7 +1451,7 @@ export class WebGL2Renderer implements Renderer {
     );
     const tileCorners = terrainTileCorners(x, y, height, mask);
     for (let direction = 0; direction < 4; direction++) {
-      if (!terrainEdgeFacesViewer(direction, rotation)) continue;
+      if (depthOffset !== 0 || !terrainEdgeFacesViewer(direction, rotation)) continue;
       const neighborBase = terrainNeighborEdgeBase(map, x, y, direction);
       const face = terrainEdgeFace(tileCorners, direction, neighborBase);
       if (!face) continue;

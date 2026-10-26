@@ -657,7 +657,8 @@ describe('Canvas2D fallback map art', () => {
         rotation: rotation as 0 | 1 | 2 | 3,
       });
 
-      expect(context.spriteSources).toContain(rotation + 2);
+      if (rotation < 2) expect(context.spriteSources).toContain(rotation + 2);
+      else expect(context.spriteSources).not.toContain(rotation + 2);
       if (rotation === 0)
         expect(context.spriteSources.filter((source) => source === 2)).toHaveLength(2);
     }

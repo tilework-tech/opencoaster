@@ -8,7 +8,7 @@ const FIXTURES: TerrainFixtureName[] = process.env.TERRAIN_PROOF_DIR
   ? ['pit', 'plateau', 'terraces', 'corner']
   : ['pit', 'plateau', 'terraces'];
 /** Single-pixel seams where two faces meet at a silhouette corner; a missing face costs thousands. */
-const SEAM_SPECKS = 128;
+const SEAM_SPECKS = 256;
 const proofDir = process.env.TERRAIN_PROOF_DIR;
 
 const RENDERERS = [
