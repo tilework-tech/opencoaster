@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PIECES, pieceByName } from '../sim/track/catalog';
 import { PieceMode } from '../sim/track/track-types';
 import { RideType } from '../sim/rides/ride-types';
+import { rotateDirection, rotateOffset } from './projection';
 import {
   CHAIN_FRAMES,
   carSpriteKey,
@@ -107,11 +108,18 @@ describe('track variants', () => {
 
   it('keys each footprint cell by the combined piece direction and camera view', () => {
     const piece = pieceByName('smallRight')!;
-    const cells = trackCellSprites(piece.id, 1, 2, 'junior', PieceMode.Normal, 0);
-    expect(cells).toHaveLength(piece.footprint.length);
-    expect(cells[0].key).toBe('rides/coaster/junior/track/smallRight/view-3/cell-0');
-    const cell = piece.footprint[1];
-    expect([cells[1].dx, cells[1].dy]).toEqual([-cell.j, cell.i]);
+    for (let dir = 0; dir < 4; dir++)
+      for (let rotation = 0; rotation < 4; rotation++) {
+        const cells = trackCellSprites(piece.id, dir, rotation, 'junior', PieceMode.Normal, 0);
+        expect(cells).toHaveLength(piece.footprint.length);
+        for (const [index, cell] of piece.footprint.entries()) {
+          const [dx, dy] = rotateOffset(cell.i, cell.j, dir as 0 | 1 | 2 | 3);
+          expect([cells[index]!.dx, cells[index]!.dy]).toEqual([dx, dy]);
+          expect(cells[index]!.key).toContain(
+            `view-${rotateDirection(dir, rotation as 0 | 1 | 2 | 3)}/cell-${index}`,
+          );
+        }
+      }
   });
 
   it('animates chain pieces over the chain frames', () => {

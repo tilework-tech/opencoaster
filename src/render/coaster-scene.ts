@@ -16,6 +16,7 @@ import {
 import type { CoasterFamily, TrackRideFamily, TransportFamily } from './coaster-art';
 import type { MapData } from './renderer';
 import type { Rotation } from './projection';
+import { rotateDirection, viewDepth } from './projection';
 
 /** One sprite to draw: the atlas key with its anchor at world (x, y, z), sorted by `depth`. */
 export interface CoasterDrawItem {
@@ -31,16 +32,7 @@ export interface CoasterDrawItem {
 function tileDepth(x: number, y: number, map: MapData, rotation: Rotation): number {
   const tx = Math.floor(x / TILE_UNITS) + 0.5;
   const ty = Math.floor(y / TILE_UNITS) + 0.5;
-  switch (rotation) {
-    case 0:
-      return 2 * (tx + ty);
-    case 1:
-      return 2 * (map.height - ty + tx);
-    case 2:
-      return 2 * (map.width - tx + map.height - ty);
-    default:
-      return 2 * (ty + map.width - tx);
-  }
+  return 2 * viewDepth(tx, ty, rotation, map);
 }
 
 const TRACK_OFFSET = 1;
@@ -162,7 +154,7 @@ export class CoasterScene {
   ): void {
     const ground = map.heights[tileY * map.width + tileX];
     const stack = supportStack(pieceType, cell, ground, z / Z_STEP);
-    const view = (dir + rotation) & 3;
+    const view = rotateDirection(dir, rotation);
     const [offsetX, offsetY] = supportOffset(pieceType, cell, dir);
     const x = tileX * TILE_UNITS + TILE_UNITS / 2 + offsetX;
     const y = tileY * TILE_UNITS + TILE_UNITS / 2 + offsetY;
@@ -236,7 +228,7 @@ export class CoasterScene {
     const angle = (pose.heading * Math.PI) / 4;
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
-    const facing = (((pose.heading + 1) >> 1) + rotation) & 3;
+    const facing = rotateDirection((pose.heading + 1) >> 1, rotation);
     for (let k = 0; k < riders; k++) {
       const along = (k - (riders - 1) / 2) * SEAT_SPACING;
       const riderX = x + dx * along;
