@@ -292,7 +292,7 @@ test('coaster circuit tiles keep world ownership beside path and stall in every 
       { WebGL2Renderer },
       { CoasterScene },
       { worldToScreen },
-      { createSnapshot, writeSnapshot },
+      { createSnapshot, writeSnapshot, RideInfo, RIDE_INFO_STRIDE },
       { buildCircuit, connectStation, createCoaster, flatOwnedSim },
       { RideType },
     ] = await Promise.all([
@@ -355,6 +355,24 @@ test('coaster circuit tiles keep world ownership beside path and stall in every 
       const canonicalRelative = [expectedTrack[0] - path[0], expectedTrack[1] - path[1]];
       if (Math.hypot(relativeTrackPath[0] - canonicalRelative[0], relativeTrackPath[1] - canonicalRelative[1]) > 1)
         throw new Error(`track to path offset changed at rotation ${rotation}`);
+      const relativeTrackStall = [trackScreen[0] - stall[0], trackScreen[1] - stall[1]];
+      const canonicalTrackStall = [expectedTrack[0] - stall[0], expectedTrack[1] - stall[1]];
+      if (
+        Math.hypot(
+          relativeTrackStall[0] - canonicalTrackStall[0],
+          relativeTrackStall[1] - canonicalTrackStall[1],
+        ) > 1
+      )
+        throw new Error(`track to stall offset changed at rotation ${rotation}`);
+      const stallIndex = Array.from({ length: snapshot.rides.count }, (_, i) => i).find(
+        (i) => snapshot.rideInfo[i * RIDE_INFO_STRIDE + RideInfo.Id] === stallId,
+      );
+      if (stallIndex === undefined) throw new Error('stall is missing from rendered ride data');
+      if (
+        snapshot.rideInfo[stallIndex * RIDE_INFO_STRIDE + RideInfo.RideX] !== 22 ||
+        snapshot.rideInfo[stallIndex * RIDE_INFO_STRIDE + RideInfo.RideY] !== 18
+      )
+        throw new Error('stall world tile changed');
       const center = worldToScreen(width / 2, height / 2, 0, rotation, map);
       for (const Renderer of [Canvas2DRenderer, WebGL2Renderer]) {
         const renderer = new Renderer();
