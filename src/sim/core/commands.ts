@@ -18,6 +18,7 @@ export type Command =
   | { type: 'setStaffPatrolTile'; staffId: number; x: number; y: number; enabled: boolean }
   | { type: 'setStaffKindPatrolTile'; kind: number; x: number; y: number; enabled: boolean }
   | { type: 'renameStaff'; staffId: number; name: string }
+  | { type: 'setPersonPosition'; person: 'guest' | 'staff'; personId: number; x: number; y: number }
   | { type: 'setStaffOrder'; staffId: number; order: StaffOrderId; enabled: boolean }
   | { type: 'setFlowerBed'; x: number; y: number; enabled: boolean }
   /** `dir` is the quarter turns the footprint is rotated by; omitted means 0. */

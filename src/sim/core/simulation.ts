@@ -29,6 +29,10 @@ import { validateRidePlacement } from '../rides/ride-footprint';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
 import { trackSystem } from '../track/track-system';
 import { applyTrackCommand } from '../track/track-commands';
+import { PIECES } from '../track/catalog';
+import { rotateTile } from '../track/construction';
+import { setPersonPosition } from './person-position';
+import { Surface } from '../map/tile-map';
 import { LedgerCategory } from '../economy/ledger';
 import { economySystem } from '../economy/economy-system';
 import { parkInputsSystem } from '../economy/park-inputs';
@@ -149,6 +153,9 @@ export class Simulation {
         break;
       case 'renameStaff':
         renameStaff(w, c.staffId, c.name);
+        break;
+      case 'setPersonPosition':
+        setPersonPosition(w, c.person, c.personId, c.x, c.y);
         break;
       case 'setStaffOrder':
         setStaffOrder(w, c.staffId, c.order, c.enabled);

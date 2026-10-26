@@ -46,6 +46,7 @@ function isConstructionCommand(command: Command): boolean {
     case 'removeScenery':
     case 'buyLand':
     case 'setFlowerBed':
+    case 'setPersonPosition':
       return true;
     default:
       return false;
