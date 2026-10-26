@@ -355,7 +355,7 @@ test('coaster circuit tiles keep world ownership beside path and stall in every 
     }
     const grid = document.createElement('main');
     grid.style.cssText =
-      'display:grid;grid-template-columns:repeat(2,450px);gap:8px;padding:12px;background:#182312;color:white;font:14px sans-serif';
+      'display:flex;flex-direction:column;gap:8px;padding:12px;background:#182312;color:white;font:14px sans-serif';
     document.body.replaceChildren(grid);
     const scene = new CoasterScene();
     const checked: string[] = [];
@@ -398,7 +398,13 @@ test('coaster circuit tiles keep world ownership beside path and stall in every 
         snapshot.rideInfo[stallIndex * RIDE_INFO_STRIDE + RideInfo.RideY] !== 18
       )
         throw new Error('stall world tile changed');
-      const center = worldToScreen(width / 2, height / 2, 0, rotation, map);
+      const center = worldToScreen(22, 19, 0, rotation, map);
+      const panel = document.createElement('section');
+      panel.style.cssText = 'display:flex;gap:8px;align-items:flex-start';
+      const title = document.createElement('h2');
+      title.style.cssText = 'width:120px;flex:none';
+      title.textContent = `rotation ${rotation}`;
+      panel.append(title);
       for (const [backend, Renderer] of [
         ['Canvas2D', Canvas2DRenderer],
         ['WebGL2', WebGL2Renderer],
@@ -409,11 +415,14 @@ test('coaster circuit tiles keep world ownership beside path and stall in every 
         renderer.resize(450, 260, 1);
         renderer.setMap(map as never);
         renderer.draw(snapshot, { x: center[0], y: center[1], zoom: 1, rotation });
-        const panel = document.createElement('section');
-        panel.innerHTML = `<h2>${backend} · rotation ${rotation}</h2>`;
-        panel.append(canvas);
-        grid.append(panel);
+        const figure = document.createElement('figure');
+        figure.style.cssText = 'margin:0';
+        const caption = document.createElement('figcaption');
+        caption.textContent = backend;
+        figure.append(caption, canvas);
+        panel.append(figure);
       }
+      grid.append(panel);
       checked.push(`rotation-${rotation}:ride-${rideId}:stall-${stallId}:${Math.round(stall[0])}`);
     }
     return checked;
