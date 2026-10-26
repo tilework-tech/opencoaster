@@ -49,6 +49,47 @@ async function worldPoint(
   );
 }
 
+async function visibleStaffSpritePoint(
+  page: Page,
+  staffId: number,
+): Promise<{ x: number; y: number }> {
+  return page.locator('#game').evaluate(async (canvas, staffId) => {
+    const [{ buildObjectPickTargets, pickTopmostObject }, { spritePages }] = await Promise.all([
+      import('/src/input/object-picking.ts'),
+      import('/src/render/sprite-pages.ts'),
+    ]);
+    const state = window as unknown as {
+      __camera: Parameters<typeof buildObjectPickTargets>[2];
+      __map: Parameters<typeof buildObjectPickTargets>[1];
+      __snapshot: Parameters<typeof buildObjectPickTargets>[0];
+    };
+    const { __camera: camera, __map: map, __snapshot: snapshot } = state;
+    if (!snapshot) throw new Error('The park snapshot is not ready');
+    const rect = canvas.getBoundingClientRect();
+    const targets = buildObjectPickTargets(
+      snapshot,
+      map,
+      camera,
+      { width: rect.width, height: rect.height },
+      spritePages,
+    );
+    for (const target of targets) {
+      if (target.kind !== 'staff' || target.personId !== staffId) continue;
+      for (let pixel = 0; pixel < target.alpha.length; pixel++) {
+        if (target.alpha[pixel] === 0) continue;
+        const x =
+          target.x + (((pixel % target.alphaWidth) + 0.5) / target.alphaWidth) * target.width;
+        const y =
+          target.y +
+          ((Math.floor(pixel / target.alphaWidth) + 0.5) / target.alphaHeight) * target.height;
+        if (pickTopmostObject(targets, x, y)?.id !== target.id) continue;
+        return { x: rect.left + x, y: rect.top + y };
+      }
+    }
+    throw new Error(`Handyman ${staffId} has no visible sprite pixel`);
+  }, staffId);
+}
+
 async function startPage(
   browser: Browser,
   mobile: boolean,
@@ -237,7 +278,6 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
             }
           }, staffId);
         await expect.poll(readStaffPosition).not.toBeNull();
-        const staffPosition = (await readStaffPosition())!;
         const drop = await page.evaluate(async (mobile) => {
           const { project, pickTile } = await import('/src/render/projection.ts');
           const { TILE_UNITS, Z_STEP } = await import('/src/sim/core/constants.ts');
@@ -298,8 +338,7 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
           return { x: best.x, y: best.y };
         }, mobile);
         const dropPoint = await worldPoint(page, drop.x, drop.y);
-        const staffPoint = await worldPoint(page, staffPosition.x, staffPosition.y);
-        const staffSpritePoint = { x: staffPoint.x, y: staffPoint.y - 19 };
+        const staffSpritePoint = await visibleStaffSpritePoint(page, staffId);
         const invalidPoint = await visibleUnownedTile(page);
         await worker.getByRole('button', { name: /Close/ }).click();
         if (mobile) {
