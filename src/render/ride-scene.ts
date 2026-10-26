@@ -8,6 +8,9 @@ import type { MapData } from './renderer';
 import type { Rotation } from './projection';
 import { rideCellSpriteKey } from './world-art';
 
+/** Tiles beyond its footprint that a flat ride's art can reach (see `OVERHANG` in tools/sprites/ride-cells.ts). */
+const SLICE_OVERHANG = 3;
+
 /** One tile-sized slice of a flat ride: the atlas key anchored at world (x, y, z). */
 export interface RideCellDraw {
   key: string;
@@ -39,8 +42,8 @@ export function isSlicedRide(type: RideType): boolean {
 export class RideCellScene {
   readonly items: RideCellDraw[] = [];
   /**
-   * Per map tile, the floor level plus one of a flat ride whose footprint stands on or touches the
-   * tile, else 0; valid after `build`. Terrain at or below that floor never hides the ride.
+   * Per map tile, the floor level plus one of a flat ride whose footprint stands on or lies within
+   * three tiles of the tile, else 0; valid after `build`. Terrain at or below that floor never hides the ride.
    */
   floor: Uint8Array = new Uint8Array(0);
   private count = 0;
@@ -86,8 +89,8 @@ export class RideCellScene {
   }
 
   private raiseFloor(map: MapData, tx: number, ty: number, base: number): void {
-    for (let dy = -1; dy <= 1; dy++)
-      for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -SLICE_OVERHANG; dy <= SLICE_OVERHANG; dy++)
+      for (let dx = -SLICE_OVERHANG; dx <= SLICE_OVERHANG; dx++) {
         const x = tx + dx;
         const y = ty + dy;
         if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
