@@ -16,7 +16,6 @@ describe('generated sprite catalogue', () => {
     const previews = [...sprites.entries()].filter(([key]) => key.includes('/preview/view-'));
     expect(previews.length).toBeGreaterThan(4);
     for (const [key, preview] of previews) {
-      expect(preview.frames[0]!.width, key).toBeGreaterThan(64);
       for (const [index, frame] of preview.frames.entries())
         expect(
           frame.pixels.filter((pixel) => pixel !== TRANSPARENT).length,

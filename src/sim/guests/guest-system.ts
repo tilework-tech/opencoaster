@@ -382,7 +382,6 @@ function turnAwayFromBlockedQueue(
   slot: number,
   rideId: number,
   joinTile: number,
-  onlyWhenAnotherGuestIsWaiting = true,
 ): void {
   const g = world.guests.cols;
   const guestId = world.guests.slotToId[slot];
@@ -400,10 +399,9 @@ function turnAwayFromBlockedQueue(
     earlierGuestWaiting = true;
     break;
   }
-  if (!earlierGuestWaiting && onlyWhenAnotherGuestIsWaiting) return;
+  if (!earlierGuestWaiting) return;
   clearDestination(world, slot);
   g.activityTicks[slot] = Math.max(g.activityTicks[slot]!, 120);
-  recordThought(world, slot, GuestThought.QueueTooLong);
   const heading = g.heading[slot]!;
   const open = world.queues.openTile[world.rides.idToSlot[rideId]!];
   const directionToQueue = directionBetween(world, joinTile, open);
@@ -716,7 +714,8 @@ function joinQueueLine(world: World, slot: number, ride: number): void {
     return;
   }
   if (lines.queued[ride] + lines.approaching[ride] > rideQueueCapacity(world, ride)) {
-    turnAwayFromBlockedQueue(world, slot, rideId, q.joinTile[ride], false);
+    recordThought(world, slot, GuestThought.QueueTooLong);
+    clearDestination(world, slot);
     return;
   }
   const open = q.openTile[ride];
