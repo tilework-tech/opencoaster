@@ -34,7 +34,8 @@ function volume(value: unknown, fallback: number): number {
 }
 
 function parseMessageFilter(value: unknown): MessageFilter {
-  const record = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const record =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
   const filter = { ...DEFAULT_MESSAGE_FILTER };
   for (const category of MESSAGE_CATEGORIES) {
     if (typeof record[category] === 'boolean') filter[category] = record[category];

@@ -64,6 +64,7 @@ async function exerciseMessages(browser: Browser, mobile: boolean): Promise<void
     if (mobile) {
       await swipeTicker(page);
       await expect(ticker).toHaveText('Welcome to your park');
+      await expect(page.locator('[data-panel="news"]')).toHaveCount(0);
     } else {
       await page.keyboard.press('q');
       await expect(ticker).toHaveText('Welcome to your park');
