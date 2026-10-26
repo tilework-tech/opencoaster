@@ -114,6 +114,11 @@ export class SpritePages {
     return this.heights.get(page);
   }
 
+  /** Every sprite in the manifest, loaded or not. */
+  get spriteEntries(): [string, SpriteEntry][] {
+    return Object.entries(this.manifest?.sprites ?? {});
+  }
+
   get loadedPages(): ReadonlyMap<number, PageImage> {
     return this.images;
   }

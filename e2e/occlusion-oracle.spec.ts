@@ -27,6 +27,7 @@ interface Score {
 
 const SEEDS = (process.env.OCCLUSION_SEEDS ?? '1,2,3').split(',').map(Number);
 const ROTATIONS = [0, 1, 2, 3];
+const RENDERERS = (process.env.OCCLUSION_RENDERERS ?? 'webgl2,canvas2d').split(',');
 const ZOOMS = (process.env.OCCLUSION_ZOOMS ?? '1,2').split(',').map(Number);
 const IMAGES = process.env.OCCLUSION_IMAGES === '1';
 const OUT = join('.local', 'occlusion', process.env.OCCLUSION_LABEL ?? 'current');
@@ -46,37 +47,40 @@ test('renderer object ownership matches the occlusion oracle on fuzzed parks', a
   const pairs: Record<string, PairScore> = {};
   const cases: Record<string, Omit<Score, 'rendered' | 'oracle' | 'heat'>> = {};
   const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
-  for (const seed of SEEDS)
-    for (const rot of ROTATIONS)
-      for (const zoom of ZOOMS) {
-        const page = await context.newPage();
-        await page.goto(`/occlusion-fixture.html?seed=${seed}&rot=${rot}&zoom=${zoom}`);
-        await page.waitForFunction(() => (window as unknown as { __ready?: boolean }).__ready, {
-          timeout: 120_000,
-        });
-        const score = await page.evaluate(
-          (images) => (window as unknown as { __score(i: boolean): Score }).__score(images),
-          IMAGES,
-        );
-        const name = `webgl2-seed${seed}-rot${rot}-zoom${zoom}`;
-        if (IMAGES)
-          for (const kind of ['rendered', 'oracle', 'heat'] as const)
-            await writeFile(
-              join(OUT, `${name}-${kind}.png`),
-              Buffer.from(score[kind]!.split(',')[1]!, 'base64'),
-            );
-        const { rendered: _r, oracle: _o, heat: _h, ...numbers } = score;
-        cases[name] = numbers;
-        totals.objectPixels += score.objectPixels;
-        totals.mismatched += score.mismatched;
-        totals.coverage += score.coverage;
-        for (const [key, pair] of Object.entries(score.pairs)) {
-          const sum = (pairs[key] ??= { mismatched: 0, contested: 0 });
-          sum.mismatched += pair.mismatched;
-          sum.contested += pair.contested;
+  for (const renderer of RENDERERS)
+    for (const seed of SEEDS)
+      for (const rot of ROTATIONS)
+        for (const zoom of ZOOMS) {
+          const page = await context.newPage();
+          await page.goto(
+            `/occlusion-fixture.html?seed=${seed}&rot=${rot}&zoom=${zoom}&renderer=${renderer}`,
+          );
+          await page.waitForFunction(() => (window as unknown as { __ready?: boolean }).__ready, {
+            timeout: 120_000,
+          });
+          const score = await page.evaluate(
+            (images) => (window as unknown as { __score(i: boolean): Score }).__score(images),
+            IMAGES,
+          );
+          const name = `${renderer}-seed${seed}-rot${rot}-zoom${zoom}`;
+          if (IMAGES)
+            for (const kind of ['rendered', 'oracle', 'heat'] as const)
+              await writeFile(
+                join(OUT, `${name}-${kind}.png`),
+                Buffer.from(score[kind]!.split(',')[1]!, 'base64'),
+              );
+          const { rendered: _r, oracle: _o, heat: _h, ...numbers } = score;
+          cases[name] = numbers;
+          totals.objectPixels += score.objectPixels;
+          totals.mismatched += score.mismatched;
+          totals.coverage += score.coverage;
+          for (const [key, pair] of Object.entries(score.pairs)) {
+            const sum = (pairs[key] ??= { mismatched: 0, contested: 0 });
+            sum.mismatched += pair.mismatched;
+            sum.contested += pair.contested;
+          }
+          await page.close();
         }
-        await page.close();
-      }
   await context.close();
   const rate = totals.mismatched / Math.max(1, totals.objectPixels);
   const pairRates = Object.fromEntries(

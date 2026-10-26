@@ -9,6 +9,7 @@ import type { Rotation } from '../render/projection';
 import type { Camera } from '../render/renderer';
 import { spritePages } from '../render/sprite-pages';
 import { WebGL2Renderer } from '../render/webgl2-renderer';
+import { Canvas2DRenderer } from '../render/canvas2d-renderer';
 import { buildFuzzPark } from './occlusion-fuzz';
 
 /**
@@ -22,6 +23,7 @@ const rotation = (Number(params.get('rot') ?? 0) % 4) as Rotation;
 const zoom = Number(params.get('zoom') ?? 1);
 const viewWidth = Number(params.get('w') ?? 800);
 const viewHeight = Number(params.get('h') ?? 600);
+const backend = params.get('renderer') === 'canvas2d' ? 'canvas2d' : 'webgl2';
 
 const pageCache = new Map<number, OraclePage>();
 
@@ -73,7 +75,7 @@ function idImage(ids: Int32Array, width: number, height: number, heat?: Uint8Arr
 async function main(): Promise<void> {
   const park = buildFuzzPark(seed);
   const canvas = document.getElementById('game') as HTMLCanvasElement;
-  const renderer = new WebGL2Renderer();
+  const renderer = backend === 'canvas2d' ? new Canvas2DRenderer() : new WebGL2Renderer();
   renderer.attach(canvas);
   renderer.resize(viewWidth, viewHeight, 1);
   canvas.style.width = `${viewWidth}px`;

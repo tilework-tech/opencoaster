@@ -57,8 +57,8 @@ export class DepthComposite {
   heights = new Float32Array(0);
   /** Object id per pixel when recording ids, else null. */
   ids: Int32Array | null = null;
-  private colour = new Uint32Array(0);
-  private bytes = new Uint8ClampedArray(0);
+  private colour: Uint32Array<ArrayBufferLike> = new Uint32Array(0);
+  private bytes: Uint8ClampedArray<ArrayBufferLike> = new Uint8ClampedArray(0);
   private columns = new Int32Array(0);
 
   /**
