@@ -10,14 +10,10 @@
 }
 
 .ui-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   flex: none;
-}
-
-.ui-icon-sheet {
-  background-image: url('/sprites/ui/icons.png');
-  background-size: 400% 400%;
+  image-rendering: pixelated;
 }
 
 /* Toolbar */
@@ -296,8 +292,8 @@
   padding: 0;
 }
 .ui-titlebtn .ui-icon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 .ui-tabs {
   display: flex;
@@ -475,8 +471,8 @@
   display: none;
 }
 .ride-card .ui-icon {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
 }
 .ride-card-cost {
   font-size: 11px;
@@ -717,8 +713,8 @@
   text-align: left;
 }
 .status-weather .ui-icon {
-  width: 26px;
-  height: 26px;
+  width: 16px;
+  height: 16px;
 }
 .status-weather::after {
   content: attr(data-temperature);
@@ -1306,8 +1302,8 @@
     overflow-wrap: anywhere;
   }
   .toolbar-menu .toolbar-button .ui-icon {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
   }
   .ui-windows {
     inset: auto env(safe-area-inset-right) calc(var(--status-h) + env(safe-area-inset-bottom))

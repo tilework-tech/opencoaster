@@ -56,12 +56,13 @@ export function iconButton(
   onClick: () => void,
   className = 'icon-button',
   caption?: string,
+  size: 16 | 24 = 24,
 ): HTMLButtonElement {
   const node = element('button', className);
   node.type = 'button';
   node.title = label;
   node.setAttribute('aria-label', label);
-  node.append(icon(name));
+  node.append(icon(name, size));
   if (caption) node.append(element('span', 'icon-caption', caption));
   node.addEventListener('click', onClick);
   return node;

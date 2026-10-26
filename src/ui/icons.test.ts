@@ -1,16 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ICON_NAMES, iconArtKind } from './icons';
+import { ICON_NAMES, iconArtKind, iconAssetPath } from './icons';
 
-describe('toolbar icon artwork', () => {
-  it('uses vector ride and menu glyphs instead of unrelated queue and save sheet cells', () => {
-    expect(iconArtKind('rides')).toBe('vector');
-    expect(iconArtKind('menu')).toBe('vector');
-    expect(iconArtKind('coaster')).toBe('sprite-sheet');
-    expect(iconArtKind('finances')).toBe('sprite-sheet');
-  });
-
-  it('classifies every user-interface icon as sheet art or a vector glyph', () => {
+describe('UI icon artwork', () => {
+  it('provides original pixel art for every icon id in the interface', () => {
     expect(ICON_NAMES.length).toBeGreaterThan(0);
-    for (const name of ICON_NAMES) expect(['sprite-sheet', 'vector']).toContain(iconArtKind(name));
+    expect(ICON_NAMES.map(iconArtKind)).toEqual(ICON_NAMES.map(() => 'pixel-art'));
+    for (const name of ICON_NAMES) {
+      expect(iconAssetPath(name, 16), name).toBe(`/sprites/ui-icons/16/${name}.png`);
+      expect(iconAssetPath(name, 24), name).toBe(`/sprites/ui-icons/24/${name}.png`);
+    }
   });
 });
