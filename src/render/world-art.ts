@@ -197,10 +197,17 @@ export function scenerySpriteName(name: string): string {
 }
 
 /** Deterministic color and camera-view key for a flowerbed on a map tile. */
-export function flowerBedSpriteName(x: number, y: number, rotation: number): string {
+export function flowerBedSpriteName(
+  x: number,
+  y: number,
+  rotation: number,
+  slopeMask = 0,
+): string {
   const variant = (((x + 2 * y) % 4) + 4) % 4;
   const view = ((rotation % 4) + 4) % 4;
-  return `scenery/flower-bed/variant-${variant}/view-${view}`;
+  return slopeMask === 0
+    ? `scenery/flower-bed/variant-${variant}/view-${view}`
+    : `scenery/flower-bed/slope-${slopeMask & 0x0f}/variant-${variant}/view-${view}`;
 }
 
 /** Height at the centre diagonal shared by the two triangles of a sloped tile. */
@@ -209,6 +216,11 @@ export function flowerBedGroundZ(baseHeight: number, slopeMask: number, rotation
   const [first, second] = terrainMeshTriangles(rotation);
   const diagonal = first.filter((corner) => second.includes(corner));
   return ((corners[diagonal[0]!]! + corners[diagonal[1]!]!) / 2) * Z_STEP;
+}
+
+/** Draw flowerbeds above adjacent raised-tile occluders while keeping their projected anchor. */
+export function flowerBedDepth(depth: number): number {
+  return depth + 8;
 }
 
 export function pathAdditionSpriteName(flags: number, rotation: number, data: number): string {

@@ -267,12 +267,18 @@ export function buildArtCoverage(): ArtCoverageRow[] {
       'Scenery',
       item.name,
       item.sprite === 'flower-bed'
-        ? [0, 1, 2, 3].flatMap((variant) =>
-            [0, 1, 2, 3].map((view) => `scenery/flower-bed/variant-${variant}/view-${view}`),
+        ? Array.from({ length: 16 }, (_, slopeMask) =>
+            [0, 1, 2, 3].flatMap((variant) =>
+              [0, 1, 2, 3].map((view) =>
+                slopeMask === 0
+                  ? `scenery/flower-bed/variant-${variant}/view-${view}`
+                  : `scenery/flower-bed/slope-${slopeMask}/variant-${variant}/view-${view}`,
+              ),
+            ),
           )
         : [scenerySpriteName(item.sprite)],
       item.sprite === 'flower-bed'
-        ? `${item.category}; generated raised flowerbed with four colour variants and camera views.`
+        ? `${item.category}; generated raised flowerbed with four colour variants, four camera views, and all 16 slope masks.`
         : `${item.category}; prepared original prop sprite.`,
     );
   for (const item of ['rain shelter', 'lamp', 'bench', 'bin']) {

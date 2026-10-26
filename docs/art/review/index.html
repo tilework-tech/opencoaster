@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCoaster Art Review</title>
+    <style>
+      :root { color-scheme: light; font: 16px/1.45 system-ui, sans-serif; color: #292a24; background: #f1eedf; }
+      body { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      h1, h2 { line-height: 1.2; }
+      section { margin: 28px 0; padding: 20px; border: 1px solid #aaa58f; background: #fffdf5; }
+      .controls { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+      label { display: grid; gap: 4px; }
+      select { min-width: 130px; padding: 6px; font: inherit; }
+      img { display: block; width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #aaa58f; background: #151510; }
+      a { color: #245b43; }
+      code { background: #eeeadb; padding: 2px 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>OpenCoaster Art Review</h1>
+    <p>Use the selectors to compare renderer, zoom, and camera rotation. Run <code>pnpm art:review</code> to refresh the local contact sheets.</p>
+
+    <section>
+      <h2>Scenery and park inventory</h2>
+      <div class="controls">
+        <label>Renderer <select id="inventory-renderer"><option>webgl2</option><option>canvas2d</option></select></label>
+        <label>Zoom <select id="inventory-zoom"><option value="1">Default</option><option value="4">Maximum</option></select></label>
+        <label>Rotation <select id="inventory-rotation"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select></label>
+      </div>
+      <img id="inventory-sheet" alt="Contact sheet of every scenery item, path, path addition, ride, stall, and facility." />
+    </section>
+
+    <section>
+      <h2>Flowerbeds across zoom levels</h2>
+      <div class="controls">
+        <label>Renderer <select id="flowerbed-renderer"><option>webgl2</option><option>canvas2d</option></select></label>
+        <label>Zoom <select id="flowerbed-zoom"><option>0.5</option><option>1</option><option>2</option><option>4</option></select></label>
+        <label>Rotation <select id="flowerbed-rotation"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select></label>
+      </div>
+      <img id="flowerbed-sheet" alt="Before and after flowerbed comparison on flat and sloped grass beside a path." />
+    </section>
+
+    <p><a href="../review.md">Read the severity-ranked audit notes</a></p>
+    <script>
+      const refresh = (imageId, prefix, fields) => {
+        const values = fields.map((id) => document.getElementById(id).value);
+        const [renderer, zoom, rotation] = values;
+        const file = `${prefix}-${renderer}-zoom-${zoom}-rotation-${rotation}.png`;
+        document.getElementById(imageId).src = `${file}?t=${Date.now()}`;
+      };
+      const inventoryFields = ['inventory-renderer', 'inventory-zoom', 'inventory-rotation'];
+      const flowerbedFields = ['flowerbed-renderer', 'flowerbed-zoom', 'flowerbed-rotation'];
+      const bind = (imageId, prefix, fields) => {
+        for (const id of fields) document.getElementById(id).addEventListener('change', () => refresh(imageId, prefix, fields));
+        refresh(imageId, prefix, fields);
+      };
+      bind('inventory-sheet', 'inventory', inventoryFields);
+      bind('flowerbed-sheet', 'flowerbeds', flowerbedFields);
+    </script>
+  </body>
+</html>

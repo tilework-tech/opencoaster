@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ambientTreeName,
   flowerBedGroundZ,
+  flowerBedDepth,
   flowerBedSpriteName,
   pathElementSprite,
 } from './world-art';
@@ -120,6 +121,10 @@ describe('world art sprite selection', () => {
       ),
     );
     expect(flowerBedSpriteName(-1, 0, -1)).toBe('scenery/flower-bed/variant-3/view-3');
+    expect(flowerBedSpriteName(0, 0, 1, 0b1100)).toBe(
+      'scenery/flower-bed/slope-12/variant-0/view-1',
+    );
+    expect(flowerBedDepth(100)).toBeGreaterThan(107);
     expect([0, 1, 2, 3].map((rotation) => flowerBedGroundZ(2, 0b0100, rotation))).toEqual([
       2 * 64,
       2.5 * 64,

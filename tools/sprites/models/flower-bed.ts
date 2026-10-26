@@ -1,4 +1,4 @@
-import { box, material } from '../mesh';
+import { box, mapMesh, material, PHYSICAL_Z } from '../mesh';
 import type { Mesh } from '../mesh';
 import { ramp } from '../palette';
 
@@ -9,32 +9,41 @@ const FLOWER_RAMPS = ['pink', 'orange', 'blue', 'purple'] as const;
 const ACCENT_RAMPS = ['yellow', 'white', 'pink', 'orange'] as const;
 
 /** A raised stone-edged soil bed with a dense, varied planting. */
-export function flowerBedMesh(variant: number): Mesh {
+export function flowerBedMesh(variant: number, slopeMask = 0): Mesh {
   const flowers = material(ramp(FLOWER_RAMPS[((variant % 4) + 4) % 4]!), { fixedLevel: 2 });
   const accents = material(ramp(ACCENT_RAMPS[((variant % 4) + 4) % 4]!), { fixedLevel: 2 });
-  const out: Mesh = [
-    ...box([-0.43, -0.26, 0], [0.43, 0.26, 0.13], {
+  const bed: Mesh = [
+    ...box([-0.46, -0.46, 0], [0.46, 0.46, 0.13], {
       top: SOIL,
       left: STONE,
       right: STONE,
     }),
-    ...box([-0.43, -0.26, 0.13], [0.43, -0.18, 0.21], STONE),
-    ...box([-0.43, 0.18, 0.13], [0.43, 0.26, 0.21], STONE),
-    ...box([-0.43, -0.18, 0.13], [-0.35, 0.18, 0.21], STONE),
-    ...box([0.35, -0.18, 0.13], [0.43, 0.18, 0.21], STONE),
+    ...box([-0.46, -0.46, 0.13], [0.46, -0.39, 0.21], STONE),
+    ...box([-0.46, 0.39, 0.13], [0.46, 0.46, 0.21], STONE),
+    ...box([-0.46, -0.39, 0.13], [-0.39, 0.39, 0.21], STONE),
+    ...box([0.39, -0.39, 0.13], [0.46, 0.39, 0.21], STONE),
   ];
 
-  for (let row = 0; row < 3; row++) {
-    for (let column = 0; column < 6; column++) {
-      const x = -0.28 + column * 0.112 + (row % 2) * 0.028;
-      const y = -0.105 + row * 0.105;
+  const plants: Mesh = [];
+  for (let row = 0; row < 5; row++) {
+    for (let column = 0; column < 7; column++) {
+      const x = -0.32 + column * 0.106 + (row % 2) * 0.026;
+      const y = -0.31 + row * 0.155;
       const flower = (row * 7 + column + variant) % 5 === 0 ? accents : flowers;
-      out.push(
-        ...box([x - 0.025, y - 0.022, 0.14], [x + 0.025, y + 0.022, 0.185], LEAVES),
-        ...box([x - 0.018, y - 0.017, 0.185], [x + 0.018, y + 0.017, 0.22], flower),
+      plants.push(
+        ...box([x - 0.029, y - 0.028, 0.14], [x + 0.029, y + 0.028, 0.185], LEAVES),
+        ...box([x - 0.022, y - 0.021, 0.185], [x + 0.022, y + 0.021, 0.235], flower),
       );
     }
   }
 
-  return out;
+  const heights = [0, 1, 2, 3].map((corner) => (slopeMask >> corner) & 1);
+  const slopeX = (heights[1]! + heights[2]! - heights[0]! - heights[3]!) / 2;
+  const slopeY = (heights[2]! + heights[3]! - heights[0]! - heights[1]!) / 2;
+  const groundOffset = (x: number, y: number): number =>
+    (slopeX * x + slopeY * y) / PHYSICAL_Z;
+  return [
+    ...mapMesh(bed, ([x, y, z]) => [x, y, z + groundOffset(x, y)]),
+    ...mapMesh(plants, ([x, y, z]) => [x, y, z + groundOffset(x, y)]),
+  ];
 }

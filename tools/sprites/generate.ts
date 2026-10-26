@@ -251,13 +251,20 @@ function treeSprites(): SpriteDef[] {
 }
 
 function flowerBedSprites(): SpriteDef[] {
-  return Array.from({ length: 4 }, (_, variant) =>
-    Array.from({ length: 4 }, (_, view) => ({
-      key: `scenery/flower-bed/variant-${variant}/view-${view}`,
-      frames: [renderMesh(rotateMesh(physicalToLevels(flowerBedMesh(variant)), view))],
-      footprint: ONE_TILE,
-    })),
-  ).flat();
+  return Array.from({ length: 16 }, (_, slopeMask) =>
+    Array.from({ length: 4 }, (_, variant) =>
+      Array.from({ length: 4 }, (_, view) => ({
+        key:
+          slopeMask === 0
+            ? `scenery/flower-bed/variant-${variant}/view-${view}`
+            : `scenery/flower-bed/slope-${slopeMask}/variant-${variant}/view-${view}`,
+        frames: [
+          renderMesh(rotateMesh(physicalToLevels(flowerBedMesh(variant, slopeMask)), view)),
+        ],
+        footprint: ONE_TILE,
+      })),
+    ),
+  ).flat(2);
 }
 
 function parkEntranceSprites(): SpriteDef[] {
