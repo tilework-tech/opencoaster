@@ -399,6 +399,8 @@ async function inspectScenery(
         await page.mouse.move(ride.x, ride.y);
         await expect(page.locator('.object-hover-outline')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath(`${kind}-hover.png`) });
+        await page.mouse.move(2, 2);
+        await expect(page.locator('.object-hover-outline')).toBeHidden();
         await longPress(page, ride);
       } else {
         await page.mouse.move(ride.x, ride.y);
