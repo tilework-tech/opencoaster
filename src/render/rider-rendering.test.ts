@@ -31,7 +31,15 @@ function stubAtlas(names: string[]): void {
     };
   spritePages.install(
     {
-      pages: [{ file: 'atlas/world-0.png', width: 256, height: 64, category: 'world' }],
+      pages: [
+        {
+          file: 'atlas/world-0.png',
+          depthFile: 'atlas/world-0.depth.png',
+          width: 256,
+          height: 64,
+          category: 'world',
+        },
+      ],
       categories: { world: { lazy: false, pages: [0] } },
       sprites,
     },

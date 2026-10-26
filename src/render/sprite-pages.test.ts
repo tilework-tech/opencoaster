@@ -4,8 +4,20 @@ import type { PageImage, SpritePageManifest } from './sprite-pages';
 
 const manifest: SpritePageManifest = {
   pages: [
-    { file: 'atlas/world-0.png', width: 64, height: 64, category: 'world' },
-    { file: 'atlas/coaster-steel-0.png', width: 64, height: 64, category: 'coaster-steel' },
+    {
+      file: 'atlas/world-0.png',
+      depthFile: 'atlas/world-0.depth.png',
+      width: 64,
+      height: 64,
+      category: 'world',
+    },
+    {
+      file: 'atlas/coaster-steel-0.png',
+      depthFile: 'atlas/coaster-steel-0.depth.png',
+      width: 64,
+      height: 64,
+      category: 'coaster-steel',
+    },
   ],
   categories: {
     world: { lazy: false, pages: [0] },
@@ -38,12 +50,24 @@ async function settle(): Promise<void> {
 }
 
 describe('sprite page loading', () => {
+  it('loads each page together with its height page', async () => {
+    const { store } = makeStore();
+    store.start();
+    await settle();
+
+    expect(store.pageHeights(0)).toEqual({ url: '/sprites/atlas/world-0.depth.png' });
+    expect(store.pageHeights(1)).toBeUndefined();
+  });
+
   it('loads eager categories at start and leaves lazy categories unfetched', async () => {
     const { store, image } = makeStore();
     store.start();
     await settle();
 
-    expect(image.mock.calls.map(([url]) => url)).toEqual(['/sprites/atlas/world-0.png']);
+    expect(image.mock.calls.map(([url]) => url)).toEqual([
+      '/sprites/atlas/world-0.png',
+      '/sprites/atlas/world-0.depth.png',
+    ]);
     expect(store.resolve('terrain/grass')).toBeDefined();
   });
 
@@ -60,7 +84,9 @@ describe('sprite page loading', () => {
 
     expect(image.mock.calls.map(([url]) => url)).toEqual([
       '/sprites/atlas/world-0.png',
+      '/sprites/atlas/world-0.depth.png',
       '/sprites/atlas/coaster-steel-0.png',
+      '/sprites/atlas/coaster-steel-0.depth.png',
     ]);
     expect(store.resolve('rides/coaster/steel/track')).toBeDefined();
     expect(arrived).toHaveBeenCalledTimes(2);

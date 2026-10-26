@@ -8,8 +8,20 @@ const atlas: CanvasAtlas = new SpritePages('/sprites/');
 atlas.install(
   {
     pages: [
-      { file: 'atlas/world-0.png', width: 128, height: 128, category: 'world' },
-      { file: 'atlas/vehicles-0.png', width: 64, height: 64, category: 'vehicles' },
+      {
+        file: 'atlas/world-0.png',
+        depthFile: 'atlas/world-0.depth.png',
+        width: 128,
+        height: 128,
+        category: 'world',
+      },
+      {
+        file: 'atlas/vehicles-0.png',
+        depthFile: 'atlas/vehicles-0.depth.png',
+        width: 64,
+        height: 64,
+        category: 'vehicles',
+      },
     ],
     categories: {
       world: { lazy: false, pages: [0] },
