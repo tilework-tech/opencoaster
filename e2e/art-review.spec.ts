@@ -23,6 +23,13 @@ interface ReviewItem {
   withBeds?: boolean;
 }
 
+interface TrackRenderStats {
+  trackPieces: number;
+  circuitClosed: boolean;
+  cars: number;
+  opaquePixelsPerTrackSprite: Array<{ key: string; count: number }>;
+}
+
 declare global {
   interface Window {
     __artReview?: {
@@ -32,7 +39,7 @@ declare global {
         backend: 'webgl2' | 'canvas2d',
         zoom: number,
         rotation: number,
-      ) => void;
+      ) => TrackRenderStats | undefined;
       aliasLegacyFlowerbed: (enabled: boolean) => void;
     };
   }
@@ -65,6 +72,7 @@ const test = process.env.ART_REVIEW_CDP
     })
   : baseTest;
 const expect = baseExpect;
+const renderStats = new WeakMap<Page, TrackRenderStats | undefined>();
 
 function inventory(): ReviewItem[] {
   const items: ReviewItem[] = SCENERY_CATALOG.map((definition, index) => ({
@@ -149,18 +157,30 @@ async function initialise(page: Page): Promise<void> {
       { Canvas2DRenderer },
       { WebGL2Renderer },
       { spritePages },
-      { createSnapshot },
+      { createSnapshot, RideFlag, RideInfo },
       { project },
       { SCENERY_CATALOG },
-      { PieceId },
+      { CoasterScene },
+      { createCoaster, flatOwnedSim, SMALL_CIRCUIT },
+      { getConstructionCursor },
+      { PieceMode },
+      { pieceByName },
+      { RideType },
+      { writeSnapshot },
     ] = await Promise.all([
       import('../src/render/canvas2d-renderer'),
       import('../src/render/webgl2-renderer'),
-      import('../src/render/sprite-pages'),
+      import('../src/render/sprite-pages.ts'),
       import('../src/worker/snapshot'),
       import('../src/render/projection'),
       import('../src/sim/map/scenery'),
+      import('../src/render/coaster-scene'),
+      import('../src/sim/rides/coaster-fixtures'),
+      import('../src/sim/track/construction'),
+      import('../src/sim/track/track-types'),
       import('../src/sim/track/catalog'),
+      import('../src/sim/rides/ride-types'),
+      import('../src/worker/snapshot'),
     ]);
     spritePages.start();
     const manifest = await fetch('/sprites/manifest.json').then((response) => response.json());
@@ -211,9 +231,59 @@ async function initialise(page: Page): Promise<void> {
     const originalShrub = originalManifest.sprites['scenery/shrub'];
     const originalShrubWidth = SCENERY_CATALOG[3]!.width;
 
+    const rideFixtures = new Map<number, { snapshot: ReturnType<typeof createSnapshot> }>();
+    const makeRideFixture = (type: number) => {
+      const cached = rideFixtures.get(type);
+      if (cached) return cached;
+      const sim = flatOwnedSim(1);
+      const rideId = createCoaster(sim, type, 20, 16);
+      for (const [name, originalMode] of SMALL_CIRCUIT) {
+        const cursor = getConstructionCursor(sim.world, rideId);
+        const mode =
+          (type === RideType.LogFlume || type === RideType.RiverRapids) &&
+          originalMode === PieceMode.ChainLift
+            ? PieceMode.WaterLift
+            : originalMode;
+        sim.enqueue({
+          type: 'placeTrack',
+          rideId,
+          pieceType: pieceByName(name)!.id,
+          x: cursor.hasTrack ? cursor.x : 20,
+          y: cursor.hasTrack ? cursor.y : 20,
+          z: cursor.hasTrack ? cursor.z : 2,
+          dir: cursor.hasTrack ? cursor.dir : 0,
+          mode,
+        });
+        sim.step();
+        if (sim.world.track.lastResult !== 0)
+          throw new Error(`art review could not place ${name} for ride ${type}`);
+      }
+      sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
+      sim.step();
+      const snapshot = createSnapshot({
+        guests: 0,
+        staff: 0,
+        vehicles: 8,
+        cars: 64,
+        litter: 0,
+        rides: 1,
+        tracks: 64,
+        mapTiles: 48 * 48,
+      });
+      writeSnapshot(sim.world, snapshot);
+      const fixture = { snapshot };
+      rideFixtures.set(type, fixture);
+      return fixture;
+    };
+
     const makeMap = (item: ReviewItem) => {
-      const width = 8;
-      const height = 8;
+      const rideType = item.kind === 'ride' ? item.type : undefined;
+      const usesTrack =
+        rideType !== undefined &&
+        (window as unknown as { __rideCatalog: Record<number, { usesTrack: boolean }> })
+          .__rideCatalog[rideType]?.usesTrack;
+      const width = usesTrack ? 48 : 8;
+      const height = usesTrack ? 48 : 8;
       const tile = 4 * width + 4;
       const heights = new Uint8Array(width * height);
       const surface = new Uint8Array(width * height);
@@ -298,15 +368,23 @@ async function initialise(page: Page): Promise<void> {
       },
       render: (item, backend, zoom, rotation) => {
         const { map, tile } = makeMap(item);
-        const snapshot = createSnapshot({
-          guests: item.kind === 'garden-fixture' ? 1 : 0,
-          staff: 0,
-          vehicles: 0,
-          litter: 0,
-          rides: 1,
-          tracks: 1,
-          mapTiles: 64,
-        });
+        const rideType = item.kind === 'ride' ? item.type : undefined;
+        const usesTrack =
+          rideType !== undefined &&
+          (window as unknown as { __rideCatalog: Record<number, { usesTrack: boolean }> })
+            .__rideCatalog[rideType]?.usesTrack;
+        if (usesTrack) map.heights.fill(2);
+        const snapshot = usesTrack
+          ? makeRideFixture(rideType!).snapshot
+          : createSnapshot({
+              guests: item.kind === 'garden-fixture' ? 1 : 0,
+              staff: 0,
+              vehicles: 0,
+              litter: 0,
+              rides: 1,
+              tracks: 0,
+              mapTiles: 64,
+            });
         if (item.kind === 'ground-bed') snapshot.grounds[tile] = 0x10;
         if (item.kind === 'garden-fixture') {
           if (item.withBeds) {
@@ -319,26 +397,12 @@ async function initialise(page: Page): Promise<void> {
           snapshot.guests.count = 1;
           snapshot.guests.data.set([3 * 256 + 128, 4 * 256 + 128, 0, 0]);
         }
-        if (item.kind === 'ride') {
+        if (item.kind === 'ride' && !usesTrack) {
           snapshot.rides.count = 1;
           snapshot.rideInfo[0] = 1;
           snapshot.rideInfo[1] = item.type ?? 0;
           snapshot.rideInfo[22] = 4;
           snapshot.rideInfo[23] = 4;
-          if (item.type !== undefined) {
-            const actual = (
-              window as unknown as { __rideCatalog: Record<number, { usesTrack: boolean }> }
-            ).__rideCatalog[item.type];
-            if (actual?.usesTrack) {
-              snapshot.tracks.count = 1;
-              snapshot.tracks.data.set([
-                4 * 256 + 128,
-                4 * 256 + 128,
-                64,
-                (1 << 16) | PieceId.Flat,
-              ]);
-            }
-          }
         }
         const renderer = renderers[backend];
         const canvas = canvases[backend];
@@ -348,8 +412,69 @@ async function initialise(page: Page): Promise<void> {
         renderer.resize(reviewSize, reviewSize, 1);
         const focus = new Float64Array(2);
         const groundZ = item.slope && !item.legacy ? 32 : 0;
-        project(4 * 256 + 128, 4 * 256 + 128, groundZ, map.width, map.height, rotation as 0, focus);
-        renderer.draw(snapshot, { x: focus[0]!, y: focus[1]!, zoom, rotation: rotation as 0 });
+        const focusTile = usesTrack ? 20 : 4;
+        project(
+          focusTile * 256 + 128,
+          focusTile * 256 + 128,
+          groundZ,
+          map.width,
+          map.height,
+          rotation as 0 | 1 | 2 | 3,
+          focus,
+        );
+        renderer.draw(snapshot, {
+          x: focus[0]!,
+          y: focus[1]!,
+          zoom,
+          rotation: rotation as 0 | 1 | 2 | 3,
+        });
+        if (item.kind !== 'ride' || item.type === undefined) return undefined;
+        const definition = (
+          window as unknown as { __rideCatalog: Record<number, { usesTrack: boolean }> }
+        ).__rideCatalog[item.type];
+        if (!definition?.usesTrack) return undefined;
+        const scene = new CoasterScene();
+        scene.build(snapshot, map, rotation as 0 | 1 | 2 | 3);
+        return {
+          trackPieces: snapshot.tracks.count,
+          circuitClosed: (snapshot.rideInfo[RideInfo.Flags]! & RideFlag.CircuitClosed) !== 0,
+          cars: snapshot.cars.count,
+          opaquePixelsPerTrackSprite: scene.items
+            .slice(0, scene.length)
+            .filter(
+              (candidate) =>
+                candidate.key.includes('/track/') || candidate.key.startsWith('track/'),
+            )
+            .map((entry) => {
+              const hash = entry.key.lastIndexOf('#');
+              const name = hash < 0 ? entry.key : entry.key.slice(0, hash);
+              const frameIndex = hash < 0 ? 0 : Number(entry.key.slice(hash + 1));
+              const frame = spritePages.resolve(name)?.frames[frameIndex];
+              const image = frame && spritePages.pageImage(frame.page);
+              if (!frame || !image) return { key: entry.key, count: 0 };
+              const sample = document.createElement('canvas');
+              sample.width = frame.width;
+              sample.height = frame.height;
+              const context = sample.getContext('2d');
+              if (!context) return { key: entry.key, count: 0 };
+              context.drawImage(
+                image,
+                frame.x,
+                frame.y,
+                frame.width,
+                frame.height,
+                0,
+                0,
+                frame.width,
+                frame.height,
+              );
+              const pixels = context.getImageData(0, 0, frame.width, frame.height).data;
+              let opaque = 0;
+              for (let index = 3; index < pixels.length; index += 4)
+                if (pixels[index]! > 0) opaque++;
+              return { key: entry.key, count: opaque };
+            }),
+        };
       },
     };
     (window as unknown as { __rideCatalog: Record<number, { usesTrack: boolean }> }).__rideCatalog =
@@ -370,6 +495,13 @@ async function makeCell(
   rotation: number,
 ): Promise<Buffer> {
   const screenshot = await renderItem(page, item, backend, zoom, rotation);
+  if (item.kind === 'ride' && item.type !== undefined && RIDE_CATALOG[item.type]?.usesTrack) {
+    await expectCompletedTrackRender(page, item, backend, screenshot);
+    if (zoom === 1 && rotation === 0) {
+      const safeName = RIDE_CATALOG[item.type]!.name.toLowerCase().replaceAll(' ', '-');
+      await writeFile(join(OUTPUT_DIR, `game-${backend}-${safeName}.png`), screenshot);
+    }
+  }
   const label = Buffer.from(
     `<svg width="${CELL_WIDTH}" height="${CELL_HEIGHT}"><rect width="100%" height="100%" fill="#f1ecd9"/><text x="8" y="16" font-family="sans-serif" font-size="12" fill="#25261f">${item.label.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</text></svg>`,
   );
@@ -390,6 +522,33 @@ async function makeCell(
     .toBuffer();
 }
 
+async function expectCompletedTrackRender(
+  page: Page,
+  item: ReviewItem,
+  backend: 'webgl2' | 'canvas2d',
+  screenshot: Buffer,
+): Promise<void> {
+  const stats = renderStats.get(page);
+  expect(stats?.trackPieces, `${item.label} placed through the track builder`).toBe(14);
+  expect(stats?.circuitClosed, `${item.label} circuit is complete`).toBe(true);
+  expect(stats?.cars, `${item.label} train cars`).toBeGreaterThan(0);
+  expect(stats?.opaquePixelsPerTrackSprite.length, `${item.label} track sprites`).toBeGreaterThan(
+    0,
+  );
+  expect(
+    stats?.opaquePixelsPerTrackSprite.every(({ count }) => count > 0),
+    `${item.label} opaque pixels per track piece`,
+  ).toBe(true);
+  const { data } = await sharp(screenshot)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let redMarkers = 0;
+  for (let offset = 0; offset < data.length; offset += 4)
+    if (data[offset] === 207 && data[offset + 1] === 86 && data[offset + 2] === 80) redMarkers++;
+  expect(redMarkers, `${item.label} red track fallback pixels in ${backend}`).toBe(0);
+}
+
 async function renderItem(
   page: Page,
   item: ReviewItem,
@@ -397,13 +556,14 @@ async function renderItem(
   zoom: number,
   rotation: number,
 ): Promise<Buffer> {
-  await page.evaluate(
+  const stats = await page.evaluate(
     ({ item, backend, zoom, rotation }) => {
       window.__artReview!.aliasLegacyFlowerbed(item.legacy === true);
-      window.__artReview!.render(item, backend, zoom, rotation);
+      return window.__artReview!.render(item, backend, zoom, rotation);
     },
     { item, backend, zoom, rotation },
   );
+  renderStats.set(page, stats);
   return page.locator(`#art-review-${backend}`).screenshot({ type: 'png' });
 }
 

@@ -545,6 +545,24 @@ describe('generated sprite catalogue', () => {
       expect(sprites.has(`vehicles/${style}/car/flat/heading-0`), style).toBe(true);
     }
   });
+
+  it('draws the small turns used by normal transport circuits', () => {
+    for (const { style } of TRANSPORT_STYLES)
+      for (const turn of ['smallLeft', 'smallRight'])
+        for (let view = 0; view < 4; view++) {
+          const keys = [...sprites.keys()].filter((key) =>
+            key.startsWith(`track/${style}/${turn}/view-${view}/`),
+          );
+          expect(keys.length, `${style} ${turn} view ${view} keys`).toBeGreaterThan(0);
+          for (const key of keys)
+            for (const [frameIndex, frame] of sprites.get(key)!.frames.entries())
+              expect(
+                frame.pixels.some((pixel) => pixel !== TRANSPARENT),
+                `${key} frame ${frameIndex}`,
+              ).toBe(true);
+        }
+  });
+
   it('keeps the water pattern to a few low-contrast ripple shades', () => {
     const water = sprites.get('water/surface')!;
     for (const frame of water.frames) {
