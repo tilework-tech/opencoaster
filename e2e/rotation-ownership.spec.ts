@@ -283,6 +283,7 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
 test('coaster circuit tiles keep world ownership beside path and stall in every view', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 1600 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Sandbox' }).click();
 
