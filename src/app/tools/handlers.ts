@@ -2,6 +2,7 @@ import type { SimClient } from '../../worker/sim-client';
 import type { GameUI, ToolMode } from '../../ui/game-ui';
 import { PathAddition } from '../../sim/map/paths';
 import type { SceneryItem } from '../../sim/map/scenery';
+import { isWallScenery } from '../../sim/map/scenery';
 import type { PathTool } from './path/controller';
 import {
   LAND_PRICE_CENTS,
@@ -38,12 +39,21 @@ export function handleSceneryTool(
   x: number,
   y: number,
   shiftKey: boolean,
+  wallEdge?: number,
 ): void {
   const remove = shiftKey || deps.alternate();
   deps.sim.command(
     remove
       ? { type: 'removeScenery', x, y }
-      : { type: 'placeScenery', x, y, item: deps.sceneryItem(), rotation: deps.sceneryRotation() },
+      : {
+          type: 'placeScenery',
+          x,
+          y,
+          item: deps.sceneryItem(),
+          rotation: isWallScenery(deps.sceneryItem())
+            ? (wallEdge ?? deps.sceneryRotation())
+            : deps.sceneryRotation(),
+        },
   );
   deps.gameUi.setToolStatus(
     `${remove ? 'Scenery removal' : 'Scenery placement'} requested at ${x}, ${y}.`,

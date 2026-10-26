@@ -52,7 +52,7 @@ describe('world art sprite selection', () => {
         for (let slope = 0; slope < 16; slope++) {
           for (let view = 0; view < 4; view++) {
             expect(wallSpriteName(wall, edge, slope, view)).toBe(
-              `scenery/${wall}/edge-${edge & 1}/slope-${slope}/view-${view}`,
+              `scenery/${wall}/edge-${edge}/slope-${slope}/view-${view}`,
             );
           }
         }

@@ -73,6 +73,12 @@ export interface CameraInputDependencies {
   };
   removePathAt: (x: number, y: number) => void;
   pathDrag: PathDragHandlers;
+  wallDrag: {
+    start(x: number, y: number): boolean;
+    move(x: number, y: number): void;
+    end(): void;
+    cancel(): void;
+  };
   land: LandController;
   areaTools: Record<'clear' | 'water', AreaController>;
   setPlacementHover: (hover: PlacementHover | null) => void;
@@ -259,6 +265,18 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     },
     pathDragCancel() {
       deps.pathDrag.cancel();
+    },
+    wallDragStart(x, y) {
+      return deps.wallDrag.start(x, y);
+    },
+    wallDragMove(x, y) {
+      deps.wallDrag.move(x, y);
+    },
+    wallDragEnd() {
+      deps.wallDrag.end();
+    },
+    wallDragCancel() {
+      deps.wallDrag.cancel();
     },
     press(x, y) {
       const tool = deps.selectedTool();

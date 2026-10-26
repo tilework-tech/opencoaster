@@ -1,7 +1,12 @@
 import { formatMoney } from '../../ui/format';
 import type { SpriteGhost } from '../../render/renderer';
-import { flowerBedSpriteName, scenerySpriteName, shrubSpriteName } from '../../render/world-art';
-import { SCENERY_CATALOG, SceneryResult } from '../../sim/map/scenery';
+import {
+  flowerBedSpriteName,
+  scenerySpriteName,
+  shrubSpriteName,
+  wallSpriteName,
+} from '../../render/world-art';
+import { SCENERY_CATALOG, SceneryResult, isWallScenery } from '../../sim/map/scenery';
 import type { SceneryItem } from '../../sim/map/scenery';
 import type { SimClient } from '../../worker/sim-client';
 import { sceneryBox, sceneryGroundZ } from '../../render/ground-anchor';
@@ -85,14 +90,18 @@ export class ScenerySpotPreview {
     if (this.result === null) return null;
     const definition = SCENERY_CATALOG[hover.item]!;
     const box = sceneryBox(definition);
+    const wall = isWallScenery(hover.item);
     return {
       x: hover.x,
       y: hover.y,
-      level: sceneryGroundZ(hover.level, hover.slopeMask, hover.viewRotation) / Z_STEP,
+      level: wall
+        ? hover.level
+        : sceneryGroundZ(hover.level, hover.slopeMask, hover.viewRotation) / Z_STEP,
       width: box.width,
       height: box.height,
-      sprite:
-        definition.sprite === 'flower-bed'
+      sprite: wall
+        ? wallSpriteName(definition.sprite, hover.rotation, hover.slopeMask, hover.viewRotation)
+        : definition.sprite === 'flower-bed'
           ? flowerBedSpriteName(hover.x, hover.y, hover.viewRotation, hover.slopeMask)
           : definition.sprite === 'shrub'
             ? shrubSpriteName(hover.x, hover.y, hover.viewRotation)

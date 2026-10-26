@@ -5,6 +5,8 @@ import type { SimClient } from '../../worker/sim-client';
 import { findRideIdAtTile } from '../../input/object-picking';
 import type { CoasterPanel } from '../../ui/coaster-panel';
 import type { SceneryItem } from '../../sim/map/scenery';
+import { isWallScenery } from '../../sim/map/scenery';
+import { nearestWallEdge } from '../../input/wall-edge';
 import {
   handleFlowerbedTool,
   handleLandPurchase,
@@ -30,6 +32,30 @@ import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 
 type MovingPerson = { person: 'guest' | 'staff'; id: number; sprite?: ObjectPickTarget };
 
+function tilesBetween(start: Tile, end: Tile): Tile[] {
+  const points: Tile[] = [];
+  let x = start.x;
+  let y = start.y;
+  const dx = Math.abs(end.x - x);
+  const dy = Math.abs(end.y - y);
+  const sx = x < end.x ? 1 : -1;
+  const sy = y < end.y ? 1 : -1;
+  let error = dx - dy;
+  while (x !== end.x || y !== end.y) {
+    const twice = error * 2;
+    if (twice > -dy) {
+      error -= dy;
+      x += sx;
+    }
+    if (twice < dx) {
+      error += dx;
+      y += sy;
+    }
+    points.push({ x, y });
+  }
+  return points;
+}
+
 export interface ToolControllerDependencies {
   canvas: HTMLCanvasElement;
   renderer: Renderer;
@@ -47,6 +73,7 @@ export interface ToolControllerDependencies {
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
   sceneryRotation: () => number;
+  sceneryEdge: () => number | null;
   patrolStaffId: () => number | null;
   clearRideSetupNotice: () => void;
   rideTileClick: (x: number, y: number) => void;
@@ -60,6 +87,9 @@ export function createToolController(deps: ToolControllerDependencies) {
   let hoveredObjectName: string | null = null;
   let objectPopup: HTMLDivElement | null = null;
   let liftedPerson: HTMLCanvasElement | null = null;
+  let wallDragTiles = new Map<string, Tile>();
+  let wallDragLast: Tile | null = null;
+  let wallDragEdge = 0;
   let dropMarker: HTMLDivElement | null = null;
   let dropShadow: HTMLDivElement | null = null;
   const handlerDeps = {
@@ -365,6 +395,62 @@ export function createToolController(deps: ToolControllerDependencies) {
     },
   };
 
+  const wallDrag = {
+    start(clientX: number, clientY: number): boolean {
+      if (!isWallScenery(deps.sceneryItem()) || deps.alternate()) return false;
+      const tile = tileAt(clientX, clientY);
+      const map = deps.sim.map;
+      if (!tile || !map) return false;
+      const rect = deps.canvas.getBoundingClientRect();
+      wallDragEdge =
+        deps.sceneryEdge() ??
+        nearestWallEdge(
+          clientX - rect.left,
+          clientY - rect.top,
+          map,
+          deps.camera,
+          { width: rect.width, height: rect.height },
+          tile.x,
+          tile.y,
+        );
+      wallDragTiles = new Map([[`${tile.x}:${tile.y}`, tile]]);
+      wallDragLast = tile;
+      return true;
+    },
+    move(clientX: number, clientY: number): void {
+      const tile = tileAt(clientX, clientY);
+      if (!tile || !wallDragLast) return;
+      const start = wallDragTiles.values().next().value as Tile | undefined;
+      if (start) {
+        const dx = Math.abs(tile.x - start.x);
+        const dy = Math.abs(tile.y - start.y);
+        if (dx > dy && wallDragEdge % 2 === 0) wallDragEdge = wallDragEdge === 0 ? 1 : 3;
+        else if (dy > dx && wallDragEdge % 2 === 1) wallDragEdge = wallDragEdge === 1 ? 0 : 2;
+      }
+      for (const point of tilesBetween(wallDragLast, tile))
+        wallDragTiles.set(`${point.x}:${point.y}`, point);
+      wallDragLast = tile;
+    },
+    end(): void {
+      for (const tile of wallDragTiles.values())
+        deps.sim.command({
+          type: 'placeScenery',
+          x: tile.x,
+          y: tile.y,
+          item: deps.sceneryItem(),
+          rotation: wallDragEdge,
+        });
+      if (wallDragTiles.size)
+        deps.gameUi.setToolStatus(`Wall run placement requested · ${wallDragTiles.size} tiles.`);
+      wallDragTiles.clear();
+      wallDragLast = null;
+    },
+    cancel(): void {
+      wallDragTiles.clear();
+      wallDragLast = null;
+    },
+  };
+
   function removeSceneryAt(clientX: number, clientY: number): void {
     const rect = deps.canvas.getBoundingClientRect();
     const map = deps.sim.map;
@@ -455,8 +541,24 @@ export function createToolController(deps: ToolControllerDependencies) {
       else if (selectedTool === 'buy-land') handleLandPurchase(handlerDeps, x, y, false);
       else if (selectedTool === 'buy-rights') handleLandPurchase(handlerDeps, x, y, true);
       else if (selectedTool === 'path') handlePathTool(handlerDeps, x, y);
-      else if (selectedTool === 'scenery') handleSceneryTool(handlerDeps, x, y, shiftKey);
-      else if (
+      else if (selectedTool === 'scenery') {
+        const edge = isWallScenery(deps.sceneryItem())
+          ? (deps.sceneryEdge() ??
+            nearestWallEdge(
+              localX,
+              localY,
+              map,
+              deps.camera,
+              {
+                width: rect.width,
+                height: rect.height,
+              },
+              x,
+              y,
+            ))
+          : undefined;
+        handleSceneryTool(handlerDeps, x, y, shiftKey, edge);
+      } else if (
         selectedTool === 'bin' ||
         selectedTool === 'bench' ||
         selectedTool === 'shelter' ||
@@ -617,6 +719,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     hoverCanvas,
     clearObjectHover,
     pathDrag,
+    wallDrag,
     beginPersonMove,
     personDragStart,
     personDragMove,
