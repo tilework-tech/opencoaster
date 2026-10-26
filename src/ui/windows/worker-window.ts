@@ -41,7 +41,7 @@ export function workerDetails(snapshot: Snapshot | null, staffId: number): Worke
   return null;
 }
 
-const TABS: readonly TabSpec[] = [
+export const WORKER_TABS: readonly TabSpec[] = [
   { id: 'view', label: 'View', icon: 'info' },
   { id: 'orders', label: 'Orders', icon: 'staff' },
   { id: 'statistics', label: 'Statistics', icon: 'rides' },
@@ -84,7 +84,7 @@ export function openWorkerWindow(
     title: 'Worker',
     kind: 'staff',
     width: 320,
-    tabs: TABS,
+    tabs: WORKER_TABS,
   });
   const name = element('strong', 'worker-name');
   let currentWorker: WorkerDetails | null = null;

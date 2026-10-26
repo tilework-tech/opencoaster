@@ -4,13 +4,14 @@ Path: @/smoke
 
 ### Overview
 
-- This folder contains the browser smoke suite for renderer integration and starter-park visuals.
+- This folder contains the browser smoke suite for renderer integration, starter-park visuals and UI behavior.
 - `pnpm smoke` runs the WebGL2 integration check with a 5,000-guest park and a terrain visual check against the Vite dev server.
 - `pnpm smoke:subpath` builds `dist/`, serves it under `/opencoaster/` without cross-origin isolation headers, and runs the same suite plus `deployed-base.spec.ts`, which checks the manifest, icons, sprite manifest and eager atlas page, precached atlas pages (production build), and service-worker scope resolve under the deploy base.
 
 ### How it fits into the larger codebase
 
 - Playwright drives the Vite app through its browser UI and checks the canvas renderer, performance HUD, and console for browser errors. The starter-park terrain check captures the WebGL canvas, checks for dark gaps and connected lake water, compares gridline-off/on frames, and verifies path-surface and scenery controls.
+- The UI icon smoke spec opens toolbar-accessible windows and checks that each rendered tab strip has unique icon IDs. Source-level tab-set coverage lives with the UI window definitions.
 - The longer Starter Park playtest lives in [e2e](../e2e/docs.md) and runs separately with `pnpm e2e`.
 - The shared [Playwright configuration](../playwright.config.ts) runs browser checks one worker at a time and retains a trace when a test fails.
 

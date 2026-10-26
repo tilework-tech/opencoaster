@@ -57,6 +57,8 @@ export class UiWindow {
       `Pin ${spec.title}`,
       () => this.setPinned(!this.pinned),
       'ui-titlebtn',
+      undefined,
+      16,
     );
     pin.dataset.action = `pin-${spec.id}`;
     const close = iconButton(
@@ -64,6 +66,8 @@ export class UiWindow {
       `Close ${spec.title}`,
       () => manager.close(spec.id),
       'ui-titlebtn',
+      undefined,
+      16,
     );
     close.dataset.action = `close-${spec.id}`;
     header.append(this.titleText, pin, close);

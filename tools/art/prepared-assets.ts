@@ -19,12 +19,9 @@ export const PREPARED_PROP_SPRITES = [
   'scenery/queue-rail',
 ] as const;
 
-export const PREPARED_UI_SPRITES = ['ui/icons'] as const;
-
 export function preparedSpriteKeys(): string[] {
   return [
     ...PREPARED_PROP_SPRITES,
-    ...PREPARED_UI_SPRITES,
     ...PREPARED_TERRAIN_MATERIALS.flatMap((material) => [
       ...Array.from(
         { length: 16 },

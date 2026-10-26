@@ -5,7 +5,7 @@ import { formatMoney } from '../format';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 
-const TABS: readonly TabSpec[] = [
+export const RESEARCH_TABS: readonly TabSpec[] = [
   { id: 'development', label: 'Development', icon: 'research' },
   { id: 'funding', label: 'Funding', icon: 'cash' },
 ];
@@ -98,7 +98,7 @@ export function openResearchWindow(ctx: UiContext): WindowController {
     title: 'Research and development',
     kind: 'research',
     width: 340,
-    tabs: TABS,
+    tabs: RESEARCH_TABS,
   });
   const progress = gauge('Progress');
   const current = statRow('Current research');

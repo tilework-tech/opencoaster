@@ -26,7 +26,7 @@ import {
 import { transportTrackCells } from '../../src/render/coaster-art';
 import { buildSprites } from './generate';
 import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
-import { ICON_NAMES, iconArtKind } from '../../src/ui/icons';
+import { ICON_NAMES } from '../../src/ui/icons';
 import { preparedSpriteKeys } from '../art/prepared-assets';
 
 export interface ArtCoverageRow {
@@ -75,6 +75,7 @@ function trackKeys(family: NonNullable<ReturnType<typeof trackedRideFamily>>): s
 export function availableSpriteKeys(): ReadonlySet<string> {
   if (cachedAvailable) return cachedAvailable;
   const keys = new Set([...buildSprites().map((sprite) => sprite.key), ...preparedSpriteKeys()]);
+  for (const size of [16, 24]) for (const name of ICON_NAMES) keys.add(`ui-icons/${size}/${name}`);
   keys.add('people/guest-walk');
   keys.add('people/staff-costumes');
   keys.add('people/rider-seated');
@@ -326,21 +327,21 @@ export function buildArtCoverage(): ArtCoverageRow[] {
       'Generated four-direction role sprite with two walking frames.',
     );
   for (const name of ICON_NAMES) {
-    const kind = iconArtKind(name);
     add(
       'UI icon',
       name,
-      kind === 'sprite-sheet' ? ['ui/icons'] : [],
-      kind === 'sprite-sheet'
-        ? 'Prepared original pixel-art icon-sheet cell.'
-        : 'Authored inline SVG glyph.',
-      kind === 'sprite-sheet' ? ['sprite', 'sprite'] : ['vector', 'vector'],
+      [16, 24].map((size) => `ui-icons/${size}/${name}`),
+      'Generated original pixel art; object motifs use the software 3D mesh rasterizer.',
+      ['sprite', 'sprite'],
     );
   }
-  add('Weather', 'sun, cloud, rain, storm', [], 'Inline SVG status glyphs and CSS rain overlay.', [
-    'vector/CSS',
-    'vector/CSS',
-  ]);
+  add(
+    'Weather',
+    'sun, cloud, rain, storm',
+    [],
+    'Generated pixel-art status icons and CSS rain overlay.',
+    ['pixel art/CSS', 'pixel art/CSS'],
+  );
   add(
     'Placement preview',
     'ride and track ghosts',

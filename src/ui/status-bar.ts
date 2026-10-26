@@ -129,7 +129,7 @@ export class StatusBar {
     if (snapshot.weather.kind !== this.weatherKind) {
       this.weatherKind = snapshot.weather.kind;
       const [name, label] = WEATHER[snapshot.weather.kind] ?? WEATHER[0];
-      this.weather.replaceChildren(icon(name));
+      this.weather.replaceChildren(icon(name, 16));
       this.weather.title = label;
       this.weather.setAttribute('aria-label', label);
     }
@@ -145,7 +145,7 @@ export class StatusBar {
     chip.type = 'button';
     chip.setAttribute('aria-label', label);
     chip.title = label;
-    chip.append(icon(name), element('span', 'status-value'));
+    chip.append(icon(name, 16), element('span', 'status-value'));
     chip.addEventListener('click', click);
     return chip;
   }

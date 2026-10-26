@@ -102,14 +102,14 @@ export function guestSelectionText(details: string, tick: number): string {
   return `Selection at tick ${tick}\n${details}`;
 }
 
-const SUMMARY_TABS: readonly TabSpec[] = [
+export const GUEST_SUMMARY_TABS: readonly TabSpec[] = [
   { id: 'all', label: 'Guests', icon: 'guests' },
   { id: 'thought', label: 'By thought', icon: 'news' },
   { id: 'location', label: 'By location', icon: 'map' },
   { id: 'ride', label: 'By ride', icon: 'rides' },
 ];
 
-const GUEST_TABS: readonly TabSpec[] = [
+export const GUEST_TABS: readonly TabSpec[] = [
   { id: 'view', label: 'View', icon: 'guests' },
   { id: 'stats', label: 'Stats', icon: 'info' },
   { id: 'rides', label: 'Rides', icon: 'rides' },
@@ -174,7 +174,7 @@ export function openGuestWindow(ctx: UiContext): WindowController {
     title: 'Guests',
     kind: 'guest',
     width: 340,
-    tabs: SUMMARY_TABS,
+    tabs: GUEST_SUMMARY_TABS,
   });
   const controls = new Map<string, HTMLSelectElement>();
   const optionSignatures = new Map<string, string>();
@@ -185,7 +185,7 @@ export function openGuestWindow(ctx: UiContext): WindowController {
   let currentRideNames = new Map<number, string>();
   if (created) {
     win.body.prepend(average.row);
-    for (const tab of SUMMARY_TABS) {
+    for (const tab of GUEST_SUMMARY_TABS) {
       const pane = win.pane(tab.id);
       const control = element('select', 'guest-filter');
       control.setAttribute('aria-label', `Filter guests ${tab.label.toLowerCase()}`);

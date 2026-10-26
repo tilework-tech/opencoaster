@@ -2,11 +2,8 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import sharp from 'sharp';
 import { renderSprites } from '../sprites/generate';
-import {
-  PREPARED_PROP_SPRITES,
-  PREPARED_TERRAIN_MATERIALS,
-  PREPARED_UI_SPRITES,
-} from './prepared-assets';
+import { renderUiIcons } from '../sprites/ui-icons';
+import { PREPARED_PROP_SPRITES, PREPARED_TERRAIN_MATERIALS } from './prepared-assets';
 import { defringeRgba } from './image-cleanup';
 
 const sourceDirectory = new URL('./source/', import.meta.url);
@@ -220,20 +217,13 @@ async function prepareProps(): Promise<void> {
   }
 }
 
-async function prepareUi(): Promise<void> {
-  const source = await readFile(new URL('ui-icons.png', sourceDirectory));
-  const cleaned = await cleanedImage(source, 1024);
-  const destination = outputPath(PREPARED_UI_SPRITES[0]);
-  await mkdir(dirname(destination.pathname), { recursive: true });
-  await writeFile(destination, cleaned);
-}
-
 async function main(): Promise<void> {
   const destination = outputDirectory.pathname;
   await rm(destination, { recursive: true, force: true });
   await mkdir(destination, { recursive: true });
-  await Promise.all([prepareTerrain(), prepareProps(), prepareUi()]);
+  await Promise.all([prepareTerrain(), prepareProps()]);
   await renderSprites(destination);
+  await renderUiIcons(destination);
 }
 
 await main();

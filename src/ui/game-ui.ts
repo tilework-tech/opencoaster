@@ -24,6 +24,7 @@ import type {
   WindowController,
 } from './ui-types';
 import type { WindowManager } from './window-manager';
+import type { TabSpec } from './window-manager';
 import { openFinanceWindow } from './windows/finance-window';
 import { openGuestWindow, openIndividualGuestWindow } from './windows/guest-window';
 import { openLandRightsWindow } from './windows/land-rights-window';
@@ -99,6 +100,14 @@ const CONSTRUCTION_WINDOWS = [
   'land-rights',
 ];
 
+export const OPTIONS_TABS: readonly TabSpec[] = [
+  { id: 'game', label: 'Game', icon: 'options' },
+  { id: 'sound', label: 'Sound', icon: 'sound' },
+  { id: 'messages', label: 'Messages', icon: 'news' },
+  { id: 'display', label: 'Display', icon: 'view' },
+  { id: 'controls', label: 'Controls', icon: 'info' },
+];
+
 const SERIES_INTERVAL_TICKS = 160;
 const SERIES_LENGTH = 120;
 
@@ -169,7 +178,9 @@ export class GameUI {
       `Max ${BUILD_SPEED_CAP}× while building`,
     );
     for (const speed of GAME_SPEEDS) {
-      const b = element('button', 'toolbar-button toolbar-speed-button', `${speed}×`);
+      const b = element('button', 'toolbar-button toolbar-speed-button');
+      const speedIcon = speed === 1 ? 'play' : speed === 2 ? 'fastForward' : 'fastForwardTriple';
+      b.append(icon(speedIcon, 16), element('span', 'toolbar-speed-label', `${speed}×`));
       b.type = 'button';
       b.title = `Game speed ${speedLabel(speed)} (key ${speed})`;
       b.setAttribute('aria-label', `Game speed ${speed}×`);
@@ -187,17 +198,15 @@ export class GameUI {
       {
         id: 'rotate-clockwise',
         icon: 'rotateRight',
-        label: 'Rotate clockwise',
-        caption: 'Enter / Z',
-        tooltip: 'Rotate clockwise (Enter or Z)',
+        label: 'Rotate right',
+        tooltip: 'Rotate right (Enter or Z)',
         onClick: () => actions.rotate(1),
       },
       {
         id: 'rotate-anticlockwise',
         icon: 'rotateLeft',
-        label: 'Rotate anticlockwise',
-        caption: 'Shift+Enter / X',
-        tooltip: 'Rotate anticlockwise (Shift+Enter or X)',
+        label: 'Rotate left',
+        tooltip: 'Rotate left (Shift+Enter or X)',
         onClick: () => actions.rotate(-1),
       },
       { id: 'view', icon: 'view', label: 'View options', onClick: open('view') },
@@ -209,7 +218,7 @@ export class GameUI {
       { id: 'water', icon: 'water', label: 'Water', onClick: open('water') },
       { id: 'scenery', icon: 'scenery', label: 'Scenery', onClick: open('scenery') },
       { id: 'paths', icon: 'paths', label: 'Footpaths', onClick: open('paths') },
-      { id: 'ride-select', icon: 'rides', label: 'New ride', onClick: open('ride-select') },
+      { id: 'ride-select', icon: 'newRide', label: 'New ride', onClick: open('ride-select') },
       { id: 'finance', icon: 'finances', label: 'Finances', onClick: open('finance') },
       { id: 'research', icon: 'research', label: 'Research', onClick: open('research') },
       { id: 'ride-list', icon: 'wheel', label: 'Rides', onClick: open('ride-list') },
@@ -219,7 +228,7 @@ export class GameUI {
       { id: 'news', icon: 'news', label: 'Messages', onClick: open('news') },
       {
         id: 'save-load',
-        icon: 'options',
+        icon: 'saveLoad',
         label: 'Save / Load',
         onClick: () => actions.openMenu(),
       },
@@ -601,13 +610,7 @@ export class GameUI {
       title: 'Options',
       kind: 'tool',
       width: 300,
-      tabs: [
-        { id: 'game', label: 'Game', icon: 'options' },
-        { id: 'sound', label: 'Sound', icon: 'news' },
-        { id: 'messages', label: 'Messages', icon: 'news' },
-        { id: 'display', label: 'Display', icon: 'view' },
-        { id: 'controls', label: 'Controls', icon: 'info' },
-      ],
+      tabs: OPTIONS_TABS,
     });
     const speeds = new Map<number, HTMLButtonElement>();
     if (created) {

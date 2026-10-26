@@ -10,14 +10,10 @@
 }
 
 .ui-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   flex: none;
-}
-
-.ui-icon-sheet {
-  background-image: url('/sprites/ui/icons.png');
-  background-size: 400% 400%;
+  image-rendering: pixelated;
 }
 
 /* Toolbar */
@@ -105,6 +101,16 @@
   min-width: 36px;
   padding: 0 6px;
   font-weight: 700;
+  flex-direction: column;
+  gap: 0;
+}
+.toolbar-speed-button .ui-icon {
+  width: 16px;
+  height: 16px;
+}
+.toolbar-speed-label {
+  font-size: 9px;
+  line-height: 10px;
 }
 .toolbar-speed-note {
   padding-left: 4px;
@@ -121,6 +127,14 @@
 .ui-button[aria-pressed='true'] {
   border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   background: #d8d3a4;
+}
+.toolbar-button:disabled,
+.ui-titlebtn:disabled,
+.icon-button:disabled,
+.glyph-button:disabled {
+  filter: grayscale(1);
+  opacity: 0.55;
+  cursor: default;
 }
 .toolbar-button:hover,
 .ui-tab:hover,
@@ -296,8 +310,8 @@
   padding: 0;
 }
 .ui-titlebtn .ui-icon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 .ui-tabs {
   display: flex;
@@ -475,8 +489,8 @@
   display: none;
 }
 .ride-card .ui-icon {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
 }
 .ride-card-cost {
   font-size: 11px;
@@ -717,8 +731,8 @@
   text-align: left;
 }
 .status-weather .ui-icon {
-  width: 26px;
-  height: 26px;
+  width: 16px;
+  height: 16px;
 }
 .status-weather::after {
   content: attr(data-temperature);
@@ -1306,8 +1320,12 @@
     overflow-wrap: anywhere;
   }
   .toolbar-menu .toolbar-button .ui-icon {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
+  }
+  .toolbar-menu .toolbar-speed-button .ui-icon {
+    width: 16px;
+    height: 16px;
   }
   .ui-windows {
     inset: auto env(safe-area-inset-right) calc(var(--status-h) + env(safe-area-inset-bottom))

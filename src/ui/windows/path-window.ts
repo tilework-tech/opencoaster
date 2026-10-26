@@ -27,6 +27,11 @@ const ARROWS: ReadonlyArray<{ dir: number; glyph: string; label: string; cell: s
 
 const HINT = 'Drag across ground to lay a run; release to build.';
 
+export const PATH_TABS = [
+  { id: 'line', label: 'Lay line', icon: 'paths' },
+  { id: 'piece', label: 'Piece by piece', icon: 'build' },
+] as const;
+
 /** The Footpaths window: surface and queue choice, then line or piece-by-piece construction. */
 export function openPathWindow(ctx: UiContext): WindowController {
   const { footpath } = ctx.actions;
@@ -40,10 +45,7 @@ export function openPathWindow(ctx: UiContext): WindowController {
     title: 'Footpaths',
     kind: 'tool',
     width: 300,
-    tabs: [
-      { id: 'line', label: 'Lay line', icon: 'paths' },
-      { id: 'piece', label: 'Piece by piece', icon: 'build' },
-    ],
+    tabs: PATH_TABS,
     onTab: (id) => setMode(id as PathMode),
     onClose: () => {
       ctx.actions.setAlternate(false);

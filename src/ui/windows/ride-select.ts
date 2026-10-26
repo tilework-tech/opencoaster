@@ -20,6 +20,11 @@ export const RIDE_TABS: readonly RideTab[] = [
   { id: 'shops', label: 'Shops & Stalls', icon: 'food', categories: ['shop', 'stall', 'facility'] },
 ];
 
+export const NEW_RIDE_TABS: readonly TabSpec[] = [
+  ...RIDE_TABS,
+  { id: 'research', label: 'Research', icon: 'research' },
+];
+
 /** The ride types listed under a tab, in catalog order. */
 export function ridesInTab(tab: RideTab): RideTypeDef[] {
   return Object.values(RIDE_CATALOG).filter((def) => tab.categories.includes(def.category));
@@ -66,7 +71,7 @@ export function openRideSelect(ctx: UiContext): WindowController {
     title: 'New attraction',
     kind: 'build',
     width: 360,
-    tabs: [...RIDE_TABS, { id: 'research', label: 'Research', icon: 'research' }],
+    tabs: NEW_RIDE_TABS,
     onClose: () => {
       if (ctx.currentTool() === 'ride') ctx.chooseTool('select');
     },
