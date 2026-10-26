@@ -4,7 +4,7 @@
  * alpha marks coverage. See src/render/docs.md ("Occlusion model").
  */
 export const HEIGHT_RESOLUTION = 256;
-const HEIGHT_OFFSET = 32768;
+export const HEIGHT_OFFSET = 32768;
 
 export function encodeHeight(levels: number): [number, number] {
   const value = Math.max(

@@ -56,6 +56,7 @@ import {
   objectKind,
 } from './object-kinds';
 import type { OracleSprite } from './occlusion-oracle';
+import { HEIGHT_OFFSET, HEIGHT_RESOLUTION } from './height-encoding';
 import { spritePages } from './sprite-pages';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
@@ -64,11 +65,7 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
-import {
-  TERRAIN_OCCLUDER_DEPTH_OFFSET,
-  pathDepthOverTerrain,
-  sceneryDepth,
-} from './terrain-occlusion';
+import { pathDepthOverTerrain, sceneryDepth } from './terrain-occlusion';
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import {
   SOLID_BIAS,
@@ -116,7 +113,7 @@ const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 7;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
-const INSTANCE_FLOATS = 21;
+const INSTANCE_FLOATS = 22;
 /** Instance float holding the atlas page slot, then the ghost mode (0 none, 1 accepted, 2 refused). */
 const SLOT_FLOAT = 17;
 /** Instance float holding the horizontal anchor shift of a sprite quad, in sprite pixels. */
@@ -126,6 +123,14 @@ const GHOST_FLOAT = 18;
 const OBJECT_ID_FLOAT = 19;
 /** Instance float holding the world height of the sprite's ground anchor, before quad offsets. */
 const ANCHOR_Z_FLOAT = 20;
+/** Instance float scaling a sprite's baked heights: drawn height over atlas frame height. */
+const HEIGHT_SCALE_FLOAT = 21;
+/**
+ * Window depth per level of world height. Every point on one pixel's view ray has a distinct
+ * height, so higher is nearer: depth = 0.5 - height * DEPTH_PER_LEVEL (see docs.md, "Occlusion
+ * model").
+ */
+export const DEPTH_PER_LEVEL = 1 / 1024;
 /** Opacity of footpath placement previews drawn in the world. */
 const GHOST_ALPHA = 0.55;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
@@ -309,6 +314,16 @@ const encodeObjectIdSource = `highp vec4 encodeObjectId(highp float id) {
   return vec4(low, mid, high, 255.0) / 255.0;
 }`;
 
+/** GLSL helpers for the RGBA8 height encoding of height-encoding.ts. */
+const heightCodecSource = `highp float decodeHeight(highp vec4 texel) {
+  highp float value = floor(texel.r * 255.0 + 0.5) * 256.0 + floor(texel.g * 255.0 + 0.5);
+  return (value - ${glslFloat(HEIGHT_OFFSET)}) / ${glslFloat(HEIGHT_RESOLUTION)};
+}
+highp vec4 encodeHeight(highp float levels) {
+  highp float value = clamp(floor(levels * ${glslFloat(HEIGHT_RESOLUTION)} + 0.5) + ${glslFloat(HEIGHT_OFFSET)}, 0.0, 65535.0);
+  return vec4(floor(value / 256.0), mod(value, 256.0), 0.0, 255.0) / 255.0;
+}`;
+
 const vertexSource = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 aCorner;
@@ -324,6 +339,7 @@ layout(location=9) in float aAnchorShift;
 layout(location=10) in float aGhost;
 layout(location=11) in float aObjectId;
 layout(location=12) in float aAnchorZ;
+layout(location=13) in float aHeightScale;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -339,6 +355,8 @@ flat out float vSlot;
 flat out float vGhost;
 flat out float vObjectId;
 flat out float vAnchorZ;
+flat out float vHeightScale;
+out float vHeight;
 void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
   bool faceMesh = aMeshMode > 3.5;
@@ -398,11 +416,17 @@ void main() {
   vSlot = aSlot;
   vGhost = aGhost;
   vObjectId = aObjectId;
-  vAnchorZ = aAnchorZ;
+  vAnchorZ = aAnchorZ / ${glslFloat(Z_STEP)};
+  vHeightScale = aHeightScale;
+  // Meshes carry their true height per vertex; a sprite without a baked height map stands as an
+  // upright card whose height rises with its rows.
+  if (aMeshMode > 2.5 && aMeshMode < 3.5) vHeight = aWorld.z / ${glslFloat(Z_STEP)};
+  else if (aMeshMode > 0.5) vHeight = cornerHeight / ${glslFloat(Z_STEP)};
+  else vHeight = vAnchorZ + (1.0 - aCorner.y) * aSize.y / ${glslFloat(Z_PIXELS)};
 }`;
 
 const fragmentSource = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 vUv;
 in vec2 vTileUv;
 in float vMeshMode;
@@ -413,10 +437,20 @@ flat in float vSlot;
 flat in float vGhost;
 flat in highp float vObjectId;
 flat in highp float vAnchorZ;
+flat in float vHeightScale;
+in float vHeight;
 uniform float uIdMode;
 ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uAtlas${slot};`).join('\n')}
-out vec4 outColor;
+${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uHeights${slot};`).join('\n')}
+layout(location=0) out vec4 outColor;
+layout(location=1) out vec4 outHeight;
 ${encodeObjectIdSource}
+${heightCodecSource}
+vec4 sampleHeights(vec2 uv) {
+  int slot = int(vSlot + 0.5);
+${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uHeights${slot}, uv);`).join('\n')}
+  return texture(uHeights${TEXTURE_SLOTS - 1}, uv);
+}
 vec4 sampleAtlas(vec2 uv) {
   int slot = int(vSlot + 0.5);
 ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uAtlas${slot}, uv);`).join('\n')}
@@ -425,6 +459,15 @@ ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot})
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
+  float height = vHeight;
+  if (vMeshMode < 0.5) {
+    if (outColor.a < 0.5) discard;
+    vec4 baked = sampleHeights(vUv);
+    if (baked.a > 0.5) height = vAnchorZ + decodeHeight(baked) * vHeightScale;
+  }
+  gl_FragDepth = clamp(0.5 - height * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0);
+  // Only the ground cache reads this: sprites painted into it are ground cover at their anchor.
+  outHeight = encodeHeight(vMeshMode < 0.5 ? vAnchorZ : height);
   if (vMeshMode > 1.4 && vMeshMode < 2.0) outColor = vec4(0.26, 0.53, 1.0, 0.32);
   if (vMeshMode > 1.9 && vMeshMode < 2.5) outColor = vec4(0.96, 0.2, 0.16, 0.38);
   if (vMeshMode > 1.4 && vMeshMode < 2.5) {
@@ -496,20 +539,32 @@ void main() {
 }`;
 
 const groundFragmentSource = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 vUv;
 uniform sampler2D uGround;
+uniform sampler2D uGroundHeights;
 uniform float uIdMode;
 out vec4 outColor;
 ${encodeObjectIdSource}
+${heightCodecSource}
 void main() {
   outColor = texture(uGround, vUv);
+  vec4 height = texture(uGroundHeights, vUv);
+  gl_FragDepth = height.a > 0.5
+    ? clamp(0.5 - decodeHeight(height) * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0)
+    : 1.0;
   if (uIdMode > 0.5) {
     vec3 background = vec3(${BACKGROUND.slice(0, 3).map(glslFloat).join(', ')});
     if (all(lessThan(abs(outColor.rgb - background), vec3(0.5 / 255.0)))) discard;
     outColor = encodeObjectId(${glslFloat(GROUND_OBJECT_ID)});
   }
 }`;
+
+/** A cached ground chunk: its colour and the encoded world height of every pixel. */
+interface GroundChunk {
+  colour: WebGLTexture;
+  heights: WebGLTexture;
+}
 
 interface TileLists {
   map: MapData;
@@ -551,12 +606,16 @@ export class WebGL2Renderer implements Renderer {
   private instanceBuffer: WebGLBuffer | null = null;
   private fallbackTexture: WebGLTexture | null = null;
   private readonly pageTextures = new Map<number, WebGLTexture>();
+  private readonly pageHeightTextures = new Map<number, WebGLTexture>();
+  /** Bound for pages without heights: alpha 0, so sprites fall back to an upright card. */
+  private fallbackHeightTexture: WebGLTexture | null = null;
   private syncedPageVersion = -1;
   private attributeBase = 0;
   private readonly coasterScene = new CoasterScene();
   private readonly rideCells = new RideCellScene();
   private uniforms: {
     atlas: (WebGLUniformLocation | null)[];
+    heights: (WebGLUniformLocation | null)[];
     viewport: WebGLUniformLocation | null;
     mapSize: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
@@ -572,16 +631,22 @@ export class WebGL2Renderer implements Renderer {
   private depths = new Int32Array(INITIAL_INSTANCE_CAPACITY);
   private readonly surfaceDepths = new SurfaceDepths();
   private pageIds = new Int16Array(INITIAL_INSTANCE_CAPACITY);
+  /** 1 for instances drawn in the translucent pass: water, patrol overlays and previews. */
+  private translucent = new Uint8Array(INITIAL_INSTANCE_CAPACITY);
+  /** Index in `runs` of the first translucent run. */
+  private translucentRun = 0;
   private readonly runs: { start: number; count: number; pages: number[] }[] = [];
   private orderedData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private readonly projected = new Float64Array(2);
   private readonly tileCoordinates = new Int32Array(2);
   private order = new Int32Array(INITIAL_INSTANCE_CAPACITY);
+  private partition = new Int32Array(INITIAL_INSTANCE_CAPACITY);
   private orderedPages = new Int16Array(INITIAL_INSTANCE_CAPACITY);
   private bufferCapacity = 0;
   private groundProgram: WebGLProgram | null = null;
   private groundUniforms: {
     ground: WebGLUniformLocation | null;
+    groundHeights: WebGLUniformLocation | null;
     rect: WebGLUniformLocation | null;
     viewport: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
@@ -589,9 +654,10 @@ export class WebGL2Renderer implements Renderer {
     idMode: WebGLUniformLocation | null;
   } | null = null;
   private groundFramebuffer: WebGLFramebuffer | null = null;
-  private readonly groundChunks = new LruCache<WebGLTexture>(GROUND_CHUNK_CAPACITY, (texture) =>
-    this.gl?.deleteTexture(texture),
-  );
+  private readonly groundChunks = new LruCache<GroundChunk>(GROUND_CHUNK_CAPACITY, (chunk) => {
+    this.gl?.deleteTexture(chunk.colour);
+    this.gl?.deleteTexture(chunk.heights);
+  });
   private groundIndex: GroundIndex | null = null;
   private groundRotation: Rotation = 0;
   private groundArtReady = false;
@@ -646,7 +712,7 @@ export class WebGL2Renderer implements Renderer {
   }
 
   attach(canvas: HTMLCanvasElement): void {
-    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false });
+    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: true });
     if (!gl) throw new Error('WebGL2 unavailable');
     this.canvas = canvas;
     this.gl = gl;
@@ -728,6 +794,11 @@ export class WebGL2Renderer implements Renderer {
     gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, renderbuffer);
+    const depthbuffer = gl.createRenderbuffer();
+    if (!depthbuffer) throw new Error('Could not allocate object-ID depth target');
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthbuffer);
     const records: (CaptureRecord | undefined)[] = [];
     this.captureRecords = records;
     const pixels = new Uint8Array(width * height * 4);
@@ -744,6 +815,7 @@ export class WebGL2Renderer implements Renderer {
       gl.bindRenderbuffer(gl.RENDERBUFFER, null);
       gl.deleteFramebuffer(framebuffer);
       gl.deleteRenderbuffer(renderbuffer);
+      gl.deleteRenderbuffer(depthbuffer);
     }
     if (!drawn) throw new Error('WebGL2 renderer could not draw the object-ID frame');
 
@@ -813,6 +885,10 @@ export class WebGL2Renderer implements Renderer {
     this.ensureGroundChunks(map, camera, viewportWidth, viewportHeight);
     gl.bindFramebuffer(gl.FRAMEBUFFER, target);
     gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearDepth(1);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
     this.drawGroundChunks(camera, viewportWidth, viewportHeight, idMode);
 
     this.count = 0;
@@ -892,6 +968,7 @@ export class WebGL2Renderer implements Renderer {
       camera.rotation,
     );
     this.idMode = false;
+    gl.disable(gl.DEPTH_TEST);
     return true;
   }
 
@@ -910,14 +987,20 @@ export class WebGL2Renderer implements Renderer {
     if (!gl || !uniforms || !this.program || !this.vao || !this.fallbackTexture) return;
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
-    for (let slot = 0; slot < TEXTURE_SLOTS; slot++) gl.uniform1i(uniforms.atlas[slot], slot);
+    for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
+      gl.uniform1i(uniforms.atlas[slot], slot);
+      gl.uniform1i(uniforms.heights[slot], TEXTURE_SLOTS + slot);
+    }
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
     gl.uniform2f(uniforms.mapSize, map.width, map.height);
     gl.uniform2f(uniforms.camera, cameraX, cameraY);
     gl.uniform1f(uniforms.zoom, zoom);
     gl.uniform1f(uniforms.rotation, rotation);
     gl.uniform1f(uniforms.idMode, this.idMode ? 1 : 0);
-    for (const run of this.runs) {
+    for (let index = 0; index < this.runs.length; index++) {
+      const run = this.runs[index];
+      // Translucent surfaces are depth tested but never hide what is drawn after them.
+      if (index === this.translucentRun) gl.depthMask(false);
       for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
         const page = run.pages[slot];
         gl.activeTexture(gl.TEXTURE0 + slot);
@@ -925,10 +1008,17 @@ export class WebGL2Renderer implements Renderer {
           gl.TEXTURE_2D,
           (page === undefined ? null : this.pageTextures.get(page)) ?? this.fallbackTexture,
         );
+        gl.activeTexture(gl.TEXTURE0 + TEXTURE_SLOTS + slot);
+        gl.bindTexture(
+          gl.TEXTURE_2D,
+          (page === undefined ? null : this.pageHeightTextures.get(page)) ??
+            this.fallbackHeightTexture,
+        );
       }
       if (run.start !== this.attributeBase) this.pointInstanceAttributes(run.start);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, run.count);
     }
+    gl.depthMask(true);
     if (this.attributeBase !== 0) this.pointInstanceAttributes(0);
   }
 
@@ -975,6 +1065,9 @@ export class WebGL2Renderer implements Renderer {
       atlas: Array.from({ length: TEXTURE_SLOTS }, (_, slot) =>
         gl.getUniformLocation(shaderProgram, `uAtlas${slot}`),
       ),
+      heights: Array.from({ length: TEXTURE_SLOTS }, (_, slot) =>
+        gl.getUniformLocation(shaderProgram, `uHeights${slot}`),
+      ),
       viewport: gl.getUniformLocation(shaderProgram, 'uViewport'),
       mapSize: gl.getUniformLocation(shaderProgram, 'uMapSize'),
       camera: gl.getUniformLocation(shaderProgram, 'uCamera'),
@@ -1011,6 +1104,7 @@ export class WebGL2Renderer implements Renderer {
     drawAtlas(fallbackContext);
     this.deleteTextures();
     this.fallbackTexture = this.createAtlasTexture(fallbackAtlas);
+    this.fallbackHeightTexture = this.createHeightTexture(null);
     this.syncedPageVersion = -1;
     spritePages.start();
     gl.bindVertexArray(null);
@@ -1034,6 +1128,7 @@ export class WebGL2Renderer implements Renderer {
       [10, 1, GHOST_FLOAT],
       [11, 1, OBJECT_ID_FLOAT],
       [12, 1, ANCHOR_Z_FLOAT],
+      [13, 1, HEIGHT_SCALE_FLOAT],
     ] as const;
     for (const [location, size, floatOffset] of layout) {
       gl.enableVertexAttribArray(location);
@@ -1055,9 +1150,13 @@ export class WebGL2Renderer implements Renderer {
     if (gl) {
       if (this.fallbackTexture) gl.deleteTexture(this.fallbackTexture);
       for (const texture of this.pageTextures.values()) gl.deleteTexture(texture);
+      for (const texture of this.pageHeightTextures.values()) gl.deleteTexture(texture);
+      if (this.fallbackHeightTexture) gl.deleteTexture(this.fallbackHeightTexture);
     }
     this.fallbackTexture = null;
+    this.fallbackHeightTexture = null;
     this.pageTextures.clear();
+    this.pageHeightTextures.clear();
   }
 
   /** Uploads atlas pages that have arrived since the last frame. */
@@ -1074,6 +1173,15 @@ export class WebGL2Renderer implements Renderer {
       context.drawImage(image, 0, 0);
       this.pageTextures.set(page, this.createAtlasTexture(canvas));
       canvas.width = 0;
+      const heights = spritePages.pageHeights(page);
+      if (heights) {
+        // Through a canvas like the colour page: WebGL ignores UNPACK_FLIP_Y for ImageBitmaps.
+        canvas.width = heights.width;
+        canvas.height = heights.height;
+        context.drawImage(heights, 0, 0);
+        this.pageHeightTextures.set(page, this.createHeightTexture(canvas));
+        canvas.width = 0;
+      }
     }
     this.syncedPageVersion = spritePages.version;
     const ready = spritePages.isLoaded('world');
@@ -1096,6 +1204,37 @@ export class WebGL2Renderer implements Renderer {
       throw new Error(reason);
     }
     return shader;
+  }
+
+  /** Uploads a height page byte-exact: no colour conversion or alpha premultiplication. */
+  private createHeightTexture(image: TexImageSource | null, width = 1, height = 1): WebGLTexture {
+    const gl = this.gl;
+    if (!gl) throw new Error('WebGL2 unavailable');
+    const texture = gl.createTexture();
+    if (!texture) throw new Error('Could not allocate sprite height texture');
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    if (image) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    else
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA8,
+        width,
+        height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        new Uint8Array(width * height * 4),
+      );
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
   }
 
   private createAtlasTexture(atlas: HTMLCanvasElement): WebGLTexture {
@@ -1139,6 +1278,7 @@ export class WebGL2Renderer implements Renderer {
     this.groundFramebuffer = framebuffer;
     this.groundUniforms = {
       ground: gl.getUniformLocation(program, 'uGround'),
+      groundHeights: gl.getUniformLocation(program, 'uGroundHeights'),
       rect: gl.getUniformLocation(program, 'uRect'),
       viewport: gl.getUniformLocation(program, 'uViewport'),
       camera: gl.getUniformLocation(program, 'uCamera'),
@@ -1340,6 +1480,48 @@ export class WebGL2Renderer implements Renderer {
     const gl = this.gl;
     const framebuffer = this.groundFramebuffer;
     if (!gl || !framebuffer) return;
+    const texture = this.createChunkTexture();
+    const heights = this.createChunkTexture();
+
+    this.count = 0;
+    const column = cx - index.minCx;
+    const row = cy - index.minCy;
+    if (column >= 0 && column < index.columns && row >= 0 && row < index.rows) {
+      const cell = row * index.columns + column;
+      for (let i = index.starts[cell]; i < index.starts[cell + 1]; i++)
+        this.appendGroundTile(map, index.tiles[i], rotation);
+    }
+    this.uploadInPainterOrder();
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, heights, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    gl.viewport(0, 0, GROUND_CHUNK_SIZE, GROUND_CHUNK_SIZE);
+    gl.clearBufferfv(gl.COLOR, 0, BACKGROUND);
+    gl.clearBufferfv(gl.COLOR, 1, [0, 0, 0, 0]);
+    // Ground tiles within a chunk are painted back to front; the chunk has no depth buffer.
+    gl.disable(gl.DEPTH_TEST);
+    enableSpriteAlphaBlending(gl);
+    this.drawRuns(
+      GROUND_CHUNK_SIZE,
+      GROUND_CHUNK_SIZE,
+      map,
+      cx * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
+      cy * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
+      1,
+      rotation,
+    );
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, null, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.count = 0;
+    this.groundChunks.set(chunkKey(cx, cy), { colour: texture, heights });
+  }
+
+  private createChunkTexture(): WebGLTexture {
+    const gl = this.gl;
+    if (!gl) throw new Error('WebGL2 unavailable');
     const texture = gl.createTexture();
     if (!texture) throw new Error('Could not allocate ground chunk texture');
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -1358,35 +1540,7 @@ export class WebGL2Renderer implements Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-    this.count = 0;
-    const column = cx - index.minCx;
-    const row = cy - index.minCy;
-    if (column >= 0 && column < index.columns && row >= 0 && row < index.rows) {
-      const cell = row * index.columns + column;
-      for (let i = index.starts[cell]; i < index.starts[cell + 1]; i++)
-        this.appendGroundTile(map, index.tiles[i], rotation);
-    }
-    this.uploadInPainterOrder();
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    gl.viewport(0, 0, GROUND_CHUNK_SIZE, GROUND_CHUNK_SIZE);
-    gl.clearColor(...BACKGROUND);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    enableSpriteAlphaBlending(gl);
-    this.drawRuns(
-      GROUND_CHUNK_SIZE,
-      GROUND_CHUNK_SIZE,
-      map,
-      cx * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
-      cy * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
-      1,
-      rotation,
-    );
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    this.count = 0;
-    this.groundChunks.set(chunkKey(cx, cy), texture);
+    return texture;
   }
 
   /** Draws the visible cached chunks, clearing first only when one is still missing. */
@@ -1419,16 +1573,19 @@ export class WebGL2Renderer implements Renderer {
     gl.useProgram(program);
     gl.uniform1f(uniforms.idMode, idMode ? 1 : 0);
     gl.bindVertexArray(this.vao);
-    gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uniforms.ground, 0);
+    gl.uniform1i(uniforms.groundHeights, 1);
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
     gl.uniform2f(uniforms.camera, camera.x, camera.y);
     gl.uniform1f(uniforms.zoom, camera.zoom);
     for (let cy = range.y0; cy <= range.y1; cy++) {
       for (let cx = range.x0; cx <= range.x1; cx++) {
-        const texture = this.groundChunks.get(chunkKey(cx, cy));
-        if (!texture) continue;
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+        const chunk = this.groundChunks.get(chunkKey(cx, cy));
+        if (!chunk) continue;
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, chunk.heights);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, chunk.colour);
         gl.uniform4f(
           uniforms.rect,
           cx * GROUND_CHUNK_SIZE,
@@ -1511,11 +1668,6 @@ export class WebGL2Renderer implements Renderer {
 
   /** Adds the on-screen water planes and the raised terrain that must hide sprites behind it. */
   /** Terrain no higher than a flat ride's floor must not be redrawn over the ride. */
-  private hiddenByRide(map: MapData, tile: number): boolean {
-    const floor = this.rideCells.floor[tile];
-    return floor > 0 && map.heights[tile] + (map.slope[tile] !== 0 ? 1 : 0) <= floor - 1;
-  }
-
   private appendWaterAndOccluders(
     map: MapData,
     camera: Camera,
@@ -1527,18 +1679,6 @@ export class WebGL2Renderer implements Renderer {
     const halfWidth = viewportWidth / camera.zoom / 2 + TILE_W;
     const bottom = viewportHeight / camera.zoom / 2 + TILE_H + Z_PIXELS;
     const top = bottom + 31 * Z_PIXELS;
-    for (let i = 0; i < lists.occluders.length; i++) {
-      if (Math.abs(lists.occluderX[i] - camera.x) > halfWidth) continue;
-      const dy = lists.occluderY[i] - camera.y;
-      if (dy < -top || dy > bottom) continue;
-      if (this.hiddenByRide(map, lists.occluders[i])) continue;
-      this.appendGroundTile(
-        map,
-        lists.occluders[i],
-        camera.rotation,
-        TERRAIN_OCCLUDER_DEPTH_OFFSET,
-      );
-    }
     const frame = waterSpriteName(waterFrameIndex(tick));
     for (let i = 0; i < lists.water.length; i++) {
       if (Math.abs(lists.waterX[i] - camera.x) > halfWidth) continue;
@@ -2617,6 +2757,9 @@ export class WebGL2Renderer implements Renderer {
     const objectId = this.objectIdFor(meshMode);
     this.instanceData[offset + OBJECT_ID_FLOAT] = objectId;
     this.instanceData[offset + ANCHOR_Z_FLOAT] = anchorZ;
+    this.instanceData[offset + HEIGHT_SCALE_FLOAT] = frame && !meshMode ? height / frame.height : 1;
+    this.translucent[this.count] =
+      this.ghostMode !== 0 || meshMode === 3 || (meshMode > 1.4 && meshMode < 2.5) ? 1 : 0;
     if (this.captureRecords)
       this.captureRecords[this.count] =
         objectId < FIRST_INSTANCE_OBJECT_ID
@@ -2653,8 +2796,12 @@ export class WebGL2Renderer implements Renderer {
     const nextPages = new Int16Array(nextCapacity);
     nextPages.set(this.pageIds);
     this.pageIds = nextPages;
+    const nextTranslucent = new Uint8Array(nextCapacity);
+    nextTranslucent.set(this.translucent);
+    this.translucent = nextTranslucent;
     this.orderedData = new Float32Array(nextCapacity * INSTANCE_FLOATS);
     this.order = new Int32Array(nextCapacity);
+    this.partition = new Int32Array(nextCapacity);
     this.orderedPages = new Int16Array(nextCapacity);
   }
 
@@ -2663,6 +2810,16 @@ export class WebGL2Renderer implements Renderer {
     const buffer = this.instanceBuffer;
     if (!gl || !buffer) return;
     sortByDepth(this.depths, this.count, this.order);
+    // Opaque instances first, then the translucent pass, each keeping its back-to-front order.
+    const partition = this.partition;
+    let opaque = 0;
+    for (let i = 0; i < this.count; i++)
+      if (!this.translucent[this.order[i]]) partition[opaque++] = this.order[i];
+    let next = opaque;
+    for (let i = 0; i < this.count; i++)
+      if (this.translucent[this.order[i]]) partition[next++] = this.order[i];
+    this.partition = this.order;
+    this.order = partition;
     for (let i = 0; i < this.count; i++) {
       const source = this.order[i];
       const from = source * INSTANCE_FLOATS;
@@ -2671,11 +2828,16 @@ export class WebGL2Renderer implements Renderer {
         this.orderedData[to + j] = this.instanceData[from + j];
       this.orderedPages[i] = this.pageIds[source];
     }
-    const batches = buildTextureRuns(this.orderedPages.subarray(0, this.count), TEXTURE_SLOTS);
+    const solid = buildTextureRuns(this.orderedPages.subarray(0, opaque), TEXTURE_SLOTS);
+    const clear = buildTextureRuns(this.orderedPages.subarray(opaque, this.count), TEXTURE_SLOTS);
     this.runs.length = 0;
-    this.runs.push(...batches.runs);
-    for (let i = 0; i < this.count; i++)
-      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = batches.slots[i];
+    this.runs.push(...solid.runs);
+    this.translucentRun = this.runs.length;
+    for (const run of clear.runs) this.runs.push({ ...run, start: run.start + opaque });
+    for (let i = 0; i < opaque; i++)
+      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = solid.slots[i];
+    for (let i = opaque; i < this.count; i++)
+      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = clear.slots[i - opaque];
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     if (this.depths.length > this.bufferCapacity) {
       gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
