@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openPage, startScenario, toolbarAction } from './support/park';
+import { openPage, startScenario } from './support/park';
 
 interface Hovered {
   name: string | null;
