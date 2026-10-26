@@ -1,7 +1,8 @@
+import { rotateDirection } from './projection';
 import type { Rotation } from './projection';
 
 export function peopleSpriteKey(kind: number, direction: number, rotation: Rotation): string {
-  const view = (((direction + rotation) % 4) + 4) % 4;
+  const view = rotateDirection(direction, rotation);
   return `people/staff/${kind}/direction-${view}`;
 }
 

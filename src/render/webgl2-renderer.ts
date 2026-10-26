@@ -31,7 +31,15 @@ import {
   sceneryGroundZ,
 } from './ground-anchor';
 import { spriteAnchorScreenShift } from './ground-anchor';
-import { TILE_H, TILE_W, Z_PIXELS } from './projection';
+import {
+  TILE_H,
+  TILE_W,
+  Z_PIXELS,
+  project,
+  rotateDirection,
+  rotateTile,
+  unrotateTile,
+} from './projection';
 import { spritePages } from './sprite-pages';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
@@ -139,9 +147,18 @@ export function staffSpriteName(kind: number): string {
   return `people/staff-costumes#${(kind >= 0 && kind <= 3 ? kind : 0) * 4}`;
 }
 
-export function guestSpriteIndex(tint: number, heading: number, frame: number): number {
+/** Sprite index of a guest: `heading` is the world walking direction, shown as seen at `rotation`. */
+export function guestSpriteIndex(
+  tint: number,
+  heading: number,
+  frame: number,
+  rotation: Rotation = 0,
+): number {
   const palette = ((tint % 8) + 8) % 8;
-  const direction = Number.isInteger(heading) && heading >= 0 && heading < 4 ? heading : 0;
+  const direction =
+    Number.isInteger(heading) && heading >= 0 && heading < 4
+      ? rotateDirection(heading, rotation)
+      : 0;
   const animationFrame = ((frame % 4) + 4) % 4;
   return 40 + palette * 16 + direction * 4 + animationFrame;
 }
@@ -1840,7 +1857,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendLayerSprite(
         layer,
         offset,
-        `people/guest-walk#${guestSpriteIndex(tint, heading, tick >>> 2) - 40}`,
+        `people/guest-walk#${guestSpriteIndex(tint, heading, tick >>> 2, camera.rotation) - 40}`,
         map,
         camera,
         viewportWidth,
@@ -2507,24 +2524,9 @@ function rotateForDraw(
   rotation: Rotation,
   out: Int32Array,
 ): void {
-  switch (rotation) {
-    case 0:
-      out[0] = x;
-      out[1] = y;
-      break;
-    case 1:
-      out[0] = height - 1 - y;
-      out[1] = x;
-      break;
-    case 2:
-      out[0] = width - 1 - x;
-      out[1] = height - 1 - y;
-      break;
-    case 3:
-      out[0] = y;
-      out[1] = width - 1 - x;
-      break;
-  }
+  const [rx, ry] = rotateTile(x, y, width, height, rotation);
+  out[0] = rx;
+  out[1] = ry;
 }
 
 function chunkKey(cx: number, cy: number): number {
@@ -2539,60 +2541,9 @@ function unrotateForDraw(
   rotation: Rotation,
   out: Int32Array,
 ): void {
-  switch (rotation) {
-    case 0:
-      out[0] = x;
-      out[1] = y;
-      break;
-    case 1:
-      out[0] = y;
-      out[1] = height - 1 - x;
-      break;
-    case 2:
-      out[0] = width - 1 - x;
-      out[1] = height - 1 - y;
-      break;
-    case 3:
-      out[0] = width - 1 - y;
-      out[1] = x;
-      break;
-  }
-}
-
-/** Depth key of a world point: the painter sorts by it, doubled, so the ride and scenery offsets stay integers. */
-function project(
-  x: number,
-  y: number,
-  z: number,
-  width: number,
-  height: number,
-  rotation: Rotation,
-  out: Float64Array,
-): void {
-  const tx = x / TILE_UNITS;
-  const ty = y / TILE_UNITS;
-  let rx: number;
-  let ry: number;
-  switch (rotation) {
-    case 0:
-      rx = tx;
-      ry = ty;
-      break;
-    case 1:
-      rx = height - ty;
-      ry = tx;
-      break;
-    case 2:
-      rx = width - tx;
-      ry = height - ty;
-      break;
-    case 3:
-      rx = ty;
-      ry = width - tx;
-      break;
-  }
-  out[0] = (rx - ry) * (TILE_W / 2);
-  out[1] = (rx + ry) * (TILE_H / 2) - (z / 64) * Z_PIXELS;
+  const [ux, uy] = unrotateTile(x, y, width, height, rotation);
+  out[0] = ux;
+  out[1] = uy;
 }
 
 function inViewport(

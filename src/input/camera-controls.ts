@@ -1,7 +1,7 @@
 import type { Camera } from '../render/renderer';
 import type { MapData } from '../render/renderer';
 import type { Snapshot } from '../worker/snapshot';
-import { pickTile, project } from '../render/projection';
+import { pickTile, project, unrotatePoint } from '../render/projection';
 import type { Rotation } from '../render/projection';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { PathFlag } from '../sim/map/tile-map';
@@ -101,26 +101,7 @@ export function rotateCameraAroundWorldPoint(
   const vertical = (camera.y + (focusElevation / Z_STEP) * 16) / 16;
   const rx = (horizontal + vertical) / 2;
   const ry = (vertical - horizontal) / 2;
-  let x: number;
-  let y: number;
-  switch (camera.rotation) {
-    case 0:
-      x = rx;
-      y = ry;
-      break;
-    case 1:
-      x = ry;
-      y = map.height - rx;
-      break;
-    case 2:
-      x = map.width - rx;
-      y = map.height - ry;
-      break;
-    case 3:
-      x = map.width - ry;
-      y = rx;
-      break;
-  }
+  const [x, y] = unrotatePoint(rx, ry, map.width, map.height, camera.rotation);
   const rotation = ((camera.rotation + direction + 4) % 4) as Rotation;
   const projected = new Float64Array(2);
   project(
