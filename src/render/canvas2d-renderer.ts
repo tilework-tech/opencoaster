@@ -27,6 +27,7 @@ import {
   pathAdditionSpriteName,
   litterSpriteName,
   scenerySpriteName,
+  shrubSpriteName,
   rideSpriteFrame,
   rideSpriteKey,
   facilityFacingFromPaths,
@@ -1195,7 +1196,9 @@ export class Canvas2DRenderer implements Renderer {
       const sprite =
         definition.sprite === 'flower-bed'
           ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
-          : scenerySpriteName(definition.sprite);
+          : definition.sprite === 'shrub'
+            ? shrubSpriteName(x, y, cam.rotation)
+            : scenerySpriteName(definition.sprite);
       const drewSprite =
         this.atlas &&
         (definition.sprite === 'flower-bed'

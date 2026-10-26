@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
-import { rideSpriteName } from '../../src/render/world-art';
+import { facilitySpriteKey, rideSpriteName } from '../../src/render/world-art';
 import { TRACK_ARTS, artPieces } from '../../src/render/coaster-art';
 import { buildSprites, rideFitScale } from './generate';
 import { alignFrames } from './output';
@@ -46,6 +46,23 @@ describe('generated sprite catalogue', () => {
       if (!key.includes('lamp'))
         expect(new Set(views).size, `${key} distinct camera views`).toBe(4);
     }
+  });
+
+  it('generates four broad shrub variants in every camera view', () => {
+    const variantFrames: string[] = [];
+    for (let variant = 0; variant < 4; variant++)
+      for (let view = 0; view < 4; view++) {
+        const key = `scenery/shrub/variant-${variant}/view-${view}`;
+        const frame = sprites.get(key)?.frames[0];
+        expect(frame, key).toBeDefined();
+        expect(frame!.width, key).toBeGreaterThanOrEqual(28);
+        expect(
+          frame!.pixels.filter((pixel) => pixel !== TRANSPARENT).length,
+          key,
+        ).toBeGreaterThanOrEqual(500);
+        if (view === 0) variantFrames.push(Buffer.from(frame!.pixels).toString('base64'));
+      }
+    expect(new Set(variantFrames).size).toBe(4);
   });
 
   it('anchors every generated directional scenery and path-addition sprite at its ground pivot', () => {
@@ -456,6 +473,27 @@ describe('generated sprite catalogue', () => {
         expect(
           sprites.has(`rides/water/${family}/vehicles/car/flat/heading-${heading}/passengers-0`),
         ).toBe(true);
+  });
+
+  it('renders every placeable stall and facility with a readable native sprite silhouette', () => {
+    const placeables = Object.entries(RIDE_CATALOG).filter(([, definition]) =>
+      ['shop', 'stall', 'facility'].includes(definition.category),
+    );
+    expect(placeables.length).toBeGreaterThan(0);
+
+    for (const [typeText] of placeables) {
+      const type = Number(typeText);
+      for (let facing = 0; facing < 4; facing++)
+        for (let view = 0; view < 4; view++) {
+          const key = facilitySpriteKey(type, facing, view);
+          const sprite = sprites.get(key);
+          expect(sprite, key).toBeDefined();
+          for (const [frameIndex, frame] of sprite!.frames.entries()) {
+            const opaquePixels = frame.pixels.filter((pixel) => pixel !== TRANSPARENT).length;
+            expect(opaquePixels, `${key}, frame ${frameIndex}`).toBeGreaterThanOrEqual(900);
+          }
+        }
+    }
   });
 
   it('renders water track geometry and passenger-dependent boat sprites', () => {

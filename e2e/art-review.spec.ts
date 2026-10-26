@@ -12,7 +12,14 @@ import { pathAdditionPlacements } from '../src/render/ground-anchor';
 interface ReviewItem {
   key: string;
   label: string;
-  kind: 'scenery' | 'ground-bed' | 'path' | 'addition' | 'ride' | 'garden-fixture';
+  kind:
+    | 'scenery'
+    | 'ground-bed'
+    | 'path'
+    | 'addition'
+    | 'ride'
+    | 'background'
+    | 'garden-fixture';
   index?: number;
   type?: number;
   surface?: number;
@@ -51,6 +58,7 @@ const ROTATIONS = [0, 1, 2, 3];
 const CELL_WIDTH = 192;
 const CELL_HEIGHT = 220;
 const CROP = { left: 160, top: 120, width: 320, height: 400 };
+const FACILITY_MIN_VISIBLE_PIXELS = 900;
 const OUTPUT_DIR = resolve(process.env.ART_REVIEW_OUTPUT ?? 'docs/art/review');
 const FLOWERBEDS_ONLY = process.env.ART_REVIEW_FLOWERBEDS_ONLY === '1';
 const test = process.env.ART_REVIEW_CDP
@@ -381,7 +389,7 @@ async function initialise(page: Page): Promise<void> {
               staff: 0,
               vehicles: 0,
               litter: 0,
-              rides: 1,
+              rides: item.kind === 'background' ? 0 : 1,
               tracks: 0,
               mapTiles: 64,
             });
@@ -494,6 +502,19 @@ async function makeCell(
   zoom: number,
   rotation: number,
 ): Promise<Buffer> {
+  const isFacility =
+    item.kind === 'ride' &&
+    ['shop', 'stall', 'facility'].includes(RIDE_CATALOG[item.type ?? 0]?.category ?? '');
+  let background: Buffer | undefined;
+  if (isFacility && zoom === 1) {
+    background = await renderItem(
+      page,
+      { kind: 'background', key: 'background', label: 'Background' },
+      backend,
+      zoom,
+      rotation,
+    );
+  }
   const screenshot = await renderItem(page, item, backend, zoom, rotation);
   if (item.kind === 'ride' && item.type !== undefined && RIDE_CATALOG[item.type]?.usesTrack) {
     await expectCompletedTrackRender(page, item, backend, screenshot);
@@ -501,6 +522,23 @@ async function makeCell(
       const safeName = RIDE_CATALOG[item.type]!.name.toLowerCase().replaceAll(' ', '-');
       await writeFile(join(OUTPUT_DIR, `game-${backend}-${safeName}.png`), screenshot);
     }
+  }
+  if (background) {
+    const before = await sharp(background).raw().toBuffer({ resolveWithObject: true });
+    const after = await sharp(screenshot).raw().toBuffer({ resolveWithObject: true });
+    let visiblePixels = 0;
+    for (let pixel = 0; pixel < before.info.width * before.info.height; pixel++) {
+      const offset = pixel * before.info.channels;
+      if (
+        before.data[offset] !== after.data[offset] ||
+        before.data[offset + 1] !== after.data[offset + 1] ||
+        before.data[offset + 2] !== after.data[offset + 2]
+      )
+        visiblePixels++;
+    }
+    expect(visiblePixels, `${backend} ${item.label} at default zoom`).toBeGreaterThanOrEqual(
+      FACILITY_MIN_VISIBLE_PIXELS,
+    );
   }
   const label = Buffer.from(
     `<svg width="${CELL_WIDTH}" height="${CELL_HEIGHT}"><rect width="100%" height="100%" fill="#f1ecd9"/><text x="8" y="16" font-family="sans-serif" font-size="12" fill="#25261f">${item.label.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</text></svg>`,

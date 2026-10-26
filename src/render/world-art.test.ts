@@ -16,11 +16,20 @@ import {
   rideSpriteFrame,
   rideSpriteKey,
   rideSpriteName,
+  shrubSpriteName,
   waterFrameIndex,
   waterSpriteName,
 } from './world-art';
 
 describe('world art sprite selection', () => {
+  it('selects four stable shrub variants for each camera view', () => {
+    const coordinates = Array.from({ length: 16 }, (_, index) => [index, 0] as const);
+    const names = coordinates.map(([x, y]) => shrubSpriteName(x, y, 2));
+    expect(names).toEqual(coordinates.map(([x, y]) => shrubSpriteName(x, y, 2)));
+    expect(new Set(names).size).toBe(4);
+    for (const name of names) expect(name).toMatch(/^scenery\/shrub\/variant-[0-3]\/view-2$/);
+    expect(shrubSpriteName(5, 7, 3)).toBe(shrubSpriteName(5, 7, 7));
+  });
   it('chooses desert trees on sand and temperate trees on grass', () => {
     expect(ambientTreeName(1, 4, 1)).toBe('tree-cactus');
     expect(ambientTreeName(1, 27, 1)).toBe('tree-palm');
