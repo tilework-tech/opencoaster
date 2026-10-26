@@ -20,6 +20,8 @@ import { CoasterScene } from './coaster-scene';
 import type { CanvasAtlas } from './canvas-atlas';
 import {
   WATER_BANK,
+  flowerBedDepth,
+  flowerBedSpriteName,
   pathElementSprite,
   pathAdditionSpriteName,
   litterSpriteName,
@@ -515,14 +517,29 @@ export class Canvas2DRenderer implements Renderer {
         }
         const centerX = x * TILE_UNITS + TILE_UNITS / 2;
         const centerY = y * TILE_UNITS + TILE_UNITS / 2;
+        const groundFlowerBed = Boolean((snapshot?.grounds[i] ?? 0) & FLOWER_BED);
+        let sceneryFlowerBed = false;
+        const tileScenery = map.sceneryElements;
+        if (tileScenery) {
+          for (let item = this.sceneryOffsets[i]!; item < this.sceneryOffsets[i + 1]!; item++) {
+            const sceneryIndex = this.sceneryIndices[item]!;
+            const definition = SCENERY_CATALOG[tileScenery[sceneryIndex * 5 + 4] ?? -1];
+            if (definition?.sprite === 'flower-bed') {
+              sceneryFlowerBed = true;
+              break;
+            }
+          }
+        }
         if (this.atlas)
           this.enqueue(
             map,
             cam,
             centerX,
             centerY,
-            sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-            2,
+            groundFlowerBed || sceneryFlowerBed
+              ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
+              : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+            groundFlowerBed || sceneryFlowerBed ? flowerBedDepth(2) : 2,
             () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         this.enqueue(map, cam, centerX, centerY, terrainZ, -1, () =>
@@ -537,8 +554,10 @@ export class Canvas2DRenderer implements Renderer {
           cam,
           centerX,
           centerY,
-          sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-          2,
+          sceneryFlowerBed
+            ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
+            : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+          sceneryFlowerBed ? flowerBedDepth(2) : 2,
           () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
@@ -1125,7 +1144,9 @@ export class Canvas2DRenderer implements Renderer {
         drawBoxedSprite(
           ctx,
           this.atlas,
-          scenerySpriteName(definition.sprite),
+          definition.sprite === 'flower-bed'
+            ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
+            : scenerySpriteName(definition.sprite),
           this.tmp[0],
           this.tmp[1],
           box.width,
@@ -1492,7 +1513,7 @@ export class Canvas2DRenderer implements Renderer {
     if (tree) place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
       place(
-        scenerySpriteName('flower-bed'),
+        flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!),
         flowerBedGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation) - z - Z_STEP,
         FLOWER_BED_BOX.width,
         FLOWER_BED_BOX.height,

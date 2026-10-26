@@ -16,7 +16,7 @@ import { ScenerySpotPreview } from '../app/tools/scenery-preview';
 import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
 import { pathAdditionPreviewGhosts } from '../app/tools/path-addition-preview';
 import { FLOWER_BED } from '../sim/staff/grounds';
-import { scenerySpriteName } from './world-art';
+import { flowerBedSpriteName, scenerySpriteName } from './world-art';
 
 class RecordingContext {
   readonly canvas = { width: 1, height: 1 };
@@ -389,7 +389,10 @@ describe('Canvas2D fallback map art', () => {
           map.sceneryElements = Int32Array.of(tileX, tileY, 0, 0, item);
           map.sceneryCount = 1;
           const definition = SCENERY_CATALOG[item]!;
-          const key = scenerySpriteName(definition.sprite);
+          const key =
+            definition.sprite === 'flower-bed'
+              ? flowerBedSpriteName(tileX, tileY, rotation, map.slope[tile]!)
+              : scenerySpriteName(definition.sprite);
           const placed = await renderWithAtlas(map, [key], null, {
             x: 0,
             y: 0,
@@ -494,7 +497,8 @@ describe('Canvas2D fallback map art', () => {
         });
         snapshot.grounds[tile] = FLOWER_BED;
         const ghost = flowerbedPreviewGhost(tileX, tileY, 2, map.slope[tile]!, rotation);
-        const placed = await renderWithAtlas(map, ['scenery/flower-bed'], snapshot, {
+        const key = flowerBedSpriteName(tileX, tileY, rotation, map.slope[tile]!);
+        const placed = await renderWithAtlas(map, [key], snapshot, {
           x: 0,
           y: 0,
           zoom,
@@ -502,7 +506,7 @@ describe('Canvas2D fallback map art', () => {
         });
         const preview = await renderWithAtlas(
           map,
-          ['scenery/flower-bed'],
+          [key],
           null,
           { x: 0, y: 0, zoom, rotation: rotation as 0 | 1 | 2 | 3 },
           [ghost],

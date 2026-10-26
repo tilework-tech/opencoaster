@@ -44,6 +44,8 @@ import { OwnershipOverlay } from './ownership-overlay';
 import type { Rotation } from './projection';
 import {
   pathElementSprite,
+  flowerBedDepth,
+  flowerBedSpriteName,
   pathSpriteName,
   pathAdditionSpriteName,
   litterSpriteName,
@@ -1448,7 +1450,9 @@ export class WebGL2Renderer implements Renderer {
       const z = flowerBedGroundZ(baseHeight, map.slope[index]!, camera.rotation);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
+      const depth = flowerBedDepth(
+        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2,
+      );
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1467,7 +1471,7 @@ export class WebGL2Renderer implements Renderer {
           z - Z_STEP,
           FLOWER_BED_BOX.width,
           FLOWER_BED_BOX.height,
-          scenerySpriteName('flower-bed'),
+          flowerBedSpriteName(x, y, camera.rotation, map.slope[index]!),
           depth,
         );
     }
@@ -1726,8 +1730,10 @@ export class WebGL2Renderer implements Renderer {
         z - sceneryFrameDrop(item),
         box.width,
         spriteHeight,
-        scenerySpriteName(item.sprite),
-        depth,
+        item.sprite === 'flower-bed'
+          ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
+          : scenerySpriteName(item.sprite),
+        item.sprite === 'flower-bed' ? flowerBedDepth(depth) : depth,
       );
     }
   }
