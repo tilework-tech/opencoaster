@@ -21,6 +21,7 @@ Path: @/src/sim/track
 - [geometry.ts](geometry.ts) creates integer-compatible centerline samples for straight, curved, sloped, banked, inverted, and water-drop shapes. The build controls select pieces by shape and compatible entry/exit state.
 - [construction.ts](construction.ts) derives the current tail cursor, validates connection and map geometry, places/removes pieces, and detects circuit completion. Consecutive station pieces are allowed.
 - [track-commands.ts](track-commands.ts) applies ride-family and mode rules, generic geometry validation, rotated footprint water and ownership checks, and funds validation. Successful placement charges construction cost and invalidates the ride's test; removal also invalidates testing. Direct construction helpers do not apply command-only checks or charges.
+- Transport rides share `TRANSPORT_PIECES` from [catalog.ts](catalog.ts): unbanked, noninverted pieces with slopes up to 25 degrees. Railway, monorail, and chairlift curves are buildable and have generated track art; banks, steep slopes, and inversions are filtered from the builder and rejected by simulation rules.
 - [track-path.ts](track-path.ts) assembles the connected piece samples into a world-space path for vehicle simulation. [track-system.ts](track-system.ts) removes track when its ride no longer exists, including after ride demolition.
 
 ### Things to Know
@@ -28,6 +29,7 @@ Path: @/src/sim/track
 - Generic placement checks connection, piece capacity, map bounds, height, terrain/tunnel allowance, and clearance against other track. The command path adds ride type restrictions, ownership, available funds, and open-water checks.
 - Track over open water is allowed only when the ride type declares `allowsWater`; Log Flume and River Rapids are tracked water rides with that capability. Other coasters remain blocked from placing any part of a piece footprint over open water.
 - `WaterLift` is restricted to uphill pieces on water rides, and `ChainLift` is rejected on water rides. Ride-specific piece lists and slope, inversion, launch, and height limits are enforced at the command boundary.
+- The generated [track coverage matrix](../../../docs/art/track-coverage.md) lists every catalog piece against each tracked ride type, including slope and bank transitions, builder restrictions, sprite availability, and the four direction-by-camera-view combinations.
 - Changing track invalidates `tested`, so track rides must pass another vehicle test before opening. A complete circuit also needs a station, and every station tile is considered for entrance/exit placement.
 
 Created and maintained by Nori.

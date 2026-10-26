@@ -6,6 +6,7 @@ import { offsetPoint, pieceFrames, toLevels } from './coaster/frames';
 
 const WATER = material(ramp('blue'));
 const FOAM = material(ramp('foam'));
+const BLUE = material(ramp('blue'));
 const STONE = material(ramp('stone'));
 const WOOD = material(ramp('wood'));
 const TIMBER = material(ramp('timber'));
@@ -23,7 +24,12 @@ export const WATER_CAR_PITCHES = [
   'up90',
 ] as const;
 
-export function waterTrackMesh(piece: TrackPieceDef, splash = false, powered = false): Mesh {
+export function waterTrackMesh(
+  piece: TrackPieceDef,
+  splash = false,
+  powered = false,
+  brake: '' | '+brake' | '+block' = '',
+): Mesh {
   const mesh: Mesh = [];
   const frames = pieceFrames(piece);
   for (let i = 0; i + 1 < frames.length; i++) {
@@ -59,6 +65,18 @@ export function waterTrackMesh(piece: TrackPieceDef, splash = false, powered = f
         ),
       );
     }
+  }
+  if (brake) {
+    const middle = frames[Math.floor(frames.length / 2)]!;
+    mesh.push(
+      ...beam(
+        offsetPoint(middle, -0.15, 0.23),
+        offsetPoint(middle, 0.15, 0.23),
+        0.045,
+        brake === '+block' ? BLUE : RED,
+        0.045,
+      ),
+    );
   }
   return toLevels(mesh);
 }

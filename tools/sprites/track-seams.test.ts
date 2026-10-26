@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { TILE_UNITS, Z_STEP } from '../../src/sim/core/constants';
 import { PIECES, TRANSPORT_PIECES as CATALOG_TRANSPORT_PIECES, pieceByName } from '../../src/sim/track/catalog';
 import { pieceExit } from '../../src/sim/track/construction';
+import { PieceMode } from '../../src/sim/track/track-types';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import { supportOffset, supportStack } from '../../src/render/coaster-art';
+import { trackCellSprites } from '../../src/render/coaster-art';
 import { project } from '../../src/render/projection';
 import type { Rotation } from '../../src/render/projection';
 import { SAMPLES } from '../../src/sim/track/catalog';
@@ -112,6 +114,21 @@ describe('placeable track sprite coverage', () => {
     expect(eligible).not.toContain('mediumLeft');
     expect(eligible).not.toContain('largeRight');
     expect(eligible).not.toContain('largeLeft');
+  });
+
+  it('provides water track art for every builder brake mode', () => {
+    const flat = pieceByName('flat')!;
+    for (const [rideType, family] of [
+      [RideType.LogFlume, 'log-flume'],
+      [RideType.RiverRapids, 'river-rapids'],
+    ] as const) {
+      expect(RIDE_CATALOG[rideType].trackRules?.allowedPieces).toContain(flat.id);
+      for (const mode of [PieceMode.Brake, PieceMode.BlockBrake])
+        for (let direction = 0; direction < 4; direction++)
+          for (let rotation = 0; rotation < 4; rotation++)
+            for (const cell of trackCellSprites(flat.id, direction, rotation, family, mode, 0))
+              expect(lookup.get(cell.key.split('#')[0]!), cell.key).toBeDefined();
+    }
   });
 
   for (const kind of KINDS) {
