@@ -320,7 +320,6 @@ for (const mobile of [false, true]) {
       await expect(page.locator('.tool-status')).toContainText(/Guest moved|Drop refused/i);
       await expect.poll(readGuestPosition).toEqual({ x: nextDrop.x, y: nextDrop.y });
 
-      await toolbarAction(page, 'Guests');
       await guestsPanel.locator(`[data-guest-id="${guest.id}"]`).first().click();
       await expect(guestWindow).toBeVisible();
       await guestWindow.getByRole('tab', { name: 'View' }).click();
