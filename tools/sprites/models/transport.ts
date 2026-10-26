@@ -13,11 +13,12 @@ export const TRANSPORT_STYLES: readonly TransportStyle[] = [
   CHAIRLIFT_STYLE,
 ];
 
+const TRANSPORT_TURNS = new Set(['smallLeft', 'smallRight']);
+
 /**
  * Pieces drawn for transport rides: no inversions, no steep (60 degree) slopes and no banking.
- * The shared atlas is capped at 2048x4096, and banked, turned and looping pieces for all three
- * styles do not fit alongside the existing sprites, so those pieces fall back to the procedural
- * cell.
+ * Small turns are included for normal circuits; larger turns and looping pieces use procedural
+ * fallback cells to keep the shared atlas within its 2048x4096 limit.
  */
 export const TRANSPORT_PIECES: readonly TrackPieceDef[] = PIECES.filter(
   (piece) =>
@@ -26,7 +27,7 @@ export const TRANSPORT_PIECES: readonly TrackPieceDef[] = PIECES.filter(
     piece.entrySlope !== Slope.Down60 &&
     piece.exitSlope !== Slope.Up60 &&
     piece.exitSlope !== Slope.Down60 &&
-    piece.headingDelta === 0 &&
+    (piece.headingDelta === 0 || TRANSPORT_TURNS.has(piece.name)) &&
     piece.entryBank === Bank.None &&
     piece.exitBank === Bank.None,
 );
