@@ -129,10 +129,10 @@ test('toolbar controls preserve the viewport focus through four turns in both di
   const initialRotation = await rotation(page);
 
   await expect(
-    toolbar.getByRole('button', { name: 'Rotate clockwise', exact: true }),
+    toolbar.getByRole('button', { name: 'Rotate right', exact: true }),
   ).toHaveAttribute('title', /Enter|Z/);
   await expect(
-    toolbar.getByRole('button', { name: 'Rotate anticlockwise', exact: true }),
+    toolbar.getByRole('button', { name: 'Rotate left', exact: true }),
   ).toHaveAttribute('title', /Shift\+Enter|X/);
 
   await toolbar.getByRole('button', { name: 'Game options', exact: true }).click();
@@ -148,7 +148,7 @@ test('toolbar controls preserve the viewport focus through four turns in both di
     const worldPoint = await centerWorldPoint(page);
     const startPose = await cameraPose(page);
     for (let turn = 1; turn <= 4; turn++) {
-      await toolbar.getByRole('button', { name: 'Rotate clockwise', exact: true }).click();
+      await toolbar.getByRole('button', { name: 'Rotate right', exact: true }).click();
       await expect.poll(() => rotation(page)).toBe((initialRotation + turn) % 4);
       await expectWorldPointCentered(page, worldPoint);
     }
@@ -158,7 +158,7 @@ test('toolbar controls preserve the viewport focus through four turns in both di
     expect(clockwisePose.x).toBeCloseTo(startPose.x, 10);
     expect(clockwisePose.y).toBeCloseTo(startPose.y, 10);
     for (let turn = 1; turn <= 4; turn++) {
-      await toolbar.getByRole('button', { name: 'Rotate anticlockwise', exact: true }).click();
+      await toolbar.getByRole('button', { name: 'Rotate left', exact: true }).click();
       await expect.poll(() => rotation(page)).toBe((initialRotation - turn + 4) % 4);
       await expectWorldPointCentered(page, worldPoint);
     }
@@ -204,12 +204,12 @@ test('Pixel 8 exposes both rotate controls and rotates both ways with a two-fing
   const actions = toolbar.getByRole('button', { name: 'Actions', exact: true });
   await actions.tap();
   await expect(
-    toolbar.getByRole('button', { name: 'Rotate clockwise', exact: true }),
+    toolbar.getByRole('button', { name: 'Rotate right', exact: true }),
   ).toBeVisible();
   await expect(
-    toolbar.getByRole('button', { name: 'Rotate anticlockwise', exact: true }),
+    toolbar.getByRole('button', { name: 'Rotate left', exact: true }),
   ).toBeVisible();
-  await toolbar.getByRole('button', { name: 'Rotate clockwise', exact: true }).tap();
+  await toolbar.getByRole('button', { name: 'Rotate right', exact: true }).tap();
   await expect.poll(() => rotation(page)).toBe((initialRotation + 1) % 4);
   await expectCenterTile(page, focus);
   await actions.tap();

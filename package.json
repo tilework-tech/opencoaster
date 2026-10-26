@@ -34,7 +34,8 @@
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "smoke": "playwright test --config=playwright.config.ts",
     "smoke:subpath": "pnpm build && playwright test --config=playwright.subpath.config.ts",
-    "e2e": "playwright test --config=playwright.e2e.config.ts"
+    "e2e": "playwright test --config=playwright.e2e.config.ts",
+    "e2e:quick": "playwright test --config=playwright.e2e.config.ts --workers=2 --grep-invert \"@art-review|pixel-8|Pixel 8\" e2e/area-tools e2e/camera-rotation e2e/control-contract e2e/desktop-toolbar e2e/footpath-tool e2e/land-tool e2e/game-speed-controls e2e/message-controls e2e/context-menu"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

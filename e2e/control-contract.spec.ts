@@ -19,8 +19,8 @@ const toolbarActions = [
   'Game options',
   'Zoom out',
   'Zoom in',
-  'Rotate clockwise',
-  'Rotate anticlockwise',
+  'Rotate right',
+  'Rotate left',
   'View options',
   'Map',
   'Clear scenery',
@@ -556,7 +556,7 @@ async function auditToolbar(page: Page, mobile = false): Promise<void> {
       await expect(action).toHaveAttribute('title', /not available/i);
       continue;
     }
-    if (label === 'Rotate clockwise' || label === 'Rotate anticlockwise') {
+    if (label === 'Rotate right' || label === 'Rotate left') {
       const hud = page.locator('.hud');
       const before = (await hud.innerText()).match(/rot (\d+)/)?.[1];
       if (mobile) await action.tap({ timeout: 5_000 });
