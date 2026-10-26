@@ -16,6 +16,10 @@ import { DEFAULT_MAP_SIZE } from '../../sim/core/constants';
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprites, TrackPreviewOverlay } from '../../ui/track-preview';
+import { displayOptionEnabled } from '../../ui/display-options';
+import { TerrainAidOverlay } from '../terrain-aids';
+import type { ConstructionTarget } from '../terrain-aids';
+import { HeightReadoutTip, heightReadoutText } from '../tools/height-readout';
 import type { SpriteGhost } from '../../render/renderer';
 import { ScenerySpotPreview } from '../tools/scenery-preview';
 import { pathAdditionPreviewGhosts } from '../tools/path-addition-preview';
@@ -86,6 +90,7 @@ export async function bootstrap(): Promise<void> {
   let selectedGuest: GuestSelection | null = null;
   let placementHover: PlacementHover | null = null;
   let buildHoverTile: [number, number] | null = null;
+  let buildHoverClient = { x: 0, y: 0 };
   let sceneryRotation = 0;
   let patrolStaffId: number | null = null;
   let patrolPreviewRemove = false;
@@ -103,6 +108,8 @@ export async function bootstrap(): Promise<void> {
     status: (text) => gameUi.setToolStatus(text),
   });
   const trackPreview = new TrackPreviewOverlay(root);
+  const terrainAids = new TerrainAidOverlay(root);
+  const heightReadout = new HeightReadoutTip(root);
   const scenerySpot = new ScenerySpotPreview(root, sim);
   const pathFeedback = new PathFeedback(root);
   const pathTool = new PathTool({
@@ -411,6 +418,7 @@ export async function bootstrap(): Promise<void> {
     setPlacementHover: (hover) => (placementHover = hover),
     setBuildHover: (tile, x, y, shiftKey) => {
       buildHoverTile = tile;
+      buildHoverClient = { x, y };
       buildHoverFeedback.pointAt(x, y);
       patrolPreviewRemove = shiftKey;
       renderer.setPatrolPreview(tile, shiftKey || alternate);
@@ -608,14 +616,46 @@ export async function bootstrap(): Promise<void> {
         : null;
     pathFeedback.setOwnershipWarning(hoverGhost !== null);
     buildHoverFeedback.update(hoverGhost);
+    const trackGhost = sim.map ? coasterPanel.ghost() : null;
     trackPreview.draw(
-      sim.map ? coasterPanel.ghost() : null,
+      trackGhost,
       sim.map ?? { width: 0, height: 0 },
       camera,
       viewport,
       capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
       pathGhost ?? hoverGhost,
     );
+    let construction: ConstructionTarget | null = null;
+    if (displayOptionEnabled('construction-marker')) {
+      if (selectedTool === 'path') construction = pathTool.buildTarget;
+      else if (selectedTool === 'track' && trackGhost)
+        construction = {
+          x: trackGhost.placement.x,
+          y: trackGhost.placement.y,
+          level: trackGhost.level,
+        };
+    }
+    terrainAids.draw({
+      map: sim.map,
+      camera,
+      viewport,
+      pixelRatio: capDevicePixelRatio(window.devicePixelRatio || 1),
+      heightMarks: displayOptionEnabled('height-labels'),
+      construction,
+    });
+    if (buildHoverTile && sim.map)
+      heightReadout.show(
+        heightReadoutText(sim.map, buildHoverTile, {
+          tool: selectedTool,
+          rotation: camera.rotation,
+          landMode: landController.settings.mode,
+          waterLower: areaTools.water.settings.lower || alternate,
+          trackLevel: trackGhost?.level,
+        }),
+        buildHoverClient.x,
+        buildHoverClient.y,
+      );
+    else heightReadout.hide();
     landController.update(now);
     areaTools.clear.update(now);
     areaTools.water.update(now);
@@ -629,6 +669,8 @@ export async function bootstrap(): Promise<void> {
     audio.dispose();
     coasterPanel.dispose();
     trackPreview.dispose();
+    terrainAids.dispose();
+    heightReadout.dispose();
     scenerySpot.dispose();
     pathFeedback.dispose();
     landController.dispose();

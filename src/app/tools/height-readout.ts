@@ -85,3 +85,36 @@ export function heightReadoutText(
   }
   return parts.join(' · ');
 }
+
+const TIP_OFFSET_X = 14;
+const TIP_OFFSET_Y = 40;
+const TIP_HEIGHT = 26;
+
+/** Small tooltip beside the cursor that carries the height readout of the tile under it. */
+export class HeightReadoutTip {
+  private readonly tip: HTMLElement;
+
+  constructor(parent: HTMLElement) {
+    this.tip = document.createElement('div');
+    this.tip.className = 'height-readout';
+    this.tip.setAttribute('aria-hidden', 'true');
+    this.tip.hidden = true;
+    parent.append(this.tip);
+  }
+
+  show(text: string, clientX: number, clientY: number): void {
+    if (this.tip.textContent !== text) this.tip.textContent = text;
+    const below = clientY + TIP_OFFSET_Y + TIP_HEIGHT <= window.innerHeight;
+    this.tip.style.left = `${clientX + TIP_OFFSET_X}px`;
+    this.tip.style.top = `${below ? clientY + TIP_OFFSET_Y : clientY - TIP_OFFSET_Y}px`;
+    this.tip.hidden = false;
+  }
+
+  hide(): void {
+    this.tip.hidden = true;
+  }
+
+  dispose(): void {
+    this.tip.remove();
+  }
+}

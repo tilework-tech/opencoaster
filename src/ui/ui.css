@@ -1722,3 +1722,19 @@
   background: rgb(20 24 20 / 58%);
   filter: blur(2px);
 }
+
+.height-readout {
+  position: fixed;
+  z-index: 45;
+  pointer-events: none;
+  padding: 2px 7px;
+  background: rgba(20, 28, 18, 0.88);
+  border: 1px solid #7da05a;
+  color: #e9f5d6;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.height-readout[hidden] {
+  display: none;
+}

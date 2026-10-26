@@ -656,14 +656,9 @@ export class GameUI {
       const displayPane = win.pane('display');
       displayPane.append(
         element('p', 'ui-help', 'View and display options'),
-        this.optionToggle('Height labels', 'height-labels', undefined, 'Not available yet.'),
+        this.optionToggle('Height labels', 'height-labels'),
         this.optionToggle('Gridlines', 'gridlines'),
-        this.optionToggle(
-          'Construction marker',
-          'construction-marker',
-          undefined,
-          'Not available yet.',
-        ),
+        this.optionToggle('Construction marker', 'construction-marker'),
         this.optionToggle('Performance overlay', 'performance-overlay', (on) =>
           this.parent.classList.toggle('hud-visible', on),
         ),

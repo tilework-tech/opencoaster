@@ -56,6 +56,7 @@ export class PathTool implements FootpathControls {
   private hovered: Tile | null = null;
   private previewSeq = 0;
   private pointer = { clientX: 0, clientY: 0 };
+  private target: { x: number; y: number; level: number } | null = null;
 
   constructor(private readonly deps: PathToolDeps) {
     this.ghost = new PathGhost(deps.overlay);
@@ -65,6 +66,12 @@ export class PathTool implements FootpathControls {
   private hidePreview(): void {
     this.ghost.hide();
     this.deps.renderer.setGhosts([]);
+    this.target = null;
+  }
+
+  /** The tile and height level the last accepted preview piece would be built at, if any. */
+  get buildTarget(): Readonly<{ x: number; y: number; level: number }> | null {
+    return this.target;
   }
 
   get state(): Readonly<PathToolState> {
@@ -290,6 +297,11 @@ export class PathTool implements FootpathControls {
     this.ghost.show(items, map, this.deps.camera, rect, this.pointer, this.labelFor(items));
     const { style, queue } = this.deps.state;
     this.deps.renderer.setGhosts(pathPieceGhosts(items, map, style, queue));
+    const last = items[items.length - 1];
+    this.target =
+      last?.tone === 'ok' && last.piece
+        ? { x: last.tile.x, y: last.tile.y, level: last.piece.z }
+        : null;
   }
 
   /** The label at the cursor: the reason the last tile is refused, or the cost of the buildable ones. */
