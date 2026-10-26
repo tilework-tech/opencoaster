@@ -1,3 +1,4 @@
+import { Z_PIXELS } from '../../render/projection';
 import type { Camera } from '../../render/renderer';
 import { FeedbackDomain } from '../../sim/core/feedback';
 import type { AreaEdit } from '../../sim/map/area-tools';
@@ -12,6 +13,8 @@ import { pickLandSelection } from './land-selection';
 import type { LandSelection } from './land-selection';
 
 const FEEDBACK_MS = 2500;
+const MIN_STEP_PX = 6;
+const MAX_DRAG_STEPS = 8;
 /** Re-asks the worker this often so a preview follows cash, rides and terrain changing under it. */
 const REFRESH_MS = 500;
 
@@ -26,9 +29,16 @@ export interface AreaControllerDependencies {
   active: () => boolean;
 }
 
+interface Drag {
+  selection: LandSelection;
+  /** Pointer height the next vertical step is measured from. */
+  referenceY: number;
+}
+
 /**
  * Drives the Clear scenery or Water tool on the map: previews the square under the cursor with
  * its price, and applies one step on tap. Shift (or the alternate action) lowers water instead.
+ * Dragging the Water tool up or down repeats raise or lower steps on the square it started on.
  */
 export class AreaController {
   settings: AreaToolSettings = { size: 1, lower: false };
@@ -36,6 +46,7 @@ export class AreaController {
   private readonly tip: HTMLElement;
   private readonly domain: FeedbackDomain;
   private selection: LandSelection | null = null;
+  private drag: Drag | null = null;
   private pointer = { x: 0, y: 0 };
   private requestedKey = '';
   private requestedMap: unknown = null;
@@ -62,10 +73,12 @@ export class AreaController {
 
   /** Hover over the map without a button held. */
   hover(clientX: number, clientY: number): void {
+    if (this.drag) return;
     this.point(clientX, clientY);
   }
 
   leave(): void {
+    if (this.drag) return;
     this.selection = null;
     this.deps.sim.clearAreaPreview();
     this.requestedKey = '';
@@ -87,9 +100,34 @@ export class AreaController {
     const verb =
       edit.tool === 'clear' ? 'Clearing scenery' : edit.lower ? 'Lowering water' : 'Raising water';
     this.deps.gameUi.setToolStatus(`${verb} at ${selection.cursorX}, ${selection.cursorY}.`);
-    const { x, y, width, height } = edit;
-    const type = edit.tool === 'clear' ? 'clearScenery' : edit.lower ? 'lowerWater' : 'raiseWater';
-    this.deps.sim.command({ type, x, y, width, height });
+    this.fire(edit);
+  }
+
+  dragStart(clientX: number, clientY: number): void {
+    const selection = this.point(clientX, clientY);
+    if (selection) this.drag = { selection, referenceY: clientY };
+  }
+
+  dragMove(clientX: number, clientY: number): void {
+    const drag = this.drag;
+    if (!drag) return;
+    this.pointer = { x: clientX, y: clientY };
+    const step = Math.max(MIN_STEP_PX, Z_PIXELS * this.deps.camera.zoom);
+    let steps = 0;
+    while (drag.referenceY - clientY >= step && steps < MAX_DRAG_STEPS) {
+      this.fire(this.editWith(drag.selection, false));
+      drag.referenceY -= step;
+      steps++;
+    }
+    while (clientY - drag.referenceY >= step && steps < MAX_DRAG_STEPS) {
+      this.fire(this.editWith(drag.selection, true));
+      drag.referenceY += step;
+      steps++;
+    }
+  }
+
+  dragEnd(): void {
+    this.drag = null;
   }
 
   /** Call once per frame: refreshes the preview, overlay and tooltip. */
@@ -177,5 +215,17 @@ export class AreaController {
     const { x, y, width, height } = selection;
     if (this.deps.tool === 'clear') return { tool: 'clear', x, y, width, height };
     return { tool: 'water', x, y, width, height, lower: this.settings.lower || alternate };
+  }
+
+  /** A water step in the given direction, whatever the Raise or Lower button says. */
+  private editWith(selection: LandSelection, lower: boolean): AreaEdit {
+    const { x, y, width, height } = selection;
+    return { tool: 'water', x, y, width, height, lower };
+  }
+
+  private fire(edit: AreaEdit): void {
+    const { x, y, width, height } = edit;
+    const type = edit.tool === 'clear' ? 'clearScenery' : edit.lower ? 'lowerWater' : 'raiseWater';
+    this.deps.sim.command({ type, x, y, width, height });
   }
 }
