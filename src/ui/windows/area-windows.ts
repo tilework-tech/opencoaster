@@ -24,7 +24,7 @@ const WATER_WINDOW: AreaWindowSpec = {
   id: 'water',
   title: 'Water',
   intro:
-    'Hover to preview; each tap raises the lowest water (or floods dry land) or lowers the highest water by one step.',
+    'Hover to preview the water surface and cost. Tap, or drag up or down, to raise or lower the water one step: it floods wherever the ground lies below the surface and stops at the banks.',
   modes: true,
   apply: (ctx, settings) => ctx.actions.setWater(settings),
 };

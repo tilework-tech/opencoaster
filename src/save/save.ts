@@ -1,3 +1,4 @@
+import { flattenWaterBodies } from '../sim/map/area-tools';
 import { World } from '../sim/core/world';
 import { EntityStore } from '../sim/core/entity-store';
 import type { Schema } from '../sim/core/entity-store';
@@ -23,13 +24,15 @@ import {
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 const PRE_PATH_STYLE_SAVE_VERSION = 16;
 const PATH_STYLE_SAVE_VERSION = 17;
 /** Guests carry campaign vouchers from this version; earlier guests carry none. */
 const VOUCHER_SAVE_VERSION = 18;
 const PRE_TRACKED_WATER_RIDES_SAVE_VERSION = 19;
 const PER_STAFF_PATROL_SAVE_VERSION = 20;
+/** Water is one flat sheet per connected body from this version. */
+const FLAT_WATER_SAVE_VERSION = 21;
 const PREVIOUS_SAVE_VERSION = 15;
 const PRE_V15_SAVE_VERSION = 14;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
@@ -467,6 +470,7 @@ export function deserialize(bytes: Uint8Array): World {
     PATH_STYLE_SAVE_VERSION,
     VOUCHER_SAVE_VERSION,
     PRE_TRACKED_WATER_RIDES_SAVE_VERSION,
+    PER_STAFF_PATROL_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -610,6 +614,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version < VOUCHER_SAVE_VERSION)
     migrateVoucherlessGuests(world, header.stores.guests.count);
   if (header.version < PRE_TRACKED_WATER_RIDES_SAVE_VERSION) migrateFlatWaterRides(world);
+  if (header.version < FLAT_WATER_SAVE_VERSION) flattenWaterBodies(world.map);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION

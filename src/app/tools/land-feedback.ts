@@ -14,6 +14,8 @@ const REFUSAL_TEXT: Record<Exclude<LandResult, LandResult.Ok>, string> = {
   [LandResult.PathInTheWay]: 'Footpath in the way: the ground would not suit it.',
   [LandResult.InsufficientFunds]: 'Not enough cash.',
   [LandResult.InvalidEdit]: 'That land change is not valid.',
+  [LandResult.WaterSpills]: 'Water would spill over the bank: dig a basin or raise the edge.',
+  [LandResult.WaterLevelClash]: 'Water would meet a lake at a higher level.',
 };
 
 export function landRefusalText(result: Exclude<LandResult, LandResult.Ok>): string {

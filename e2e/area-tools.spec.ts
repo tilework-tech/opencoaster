@@ -14,7 +14,6 @@ import {
   point,
   savedWorld,
   startStarterPark,
-  starterWorld,
   toolbarAction,
 } from './support/park';
 import type { Calibration } from './support/park';
@@ -34,7 +33,6 @@ const POND = { x: 27, y: 41 };
 /** Flat unowned grass at level 2 beyond the park fence. */
 const BORDER = { x: 27, y: 49 };
 const OAK_REMOVAL_CENTS = 25;
-const WATER_STEP_CENTS = 250;
 
 interface Setup {
   page: Page;
@@ -179,71 +177,6 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       await expect(page.locator('.tool-status')).toContainText('Clearing scenery at');
       await page.waitForTimeout(1_000);
       expect(await hudCash(page)).toBe(before);
-    });
-
-    test('water raises and lowers the level over the area for the previewed price', async () => {
-      const { page } = setup;
-      const cal = await openAreaTool(page, mobile, 'Water', 'water', POND);
-      const water = page.locator('.ui-window[data-panel="water"]');
-      await press(setup, water, 'Larger tool size');
-      await expect(water.getByRole('status', { name: 'Tool size' })).toHaveText('2×2');
-
-      const target = point(cal, POND.x, POND.y);
-      await hoverUntil(page, target, async () => {
-        await expect(tip(page)).toHaveText(`Raise water: $${(4 * WATER_STEP_CENTS) / 100}.00`, {
-          timeout: 1500,
-        });
-        await expect(overlay(page, 'area-water')).toHaveCount(4, { timeout: 1500 });
-        await expect(overlay(page, 'area-water').first()).toHaveAttribute('data-level', '3', {
-          timeout: 1500,
-        });
-      });
-      await shot(page, 'water-before', mobile);
-
-      let before = await hudCash(page);
-      await tapAt(setup, target);
-      await expect.poll(() => hudCash(page)).toBe(before - 4 * WATER_STEP_CENTS);
-      await hoverUntil(page, target, async () => {
-        await expect(tip(page)).toHaveText(`Raise water: $${(4 * WATER_STEP_CENTS) / 100}.00`, {
-          timeout: 1500,
-        });
-        await expect(overlay(page, 'area-water').first()).toHaveAttribute('data-level', '4', {
-          timeout: 1500,
-        });
-      });
-      await shot(page, 'water-after', mobile);
-
-      const flooded = (await savedWorld(page)).map;
-      const reference = starterWorld().map;
-      for (const [x, y] of [
-        [POND.x, POND.y],
-        [POND.x + 1, POND.y],
-        [POND.x, POND.y + 1],
-        [POND.x + 1, POND.y + 1],
-      ])
-        expect(flooded.waterLevel[flooded.index(x, y)]).toBe(
-          reference.heights[reference.index(x, y)] + 1,
-        );
-
-      await toolbarAction(page, 'Water');
-      await press(setup, water, 'Larger tool size');
-      await expect(water.getByRole('status', { name: 'Tool size' })).toHaveText('2×2');
-      await press(setup, water, 'Lower');
-      await expect(water.getByRole('button', { name: 'Lower', exact: true })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      );
-      await hoverUntil(page, target, async () => {
-        await expect(tip(page)).toHaveText(`Lower water: $${(4 * WATER_STEP_CENTS) / 100}.00`, {
-          timeout: 1500,
-        });
-      });
-      before = await hudCash(page);
-      await tapAt(setup, target);
-      await expect.poll(() => hudCash(page)).toBe(before - 4 * WATER_STEP_CENTS);
-      const drained = (await savedWorld(page)).map;
-      const i = drained.index(POND.x, POND.y);
-      expect(drained.waterLevel[i]).toBeLessThanOrEqual(drained.heights[i]);
     });
 
     test('water refuses to cover a footpath', async () => {
