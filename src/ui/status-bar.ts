@@ -95,6 +95,7 @@ export class StatusBar {
       String(snapshot.scenario.parkRating),
     );
     setText(this.date, formatDate(snapshot.tick));
+    this.date.dataset.tick = String(snapshot.tick);
     if (snapshot.weather.kind !== this.weatherKind) {
       this.weatherKind = snapshot.weather.kind;
       const [name, label] = WEATHER[snapshot.weather.kind] ?? WEATHER[0];

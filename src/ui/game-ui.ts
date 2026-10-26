@@ -8,9 +8,11 @@ import { NewsTracker } from './news';
 import type { NewsItem } from './news';
 import { objectiveLines } from './objective';
 import { StatusBar } from './status-bar';
-import { effectiveGameSpeed } from './window-layout';
+import { BUILD_SPEED_CAP, effectiveGameSpeed } from './window-layout';
 import { Toolbar } from './toolbar';
-import type { ToolbarButton } from './toolbar';
+import type { ToolbarItem } from './toolbar';
+import { GAME_SPEEDS } from './settings';
+import type { GameSpeed } from './settings';
 import { STAFF_KIND_NAMES } from './staff-roster';
 import type {
   GameUIActions,
@@ -42,6 +44,11 @@ import type { KeyLike } from './shortcuts';
 export type { FootpathControls, GameUIActions, GuestSelection, ToolMode } from './ui-types';
 export { guestDetailsText, guestSelectionText } from './windows/guest-window';
 export type { GuestDetails } from './windows/guest-window';
+
+/** Speed as shown to the player, e.g. "4× (2× while building)". */
+function speedLabel(speed: GameSpeed): string {
+  return speed > BUILD_SPEED_CAP ? `${speed}× (${BUILD_SPEED_CAP}× while building)` : `${speed}×`;
+}
 
 export interface RideOption {
   value: string;
@@ -114,7 +121,12 @@ export class GameUI {
   private tool: ToolMode = 'select';
   private patrolKind: number | null = null;
   private selectedGuest: GuestSelection | null = null;
+  /** The speed the player chose. The sim runs at `speed`, which building can cap lower. */
+  private requestedSpeed: GameSpeed = 1;
   private speed = 1;
+  private readonly speedGroup: HTMLElement;
+  private readonly speedButtons = new Map<number, HTMLButtonElement>();
+  private readonly speedNote: HTMLElement;
 
   constructor(
     private readonly parent: HTMLElement,
@@ -149,8 +161,27 @@ export class GameUI {
     this.weatherOverlay.setAttribute('aria-hidden', 'true');
 
     const open = (id: string) => () => this.toggleWindow(id);
-    const left: ToolbarButton[] = [
+    this.speedGroup = element('div', 'toolbar-speed');
+    this.speedGroup.setAttribute('role', 'group');
+    this.speedGroup.setAttribute('aria-label', 'Game speed');
+    this.speedNote = element(
+      'span',
+      'toolbar-speed-note',
+      `Max ${BUILD_SPEED_CAP}× while building`,
+    );
+    for (const speed of GAME_SPEEDS) {
+      const b = element('button', 'toolbar-button toolbar-speed-button', `${speed}×`);
+      b.type = 'button';
+      b.title = `Game speed ${speedLabel(speed)} (key ${speed})`;
+      b.setAttribute('aria-label', `Game speed ${speed}×`);
+      b.addEventListener('click', () => this.setSpeed(speed));
+      this.speedButtons.set(speed, b);
+      this.speedGroup.append(b);
+    }
+    this.speedGroup.append(this.speedNote);
+    const left: ToolbarItem[] = [
       { id: 'pause', icon: 'pause', label: 'Pause', onClick: () => this.togglePause() },
+      { id: 'speed', control: this.speedGroup },
       { id: 'options', icon: 'options', label: 'Game options', onClick: open('options') },
       { id: 'zoom-out', icon: 'zoomOut', label: 'Zoom out', onClick: () => actions.zoom(-1) },
       { id: 'zoom-in', icon: 'zoomIn', label: 'Zoom in', onClick: () => actions.zoom(1) },
@@ -173,7 +204,7 @@ export class GameUI {
       { id: 'view', icon: 'view', label: 'View options', onClick: open('view') },
       { id: 'map', icon: 'map', label: 'Map', onClick: open('map') },
     ];
-    const right: ToolbarButton[] = [
+    const right: ToolbarItem[] = [
       { id: 'clear', icon: 'demolish', label: 'Clear scenery', onClick: open('clear') },
       { id: 'land', icon: 'land', label: 'Land', onClick: open('land') },
       { id: 'water', icon: 'water', label: 'Water', onClick: open('water') },
@@ -292,8 +323,42 @@ export class GameUI {
     this.toolbar.relabel('pause', paused ? 'Resume' : 'Pause', icon(paused ? 'play' : 'pause'));
   }
 
-  syncSpeed(speed: number): void {
+  /** Shows the speed restored from settings without sending it. */
+  syncSpeed(speed: GameSpeed): void {
+    this.requestedSpeed = speed;
     this.speed = speed;
+    this.syncSpeedControls();
+  }
+
+  /** Sets the speed the player asked for. Choosing a speed while paused also resumes the sim. */
+  setSpeed(requested: GameSpeed): void {
+    this.requestedSpeed = requested;
+    if (this.paused) this.togglePause();
+    this.applySpeed();
+  }
+
+  private stepSpeed(direction: 1 | -1): void {
+    const index = GAME_SPEEDS.indexOf(this.requestedSpeed);
+    const next = Math.max(0, Math.min(GAME_SPEEDS.length - 1, index + direction));
+    this.setSpeed(GAME_SPEEDS[next]);
+  }
+
+  /** Applies the requested speed, capped while track is being built, and refreshes every speed control. */
+  private applySpeed(): void {
+    const effective = effectiveGameSpeed(this.requestedSpeed, this.tool === 'track');
+    if (effective !== this.speed) {
+      this.speed = effective;
+      this.actions.setSpeed(effective);
+    }
+    this.syncSpeedControls();
+  }
+
+  private syncSpeedControls(): void {
+    const capped = this.requestedSpeed !== this.speed;
+    this.speedGroup.classList.toggle('capped', capped);
+    this.speedNote.hidden = !capped;
+    for (const [speed, b] of this.speedButtons)
+      b.setAttribute('aria-pressed', String(speed === this.speed));
   }
 
   syncRotation(rotation: number): void {
@@ -317,6 +382,12 @@ export class GameUI {
       case 'pause':
         this.togglePause();
         this.setToolStatus(this.paused ? 'Simulation paused.' : 'Simulation resumed.');
+        return true;
+      case 'speed':
+        this.setSpeed(action.speed as GameSpeed);
+        return true;
+      case 'speedStep':
+        this.stepSpeed(action.direction);
         return true;
       case 'rotate':
         this.actions.rotate(action.direction);
@@ -532,15 +603,8 @@ export class GameUI {
         element('p', 'ui-help', 'Game speed'),
       );
       const row = element('div', 'button-row');
-      for (const speed of [1, 2, 4]) {
-        const b = button(
-          `${speed}×`,
-          () => {
-            this.speed = effectiveGameSpeed(speed, this.tool === 'track');
-            this.actions.setSpeed(this.speed);
-          },
-          'ui-button',
-        );
+      for (const speed of GAME_SPEEDS) {
+        const b = button(speedLabel(speed), () => this.setSpeed(speed), 'ui-button');
         speeds.set(speed, b);
         row.append(b);
       }
@@ -583,6 +647,11 @@ export class GameUI {
           'Esc cancels a tool · Enter / Z rotate clockwise · Shift+Enter / X rotate anticlockwise · Ctrl+S saves a screenshot.',
         ),
         element('p', 'ui-help', 'Page Up / Page Down zoom · Backspace closes a window.'),
+        element(
+          'p',
+          'ui-help',
+          'Space pauses or resumes · 1 / 2 / 4 set game speed · + / - go faster or slower.',
+        ),
       );
     }
     return {
@@ -659,11 +728,7 @@ export class GameUI {
   private chooseTool(tool: ToolMode): void {
     this.tool = tool;
     this.actions.setTool(tool);
-    const effectiveSpeed = effectiveGameSpeed(this.speed, tool === 'track');
-    if (effectiveSpeed !== this.speed) {
-      this.speed = effectiveSpeed;
-      this.actions.setSpeed(effectiveSpeed);
-    }
+    this.applySpeed();
     this.status.textContent =
       tool === 'select'
         ? 'Select a guest or tile. Drag to pan; Page Up/Down or pinch to zoom.'
