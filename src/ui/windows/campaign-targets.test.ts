@@ -28,7 +28,7 @@ describe('campaign target choices', () => {
 
   it('offers rides but not shops or facilities for ride campaigns', () => {
     expect(targetOptions(snapshot, isPromotableRide)).toEqual([
-      { id: 3, name: 'Merry-Go-Round #3' },
+      { id: 3, name: 'Merry-Go-Round 4' },
     ]);
   });
 

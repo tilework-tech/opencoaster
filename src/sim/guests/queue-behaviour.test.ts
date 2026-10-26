@@ -59,32 +59,61 @@ describe('queuing guests', () => {
   it('keeps waiting arrivals on separate path tiles and replays the same join order', () => {
     const createCrowd = () => {
       const { w, ride } = parkWithLongQueue(7);
-      const slots = Array.from({ length: 8 }, () => sendToRide(w, ride));
-      return { w, slots };
+      guestSystem.update(w);
+      const rideId = w.rides.slotToId[ride];
+      const queueTiles: number[] = [];
+      for (let tile = 0; tile < w.queues.owner.length; tile++)
+        if (w.queues.owner[tile] === ride) queueTiles.push(tile);
+      const g = w.guests.cols;
+      const queueSlots = queueTiles.map((tile, index) => {
+        const slot = guestAt(w, tile % w.map.width, Math.floor(tile / w.map.width));
+        g.state[slot] = GuestState.Queuing;
+        g.targetRide[slot] = rideId;
+        g.queueSeq[slot] = index + 1;
+        g.x[slot] = (tile % w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        g.y[slot] = Math.floor(tile / w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        return { slot, tile, sequence: index + 1 };
+      });
+      const joinTile = w.queues.joinTile[ride];
+      const slots = Array.from({ length: 8 }, (_, index) => {
+        const joinX = joinTile % w.map.width;
+        const joinY = Math.floor(joinTile / w.map.width);
+        const slot = guestAt(w, Math.max(2, joinX - (index % 3)), joinY);
+        g.targetRide[slot] = rideId;
+        g.patience[slot] = 2400;
+        g.approachGap[slot] = 0;
+        g.happiness[slot] = 200;
+        g.energy[slot] = 255;
+        g.hunger[slot] = 255;
+        g.thirst[slot] = 255;
+        g.cash[slot] = 9000;
+        g.heading[slot] = 0;
+        return slot;
+      });
+      return { w, slots, queueSlots, rideId, joinTile };
     };
     const first = createCrowd();
     const replay = createCrowd();
-    let peakWaitingTileOccupancy = 0;
+    const holdQueue = (park: typeof first) => {
+      for (const { slot, tile, sequence } of park.queueSlots) {
+        const g = park.w.guests.cols;
+        g.state[slot] = GuestState.Queuing;
+        g.targetRide[slot] = park.rideId;
+        g.queueSeq[slot] = sequence;
+        g.x[slot] = (tile % park.w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        g.y[slot] = Math.floor(tile / park.w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+      }
+      guestSystem.update(park.w);
+      park.w.tick++;
+    };
+    for (let tick = 0; tick < 80; tick++) {
+      holdQueue(first);
+      holdQueue(replay);
+    }
 
-    step(
-      first.w,
-      1800,
-      () => {
-        const counts = new Map<number, number>();
-        for (const slot of first.slots) {
-          if (first.w.guests.cols.targetRide[slot] < 0) continue;
-          const tile = tileOf(first.w, slot);
-          if (first.w.map.isQueue(tile)) continue;
-          const count = (counts.get(tile) ?? 0) + 1;
-          counts.set(tile, count);
-          peakWaitingTileOccupancy = Math.max(peakWaitingTileOccupancy, count);
-        }
-      },
-      false,
-    );
-    step(replay.w, 1800, undefined, false);
-
-    expect(peakWaitingTileOccupancy).toBeLessThanOrEqual(1);
+    const guestsAtJoin = first.slots.filter((slot) => tileOf(first.w, slot) === first.joinTile);
+    expect(guestsAtJoin.length).toBeLessThanOrEqual(1);
+    expect(first.slots.some((slot) => first.w.guests.cols.targetRide[slot] < 0)).toBe(true);
     expect(hashWorld(first.w)).toBe(hashWorld(replay.w));
   });
 

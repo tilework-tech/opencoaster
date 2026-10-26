@@ -56,7 +56,7 @@ export class NewsTracker {
       const state = snapshot.rideInfo[o + RideInfo.State];
       seen.set(id, state);
       if (!this.primed) continue;
-      const name = `${RIDE_CATALOG[snapshot.rideInfo[o + RideInfo.Type] as keyof typeof RIDE_CATALOG]?.name ?? 'Ride'} #${id}`;
+      const name = `${RIDE_CATALOG[snapshot.rideInfo[o + RideInfo.Type] as keyof typeof RIDE_CATALOG]?.name ?? 'Ride'} ${id + 1}`;
       const target = {
         rideId: id,
         x: snapshot.rideInfo[o + RideInfo.RideX],

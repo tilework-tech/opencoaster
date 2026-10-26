@@ -23,7 +23,7 @@ export function rosterEntries(snapshot: Snapshot | null): RosterEntry[] {
     const id = snapshot.staffIds[slot];
     const kind = snapshot.staff.data[slot * SNAPSHOT_STRIDE + 3] & 0xff;
     const role = STAFF_KIND_NAMES[kind] ?? 'Staff';
-    entries.push({ id, kind, name: snapshot.staffNames.get(id) ?? `${role} ${id}`, role });
+    entries.push({ id, kind, name: snapshot.staffNames.get(id) ?? `${role} ${id + 1}`, role });
   }
   return entries;
 }

@@ -435,7 +435,7 @@ export class CoasterPanel {
     const key = rides.map((ride) => `${ride.id}:${ride.def.name}`).join('|');
     if (key !== this.rides.map((ride) => `${ride.id}:${ride.def.name}`).join('|')) {
       this.rideSelect.replaceChildren(
-        ...rides.map((ride) => new Option(`${ride.def.name} #${ride.id}`, String(ride.id))),
+        ...rides.map((ride) => new Option(`${ride.def.name} ${ride.id + 1}`, String(ride.id))),
       );
     }
     const created = this.awaitingCreate
@@ -543,7 +543,7 @@ export class CoasterPanel {
       ? `Excitement ${rating(info[o + RideInfo.Excitement])}\nIntensity  ${rating(info[o + RideInfo.Intensity])}\nNausea     ${rating(info[o + RideInfo.Nausea])}`
       : 'Ratings: run a test';
     return [
-      `${ride.def.name} #${ride.id} · ${state}, ${PHASE_NAMES[info[o + RideInfo.Phase]] ?? ''}`,
+      `${ride.def.name} ${ride.id + 1} · ${state}, ${PHASE_NAMES[info[o + RideInfo.Phase]] ?? ''}`,
       `Track ${info[o + RideInfo.TrackPieces]} pieces, ${flags & RideFlag.CircuitClosed ? 'closed circuit' : 'open'}`,
       `Entrance ${flags & RideFlag.EntrancePlaced ? 'yes' : 'no'} · Exit ${flags & RideFlag.ExitPlaced ? 'yes' : 'no'} · Queue ${flags & RideFlag.QueueConnected ? 'linked' : 'not linked'}`,
       `Waiting ${info[o + RideInfo.QueueLength]} · Served ${info[o + RideInfo.GuestsServed]}`,

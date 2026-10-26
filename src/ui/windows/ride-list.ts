@@ -100,7 +100,7 @@ export function openRideList(ctx: UiContext): WindowController {
             nodes = { item, name, meta };
             rendered.set(row.id, nodes);
           }
-          setText(nodes.name, `${row.name} #${row.id}`);
+          setText(nodes.name, `${row.name} ${row.id + 1}`);
           setText(nodes.meta, `${row.state} · queue ${row.queue} · ${formatMoney(row.price)}`);
           const atIndex = list.children[index] ?? null;
           if (atIndex !== nodes.item) list.insertBefore(nodes.item, atIndex);

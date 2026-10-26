@@ -281,7 +281,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
     .locator('.ride-checklist')
     .getByRole('button', { name: 'Build queue' })
     .click();
-  await page.getByRole('button', { name: `Close Ride #${coasterId}` }).click();
+  await page.getByRole('button', { name: `Close Ride ${coasterId + 1}` }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   const closeConstruction = page.getByRole('button', { name: 'Close Ride construction' });
   if ((await closeConstruction.count()) > 0) await closeConstruction.click();
@@ -296,7 +296,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
     .getByRole('button', { name: 'Place exit' })
     .click();
   await expect(page.locator('.tool-status')).toContainText('Place exit');
-  await page.getByRole('button', { name: `Close Ride #${coasterId}` }).click();
+  await page.getByRole('button', { name: `Close Ride ${coasterId + 1}` }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   const invalidExit = page.getByRole('button', { name: /Exit unavailable at tile/ }).first();
   await expect(invalidExit).toBeVisible();

@@ -489,7 +489,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
     await expect(rideWindow).toBeVisible();
     if (rideId === 0) {
       await page
-        .getByRole('button', { name: `Close Ride #${rideId}` })
+        .getByRole('button', { name: `Close Ride ${rideId + 1}` })
         .evaluate((button) => button.click());
       await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
       await toolbarAction(page, 'Zoom out', false);
@@ -516,7 +516,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
     const dialogPromise = page.waitForEvent('dialog');
     const clickPromise = demolish.click();
     const dialog = await dialogPromise;
-    expect(dialog.message()).toContain(`Demolish ${name} #${rideId}?`);
+    expect(dialog.message()).toContain(`Demolish ${name} ${rideId + 1}?`);
     expect(dialog.message()).toMatch(/refund: \$(?!0\.00)[\d,]+\.\d{2}/i);
     await dialog.accept();
     await clickPromise;

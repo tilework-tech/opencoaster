@@ -1594,12 +1594,12 @@ export class Canvas2DRenderer implements Renderer {
           litterSpriteName(kind, cam.rotation),
           this.tmp[0],
           this.tmp[1],
-          14,
-          8,
+          6,
+          3,
         )
       ) {
         ctx.fillStyle = kind === 1 ? '#9fc35b' : '#6b4f2a';
-        ctx.fillRect(this.tmp[0] - 2, this.tmp[1] - 2, 4, 4);
+        ctx.fillRect(this.tmp[0] - 2, this.tmp[1] - 1, 4, 2);
       }
       this.visibleCount++;
     }

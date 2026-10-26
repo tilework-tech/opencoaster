@@ -44,7 +44,7 @@ export function targetOptions(
     const o = i * RIDE_INFO_STRIDE;
     const id = snapshot.rideInfo[o + RideInfo.Id];
     const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
-    if (eligible(type)) options.push({ id, name: `${RIDE_CATALOG[type].name} #${id}` });
+    if (eligible(type)) options.push({ id, name: `${RIDE_CATALOG[type].name} ${id + 1}` });
   }
   return options;
 }

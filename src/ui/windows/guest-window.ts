@@ -165,9 +165,9 @@ function rideName(snapshot: Snapshot, id: number): string {
     const offset = i * RIDE_INFO_STRIDE;
     if (snapshot.rideInfo[offset + RideInfo.Id] !== id) continue;
     const type = snapshot.rideInfo[offset + RideInfo.Type];
-    return `${RIDE_CATALOG[type as keyof typeof RIDE_CATALOG]?.name ?? 'Ride'} #${id}`;
+    return `${RIDE_CATALOG[type as keyof typeof RIDE_CATALOG]?.name ?? 'Ride'} ${id + 1}`;
   }
-  return `Ride #${id}`;
+  return `Ride ${id + 1}`;
 }
 
 /** Park-wide guest list and summaries, with filters by thought, location and ride. */
@@ -220,7 +220,7 @@ export function openGuestWindow(ctx: UiContext): WindowController {
         for (const [key, label] of locations) options.push([`location:${key}`, label]);
       } else if (tab === 'ride') {
         const ids = new Set(rows.flatMap((row) => row.rideIds).filter((id) => id > 0));
-        for (const id of ids) options.push([`ride:${id}`, rideNames.get(id) ?? `Ride #${id}`]);
+        for (const id of ids) options.push([`ride:${id}`, rideNames.get(id) ?? `Ride ${id + 1}`]);
       }
       const optionSignature = options.map(([value, label]) => `${value}:${label}`).join('|');
       if (optionSignatures.get(tab) !== optionSignature) {
