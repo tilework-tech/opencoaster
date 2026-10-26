@@ -355,7 +355,7 @@ test('coaster circuit tiles keep world ownership beside path and stall in every 
     }
     const grid = document.createElement('main');
     grid.style.cssText =
-      'display:grid;grid-template-columns:repeat(4,450px);gap:8px;padding:12px;background:#182312;color:white;font:14px sans-serif';
+      'display:grid;grid-template-columns:repeat(2,450px);gap:8px;padding:12px;background:#182312;color:white;font:14px sans-serif';
     document.body.replaceChildren(grid);
     const scene = new CoasterScene();
     const checked: string[] = [];
