@@ -265,6 +265,17 @@ async function playStarterRideAccess(
       }),
     )
     .toBeGreaterThan(100);
+  const clipped = await flatWindow.locator('.ride-preview').evaluate((canvas) => {
+    const preview = canvas as HTMLCanvasElement;
+    const context = preview.getContext('2d')!;
+    const { data } = context.getImageData(0, 0, preview.width, preview.height);
+    const rowOpaque = (row: number) =>
+      Array.from({ length: preview.width }, (_, x) => data[(row * preview.width + x) * 4 + 3]).some(
+        (alpha) => alpha !== 0,
+      );
+    return rowOpaque(0) || rowOpaque(preview.height - 1);
+  });
+  expect(clipped, 'the ride preview is not cut off at its top or bottom edge').toBe(false);
   await expect(flatWindow.locator('.ride-status')).toHaveText('Closed');
   await flatWindow.getByRole('button', { name: 'Open' }).click();
   await expect(flatWindow.locator('.ride-status')).toHaveText('Open');

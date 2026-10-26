@@ -18,6 +18,9 @@ import {
 } from '../../render/world-art';
 import { isSlicedRide } from '../../render/ride-scene';
 
+/** Largest magnification of a small sprite (a station hut, a stall) in the preview. */
+const PREVIEW_MAX_SCALE = 3;
+
 export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
   { id: 'main', label: 'View', icon: 'rides' },
   { id: 'vehicle', label: 'Description', icon: 'coaster' },
@@ -261,48 +264,28 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         previewContext.save();
         previewContext.translate(preview.width / 2, preview.height / 2);
         const rotation = ctx.actions.camera().rotation;
-        if (isSlicedRide(type as keyof typeof RIDE_CATALOG)) {
-          const key = ridePreviewSpriteKey(
-            type as keyof typeof RIDE_CATALOG,
-            info[o + RideInfo.Dir],
-            rotation,
+        const rideType = type as keyof typeof RIDE_CATALOG;
+        const key = isSlicedRide(rideType)
+          ? ridePreviewSpriteKey(rideType, info[o + RideInfo.Dir], rotation)
+          : def.category === 'coaster'
+            ? rideHutSpriteKey(rideType, 'entrance', 1, rotation)
+            : rideSpriteKey(rideType, rotation);
+        const entry = spritePages.resolve(key);
+        const size = entry?.frames[0];
+        if (entry && size) {
+          const scale = Math.min(
+            (preview.width - 16) / size.width,
+            (preview.height - 12) / size.height,
+            PREVIEW_MAX_SCALE,
           );
-          const frame = spritePages.resolve(key);
-          if (frame) {
-            const scale = Math.min(
-              (preview.width - 16) / frame.frames[0]!.width,
-              (preview.height - 12) / frame.frames[0]!.height,
-            );
-            previewContext.scale(scale, scale);
-          }
+          previewContext.scale(scale, scale);
           drawAnchoredSprite(
             previewContext,
             spritePages,
             key,
-            0,
-            frame
-              ? (preview.height * 0.45) /
-                  Math.min(
-                    (preview.width - 16) / frame.frames[0]!.width,
-                    (preview.height - 12) / frame.frames[0]!.height,
-                  )
-              : 0,
-            rideSpriteFrame(state, snapshot.tick, frame?.frames.length ?? 1),
-          );
-        } else {
-          previewContext.scale(1.5, 1.5);
-          const key =
-            def.category === 'coaster'
-              ? rideHutSpriteKey(type as keyof typeof RIDE_CATALOG, 'entrance', 1, rotation)
-              : rideSpriteKey(type as keyof typeof RIDE_CATALOG, rotation);
-          const frame = spritePages.resolve(key);
-          drawAnchoredSprite(
-            previewContext,
-            spritePages,
-            key,
-            0,
-            0,
-            rideSpriteFrame(state, snapshot.tick, frame?.frames.length ?? 1),
+            entry.anchor.x - size.width / 2,
+            entry.anchor.y - size.height / 2,
+            rideSpriteFrame(state, snapshot.tick, entry.frames.length),
           );
         }
         previewContext.restore();
