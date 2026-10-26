@@ -160,9 +160,11 @@ export class SpritePages {
     const images = await Promise.all(
       pages.map(async (page) => {
         const info = manifest.pages[page];
-        const colour = this.source.image(`${this.baseUrl}${info.file}`);
-        const heights = this.source.image(`${this.baseUrl}${info.depthFile}`);
-        return [page, await colour, await heights] as const;
+        const [colour, heights] = await Promise.all([
+          this.source.image(`${this.baseUrl}${info.file}`),
+          this.source.image(`${this.baseUrl}${info.depthFile}`),
+        ]);
+        return [page, colour, heights] as const;
       }),
     );
     for (const [page, image, heights] of images) {
