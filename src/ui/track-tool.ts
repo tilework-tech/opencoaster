@@ -55,10 +55,11 @@ export function resolvePiece(
   return PIECES.find(
     (piece, index) =>
       (!allowedPieces || allowedPieces.includes(piece.id)) &&
-      (rules?.steepSlopes ||
+      (!rules ||
+        rules.steepSlopes ||
         (Math.abs(piece.entrySlope) !== Math.abs(Slope.Up60) &&
           Math.abs(piece.exitSlope) !== Math.abs(Slope.Up60))) &&
-      (rules?.inversions || !(piece.flags & PieceFlag.Inverted)) &&
+      (!rules || rules.inversions || !(piece.flags & PieceFlag.Inverted)) &&
       PIECE_TURNS[index] === choice.turn &&
       piece.exitSlope === choice.slope &&
       piece.exitBank === choice.bank &&
