@@ -254,7 +254,6 @@ for (const mobile of [false, true]) {
       const pickUpGuest = guestWindow.getByRole('button', { name: 'Pick up' });
       await pickUpGuest.scrollIntoViewIfNeeded();
       await pickUpGuest.click();
-      await guestWindow.getByRole('button', { name: /Close/ }).click();
       const nextDrop = await page.evaluate(async (guestPosition) => {
         const { project, pickTile } = await import('/src/render/projection.ts');
         const { TILE_UNITS, Z_STEP } = await import('/src/sim/core/constants.ts');
@@ -320,9 +319,6 @@ for (const mobile of [false, true]) {
       await expect(page.locator('.tool-status')).toContainText(/Guest moved|Drop refused/i);
       await expect.poll(readGuestPosition).toEqual({ x: nextDrop.x, y: nextDrop.y });
 
-      await guestsPanel.locator(`[data-guest-id="${guest.id}"]`).first().click();
-      await expect(guestWindow).toBeVisible();
-      await guestWindow.getByRole('tab', { name: 'View' }).click();
       const pickUpGuestAgain = guestWindow.getByRole('button', { name: 'Pick up' });
       await pickUpGuestAgain.scrollIntoViewIfNeeded();
       await pickUpGuestAgain.click();
