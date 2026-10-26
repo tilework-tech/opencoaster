@@ -3,7 +3,7 @@ import { TILE_UNITS } from '../core/constants';
 import {
   isPathElementBroken,
   PATH_ADDITION_BROKEN,
-  PATH_BOARDING_MARKS,
+  PATH_KEPT_BITS,
   PathFlag,
 } from '../map/tile-map';
 
@@ -63,7 +63,7 @@ export function dropLitter(w: World, x: number, y: number, kind: LitterKind): bo
         const value = (corners >> shift) & 3;
         if (value > 0 && w.rng.int(8) === 0) corners -= 1 << shift;
       }
-      w.map.elData[element] = brokenBit | corners | (w.map.elData[element] & PATH_BOARDING_MARKS);
+      w.map.elData[element] = brokenBit | corners | (w.map.elData[element] & PATH_KEPT_BITS);
       return true;
     }
   }

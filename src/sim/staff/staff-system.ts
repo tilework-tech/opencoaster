@@ -12,7 +12,7 @@ import {
   DIR_DY,
   ElementType,
   isPathElementBroken,
-  PATH_BOARDING_MARKS,
+  PATH_KEPT_BITS,
   PathFlag,
 } from '../map/tile-map';
 import { RideState } from '../rides/ride-store';
@@ -288,7 +288,7 @@ export function createStaffSystem(): System {
             if (x === staff.targetX[slot] && y === staff.targetY[slot]) {
               const element = map.pathElement(bin, -1);
               if (element >= 0 && !isPathElementBroken(map, element))
-                map.elData[element] = 0xff | (map.elData[element] & PATH_BOARDING_MARKS);
+                map.elData[element] = 0xff | (map.elData[element] & PATH_KEPT_BITS);
             }
             continue;
           }

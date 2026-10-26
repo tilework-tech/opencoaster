@@ -11,6 +11,7 @@ import {
   planPathPlacement,
   queueLinks,
   removePath,
+  withDragLinks,
   setPathAddition,
   type PathAddition,
   type PathPlacement,
@@ -259,7 +260,7 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       applyPathPlacement(w, c);
       break;
     case 'placePathRun':
-      for (const placement of c.placements) applyPathPlacement(w, placement);
+      for (const placement of withDragLinks(c.placements)) applyPathPlacement(w, placement);
       break;
     case 'removePath':
       if (removePath(m, c)) post(w.economy, LedgerCategory.Landscaping, PATH_REFUND_CENTS);
@@ -337,7 +338,7 @@ export interface PathPiecePreview {
 export function previewPathRun(w: World, placements: readonly PathPlacement[]): PathPiecePreview[] {
   const m = w.map.clone();
   let cash = w.economy.cash;
-  const plans = placements.map((p) => {
+  const plans = withDragLinks(placements).map((p) => {
     const plan = planPathPlacement(m, p);
     if (plan.result !== PathResult.Ok) return plan;
     if (cash < PATH_COST_CENTS) return { ...plan, result: PathResult.InsufficientFunds };

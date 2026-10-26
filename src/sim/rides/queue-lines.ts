@@ -1,6 +1,6 @@
 import type { World } from '../core/world';
 import { PATH_ENTRANCE_MARK, PATH_EXIT_MARK } from '../map/tile-map';
-import { queueOpening, recomputePathEdges } from '../map/paths';
+import { queueOpening, recomputePathEdges, trimEntranceLinks } from '../map/paths';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 import { DIR_DX, DIR_DY } from '../pathfinding/directions';
@@ -105,6 +105,12 @@ function syncBoardingMarks(world: World): boolean {
   }
   for (let k = 0; k < n; k++) {
     markBit(world, next[k] >> 1, next[k] & 1 ? PATH_EXIT_MARK : PATH_ENTRANCE_MARK, true);
+  }
+  for (let k = 0; k < n; k++) {
+    if (next[k] & 1) continue;
+    const tile = next[k] >> 1;
+    const e = map.pathElement(tile, -1);
+    if (e >= 0 && map.isQueue(tile)) trimEntranceLinks(map, tile, e);
   }
   for (let k = 0; k < n; k++) recomputePathEdges(map, next[k] >> 1);
   for (let k = 0; k < q.markCount; k++) recomputePathEdges(map, q.marks[k] >> 1);

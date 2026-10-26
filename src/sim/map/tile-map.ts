@@ -101,6 +101,11 @@ export const PATH_ENTRANCE_MARK = 0x20000000;
 /** `elData` mark on the path tile that is a ride's exit; queues never join it. */
 export const PATH_EXIT_MARK = 0x10000000;
 export const PATH_BOARDING_MARKS = PATH_ENTRANCE_MARK | PATH_EXIT_MARK;
+/** `elData` bits of a queue piece: bit `8 + dir` set when it is linked to its queue neighbour in `dir`. */
+export const PATH_QUEUE_LINK_SHIFT = 8;
+export const PATH_QUEUE_LINKS = 0xf << PATH_QUEUE_LINK_SHIFT;
+/** Bits of a path element's `elData` that survive addition changes and repairs. */
+export const PATH_KEPT_BITS = PATH_BOARDING_MARKS | PATH_QUEUE_LINKS;
 
 export function isPathElementBroken(map: TileMap, element: number): boolean {
   return element >= 0 && (map.elData[element] & PATH_ADDITION_BROKEN) !== 0;
@@ -114,7 +119,7 @@ export function markPathElementBroken(map: TileMap, element: number): void {
 
 export function repairPathElement(map: TileMap, element: number): void {
   if (element < 0 || !isPathElementBroken(map, element)) return;
-  map.elData[element] &= PATH_BOARDING_MARKS;
+  map.elData[element] &= PATH_KEPT_BITS;
   map.revision++;
 }
 export const SLOPE_DIR_SHIFT = 10;
