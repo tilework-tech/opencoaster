@@ -6,6 +6,8 @@ import { icon } from '../icons';
 import type { IconName } from '../icons';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
+import { spritePages } from '../../render/sprite-pages';
+import { drawRidePreview } from '../ride-preview';
 
 export interface RideTab extends TabSpec {
   categories: readonly RideCategory[];
@@ -94,8 +96,12 @@ export function openRideSelect(ctx: UiContext): WindowController {
         const card = button('', () => ctx.actions.chooseRideType(def.id), 'ride-card');
         card.dataset.rideType = String(def.id);
         card.setAttribute('aria-label', `${def.name}, ${formatMoney(def.cost)}`);
+        const thumbnail = element('canvas', 'ride-card-thumbnail');
+        thumbnail.setAttribute('aria-hidden', 'true');
+        const art = element('span', 'ride-card-art');
+        art.append(icon(rideIcon(def.id)), thumbnail);
         card.append(
-          icon(rideIcon(def.id)),
+          art,
           element('span', 'ride-card-name', def.name),
           element('span', 'ride-card-cost', formatMoney(def.cost)),
         );
@@ -112,12 +118,32 @@ export function openRideSelect(ctx: UiContext): WindowController {
     const list = button('Ride list', () => ctx.openWindow('ride-list'), 'ui-button');
     win.body.append(list);
   }
+  const rotationOf = (): number => ctx.actions.camera().rotation;
+  /** Draws a card's sprite thumbnail once its pages are loaded, and again when the view turns. */
+  function drawThumbnail(card: HTMLElement, tick: number): void {
+    const canvas = card.querySelector<HTMLCanvasElement>('.ride-card-thumbnail');
+    if (!canvas) return;
+    const stamp = `${rotationOf()}:${spritePages.version}:${canvas.clientWidth}`;
+    if (canvas.dataset.preview === stamp) return;
+    const result = drawRidePreview(canvas, spritePages, {
+      type: Number(card.dataset.rideType) as RideType,
+      dir: 0,
+      rotation: rotationOf(),
+      phase: 0,
+      tick,
+    });
+    if (result === 'drawn') {
+      canvas.dataset.preview = stamp;
+      card.classList.add('has-thumbnail');
+    }
+  }
   return {
     update(snapshot) {
       if (!snapshot) return;
       const unlocked = snapshot.research.unlockedRides;
       for (const card of win.root.querySelectorAll<HTMLElement>('[data-ride-type]')) {
         card.hidden = unlocked[Number(card.dataset.rideType)] !== 1;
+        if (!card.hidden) drawThumbnail(card, snapshot.tick);
       }
       for (const tab of RIDE_TABS) {
         const pane = win.pane(tab.id);
