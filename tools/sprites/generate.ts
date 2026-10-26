@@ -235,11 +235,13 @@ function treeSprites(): SpriteDef[] {
       key: 'trees/tree-palm',
       frames: [renderMesh(physicalToLevels(palmTreeMesh()))],
       footprint: ONE_TILE,
+      raw: true,
     },
     {
       key: 'trees/tree-cactus',
       frames: [renderMesh(physicalToLevels(cactusTreeMesh()))],
       footprint: ONE_TILE,
+      raw: true,
     },
   ];
 }

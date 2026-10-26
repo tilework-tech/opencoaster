@@ -35,6 +35,14 @@ export function sceneryBox(definition: SceneryDefinition): GroundBox {
   };
 }
 
+export function adjustDepthForGroundZ(
+  depthAtBaseHeight: number,
+  baseHeight: number,
+  groundZ: number,
+): number {
+  return depthAtBaseHeight - (groundZ / Z_STEP - baseHeight);
+}
+
 export function spriteAnchorScreenShift(
   frameWidth: number,
   anchorX: number,

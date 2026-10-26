@@ -4,11 +4,17 @@ import { Z_STEP } from '../sim/core/constants';
 import {
   pathAdditionBox,
   pathAdditionGroundZ,
+  adjustDepthForGroundZ,
   sceneryGroundZ,
   spriteAnchorScreenShift,
 } from './ground-anchor';
 
 describe('ground anchors', () => {
+  it('keeps painter depth aligned with the anchored surface elevation', () => {
+    expect(adjustDepthForGroundZ(10, 2, 2 * Z_STEP)).toBe(10);
+    expect(adjustDepthForGroundZ(10, 2, 2 * Z_STEP + Z_STEP / 2)).toBe(9.5);
+  });
+
   it('places path additions at the path surface for flat and sloped paths', () => {
     const flat = pathAdditionGroundZ(3, PathFlag.Bench);
     const sloped = pathAdditionGroundZ(3, PathFlag.Bench | PathFlag.Sloped);

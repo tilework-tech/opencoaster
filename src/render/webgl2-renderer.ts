@@ -19,7 +19,13 @@ import {
 } from './terrain-geometry';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
-import { pathAdditionBox, pathAdditionGroundZ, sceneryBox, sceneryGroundZ } from './ground-anchor';
+import {
+  adjustDepthForGroundZ,
+  pathAdditionBox,
+  pathAdditionGroundZ,
+  sceneryBox,
+  sceneryGroundZ,
+} from './ground-anchor';
 import { spriteAnchorScreenShift } from './ground-anchor';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import { spritePages } from './sprite-pages';
@@ -1324,11 +1330,15 @@ export class WebGL2Renderer implements Renderer {
       if ((snapshot.grounds[index] & FLOWER_BED) === 0) continue;
       const x = index % map.width;
       const y = Math.floor(index / map.width);
-      const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation) + 1;
+      const baseHeight = map.heights[index]!;
+      const z = sceneryGroundZ(baseHeight, map.slope[index]!, camera.rotation) + 1;
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth =
-        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 1;
+      const depth = adjustDepthForGroundZ(
+        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 1,
+        baseHeight,
+        z,
+      );
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1486,6 +1496,7 @@ export class WebGL2Renderer implements Renderer {
       const y = paths[o + 1];
       const baseHeight = paths[o + 2]!;
       const z = baseHeight * Z_STEP;
+      const additionZ = pathAdditionGroundZ(baseHeight, paths[o + 3]);
       const flags = paths[o + 3];
       const isQueue = (flags & PathFlag.Queue) !== 0;
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
@@ -1511,11 +1522,11 @@ export class WebGL2Renderer implements Renderer {
         this.append(
           worldX,
           worldY,
-          pathAdditionGroundZ(baseHeight, flags),
+          additionZ,
           box.width,
           box.height,
           sprite,
-          depth + 2,
+          adjustDepthForGroundZ(depth + 2, baseHeight, additionZ),
         );
       }
       if (isQueue)

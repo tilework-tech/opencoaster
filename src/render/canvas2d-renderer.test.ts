@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PathFlag, PathStyle } from '../sim/map/tile-map';
+import { PATH_ADDITION_BROKEN, PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { Canvas2DRenderer } from './canvas2d-renderer';
@@ -159,6 +159,74 @@ describe('Canvas2D fallback map art', () => {
     ]);
 
     expect(context.spriteSources).toEqual(expect.arrayContaining([1, 2]));
+  });
+
+  it('draws intact and vandalised path additions in the shared box on flat and sloped paths', async () => {
+    const rampSprites = Array.from(
+      { length: 4 },
+      (_, direction) => `paths/tarmac/ramp-${direction}`,
+    );
+    const cases = [
+      { flag: PathFlag.Bench, data: 0, sprite: 'scenery/bench', width: 30, height: 18 },
+      {
+        flag: PathFlag.Bench,
+        data: PATH_ADDITION_BROKEN,
+        sprite: 'scenery/bench-broken/view-0',
+        width: 30,
+        height: 18,
+      },
+      { flag: PathFlag.Bin, data: 0, sprite: 'scenery/bin', width: 18, height: 26 },
+      {
+        flag: PathFlag.Bin,
+        data: PATH_ADDITION_BROKEN,
+        sprite: 'scenery/bin-broken/view-0',
+        width: 18,
+        height: 26,
+      },
+      { flag: PathFlag.Lamp, data: 0, sprite: 'scenery/lamp', width: 16, height: 32 },
+      {
+        flag: PathFlag.Lamp,
+        data: PATH_ADDITION_BROKEN,
+        sprite: 'scenery/lamp-broken/view-0',
+        width: 16,
+        height: 32,
+      },
+      {
+        flag: PathFlag.Shelter,
+        data: 0,
+        sprite: 'scenery/shelter/view-0',
+        width: 54,
+        height: 52,
+      },
+    ];
+
+    for (const item of cases) {
+      for (let rotation = 0; rotation < 4; rotation++) {
+        const sprite = item.sprite.replace('/view-0', `/view-${rotation}`);
+        const pivotRows: number[] = [];
+        for (const sloped of [false, true]) {
+          const map = flatMap();
+          const flags = item.flag | (sloped ? PathFlag.Sloped : 0);
+          map.pathElements = Int32Array.of(2, 2, 0, flags, item.data, PathStyle.Tarmac);
+          map.pathCount = 1;
+          const context = await renderWithAtlas(map, [...rampSprites, sprite], null, {
+            x: 0,
+            y: 0,
+            zoom: 1,
+            rotation: rotation as 0 | 1 | 2 | 3,
+          });
+          const addition = context.images.find((args) => args[1] === rampSprites.length + 1);
+
+          expect(addition?.slice(-2), `${sprite} sloped=${sloped}`).toEqual([
+            item.width,
+            item.height,
+          ]);
+          expect(addition?.[5], `${sprite} horizontal centering`).toBe(-item.width / 2);
+          pivotRows.push((addition?.[6] as number) + item.height);
+        }
+        expect(pivotRows[0]! - pivotRows[1]!, `${sprite} ramp centre elevation`).toBe(7.75);
+      }
+    }
   });
 
   it('draws placeable trees as visible scenery elements', () => {
