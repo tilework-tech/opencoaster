@@ -74,12 +74,20 @@ export const SNAKE_QUEUE: Layout = {
   ],
 };
 
-/** Three rows of queue laid side by side next to the ride: the block the owner reported as a plaza. */
+/**
+ * Rows of queue laid side by side next to the ride: the block the owner reported as a plaza. The
+ * first row runs from the walkway to the entrance; the two rows beside it stop one tile short of the
+ * walkway so the open end stays on the path.
+ */
 export const BLOCK_QUEUE: Layout = {
   ride: { x: 53, y: 62 },
   entrance: { x: 53, y: 64 },
   exit: { x: 51, y: 63 },
-  queueDrags: [64, 65, 66].map((y) => [48, 49, 50, 51, 52].map((x) => ({ x, y }))),
+  queueDrags: [
+    [48, 49, 50, 51, 52].map((x) => ({ x, y: 64 })),
+    [49, 50, 51, 52].map((x) => ({ x, y: 65 })),
+    [49, 50, 51, 52].map((x) => ({ x, y: 66 })),
+  ],
   get queue(): Tile[] {
     return this.queueDrags!.flat();
   },
@@ -213,6 +221,7 @@ export async function focus(
 }
 
 export async function screenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  if (process.env.PLAZA_PROOF) return;
   const path = testInfo.outputPath(`${name}.png`);
   await mkdir(dirname(path), { recursive: true });
   await page.screenshot({ path, timeout: 180_000 });
