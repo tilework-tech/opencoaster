@@ -27,4 +27,6 @@ export const enum RideResult {
   TooSteep = 19,
   /** Part of the footprint is under water. */
   Underwater = 20,
+  /** An entrance on a walkway tile would cut the footpath in two. */
+  CutsPath = 21,
 }

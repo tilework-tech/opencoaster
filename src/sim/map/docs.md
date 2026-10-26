@@ -37,3 +37,9 @@ Path: @/src/sim/map
 - Flower beds and grass care live in `World.grounds` and are handled by the staff grounds system; they are not path additions or part of the map arrays. [scenery-effects.ts](scenery-effects.ts) provides a clipped 10×10 scan of small/large scenery and broken paths for guest surroundings; litter is supplied by the guest system. Fountain/music effects and scenario-configured land prices remain outside this module. See [world mechanics](../../../docs/mechanics/world.md) for researched behavior and project tuning.
 
 Created and maintained by Nori.
+
+### Queue lines
+
+- A queue piece is a path element with `PathFlag.Queue`. Queue pieces join other queue pieces on every side, join an ordinary path only at the line's open end, and never join along their length ([paths.ts](paths.ts) `queueOpening`). A piece is an open end when it has at most one queue neighbour and is not a ride entrance already joined to a line; it joins one ordinary neighbour, preferring the one straight on from its queue neighbour.
+- `elData` bits `PATH_ENTRANCE_MARK` and `PATH_EXIT_MARK` record the path tiles that hold a ride's entrance and exit. The [ride queue sync](../rides/queue-lines.ts) writes them (they are saved with the map); the exit mark stops queues joining the exit tile, and placing a normal piece over an entrance (or a queue piece over an exit) is refused. Because an opening depends on its neighbours, `recomputePathEdges` refreshes tiles two steps away.
+- `TileMap.edgeMask` (the pathfinder's view) hides queue tiles from the walking network; `pathEdges` keeps the joined edges the renderer and the queue walk use. `previewPathRun` also reports `QueueLink` bits per queue piece: whether its line reaches a ride entrance and whether its open end joins a path.

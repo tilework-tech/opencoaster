@@ -96,8 +96,12 @@ export const RIDE_SCHEMA = {
   /** Tick of the latest mechanic work, to tell continuous work from separate visits. */
   serviceLastTick: Uint32Array,
   ...riderHistorySchema,
-  /** Quarter turns the ride's footprint is rotated by; always the last column (see save.ts). */
+  /** Quarter turns the ride's footprint is rotated by. */
   dir: Uint8Array,
+  /** Guests who have joined the ride's line; the next joiner takes this as its queue position. */
+  queueSerial: Uint32Array,
+  /** Longest line (in guests) the operator allows; 0 means as long as the queue can hold. */
+  queueLimit: Uint16Array,
 } as const;
 
 /** Columns appended to the schema after each released save version, newest last. */

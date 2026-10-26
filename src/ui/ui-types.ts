@@ -78,6 +78,7 @@ export interface GameUIActions {
   fireStaff(staffId: number): void;
   pickUpPerson(person: 'guest' | 'staff', personId: number): void;
   setRidePrice(rideId: number, priceCents: number): void;
+  setRideQueueLimit(rideId: number, limit: number): void;
   setRideTrains(rideId: number, trains: number, cars: number): void;
   setRideStatus(rideId: number, status: 'open' | 'close' | 'test'): void;
   demolishRide(rideId: number): void;
@@ -97,6 +98,8 @@ export interface GameUIActions {
   locate(x: number, y: number): void;
   /** Selects the ride type the Ride tool places. */
   chooseRideType(type: RideType): void;
+  /** Opens Footpaths with Queue line on and points at the ride's entrance, to build its queue. */
+  buildRideQueue(rideId: number): void;
   /** Reopens a track ride in the construction window. */
   editTrack(rideId: number): void;
   map(): MapData | null;

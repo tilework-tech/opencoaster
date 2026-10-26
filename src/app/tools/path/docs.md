@@ -5,6 +5,7 @@ Path: @/src/app/tools/path
 ### Overview
 
 - Builds footpaths for the Footpaths window in two modes: a dragged run or a hovered tile (line mode), and a piece at a cursor (piece mode).
+- Queue pieces carry a link marker: a dot on each previewed queue tile (green when its line reaches a ride entrance, amber otherwise) and a cursor label saying whether the line links to a ride entrance and whether its open end joins the path.
 - Previews exactly what would be built before it is: the ghost draws each piece with the real footpath sprite at the base level and slope, connections to neighbours and queue rails the sim computed. Accepted pieces are translucent; refused tiles are tinted red, with the reason at the pointer.
 
 ### How it fits into the larger codebase

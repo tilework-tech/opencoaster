@@ -65,7 +65,7 @@ function surfaceMaterial(style: PathStyle): Material {
           const bond = Math.floor((p[1] + 0.5) * 8) % 2 === 0 ? 0 : 0.0625;
           const colSeam =
             Math.floor((p[0] + 0.5 + bond) * 4) !== Math.floor((p[0] + 0.5 + bond + PX / 2) * 4);
-          const base = rowSeam || colSeam ? level - 2 : level - 1;
+          const base = rowSeam || colSeam ? level : level - 1;
           return colors[Math.max(0, Math.min(4, base))];
         },
       });
@@ -77,7 +77,7 @@ function kerbMaterial(style: PathStyle): Material {
   return material(ramp(style === 'dirt' ? 'wood' : style === 'queue' ? 'stone' : 'stone'));
 }
 
-const RAIL = material(ramp('steel'));
+const RAIL = material(ramp('white'));
 const POST = material(ramp('red'));
 
 /** Kerb strip along one tile edge without end caps so adjacent tiles join cleanly. */
@@ -126,7 +126,9 @@ function queueRails(direction: number, lift: (x: number, y: number) => number): 
   const [dx, dy] = DIRECTIONS[direction];
   const mesh: Mesh = [];
   const inset = HALF - KERB_WIDTH / 2;
-  const top = 7 * PX;
+  const top = 8 * PX;
+  const post = PX * 1.5;
+  const bar = PX * 1.5;
   const postAt = (t: number): Mesh => {
     const x = dx * inset - dy * t;
     const y = dy * inset + dx * t;
@@ -134,28 +136,28 @@ function queueRails(direction: number, lift: (x: number, y: number) => number): 
     return [
       ...quad(
         [
-          [x - PX / 2, y - PX / 2, z + top],
-          [x + PX / 2, y - PX / 2, z + top],
-          [x + PX / 2, y + PX / 2, z + top],
-          [x - PX / 2, y + PX / 2, z + top],
+          [x - post / 2, y - post / 2, z + top],
+          [x + post / 2, y - post / 2, z + top],
+          [x + post / 2, y + post / 2, z + top],
+          [x - post / 2, y + post / 2, z + top],
         ],
         POST,
       ),
       ...quad(
         [
-          [x - PX / 2, y + PX / 2, z + KERB_TOP],
-          [x + PX / 2, y + PX / 2, z + KERB_TOP],
-          [x + PX / 2, y + PX / 2, z + top],
-          [x - PX / 2, y + PX / 2, z + top],
+          [x - post / 2, y + post / 2, z + KERB_TOP],
+          [x + post / 2, y + post / 2, z + KERB_TOP],
+          [x + post / 2, y + post / 2, z + top],
+          [x - post / 2, y + post / 2, z + top],
         ],
         POST,
       ),
       ...quad(
         [
-          [x + PX / 2, y - PX / 2, z + KERB_TOP],
-          [x + PX / 2, y + PX / 2, z + KERB_TOP],
-          [x + PX / 2, y + PX / 2, z + top],
-          [x + PX / 2, y - PX / 2, z + top],
+          [x + post / 2, y - post / 2, z + KERB_TOP],
+          [x + post / 2, y + post / 2, z + KERB_TOP],
+          [x + post / 2, y + post / 2, z + top],
+          [x + post / 2, y - post / 2, z + top],
         ],
         POST,
       ),
@@ -170,15 +172,24 @@ function queueRails(direction: number, lift: (x: number, y: number) => number): 
       [
         [a[0], a[1], za],
         [b[0], b[1], zb],
-        [b[0], b[1], zb + PX],
-        [a[0], a[1], za + PX],
+        [b[0], b[1], zb + bar],
+        [a[0], a[1], za + bar],
       ],
       RAIL,
     );
   };
   mesh.push(...postAt(-HALF + PX), ...postAt(0), ...postAt(HALF - PX));
-  mesh.push(...railAt(top - 2 * PX), ...railAt(top - 5 * PX));
+  mesh.push(...railAt(top - 2 * PX), ...railAt(top - 5.5 * PX));
   return mesh;
+}
+
+/**
+ * The rail and posts along one edge of a flat queue piece. Edges facing the camera (directions 0
+ * and 1) are drawn as separate sprites after the people standing on the tile, so guests stand
+ * between the rails; the piece itself carries only the edges behind them.
+ */
+export function queueRailMesh(direction: number): Mesh {
+  return queueRails(direction, () => 0);
 }
 
 export interface PathOptions {
@@ -212,7 +223,8 @@ export function pathMesh(options: PathOptions): Mesh {
       : [(slope + 1) & 3, (slope + 3) & 3];
   for (const d of closed) {
     mesh.push(...kerbStrip(d, lift, kerb));
-    if (style === 'queue') mesh.push(...queueRails(d, lift));
+    const nearEdge = slope === undefined && d < 2;
+    if (style === 'queue' && !nearEdge) mesh.push(...queueRails(d, lift));
   }
   if (slope !== undefined) {
     // Underside wedge on the two lateral sides keeps the ramp from floating above the ground.

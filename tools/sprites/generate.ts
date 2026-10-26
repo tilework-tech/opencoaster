@@ -5,7 +5,7 @@ import { ramp } from './palette';
 import type { Sprite } from './raster';
 import { placeOnFootprint, rideCellContext, rideCellMesh } from './ride-cells';
 import { coasterSprites } from './models/coaster/sprites';
-import { PATH_STYLES, pathMesh } from './models/paths';
+import { PATH_STYLES, pathMesh, queueRailMesh } from './models/paths';
 import { WATER_FRAMES, waterTexture } from './models/water';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import type { RideCategory, RideTypeDef } from '../../src/sim/rides/ride-types';
@@ -132,6 +132,12 @@ function pathSprites(): SpriteDef[] {
         footprint: ONE_TILE,
       });
   }
+  for (let direction = 0; direction < 2; direction++)
+    out.push({
+      key: `paths/queue/rail-${direction}`,
+      frames: [renderMesh(queueRailMesh(direction), { outline: false })],
+      footprint: ONE_TILE,
+    });
   return out;
 }
 

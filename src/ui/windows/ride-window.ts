@@ -92,9 +92,24 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   );
   const mainFacts = {
     queue: statRow('Queue'),
+    wait: statRow('Wait time'),
     served: statRow('Guests served'),
     setup: statRow('Setup'),
   };
+  const limit = { natural: 0, current: 0 };
+  const limitValue = element('span', 'stat-value', '');
+  const setLimit = (value: number): void => ctx.actions.setRideQueueLimit(rideId, value);
+  const limitRow = element('div', 'stat-row ride-queue-limit');
+  limitRow.append(
+    element('span', 'stat-label', 'Queue limit'),
+    iconButton('minus', 'Shorten queue limit', () =>
+      setLimit(Math.max(1, (limit.current > 0 ? limit.current : limit.natural) - 1)),
+    ),
+    limitValue,
+    iconButton('plus', 'Lengthen queue limit', () =>
+      setLimit(limit.current > 0 ? limit.current + 1 : 0),
+    ),
+  );
   const checklist = element('div', 'ride-checklist');
   let checklistSignature = '';
 
@@ -159,6 +174,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       intensity.row,
       nausea.row,
       mainFacts.queue.row,
+      mainFacts.wait.row,
+      limitRow,
       mainFacts.served.row,
       mainFacts.setup.row,
       checklist,
@@ -267,7 +284,21 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         info[o + RideInfo.Nausea] / 1000,
         tested ? (info[o + RideInfo.Nausea] / 100).toFixed(2) : 'not tested',
       );
-      setText(mainFacts.queue.value, String(info[o + RideInfo.QueueLength]));
+      const capacity = info[o + RideInfo.QueueCapacity];
+      setText(
+        mainFacts.queue.value,
+        flags & RideFlag.HasQueue
+          ? `${info[o + RideInfo.QueueLength]} of ${capacity}`
+          : String(info[o + RideInfo.QueueLength]),
+      );
+      limit.current = info[o + RideInfo.QueueLimit];
+      limit.natural = limit.current > 0 ? limit.natural : capacity;
+      setText(limitValue, limit.current > 0 ? `${limit.current} guests` : 'None');
+      limitRow.hidden = def?.category === 'stall' || def?.category === 'facility';
+      setText(
+        mainFacts.wait.value,
+        `${Math.round(info[o + RideInfo.WaitTicks] / TICKS_PER_SECOND)} s`,
+      );
       setText(mainFacts.served.value, String(info[o + RideInfo.GuestsServed]));
       const blockers: { label: string; action: string; onClick: () => void }[] = [];
       const serviceRide = def?.category === 'stall' || def?.category === 'facility';
@@ -298,12 +329,18 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         });
       if (needsExit && flags & RideFlag.EntrancePlaced && !(flags & RideFlag.QueueConnected))
         blockers.push({
-          label: 'Entrance not connected to a path',
-          action: 'Build path',
-          onClick: () => {
-            ctx.actions.footpath.setQueue(false);
-            ctx.chooseTool('path');
-          },
+          label:
+            info[o + RideInfo.QueueTiles] > 0
+              ? 'Queue line is not joined to a path'
+              : 'Entrance has no queue or path',
+          action: 'Build queue',
+          onClick: () => ctx.actions.buildRideQueue(rideId),
+        });
+      if (needsExit && !(flags & RideFlag.EntrancePlaced) && snapshot.park.orphanQueueTiles > 0)
+        blockers.push({
+          label: 'A queue line is not linked to any ride entrance',
+          action: 'Place entrance',
+          onClick: () => ctx.actions.placeRidePart(rideId, 'entrance'),
         });
       if (def?.usesTrack && !tested)
         blockers.push({

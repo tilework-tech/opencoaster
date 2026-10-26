@@ -26,6 +26,7 @@ describe('pathPieceGhosts', () => {
     queue: false,
     style: PathStyle.Dirt,
     edges: 0,
+    link: 0,
     ...over,
   });
 

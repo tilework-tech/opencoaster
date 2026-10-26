@@ -21,6 +21,13 @@ import {
 import type { NavOptions } from '../pathfinding';
 import { addRideIncome, isShopCategory, rideQueueCapacity } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
+import {
+  claimQueueTile,
+  directionBetween,
+  isQueueTileOccupied,
+  markQueueOccupancy,
+  refreshQueueIndex,
+} from '../rides/queue-lines';
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
@@ -53,6 +60,11 @@ const EXCITEMENT_PER_HAPPINESS = 40;
 const APPROACH_PATIENCE = 2400;
 const QUEUE_PATIENCE = 3200;
 const QUEUE_BALK_TICKS = 4300;
+/** A guest in a built queue waits this long plus 24 ticks per point of happiness before leaving. */
+const QUEUE_PATIENCE_BASE = 2400;
+const QUEUE_PATIENCE_PER_HAPPINESS = 24;
+/** Waiting this long in a line earns the "queuing for ages" thought and costs happiness. */
+const QUEUE_GRUMBLE_TICKS = 2400;
 const RIDE_COOLDOWN = 640;
 const HUNGER_THOUGHT = 160;
 const THIRST_THOUGHT = 160;
@@ -139,6 +151,21 @@ function tileDistance(world: World, a: number, b: number): number {
 
 function entranceTile(world: World, ride: number): number {
   return world.map.index(world.rides.cols.entranceX[ride], world.rides.cols.entranceY[ride]);
+}
+
+/** True when the ride is entered through a built queue line rather than straight from a path. */
+function hasQueueLine(world: World, ride: number): boolean {
+  return world.queues.hasQueue[ride] === 1;
+}
+
+/**
+ * Ordinary path tile a guest walks to for the ride: where the queue's open end joins the main
+ * path, the entrance itself for stalls and rides entered straight from a path, or -1 when the
+ * ride has no way in.
+ */
+function approachTile(world: World, ride: number): number {
+  if (isShopCategory(rideCategory(world, ride))) return entranceTile(world, ride);
+  return world.queues.joinTile[ride];
 }
 
 const NOT_OFFERED = -1;
@@ -233,7 +260,8 @@ function chooseRide(world: World, slot: number, tile: number): number {
     else if (score === TOO_NAUSEOUS) tooNauseous = true;
     else if (score === LINE_FULL) full = true;
     if (score <= bestScore) continue;
-    if (!isReachable(world, tile, entranceTile(world, ride))) continue;
+    const approach = approachTile(world, ride);
+    if (approach < 0 || !isReachable(world, tile, approach)) continue;
     bestScore = score;
     selected = ride;
   }
@@ -336,16 +364,16 @@ function noteApproachProgress(world: World, slot: number, tile: number): void {
   const g = world.guests.cols;
   const id = g.targetRide[slot];
   if (!world.rides.isAlive(id)) return;
-  const gap = tileDistance(world, tile, entranceTile(world, world.rides.idToSlot[id]));
+  const approach = approachTile(world, world.rides.idToSlot[id]);
+  if (approach < 0) return;
+  const gap = tileDistance(world, tile, approach);
   if (gap >= g.approachGap[slot]) return;
   g.approachGap[slot] = gap;
   g.patience[slot] = APPROACH_PATIENCE;
 }
 
 function clearDestination(world: World, slot: number): void {
-  const g = world.guests.cols;
-  g.targetRide[slot] = -1;
-  if (g.state[slot] === GuestState.Queuing) g.state[slot] = GuestState.Wandering;
+  world.guests.cols.targetRide[slot] = -1;
 }
 
 function moveAlongHeading(world: World, slot: number): void {
@@ -531,6 +559,7 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
     }
     g.state[slot] = GuestState.Waiting;
     g.patience[slot] = 0;
+    g.queueSeq[slot] = ++r.queueSerial[ride];
     r.queueLength[ride]++;
   } else if (lines.serving[ride] < serviceCapacity(world, ride)) {
     beginShopping(world, slot, ride);
@@ -543,20 +572,173 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
   }
 }
 
-/** Drops out of a line; the guest only complains when it ran out of patience. */
+/**
+ * Drops out of a line; the guest only complains when it ran out of patience. A guest standing on
+ * a queue tile turns around and walks out to the open end.
+ */
 function leaveQueue(world: World, slot: number, gaveUp: boolean): void {
   const g = world.guests.cols;
   const ride = targetRideSlot(world, slot);
   if (
     ride >= 0 &&
+    g.state[slot] === GuestState.Waiting &&
     isThrillCategory(rideCategory(world, ride)) &&
     world.rides.cols.queueLength[ride] > 0
   ) {
     world.rides.cols.queueLength[ride]--;
   }
-  if (gaveUp) recordThought(world, slot, GuestThought.QueueTooLong);
+  if (gaveUp) {
+    recordThought(world, slot, GuestThought.QueueTooLong);
+    g.activityTicks[slot] = RIDE_COOLDOWN;
+  }
   g.targetRide[slot] = -1;
-  g.state[slot] = GuestState.Wandering;
+  const tile = world.map.index(g.x[slot] >> 8, g.y[slot] >> 8);
+  g.state[slot] = world.map.isQueue(tile) ? GuestState.Queuing : GuestState.Wandering;
+}
+
+/** Ticks a guest in a line waits before giving up: happier guests are more patient. */
+function queuePatienceLimit(world: World, slot: number): number {
+  return QUEUE_PATIENCE_BASE + world.guests.cols.happiness[slot] * QUEUE_PATIENCE_PER_HAPPINESS;
+}
+
+/** Counts a waiting guest's patience; returns true once it has run out. */
+function tickQueuePatience(world: World, slot: number, guestTick: number): boolean {
+  const g = world.guests.cols;
+  g.patience[slot] = Math.min(0xffff, g.patience[slot] + UPDATE_STRIDE);
+  if (g.patience[slot] < QUEUE_GRUMBLE_TICKS) return false;
+  recordThought(world, slot, GuestThought.QueuingForAges);
+  if (guestTick > 0 && guestTick % 512 === 0 && g.happiness[slot] > 0) g.happiness[slot]--;
+  return g.patience[slot] >= queuePatienceLimit(world, slot);
+}
+
+/**
+ * Walks a guest standing on a queue tile one step toward the line's open end and out onto the
+ * ordinary path. Returns false when no step exists. The guest keeps its state.
+ */
+function stepOutOfQueue(world: World, slot: number, tile: number): boolean {
+  const g = world.guests.cols;
+  const q = world.queues;
+  const map = world.map;
+  const ride = q.owner[tile];
+  const edges = map.pathEdges(tile);
+  let dir = -1;
+  if (ride >= 0 && q.openTile[ride] === tile) {
+    dir = directionBetween(world, tile, q.joinTile[ride]);
+  } else {
+    for (let d = 0; d < 4 && dir < 0; d++) {
+      if (!(edges & (1 << d))) continue;
+      const next = map.neighbor(tile, d);
+      if (next < 0) continue;
+      if (
+        ride >= 0 ? q.owner[next] === ride && q.dist[next] === q.dist[tile] + 1 : !map.isQueue(next)
+      )
+        dir = d;
+    }
+    for (let d = 0; d < 4 && dir < 0; d++) {
+      if (!(edges & (1 << d))) continue;
+      const next = map.neighbor(tile, d);
+      if (next >= 0 && !map.isQueue(next)) dir = d;
+    }
+  }
+  if (dir < 0) return false;
+  g.heading[slot] = dir;
+  moveAlongHeading(world, slot);
+  return true;
+}
+
+/** Steps a guest who is leaving a line outward; it is a walker again once clear of the queue. */
+function walkOutOfLine(world: World, slot: number, tile: number): void {
+  if (!stepOutOfQueue(world, slot, tile)) world.guests.cols.state[slot] = GuestState.Wandering;
+}
+
+/** Joins the line at its open end, behind everyone already in it. */
+function joinQueueLine(world: World, slot: number, ride: number): void {
+  const g = world.guests.cols;
+  const r = world.rides.cols;
+  const q = world.queues;
+  const rideId = world.rides.slotToId[ride];
+  const price = guestPriceCents(
+    world,
+    slot,
+    rideId,
+    ticketPriceCents(world, ride),
+    VoucherKind.FreeRide,
+  );
+  const lines = world.rideLines;
+  if (r.state[ride] !== RideState.Open || price > g.cash[slot]) {
+    clearDestination(world, slot);
+    return;
+  }
+  if (lines.queued[ride] + lines.approaching[ride] > rideQueueCapacity(world, ride)) {
+    recordThought(world, slot, GuestThought.QueueTooLong);
+    clearDestination(world, slot);
+    return;
+  }
+  const open = q.openTile[ride];
+  if (open < 0 || isQueueTileOccupied(world, open)) return;
+  claimQueueTile(world, open);
+  g.state[slot] = GuestState.Queuing;
+  g.patience[slot] = 0;
+  g.queueSeq[slot] = ++r.queueSerial[ride];
+  g.heading[slot] = directionBetween(world, q.joinTile[ride], open);
+  lines.approaching[ride]--;
+  lines.queued[ride]++;
+  moveAlongHeading(world, slot);
+}
+
+/** One update of a guest in a line: shuffle forward when the tile ahead is free, else idle. */
+function updateQueuing(world: World, slot: number, guestTick: number): void {
+  const g = world.guests.cols;
+  const q = world.queues;
+  const map = world.map;
+  const inbound = g.targetRide[slot] >= 0;
+  const ride = inbound ? targetRideSlot(world, slot) : -1;
+  const gaveUp = inbound && ride >= 0 && tickQueuePatience(world, slot, guestTick);
+  if (!atTileCentre(world, slot)) {
+    moveAlongHeading(world, slot);
+    return;
+  }
+  const tile = map.index(g.x[slot] >> 8, g.y[slot] >> 8);
+  if (!map.isQueue(tile)) {
+    g.targetRide[slot] = -1;
+    g.state[slot] = GuestState.Wandering;
+    return;
+  }
+  if (
+    !inbound ||
+    ride < 0 ||
+    world.rides.cols.state[ride] !== RideState.Open ||
+    q.owner[tile] !== ride
+  ) {
+    g.targetRide[slot] = -1;
+    walkOutOfLine(world, slot, tile);
+    return;
+  }
+  if (gaveUp) {
+    leaveQueue(world, slot, true);
+    walkOutOfLine(world, slot, tile);
+    return;
+  }
+  const dist = q.dist[tile];
+  if (dist === 0) {
+    g.state[slot] = GuestState.Waiting;
+    world.rides.cols.queueLength[ride]++;
+    return;
+  }
+  const edges = map.pathEdges(tile);
+  for (let d = 0; d < 4; d++) {
+    if (!(edges & (1 << d))) continue;
+    const next = map.neighbor(tile, d);
+    if (next < 0 || q.owner[next] !== ride || q.dist[next] !== dist - 1) continue;
+    g.heading[slot] = d;
+    const platformFull =
+      dist === 1 &&
+      world.rides.cols.queueLength[ride] >= Math.max(1, world.rides.cols.capacity[ride]);
+    if (platformFull || (dist > 1 && isQueueTileOccupied(world, next))) return;
+    claimQueueTile(world, next);
+    moveAlongHeading(world, slot);
+    return;
+  }
 }
 
 function ageNeeds(world: World, slot: number): void {
@@ -670,6 +852,8 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     const ride = targetRideSlot(world, slot);
     if (ride < 0 || world.rides.cols.state[ride] !== RideState.Open) {
       leaveQueue(world, slot, false);
+    } else if (hasQueueLine(world, ride)) {
+      if (tickQueuePatience(world, slot, guestTick)) leaveQueue(world, slot, true);
     } else if (isThrillCategory(rideCategory(world, ride))) {
       g.patience[slot] = Math.min(0xffff, g.patience[slot] + UPDATE_STRIDE);
       if (
@@ -691,6 +875,11 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     return false;
   }
 
+  if (state === GuestState.Queuing) {
+    updateQueuing(world, slot, guestTick);
+    return false;
+  }
+
   const map = world.map;
   const tile = map.index(g.x[slot] >> 8, g.y[slot] >> 8);
 
@@ -701,6 +890,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     }
     const gate = parkEntranceTile(world);
     if (gate < 0 || tile === gate) return true;
+    if (map.isQueue(tile) && stepOutOfQueue(world, slot, tile)) return false;
     if (isLost(world, slot) || !stepToward(world, slot, tile, gate, nav)) {
       stepToward(world, slot, tile, -1, nav);
       loseWayOut(world, slot);
@@ -746,21 +936,16 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   }
 
   if (ride >= 0) {
-    if (tile === entranceTile(world, ride)) {
-      arriveAtDestination(world, slot, ride);
+    const approach = approachTile(world, ride);
+    if (tile === approach) {
+      if (hasQueueLine(world, ride)) joinQueueLine(world, slot, ride);
+      else arriveAtDestination(world, slot, ride);
       return false;
     }
-    if (
-      g.state[slot] === GuestState.Wandering &&
-      isThrillCategory(rideCategory(world, ride)) &&
-      map.isQueue(tile)
-    ) {
-      g.state[slot] = GuestState.Queuing;
-      g.patience[slot] = QUEUE_PATIENCE;
-    }
-    if (stepToward(world, slot, tile, entranceTile(world, ride), nav)) return false;
+    if (approach >= 0 && stepToward(world, slot, tile, approach, nav)) return false;
     clearDestination(world, slot);
   }
+  if (map.isQueue(tile) && stepOutOfQueue(world, slot, tile)) return false;
   if (noteStranded(world, slot, tile)) return true;
   stepToward(world, slot, tile, -1, nav);
   return false;
@@ -815,7 +1000,9 @@ export function createGuestSystem(
   return {
     name: 'guests',
     update(world) {
+      refreshQueueIndex(world);
       recountRideLines(world);
+      markQueueOccupancy(world);
       if (world.tick % ARRIVAL_INTERVAL === 0 && hasParkEntrance(world)) {
         spawnArrival(world, admissionProvider(world));
       }

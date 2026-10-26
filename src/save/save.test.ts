@@ -23,11 +23,13 @@ import {
 } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
-import { PathStyle } from '../sim/map/tile-map';
+import { PATH_BOARDING_MARKS, PathStyle } from '../sim/map/tile-map';
+import { refreshQueueIndex } from '../sim/rides/queue-lines';
+import { createRide, placeRideEntranceExit } from '../sim/rides/ride-operations';
 
 describe('save', () => {
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(22);
+    expect(SAVE_VERSION).toBe(23);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -35,7 +37,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(22);
+    expect(header.version).toBe(23);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -304,7 +306,7 @@ describe('save', () => {
     const mapSize = sim.world.map.width * sim.world.map.height;
     const oldRoleMask = new Uint8Array(mapSize * 4);
     oldRoleMask[sim.world.map.index(2, 8)] = 1;
-    const current = serialize(sim.world);
+    const current = withoutColumns(serialize(sim.world), 20, allWorldViews(sim.world), []);
     const dataView = new DataView(current.buffer, current.byteOffset, current.byteLength);
     const headerEnd = 8 + dataView.getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
@@ -771,6 +773,13 @@ function withoutColumns(
     ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
     ...(version < 17 ? [newWorld.map.pathStyle] : []),
     ...(version < 18 ? [newWorld.guests.cols.voucherKind, newWorld.guests.cols.voucherTarget] : []),
+    ...(version < 23
+      ? [
+          newWorld.guests.cols.queueSeq,
+          newWorld.rides.cols.queueSerial,
+          newWorld.rides.cols.queueLimit,
+        ]
+      : []),
   ];
   const absentSet = new Set([
     ...absent,
@@ -836,7 +845,7 @@ describe('save: version 4 migration', () => {
         world.staff.arrays().slice(0, -1),
         world.vehicles.arrays(),
         world.litter.arrays(),
-        world.rides.arrays().slice(0, -3 - RIDE_COLUMNS_ADDED_IN_V10 - RIDER_HISTORY_WINDOWS),
+        world.rides.arrays().slice(0, -5 - RIDE_COLUMNS_ADDED_IN_V10 - RIDER_HISTORY_WINDOWS),
         world.track.pieces.arrays(),
         world.track.rideTables(),
       );
@@ -1123,5 +1132,35 @@ describe('save: version 8 research migration', () => {
     world.research.inventions = [{ itemId: 8, category: 0, workUnits: 21 }];
     const loaded = deserialize(versionEightSave(world, 2_500));
     expect(loaded.research.inventions).toEqual([{ itemId: 8, category: 0, workUnits: 21 }]);
+  });
+});
+
+describe('save: queue lines', () => {
+  it('keeps the queue tiles of a version 20 save, linked to the adjacent entrance', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 4));
+    layPath(w, row(5, 5, 7), true);
+    layPath(w, [[9, 3]]);
+    const id = createRide(w, RideType.MerryGoRound, 7, 3);
+    placeRideEntranceExit(w, id, { x: 7, y: 5 }, { x: 9, y: 3 });
+    refreshQueueIndex(w);
+    for (let i = 0; i < w.map.width * w.map.height; i++)
+      for (let e = w.map.firstElement(i); e >= 0; e = w.map.nextElement(e))
+        w.map.elData[e] &= ~PATH_BOARDING_MARKS;
+
+    const legacy = withoutColumns(serialize(w), 20, allWorldViews(w), [
+      w.guests.cols.queueSeq,
+      w.rides.cols.queueSerial,
+      w.rides.cols.queueLimit,
+    ]);
+    const loaded = deserialize(legacy);
+    refreshQueueIndex(loaded);
+
+    const slot = loaded.rides.idToSlot[id];
+    expect(loaded.queues.hasQueue[slot]).toBe(1);
+    expect(loaded.queues.tiles[slot]).toBe(2);
+    expect(loaded.queues.joinTile[slot]).toBe(loaded.map.index(4, 5));
+    expect(loaded.map.isQueue(loaded.map.index(6, 5))).toBe(true);
+    expect(loaded.rides.cols.queueLimit[slot]).toBe(0);
   });
 });

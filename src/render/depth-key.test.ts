@@ -6,6 +6,7 @@ import {
   SurfaceDepths,
   pathSlabDepth,
   personDepth,
+  queueRailDepth,
   rotatedPositionSum,
   terrainDepth,
 } from './depth-key';
@@ -160,4 +161,32 @@ describe('people against tile-sized objects', () => {
       }
     });
   }
+});
+
+describe('queue rails', () => {
+  const map = mapWith([], 2);
+  const surfaces = new SurfaceDepths();
+
+  it.each(ROTATIONS)(
+    'are drawn after guests on their tile and before guests one tile in front at rotation %i',
+    (rotation) => {
+      surfaces.prepare(map, rotation);
+      const tile = { x: 6, y: 6 };
+      // The tile edge facing the camera: +x and +y at rotation 0, turned by the rotation.
+      const dir = (0 - rotation + 4) & 3;
+      const ahead = { x: tile.x + [1, 0, -1, 0][dir]!, y: tile.y + [0, 1, 0, -1][dir]! };
+      const rail = queueRailDepth(map, rotation, tile.x, tile.y, dir, 2);
+      const centre = (t: { x: number; y: number }) =>
+        personDepth(
+          map,
+          rotation,
+          surfaces,
+          (t.x + 0.5) * TILE_UNITS,
+          (t.y + 0.5) * TILE_UNITS,
+          2 * Z_STEP,
+        );
+      expect(rail).toBeGreaterThan(centre(tile));
+      expect(rail).toBeLessThan(centre(ahead));
+    },
+  );
 });

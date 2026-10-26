@@ -153,7 +153,7 @@ describe('guest needs', () => {
   it('only repeats a ride when guest needs and a random roll allow it', () => {
     const repeatTrips = (seed: number, happiness: number): number => {
       const { w, ride } = corridorWithRide();
-      layPath(w, [[12, 5]]);
+      layPath(w, [[12, 5], ...row(6, 9, 12)]);
       w.rng.seed(seed);
       const slot = guestAt(w, 2, 5);
       w.guests.cols.happiness[slot] = 255;
@@ -226,7 +226,7 @@ describe('guest needs', () => {
     const happy = make(200);
 
     runGuestOnly(early, 4200);
-    runGuestOnly(happy, 9000);
+    runGuestOnly(happy, 6000);
 
     expect(early.guests.cols.state[0]).toBe(GuestState.Waiting);
     expect(happy.guests.cols.state[0]).toBe(GuestState.Waiting);

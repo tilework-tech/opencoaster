@@ -19,6 +19,7 @@ Path: @/src/app/ride-setup
 - Ride ghosts and valid placement targets are projected for display; worker-side command validation remains authoritative.
 - Flat rides and track rides, including Log Flume and River Rapids, place entrances and exits around the complete ride footprint or all coaster station-piece footprints. Candidate geometry and visible validity are derived from the snapshot, while the worker validates each placement command.
 - Valid and invalid boarding candidates remain pointer and keyboard targets. Their accessible labels and status feedback identify the blocking condition; worker feedback is retained instead of being replaced by the next generic prompt.
+- After the exit of a flat ride is placed and its queue is not yet connected to a path, setup prompts for the queue: it opens Footpaths in line mode with Queue line on, pulses a highlight on the entrance tile and clears the prompt when the ride's queue connects or the player leaves the Footpaths tool. The ride window's "Build queue" action starts the same prompt (`promptQueue`).
 - Stalls and facilities use a public path tile beside their footprint as direct service access. Setup detects an adjacent path and opens the service ride without placing a separate entrance or exit.
 
 ### Things to Know

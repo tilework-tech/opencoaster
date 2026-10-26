@@ -85,6 +85,8 @@ async function connectEntranceWithPath(
 ): Promise<void> {
   const surfaceControl = page.getByRole('button', { name: 'Tarmac', exact: true });
   if (!(await surfaceControl.isVisible())) await toolbarAction(page, 'Footpaths');
+  const queueLine = page.getByRole('button', { name: 'Queue line', exact: true }).first();
+  if ((await queueLine.getAttribute('aria-pressed')) === 'true') await queueLine.click();
   const titlebar = page.locator('[data-panel="paths"] .ui-titlebar');
   const bounds = await titlebar.boundingBox();
   if (!bounds) throw new Error('Footpaths window is missing its title bar');
@@ -161,7 +163,7 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
   const exits = page.getByRole('button', { name: /Place exit at tile/ });
   await expect(exits.first()).toBeVisible();
   await exits.first().click();
-  await expect(page.locator('.tool-status')).toContainText('Ride setup complete');
+  await expect(page.locator('.tool-status')).toContainText('Build the queue');
 
   await toolbarAction(page, 'Footpaths');
   await connectEntranceWithPath(page, world, entranceTile);
@@ -174,7 +176,7 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
   const rideWindow = page.locator('[data-panel="ride-0"]');
   await expect(rideWindow).toBeVisible();
   await expect(rideWindow.locator('.ride-checklist')).not.toContainText(
-    'Entrance not connected to a path',
+    'Entrance has no queue or path',
   );
   await rideWindow.getByRole('button', { name: 'Test', exact: true }).click();
   await expect(rideWindow.locator('.ride-status')).toHaveText('Testing');
@@ -273,11 +275,11 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   const coasterWindow = page.locator(`[data-panel="ride-${coasterId}"]`);
   await expect(coasterWindow.locator('.ride-checklist')).toContainText('Untested');
   await expect(coasterWindow.locator('.ride-checklist')).toContainText(
-    'Entrance not connected to a path',
+    'Entrance has no queue or path',
   );
   await coasterWindow
     .locator('.ride-checklist')
-    .getByRole('button', { name: 'Build path' })
+    .getByRole('button', { name: 'Build queue' })
     .click();
   await page.getByRole('button', { name: `Close Ride #${coasterId}` }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
@@ -287,7 +289,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   await toolbarAction(page, 'Rides');
   await coasterRow.click();
   await expect(coasterWindow.locator('.ride-checklist')).not.toContainText(
-    'Entrance not connected to a path',
+    'Entrance has no queue or path',
   );
   await coasterWindow
     .locator('.ride-checklist')

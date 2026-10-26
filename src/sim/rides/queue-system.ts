@@ -38,8 +38,14 @@ export function seatQueuedGuests(world: World, slot: number, count: number, tag:
   const id = world.rides.slotToId[slot];
   const price = ticketPriceCents(world, slot);
   let seated = 0;
-  for (let g = 0; g < world.guests.count && seated < count; g++) {
-    if (guests.state[g] !== GuestState.Waiting || guests.targetRide[g] !== id) continue;
+  while (seated < count) {
+    let next = -1;
+    for (let g = 0; g < world.guests.count; g++) {
+      if (guests.state[g] !== GuestState.Waiting || guests.targetRide[g] !== id) continue;
+      if (next < 0 || guests.queueSeq[g] < guests.queueSeq[next]) next = g;
+    }
+    if (next < 0) break;
+    const g = next;
     const fare = spendVoucher(world, g, id, VoucherKind.FreeRide)
       ? 0
       : Math.min(price, guests.cash[g]);

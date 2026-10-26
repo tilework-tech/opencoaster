@@ -119,7 +119,7 @@ test.describe('footpath tool (desktop)', () => {
     await page.getByRole('button', { name: 'Dirt', exact: true }).click();
     await expect(page.locator('.tool-status')).toHaveText('Surface: Dirt.');
     await page.getByRole('button', { name: 'Queue line', exact: true }).click();
-    await expect(page.locator('.tool-status')).toHaveText('Queue line on.');
+    await expect(page.locator('.tool-status')).toContainText('Queue line on');
 
     await hoverGameTile(page, world, tile!);
     const [piece] = await ghostPieces(page);

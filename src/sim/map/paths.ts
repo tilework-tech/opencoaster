@@ -2,6 +2,9 @@ import { rampMask } from './land';
 import {
   ElementType,
   MAX_ELEMENT_BASE,
+  PATH_ENTRANCE_MARK,
+  PATH_EXIT_MARK,
+  PATH_BOARDING_MARKS,
   PathFlag,
   PathStyle,
   repairPathElement,
@@ -70,7 +73,8 @@ export function setPathAddition(m: TileMap, x: number, y: number, addition: Path
   if (element < 0) return false;
   m.elFlags[element] &= ~(PathFlag.Bin | PathFlag.Bench | PathFlag.Shelter | PathFlag.Lamp);
   m.elFlags[element] |= PATH_ADDITION_FLAGS[addition] ?? 0;
-  m.elData[element] = addition === PathAddition.Bin ? 0xff : 0;
+  m.elData[element] =
+    (addition === PathAddition.Bin ? 0xff : 0) | (m.elData[element] & PATH_BOARDING_MARKS);
   m.revision++;
   return true;
 }
@@ -85,32 +89,118 @@ function edgeHeight(m: TileMap, e: number, dir: number): number {
   return -1;
 }
 
+/** Path element of tile `n` whose height meets element `e`'s edge `dir` of tile `i`, or -1. */
+function adjoiningElement(m: TileMap, i: number, e: number, dir: number): number {
+  const h = edgeHeight(m, e, dir);
+  const n = h < 0 ? -1 : m.neighbor(i, dir);
+  if (n < 0) return -1;
+  const back = (dir + 2) & 3;
+  for (let f = m.firstElement(n); f >= 0; f = m.nextElement(f)) {
+    if (m.elType[f] === ElementType.Path && edgeHeight(m, f, back) === h) return f;
+  }
+  return -1;
+}
+
+function isQueueElement(m: TileMap, e: number): boolean {
+  return (m.elFlags[e] & PathFlag.Queue) !== 0;
+}
+
+/**
+ * Direction in which queue element `e` of tile `i` joins an ordinary path, or -1. Only the open end
+ * of a queue line has one: a piece with at most one queue neighbour that is not a ride entrance
+ * already joined to a line. It prefers continuing straight on from its queue neighbour, and never
+ * joins a ride exit.
+ */
+export function queueOpening(m: TileMap, i: number, e: number): number {
+  let queueNeighbours = 0;
+  let queueDir = -1;
+  let first = -1;
+  let straight = -1;
+  for (let d = 0; d < 4; d++) {
+    const f = adjoiningElement(m, i, e, d);
+    if (f < 0) continue;
+    if (isQueueElement(m, f)) {
+      queueNeighbours++;
+      queueDir = d;
+    }
+  }
+  if (queueNeighbours >= 2) return -1;
+  if (queueNeighbours === 1 && m.elData[e] & PATH_ENTRANCE_MARK) return -1;
+  for (let d = 0; d < 4; d++) {
+    const f = adjoiningElement(m, i, e, d);
+    if (f < 0 || isQueueElement(m, f) || m.elData[f] & PATH_EXIT_MARK) continue;
+    if (first < 0) first = d;
+    if (queueDir >= 0 && d === ((queueDir + 2) & 3)) straight = d;
+  }
+  return straight >= 0 ? straight : first;
+}
+
+/** Whether `e` of tile `i` joins the neighbouring element across `dir` under the queue rules. */
+/** What a queue line holds: bit 0 a ride entrance, bit 1 an open end joined to an ordinary path. */
+export const enum QueueLink {
+  Entrance = 1,
+  OpenEnd = 2,
+}
+
+/** Walks the queue line through tile `i` and reports what it connects to (0 for a non-queue tile). */
+export function queueLinks(m: TileMap, i: number): number {
+  if (!m.isQueue(i)) return 0;
+  const seen = new Set<number>([i]);
+  const stack = [i];
+  let links = 0;
+  while (stack.length > 0) {
+    const tile = stack.pop() as number;
+    const e = m.pathElement(tile, -1);
+    if (m.elData[e] & PATH_ENTRANCE_MARK) links |= QueueLink.Entrance;
+    if (queueOpening(m, tile, e) >= 0) links |= QueueLink.OpenEnd;
+    const edges = m.pathEdgesOf(e);
+    for (let d = 0; d < 4; d++) {
+      if (!(edges & (1 << d))) continue;
+      const n = m.neighbor(tile, d);
+      if (n >= 0 && !seen.has(n) && m.isQueue(n)) {
+        seen.add(n);
+        stack.push(n);
+      }
+    }
+  }
+  return links;
+}
+
+function joins(m: TileMap, i: number, e: number, dir: number, f: number): boolean {
+  const qe = isQueueElement(m, e);
+  const qf = isQueueElement(m, f);
+  if (qe === qf) return true;
+  if (qe) return queueOpening(m, i, e) === dir;
+  const n = m.neighbor(i, dir);
+  return queueOpening(m, n, f) === ((dir + 2) & 3) && !(m.elData[e] & PATH_EXIT_MARK);
+}
+
 function recomputeTileEdges(m: TileMap, i: number): void {
   for (let e = m.firstElement(i); e >= 0; e = m.nextElement(e)) {
     if (m.elType[e] !== ElementType.Path) continue;
     let edges = 0;
     for (let d = 0; d < 4; d++) {
-      const h = edgeHeight(m, e, d);
-      const n = h < 0 ? -1 : m.neighbor(i, d);
-      if (n < 0) continue;
-      const back = (d + 2) & 3;
-      for (let f = m.firstElement(n); f >= 0; f = m.nextElement(f)) {
-        if (m.elType[f] === ElementType.Path && edgeHeight(m, f, back) === h) {
-          edges |= 1 << d;
-          break;
-        }
-      }
+      const f = adjoiningElement(m, i, e, d);
+      if (f >= 0 && joins(m, i, e, d, f)) edges |= 1 << d;
     }
     m.elFlags[e] = (m.elFlags[e] & ~PathFlag.Edges) | edges;
   }
 }
 
-/** Re-derives joined-edge masks of a tile and its four neighbours. */
+/**
+ * Re-derives the joined-edge masks around a tile. A queue piece's opening depends on its own
+ * neighbours, so the tiles two steps away are refreshed too.
+ */
 export function recomputePathEdges(m: TileMap, i: number): void {
   recomputeTileEdges(m, i);
   for (let d = 0; d < 4; d++) {
     const n = m.neighbor(i, d);
-    if (n >= 0) recomputeTileEdges(m, n);
+    if (n < 0) continue;
+    recomputeTileEdges(m, n);
+    for (let d2 = 0; d2 < 4; d2++) {
+      const n2 = m.neighbor(n, d2);
+      if (n2 >= 0 && n2 !== i) recomputeTileEdges(m, n2);
+    }
   }
   m.pathVersion++;
   m.revision++;
@@ -184,6 +274,11 @@ export function planPathPlacement(m: TileMap, p: PathPlacement): PathPlan {
   for (let e = m.firstElement(i); e >= 0; e = m.nextElement(e)) {
     if (e !== existing && m.elBase[e] < clear && z < m.elClear[e])
       return refusedPlan(PathResult.Blocked, i);
+  }
+  if (existing >= 0) {
+    const marks = m.elData[existing];
+    if (marks & PATH_ENTRANCE_MARK && !p.queue) return refusedPlan(PathResult.Blocked, i);
+    if (marks & PATH_EXIT_MARK && p.queue) return refusedPlan(PathResult.Blocked, i);
   }
   const flags =
     (p.queue ? PathFlag.Queue : 0) | (ramp ? PathFlag.Sloped | (dir << SLOPE_DIR_SHIFT) : 0);

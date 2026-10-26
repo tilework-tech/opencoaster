@@ -17,6 +17,9 @@ export const SOLID_BIAS = 0.25;
 /** Offset of flat ground cover from the tile-centre key: just after the terrain, under people. */
 export const GROUND_COVER_BIAS = -1.75;
 
+/** Offset of a queue rail from the key of its tile edge: after the people standing on the tile. */
+const QUEUE_RAIL_BIAS = 0.6;
+
 /** How far above a surface, in levels, a person's feet may be and still count as on it. */
 const FEET_TOLERANCE = 0.3;
 /** How close, in tiles, a person must be to a neighbouring tile for its slab to reach their sprite. */
@@ -73,6 +76,29 @@ export function pathSlabDepth(
     lowest - SURFACE_GAP,
     terrainDepth(map, rotation, x, y, terrainHeight) + SURFACE_GAP,
   );
+}
+
+/**
+ * Key of a queue rail along the edge of a tile in world direction `worldDir` (0 = +x, 1 = +y,
+ * 2 = -x, 3 = -y), standing at level `base`. Drawn after the people on the tile.
+ */
+export function queueRailDepth(
+  map: { width: number; height: number },
+  rotation: Rotation,
+  x: number,
+  y: number,
+  worldDir: number,
+  base: number,
+): number {
+  const dx = worldDir === 0 ? 0.5 : worldDir === 2 ? -0.5 : 0;
+  const dy = worldDir === 1 ? 0.5 : worldDir === 3 ? -0.5 : 0;
+  const edgeSum = rotatedPositionSum(
+    (x + 0.5 + dx) * TILE_UNITS,
+    (y + 0.5 + dy) * TILE_UNITS,
+    map,
+    rotation,
+  );
+  return 2 * edgeSum - base + QUEUE_RAIL_BIAS;
 }
 
 /** The key of the ground a person stands on, per tile, for one map and camera rotation. */

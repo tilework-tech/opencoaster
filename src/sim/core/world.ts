@@ -9,6 +9,8 @@ import { VEHICLE_SCHEMA } from '../vehicles/vehicle-store';
 import { LITTER_SCHEMA } from '../guests/litter-store';
 import { createParkState } from '../guests/park';
 import { createRideLines } from '../guests/ride-lines';
+import { createQueueIndex } from '../rides/queue-lines';
+import type { QueueIndex } from '../rides/queue-lines';
 import type { RideLines } from '../guests/ride-lines';
 import type { ParkState } from '../guests/park';
 import { createLedger } from '../economy/ledger';
@@ -63,6 +65,8 @@ export class World {
   readonly park: ParkState;
   /** Guests lining up for each ride; derived every tick, not hashed or saved. */
   readonly rideLines: RideLines;
+  /** Queue lines of every ride, derived from the map; not hashed or saved. */
+  readonly queues: QueueIndex;
   /** Outcome of the latest command, for UI display; not hashed or saved. */
   readonly feedback: CommandFeedback = createFeedback();
   readonly audioEvents: Array<{
@@ -91,6 +95,7 @@ export class World {
     this.litter = new EntityStore(LITTER_SCHEMA, MAX_LITTER);
     this.rides = new EntityStore(RIDE_SCHEMA, 256);
     this.rideLines = createRideLines(this.rides.capacity);
+    this.queues = createQueueIndex(opts.width * opts.height, this.rides.capacity);
     this.economy = createLedger();
     this.weather = createWeather();
     this.research = createResearch();

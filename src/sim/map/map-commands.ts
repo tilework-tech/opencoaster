@@ -9,6 +9,7 @@ import {
   PathResult,
   placePathOutcome,
   planPathPlacement,
+  queueLinks,
   removePath,
   setPathAddition,
   type PathAddition,
@@ -325,6 +326,8 @@ export interface PathPiecePreview {
   style: PathStyle;
   /** Edges (bit `1 << dir`) the piece joins to its neighbours once the whole run is laid. */
   edges: number;
+  /** `QueueLink` bits for a queue piece: what its line connects to once the run is laid. */
+  link: number;
 }
 
 /**
@@ -351,6 +354,7 @@ export function previewPathRun(w: World, placements: readonly PathPlacement[]): 
         queue: false,
         style: PathStyle.Tarmac,
         edges: 0,
+        link: 0,
       };
     }
     const element = m.pathElement(plan.i, plan.z);
@@ -361,6 +365,7 @@ export function previewPathRun(w: World, placements: readonly PathPlacement[]): 
       queue: (plan.flags & PathFlag.Queue) !== 0,
       style: plan.style,
       edges: element < 0 ? 0 : m.pathEdgesOf(element),
+      link: queueLinks(m, plan.i),
     };
   });
 }
