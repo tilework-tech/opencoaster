@@ -152,9 +152,26 @@ for (const mobile of [false, true]) {
       await options.getByRole('button', { name: 'Guests +1,000' }).click();
       await toolbarAction(page, 'Resume');
       await expect.poll(() => page.evaluate(() => {
-        const state = window as unknown as { __snapshot: { guests: { count: number } } };
-        return state.__snapshot.guests.count;
-      })).toBeGreaterThan(0);
+        try {
+          const state = window as unknown as { __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array } };
+          const snapshot = state.__snapshot;
+          for (let i = 0; i < snapshot.guests.count; i++) {
+            const id = snapshot.guestIds[i]!;
+            if (id <= 0) continue;
+            const x = snapshot.guests.data[i * 4]!;
+            const y = snapshot.guests.data[i * 4 + 1]!;
+            let nearest = Infinity;
+            for (let other = 0; other < snapshot.guests.count; other++) {
+              if (other === i) continue;
+              const dx = x - snapshot.guests.data[other * 4]!;
+              const dy = y - snapshot.guests.data[other * 4 + 1]!;
+              nearest = Math.min(nearest, dx * dx + dy * dy);
+            }
+            if (nearest > 128 * 128) return id;
+          }
+          return -1;
+        } catch { return -1; }
+      }), { timeout: 20_000 }).not.toBe(-1);
       await toolbarAction(page, 'Pause');
       await toolbarAction(page, 'Guests');
       const guestsPanel = page.locator('[data-panel="guests"]');
@@ -163,17 +180,37 @@ for (const mobile of [false, true]) {
         const state = window as unknown as {
           __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array };
         };
+        let slot = -1;
+        let chosen = -1;
+        for (let i = 0; i < state.__snapshot.guests.count; i++) {
+          const id = state.__snapshot.guestIds[i]!;
+          if (id <= 0) continue;
+          const x = state.__snapshot.guests.data[i * 4]!;
+          const y = state.__snapshot.guests.data[i * 4 + 1]!;
+          let nearest = Infinity;
+          for (let other = 0; other < state.__snapshot.guests.count; other++) {
+            if (other === i) continue;
+            const dx = x - state.__snapshot.guests.data[other * 4]!;
+            const dy = y - state.__snapshot.guests.data[other * 4 + 1]!;
+            nearest = Math.min(nearest, dx * dx + dy * dy);
+          }
+          if (nearest > 128 * 128) { slot = i; chosen = id; break; }
+        }
+        if (slot < 0) throw new Error('No guest with a selectable id is in the park');
         return {
-          id: state.__snapshot.guestIds[0]!,
-          x: Math.floor(state.__snapshot.guests.data[0]! / 256),
-          y: Math.floor(state.__snapshot.guests.data[1]! / 256),
+          id: chosen,
+          x: Math.floor(state.__snapshot.guests.data[slot * 4]! / 256),
+          y: Math.floor(state.__snapshot.guests.data[slot * 4 + 1]! / 256),
         };
       });
-      const guestPoint = await guestScreenPoint(page, guest.id);
-      await guestsPanel.getByRole('button', { name: /Close/ }).click();
-      await tapCanvasAt(page, guestPoint, mobile);
-      console.log('guest click status', await page.locator('.tool-status').textContent(), guestPoint);
       const guestWindow = page.locator(`[data-panel="guest-${guest.id}"]`);
+      await guestsPanel.locator(`[data-guest-id="${guest.id}"]`).first().click();
+      await expect(guestWindow).toBeVisible();
+      await guestWindow.getByRole('button', { name: 'Locate' }).click();
+      await guestWindow.getByRole('button', { name: /Close/ }).click();
+      await guestsPanel.getByRole('button', { name: /Close/ }).click();
+      const guestPoint = await guestScreenPoint(page, guest.id);
+      await tapCanvasAt(page, guestPoint, mobile);
       await expect(guestWindow).toBeVisible();
       await guestWindow.getByRole('button', { name: 'Pick up' }).click();
       const nextDrop = await page.evaluate(() => {

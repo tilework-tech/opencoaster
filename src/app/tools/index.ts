@@ -21,6 +21,7 @@ import type { PathTool } from './path/controller';
 import type { Tile } from './path/run';
 import { project } from '../../render/projection';
 import { OWNED } from '../../sim/map/tile-map';
+import { guestRowState } from '../../worker/snapshot';
 
 type MovingPerson = { person: 'guest' | 'staff'; id: number };
 
@@ -247,7 +248,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     if (rideId !== null) {
       deps.gameUi.openRide(rideId);
       selectionStatus = `Ride ${rideId} information opened.`;
-    } else if (guest) deps.gameUi.openGuestPanel();
+    } else if (guest) deps.gameUi.openWindow(`guest-${guest.id}`);
     else if (staffId !== null) deps.gameUi.openWindow(`worker-${staffId}`);
     else if (tile && map.entranceX === tile[0] && map.entranceY === tile[1]) deps.gameUi.openWindow('park');
     deps.gameUi.setToolStatus(selectionStatus);
@@ -303,7 +304,7 @@ export function createToolController(deps: ToolControllerDependencies) {
   function beginPersonMove(person: 'guest' | 'staff', id: number): void {
     const guest = person === 'guest' ? deps.sim.latest?.guestIds.indexOf(id) ?? -1 : -1;
     if (guest >= 0 && deps.sim.latest) {
-      const state = deps.sim.latest.guests.data[guest * 4 + 3]! >>> 8;
+      const state = guestRowState(deps.sim.latest.guests.data[guest * 4 + 3]!);
       if (state === 1 || state === 2 || state === 5) {
         deps.gameUi.setToolStatus('Pick up refused: guests on rides or in queues cannot be moved.');
         return;
