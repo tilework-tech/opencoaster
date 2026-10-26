@@ -34,6 +34,7 @@ async function mapTileClick(
   center: readonly [number, number],
   mobile: boolean,
   groundLevel = 2,
+  expectCoordinates = true,
 ): Promise<void> {
   await centerMapOnTile(page, ...center, mobile);
   const bounds = await page.locator('#game').boundingBox();
@@ -44,6 +45,7 @@ async function mapTileClick(
   const screenX = bounds.width / 2 + (dx - dy) * 32;
   const screenY = bounds.height / 2 + (dx + dy) * 16 - groundLevel * 16;
   await page.mouse.click(bounds.x + screenX, bounds.y + screenY);
+  if (!expectCoordinates) return;
   // Footpath laying answers after the sim previews it, so wait for the status to name this tile.
   await expect
     .poll(() => page.locator('.tool-status').innerText(), { timeout: 10_000 })
@@ -338,7 +340,7 @@ async function playStarterRideAccess(
     .click();
   const rideDetail = page.locator('[data-panel="ride-0"]');
   await toolbarAction(page, 'Game options', mobile);
-  await page.getByRole('button', { name: '4×' }).click();
+  await page.getByRole('button', { name: 'Game speed 4×', exact: true }).click();
   await page.getByRole('button', { name: 'Close Options' }).click();
   await rideDetail.locator('.ui-titlebar').click();
   await rideDetail.getByRole('button', { name: 'Open', exact: true }).click();
@@ -537,7 +539,7 @@ test('starts entrance setup on the newly created ride when ride types repeat', a
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
   await page.locator('.ride-card[data-ride-type="1"]').click();
-  await mapTileClick(page, 26, 38, mapCenter, false);
+  await mapTileClick(page, 26, 38, mapCenter, false, 2, false);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
 
   await toolbarAction(page, 'Rides', false);
