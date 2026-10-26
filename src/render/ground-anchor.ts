@@ -2,7 +2,7 @@ import { DIR_DX, DIR_DY, PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { SceneryDefinition } from '../sim/map/scenery';
 import { Z_STEP } from '../sim/core/constants';
 import { terrainMeshTriangles } from './terrain-geometry';
-import { SCENERY_PIXELS_PER_HEIGHT } from './sprite-layout';
+import { FLOWER_BED_BOX, SCENERY_PIXELS_PER_HEIGHT } from './sprite-layout';
 
 export interface GroundBox {
   width: number;
@@ -14,10 +14,16 @@ export interface PathAdditionOffset {
   y: number;
 }
 
-const PATH_ADDITION_EDGE_OFFSET = 64;
+const PATH_ADDITION_EDGE_OFFSET = 96;
 
+/**
+ * The single open path edge a bench, bin, or lamp stands on: the lowest-numbered edge with no
+ * connection. One piece per tile keeps furniture from stacking on corner and dead-end tiles, and
+ * the choice depends on the tile alone, so camera rotation only turns the piece.
+ */
 export function pathAdditionEdges(edges: number): number[] {
-  return [0, 1, 2, 3].filter((edge) => (edges & (1 << edge)) === 0);
+  const edge = [0, 1, 2, 3].find((candidate) => (edges & (1 << candidate)) === 0);
+  return edge === undefined ? [] : [edge];
 }
 
 export function pathAdditionEdgeOffset(edge: number): PathAdditionOffset {
@@ -72,10 +78,16 @@ export function flowerBedGroundZ(baseHeight: number, slopeMask: number, rotation
 }
 
 export function sceneryBox(definition: SceneryDefinition): GroundBox {
+  if (definition.sprite === 'flower-bed') return FLOWER_BED_BOX;
   return {
     width: definition.width,
     height: definition.height * SCENERY_PIXELS_PER_HEIGHT,
   };
+}
+
+/** Height units the sprite frame's bottom edge sits below the projected ground point. */
+export function sceneryFrameDrop(definition: SceneryDefinition): number {
+  return definition.sprite === 'flower-bed' ? Z_STEP : 0;
 }
 
 export function adjustDepthForGroundZ(

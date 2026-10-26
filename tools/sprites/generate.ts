@@ -258,21 +258,21 @@ function parkEntranceSprites(): SpriteDef[] {
 }
 
 function pathAdditionSprites(): SpriteDef[] {
-  const models: readonly (readonly [string, () => Mesh])[] = [
-    ['scenery/shelter', shelterMesh],
-    ['scenery/bench', benchMesh],
-    ['scenery/bin', binMesh],
-    ['scenery/lamp', lampMesh],
-    ['scenery/bench-broken', brokenBenchMesh],
-    ['scenery/bin-broken', brokenBinMesh],
-    ['scenery/lamp-broken', brokenLampMesh],
+  const models: readonly (readonly [string, () => Mesh, boolean])[] = [
+    ['scenery/shelter', shelterMesh, true],
+    ['scenery/bench', benchMesh, false],
+    ['scenery/bin', binMesh, false],
+    ['scenery/lamp', lampMesh, false],
+    ['scenery/bench-broken', brokenBenchMesh, false],
+    ['scenery/bin-broken', brokenBinMesh, false],
+    ['scenery/lamp-broken', brokenLampMesh, false],
   ] as const;
-  return models.flatMap(([key, build]) =>
+  return models.flatMap(([key, build, raw]) =>
     Array.from({ length: 4 }, (_, view) => ({
       key: `${key}/view-${view}`,
       frames: [renderMesh(rotateMesh(physicalToLevels(build()), view))],
       footprint: ONE_TILE,
-      raw: true,
+      raw,
     })),
   );
 }

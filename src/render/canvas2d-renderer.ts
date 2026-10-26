@@ -51,6 +51,7 @@ import {
   flowerBedGroundZ,
   pathConnectionEdges,
   sceneryBox,
+  sceneryFrameDrop,
   sceneryGroundZ,
 } from './ground-anchor';
 import {
@@ -739,12 +740,21 @@ export class Canvas2DRenderer implements Renderer {
   ): void {
     const sprite = pathAdditionSpriteName(flags, view, data);
     const box = pathAdditionBox(flags, view);
-    if (
-      this.atlas &&
-      sprite &&
-      drawBoxedSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1], box.width, box.height)
-    )
-      return;
+    if (this.atlas && sprite) {
+      const drawn =
+        flags & PathFlag.Shelter
+          ? drawBoxedSprite(
+              ctx,
+              this.atlas,
+              sprite,
+              this.tmp[0],
+              this.tmp[1],
+              box.width,
+              box.height,
+            )
+          : drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1]);
+      if (drawn) return;
+    }
     const x = this.tmp[0];
     const y = this.tmp[1];
     if (flags & PathFlag.Bin) {
@@ -1021,7 +1031,7 @@ export class Canvas2DRenderer implements Renderer {
       project(
         x * TILE_UNITS + TILE_UNITS / 2,
         y * TILE_UNITS + TILE_UNITS / 2,
-        z,
+        z - sceneryFrameDrop(definition),
         map.width,
         map.height,
         cam.rotation,
@@ -1401,7 +1411,7 @@ export class Canvas2DRenderer implements Renderer {
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
       place(
         scenerySpriteName('flower-bed'),
-        flowerBedGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation) - z,
+        flowerBedGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation) - z - Z_STEP,
         FLOWER_BED_BOX.width,
         FLOWER_BED_BOX.height,
       );

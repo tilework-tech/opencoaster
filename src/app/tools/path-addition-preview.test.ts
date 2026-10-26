@@ -16,17 +16,18 @@ function mapWithPath(flags: number) {
 
 describe('path addition placement preview', () => {
   it.each([
-    ['straight', 0b0101, 2],
-    ['corner', 0b0011, 2],
+    ['straight', 0b0101, 1],
+    ['corner', 0b0011, 1],
     ['T-junction', 0b0111, 1],
     ['crossroads', 0b1111, 0],
-    ['dead-end', 0b0001, 3],
-  ])('previews %s props on the same open edges as rendering', (_shape, edges, count) => {
+    ['dead-end', 0b0001, 1],
+  ])('previews %s props on the same open edge as rendering', (_shape, edges, count) => {
     const ghosts = pathAdditionPreviewGhosts(mapWithPath(edges), 1, 1, 'bench', 0);
     expect(ghosts).toHaveLength(count);
     for (const ghost of ghosts) {
       expect(ghost.kind).toBe('path-addition');
-      expect(ghost.width! * ghost.height!).toBe(30 * 18);
+      expect(ghost.width).toBeUndefined();
+      expect(ghost.height).toBeUndefined();
     }
   });
 
@@ -38,10 +39,10 @@ describe('path addition placement preview', () => {
       ),
     );
     expect(sprites).toEqual([
-      ['scenery/bench/view-1', 'scenery/bench/view-3'],
-      ['scenery/bench/view-2', 'scenery/bench/view-0'],
-      ['scenery/bench/view-3', 'scenery/bench/view-1'],
-      ['scenery/bench/view-0', 'scenery/bench/view-2'],
+      ['scenery/bench/view-1'],
+      ['scenery/bench/view-2'],
+      ['scenery/bench/view-3'],
+      ['scenery/bench/view-0'],
     ]);
     const sloped = pathAdditionPreviewGhosts(mapWithPath(flags), 1, 1, 'bench', 0);
     for (const { level } of sloped) expect(level).toBeCloseTo(2 + 33 / 64);

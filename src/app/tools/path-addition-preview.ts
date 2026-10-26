@@ -54,7 +54,6 @@ export function pathAdditionPreviewGhosts(
     return pathAdditionEdges(pathConnectionEdges(flags)).map((edge) => {
       const view = pathAdditionView(edge, rotation);
       const position = pathAdditionEdgeOffset(edge);
-      const box = pathAdditionBox(additionFlag, view);
       return {
         x: x + position.x / TILE_UNITS,
         y: y + position.y / TILE_UNITS,
@@ -64,8 +63,6 @@ export function pathAdditionPreviewGhosts(
         sprite: pathAdditionSpriteName(additionFlag, view, 0),
         kind: 'path-addition',
         tone: 'ok',
-        width: box.width,
-        height: box.height,
       };
     });
   }

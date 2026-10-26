@@ -3,6 +3,8 @@ import { PATH_ADDITION_BROKEN, PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { SceneryResult } from '../sim/map/scenery';
+import { FLOWER_BED_BOX } from './sprite-layout';
+import { sceneryBox } from './ground-anchor';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
 import { createSnapshot } from '../worker/snapshot';
@@ -104,6 +106,8 @@ function render(map: MapData): RecordingContext {
   return context;
 }
 
+const STUB_FRAME = { width: 30, height: 20 };
+
 function installStubAtlas(names: string[], atlas: SpritePages): void {
   const sprites: Record<string, SpriteEntry> = {};
   for (const [index, name] of names.entries())
@@ -197,35 +201,29 @@ describe('Canvas2D fallback map art', () => {
     expect(context.spriteSources).toEqual(expect.arrayContaining([1]));
   });
 
-  it('draws intact and vandalised path additions in the shared box on flat and sloped paths', async () => {
+  it('draws intact and vandalised path additions at native frame size on flat and sloped paths', async () => {
     const rampSprites = Array.from(
       { length: 4 },
       (_, direction) => `paths/tarmac/ramp-${direction}`,
     );
     const cases = [
-      { flag: PathFlag.Bench, data: 0, sprite: 'scenery/bench', width: 30, height: 18 },
+      { flag: PathFlag.Bench, data: 0, sprite: 'scenery/bench' },
       {
         flag: PathFlag.Bench,
         data: PATH_ADDITION_BROKEN,
         sprite: 'scenery/bench-broken',
-        width: 30,
-        height: 18,
       },
-      { flag: PathFlag.Bin, data: 0, sprite: 'scenery/bin', width: 18, height: 26 },
+      { flag: PathFlag.Bin, data: 0, sprite: 'scenery/bin' },
       {
         flag: PathFlag.Bin,
         data: PATH_ADDITION_BROKEN,
         sprite: 'scenery/bin-broken',
-        width: 18,
-        height: 26,
       },
-      { flag: PathFlag.Lamp, data: 0, sprite: 'scenery/lamp', width: 16, height: 32 },
+      { flag: PathFlag.Lamp, data: 0, sprite: 'scenery/lamp' },
       {
         flag: PathFlag.Lamp,
         data: PATH_ADDITION_BROKEN,
         sprite: 'scenery/lamp-broken',
-        width: 16,
-        height: 32,
       },
     ];
 
@@ -249,20 +247,20 @@ describe('Canvas2D fallback map art', () => {
             (args) =>
               Number(args[1]) > rampSprites.length && Number(args[1]) <= rampSprites.length + 4,
           );
-          expect(additions, `${item.sprite} sloped=${sloped}`).toHaveLength(2);
+          expect(additions, `${item.sprite} sloped=${sloped}`).toHaveLength(1);
           for (const addition of additions) {
             const view = Number(addition[1]) - rampSprites.length - 1;
-            const width = view & 1 ? item.height : item.width;
-            const height = view & 1 ? item.width : item.height;
+            const width = STUB_FRAME.width;
+            const height = STUB_FRAME.height;
             expect(addition.slice(-2), `${item.sprite} view=${view}`).toEqual([width, height]);
             edgeCenters.push((addition[5] as number) + width / 2);
             pivotRows.push((addition[6] as number) + height);
           }
-          expect(new Set(edgeCenters).size, `${item.sprite} edge placement`).toBe(2);
+          expect(edgeCenters, `${item.sprite} edge placement`).toHaveLength(1);
         }
-        const flatPivots = pivotRows.slice(0, 2).sort((a, b) => a - b);
-        const slopedPivots = pivotRows.slice(2, 4).sort((a, b) => a - b);
-        expect(flatPivots.map((pivot, index) => pivot - slopedPivots[index]!)).toEqual([8, 8]);
+        const flatPivots = pivotRows.slice(0, 1).sort((a, b) => a - b);
+        const slopedPivots = pivotRows.slice(1, 2).sort((a, b) => a - b);
+        expect(flatPivots.map((pivot, index) => pivot - slopedPivots[index]!)).toEqual([8]);
       }
     }
   });
@@ -389,8 +387,7 @@ describe('Canvas2D fallback map art', () => {
             { x: 0, y: 0, zoom, rotation: rotation as 0 | 1 | 2 | 3 },
             [ghost],
           );
-          const boxWidth = definition.width;
-          const boxHeight = definition.height * 12;
+          const { width: boxWidth, height: boxHeight } = sceneryBox(definition);
           const placedRect = screenRect(placed, boxWidth, boxHeight);
           const ghostRect = screenRect(previewDraw, boxWidth, boxHeight);
           expect(placedRect, `placed ${key} rotation=${rotation} zoom=${zoom}`).toBeDefined();
@@ -426,14 +423,9 @@ describe('Canvas2D fallback map art', () => {
     );
 
     const previewImages = context.images.filter(
-      (args) => args.length === 9 && Number(args[7]) * Number(args[8]) === 30 * 18,
+      (args) => args.length === 9 && args[7] === STUB_FRAME.width && args[8] === STUB_FRAME.height,
     );
-    expect(previewImages).toHaveLength(2);
-    expect(previewImages.map((args) => args.slice(-2))).toEqual([
-      [18, 30],
-      [18, 30],
-    ]);
-    expect(new Set(previewImages.map((args) => args[5])).size).toBe(2);
+    expect(previewImages).toHaveLength(1);
   });
 
   it('renders flowerbed previews at the placed flowerbed rect on sloped tiles in every view', async () => {
@@ -474,8 +466,8 @@ describe('Canvas2D fallback map art', () => {
           { x: 0, y: 0, zoom, rotation: rotation as 0 | 1 | 2 | 3 },
           [ghost],
         );
-        const placedRect = screenRect(placed, 30, 12);
-        const previewRect = screenRect(preview, 30, 12);
+        const placedRect = screenRect(placed, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
+        const previewRect = screenRect(preview, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
         expect(placedRect, `placed rotation=${rotation} zoom=${zoom}`).toBeDefined();
         expect(previewRect, `preview rotation=${rotation} zoom=${zoom}`).toBeDefined();
         expect(previewRect, `rotation=${rotation} zoom=${zoom}`).toEqual(placedRect);

@@ -30,6 +30,7 @@ import {
   flowerBedGroundZ,
   pathConnectionEdges,
   sceneryBox,
+  sceneryFrameDrop,
   sceneryGroundZ,
 } from './ground-anchor';
 import { spriteAnchorScreenShift } from './ground-anchor';
@@ -1356,7 +1357,7 @@ export class WebGL2Renderer implements Renderer {
         this.append(
           worldX,
           worldY,
-          z,
+          z - Z_STEP,
           FLOWER_BED_BOX.width,
           FLOWER_BED_BOX.height,
           scenerySpriteName('flower-bed'),
@@ -1604,7 +1605,7 @@ export class WebGL2Renderer implements Renderer {
       this.append(
         worldX,
         worldY,
-        z,
+        z - sceneryFrameDrop(item),
         box.width,
         spriteHeight,
         scenerySpriteName(item.sprite),

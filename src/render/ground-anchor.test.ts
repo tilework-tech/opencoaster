@@ -15,12 +15,12 @@ import {
 
 describe('ground anchors', () => {
   it.each([
-    ['straight', 0b0101, [1, 3]],
-    ['corner', 0b0011, [2, 3]],
+    ['straight', 0b0101, [1]],
+    ['corner', 0b0011, [2]],
     ['T-junction', 0b0111, [3]],
     ['crossroads', 0b1111, []],
-    ['dead-end', 0b0001, [1, 2, 3]],
-  ])('places %s additions only on open edges', (_shape, connections, expected) => {
+    ['dead-end', 0b0001, [1]],
+  ])('places %s additions on the lowest open edge', (_shape, connections, expected) => {
     expect(pathAdditionEdges(connections)).toEqual(expected);
   });
 
@@ -31,8 +31,8 @@ describe('ground anchors', () => {
   });
 
   it('offsets additions to open edges and follows the slope surface there', () => {
-    expect(pathAdditionEdgeOffset(0)).toEqual({ x: 64, y: 0 });
-    expect(pathAdditionEdgeOffset(1)).toEqual({ x: 0, y: 64 });
+    expect(pathAdditionEdgeOffset(0)).toEqual({ x: 96, y: 0 });
+    expect(pathAdditionEdgeOffset(1)).toEqual({ x: 0, y: 96 });
     const rampEast = PathFlag.Sloped;
     expect(pathAdditionEdgeGroundZ(3, rampEast, 0)).toBe(3 * Z_STEP + Z_STEP + 1);
     expect(pathAdditionEdgeGroundZ(3, rampEast, 1)).toBe(3 * Z_STEP + Z_STEP / 2 + 1);

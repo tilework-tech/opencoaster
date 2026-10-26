@@ -33,14 +33,17 @@ describe('generated sprite catalogue', () => {
             height: 1,
           });
         const frame = sprite?.frames[0];
-        const minimumWidth = key.startsWith('litter/') || key.includes('lamp-broken') ? 10 : 24;
-        const minimumHeight = key.startsWith('litter/') ? 6 : 16;
+        const small = key.startsWith('litter/') || /(bin|lamp)/.test(key);
+        const minimumWidth = small ? 10 : 20;
+        const minimumHeight = key.startsWith('litter/') ? 6 : 14;
         expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
         expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
         expect(frame?.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
         views.push(Buffer.from(frame!.pixels).toString('base64'));
       }
-      expect(new Set(views).size, `${key} distinct camera views`).toBe(4);
+      // Lamp posts are rotationally symmetric, so every view legitimately matches.
+      if (!key.includes('lamp'))
+        expect(new Set(views).size, `${key} distinct camera views`).toBe(4);
     }
   });
 
@@ -55,7 +58,8 @@ describe('generated sprite catalogue', () => {
       expect(frame.anchor.x, `${key} x`).toBe(frame.width / 2);
       expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
       expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);
-      if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBe(true);
+      if (key.startsWith('scenery/shelter/')) expect(sprite.raw, key).toBe(true);
+      else if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBeFalsy();
     }
   });
 
