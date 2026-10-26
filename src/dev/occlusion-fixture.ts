@@ -114,6 +114,36 @@ async function main(): Promise<void> {
   }
   renderer.draw(park.snapshot, camera);
 
+  /** Pixels where the oracle shows kind `want` and the renderer kind `got`, for diagnosis. */
+  const pairPixels = (want: string, got: string) => {
+    const capture = renderer.captureObjectIds(park.snapshot, camera);
+    const pages: OraclePage[] = [];
+    for (const page of capture.pages) pages[page] = oraclePage(page);
+    const oracle = compositeScene({
+      width: capture.width,
+      height: capture.height,
+      pages,
+      sprites: capture.sprites,
+      triangles: terrainTriangles(park.map, camera, viewWidth, viewHeight, 1),
+    });
+    const out: { x: number; y: number; oracle: number; rendered: number; heights: number }[] = [];
+    for (let i = 0; i < oracle.ids.length; i++) {
+      const o = oracle.ids[i];
+      const r = capture.ids[i];
+      if (o === r || capture.kinds.get(o) !== want || capture.kinds.get(r) !== got) continue;
+      out.push({
+        x: i % capture.width,
+        y: Math.floor(i / capture.width),
+        oracle: o,
+        rendered: r,
+        heights: oracle.heights[i],
+      });
+    }
+    const sprites = capture.sprites.filter((sprite) =>
+      out.some((p) => p.oracle === sprite.id || p.rendered === sprite.id),
+    );
+    return { pixels: out, sprites };
+  };
   const score = (images = false) => {
     const capture = renderer.captureObjectIds(park.snapshot, camera);
     const pages: OraclePage[] = [];
@@ -159,7 +189,7 @@ async function main(): Promise<void> {
     samples.sort((a, b) => a - b);
     return { median: samples[Math.floor(frames / 2)], worst: samples[frames - 1] };
   };
-  Object.assign(window, { __score: score, __time: time, __ready: true });
+  Object.assign(window, { __score: score, __time: time, __pairPixels: pairPixels, __ready: true });
 }
 
 void main();

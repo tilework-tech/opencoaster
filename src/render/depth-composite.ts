@@ -159,7 +159,7 @@ export class DepthComposite {
     const opaque = alpha >= 1;
     for (let py = y0; py <= y1; py++) {
       const fy = (py + 0.5 - at.top) / at.height;
-      if (fy < 0 || fy >= 1) continue;
+      if (fy <= 0 || fy > 1) continue;
       const row = Math.floor(0.5 + fy * (frame.height - 1)) * frame.width;
       const line = py * width;
       for (let px = x0; px <= x1; px++) {

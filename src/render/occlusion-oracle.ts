@@ -75,7 +75,8 @@ export const COVERAGE_ALPHA = 128;
 
 /**
  * Atlas texel a sprite samples at the screen pixel whose centre is (sx, sy), or -1 when the pixel
- * centre is outside the sprite's rectangle. Mirrors the half-texel inset of the WebGL2 renderer.
+ * centre is outside the sprite's rectangle. Mirrors the half-texel inset and the fill rule of the
+ * WebGL2 renderer.
  */
 export function spriteTexel(
   sprite: OracleSprite,
@@ -85,7 +86,8 @@ export function spriteTexel(
 ): number {
   const fx = (sx - sprite.left) / sprite.width;
   const fy = (sy - sprite.top) / sprite.height;
-  if (fx < 0 || fx >= 1 || fy < 0 || fy >= 1) return -1;
+  // The GPU fill rule (window y up): a centre on the top edge lies outside, on the bottom inside.
+  if (fx < 0 || fx >= 1 || fy <= 0 || fy > 1) return -1;
   const { frame } = sprite;
   const tx = frame.x + Math.floor(0.5 + fx * (frame.width - 1));
   const ty = frame.y + Math.floor(0.5 + fy * (frame.height - 1));

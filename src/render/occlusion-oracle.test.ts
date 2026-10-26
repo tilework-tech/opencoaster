@@ -144,3 +144,34 @@ describe('occlusion oracle', () => {
     ).toBe(2);
   });
 });
+
+describe('sprite coverage at pixel centres', () => {
+  it('follows the GPU fill rule: a centre on the top edge is outside, on the bottom edge inside', () => {
+    const page: OraclePage = {
+      width: 1,
+      height: 2,
+      colour: new Uint8ClampedArray([9, 9, 9, 255, 9, 9, 9, 255]),
+      heights: new Uint8ClampedArray([128, 0, 0, 255, 128, 0, 0, 255]),
+    };
+    const sprite: OracleSprite = {
+      id: 1,
+      page: 0,
+      frame: { x: 0, y: 0, width: 1, height: 2 },
+      left: 0,
+      top: 0.5,
+      width: 1,
+      height: 2,
+      anchorHeight: 0,
+      heightScale: 1,
+    };
+    const { ids } = compositeScene({
+      width: 1,
+      height: 3,
+      pages: [page],
+      sprites: [sprite],
+      triangles: [],
+    });
+    // Rows centred at 0.5 (top edge), 1.5 (inside) and 2.5 (bottom edge).
+    expect([...ids]).toEqual([NO_OBJECT, 1, 1]);
+  });
+});
