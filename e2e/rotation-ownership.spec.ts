@@ -279,3 +279,94 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
   expect(report.checked).toBeGreaterThan(80);
   expect(report.misses).toEqual([]);
 });
+
+test('coaster circuit tiles keep world ownership beside path and stall in every view', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Sandbox' }).click();
+
+  const report = await page.evaluate(async () => {
+    const [
+      { Canvas2DRenderer },
+      { WebGL2Renderer },
+      { CoasterScene },
+      { worldToScreen },
+      { createSnapshot, writeSnapshot },
+      { buildCircuit, connectStation, createCoaster, flatOwnedSim },
+      { RideType },
+    ] = await Promise.all([
+      import('/src/render/canvas2d-renderer.ts'),
+      import('/src/render/webgl2-renderer.ts'),
+      import('/src/render/coaster-scene.ts'),
+      import('/src/render/projection.ts'),
+      import('/src/worker/snapshot.ts'),
+      import('/src/sim/rides/coaster-fixtures.ts'),
+      import('/src/sim/rides/ride-types.ts'),
+    ]);
+    const sim = flatOwnedSim(31);
+    const rideId = createCoaster(sim, RideType.WoodenCoaster);
+    buildCircuit(sim, rideId);
+    connectStation(sim, rideId);
+    const stallId = createCoaster(sim, RideType.FoodStall, 22, 18);
+    const world = sim.world;
+    const width = world.map.width;
+    const height = world.map.height;
+    const snapshot = createSnapshot({
+      guests: 0,
+      staff: 0,
+      vehicles: 8,
+      cars: 64,
+      litter: 0,
+      rides: 4,
+      tracks: 64,
+      mapTiles: width * height,
+    });
+    writeSnapshot(world, snapshot);
+    const map = {
+      width,
+      height,
+      heights: world.map.heights,
+      surface: world.map.surface,
+      slope: world.map.slope,
+      waterLevel: world.map.waterLevel,
+      pathElements: Int32Array.from([20, 19, 2, 0b1111, 0, 0]),
+      pathCount: 1,
+    };
+    const scene = new CoasterScene();
+    const checked: string[] = [];
+    for (let rotation = 0; rotation < 4; rotation++) {
+      scene.build(snapshot, map, rotation);
+      const track = scene.items.find((item) => item.key.includes('/track/station/'));
+      if (!track) throw new Error('station track sprite was not built');
+      const trackScreen = worldToScreen(
+        track.x / 256,
+        track.y / 256,
+        track.z / 64,
+        rotation,
+        map,
+      );
+      const expectedTrack = worldToScreen(20.5, 20.5, 2, rotation, map);
+      if (Math.hypot(trackScreen[0] - expectedTrack[0], trackScreen[1] - expectedTrack[1]) > 1)
+        throw new Error(`station moved from its world tile at rotation ${rotation}`);
+      const path = worldToScreen(20.5, 19.5, 2, rotation, map);
+      const stall = worldToScreen(22.5, 18.5, 2, rotation, map);
+      const relativeTrackPath = [trackScreen[0] - path[0], trackScreen[1] - path[1]];
+      const canonicalRelative = [expectedTrack[0] - path[0], expectedTrack[1] - path[1]];
+      if (Math.hypot(relativeTrackPath[0] - canonicalRelative[0], relativeTrackPath[1] - canonicalRelative[1]) > 1)
+        throw new Error(`track to path offset changed at rotation ${rotation}`);
+      const center = worldToScreen(width / 2, height / 2, 0, rotation, map);
+      for (const Renderer of [Canvas2DRenderer, WebGL2Renderer]) {
+        const renderer = new Renderer();
+        const canvas = document.createElement('canvas');
+        renderer.attach(canvas);
+        renderer.resize(900, 520, 1);
+        renderer.setMap(map as never);
+        renderer.draw(snapshot, { x: center[0], y: center[1], zoom: 1, rotation });
+      }
+      checked.push(`rotation-${rotation}:ride-${rideId}:stall-${stallId}:${Math.round(stall[0])}`);
+    }
+    return checked;
+  });
+  expect(report).toHaveLength(4);
+});
