@@ -28,6 +28,7 @@ class RecordingContext {
   readonly images: unknown[][] = [];
   readonly imageTransforms: number[][] = [];
   readonly smoothingAtDraw: boolean[] = [];
+  readonly operations: string[] = [];
   private currentTransform = [1, 0, 0, 1, 0, 0];
   imageSmoothingEnabled = true;
   fillStyle = '#000';
@@ -54,6 +55,7 @@ class RecordingContext {
 
   fill(): void {
     this.fills.push(this.fillStyle);
+    this.operations.push(`fill:${this.fillStyle}`);
   }
 
   arc(): void {
@@ -72,6 +74,7 @@ class RecordingContext {
 
   drawImage(...args: unknown[]): void {
     this.images.push(args);
+    this.operations.push(`image:${String(args[1])}`);
     this.imageTransforms.push(this.currentTransform);
     this.spriteSources.push(args[1] as number);
     this.smoothingAtDraw.push(this.imageSmoothingEnabled);
@@ -392,6 +395,32 @@ describe('Canvas2D fallback map art', () => {
     const definition = SCENERY_CATALOG[SceneryItem.OakTree]!;
 
     expect(image?.slice(-2)).toEqual([definition.width, definition.height * 12]);
+  });
+
+  it('draws a tree on a sloped tile after that tile is redrawn over the sprites behind it', async () => {
+    for (const rotation of [0, 1, 2, 3] as const) {
+      const map = flatMap();
+      map.heights.fill(2);
+      map.slope[2 * 5 + 2] = 0b0110;
+      map.sceneryElements = Int32Array.of(2, 2, 0, 0, SceneryItem.OakTree);
+      map.sceneryCount = 1;
+
+      const context = await renderWithAtlas(map, ['trees/tree-oak'], null, {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        rotation,
+      });
+
+      const tree = context.operations.indexOf('image:1');
+      const occluder = context.operations.lastIndexOf('fill:#5aa24a', tree);
+      expect(tree, `tree drawn at rotation ${rotation}`).toBeGreaterThanOrEqual(0);
+      expect(occluder, `occluder before tree at rotation ${rotation}`).toBeGreaterThanOrEqual(0);
+      expect(
+        context.operations.slice(tree).filter((op) => op === 'fill:#5aa24a'),
+        `no terrain redraw over the tree at rotation ${rotation}`,
+      ).toEqual([]);
+    }
   });
 
   it('renders scenery placement previews in the same screen rect as placed scenery on slopes', async () => {
