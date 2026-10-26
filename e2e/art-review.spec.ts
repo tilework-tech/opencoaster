@@ -437,29 +437,24 @@ async function initialise(page: Page): Promise<void> {
         return {
           trackPieces: snapshot.tracks.count,
           cars: snapshot.cars.count,
-          opaquePixelsPerTrackSprite: (() => {
-            const pixelsByPiece = new Map<string, number>();
-            for (const entry of scene.items
-              .slice(0, scene.length)
-              .filter(
-                (candidate) =>
-                  candidate.key.includes('/track/') || candidate.key.startsWith('track/'),
-              )) {
+          opaquePixelsPerTrackSprite: scene.items
+            .slice(0, scene.length)
+            .filter(
+              (candidate) =>
+                candidate.key.includes('/track/') || candidate.key.startsWith('track/'),
+            )
+            .map((entry) => {
               const hash = entry.key.lastIndexOf('#');
               const name = hash < 0 ? entry.key : entry.key.slice(0, hash);
               const frameIndex = hash < 0 ? 0 : Number(entry.key.slice(hash + 1));
               const frame = spritePages.resolve(name)?.frames[frameIndex];
               const image = frame && spritePages.pageImage(frame.page);
-              if (!frame || !image) {
-                const piece = entry.key.slice(0, entry.key.indexOf('/view-'));
-                pixelsByPiece.set(piece, pixelsByPiece.get(piece) ?? 0);
-                continue;
-              }
+              if (!frame || !image) return { key: entry.key, count: 0 };
               const sample = document.createElement('canvas');
               sample.width = frame.width;
               sample.height = frame.height;
               const context = sample.getContext('2d');
-              if (!context) continue;
+              if (!context) return { key: entry.key, count: 0 };
               context.drawImage(
                 image,
                 frame.x,
@@ -475,11 +470,8 @@ async function initialise(page: Page): Promise<void> {
               let opaque = 0;
               for (let index = 3; index < pixels.length; index += 4)
                 if (pixels[index]! > 0) opaque++;
-              const piece = entry.key.slice(0, entry.key.indexOf('/view-'));
-              pixelsByPiece.set(piece, (pixelsByPiece.get(piece) ?? 0) + opaque);
-            }
-            return [...pixelsByPiece].map(([key, count]) => ({ key, count }));
-          })(),
+              return { key: entry.key, count: opaque };
+            }),
         };
       },
     };
@@ -503,6 +495,10 @@ async function makeCell(
   const screenshot = await renderItem(page, item, backend, zoom, rotation);
   if (item.kind === 'ride' && item.type !== undefined && RIDE_CATALOG[item.type]?.usesTrack) {
     await expectCompletedTrackRender(page, item, backend, screenshot);
+    if (zoom === 1 && rotation === 0) {
+      const safeName = RIDE_CATALOG[item.type]!.name.toLowerCase().replaceAll(' ', '-');
+      await writeFile(join(OUTPUT_DIR, `game-${backend}-${safeName}.png`), screenshot);
+    }
   }
   const label = Buffer.from(
     `<svg width="${CELL_WIDTH}" height="${CELL_HEIGHT}"><rect width="100%" height="100%" fill="#f1ecd9"/><text x="8" y="16" font-family="sans-serif" font-size="12" fill="#25261f">${item.label.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</text></svg>`,
@@ -531,7 +527,7 @@ async function expectCompletedTrackRender(
   screenshot: Buffer,
 ): Promise<void> {
   const stats = renderStats.get(page);
-  expect(stats?.trackPieces, `${item.label} placed through the track builder`).toBeGreaterThan(4);
+  expect(stats?.trackPieces, `${item.label} placed through the track builder`).toBe(14);
   expect(stats?.cars, `${item.label} train cars`).toBeGreaterThan(0);
   expect(stats?.opaquePixelsPerTrackSprite.length, `${item.label} track sprites`).toBeGreaterThan(
     0,
@@ -617,23 +613,6 @@ if (!FLOWERBEDS_ONLY) {
           await writeSheet(`inventory-${backend}-zoom-${zoom}-rotation-${rotation}`, cells);
         });
 }
-
-test('captures completed track rides through the builder in both renderers @art-review', async ({
-  page,
-}) => {
-  test.setTimeout(600_000);
-  await setupReviewPage(page);
-  const rides = inventory().filter(
-    (item) => item.type !== undefined && RIDE_CATALOG[item.type]?.usesTrack,
-  );
-  for (const backend of backends)
-    for (const item of rides) {
-      const screenshot = await renderItem(page, item, backend, 1, 0);
-      await expectCompletedTrackRender(page, item, backend, screenshot);
-      const safeName = RIDE_CATALOG[item.type!]!.name.toLowerCase().replaceAll(' ', '-');
-      await writeFile(join(OUTPUT_DIR, `game-${backend}-${safeName}.png`), screenshot);
-    }
-});
 
 test('captures flowerbeds across renderers, zooms, and rotations @art-review', async ({ page }) => {
   test.setTimeout(1_200_000);

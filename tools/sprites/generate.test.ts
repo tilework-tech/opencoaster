@@ -553,16 +553,13 @@ describe('generated sprite catalogue', () => {
           const keys = [...sprites.keys()].filter((key) =>
             key.startsWith(`track/${style}/${turn}/view-${view}/`),
           );
-          const opaquePixels = keys.reduce(
-            (sum, key) =>
-              sum +
-              (sprites
-                .get(key)
-                ?.frames.flatMap((frame) => [...frame.pixels])
-                .filter((pixel) => pixel !== TRANSPARENT).length ?? 0),
-            0,
-          );
-          expect(opaquePixels, `${style} ${turn} view ${view}`).toBeGreaterThan(0);
+          expect(keys.length, `${style} ${turn} view ${view} keys`).toBeGreaterThan(0);
+          for (const key of keys)
+            for (const [frameIndex, frame] of sprites.get(key)!.frames.entries())
+              expect(
+                frame.pixels.some((pixel) => pixel !== TRANSPARENT),
+                `${key} frame ${frameIndex}`,
+              ).toBe(true);
         }
   });
 
