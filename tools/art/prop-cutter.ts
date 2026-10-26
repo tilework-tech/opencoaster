@@ -129,7 +129,10 @@ export function cutProps(
       for (let x = left; x <= right; x++) {
         const index = y * width + x;
         if (!belongs(index)) continue;
-        data.set(rgba.subarray(index * 4, index * 4 + 4), ((y - top) * spriteWidth + (x - left)) * 4);
+        data.set(
+          rgba.subarray(index * 4, index * 4 + 4),
+          ((y - top) * spriteWidth + (x - left)) * 4,
+        );
       }
     sprites.push({ width: spriteWidth, height: spriteHeight, data });
   }

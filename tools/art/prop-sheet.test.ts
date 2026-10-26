@@ -9,7 +9,10 @@ const ROWS = 4;
 
 async function loadSheet(): Promise<{ data: Uint8Array; width: number; height: number }> {
   const source = await readFile(new URL('./source/world-props.png', import.meta.url));
-  const { data, info } = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   return { data: new Uint8Array(data), width: info.width, height: info.height };
 }
 
