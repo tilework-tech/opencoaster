@@ -105,4 +105,3 @@ Generated from the simulation track catalog, ride rules, runtime sprite selector
 - Miniature Railway, Monorail, and Chairlift allow unbanked, noninverted pieces with slopes up to 25 degrees, including curves. Banked pieces, steep slopes, and inversions are blocked because their transport art is not defined.
 - Wooden Coaster rejects steep slopes and inversions. Steel Looping Coaster permits both where art exists.
 - Curve coverage includes small, medium, and large turns, gentle up and down profiles, no-bank and inside-bank variants, and transition pieces. Each curve is sampled as a helical path so height changes continuously across its turn.
-
