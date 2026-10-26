@@ -27,7 +27,6 @@ import {
   pathAdditionView,
   flowerBedGroundZ,
   sceneryBox,
-  sceneryFrameDrop,
   sceneryGroundZ,
 } from './ground-anchor';
 import { spriteAnchorScreenShift } from './ground-anchor';
@@ -51,7 +50,6 @@ import { OwnershipOverlay } from './ownership-overlay';
 import type { Rotation } from './projection';
 import {
   pathElementSprite,
-  flowerBedDepth,
   flowerBedSpriteName,
   pathSpriteName,
   pathAdditionSpriteName,
@@ -1460,9 +1458,8 @@ export class WebGL2Renderer implements Renderer {
       const z = flowerBedGroundZ(baseHeight, map.slope[index]!, camera.rotation);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth = flowerBedDepth(
-        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS,
-      );
+const depth =
+        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1478,7 +1475,7 @@ export class WebGL2Renderer implements Renderer {
         this.append(
           worldX,
           worldY,
-          z - Z_STEP,
+          z,
           FLOWER_BED_BOX.width,
           FLOWER_BED_BOX.height,
           flowerBedSpriteName(x, y, camera.rotation, map.slope[index]!),
@@ -1746,13 +1743,13 @@ export class WebGL2Renderer implements Renderer {
       this.append(
         worldX,
         worldY,
-        z - sceneryFrameDrop(item),
+        z,
         box.width,
         spriteHeight,
         item.sprite === 'flower-bed'
           ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
           : scenerySpriteName(item.sprite),
-        item.sprite === 'flower-bed' ? flowerBedDepth(depth) : depth,
+        depth,
       );
     }
   }

@@ -6,10 +6,9 @@ export interface SpriteBox {
 
 export const AMBIENT_TREE_BOX: SpriteBox = { width: 34, height: 44 };
 /**
- * A flower bed fills its whole tile footprint: the box is one tile wide, and the frame's bottom edge
- * sits on the tile's lower corner, one level (half a tile height) below the projected tile centre.
+ * A flower bed fills its whole tile footprint and is anchored at the projected tile centre.
  */
-export const FLOWER_BED_BOX: SpriteBox = { width: 64, height: 56 };
+export const FLOWER_BED_BOX: SpriteBox = { width: 64, height: 40 };
 export const PARK_GATE_BOX: SpriteBox = { width: 46, height: 40 };
 /** Guest fallback and visibility bounds around the compact native walking sprite. */
 export const GUEST_BOX: SpriteBox = { width: 20, height: 24 };

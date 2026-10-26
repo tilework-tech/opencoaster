@@ -20,7 +20,6 @@ import { CoasterScene } from './coaster-scene';
 import type { CanvasAtlas } from './canvas-atlas';
 import {
   WATER_BANK,
-  flowerBedDepth,
   flowerBedSpriteName,
   pathElementSprite,
   pathAdditionSpriteName,
@@ -57,7 +56,6 @@ import {
   pathAdditionView,
   flowerBedGroundZ,
   sceneryBox,
-  sceneryFrameDrop,
   sceneryGroundZ,
 } from './ground-anchor';
 import {
@@ -532,7 +530,7 @@ export class Canvas2DRenderer implements Renderer {
             groundFlowerBed || sceneryFlowerBed
               ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
               : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-            groundFlowerBed || sceneryFlowerBed ? flowerBedDepth(SOLID_BIAS) : SOLID_BIAS,
+groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
             () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         for (
@@ -568,7 +566,7 @@ export class Canvas2DRenderer implements Renderer {
           sceneryFlowerBed
             ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
             : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-          sceneryFlowerBed ? flowerBedDepth(SOLID_BIAS) : SOLID_BIAS,
+sceneryFlowerBed ? SOLID_BIAS : 2,
           () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
@@ -1146,7 +1144,7 @@ export class Canvas2DRenderer implements Renderer {
       project(
         x * TILE_UNITS + TILE_UNITS / 2,
         y * TILE_UNITS + TILE_UNITS / 2,
-        z - sceneryFrameDrop(definition),
+        z,
         map.width,
         map.height,
         cam.rotation,
@@ -1528,7 +1526,7 @@ export class Canvas2DRenderer implements Renderer {
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
       place(
         flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!),
-        flowerBedGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation) - z - Z_STEP,
+        flowerBedGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation) - z,
         FLOWER_BED_BOX.width,
         FLOWER_BED_BOX.height,
       );

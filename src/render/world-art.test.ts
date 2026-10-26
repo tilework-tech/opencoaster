@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   ambientTreeName,
-  flowerBedDepth,
   flowerBedSpriteName,
   pathElementSprite,
 } from './world-art';
@@ -123,7 +122,6 @@ describe('world art sprite selection', () => {
     expect(flowerBedSpriteName(0, 0, 1, 0b1100)).toBe(
       'scenery/flower-bed/slope-12/variant-0/view-1',
     );
-    expect(flowerBedDepth(100)).toBe(100);
     expect(scenerySpriteName('flower-bed')).toBe('scenery/flower-bed');
     expect(scenerySpriteName('bench')).toBe('scenery/bench');
     expect(scenerySpriteName('entrance-gate')).toBe('scenery/entrance-gate');
