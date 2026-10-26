@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-export type TerrainFixtureName = 'pit' | 'plateau' | 'terraces' | 'corner';
+export type TerrainFixtureName = 'pit' | 'plateau' | 'terraces' | 'corner' | 'pathslope';
 
 export interface FixtureView {
   /** Screen rectangle, in CSS pixels, that must be entirely terrain. */
@@ -52,13 +52,37 @@ export async function loadTerrainFixture(
         set(cx - 2, cy - 2, 5, 5, 8);
         set(cx - 1, cy - 1, 3, 3, 10);
       }
+      let pathElements = new Int32Array(0);
+      let pathCount = 0;
+      if (fixture === 'pathslope') {
+        // A footpath climbing one level up a ramp tile, three tiles wide of hillside.
+        heights.fill(3);
+        const row = cy;
+        for (let y = row - 2; y <= row + 2; y++)
+          for (let x = cx; x < cx + 4; x++) heights[y * width + x] = 4;
+        for (let y = row - 2; y <= row + 2; y++) slope[y * width + cx - 1] = 0b0110;
+        const tiles = [
+          [cx - 3, 3, 0b0101],
+          [cx - 2, 3, 0b0101],
+          [cx - 1, 3, 0b0101 | 0x200],
+          [cx, 4, 0b0101],
+          [cx + 1, 4, 0b0101],
+        ];
+        pathCount = tiles.length;
+        pathElements = new Int32Array(tiles.length * 6);
+        tiles.forEach(([x, level, flags], i) => {
+          pathElements.set([x!, row, level!, flags!, 0, 0], i * 6);
+        });
+        for (const [x] of tiles) surface[row * width + x!] = 3;
+      }
       const map = {
         ...source,
         heights,
         surface,
         slope,
         waterLevel: new Uint8Array(width * height),
-        pathCount: 0,
+        pathElements,
+        pathCount,
         sceneryCount: 0,
       };
       w.__sim.onMap(map, false);

@@ -71,3 +71,22 @@ export function sceneryDepth(
     ? Math.max(depth, occluderDepth(map, x, y, rotation) + STANDING_CLEARANCE)
     : depth;
 }
+
+/** Depth by which a footpath slab clears its own tile's redraw, below anything standing on it. */
+const PATH_CLEARANCE = 0.25;
+
+/**
+ * Sort depth of a footpath slab on tile (x, y), given its plain slab depth. On a tile redrawn as
+ * an occluder the slab sorts after that redraw, so the terrain it lies on never covers it.
+ */
+export function pathDepthOverTerrain(
+  map: OcclusionMap,
+  rotation: Rotation,
+  x: number,
+  y: number,
+  slabDepth: number,
+): number {
+  return tileRisesOverBehind(map, x, y, rotation)
+    ? Math.max(slabDepth, occluderDepth(map, x, y, rotation) + PATH_CLEARANCE)
+    : slabDepth;
+}

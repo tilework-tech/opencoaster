@@ -55,7 +55,11 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
-import { TERRAIN_OCCLUDER_DEPTH_OFFSET, sceneryDepth } from './terrain-occlusion';
+import {
+  TERRAIN_OCCLUDER_DEPTH_OFFSET,
+  pathDepthOverTerrain,
+  sceneryDepth,
+} from './terrain-occlusion';
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import {
   SOLID_BIAS,
@@ -1719,14 +1723,20 @@ export class WebGL2Renderer implements Renderer {
       const worldX = x * TILE_UNITS + 128;
       const worldY = y * TILE_UNITS + 128;
       const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP - 1;
-      const slabDepth = pathSlabDepth(
+      const slabDepth = pathDepthOverTerrain(
         map,
         camera.rotation,
         x,
         y,
-        baseHeight,
-        flags,
-        map.heights[y * map.width + x]!,
+        pathSlabDepth(
+          map,
+          camera.rotation,
+          x,
+          y,
+          baseHeight,
+          flags,
+          map.heights[y * map.width + x]!,
+        ),
       );
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (

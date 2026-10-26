@@ -1,4 +1,4 @@
-import { occluderDepth, sceneryDepth } from './terrain-occlusion';
+import { occluderDepth, pathDepthOverTerrain, sceneryDepth } from './terrain-occlusion';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import {
@@ -655,14 +655,20 @@ export class Canvas2DRenderer implements Renderer {
           path++
         ) {
           const element = this.pathIndices[path]! * 6;
-          const slabDepth = pathSlabDepth(
+          const slabDepth = pathDepthOverTerrain(
             map,
             cam.rotation,
             x,
             y,
-            map.pathElements[element + 2]!,
-            map.pathElements[element + 3]!,
-            map.heights[i]!,
+            pathSlabDepth(
+              map,
+              cam.rotation,
+              x,
+              y,
+              map.pathElements[element + 2]!,
+              map.pathElements[element + 3]!,
+              map.heights[i]!,
+            ),
           );
           this.queueAtDepth(slabDepth, () => this.drawMapElements(ctx, map, cam, i, 'slab'));
           break;

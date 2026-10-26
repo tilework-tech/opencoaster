@@ -3,9 +3,9 @@ import { chromium, test, expect } from '@playwright/test';
 import { backgroundPixels, loadTerrainFixture } from './support/terrain-fixture';
 import type { TerrainFixtureName } from './support/terrain-fixture';
 
-/** `corner` shows the map border and is only captured for proofs: its rectangle leaves the map. */
+/** `corner` (the map border) and `pathslope` (a footpath ramp) are only captured for proofs. */
 const FIXTURES: TerrainFixtureName[] = process.env.TERRAIN_PROOF_DIR
-  ? ['pit', 'plateau', 'terraces', 'corner']
+  ? ['pit', 'plateau', 'terraces', 'corner', 'pathslope']
   : ['pit', 'plateau', 'terraces'];
 /** Single-pixel seams where two faces meet at a silhouette corner; a missing face costs thousands. */
 const SEAM_SPECKS = 256;
@@ -40,7 +40,7 @@ for (const renderer of RENDERERS) {
           }
           const { count, sample } = await backgroundPixels(page, rect);
           await browser.close();
-          if (fixture !== 'corner')
+          if (fixture !== 'corner' && fixture !== 'pathslope')
             expect(count, `background pixel at ${sample}`).toBeLessThanOrEqual(SEAM_SPECKS);
         });
       }
