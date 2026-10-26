@@ -64,6 +64,12 @@ describe('art coverage inventory', () => {
     }
   });
 
+  it('tracks every flowerbed color, view, and slope asset', () => {
+    const flowerbed = rows.find((row) => row.group === 'Scenery' && row.item === 'Flower bed');
+    expect(flowerbed?.assetKeys).toHaveLength(16 * 4 * 4);
+    expect(flowerbed?.missing).toEqual([]);
+  });
+
   it('reports path additions, weather, UI, litter, and placement previews', () => {
     for (const item of [
       'rain shelter',

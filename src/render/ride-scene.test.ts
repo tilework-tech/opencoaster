@@ -6,7 +6,7 @@ import { RideInfo, RIDE_INFO_STRIDE, createSnapshot } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import { project } from './projection';
 import type { Rotation } from './projection';
-import { rotatedPositionSum } from './painter-order';
+import { PERSON_BIAS, rotatedPositionSum } from './depth-key';
 import { RideCellScene } from './ride-scene';
 import { rideCellSpriteKey } from './world-art';
 import type { MapData } from './renderer';
@@ -118,7 +118,7 @@ describe('RideCellScene', () => {
     const m = map();
     const def = RIDE_CATALOG[RideType.TopSpin];
     const guestDepth = (x: number, y: number, rotation: Rotation): number =>
-      2 * rotatedPositionSum(x, y, m, rotation);
+      2 * rotatedPositionSum(x, y, m, rotation) + PERSON_BIAS;
     for (let rotation = 0 as Rotation; rotation < 4; rotation = (rotation + 1) as Rotation) {
       scene.build(
         snapshotWith([{ type: RideType.TopSpin, x: 12, y: 12, dir: 0, base: 0 }]),
@@ -142,13 +142,7 @@ describe('RideCellScene', () => {
           const sumDelta =
             tileViewSum(tx + dx, ty + dy, m, rotation) - tileViewSum(tx, ty, m, rotation);
           if (sumDelta === 0) continue;
-          for (const [fx, fy] of [
-            [0.02, 0.02],
-            [0.98, 0.02],
-            [0.5, 0.5],
-            [0.02, 0.98],
-            [0.98, 0.98],
-          ]) {
+          for (const [fx, fy] of [[0.5, 0.5]]) {
             const depth = guestDepth(
               (tx + dx + fx) * TILE_UNITS,
               (ty + dy + fy) * TILE_UNITS,

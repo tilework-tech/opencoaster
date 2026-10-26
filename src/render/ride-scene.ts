@@ -3,7 +3,7 @@ import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
-import { rotatedPositionSum } from './painter-order';
+import { SOLID_BIAS, rotatedPositionSum } from './depth-key';
 import type { MapData } from './renderer';
 import type { Rotation } from './projection';
 import { rideCellSpriteKey } from './world-art';
@@ -82,7 +82,7 @@ export class RideCellScene {
         this.raiseFloor(map, tx, ty, base);
         const x = tx * TILE_UNITS + TILE_UNITS / 2;
         const y = ty * TILE_UNITS + TILE_UNITS / 2;
-        const depth = 2 * rotatedPositionSum(x, y, map, rotation) - base;
+        const depth = 2 * rotatedPositionSum(x, y, map, rotation) - base + SOLID_BIAS;
         this.push(rideCellSpriteKey(type, cell, dir, rotation), phase, x, y, base * Z_STEP, depth);
       }
     }

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { renderUiIconSprite } from '../../../tools/sprites/ui-icons';
+import type { IconName } from '../icons';
 import { OPTIONS_TABS } from '../game-ui';
 import { FINANCE_TABS } from './finance-window';
 import { GUEST_SUMMARY_TABS, GUEST_TABS } from './guest-window';
@@ -30,9 +32,18 @@ const WINDOW_TABS = [
   ['Scenery', SCENERY_WINDOW.tabs],
 ] as const;
 
+function renderedArt(name: string): string {
+  return renderUiIconSprite(name as IconName, 24).pixels.join(',');
+}
+
 describe('window tab icons', () => {
-  it.each(WINDOW_TABS)('%s uses a distinct icon for each tab', (_window, tabs) => {
+  it.each(WINDOW_TABS)('%s uses a distinct icon id for each tab', (_window, tabs) => {
     const iconIds = tabs.map((tab) => tab.icon ?? 'info');
     expect(new Set(iconIds).size).toBe(iconIds.length);
+  });
+
+  it.each(WINDOW_TABS)('%s draws different artwork for each tab', (_window, tabs) => {
+    const art = tabs.map((tab) => renderedArt(tab.icon ?? 'info'));
+    expect(new Set(art).size).toBe(art.length);
   });
 });

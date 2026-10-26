@@ -3,7 +3,7 @@ import { PathFlag } from '../sim/map/tile-map';
 import { Z_STEP } from '../sim/core/constants';
 import {
   pathAdditionEdgeGroundZ,
-  pathAdditionEdges,
+  pathAdditionPlacements,
   pathAdditionEdgeOffset,
   pathAdditionView,
   pathAdditionBox,
@@ -14,14 +14,67 @@ import {
 } from './ground-anchor';
 
 describe('ground anchors', () => {
+  const lampShape = PathFlag.Lamp;
+  const count = (flags: number, connections: number) =>
+    pathAdditionPlacements(flags | connections, 3).length;
+
   it.each([
-    ['straight', 0b0101, [1]],
-    ['corner', 0b0011, [2]],
-    ['T-junction', 0b0111, [3]],
-    ['crossroads', 0b1111, []],
-    ['dead-end', 0b0001, [1]],
-  ])('places %s additions on the lowest open edge', (_shape, connections, expected) => {
-    expect(pathAdditionEdges(connections)).toEqual(expected);
+    ['straight', 0b0101, 2],
+    ['corner', 0b0011, 2],
+    ['T-junction', 0b0111, 1],
+    ['crossroads', 0b1111, 0],
+    ['dead-end', 0b0001, 3],
+  ])('places %s benches and bins on every open edge', (_shape, connections, expected) => {
+    expect(count(PathFlag.Bench, connections)).toBe(expected);
+    expect(count(PathFlag.Bin, connections)).toBe(expected);
+  });
+
+  it('places lamps like other additions, except four corner posts on a crossroads', () => {
+    expect(count(lampShape, 0b0101)).toBe(2);
+    expect(count(lampShape, 0b0111)).toBe(1);
+    const posts = pathAdditionPlacements(lampShape | 0b1111, 3);
+    expect(posts).toHaveLength(4);
+    expect(posts.map((p) => [Math.sign(p.x), Math.sign(p.y)]).sort()).toEqual(
+      [
+        [-1, -1],
+        [-1, 1],
+        [1, -1],
+        [1, 1],
+      ].sort(),
+    );
+  });
+
+  it('keeps every copy inside its tile on the open edge, never on a connected one', () => {
+    for (let connections = 0; connections < 16; connections++)
+      for (const flag of [PathFlag.Bench, PathFlag.Bin, PathFlag.Lamp]) {
+        const placements = pathAdditionPlacements(flag | connections, 0);
+        for (const p of placements) {
+          expect(Math.abs(p.x)).toBeLessThan(128);
+          expect(Math.abs(p.y)).toBeLessThan(128);
+          if (connections !== 15) expect(connections & (1 << p.edge)).toBe(0);
+        }
+      }
+  });
+
+  it('keeps copies apart in every rotation', () => {
+    for (let connections = 0; connections < 16; connections++)
+      for (let rotation = 0; rotation < 4; rotation++) {
+        const placements = pathAdditionPlacements(PathFlag.Bench | connections, 0);
+        for (let a = 0; a < placements.length; a++)
+          for (let b = a + 1; b < placements.length; b++) {
+            const dx = placements[a]!.x - placements[b]!.x;
+            const dy = placements[a]!.y - placements[b]!.y;
+            expect(Math.hypot(dx, dy)).toBeGreaterThan(96);
+            expect(pathAdditionView(placements[a]!.edge, rotation)).toBeGreaterThanOrEqual(0);
+          }
+      }
+  });
+
+  it('follows the slope surface at each placement of a sloped path', () => {
+    const placements = pathAdditionPlacements(PathFlag.Bench | PathFlag.Sloped | 0b0101, 3);
+    expect(placements.map((p) => p.edge)).toEqual([1, 3]);
+    for (const p of placements)
+      expect(p.groundZ).toBe(pathAdditionEdgeGroundZ(3, PathFlag.Bench | PathFlag.Sloped, p.edge));
   });
 
   it('rotates each edge placement with the camera view', () => {

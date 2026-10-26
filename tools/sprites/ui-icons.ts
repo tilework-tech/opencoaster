@@ -84,7 +84,7 @@ function line(
   }
 }
 
-function polygon(
+function fillPolygon(
   sprite: Sprite,
   points: readonly (readonly [number, number])[],
   color: number,
@@ -103,6 +103,14 @@ function polygon(
     for (let i = 0; i + 1 < xs.length; i += 2)
       for (let x = Math.ceil(xs[i]); x <= Math.floor(xs[i + 1]); x++) pixel(sprite, x, y, color);
   }
+}
+
+function polygon(
+  sprite: Sprite,
+  points: readonly (readonly [number, number])[],
+  color: number,
+): void {
+  fillPolygon(sprite, points, color);
   for (let i = 0; i < points.length; i++)
     line(sprite, ...points[i], ...points[(i + 1) % points.length], outline, 2);
 }
@@ -459,23 +467,54 @@ function iconShapes(name: string): Sprite {
       set(10, 5, 3, 2, 'green', 4);
       break;
     case 'paths':
-      polygon(
+      fillPolygon(
         s,
         [
-          [2, 17],
-          [11, 11],
-          [11, 4],
-          [17, 8],
-          [17, 12],
-          [22, 16],
-          [13, 21],
+          [2, 10],
+          [12, 18],
+          [12, 20],
+          [2, 12],
         ],
-        colors.stone[3],
+        colors.stone[1],
       );
-      line(s, 11, 5, 16, 8, colors.white[4], 1);
-      line(s, 11, 10, 16, 13, colors.stone[1], 1);
-      line(s, 6, 15, 12, 19, colors.stone[1], 1);
-      line(s, 17, 13, 17, 17, colors.stone[1], 1);
+      fillPolygon(
+        s,
+        [
+          [21, 10],
+          [12, 18],
+          [12, 20],
+          [21, 12],
+        ],
+        colors.stone[0],
+      );
+      fillPolygon(
+        s,
+        [
+          [12, 2],
+          [21, 10],
+          [12, 18],
+          [2, 10],
+        ],
+        colors.stone[4],
+      );
+      fillPolygon(
+        s,
+        [
+          [12, 4],
+          [19, 10],
+          [12, 16],
+          [5, 10],
+        ],
+        colors.stone[2],
+      );
+      line(s, 8, 7, 16, 13, colors.stone[1], 1);
+      line(s, 16, 7, 8, 13, colors.stone[1], 1);
+      line(s, 2, 10, 12, 2, outline, 1);
+      line(s, 12, 2, 21, 10, outline, 1);
+      line(s, 21, 10, 21, 12, outline, 1);
+      line(s, 21, 12, 12, 20, outline, 1);
+      line(s, 12, 20, 2, 12, outline, 1);
+      line(s, 2, 12, 2, 10, outline, 1);
       break;
     case 'straight':
       for (const y of [7, 11, 15, 19]) line(s, 6, y, 18, y, colors.wood[2], 3);
@@ -1223,7 +1262,6 @@ function objectMesh(name: string): Mesh | undefined {
   if (name === 'entrance' || name === 'park') return parkEntranceMesh(0);
   if (name === 'land') return base();
   if (name === 'water') return box([-0.7, -0.7, 0], [0.7, 0.7, 0.22], material(colors.blue));
-  if (name === 'paths') return box([-0.8, -0.42, 0], [0.8, 0.42, 0.2], material(colors.stone));
   if (name === 'staff' || name === 'guests')
     return [
       ...cylinder(0, 0, 0.72, 1.35, 0.22, 0.22, 8, material(colors.skin)),
@@ -1441,7 +1479,7 @@ function rgba(sprite: Sprite): Buffer {
 }
 
 export async function renderUiIcons(outputDirectory: string): Promise<void> {
-  for (const size of [16, 24]) {
+  for (const size of [16, 24] as const) {
     const target = join(outputDirectory, 'ui-icons', String(size));
     await mkdir(target, { recursive: true });
     for (const name of ICON_NAMES) {

@@ -15,16 +15,12 @@ export interface PathAdditionOffset {
 }
 
 const PATH_ADDITION_EDGE_OFFSET = 96;
-
-/**
- * The single open path edge a bench, bin, or lamp stands on: the lowest-numbered edge with no
- * connection. One piece per tile keeps furniture from stacking on corner and dead-end tiles, and
- * the choice depends on the tile alone, so camera rotation only turns the piece.
- */
-export function pathAdditionEdges(edges: number): number[] {
-  const edge = [0, 1, 2, 3].find((candidate) => (edges & (1 << candidate)) === 0);
-  return edge === undefined ? [] : [edge];
-}
+const PATH_ADDITION_CORNERS: readonly (readonly [number, number])[] = [
+  [1, 1],
+  [-1, 1],
+  [-1, -1],
+  [1, -1],
+];
 
 export function pathAdditionEdgeOffset(edge: number): PathAdditionOffset {
   const direction = ((edge % 4) + 4) % 4;
@@ -104,4 +100,46 @@ export function spriteAnchorScreenShift(
   renderedWidth: number,
 ): number {
   return renderedWidth * (0.5 - anchorX / frameWidth);
+}
+
+export interface PathAdditionPlacement {
+  /** Tile edge (0-3) the copy stands on, before camera rotation. */
+  edge: number;
+  /** Offset from the tile centre in world units. */
+  x: number;
+  y: number;
+  groundZ: number;
+}
+
+/**
+ * Every copy of a bench, bin, or lamp a path tile draws: one on each open (unconnected) edge,
+ * backed onto the grass and facing the path. Only lamps stand on a crossroads, as four corner
+ * posts. Placements depend on the tile alone, so camera rotation only turns the sprite.
+ */
+export function pathAdditionPlacements(flags: number, baseHeight: number): PathAdditionPlacement[] {
+  const connections = pathConnectionEdges(flags);
+  const placements: PathAdditionPlacement[] = [];
+  for (let edge = 0; edge < 4; edge++) {
+    if (connections & (1 << edge)) continue;
+    const offset = pathAdditionEdgeOffset(edge);
+    placements.push({
+      edge,
+      x: offset.x,
+      y: offset.y,
+      groundZ: pathAdditionEdgeGroundZ(baseHeight, flags, edge),
+    });
+  }
+  if (placements.length === 0 && flags & PathFlag.Lamp)
+    for (let corner = 0; corner < 4; corner++) {
+      const [sx, sy] = PATH_ADDITION_CORNERS[corner]!;
+      const first = pathAdditionEdgeGroundZ(baseHeight, flags, corner);
+      const second = pathAdditionEdgeGroundZ(baseHeight, flags, corner + 1);
+      placements.push({
+        edge: corner,
+        x: sx * PATH_ADDITION_EDGE_OFFSET,
+        y: sy * PATH_ADDITION_EDGE_OFFSET,
+        groundZ: (first + second) / 2,
+      });
+    }
+  return placements;
 }

@@ -4,14 +4,13 @@ import type { ToolMode } from '../../ui/game-ui';
 import type { MapData, SpriteGhost } from '../../render/renderer';
 import {
   pathAdditionBox,
-  pathAdditionEdgeGroundZ,
-  pathAdditionEdgeOffset,
-  pathAdditionEdges,
+  pathAdditionPlacements,
   pathAdditionGroundZ,
   pathAdditionView,
-  pathConnectionEdges,
 } from '../../render/ground-anchor';
 import { pathAdditionSpriteName } from '../../render/world-art';
+
+const PATH_ADDITION_FLAGS = PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter;
 
 const ADDITION_FLAGS: Partial<Record<ToolMode, number>> = {
   bench: PathFlag.Bench,
@@ -34,7 +33,7 @@ export function pathAdditionPreviewGhosts(
   for (let i = 0; i < count; i++) {
     const offset = i * 6;
     if (paths[offset] !== x || paths[offset + 1] !== y) continue;
-    const flags = paths[offset + 3]!;
+    const flags = (paths[offset + 3]! & ~PATH_ADDITION_FLAGS) | additionFlag;
     const baseHeight = paths[offset + 2]!;
     if (additionFlag === PathFlag.Shelter) {
       const box = pathAdditionBox(additionFlag);
@@ -51,20 +50,16 @@ export function pathAdditionPreviewGhosts(
         },
       ];
     }
-    return pathAdditionEdges(pathConnectionEdges(flags)).map((edge) => {
-      const view = pathAdditionView(edge, rotation);
-      const position = pathAdditionEdgeOffset(edge);
-      return {
-        x: x + position.x / TILE_UNITS,
-        y: y + position.y / TILE_UNITS,
-        tileX: x,
-        tileY: y,
-        level: pathAdditionEdgeGroundZ(baseHeight, flags, edge) / Z_STEP,
-        sprite: pathAdditionSpriteName(additionFlag, view, 0),
-        kind: 'path-addition',
-        tone: 'ok',
-      };
-    });
+    return pathAdditionPlacements(flags, baseHeight).map((placement) => ({
+      x: x + placement.x / TILE_UNITS,
+      y: y + placement.y / TILE_UNITS,
+      tileX: x,
+      tileY: y,
+      level: placement.groundZ / Z_STEP,
+      sprite: pathAdditionSpriteName(additionFlag, pathAdditionView(placement.edge, rotation), 0),
+      kind: 'path-addition' as const,
+      tone: 'ok' as const,
+    }));
   }
   return [];
 }

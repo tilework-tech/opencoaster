@@ -240,6 +240,19 @@ export function scenerySpriteName(name: string): string {
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
 }
 
+/** Deterministic color and camera-view key for a flowerbed on a map tile. */
+export function flowerBedSpriteName(x: number, y: number, rotation: number, slopeMask = 0): string {
+  const variant = (((x + 2 * y) % 4) + 4) % 4;
+  const view = ((rotation % 4) + 4) % 4;
+  return slopeMask === 0
+    ? `scenery/flower-bed/variant-${variant}/view-${view}`
+    : `scenery/flower-bed/slope-${slopeMask & 0x0f}/variant-${variant}/view-${view}`;
+}
+
+export function flowerBedDepth(depth: number): number {
+  return depth + 8;
+}
+
 export function pathAdditionSpriteName(flags: number, rotation: number, data: number): string {
   const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
   if (flags & PathFlag.Shelter) return `scenery/shelter/view-${view}`;

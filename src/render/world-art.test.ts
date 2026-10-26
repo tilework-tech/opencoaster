@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ambientTreeName, pathElementSprite } from './world-art';
+import {
+  ambientTreeName,
+  flowerBedDepth,
+  flowerBedSpriteName,
+  pathElementSprite,
+} from './world-art';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import {
   TERRAIN_SLOPE_NAMES,
@@ -102,6 +107,23 @@ describe('world art sprite selection', () => {
       'trees/tree-oak/view-2',
       'trees/tree-oak/view-3',
     ]);
+    expect(
+      [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [1, 1],
+      ].map(([x, y]) => [0, 1, 2, 3].map((rotation) => flowerBedSpriteName(x, y, rotation))),
+    ).toEqual(
+      [0, 1, 2, 3].map((variant) =>
+        [0, 1, 2, 3].map((rotation) => `scenery/flower-bed/variant-${variant}/view-${rotation}`),
+      ),
+    );
+    expect(flowerBedSpriteName(-1, 0, -1)).toBe('scenery/flower-bed/variant-3/view-3');
+    expect(flowerBedSpriteName(0, 0, 1, 0b1100)).toBe(
+      'scenery/flower-bed/slope-12/variant-0/view-1',
+    );
+    expect(flowerBedDepth(100)).toBe(108);
     expect(scenerySpriteName('flower-bed')).toBe('scenery/flower-bed');
     expect(scenerySpriteName('bench')).toBe('scenery/bench');
     expect(scenerySpriteName('entrance-gate')).toBe('scenery/entrance-gate');
