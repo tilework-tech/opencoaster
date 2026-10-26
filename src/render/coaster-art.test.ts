@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pieceByName } from '../sim/track/catalog';
+import { PIECES, pieceByName } from '../sim/track/catalog';
 import { PieceMode } from '../sim/track/track-types';
 import { RideType } from '../sim/rides/ride-types';
 import {
@@ -63,6 +63,24 @@ describe('family pieces', () => {
     expect(names('junior')).toHaveLength(16);
     expect(names('mouse')).toContain('up60');
     expect(names('mouse')).not.toContain('verticalLoopLeft');
+  });
+
+  it('includes sloped turns only in coaster families whose sim rules allow them', () => {
+    const slopedTurns = PIECES.filter((piece) =>
+      /^(small|medium|large)(Left|Right)(LeftBanked|RightBanked)?(Up25|Down25)$/.test(piece.name),
+    );
+    expect(slopedTurns).toHaveLength(24);
+    const allowed = (family: Parameters<typeof familyPieces>[0]) =>
+      new Set(familyPieces(family).map((piece) => piece.id));
+    for (const family of ['wood', 'steel', 'mouse'] as const) {
+      const ids = allowed(family);
+      expect(
+        slopedTurns.filter((piece) => ids.has(piece.id)),
+        family,
+      ).toHaveLength(24);
+    }
+    const junior = allowed('junior');
+    expect(slopedTurns.filter((piece) => junior.has(piece.id))).toHaveLength(0);
   });
 
   it('draws Wild Mouse on timber track whose art also covers its steep pieces', () => {

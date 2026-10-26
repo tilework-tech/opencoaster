@@ -237,6 +237,7 @@ function addedRide(
 }
 
 const JUNIOR_PIECES = [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 34, 35];
+const SLOPED_CURVE_PIECES = Array.from({ length: 24 }, (_, index) => 67 + index);
 const WILD_MOUSE_PIECES = [
   ...JUNIOR_PIECES,
   4,
@@ -285,6 +286,7 @@ const WILD_MOUSE_PIECES = [
   63,
   64,
   65,
+  ...SLOPED_CURVE_PIECES,
 ];
 
 const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
