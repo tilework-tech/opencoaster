@@ -32,6 +32,37 @@ export type ObjectKind =
   | 'water'
   | 'other';
 
+export const OBJECT_KINDS: readonly ObjectKind[] = [
+  'guest',
+  'staff',
+  'rider',
+  'path',
+  'path-addition',
+  'shelter',
+  'tree',
+  'scenery',
+  'wall',
+  'flowerbed',
+  'flat-ride',
+  'stall',
+  'entrance',
+  'exit',
+  'park-gate',
+  'track',
+  'support',
+  'vehicle',
+  'litter',
+  'ground',
+  'water',
+  'other',
+];
+
+/** Distinct bit per kind, for sets of kinds covering a pixel. */
+export function objectKindBit(kind: string): number {
+  const index = OBJECT_KINDS.indexOf(kind as ObjectKind);
+  return 1 << (index < 0 ? OBJECT_KINDS.length - 1 : index);
+}
+
 const PATH_ADDITIONS = new Set([
   'bench',
   'bench-broken',

@@ -57,6 +57,8 @@ export interface OracleScene {
   pages: readonly OraclePage[];
   sprites: readonly OracleSprite[];
   triangles: readonly OracleTriangle[];
+  /** Bit of an object's kind; when given, the result records every kind covering each pixel. */
+  kindBit?: (id: number) => number;
 }
 
 export interface OracleResult {
@@ -64,6 +66,8 @@ export interface OracleResult {
   ids: Int32Array;
   /** Height of the winning surface per pixel, -Infinity where nothing is drawn. */
   heights: Float32Array;
+  /** Union of `kindBit` over every surface covering the pixel, hidden or not. */
+  kindMasks: Uint32Array;
 }
 
 /** Minimum atlas alpha that counts as covered, matching the renderers' alpha cut-off. */
@@ -124,8 +128,11 @@ export function compositeScene(scene: OracleScene): OracleResult {
   const { width, height } = scene;
   const ids = new Int32Array(width * height);
   const heights = new Float32Array(width * height).fill(-Infinity);
+  const kindMasks = new Uint32Array(scene.kindBit ? width * height : 0);
+  const kindBit = scene.kindBit;
   const write = (px: number, py: number, h: number, id: number): void => {
     const at = py * width + px;
+    if (kindBit) kindMasks[at] |= kindBit(id);
     if (h >= heights[at]) {
       heights[at] = h;
       ids[at] = id;
@@ -155,5 +162,5 @@ export function compositeScene(scene: OracleScene): OracleResult {
         if (!Number.isNaN(h)) write(px, py, h, sprite.id);
       }
   }
-  return { ids, heights };
+  return { ids, heights, kindMasks };
 }
