@@ -53,3 +53,9 @@ Path: @/src/render
 Created and maintained by Nori.
 
 - Canvas2D queues litter in the painter's-depth list (just behind a person on the same spot) rather than drawing it immediately, so path tiles queued earlier in the frame do not cover it.
+
+## Terrain-reading aids
+
+- `terrainLightFactor` lights slopes from a fixed screen side (WebGL2 shader multiplier; Canvas2D white/black overlay) so facing slopes read lighter and darker.
+- With gridlines on, `terrainContourViewEdges` flags level tile edges where the ground changes inclination or steps; WebGL2 packs the edge mask into the per-instance gridline float (`1 + mask`), Canvas2D strokes the edges.
+- [height-marks.ts](height-marks.ts) computes visible height-number placements (land base level, water level, path level); drawn by `src/app/terrain-aids.ts`.

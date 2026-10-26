@@ -498,7 +498,7 @@ export class Canvas2DRenderer implements Renderer {
               [sx, sy + TILE_H - liftBottom],
               [sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft],
             ] as const;
-            ctx.strokeStyle = 'rgba(18, 26, 12, 0.6)';
+            ctx.strokeStyle = 'rgba(18, 26, 12, 0.45)';
             ctx.lineWidth = 1.2;
             ctx.beginPath();
             for (let edge = 0; edge < 4; edge++) {

@@ -332,7 +332,7 @@ void main() {
       contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, 1.0 - vTileUv.y));
     if ((contourEdges & 8) != 0)
       contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, vTileUv.x));
-    outColor.rgb = mix(outColor.rgb, vec3(0.07, 0.1, 0.05), contour * 0.6);
+    outColor.rgb = mix(outColor.rgb, vec3(0.07, 0.1, 0.05), contour * 0.45);
   }
 }`;
 
