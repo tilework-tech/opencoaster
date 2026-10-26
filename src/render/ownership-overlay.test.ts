@@ -100,9 +100,20 @@ describe('ownership overlay', () => {
         } as unknown as MapData,
         { x: 0, y: 0, zoom: 1, rotation: 0 },
       );
-      return (context.lineTo as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      const calls = {
+        fillRects: (context.fillRect as unknown as ReturnType<typeof vi.fn>).mock.calls,
+        lineTos: (context.lineTo as unknown as ReturnType<typeof vi.fn>).mock.calls,
+        moveTos: (context.moveTo as unknown as ReturnType<typeof vi.fn>).mock.calls,
+      };
+      overlay.dispose();
+      return calls;
     };
 
-    expect(lineCalls(1)).not.toEqual(lineCalls(0));
+    const calls = lineCalls(1);
+    expect(calls.moveTos).toContainEqual([352, 216]);
+    expect(calls.lineTos).toContainEqual([320, 232]);
+    expect(calls.moveTos).toContainEqual([352, 214]);
+    expect(calls.lineTos).toContainEqual([320, 230]);
+    expect(calls.fillRects).toContainEqual([350, 213, 4, 6]);
   });
 });

@@ -45,43 +45,48 @@ afterEach(async () => {
   );
 });
 
+async function expectTransparentGutters(
+  manifest: Awaited<ReturnType<typeof packSprites>>,
+  output: string,
+): Promise<void> {
+  for (const [pageIndex, page] of manifest.pages.entries()) {
+    const atlas = await sharp(join(output, page.file))
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    for (const sprite of Object.values(manifest.sprites)) {
+      for (const frame of sprite.frames.filter((item) => item.page === pageIndex)) {
+        for (
+          let y = Math.max(0, frame.y - 2);
+          y < Math.min(atlas.info.height, frame.y + frame.height + 2);
+          y++
+        ) {
+          for (
+            let x = Math.max(0, frame.x - 2);
+            x < Math.min(atlas.info.width, frame.x + frame.width + 2);
+            x++
+          ) {
+            if (
+              x >= frame.x &&
+              x < frame.x + frame.width &&
+              y >= frame.y &&
+              y < frame.y + frame.height
+            )
+              continue;
+            expect(atlas.data[(y * atlas.info.width + x) * atlas.info.channels + 3]).toBe(0);
+          }
+        }
+      }
+    }
+  }
+}
+
 describe('world art atlas packing', () => {
   it('leaves two fully transparent pixels around every packed frame', async () => {
     const source = await makeFixture();
     const output = join(dirname(source), 'padding');
     const manifest = await packSprites(source, output);
 
-    for (const page of manifest.pages) {
-      const atlas = await sharp(join(output, page.file))
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      for (const sprite of Object.values(manifest.sprites)) {
-        for (const frame of sprite.frames.filter(
-          (item) => item.page === manifest.pages.indexOf(page),
-        )) {
-          for (
-            let y = Math.max(0, frame.y - 2);
-            y < Math.min(atlas.info.height, frame.y + frame.height + 2);
-            y++
-          ) {
-            for (
-              let x = Math.max(0, frame.x - 2);
-              x < Math.min(atlas.info.width, frame.x + frame.width + 2);
-              x++
-            ) {
-              if (
-                x >= frame.x &&
-                x < frame.x + frame.width &&
-                y >= frame.y &&
-                y < frame.y + frame.height
-              )
-                continue;
-              expect(atlas.data[(y * atlas.info.width + x) * atlas.info.channels + 3]).toBe(0);
-            }
-          }
-        }
-      }
-    }
+    await expectTransparentGutters(manifest, output);
   });
 
   it('produces repeatable atlas regions and preserves authored frame metadata', async () => {
@@ -153,6 +158,8 @@ describe('world art atlas packing', () => {
     const manifest = await packSprites(source, output);
 
     expect(manifest.pages.length).toBeGreaterThan(1);
+    await expectTransparentGutters(manifest, output);
+
     for (const page of manifest.pages) {
       expect(page.width).toBeLessThanOrEqual(2048);
       expect(page.height).toBeLessThanOrEqual(2048);
