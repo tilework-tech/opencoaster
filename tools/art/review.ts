@@ -39,11 +39,19 @@ function parseOptions(args: readonly string[]): Options | null {
   return options;
 }
 
+function runPnpm(root: string, args: readonly string[]): void {
+  const result = spawnSync('corepack', ['pnpm', ...args], { cwd: root, stdio: 'inherit' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status ?? 1);
+}
+
 const options = parseOptions(process.argv.slice(2).filter((arg) => arg !== '--'));
 if (!options) {
   process.stdout.write(`${usage()}\n`);
 } else {
   const root = fileURLToPath(new URL('../../', import.meta.url));
+  runPnpm(root, ['art:prepare']);
+  runPnpm(root, ['art:pack']);
   const sessionBrowser = process.env.NORI_SESSION_URL !== undefined;
   const result = spawnSync(
     'corepack',

@@ -5,7 +5,6 @@ import { RidePhase } from '../sim/rides/ride-store';
 import { PathFlag, PATH_ADDITION_BROKEN, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
 import { Z_PIXELS } from './projection';
-import { terrainMeshTriangles } from './terrain-geometry';
 
 /** Simulation ticks each flat-ride animation frame is shown for. */
 export const TICKS_PER_ANIMATION_FRAME = 8;
@@ -210,15 +209,6 @@ export function flowerBedSpriteName(
     : `scenery/flower-bed/slope-${slopeMask & 0x0f}/variant-${variant}/view-${view}`;
 }
 
-/** Height at the centre diagonal shared by the two triangles of a sloped tile. */
-export function flowerBedGroundZ(baseHeight: number, slopeMask: number, rotation: number): number {
-  const corners = [0, 1, 2, 3].map((corner) => baseHeight + ((slopeMask >> corner) & 1));
-  const [first, second] = terrainMeshTriangles(rotation);
-  const diagonal = first.filter((corner) => second.includes(corner));
-  return ((corners[diagonal[0]!]! + corners[diagonal[1]!]!) / 2) * Z_STEP;
-}
-
-/** Draw flowerbeds above adjacent raised-tile occluders while keeping their projected anchor. */
 export function flowerBedDepth(depth: number): number {
   return depth + 8;
 }

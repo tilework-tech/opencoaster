@@ -47,10 +47,15 @@ const test = process.env.ART_REVIEW_CDP
       page: async ({ browserName }, use) => {
         void browserName;
         const browser = await chromium.connectOverCDP(process.env.ART_REVIEW_CDP!);
-        const context = browser.contexts()[0];
-        if (!context) throw new Error('The connected browser has no default context');
-        const page = context.pages()[0] ?? (await context.newPage());
+        const page = await browser.newPage();
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Network.enable');
+        await cdp.send('Network.setBypassServiceWorker', { bypass: true });
+        await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+        await cdp.send('Network.clearBrowserCache');
         await use(page);
+        await cdp.detach();
+        await page.close();
         await browser.close();
       },
     })
