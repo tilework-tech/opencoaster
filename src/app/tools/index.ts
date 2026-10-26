@@ -22,6 +22,8 @@ import type { Tile } from './path/run';
 import { project } from '../../render/projection';
 import { OWNED } from '../../sim/map/tile-map';
 import { guestRowState } from '../../worker/snapshot';
+import { RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
+import { RIDE_CATALOG, type RideType } from '../../sim/rides/ride-types';
 import type { ObjectPickTarget } from '../../input/object-picking';
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 
@@ -460,7 +462,17 @@ export function createToolController(deps: ToolControllerDependencies) {
     let selectionStatus = tile ? `Tile ${tile[0]}, ${tile[1]}` : 'Outside the park map.';
     if (rideId !== null) {
       deps.gameUi.openRide(rideId);
-      selectionStatus = `Ride ${rideId} information opened.`;
+      let rideName: string | undefined;
+      if (snapshot) {
+        for (let slot = 0; slot < snapshot.rides.count; slot++) {
+          const offset = slot * RIDE_INFO_STRIDE;
+          if (snapshot.rideInfo[offset + RideInfo.Id] === rideId) {
+            rideName = RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type]! as RideType]?.name;
+            break;
+          }
+        }
+      }
+      selectionStatus = `${rideName ?? `Ride ${rideId}`} information opened.`;
     } else if (guest) deps.gameUi.openWindow(`guest-${guest.id}`);
     else if (staffId !== null) deps.gameUi.openWindow(`worker-${staffId}`);
     else if (tile && map.entranceX === tile[0] && map.entranceY === tile[1])

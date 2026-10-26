@@ -65,44 +65,62 @@ async function visibleRidePoint(
   kind: 'flat-ride' | 'facility',
 ): Promise<{ id: number; name: string; x: number; y: number }> {
   return page.locator('#game').evaluate(async (canvas, kind) => {
-    const [{ RIDE_CATALOG }, { RideInfo, RIDE_INFO_STRIDE }, { project }, { TILE_UNITS, Z_STEP }] =
-      await Promise.all([
-        import('/src/sim/rides/ride-types.ts'),
-        import('/src/worker/snapshot.ts'),
-        import('/src/render/projection.ts'),
-        import('/src/sim/core/constants.ts'),
-      ]);
+    const [
+      { RIDE_CATALOG },
+      { RideInfo, RIDE_INFO_STRIDE },
+      { buildObjectPickTargets, pickTopmostObject },
+      { spritePages },
+    ] = await Promise.all([
+      import('/src/sim/rides/ride-types.ts'),
+      import('/src/worker/snapshot.ts'),
+      import('/src/input/object-picking.ts'),
+      import('/src/render/sprite-pages.ts'),
+    ]);
     const state = window as unknown as {
       __camera: { x: number; y: number; zoom: number; rotation: 0 | 1 | 2 | 3 };
-      __map: { width: number; height: number; heights: Uint8Array };
-      __snapshot: { rides: { count: number }; rideInfo: Int32Array };
+      __map: Parameters<typeof buildObjectPickTargets>[1];
+      __snapshot: Parameters<typeof buildObjectPickTargets>[0];
     };
     const { __camera: camera, __map: map, __snapshot: snapshot } = state;
+    if (!snapshot) throw new Error('The park snapshot is not ready');
     const rect = canvas.getBoundingClientRect();
-    const point = new Float64Array(2);
+    const viewport = { width: rect.width, height: rect.height };
+    let targets = buildObjectPickTargets(snapshot, map, camera, viewport, spritePages);
     for (let i = 0; i < snapshot.rides.count; i++) {
       const o = i * RIDE_INFO_STRIDE;
       const definition = RIDE_CATALOG[snapshot.rideInfo[o + RideInfo.Type]!];
       const facility = definition && ['shop', 'stall', 'facility'].includes(definition.category);
       if (!definition || definition.usesTrack || facility !== (kind === 'facility')) continue;
-      const tileX = snapshot.rideInfo[o + RideInfo.RideX]!;
-      const tileY = snapshot.rideInfo[o + RideInfo.RideY]!;
-      if (tileX < 0 || tileY < 0 || tileX >= map.width || tileY >= map.height) continue;
-      project(
-        (tileX + 0.5) * TILE_UNITS,
-        (tileY + 0.5) * TILE_UNITS,
-        map.heights[tileY * map.width + tileX]! * Z_STEP,
-        map.width,
-        map.height,
-        camera.rotation,
-        point,
-      );
-      return {
-        id: snapshot.rideInfo[o + RideInfo.Id]!,
-        name: definition.name,
-        x: rect.left + rect.width / 2 + (point[0]! - camera.x) * camera.zoom,
-        y: rect.top + rect.height / 2 + (point[1]! - camera.y) * camera.zoom - 16 * camera.zoom,
-      };
+      const rideId = snapshot.rideInfo[o + RideInfo.Id]!;
+      for (const target of targets) {
+        if (target.kind !== 'ride' || target.rideId !== rideId) continue;
+        const findPixel = (candidate: (typeof targets)[number]) => {
+          for (let pixel = 0; pixel < candidate.alpha.length; pixel++) {
+            if (candidate.alpha[pixel] === 0) continue;
+            const x =
+              candidate.x +
+              (((pixel % candidate.alphaWidth) + 0.5) / candidate.alphaWidth) * candidate.width;
+            const y =
+              candidate.y +
+              ((Math.floor(pixel / candidate.alphaWidth) + 0.5) / candidate.alphaHeight) *
+                candidate.height;
+            if (x < 4 || y < 4 || x >= rect.width - 4 || y >= rect.height - 80) continue;
+            if (pickTopmostObject(targets, x, y)?.id !== candidate.id) continue;
+            return { id: rideId, name: definition.name, x: rect.left + x, y: rect.top + y };
+          }
+          return null;
+        };
+        const point = findPixel(target);
+        if (point) return point;
+        camera.x += (target.x + target.width / 2 - viewport.width / 2) / camera.zoom;
+        camera.y += (target.y + target.height / 2 - viewport.height / 2) / camera.zoom;
+        targets = buildObjectPickTargets(snapshot, map, camera, viewport, spritePages);
+        const centeredTarget = targets.find((candidate) => candidate.id === target.id);
+        if (centeredTarget) {
+          const pointAfterCentering = findPixel(centeredTarget);
+          if (pointAfterCentering) return pointAfterCentering;
+        }
+      }
     }
     throw new Error(`The scenario has no visible ${kind}`);
   }, kind);
