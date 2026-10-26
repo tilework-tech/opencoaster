@@ -1,13 +1,13 @@
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 import type { MapData } from '../../render/renderer';
-import { project } from '../../render/projection';
+import { project, worldToScreen } from '../../render/projection';
 import type { Rotation } from '../../render/projection';
 
 /** Returns the projected centre of the gate and the contiguous path leading into the park. */
 export function scenarioOpeningPosition(map: MapData, rotation: Rotation): [number, number] {
   const { width, height, entranceX, entranceY } = map;
   if (entranceX === undefined || entranceY === undefined || entranceX < 0 || entranceY < 0)
-    return [(width - height) * 16, (width + height) * 8];
+    return worldToScreen(width / 2, height / 2, 0, rotation, map);
 
   const path = new Set<string>();
   for (let i = 0; i < (map.pathCount ?? 0); i++)

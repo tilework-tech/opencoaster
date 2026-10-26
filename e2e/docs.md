@@ -49,3 +49,5 @@ Path: @/e2e
 - [mobile.spec.ts](mobile.spec.ts) runs at a 390 px phone viewport with touch: it checks the scrolling toolbar, stacked bottom sheets, a 44 px minimum for every visible control, and tap-to-build.
 
 Created and maintained by Nori.
+
+- [rotation-ownership.spec.ts](rotation-ownership.spec.ts) renders a fixture park (path, queue, bench, tree, hedge, stall, flat ride and its entrance, park entrance, guest, staff, litter, flower bed) in all four rotations in both renderers with one solid colour per object kind, and asserts the pixel above each projected anchor belongs to that object.

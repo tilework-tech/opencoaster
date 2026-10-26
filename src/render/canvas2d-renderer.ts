@@ -1491,7 +1491,7 @@ export class Canvas2DRenderer implements Renderer {
       this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
         project(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
-        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), tick >>> 2) - 40}`;
+        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), tick >>> 2, cam.rotation) - 40}`;
         if (!this.atlas || !drawAnchoredSprite(ctx, this.atlas, sprite, t[0]!, t[1]!)) {
           ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
           ctx.fillRect(t[0]! - 1.5, t[1]! - 1.5, 3, 3);
@@ -1590,22 +1590,7 @@ function unrotateForDraw(
   rotation: Camera['rotation'],
   out: Int32Array,
 ): void {
-  switch (rotation) {
-    case 0:
-      out[0] = x;
-      out[1] = y;
-      break;
-    case 1:
-      out[0] = y;
-      out[1] = height - 1 - x;
-      break;
-    case 2:
-      out[0] = width - 1 - x;
-      out[1] = height - 1 - y;
-      break;
-    case 3:
-      out[0] = width - 1 - y;
-      out[1] = x;
-      break;
-  }
+  const [ux, uy] = unrotateTile(x, y, width, height, rotation);
+  out[0] = ux;
+  out[1] = uy;
 }

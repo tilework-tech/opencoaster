@@ -1,6 +1,7 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { PathFlag } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
+import { viewDepth } from './projection';
 import type { Rotation } from './projection';
 
 /**
@@ -30,18 +31,7 @@ export function rotatedPositionSum(
   map: { width: number; height: number },
   rotation: Rotation,
 ): number {
-  const tx = x / TILE_UNITS;
-  const ty = y / TILE_UNITS;
-  switch (rotation) {
-    case 0:
-      return tx + ty;
-    case 1:
-      return map.height - ty + tx;
-    case 2:
-      return map.width - tx + map.height - ty;
-    case 3:
-      return ty + map.width - tx;
-  }
+  return viewDepth(x / TILE_UNITS, y / TILE_UNITS, rotation, map);
 }
 
 /** Key of a tile's terrain, taken at the tile's rearmost corner. */

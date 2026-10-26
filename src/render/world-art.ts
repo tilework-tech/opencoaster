@@ -5,7 +5,8 @@ import type { RideType } from '../sim/rides/ride-types';
 import { RidePhase } from '../sim/rides/ride-store';
 import { PathFlag, PATH_ADDITION_BROKEN, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
-import { Z_PIXELS } from './projection';
+import { Z_PIXELS, rotateDirection } from './projection';
+import type { Rotation } from './projection';
 
 /** Simulation ticks each flat-ride animation frame is shown for. */
 export const TICKS_PER_ANIMATION_FRAME = 8;
@@ -131,7 +132,7 @@ export function rideSpriteKey(type: RideType, rotation: number): string {
  * tile offsets in the same sense.
  */
 export function rideCellView(cameraRotation: number, rideDir: number): number {
-  return (((cameraRotation + rideDir) % 4) + 4) % 4;
+  return rotateDirection(rideDir & 3, (cameraRotation & 3) as Rotation);
 }
 
 /**
