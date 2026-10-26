@@ -127,8 +127,9 @@ export function openWorkerWindow(
       'ui-button',
     );
     sack.classList.add('ui-danger');
+    const pickUp = button('Pick up', () => ctx.actions.pickUpPerson('staff', staffId), 'ui-button');
     view.append(name, role.row, location.row, element('div', 'button-row'));
-    view.lastElementChild?.append(locate, rename, sack);
+    view.lastElementChild?.append(locate, pickUp, rename, sack);
 
     const orders = win.pane('orders');
     const taskOrders = element('fieldset', 'worker-task-orders');

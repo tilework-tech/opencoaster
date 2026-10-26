@@ -4,18 +4,19 @@ Path: @/src/app/tools
 
 ### Overview
 
-- Converts canvas taps, holds and paint gestures into tile selection or simulation commands.
-- Separates tool-specific command handlers and snapshot-based guest hit testing from event wiring.
+- Converts canvas taps, holds, person drags and paint gestures into tile selection or simulation commands.
+- Separates tool-specific command handlers and snapshot-based ride/person hit testing from event wiring.
 
 ### How it fits into the larger codebase
 
 - [camera input](../input/docs.md) invokes the controller's click, path-removal and scenery-removal callbacks, and routes pointer press/hover/leave to the Land and area controllers. Map taps for Land, Clear scenery and Water go through `handleCanvasClick` to the matching controller.
 - [bootstrap](../bootstrap/docs.md) provides the active tool settings, UI, camera, worker client and [ride setup](../ride-setup/docs.md) callback.
-- Commands go through [SimClient](../../worker/sim-client.ts); ride selection uses [object-picking](../../input/object-picking.ts) against the latest snapshot.
+- Commands go through [SimClient](../../worker/sim-client.ts); ride selection uses [object-picking](../../input/object-picking.ts) against the latest snapshot, while guest and staff selection use projected snapshot positions.
 
 ### Core Implementation
 
-- `createToolController` converts CSS-pixel canvas positions to map tiles, dispatches the active tool, and updates selection/UI state.
+- `createToolController` converts CSS-pixel canvas positions to map tiles, dispatches the active tool, and updates selection/UI state. In Select mode, clicks use the topmost visible alpha-mask target first: flat ride sprites, tracked-ride track/support/car/rider sprites, and placed entrances/exits open their ride window; walking guests and staff open their detail windows; the park gate opens Park. Scenery and path additions open a small popup with the object's name and state and a Done control; scenery can be removed, while path additions can be removed and vandalised additions can be repaired. If no sprite target is hit, terrain picking falls back to ride footprints or track tiles, nearby people and the park entrance tile.
+- Select-mode hover displays the target name in tool status and outlines its projected sprite bounds; leaving Select mode clears that hover. Person pickup can begin from a guest or staff window action, a desktop drag that alpha-hit-tests the sprite under its start point, or a touch long-press gesture. While carried, a lifted person glyph follows the pointer, a ground shadow marks the destination tile, and a green/red marker plus status text reports whether the drop is valid and why it is refused. A guest in queueing, waiting-to-board or riding state is refused. A drop resolves the terrain tile under the pointer and accepts a path or owned dry tile; invalid destinations report a reason without sending a command. Accepted drops enqueue `setPersonPosition`, and the worker applies it immediately while paused. The simulation remains authoritative and validates the same map constraints.
 - [land-controller.ts](land-controller.ts) drives the Land window's tool: it picks the selection under the pointer ([land-selection.ts](land-selection.ts): square size, and for size 1 a corner, edge or whole tile from the position inside the tile), asks the worker to preview the edit, shows the overlay and a cursor tooltip with the price or refusal ([land-feedback.ts](land-feedback.ts)), sends the command on tap, and turns a vertical drag on a locked selection into one raise or lower step per terrain step of pointer travel. Flatten and smooth paint tile by tile while dragging; flatten keeps the first tile's height as its level.
 - [area-controller.ts](area-controller.ts) (`AreaController`) drives the Clear scenery and Water tools (vertical drags on Water repeat raise or lower steps like the Land tool); bootstrap creates one instance per tool. It reuses the Land tool's square picking (whole tiles only, no corner or edge picking), requests a worker preview whenever the edit under the pointer changes, draws [the area overlay](../../ui/area-overlay.ts), and shows a `.area-tip` cursor tooltip. A tap sends `clearScenery`, `raiseWater` or `lowerWater`; Shift or the alternate action inverts the Water window's Raise/Lower choice for that tap. Water has no drag-to-repeat, so repeated steps are repeated taps. A tap whose latest preview for the same edit was already refused flashes the reason instead of sending a command; worker refusals arriving in `Snapshot.feedback` under the tool's own domain (`Clear` or `Water`) are shown for 2.5 seconds with the blocking tile flagged.
 - [area-feedback.ts](area-feedback.ts) holds the tooltip text: the price of a step (for example a count of items to clear with their total, or "Raise water, N tiles" with its price) and tool-specific refusal wording, falling back to the Land tool's refusal text for shared `LandResult` codes.
@@ -31,7 +32,7 @@ Path: @/src/app/tools
 
 ### Things to Know
 
-- A forced selection (a touch hold, a right-click in Select mode, or a right-click on a ride tile under a construction tool) bypasses the active build tool. Ride footprint and track hit testing runs before guest hit testing, so a ride window opens when both overlap; otherwise a hit guest opens its detail window.
+- Forced selection (a Select-mode right-click or a right-click on a ride tile under a construction tool) bypasses the active build tool. Ordinary Select clicks use renderer draw order and alpha masks before terrain tile fallback, so the topmost visible sprite receives the selection. Touch holds first attempt person pickup in Select mode, with other holds retaining forced selection except Footpaths path removal.
 - Land and area tool previews come from the worker's own planners (`planLand`, `planArea`), so the tooltip price and refusal match what the command will do unless the world changes in between. `SimClient` keeps only the newest preview answer, and the controllers compare its edit with the current one before drawing it.
 - Tool status text reports requests, while command acceptance and resulting state remain authoritative in the simulation worker.
 - Scenery and path-addition previews pass rendered dimensions and ground level through the renderer contract. Flowerbed previews use the same native frame, tile-centre ground pivot, and slope/view art key as placed beds so the ghost lines up with its tile in both renderers.

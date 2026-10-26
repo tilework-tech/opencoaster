@@ -135,6 +135,7 @@ describe('riders are not drawn as walking guests', () => {
     writeSnapshot(sim.world, snapshot);
     const scene = new CoasterScene();
     scene.build(snapshot, mapOf(sim), 0);
+    expect(scene.items.slice(0, scene.length).every((item) => item.rideId === rideId)).toBe(true);
     const keys = scene.items.slice(0, scene.length).map((item) => item.key);
     const seated = keys.filter((key) => key.startsWith('people/rider-seated'));
     let carPassengers = 0;

@@ -76,6 +76,7 @@ export interface GameUIActions {
   setPatrolStaff(staffId: number | null): void;
   renameStaff(staffId: number, name: string): void;
   fireStaff(staffId: number): void;
+  pickUpPerson(person: 'guest' | 'staff', personId: number): void;
   setRidePrice(rideId: number, priceCents: number): void;
   setRideTrains(rideId: number, trains: number, cars: number): void;
   setRideStatus(rideId: number, status: 'open' | 'close' | 'test'): void;

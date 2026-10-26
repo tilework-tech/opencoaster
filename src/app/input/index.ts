@@ -63,6 +63,14 @@ export interface CameraInputDependencies {
   setHiddenPaused: (hidden: boolean) => void;
   syncPause: () => void;
   handleCanvasClick: (x: number, y: number, shiftKey?: boolean, forceSelect?: boolean) => void;
+  hoverObject: (x: number, y: number) => void;
+  clearObjectHover: () => void;
+  personDrag: {
+    start(x: number, y: number): boolean;
+    move(x: number, y: number): void;
+    end(x: number, y: number): void;
+    cancel(): void;
+  };
   removePathAt: (x: number, y: number) => void;
   pathDrag: PathDragHandlers;
   land: LandController;
@@ -228,6 +236,18 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
       if (deps.selectedTool() === 'path') deps.removePathAt(x, y);
       else deps.handleCanvasClick(x, y, false, true);
     },
+    personDragStart(x, y) {
+      return deps.personDrag.start(x, y);
+    },
+    personDragMove(x, y) {
+      deps.personDrag.move(x, y);
+    },
+    personDragEnd(x, y) {
+      deps.personDrag.end(x, y);
+    },
+    personDragCancel() {
+      deps.personDrag.cancel();
+    },
     pathDragStart(x, y) {
       return deps.pathDrag.start(x, y);
     },
@@ -281,6 +301,8 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     canvas.setPointerCapture(event.pointerId);
   });
   canvas.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'mouse' && event.buttons === 0)
+      deps.hoverObject(event.clientX, event.clientY);
     if (deps.selectedTool() === 'path' && event.pointerType === 'mouse' && event.buttons === 0)
       deps.pathDrag.hover(event.clientX, event.clientY);
     const map = sim.map;
@@ -315,6 +337,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   });
   canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
   canvas.addEventListener('pointerleave', (event) => {
+    deps.clearObjectHover();
     deps.pathDrag.hoverEnd();
     deps.setPlacementHover(null);
     deps.setBuildHover(null, 0, 0, false);

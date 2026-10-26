@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRideIdAtTile } from './object-picking';
+import { findRideIdAtTile, pickTopmostObject, pickTopmostSprite } from './object-picking';
 import { RideType } from '../sim/rides/ride-types';
 import { RideInfo, SNAPSHOT_STRIDE, createSnapshot } from '../worker/snapshot';
 
@@ -42,5 +42,63 @@ describe('ride picking', () => {
 
   it('returns null when the selected tile is outside every ride', () => {
     expect(findRideIdAtTile(snapshotWithRide(), 0, 0)).toBeNull();
+  });
+});
+
+describe('sprite picking', () => {
+  it('returns the topmost opaque sprite under the pointer and falls through transparent pixels', () => {
+    const bottom = {
+      id: 'tree',
+      x: 10,
+      y: 10,
+      width: 2,
+      height: 2,
+      alphaWidth: 2,
+      alphaHeight: 2,
+      alpha: Uint8Array.of(255, 0, 0, 255),
+    };
+    const top = {
+      id: 'guest',
+      x: 10,
+      y: 10,
+      width: 2,
+      height: 2,
+      alphaWidth: 2,
+      alphaHeight: 2,
+      alpha: Uint8Array.of(0, 255, 0, 0),
+    };
+
+    expect(pickTopmostSprite([bottom, top], 10.5, 10.5)).toBe('tree');
+    expect(pickTopmostSprite([bottom, top], 11.5, 10.5)).toBe('guest');
+    expect(pickTopmostSprite([bottom, top], 12, 10.5)).toBeNull();
+  });
+
+  it('returns the topmost object target while respecting transparent sprite pixels', () => {
+    const scenery = {
+      id: 'scenery:1',
+      kind: 'scenery' as const,
+      name: 'Oak tree',
+      tileX: 1,
+      tileY: 2,
+      sortDepth: 4,
+      x: 10,
+      y: 10,
+      width: 2,
+      height: 2,
+      alphaWidth: 2,
+      alphaHeight: 2,
+      alpha: Uint8Array.of(255, 0, 0, 255),
+    };
+    const person = {
+      ...scenery,
+      id: 'guest:8',
+      kind: 'guest' as const,
+      name: 'Guest 8',
+      alpha: Uint8Array.of(0, 255, 0, 0),
+    };
+
+    expect(pickTopmostObject([scenery, person], 10.5, 10.5)).toBe(scenery);
+    expect(pickTopmostObject([scenery, person], 11.5, 10.5)).toBe(person);
+    expect(pickTopmostObject([scenery, person], 12, 10.5)).toBeNull();
   });
 });

@@ -118,6 +118,8 @@ export interface SnapshotLayer {
 
 export interface Snapshot {
   tick: number;
+  /** Increments for each published snapshot, including paused state changes. */
+  revision: number;
   /** Successful construction commands produced since the previous simulation tick. */
   audioEvents: Array<{
     id: number;
@@ -221,6 +223,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
   });
   return {
     tick: 0,
+    revision: 0,
     audioEvents: [],
     guests: layer(caps.guests),
     staff: layer(caps.staff),

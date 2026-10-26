@@ -314,6 +314,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
     win.pane('view').append(
       where.row,
       button('Locate', locate, 'ui-button'),
+      button('Pick up', () => ctx.actions.pickUpPerson('guest', guestId), 'ui-button'),
       Object.assign(button('Track guest', locate, 'ui-button'), {
         disabled: true,
         title: 'Following a guest is not available yet.',
