@@ -74,8 +74,13 @@ describe('generated sprite catalogue', () => {
       const sprite = sprites.get(key)!;
       const frame = sprite.frames[0]!;
       expect(frame.anchor.x, `${key} x`).toBe(frame.width / 2);
-      if (!key.startsWith('scenery/flower-bed/'))
-        expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
+      if (key.startsWith('scenery/flower-bed/')) {
+        expect(frame.anchor.y, `${key} tile ground pivot`).toBeGreaterThan(frame.height * 0.55);
+        expect(frame.anchor.y, `${key} tile ground pivot`).toBeLessThanOrEqual(frame.height * 0.7);
+      } else if (key.startsWith('scenery/shrub/')) {
+        expect(frame.anchor.y, `${key} bush ground pivot`).toBeGreaterThan(frame.height * 0.55);
+        expect(frame.anchor.y, `${key} bush ground pivot`).toBeLessThanOrEqual(frame.height * 0.8);
+      } else expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
       expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);
       if (key.startsWith('scenery/shelter/')) expect(sprite.raw, key).toBe(true);
       else if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBeFalsy();
