@@ -8,6 +8,7 @@ import { rideSystem } from '../rides/ride-system';
 import { RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, spawnGuest } from './guest-store';
 import { guestSystem } from './guest-system';
+import { hashWorld } from '../core/hash';
 import { setParkEntrance } from './park';
 
 /** Main path along y=5, a queue along y=5 into a ride at (11, 4), exit at (12, 4). */
@@ -55,6 +56,38 @@ function sendToRide(w: World, ride: number, x = 2): number {
 }
 
 describe('queuing guests', () => {
+  it('keeps waiting arrivals on separate path tiles and replays the same join order', () => {
+    const createCrowd = () => {
+      const { w, ride } = parkWithLongQueue(7);
+      const slots = Array.from({ length: 8 }, () => sendToRide(w, ride));
+      return { w, slots };
+    };
+    const first = createCrowd();
+    const replay = createCrowd();
+    let peakWaitingTileOccupancy = 0;
+
+    step(
+      first.w,
+      1800,
+      () => {
+        const counts = new Map<number, number>();
+        for (const slot of first.slots) {
+          if (first.w.guests.cols.targetRide[slot] < 0) continue;
+          const tile = tileOf(first.w, slot);
+          if (first.w.map.isQueue(tile)) continue;
+          const count = (counts.get(tile) ?? 0) + 1;
+          counts.set(tile, count);
+          peakWaitingTileOccupancy = Math.max(peakWaitingTileOccupancy, count);
+        }
+      },
+      false,
+    );
+    step(replay.w, 1800, undefined, false);
+
+    expect(peakWaitingTileOccupancy).toBeLessThanOrEqual(1);
+    expect(hashWorld(first.w)).toBe(hashWorld(replay.w));
+  });
+
   it('wandering guests never walk onto queue tiles', () => {
     const { w, ride } = parkWithLongQueue();
     setRideOpen(w, w.rides.slotToId[ride], false);

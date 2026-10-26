@@ -247,6 +247,21 @@ async function playStarterRideAccess(
     .filter({ hasText: 'Merry-Go-Round' });
   await flatRide.click();
   const flatWindow = page.locator('[data-panel="ride-0"]');
+  await expect(flatWindow.locator('.ui-titlebar')).toContainText('Merry-Go-Round 1');
+  await expect
+    .poll(() =>
+      flatWindow.locator('.ride-preview').evaluate((canvas) => {
+        const preview = canvas as HTMLCanvasElement;
+        const context = preview.getContext('2d');
+        if (!context) return 0;
+        const { data } = context.getImageData(0, 0, preview.width, preview.height);
+        let opaquePixels = 0;
+        for (let alpha = 3; alpha < data.length; alpha += 4)
+          if (data[alpha] !== 0) opaquePixels++;
+        return opaquePixels;
+      }),
+    )
+    .toBeGreaterThan(0);
   await expect(flatWindow.locator('.ride-status')).toHaveText('Closed');
   await flatWindow.getByRole('button', { name: 'Open' }).click();
   await expect(flatWindow.locator('.ride-status')).toHaveText('Open');
@@ -485,7 +500,9 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
         await expect(page.locator('.hud')).toContainText(`rot ${(rotation + turn) % 4}`);
       }
       await contextClickAtTile(page, 23, 42);
-      await expect(page.locator('.tool-status')).toContainText(`Ride ${rideId} information opened`);
+      await expect(page.locator('.tool-status')).toContainText(
+        `${name} ${rideId + 1} information opened`,
+      );
     }
     await expect(rideWindow).toBeVisible();
     await expect(rideWindow.getByRole('tab', { name: 'View' })).toHaveAttribute(

@@ -37,8 +37,17 @@ describe('generated sprite catalogue', () => {
         const small = key.startsWith('litter/') || /(bin|lamp)/.test(key);
         const minimumWidth = small ? 10 : 20;
         const minimumHeight = key.startsWith('litter/') ? 6 : 14;
-        expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
-        expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
+        if (key.startsWith('litter/')) {
+          expect(frame?.width, `${key}, view ${view} width`).toBeLessThanOrEqual(8);
+          expect(frame?.height, `${key}, view ${view} height`).toBeLessThanOrEqual(5);
+          expect(frame?.anchor.y, `${key}, view ${view} ground anchor`).toBeGreaterThan(0);
+          expect(frame?.anchor.y, `${key}, view ${view} ground anchor`).toBeLessThanOrEqual(
+            frame!.height,
+          );
+        } else {
+          expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
+          expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
+        }
         expect(frame?.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
         views.push(Buffer.from(frame!.pixels).toString('base64'));
       }

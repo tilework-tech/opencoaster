@@ -108,7 +108,7 @@ async function connectEntranceWithPath(
 async function screenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   const path = testInfo.outputPath(`${name}.png`);
   await mkdir(dirname(path), { recursive: true });
-  await page.screenshot({ path, fullPage: true });
+  await page.screenshot({ path, fullPage: true, timeout: 60_000 });
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 

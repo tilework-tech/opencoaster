@@ -20,7 +20,7 @@ describe('staff roster', () => {
     const { snapshot, handyman, guard } = snapshotWithStaff();
 
     expect(rosterEntries(snapshot)).toEqual([
-      { id: handyman, kind: 0, name: `Handyman ${handyman}`, role: 'Handyman' },
+      { id: handyman, kind: 0, name: `Handyman ${handyman + 1}`, role: 'Handyman' },
       { id: guard, kind: 2, name: 'Rex', role: 'Security' },
     ]);
   });
