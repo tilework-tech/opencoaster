@@ -351,6 +351,7 @@ export async function bootstrap(): Promise<void> {
   Object.assign(areaHolder, areaTools);
   const toolController = createToolController({
     canvas,
+    renderer,
     sim,
     camera,
     gameUi,
@@ -386,6 +387,8 @@ export async function bootstrap(): Promise<void> {
     setHiddenPaused: (value) => (hiddenPaused = value),
     syncPause,
     handleCanvasClick: toolController.handleCanvasClick,
+    hoverObject: toolController.hoverCanvas,
+    clearObjectHover: toolController.clearObjectHover,
     personDrag: {
       start: toolController.personDragStart,
       move: toolController.personDragMove,

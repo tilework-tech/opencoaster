@@ -40,6 +40,8 @@ import {
 } from './world-art';
 import { OwnershipOverlay } from './ownership-overlay';
 import type { TerrainSurface } from './world-art';
+import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
+import type { ObjectPickTarget } from '../input/object-picking';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import {
   SOLID_BIAS,
@@ -131,9 +133,27 @@ export class Canvas2DRenderer implements Renderer {
   private drawOrder: { depth: number; order: number; draw: () => void }[] = [];
   private nextDrawOrder = 0;
   private readonly surfaceDepths = new SurfaceDepths();
+  private pickCacheKey = '';
+  private pickTargets: ObjectPickTarget[] = [];
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
+  }
+
+  pickObject(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    screenX: number,
+    screenY: number,
+    viewport: { width: number; height: number },
+  ): ObjectPickTarget | null {
+    if (!this.map || !this.atlas) return null;
+    const key = `${snapshot?.tick ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${this.atlas.version}`;
+    if (key !== this.pickCacheKey) {
+      this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, this.atlas);
+      this.pickCacheKey = key;
+    }
+    return pickTopmostObject(this.pickTargets, screenX, screenY);
   }
 
   setPatrolStaff(staffId: number | null): void {

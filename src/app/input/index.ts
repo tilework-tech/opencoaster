@@ -63,6 +63,8 @@ export interface CameraInputDependencies {
   setHiddenPaused: (hidden: boolean) => void;
   syncPause: () => void;
   handleCanvasClick: (x: number, y: number, shiftKey?: boolean, forceSelect?: boolean) => void;
+  hoverObject: (x: number, y: number) => void;
+  clearObjectHover: () => void;
   personDrag: {
     start(x: number, y: number): boolean;
     move(x: number, y: number): void;
@@ -299,6 +301,8 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     canvas.setPointerCapture(event.pointerId);
   });
   canvas.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'mouse' && event.buttons === 0)
+      deps.hoverObject(event.clientX, event.clientY);
     if (deps.selectedTool() === 'path' && event.pointerType === 'mouse' && event.buttons === 0)
       deps.pathDrag.hover(event.clientX, event.clientY);
     const map = sim.map;
@@ -333,6 +337,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   });
   canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
   canvas.addEventListener('pointerleave', (event) => {
+    deps.clearObjectHover();
     deps.pathDrag.hoverEnd();
     deps.setPlacementHover(null);
     deps.setBuildHover(null, 0, 0, false);

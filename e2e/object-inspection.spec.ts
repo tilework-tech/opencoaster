@@ -95,7 +95,6 @@ for (const mobile of [false, true]) {
           await new Promise((resolve) => setTimeout(resolve, 950));
           send('pointerup', 0);
         }, scenery);
-        await expect(page.locator('.tool-status')).toContainText(scenery.name);
       } else {
         await page.mouse.move(scenery.x, scenery.y);
         await expect(page.locator('.tool-status')).toContainText(scenery.name);
@@ -104,6 +103,7 @@ for (const mobile of [false, true]) {
       const popup = page.locator('[data-object-info]');
       await expect(popup).toBeVisible();
       await expect(popup).toContainText(scenery.name);
+      if (mobile) await expect(page.locator('.tool-status')).toContainText(scenery.name);
       await expect(popup.getByRole('button', { name: 'Remove' })).toBeVisible();
     } finally {
       await page.context().close();

@@ -1,5 +1,6 @@
 import type { Snapshot } from '../worker/snapshot';
 import type { Rotation } from './projection';
+import type { ObjectPickTarget } from '../input/object-picking';
 
 export interface MapData {
   width: number;
@@ -86,5 +87,13 @@ export interface Renderer {
   /** Sets the 4×4 block shown under the pointer while editing the selected worker's area. */
   setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void;
   draw(snapshot: Snapshot | null, camera: Camera): void;
+  /** Returns the topmost visible atlas sprite at a viewport-local pointer position. */
+  pickObject(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    screenX: number,
+    screenY: number,
+    viewport: { width: number; height: number },
+  ): ObjectPickTarget | null;
   dispose(): void;
 }

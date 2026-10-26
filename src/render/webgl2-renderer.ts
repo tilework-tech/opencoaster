@@ -56,6 +56,8 @@ import {
   rotatedPositionSum,
 } from './depth-key';
 import { OwnershipOverlay } from './ownership-overlay';
+import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
+import type { ObjectPickTarget } from '../input/object-picking';
 import type { Rotation } from './projection';
 import {
   pathElementSprite,
@@ -363,6 +365,8 @@ export class WebGL2Renderer implements Renderer {
   private canvas: HTMLCanvasElement | null = null;
   private gl: WebGL2RenderingContext | null = null;
   private map: MapData | null = null;
+  private pickCacheKey = '';
+  private pickTargets: ObjectPickTarget[] = [];
   private program: WebGLProgram | null = null;
   private vao: WebGLVertexArrayObject | null = null;
   private instanceBuffer: WebGLBuffer | null = null;
@@ -429,6 +433,22 @@ export class WebGL2Renderer implements Renderer {
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
+  }
+
+  pickObject(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    screenX: number,
+    screenY: number,
+    viewport: { width: number; height: number },
+  ): ObjectPickTarget | null {
+    if (!this.map) return null;
+    const key = `${snapshot?.tick ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${spritePages.version}`;
+    if (key !== this.pickCacheKey) {
+      this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, spritePages);
+      this.pickCacheKey = key;
+    }
+    return pickTopmostObject(this.pickTargets, screenX, screenY);
   }
 
   attach(canvas: HTMLCanvasElement): void {
