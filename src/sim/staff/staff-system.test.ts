@@ -7,7 +7,7 @@ import { RidePhase, RideState } from '../rides/ride-store';
 import { createRide } from '../rides/ride-operations';
 import { triggerRideBreakdown } from '../rides/ride-maintenance';
 import { RideType } from '../rides/ride-types';
-import { StaffKind, setStaffKindPatrolTile, spawnStaff } from './staff-store';
+import { StaffKind, StaffOrder, setStaffKindPatrolTile, setStaffPatrolTile, spawnStaff } from './staff-store';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { staffSystem } from './staff-system';
 import { isReachable } from '../pathfinding';
@@ -22,6 +22,97 @@ function workStaffUntil(world: Simulation['world'], done: () => boolean): void {
 }
 
 describe('staff commands and work', () => {
+  it('keeps handymen inside their own 4-by-4 patrol blocks while sweeping', () => {
+    const sim = new Simulation({ seed: 36, width: 32, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    world.map.ownership.fill(OWNED);
+    for (let x = 0; x <= 7; x++) placePath(world.map, { x, y: 8, z: 2 });
+    spawnStaff(world, StaffKind.Handyman);
+    spawnStaff(world, StaffKind.Handyman);
+    const firstId = world.staff.slotToId[0];
+    const secondId = world.staff.slotToId[1];
+    world.staff.cols.x[0] = 2 * 256 + 128;
+    world.staff.cols.y[0] = 8 * 256 + 128;
+    world.staff.cols.x[1] = 5 * 256 + 128;
+    world.staff.cols.y[1] = 8 * 256 + 128;
+    world.staff.cols.targetX[0] = 2;
+    world.staff.cols.targetY[0] = 8;
+    world.staff.cols.targetX[1] = 5;
+    world.staff.cols.targetY[1] = 8;
+    expect(setStaffPatrolTile(world, firstId, 2, 8, true)).toBe(true);
+    expect(setStaffPatrolTile(world, secondId, 5, 8, true)).toBe(true);
+    world.staff.cols.orderFlags[0] &= ~(1 << StaffOrder.SweepPaths);
+    dropLitter(world, 3, 8, LitterKind.Trash);
+
+    for (let tick = 0; tick < 500; tick++) {
+      world.tick = tick;
+      staffSystem.update(world);
+    }
+
+    expect(world.litter.count).toBe(1);
+    expect(world.staff.cols.sweeps[1]).toBe(0);
+    world.staff.cols.orderFlags[0] |= 1 << StaffOrder.SweepPaths;
+    world.staff.cols.orderFlags[1] &= ~(1 << StaffOrder.SweepPaths);
+    dropLitter(world, 5, 8, LitterKind.Trash);
+
+    for (let tick = 500; tick < 1_500; tick++) {
+      world.tick = tick;
+      staffSystem.update(world);
+    }
+
+    expect(world.litter.count).toBe(1);
+    expect(world.staff.cols.sweeps[0]).toBe(1);
+    expect(world.staff.cols.sweeps[1]).toBe(0);
+    expect((world.staff.cols.x[0] / 256) | 0).toBeGreaterThanOrEqual(0);
+    expect((world.staff.cols.x[0] / 256) | 0).toBeLessThanOrEqual(3);
+    expect((world.staff.cols.x[1] / 256) | 0).toBeGreaterThanOrEqual(4);
+    expect((world.staff.cols.x[1] / 256) | 0).toBeLessThanOrEqual(7);
+
+    world.staff.cols.orderFlags[1] |= 1 << StaffOrder.SweepPaths;
+    for (let tick = 1_500; tick < 2_500; tick++) {
+      world.tick = tick;
+      staffSystem.update(world);
+    }
+    expect(world.litter.count).toBe(0);
+    expect(world.staff.cols.sweeps[1]).toBe(1);
+  });
+
+  it('releases a fired worker patrol area for a newly hired worker', () => {
+    const sim = new Simulation({ seed: 37, width: 32, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    world.map.ownership.fill(OWNED);
+    for (let x = 0; x <= 23; x++) placePath(world.map, { x, y: 8, z: 2 });
+    spawnStaff(world, StaffKind.Handyman);
+    const firedId = world.staff.slotToId[0];
+    expect(setStaffPatrolTile(world, firedId, 2, 8, true)).toBe(true);
+    expect(setStaffPatrolTile(world, firedId, 21, 8, true)).toBe(true);
+    const releasedArea = world.staff.cols.patrolArea[0];
+    expect(releasedArea).toBeGreaterThan(0);
+
+    sim.enqueue({ type: 'fireStaff', staffId: firedId });
+    sim.step();
+    expect(world.staff.count).toBe(0);
+    expect(spawnStaff(world, StaffKind.Handyman)).toBe(true);
+    const replacementId = world.staff.slotToId[0];
+    world.staff.cols.x[0] = 21 * 256 + 128;
+    world.staff.cols.y[0] = 8 * 256 + 128;
+    world.staff.cols.targetX[0] = 21;
+    world.staff.cols.targetY[0] = 8;
+    expect(setStaffPatrolTile(world, replacementId, 21, 8, true)).toBe(true);
+    expect(world.staff.cols.patrolArea[0]).toBe(releasedArea);
+    dropLitter(world, 6, 8, LitterKind.Trash);
+
+    for (let tick = 0; tick < 500; tick++) {
+      world.tick = tick;
+      staffSystem.update(world);
+    }
+
+    expect(world.litter.count).toBe(1);
+    expect(world.staff.cols.sweeps[0]).toBe(0);
+  });
+
   it('does not dispatch a handyman to litter outside the three-tile sweep radius', () => {
     const sim = new Simulation({ seed: 18, width: 16, height: 16 });
     const world = sim.world;

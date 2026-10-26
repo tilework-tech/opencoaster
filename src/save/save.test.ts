@@ -13,14 +13,20 @@ import { HEADING_NONE } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
-import { StaffKind, StaffOrder, staffOrderEnabled, spawnStaff } from '../sim/staff/staff-store';
+import {
+  StaffKind,
+  StaffOrder,
+  setStaffPatrolTile,
+  staffOrderEnabled,
+  spawnStaff,
+} from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
 import { PathStyle } from '../sim/map/tile-map';
 
 describe('save', () => {
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(19);
+    expect(SAVE_VERSION).toBe(20);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -28,7 +34,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(19);
+    expect(header.version).toBe(20);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -265,6 +271,53 @@ describe('save', () => {
     expect(loaded.patrolAreas[12]).toBe(1);
     expect(loaded.umbrellas[sim.world.guests.slotToId[0]]).toBe(1);
     expect(loaded.weather.ticksUntilChange).toBe(1234);
+  });
+
+  it('round-trips independent patrol areas for workers of the same role', () => {
+    const sim = new Simulation({ seed: 44, width: 32, height: 16 });
+    expect(spawnStaff(sim.world, StaffKind.Handyman)).toBe(true);
+    expect(spawnStaff(sim.world, StaffKind.Handyman)).toBe(true);
+    const firstId = sim.world.staff.slotToId[0];
+    const secondId = sim.world.staff.slotToId[1];
+    expect(setStaffPatrolTile(sim.world, firstId, 2, 8, true)).toBe(true);
+    expect(setStaffPatrolTile(sim.world, secondId, 5, 8, true)).toBe(true);
+
+    const restored = deserialize(serialize(sim.world));
+
+    expect(hashWorld(restored)).toBe(hashWorld(sim.world));
+    expect(restored.staff.cols.patrolArea[0]).not.toBe(restored.staff.cols.patrolArea[1]);
+    expect(restored.staff.cols.patrolArea[0]).toBeGreaterThan(0);
+    expect(restored.staff.cols.patrolArea[1]).toBeGreaterThan(0);
+  });
+
+  it('copies a version 19 role patrol area to each worker during migration', () => {
+    const sim = new Simulation({ seed: 45, width: 32, height: 16 });
+    expect(spawnStaff(sim.world, StaffKind.Handyman)).toBe(true);
+    expect(spawnStaff(sim.world, StaffKind.Handyman)).toBe(true);
+    const firstId = sim.world.staff.slotToId[0];
+    const secondId = sim.world.staff.slotToId[1];
+    const mapSize = sim.world.map.width * sim.world.map.height;
+    const oldRoleMask = new Uint8Array(mapSize * 4);
+    oldRoleMask[sim.world.map.index(2, 8)] = 1;
+    const current = serialize(sim.world);
+    const dataView = new DataView(current.buffer, current.byteOffset, current.byteLength);
+    const headerEnd = 8 + dataView.getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+    header.version = 19;
+    header.patrolAreas = Array.from(oldRoleMask);
+    const headerBytes = new TextEncoder().encode(JSON.stringify(header));
+    const legacy = new Uint8Array(8 + headerBytes.length + current.length - headerEnd);
+    new DataView(legacy.buffer).setUint32(0, dataView.getUint32(0, true), true);
+    new DataView(legacy.buffer).setUint32(4, headerBytes.length, true);
+    legacy.set(headerBytes, 8);
+    legacy.set(current.subarray(headerEnd), 8 + headerBytes.length);
+
+    const restored = deserialize(legacy);
+
+    expect(restored.staff.cols.patrolArea[0]).not.toBe(restored.staff.cols.patrolArea[1]);
+    expect(setStaffPatrolTile(restored, firstId, 2, 8, false)).toBe(true);
+    expect(setStaffPatrolTile(restored, firstId, 5, 8, true)).toBe(true);
+    expect(restored.staff.cols.patrolArea[0]).not.toBe(restored.staff.cols.patrolArea[1]);
   });
 
   it('a loaded world continues identically to the original', () => {
