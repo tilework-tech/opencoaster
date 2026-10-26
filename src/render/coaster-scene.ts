@@ -1,5 +1,6 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { decodeCarPose } from '../worker/car-poses';
+import type { CarPose } from '../worker/car-poses';
 import { RideInfo, RIDE_INFO_STRIDE, SNAPSHOT_STRIDE } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import {
@@ -44,6 +45,13 @@ function tileDepth(x: number, y: number, map: MapData, rotation: Rotation): numb
 const TRACK_OFFSET = 1;
 const SUPPORT_OFFSET = 0.5;
 const CAR_OFFSET = 1.5;
+const RIDER_OFFSET = 0.1;
+/** Riders shown per car; cars carry at most this many seated figures. */
+export const MAX_SEATED_RIDERS = 4;
+/** Distance between seated riders along the car, in world units. */
+const SEAT_SPACING = TILE_UNITS * 0.1;
+/** Seat cushion height above the car's anchor, in world z units. */
+const SEAT_HEIGHT = Z_STEP * 0.12;
 
 /** Builds the draw list of every coaster's track, supports and cars for one snapshot. */
 export class CoasterScene {
@@ -181,6 +189,39 @@ export class CoasterScene {
         y,
         cars.data[o + 2],
         tileDepth(x, y, map, rotation) + CAR_OFFSET,
+      );
+      if (transport !== 'chairlift')
+        this.addRiders(pose, x, y, cars.data[o + 2], i, map, rotation, family);
+    }
+  }
+
+  /** Seats the car's passengers as small figures along its heading; boats and chairs bake theirs in. */
+  private addRiders(
+    pose: CarPose,
+    x: number,
+    y: number,
+    z: number,
+    car: number,
+    map: MapData,
+    rotation: Rotation,
+    family: TrackRideFamily | undefined,
+  ): void {
+    if (family === 'log-flume' || family === 'river-rapids') return;
+    const riders = Math.min(pose.passengers ?? 0, MAX_SEATED_RIDERS);
+    const angle = (pose.heading * Math.PI) / 4;
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    const facing = (((pose.heading + 1) >> 1) + rotation) & 3;
+    for (let k = 0; k < riders; k++) {
+      const along = (k - (riders - 1) / 2) * SEAT_SPACING;
+      const riderX = x + dx * along;
+      const riderY = y + dy * along;
+      this.push(
+        `people/rider-seated#${((car + k) & 7) * 4 + facing}`,
+        riderX,
+        riderY,
+        z + SEAT_HEIGHT,
+        tileDepth(x, y, map, rotation) + CAR_OFFSET + RIDER_OFFSET,
       );
     }
   }

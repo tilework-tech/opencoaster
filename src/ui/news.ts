@@ -3,6 +3,7 @@ import { RideState } from '../sim/rides/ride-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
 import { RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
+import type { MessageCategory } from './messages';
 
 export interface NewsTarget {
   rideId?: number;
@@ -10,11 +11,9 @@ export interface NewsTarget {
   y: number;
 }
 
-export type NewsCategory = 'ride' | 'guest' | 'park';
-
 export interface NewsItem {
   id: number;
-  category: NewsCategory;
+  category: MessageCategory;
   tick: number;
   text: string;
   /** Where the camera should go when the player clicks the message. */
@@ -37,6 +36,7 @@ export class NewsTracker {
   private lostWarning = false;
   private nextId = 1;
   private primed = false;
+  private awardKeys = new Set<string>();
 
   constructor(private readonly capacity = 50) {}
 
@@ -45,7 +45,7 @@ export class NewsTracker {
     if (snapshot.tick < this.lastTick) this.reset();
     this.lastTick = snapshot.tick;
     const fresh: NewsItem[] = [];
-    const say = (category: NewsCategory, text: string, target?: NewsTarget): void => {
+    const say = (category: MessageCategory, text: string, target?: NewsTarget): void => {
       fresh.push({ id: this.nextId++, category, tick: snapshot.tick, text, target });
     };
 
@@ -101,14 +101,33 @@ export class NewsTracker {
       );
     this.lostWarning = lostWarning;
 
+    const awardKeys = new Set<string>();
+    for (const award of snapshot.parkNews) {
+      const key = `${award.tick}:${award.awardId}`;
+      awardKeys.add(key);
+      if (this.primed && !this.awardKeys.has(key)) say('award', award.text);
+    }
+    this.awardKeys = awardKeys;
+
     this.primed = true;
     for (const item of fresh) this.history.unshift(item);
     this.history.length = Math.min(this.history.length, this.capacity);
     return fresh;
   }
 
+  /** Drops one message from the history, as the player does from the Recent Messages window. */
+  remove(id: number): void {
+    const index = this.history.findIndex((item) => item.id === id);
+    if (index >= 0) this.history.splice(index, 1);
+  }
+
+  clear(): void {
+    this.history.length = 0;
+  }
+
   private reset(): void {
     this.primed = false;
+    this.awardKeys = new Set();
     this.rides = new Map();
     this.guestMilestone = 0;
     this.status = ScenarioStatus.Active;

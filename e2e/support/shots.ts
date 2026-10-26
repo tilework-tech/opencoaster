@@ -6,7 +6,7 @@ import sharp from 'sharp';
 import { project } from '../../src/render/projection';
 import type { Rotation } from '../../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../../src/sim/core/constants';
-import type { Tile } from './park';
+import type { Tile } from './footprints';
 
 /** Starter Park is square. */
 const MAP_SIZE = 64;

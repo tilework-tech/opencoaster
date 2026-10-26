@@ -8,7 +8,7 @@ import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { serialize } from '../src/save/save';
 import sharp from 'sharp';
-import { footprintRing, footprintTiles } from './support/park';
+import { footprintRing, footprintTiles } from './support/footprints';
 import { expectRingCandidates } from './support/shots';
 
 /** One tile's diamond at the default zoom: 64 x 32 CSS px. */

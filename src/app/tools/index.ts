@@ -16,6 +16,7 @@ import {
 import { findGuestAt } from './selection';
 import type { PathFeedback } from './path-feedback';
 import type { LandController } from './land-controller';
+import type { AreaController } from './area-controller';
 import type { PathTool } from './path/controller';
 import type { Tile } from './path/run';
 
@@ -30,11 +31,12 @@ export interface ToolControllerDependencies {
   setSelectedGuest: (guest: GuestSelection | null) => void;
   alternate: () => boolean;
   land: LandController;
+  areaTools: Record<'clear' | 'water', AreaController>;
   pathFeedback: PathFeedback;
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
   sceneryRotation: () => number;
-  patrolKind: () => number | null;
+  patrolStaffId: () => number | null;
   clearRideSetupNotice: () => void;
   rideTileClick: (x: number, y: number) => void;
 }
@@ -48,7 +50,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     pathTool: deps.pathTool,
     sceneryItem: deps.sceneryItem,
     sceneryRotation: deps.sceneryRotation,
-    patrolKind: deps.patrolKind,
+    patrolStaffId: deps.patrolStaffId,
   };
 
   function tileAt(clientX: number, clientY: number): Tile | null {
@@ -98,6 +100,42 @@ export function createToolController(deps: ToolControllerDependencies) {
     },
   };
 
+  function removeSceneryAt(clientX: number, clientY: number): void {
+    const rect = deps.canvas.getBoundingClientRect();
+    const map = deps.sim.map;
+    if (!map) {
+      deps.gameUi.setToolStatus('Scenery cannot be removed until the park map is ready.');
+      return;
+    }
+    const tile = pickTile(clientX - rect.left, clientY - rect.top, map, deps.camera, {
+      width: rect.width,
+      height: rect.height,
+    });
+    if (!tile) {
+      deps.gameUi.setToolStatus('No map tile under the pointer to remove scenery from.');
+      return;
+    }
+    if (deps.sim.latest && findRideIdAtTile(deps.sim.latest, tile[0], tile[1]) !== null) {
+      handleCanvasClick(clientX, clientY, false, true);
+      return;
+    }
+    let hasScenery = false;
+    const sceneryElements = map.sceneryElements ?? [];
+    for (let item = 0; item < (map.sceneryCount ?? 0); item++) {
+      const offset = item * 5;
+      if (sceneryElements[offset] === tile[0] && sceneryElements[offset + 1] === tile[1]) {
+        hasScenery = true;
+        break;
+      }
+    }
+    if (!hasScenery) {
+      deps.gameUi.setToolStatus(`No scenery on tile ${tile[0]}, ${tile[1]} to remove.`);
+      return;
+    }
+    deps.sim.command({ type: 'removeScenery', x: tile[0], y: tile[1] });
+    deps.gameUi.setToolStatus(`Scenery removal requested at ${tile[0]}, ${tile[1]}.`);
+  }
+
   function handleCanvasClick(
     clientX: number,
     clientY: number,
@@ -125,6 +163,8 @@ export function createToolController(deps: ToolControllerDependencies) {
       }
       const [x, y] = tile;
       if (selectedTool === 'land') deps.land.tap(clientX, clientY, shiftKey);
+      else if (selectedTool === 'clear' || selectedTool === 'water')
+        deps.areaTools[selectedTool].tap(clientX, clientY, shiftKey || deps.alternate());
       else if (selectedTool === 'buy-land') handleLandPurchase(handlerDeps, x, y, false);
       else if (selectedTool === 'buy-rights') handleLandPurchase(handlerDeps, x, y, true);
       else if (selectedTool === 'path') handlePathTool(handlerDeps, x, y);
@@ -160,5 +200,5 @@ export function createToolController(deps: ToolControllerDependencies) {
     deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
   }
 
-  return { removePathAt, handleCanvasClick, pathDrag };
+  return { removePathAt, removeSceneryAt, handleCanvasClick, pathDrag };
 }

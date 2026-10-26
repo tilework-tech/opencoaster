@@ -1,7 +1,6 @@
 import { SimClient } from '../../worker/sim-client';
 import { createRenderer } from '../../render/create-renderer';
 import type { Camera } from '../../render/renderer';
-import { project } from '../../render/projection';
 import { Hud } from '../../ui/hud';
 import { GameUI } from '../../ui/game-ui';
 import type { GuestSelection, ToolMode } from '../../ui/game-ui';
@@ -13,13 +12,14 @@ import { SaveMenu } from '../../ui/save-menu';
 import { ScenarioDialog } from '../../ui/scenario-dialog';
 import { loadSettings } from '../../ui/settings';
 import type { GameSpeed } from '../../ui/settings';
-import { DEFAULT_MAP_SIZE, TILE_UNITS, Z_STEP } from '../../sim/core/constants';
-import { PathFlag } from '../../sim/map/tile-map';
+import { DEFAULT_MAP_SIZE } from '../../sim/core/constants';
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprites, TrackPreviewOverlay } from '../../ui/track-preview';
 import type { SpriteGhost } from '../../render/renderer';
 import { ScenerySpotPreview } from '../tools/scenery-preview';
+import { pathAdditionPreviewGhosts } from '../tools/path-addition-preview';
+import { flowerbedPreviewGhost } from '../tools/flowerbed-preview';
 import type { PlacementHover } from '../input';
 import { SCENARIOS } from '../../sim/scenario/catalog';
 import { ScenarioStatus } from '../../sim/scenario/scenario';
@@ -33,6 +33,7 @@ import { BuildHoverFeedback, buildHoverGhost } from '../tools/build-hover-feedba
 import { PathFeedback } from '../tools/path-feedback';
 import { PathTool } from '../tools/path/controller';
 import { LandController } from '../tools/land-controller';
+import { AreaController } from '../tools/area-controller';
 import { createPathState } from '../tools/path/state';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
@@ -85,11 +86,13 @@ export async function bootstrap(): Promise<void> {
   let placementHover: PlacementHover | null = null;
   let buildHoverTile: [number, number] | null = null;
   let sceneryRotation = 0;
-  let patrolKind: number | null = null;
+  let patrolStaffId: number | null = null;
+  let patrolPreviewRemove = false;
   let alternate = false;
   const pathState = createPathState();
   let sceneryItem = SceneryItem.OakTree;
   const landHolder: { controller?: LandController } = {};
+  const areaHolder: { clear?: AreaController; water?: AreaController } = {};
   const windows = new WindowManager(root);
   const coasterPanel = new CoasterPanel(windows, {
     command: (command) => sim.command(command),
@@ -98,11 +101,6 @@ export async function bootstrap(): Promise<void> {
     map: () => sim.map,
     status: (text) => gameUi.setToolStatus(text),
   });
-  const patrolOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  patrolOverlay.classList.add('patrol-overlay');
-  patrolOverlay.setAttribute('aria-hidden', 'true');
-  root.append(patrolOverlay);
-  let patrolOverlaySignature = '';
   const trackPreview = new TrackPreviewOverlay(root);
   const scenerySpot = new ScenerySpotPreview(root, sim);
   const pathFeedback = new PathFeedback(root);
@@ -156,6 +154,12 @@ export async function bootstrap(): Promise<void> {
     setLand(settings) {
       landHolder.controller?.configure(settings);
     },
+    setClearScenery(settings) {
+      areaHolder.clear?.configure(settings);
+    },
+    setWater(settings) {
+      areaHolder.water?.configure(settings);
+    },
     footpath: pathTool,
     setSceneryItem(item) {
       sceneryItem = item as SceneryItem;
@@ -185,6 +189,11 @@ export async function bootstrap(): Promise<void> {
     playUiSound(name) {
       audio.playUi(name);
     },
+    messageFilter: () => settings.messageFilter,
+    setMessageFilter(next) {
+      settings.messageFilter = { ...settings.messageFilter, ...next };
+      persistSettings();
+    },
     setTool(tool) {
       selectedTool = tool;
       rideSetupState.current?.clearNotice();
@@ -199,8 +208,8 @@ export async function bootstrap(): Promise<void> {
     hireStaff(kind) {
       sim.command({ type: 'hireStaff', kind });
     },
-    setPatrolKind(kind) {
-      patrolKind = kind;
+    setPatrolStaff(staffId) {
+      patrolStaffId = staffId;
     },
     renameStaff(staffId, name) {
       sim.command({ type: 'renameStaff', staffId, name });
@@ -323,6 +332,19 @@ export async function bootstrap(): Promise<void> {
     paused: () => userPaused || hiddenPaused,
   });
   landHolder.controller = landController;
+  const areaController = (tool: 'clear' | 'water'): AreaController =>
+    new AreaController({
+      tool,
+      parent: root,
+      canvas,
+      sim,
+      camera,
+      gameUi,
+      viewport,
+      active: () => selectedTool === tool,
+    });
+  const areaTools = { clear: areaController('clear'), water: areaController('water') };
+  Object.assign(areaHolder, areaTools);
   const toolController = createToolController({
     canvas,
     sim,
@@ -334,11 +356,12 @@ export async function bootstrap(): Promise<void> {
     setSelectedGuest: (guest) => (selectedGuest = guest),
     alternate: () => alternate,
     land: landController,
+    areaTools,
     pathFeedback,
     pathTool,
     sceneryItem: () => sceneryItem,
     sceneryRotation: () => sceneryRotation,
-    patrolKind: () => patrolKind,
+    patrolStaffId: () => patrolStaffId,
     clearRideSetupNotice: rideSetupState.current.clearNotice,
     rideTileClick: rideSetupState.current.rideTileClick,
   });
@@ -362,11 +385,15 @@ export async function bootstrap(): Promise<void> {
     removePathAt: toolController.removePathAt,
     pathDrag: toolController.pathDrag,
     land: landController,
+    areaTools,
     setPlacementHover: (hover) => (placementHover = hover),
-    setBuildHover: (tile, x, y) => {
+    setBuildHover: (tile, x, y, shiftKey) => {
       buildHoverTile = tile;
       buildHoverFeedback.pointAt(x, y);
+      patrolPreviewRemove = shiftKey;
+      renderer.setPatrolPreview(tile, shiftKey || alternate);
     },
+    removeSceneryAt: toolController.removeSceneryAt,
     viewport,
     renderScale: () => appliedScale,
     registerResize: (resize) => (resizeCanvas = resize),
@@ -402,78 +429,6 @@ export async function bootstrap(): Promise<void> {
     sim.setSnapshotInterval(wanted);
   }
 
-  function drawPatrolOverlay(): void {
-    if (
-      !saveLoad.current() ||
-      selectedTool !== 'patrol' ||
-      patrolKind === null ||
-      !sim.map ||
-      !sim.latest
-    ) {
-      patrolOverlay.setAttribute('hidden', '');
-      patrolOverlaySignature = '';
-      return;
-    }
-    patrolOverlay.removeAttribute('hidden');
-    const map = sim.map;
-    const snapshot = sim.latest;
-    const mapSize = map.width * map.height;
-    const start = patrolKind * mapSize;
-    const mask = snapshot.patrolAreas;
-    const rect = viewport;
-    const signature = [
-      snapshot.tick,
-      patrolKind,
-      camera.x,
-      camera.y,
-      camera.zoom,
-      camera.rotation,
-      rect.width,
-      rect.height,
-    ].join(':');
-    if (signature === patrolOverlaySignature) return;
-    patrolOverlaySignature = signature;
-    const polygons: SVGPolygonElement[] = [];
-    const point = new Float64Array(2);
-    const surfaceHeights = Float32Array.from(map.heights, (height) => height * Z_STEP);
-    const hasPath = new Uint8Array(mapSize);
-    for (let path = 0; path < map.pathCount; path++) {
-      const offset = path * 5;
-      const x = map.pathElements[offset]!;
-      const y = map.pathElements[offset + 1]!;
-      const tile = y * map.width + x;
-      if (hasPath[tile]) continue;
-      const flags = map.pathElements[offset + 3]!;
-      surfaceHeights[tile] =
-        map.pathElements[offset + 2]! * Z_STEP + ((flags & PathFlag.Sloped) !== 0 ? Z_STEP / 2 : 0);
-      hasPath[tile] = 1;
-    }
-    for (let tile = 0; tile < mapSize; tile++) {
-      if (mask[start + tile] !== 1) continue;
-      const x = tile % map.width;
-      const y = Math.floor(tile / map.width);
-      project(
-        x * TILE_UNITS + TILE_UNITS / 2,
-        y * TILE_UNITS + TILE_UNITS / 2,
-        surfaceHeights[tile]!,
-        map.width,
-        map.height,
-        camera.rotation,
-        point,
-      );
-      const cx = rect.width / 2 + (point[0] - camera.x) * camera.zoom;
-      const cy = rect.height / 2 + (point[1] - camera.y) * camera.zoom;
-      const halfX = 32 * camera.zoom;
-      const halfY = 16 * camera.zoom;
-      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      polygon.setAttribute(
-        'points',
-        `${cx},${cy - halfY} ${cx + halfX},${cy} ${cx},${cy + halfY} ${cx - halfX},${cy}`,
-      );
-      polygons.push(polygon);
-    }
-    patrolOverlay.replaceChildren(...polygons);
-  }
   function frame(now: number): void {
     const dt = now - last;
     last = now;
@@ -512,7 +467,6 @@ export async function bootstrap(): Promise<void> {
     camera.showGridlines = localStorage.getItem('opencoaster-option-gridlines') === 'true';
     const renderStart = performance.now();
     renderer.draw(sim.latest, camera);
-    drawPatrolOverlay();
     renderMs = performance.now() - renderStart;
     if (now - lastHud >= HUD_INTERVAL_MS) {
       lastHud = now;
@@ -561,8 +515,10 @@ export async function bootstrap(): Promise<void> {
           x,
           y,
           level: sim.map.heights[y * sim.map.width + x] ?? 0,
+          slopeMask: sim.map.slope[y * sim.map.width + x] ?? 0,
           item: sceneryItem,
           rotation: sceneryRotation,
+          viewRotation: camera.rotation,
           clientX: placementHover.clientX,
           clientY: placementHover.clientY,
         },
@@ -572,7 +528,41 @@ export async function bootstrap(): Promise<void> {
     } else {
       scenerySpot.hide();
     }
+    if (placementHover && sim.map && selectedTool === 'flowerbed') {
+      const tile = placementHover.tile[1] * sim.map.width + placementHover.tile[0];
+      spriteGhosts.push(
+        flowerbedPreviewGhost(
+          placementHover.tile[0],
+          placementHover.tile[1],
+          sim.map.heights[tile] ?? 0,
+          sim.map.slope[tile] ?? 0,
+          camera.rotation,
+        ),
+      );
+    }
+    if (
+      placementHover &&
+      sim.map &&
+      (selectedTool === 'bench' ||
+        selectedTool === 'bin' ||
+        selectedTool === 'lamp' ||
+        selectedTool === 'shelter')
+    )
+      spriteGhosts.push(
+        ...pathAdditionPreviewGhosts(
+          sim.map,
+          placementHover.tile[0],
+          placementHover.tile[1],
+          selectedTool,
+          camera.rotation,
+        ),
+      );
     renderer.setSpriteGhosts(spriteGhosts);
+    renderer.setPatrolStaff(selectedTool === 'patrol' ? patrolStaffId : null);
+    renderer.setPatrolPreview(
+      selectedTool === 'patrol' ? buildHoverTile : null,
+      patrolPreviewRemove || alternate,
+    );
     const pathGhost =
       latest && sim.map ? pathFeedback.update(latest.feedback, sim.map.width, now) : null;
     const hoverGhost =
@@ -596,6 +586,8 @@ export async function bootstrap(): Promise<void> {
       pathGhost ?? hoverGhost,
     );
     landController.update(now);
+    areaTools.clear.update(now);
+    areaTools.water.update(now);
     rideSetupState.current.drawPreview(viewport.width, viewport.height);
     requestAnimationFrame(frame);
   }
@@ -609,6 +601,8 @@ export async function bootstrap(): Promise<void> {
     scenerySpot.dispose();
     pathFeedback.dispose();
     landController.dispose();
+    areaTools.clear.dispose();
+    areaTools.water.dispose();
     buildHoverFeedback.dispose();
     renderer.dispose();
   });

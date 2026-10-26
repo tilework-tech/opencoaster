@@ -96,13 +96,6 @@ export function spawnStaff(w: World, kind: number): boolean {
   s.cols.orderFlags[slot] = defaultStaffOrderFlags(kind);
   s.cols.sweeps[slot] = 0;
   s.cols.vandalsStopped[slot] = 0;
-  const patrolOffset = kind * w.map.width * w.map.height;
-  for (let tile = 0; tile < w.map.width * w.map.height; tile++) {
-    if (w.patrolAreas[patrolOffset + tile] !== 0) {
-      s.cols.patrolArea[slot] = kind + 1;
-      break;
-    }
-  }
   w.economy.inputs.wageBillPerWeek += STAFF_WAGE_CENTS_PER_WEEK[kind] ?? 0;
   return true;
 }
@@ -135,6 +128,7 @@ export function hireStaff(w: World, kind: number): boolean {
 export function fireStaff(w: World, staffId: number): boolean {
   const slot = w.staff.idToSlot[staffId] ?? -1;
   if (slot < 0) return false;
+  clearStaffPatrol(w, slot);
   w.economy.inputs.wageBillPerWeek -= STAFF_WAGE_CENTS_PER_WEEK[w.staff.cols.kind[slot]] ?? 0;
   w.staff.despawnSlot(slot);
   w.staffNames.delete(staffId);
@@ -161,12 +155,62 @@ export function setStaffPatrolTile(
 ): boolean {
   const slot = w.staff.idToSlot[staffId] ?? -1;
   if (slot < 0 || !w.map.inBounds(x, y)) return false;
-  if (w.staff.cols.patrolArea[slot] === 0)
-    w.staff.cols.patrolArea[slot] = w.staff.cols.kind[slot] + 1;
-  const area = w.staff.cols.patrolArea[slot];
-  const offset = (area - 1) * w.map.width * w.map.height + w.map.index(x, y);
-  w.patrolAreas[offset] = enabled ? 1 : 0;
+  let area = w.staff.cols.patrolArea[slot];
+  const bx = Math.floor(x / 4);
+  const by = Math.floor(y / 4);
+  const blocksWide = Math.ceil(w.map.width / 4);
+  const block = by * blocksWide + bx;
+  const offsetInArea = block >>> 5;
+  const bit = 1 << (block & 31);
+  if (area === 0 && enabled) {
+    const used = new Uint8Array(w.staff.capacity + 1);
+    for (let i = 0; i < w.staff.count; i++) used[w.staff.cols.patrolArea[i]] = 1;
+    for (let candidate = 1; candidate <= w.staff.capacity; candidate++) {
+      if (!used[candidate]) {
+        area = candidate;
+        break;
+      }
+    }
+    if (area === 0) return false;
+    w.staff.cols.patrolArea[slot] = area;
+  }
+  if (area === 0) return true;
+  const offset = (area - 1) * w.patrolWordsPerArea + offsetInArea;
+  if (enabled) w.patrolAreas[offset] |= bit;
+  else {
+    w.patrolAreas[offset] &= ~bit;
+    if (!staffHasPatrol(w, area)) {
+      w.patrolAreas.fill(0, (area - 1) * w.patrolWordsPerArea, area * w.patrolWordsPerArea);
+      w.staff.cols.patrolArea[slot] = 0;
+    }
+  }
+  w.patrolRevision++;
   return true;
+}
+
+export function staffPatrolTileEnabled(w: World, staffId: number, x: number, y: number): boolean {
+  const slot = w.staff.idToSlot[staffId] ?? -1;
+  if (slot < 0 || !w.map.inBounds(x, y)) return false;
+  const area = w.staff.cols.patrolArea[slot];
+  if (area === 0) return false;
+  const blocksWide = Math.ceil(w.map.width / 4);
+  const block = Math.floor(y / 4) * blocksWide + Math.floor(x / 4);
+  const offset = (area - 1) * w.patrolWordsPerArea + (block >>> 5);
+  return (w.patrolAreas[offset]! & (1 << (block & 31))) !== 0;
+}
+
+function staffHasPatrol(w: World, area: number): boolean {
+  const start = (area - 1) * w.patrolWordsPerArea;
+  for (let i = start; i < start + w.patrolWordsPerArea; i++)
+    if (w.patrolAreas[i] !== 0) return true;
+  return false;
+}
+
+function clearStaffPatrol(w: World, slot: number): void {
+  const area = w.staff.cols.patrolArea[slot]!;
+  if (area === 0) return;
+  w.patrolAreas.fill(0, (area - 1) * w.patrolWordsPerArea, area * w.patrolWordsPerArea);
+  w.staff.cols.patrolArea[slot] = 0;
 }
 
 export function setStaffKindPatrolTile(
@@ -183,20 +227,9 @@ export function setStaffKindPatrolTile(
     !w.map.inBounds(x, y)
   )
     return false;
-  const area = kind + 1;
-  const tile = w.map.index(x, y);
-  const offset = (area - 1) * w.map.width * w.map.height + tile;
-  w.patrolAreas[offset] = enabled ? 1 : 0;
-  let hasPatrol = false;
-  const start = (area - 1) * w.map.width * w.map.height;
-  for (let i = 0; i < w.map.width * w.map.height; i++) {
-    if (w.patrolAreas[start + i] !== 0) {
-      hasPatrol = true;
-      break;
-    }
-  }
   for (let slot = 0; slot < w.staff.count; slot++) {
-    if (w.staff.cols.kind[slot] === kind) w.staff.cols.patrolArea[slot] = hasPatrol ? area : 0;
+    if (w.staff.cols.kind[slot] === kind)
+      setStaffPatrolTile(w, w.staff.slotToId[slot], x, y, enabled);
   }
   return true;
 }

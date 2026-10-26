@@ -10,14 +10,14 @@ import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 import { priceControl } from './price-control';
 
-const TABS: readonly TabSpec[] = [
+export const PARK_TABS: readonly TabSpec[] = [
   { id: 'entrance', label: 'View', icon: 'entrance' },
   { id: 'rating', label: 'Park rating', icon: 'park' },
   { id: 'guests', label: 'Guests', icon: 'guests' },
   { id: 'price', label: 'Admission', icon: 'cash' },
   { id: 'stats', label: 'Park statistics', icon: 'info' },
   { id: 'objective', label: 'Objectives', icon: 'news' },
-  { id: 'awards', label: 'Awards', icon: 'park' },
+  { id: 'awards', label: 'Awards', icon: 'award' },
 ];
 
 export const MAX_PARK_RATING = 999;
@@ -40,7 +40,7 @@ export function openParkWindow(ctx: UiContext): WindowController {
     title: 'Park',
     kind: 'park',
     width: 340,
-    tabs: TABS,
+    tabs: PARK_TABS,
   });
   const entrance = {
     guests: statRow('Guests in park'),

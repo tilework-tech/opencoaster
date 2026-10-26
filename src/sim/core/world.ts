@@ -38,8 +38,10 @@ export class World {
   readonly seed: number;
   readonly rng: Prng;
   readonly map: TileMap;
-  /** Persistent tile masks keyed by patrol area id (0 means unrestricted). */
-  readonly patrolAreas: Uint8Array;
+  /** Bit masks for 4×4 patrol blocks, one fixed-capacity row per staff area id. */
+  readonly patrolAreas: Uint32Array;
+  readonly patrolWordsPerArea: number;
+  patrolRevision = 0;
   readonly guests: EntityStore<typeof GUEST_SCHEMA>;
   /** Umbrella ownership indexed by stable guest id. */
   readonly umbrellas: Uint8Array;
@@ -77,7 +79,9 @@ export class World {
     this.seed = opts.seed;
     this.rng = new Prng(opts.seed);
     this.map = new TileMap(opts.width, opts.height);
-    this.patrolAreas = new Uint8Array(opts.width * opts.height * 4);
+    const blocks = Math.ceil(opts.width / 4) * Math.ceil(opts.height / 4);
+    this.patrolWordsPerArea = Math.ceil(blocks / 32);
+    this.patrolAreas = new Uint32Array(MAX_STAFF * this.patrolWordsPerArea);
     generateTerrain(this.map, new Prng(opts.seed ^ 0x5eed));
     this.guests = new EntityStore(GUEST_SCHEMA, opts.maxGuests ?? MAX_GUESTS);
     this.umbrellas = new Uint8Array(this.guests.capacity);

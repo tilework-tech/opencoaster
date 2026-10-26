@@ -24,7 +24,13 @@ export interface NavOptions {
   /** Past this many steps the entity is lost and wanders. Use a huge value to never get lost. */
   lostAfter: number;
   /** Per-tile mask (1 = inside). When set, movement is confined to it; outside tiles route back in. */
-  patrol: Uint8Array | null;
+  patrol: PatrolMask | null;
+}
+
+export type PatrolMask = Uint8Array | { contains(tile: number): boolean };
+
+function patrolContains(patrol: PatrolMask, tile: number): boolean {
+  return patrol instanceof Uint8Array ? patrol[tile] !== 0 : patrol.contains(tile);
 }
 
 export const DEFAULT_GUEST_OPTS: Readonly<NavOptions> = {
@@ -102,14 +108,14 @@ export function isReachable(
   world: PathWorld,
   from: number,
   to: number,
-  patrol: Uint8Array | null = null,
+  patrol: PatrolMask | null = null,
 ): boolean {
   const graph = resolveGraph(world.map);
   const net = networkFor(graph);
   if (graph.edgeMask(from) === 0 || graph.edgeMask(to) === 0) return false;
   if (from === to) return true;
   if (patrol === null) return net.component(from) === net.component(to);
-  if (patrol[from] === 0 || patrol[to] === 0) return false;
+  if (!patrolContains(patrol, from) || !patrolContains(patrol, to)) return false;
   return bfsFirstDir(net, from, to, patrol, true, INF) !== DIR_NONE;
 }
 
@@ -294,14 +300,15 @@ function patrolDirection(
   target: number,
   rng: RngLike,
   opts: Readonly<NavOptions>,
-  patrol: Uint8Array,
+  patrol: PatrolMask,
 ): number {
   const g = net.graph;
   const w = g.width;
   const mask = g.edgeMask(tile);
-  if (patrol[tile] === 0) return bfsFirstDir(net, tile, -1, patrol, false, opts.maxTiles);
+  if (!patrolContains(patrol, tile))
+    return bfsFirstDir(net, tile, -1, patrol, false, opts.maxTiles);
 
-  if (target >= 0 && patrol[target] === 1 && opts.stepsTaken <= opts.lostAfter) {
+  if (target >= 0 && patrolContains(patrol, target) && opts.stepsTaken <= opts.lostAfter) {
     const d = bfsFirstDir(net, tile, target, patrol, true, opts.maxTiles);
     if (d !== DIR_NONE) return d;
   }
@@ -310,7 +317,7 @@ function patrolDirection(
   let insideNoBack = 0;
   for (let d = 0; d < 4; d++) {
     if ((mask & (1 << d)) === 0) continue;
-    if (patrol[tile + DIR_DX[d] + DIR_DY[d] * w] === 0) continue;
+    if (!patrolContains(patrol, tile + DIR_DX[d] + DIR_DY[d] * w)) continue;
     inside |= 1 << d;
     if (d !== oppositeDir(opts.fromDir)) insideNoBack |= 1 << d;
   }
@@ -325,7 +332,7 @@ function bfsFirstDir(
   net: PathNetwork,
   start: number,
   target: number,
-  patrol: Uint8Array,
+  patrol: PatrolMask,
   restrict: boolean,
   budget: number,
 ): number {
@@ -345,9 +352,9 @@ function bfsFirstDir(
       if ((m & (1 << d)) === 0) continue;
       const nb = t + DIR_DX[d] + DIR_DY[d] * w;
       if (stamp[nb] === visit) continue;
-      if (restrict && patrol[nb] === 0) continue;
+      if (restrict && !patrolContains(patrol, nb)) continue;
       const f = t === start ? d : first[t];
-      if (target >= 0 ? nb === target : patrol[nb] === 1) return f;
+      if (target >= 0 ? nb === target : patrolContains(patrol, nb)) return f;
       stamp[nb] = visit;
       first[nb] = f;
       q[tail++] = nb;

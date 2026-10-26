@@ -17,7 +17,7 @@ import {
 } from './campaign-targets';
 import type { TargetOption } from './campaign-targets';
 
-const TABS: readonly TabSpec[] = [
+export const FINANCE_TABS: readonly TabSpec[] = [
   { id: 'summary', label: 'Financial accounts', icon: 'finances' },
   { id: 'cash', label: 'Cash graph', icon: 'cash' },
   { id: 'value', label: 'Park value', icon: 'park' },
@@ -58,8 +58,10 @@ function fillTargetSelect(
     select.dataset.key = key;
     if (options.length === 0) {
       select.replaceChildren(new Option(emptyText, ''));
+      select.title = emptyText;
     } else {
       select.replaceChildren(...options.map((o) => new Option(o.name, String(o.id))));
+      select.removeAttribute('title');
       if (options.some((o) => String(o.id) === previous)) select.value = previous;
     }
   }
@@ -83,28 +85,27 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
     title: 'Finances',
     kind: 'finance',
     width: 380,
-    tabs: TABS,
+    tabs: FINANCE_TABS,
   });
   const cash = statRow('Cash');
   const loan = statRow('Loan');
   const loanRow = element('div', 'button-row');
-  loanRow.append(
-    button(
-      'Borrow $1,000',
-      () =>
-        ctx.actions.command({
-          type: 'economy',
-          action: { type: 'borrow', cents: LOAN_STEP_CENTS },
-        }),
-      'ui-button',
-    ),
-    button(
-      'Repay $1,000',
-      () =>
-        ctx.actions.command({ type: 'economy', action: { type: 'repay', cents: LOAN_STEP_CENTS } }),
-      'ui-button',
-    ),
+  const borrowButton = button(
+    'Borrow $1,000',
+    () =>
+      ctx.actions.command({
+        type: 'economy',
+        action: { type: 'borrow', cents: LOAN_STEP_CENTS },
+      }),
+    'ui-button',
   );
+  const repayButton = button(
+    'Repay $1,000',
+    () =>
+      ctx.actions.command({ type: 'economy', action: { type: 'repay', cents: LOAN_STEP_CENTS } }),
+    'ui-button',
+  );
+  loanRow.append(borrowButton, repayButton);
   const table = element('table', 'ledger-table');
   const head = element('tr');
   head.append(
@@ -193,6 +194,14 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
       const e = snapshot.economy;
       setText(cash.value, formatMoney(snapshot.park.cash));
       setText(loan.value, `${formatMoney(snapshot.park.loan)} of ${formatMoney(e.maxLoan)} limit`);
+      borrowButton.disabled = snapshot.park.loan + LOAN_STEP_CENTS > e.maxLoan;
+      if (borrowButton.disabled) borrowButton.title = 'Maximum borrowing limit reached.';
+      else borrowButton.removeAttribute('title');
+      repayButton.disabled =
+        snapshot.park.loan < LOAN_STEP_CENTS || snapshot.park.cash < LOAN_STEP_CENTS;
+      if (repayButton.disabled)
+        repayButton.title = 'Repayment requires at least $1,000 in loan and cash.';
+      else repayButton.removeAttribute('title');
       let sumNow = 0;
       let sumBefore = 0;
       for (let c = 0; c < LedgerCategory.COUNT; c++) {
@@ -215,13 +224,19 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
       const weeks = Number(durationSelect.value);
       CAMPAIGNS.forEach((campaign, id) => {
         const b = campaignButtons[id];
+        const unavailableReason =
+          campaign.target === 'ride' && rideOptions.length === 0
+            ? 'Build a promotable ride to run this campaign.'
+            : campaign.target === 'item' && stallOptions.length === 0
+              ? 'Build a food or drink stall to run this campaign.'
+              : undefined;
         setText(
           b,
           `${campaign.name}: ${formatMoney(campaign.weeklyCostCents)}/wk for ${weeksLabel(weeks)}`,
         );
-        b.disabled =
-          (campaign.target === 'ride' && rideOptions.length === 0) ||
-          (campaign.target === 'item' && stallOptions.length === 0);
+        b.disabled = unavailableReason !== undefined;
+        if (unavailableReason) b.title = unavailableReason;
+        else b.removeAttribute('title');
       });
 
       const feedback = snapshot.feedback;

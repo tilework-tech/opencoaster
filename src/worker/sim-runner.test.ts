@@ -201,4 +201,43 @@ describe('SimRunner', () => {
     expect(snapshot && snapshot.type === 'snapshot' ? snapshot.snapshot.tick : -1).toBe(1);
     expect(snapshot && snapshot.type === 'snapshot' ? snapshot.snapshot.feedback.seq : -1).toBe(1);
   });
+  it('applies area tool commands immediately while paused and answers area previews', () => {
+    const out: FromWorker[] = [];
+    let now = 0;
+    const r = new SimRunner(
+      {
+        post: (m) => {
+          out.push(m);
+          if (m.type === 'snapshot') r.handle({ type: 'recycle', snapshot: m.snapshot });
+        },
+      },
+      () => now,
+    );
+    r.handle({ type: 'init', seed: 1, width: 16, height: 16, initialGuests: 0, maxGuests: 10 });
+    now = 25;
+    r.pump();
+    now = 50;
+    r.pump();
+    r.handle({ type: 'setPaused', paused: true });
+    r.handle({
+      type: 'command',
+      command: { type: 'clearScenery', x: 2, y: 2, width: 3, height: 3 },
+    });
+    r.handle({
+      type: 'command',
+      command: { type: 'clearScenery', x: 8, y: 8, width: 1, height: 1 },
+    });
+    now += 25;
+    r.pump();
+    const snapshot = out.filter((m) => m.type === 'snapshot').at(-1);
+    expect(snapshot && snapshot.type === 'snapshot' ? snapshot.snapshot.feedback.seq : -1).toBe(2);
+
+    r.handle({
+      type: 'previewArea',
+      id: 7,
+      edit: { tool: 'water', x: 2, y: 2, width: 2, height: 2, lower: false },
+    });
+    const preview = out.find((m) => m.type === 'areaPreview');
+    expect(preview && preview.type === 'areaPreview' ? preview.id : -1).toBe(7);
+  });
 });

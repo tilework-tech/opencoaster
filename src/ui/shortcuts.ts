@@ -1,3 +1,5 @@
+import { GAME_SPEEDS } from './settings';
+
 /** Default keyboard shortcuts of the park view. Pure: maps a key event to an action. */
 
 export type ShortcutAction =
@@ -5,6 +7,9 @@ export type ShortcutAction =
   | { type: 'closeAll' }
   | { type: 'cancel' }
   | { type: 'pause' }
+  | { type: 'speed'; speed: number }
+  | { type: 'speedStep'; direction: -1 | 1 }
+  | { type: 'dismissMessage' }
   | { type: 'rotate'; direction: -1 | 1 }
   | { type: 'rotatePiece' }
   | { type: 'zoom'; direction: -1 | 1 }
@@ -34,8 +39,13 @@ const WINDOW_KEYS: Readonly<Record<string, string>> = {
   Tab: 'map',
 };
 
+const SPEED_KEYS: readonly string[] = GAME_SPEEDS.map(String);
+
 export function shortcutFor(event: KeyLike): ShortcutAction | null {
   if (event.ctrlKey || event.metaKey || event.altKey) return null;
+  if (SPEED_KEYS.includes(event.key)) return { type: 'speed', speed: Number(event.key) };
+  if (event.key === '+' || event.key === '=') return { type: 'speedStep', direction: 1 };
+  if (event.key === '-') return { type: 'speedStep', direction: -1 };
   switch (event.key) {
     case 'Backspace':
       return { type: event.shiftKey ? 'closeAll' : 'closeTop' };
@@ -53,6 +63,7 @@ export function shortcutFor(event: KeyLike): ShortcutAction | null {
     case 'Pause':
       return { type: 'pause' };
   }
+  if (event.key.toLowerCase() === 'q') return { type: 'dismissMessage' };
   if (event.key.toLowerCase() === 'z') return { type: 'rotate', direction: 1 };
   if (event.key.toLowerCase() === 'x') return { type: 'rotate', direction: -1 };
   const id = WINDOW_KEYS[event.key] ?? WINDOW_KEYS[event.key.toLowerCase()];

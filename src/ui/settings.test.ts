@@ -16,12 +16,20 @@ describe('player settings', () => {
       musicVolume: 0.7,
       musicOn: true,
       muted: false,
+      messageFilter: { award: true, ride: true, park: true, guest: true },
     });
   });
 
   it('restores the music on/off choice that was saved', () => {
     expect(parseSettings(JSON.stringify({ musicOn: false })).musicOn).toBe(false);
     expect(parseSettings(JSON.stringify({ musicOn: 'no' })).musicOn).toBe(true);
+  });
+
+  it('defaults missing message categories on while preserving saved choices', () => {
+    expect(
+      parseSettings(JSON.stringify({ messageFilter: { guest: false, marketing: false } }))
+        .messageFilter,
+    ).toEqual({ award: true, ride: true, park: true, guest: false });
   });
 
   it('falls back to defaults when nothing is saved', () => {

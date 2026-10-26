@@ -5,6 +5,7 @@ import type { PathPiecePreview, ScenerySpot } from '../sim/map/map-commands';
 import type { SceneryResult } from '../sim/map/scenery';
 import type { Snapshot } from './snapshot';
 import type { LandEdit, LandPlan } from '../sim/map/land-tool';
+import type { AreaEdit, AreaPlan } from '../sim/map/area-tools';
 
 export interface InitMessage {
   type: 'init';
@@ -34,6 +35,8 @@ export type ToWorker =
   | { type: 'previewPaths'; id: number; placements: PathPlacement[] }
   /** Evaluates a land edit without applying it; answered with `landPreview`. */
   | { type: 'previewLand'; id: number; edit: LandEdit }
+  /** Evaluates a Clear scenery or Water edit without applying it; answered with `areaPreview`. */
+  | { type: 'previewArea'; id: number; edit: AreaEdit }
   /** Asks whether a scenery placement would be accepted now; answered with `scenerySpotPreview`. */
   | { type: 'previewScenery'; id: number; spot: ScenerySpot };
 
@@ -79,4 +82,5 @@ export type FromWorker =
   /** One preview per requested placement, in request order. */
   | { type: 'pathPreview'; id: number; pieces: PathPiecePreview[] }
   | { type: 'landPreview'; id: number; plan: LandPlan }
+  | { type: 'areaPreview'; id: number; plan: AreaPlan }
   | { type: 'scenerySpotPreview'; id: number; result: SceneryResult };

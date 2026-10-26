@@ -10,8 +10,8 @@ import {
   startStarterPark,
   unlockRides,
   toolbarAction,
-} from './support/park';
-import type { Tile } from './support/park';
+} from './support/footprints';
+import type { Tile } from './support/footprints';
 import {
   changedArea,
   expectRingCandidates,

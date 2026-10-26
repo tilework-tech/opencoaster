@@ -1,7 +1,12 @@
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import { VoucherKind } from '../../sim/economy/vouchers';
 import { TILE_UNITS } from '../../sim/core/constants';
-import { RideInfo, RIDE_INFO_STRIDE, GUEST_DETAIL_STRIDE } from '../../worker/snapshot';
+import {
+  RideInfo,
+  RIDE_INFO_STRIDE,
+  GUEST_DETAIL_STRIDE,
+  guestRowState,
+} from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, setText, statRow } from '../dom';
 import { formatMoney } from '../format';
@@ -97,14 +102,14 @@ export function guestSelectionText(details: string, tick: number): string {
   return `Selection at tick ${tick}\n${details}`;
 }
 
-const SUMMARY_TABS: readonly TabSpec[] = [
+export const GUEST_SUMMARY_TABS: readonly TabSpec[] = [
   { id: 'all', label: 'Guests', icon: 'guests' },
   { id: 'thought', label: 'By thought', icon: 'news' },
   { id: 'location', label: 'By location', icon: 'map' },
   { id: 'ride', label: 'By ride', icon: 'rides' },
 ];
 
-const GUEST_TABS: readonly TabSpec[] = [
+export const GUEST_TABS: readonly TabSpec[] = [
   { id: 'view', label: 'View', icon: 'guests' },
   { id: 'stats', label: 'Stats', icon: 'info' },
   { id: 'rides', label: 'Rides', icon: 'rides' },
@@ -169,7 +174,7 @@ export function openGuestWindow(ctx: UiContext): WindowController {
     title: 'Guests',
     kind: 'guest',
     width: 340,
-    tabs: SUMMARY_TABS,
+    tabs: GUEST_SUMMARY_TABS,
   });
   const controls = new Map<string, HTMLSelectElement>();
   const optionSignatures = new Map<string, string>();
@@ -180,7 +185,7 @@ export function openGuestWindow(ctx: UiContext): WindowController {
   let currentRideNames = new Map<number, string>();
   if (created) {
     win.body.prepend(average.row);
-    for (const tab of SUMMARY_TABS) {
+    for (const tab of GUEST_SUMMARY_TABS) {
       const pane = win.pane(tab.id);
       const control = element('select', 'guest-filter');
       control.setAttribute('aria-label', `Filter guests ${tab.label.toLowerCase()}`);
@@ -306,13 +311,14 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
     const locate = () => {
       if (location) ctx.actions.locate(location.x, location.y);
     };
-    win
-      .pane('view')
-      .append(
-        where.row,
-        button('Locate', locate, 'ui-button'),
-        button('Track guest', locate, 'ui-button'),
-      );
+    win.pane('view').append(
+      where.row,
+      button('Locate', locate, 'ui-button'),
+      Object.assign(button('Track guest', locate, 'ui-button'), {
+        disabled: true,
+        title: 'Following a guest is not available yet.',
+      }),
+    );
     win.pane('stats').append(...Object.values(gauges).map((item) => item.row));
     win.pane('rides').append(rides);
     win.pane('cash').append(cash.row);
@@ -337,7 +343,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       location = { x, y };
       const state =
         (['walking', 'queueing', 'riding', 'leaving', 'shopping', 'waiting to board'] as const)[
-          snapshot.guests.data[layer + 3]! >>> 8
+          guestRowState(snapshot.guests.data[layer + 3]!)
         ] ?? 'unknown';
       win.setTitle(`Guest ${guestId}`);
       setText(where.value, `tile ${x}, ${y} · ${state}`);

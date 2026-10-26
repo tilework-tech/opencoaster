@@ -28,6 +28,19 @@ describe('default shortcuts', () => {
     expect(key('t')).toEqual({ type: 'rotatePiece' });
   });
 
+  it('sets game speed with 1, 2 and 4, and steps faster or slower with + and -', () => {
+    expect(key('1')).toEqual({ type: 'speed', speed: 1 });
+    expect(key('2')).toEqual({ type: 'speed', speed: 2 });
+    expect(key('4')).toEqual({ type: 'speed', speed: 4 });
+    expect(key('+')).toEqual({ type: 'speedStep', direction: 1 });
+    expect(key('=')).toEqual({ type: 'speedStep', direction: 1 });
+    expect(key('-')).toEqual({ type: 'speedStep', direction: -1 });
+  });
+
+  it('pauses on Space', () => {
+    expect(key(' ')).toEqual({ type: 'pause' });
+  });
+
   it('zooms one step with Page Up (out) and Page Down (in)', () => {
     expect(key('PageUp')).toEqual({ type: 'zoom', direction: -1 });
     expect(key('PageDown')).toEqual({ type: 'zoom', direction: 1 });
@@ -59,6 +72,12 @@ describe('default shortcuts', () => {
   it('toggles pause on Space and Pause', () => {
     expect(key(' ')).toEqual({ type: 'pause' });
     expect(key('Pause')).toEqual({ type: 'pause' });
+  });
+
+  it('dismisses the current message on Q', () => {
+    expect(key('q')).toEqual({ type: 'dismissMessage' });
+    expect(key('Q')).toEqual({ type: 'dismissMessage' });
+    expect(key('Q', { shiftKey: true })).toEqual({ type: 'dismissMessage' });
   });
 
   it('ignores browser shortcuts with modifiers', () => {

@@ -85,7 +85,11 @@ function refuse(result: LandResult, subject = -1, selected = NO_TILES): LandPlan
   };
 }
 
-function ownedSelection(m: TileMap, e: LandEdit): Int32Array<ArrayBuffer> | LandResult {
+/** Owned tiles of a selected square, or why there are none. */
+export function ownedSelection(
+  m: TileMap,
+  e: Pick<LandEdit, 'x' | 'y' | 'width' | 'height'>,
+): Int32Array<ArrayBuffer> | LandResult {
   const { x, y, width, height } = e;
   if (![x, y, width, height].every(Number.isInteger)) return LandResult.InvalidEdit;
   if (width < 1 || height < 1 || width > MAX_EDIT_SIZE || height > MAX_EDIT_SIZE)
@@ -200,8 +204,11 @@ function affectedTiles(m: TileMap, vertices: Int32Array): Int32Array {
   return Int32Array.from(out);
 }
 
-/** First tile among `tiles` a ride, stall, ride entrance or exit, or the park entrance occupies. */
-function structureConflict(
+/**
+ * First tile among `tiles` a ride, stall, ride entrance or exit, or the park entrance occupies.
+ * Track is only in the way where it runs within two steps of `oldTop` (or the ground).
+ */
+export function structureConflict(
   w: World,
   tiles: Int32Array,
   oldTop: Map<number, number>,

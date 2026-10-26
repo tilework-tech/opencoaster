@@ -8,7 +8,7 @@ import {
   paintPaths,
   screenshot,
   startStarterPark,
-} from './support/park';
+} from './support/footprints';
 
 async function bringFinanceIntoView(page: Page): Promise<void> {
   const titlebar = page.locator('[data-panel="finance"] .ui-titlebar');

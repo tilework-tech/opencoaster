@@ -1,5 +1,5 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
-import { SNAPSHOT_STRIDE } from '../worker/snapshot';
+import { SNAPSHOT_STRIDE, guestRowHeading, isRidingGuestRow } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, Surface } from '../sim/map/tile-map';
@@ -18,13 +18,22 @@ import {
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
+import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
 import {
-  AMBIENT_TREE_BOX,
-  FLOWER_BED_BOX,
-  GUEST_BOX,
-  PARK_GATE_BOX,
-  SCENERY_PIXELS_PER_HEIGHT,
-} from './sprite-layout';
+  adjustDepthForGroundZ,
+  pathAdditionBox,
+  pathAdditionEdgeGroundZ,
+  pathAdditionEdgeOffset,
+  pathAdditionEdges,
+  pathAdditionGroundZ,
+  pathAdditionView,
+  flowerBedGroundZ,
+  pathConnectionEdges,
+  sceneryBox,
+  sceneryFrameDrop,
+  sceneryGroundZ,
+} from './ground-anchor';
+import { spriteAnchorScreenShift } from './ground-anchor';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import { spritePages } from './sprite-pages';
 import { peopleSpriteKey, walkingFrame } from './people-art';
@@ -34,6 +43,7 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { rotatedPositionSum, sortByDepth } from './painter-order';
+export { rotatedPositionSum };
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import { OwnershipOverlay } from './ownership-overlay';
 import type { Rotation } from './projection';
@@ -54,7 +64,6 @@ import {
   spriteAnchorWorldOffset,
   terrainSurfaceSpriteName,
   WATER_BANK,
-  nativeSpriteAnchorShift,
   nativeSpriteWorldOffset,
   waterFrameIndex,
   waterSpriteName,
@@ -64,7 +73,7 @@ import {
 const CELL = 64;
 /** Present in the atlas only once the generated coaster art has been packed. */
 const ATLAS_COLUMNS = 8;
-const ATLAS_ROWS = 5;
+const ATLAS_ROWS = 7;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
 const INSTANCE_FLOATS = 19;
@@ -163,7 +172,7 @@ void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
   bool faceMesh = aMeshMode > 3.5;
   float cornerHeight = aWorld.z;
-  if ((aMeshMode > 0.5 && aMeshMode < 1.5) || aMeshMode > 2.5) {
+  if ((aMeshMode > 0.5 && aMeshMode < 2.5) || aMeshMode > 2.5) {
     if (aCorner.x < 0.5 && aCorner.y < 0.5) cornerHeight = aCornerHeights.x;
     else if (aCorner.x >= 0.5 && aCorner.y < 0.5) cornerHeight = aCornerHeights.y;
     else if (aCorner.x >= 0.5 && aCorner.y >= 0.5) cornerHeight = aCornerHeights.z;
@@ -200,7 +209,7 @@ void main() {
                  vec2(0.0, ${glslFloat(TILE_H / 2)});
     float baseZ = aWorld.z;
     screen += tileOffset * uZoom;
-    if (aMeshMode < 1.5)
+    if (aMeshMode < 2.5)
       screen.y -= (cornerHeight - baseZ) * ${glslFloat(Z_PIXELS / Z_STEP)} * uZoom;
   } else if (!faceMesh) {
     screen += (aCorner - 0.5) * aSize * uZoom;
@@ -239,6 +248,20 @@ ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot})
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
+  if (vMeshMode > 1.4 && vMeshMode < 2.0) outColor = vec4(0.26, 0.53, 1.0, 0.32);
+  if (vMeshMode > 1.9 && vMeshMode < 2.5) outColor = vec4(0.96, 0.2, 0.16, 0.38);
+  if (vMeshMode > 1.4 && vMeshMode < 2.5) {
+    vec2 edge = min(vTileUv, 1.0 - vTileUv);
+    float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * (vMeshMode < 1.6 ? 0.55 : 1.3);
+    float line = 1.0 - smoothstep(width, width * 1.8, min(edge.x, edge.y));
+    vec3 border = vMeshMode > 1.9
+      ? vec3(1.0, 0.28, 0.22)
+      : vMeshMode < 1.6
+        ? vec3(0.65, 0.82, 1.0)
+        : vec3(1.0);
+    outColor.rgb = mix(outColor.rgb, border, line);
+    outColor.a = max(outColor.a, line * 0.95);
+  }
   if (vMeshMode > 4.5) outColor = vec4(0.37, 0.29, 0.18, 1.0);
   if (vMeshMode > 2.5 && vMeshMode < 3.5) {
     float depth = vWaterDepth;
@@ -366,6 +389,9 @@ export class WebGL2Renderer implements Renderer {
   private count = 0;
   private ghosts: readonly PathPieceGhost[] = [];
   private spriteGhosts: readonly SpriteGhost[] = [];
+  private patrolStaffId: number | null = null;
+  private patrolPreview: readonly [number, number] | null = null;
+  private patrolPreviewRemove = false;
   private ghostMode = 0;
   private visibleCount = 0;
   private gridlinesActive = false;
@@ -417,6 +443,15 @@ export class WebGL2Renderer implements Renderer {
     this.spriteGhosts = ghosts;
   }
 
+  setPatrolStaff(staffId: number | null): void {
+    this.patrolStaffId = staffId;
+  }
+
+  setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void {
+    this.patrolPreview = tile;
+    this.patrolPreviewRemove = remove;
+  }
+
   draw(snapshot: Snapshot | null, camera: Camera): void {
     const gl = this.gl;
     const canvas = this.canvas;
@@ -436,6 +471,7 @@ export class WebGL2Renderer implements Renderer {
     this.count = 0;
     if (snapshot) this.rideCells.build(snapshot, map, camera.rotation);
     else this.rideCells.reset();
+    if (snapshot) this.appendPatrolAreas(snapshot, map, camera, viewportWidth, viewportHeight);
     this.appendWaterAndOccluders(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
       this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
@@ -1204,6 +1240,89 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  private appendPatrolAreas(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    if (this.patrolStaffId === null) return;
+    let area = 0;
+    for (let slot = 0; slot < snapshot.staff.count; slot++)
+      if (snapshot.staffIds[slot] === this.patrolStaffId) area = snapshot.patrolAreaIds[slot]!;
+    const blocksWide = Math.ceil(map.width / 4);
+    const blocksHigh = Math.ceil(map.height / 4);
+    const maskStart = area > 0 ? (area - 1) * snapshot.patrolWordsPerArea : 0;
+    for (let by = 0; by < blocksHigh; by++)
+      for (let bx = 0; bx < blocksWide; bx++) {
+        const block = by * blocksWide + bx;
+        const marked =
+          area > 0 &&
+          (snapshot.patrolAreas[maskStart + (block >>> 5)]! & (1 << (block & 31))) !== 0;
+        const previewed =
+          this.patrolPreview !== null &&
+          this.patrolPreview[0] >>> 2 === bx &&
+          this.patrolPreview[1] >>> 2 === by;
+        if (!marked && (!previewed || this.patrolPreviewRemove)) continue;
+        const meshMode = marked ? (previewed && this.patrolPreviewRemove ? 2.1 : 1.5) : 1.6;
+        for (let y = by * 4; y < Math.min(map.height, by * 4 + 4); y++)
+          for (let x = bx * 4; x < Math.min(map.width, bx * 4 + 4); x++) {
+            this.appendPatrolTile(map, camera, viewportWidth, viewportHeight, x, y, meshMode);
+          }
+      }
+  }
+
+  private appendPatrolTile(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+    x: number,
+    y: number,
+    meshMode: number,
+  ): void {
+    const index = y * map.width + x;
+    rotateForDraw(x, y, map.width, map.height, camera.rotation, this.tileCoordinates);
+    const rx = this.tileCoordinates[0];
+    const ry = this.tileCoordinates[1];
+    const height = map.heights[index]!;
+    project(
+      (x + 0.5) * TILE_UNITS,
+      (y + 0.5) * TILE_UNITS,
+      height * 64,
+      map.width,
+      map.height,
+      camera.rotation,
+      this.projected,
+    );
+    if (
+      Math.abs(this.projected[0]! - camera.x) > viewportWidth / camera.zoom / 2 + TILE_W ||
+      Math.abs(this.projected[1]! - camera.y) >
+        viewportHeight / camera.zoom / 2 + TILE_H + 32 * Z_PIXELS
+    )
+      return;
+    const mask = map.slope[index]!;
+    const worldCorners = [
+      (height + (mask & 1)) * 64,
+      (height + ((mask >> 1) & 1)) * 64,
+      (height + ((mask >> 2) & 1)) * 64,
+      (height + ((mask >> 3) & 1)) * 64,
+    ] as const;
+    const corners = viewTerrainCornerHeights(worldCorners, camera.rotation);
+    this.append(
+      rx * TILE_UNITS,
+      ry * TILE_UNITS,
+      height * 64,
+      TILE_W,
+      TILE_H,
+      0,
+      2 * (rx + ry) - height + 0.25,
+      meshMode,
+      corners,
+    );
+  }
+
   /** Appends one tile's terrain, boundary cliff faces and flat path fill. */
   private appendGroundTile(map: MapData, index: number, rotation: Rotation, depthOffset = 0): void {
     const x = index % map.width;
@@ -1299,7 +1418,7 @@ export class WebGL2Renderer implements Renderer {
         const tree = ambientTreeName(map.surface[index]!, x, y);
         if (!tree) continue;
         const sprite = scenerySpriteName(tree);
-        const z = map.heights[index] * Z_STEP;
+        const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
         const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
@@ -1340,11 +1459,11 @@ export class WebGL2Renderer implements Renderer {
       if ((snapshot.grounds[index] & FLOWER_BED) === 0) continue;
       const x = index % map.width;
       const y = Math.floor(index / map.width);
-      const z = map.heights[index] * Z_STEP + 1;
+      const baseHeight = map.heights[index]!;
+      const z = flowerBedGroundZ(baseHeight, map.slope[index]!, camera.rotation);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth =
-        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 1;
+      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1360,7 +1479,7 @@ export class WebGL2Renderer implements Renderer {
         this.append(
           worldX,
           worldY,
-          z,
+          z - Z_STEP,
           FLOWER_BED_BOX.width,
           FLOWER_BED_BOX.height,
           scenerySpriteName('flower-bed'),
@@ -1458,13 +1577,11 @@ export class WebGL2Renderer implements Renderer {
       const z = ghost.level * Z_STEP;
       const worldX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
-      const rotated = rotatedPositionSum(
-        ghost.x * TILE_UNITS,
-        ghost.y * TILE_UNITS,
-        map,
-        camera.rotation,
-      );
-      const depth = ghost.kind === 'ride' ? 2 * rotated - ghost.level + 1 : 2 * rotated + 2;
+      const rotated = rotatedPositionSum(worldX, worldY, map, camera.rotation);
+      const depth =
+        ghost.kind === 'ride'
+          ? 2 * rotated - ghost.level + 1
+          : 2 * rotated - ghost.level + (ghost.kind === 'scenery' ? 2 : 1);
       const [spriteName, frameSuffix] = ghost.sprite.split('#');
       const entry = spritePages.resolve(spriteName!);
       const frame = entry?.frames[Number(frameSuffix ?? 0)] ?? entry?.frames[0];
@@ -1476,13 +1593,21 @@ export class WebGL2Renderer implements Renderer {
           camera,
           viewportWidth,
           viewportHeight,
-          frame?.width ?? 12,
-          frame?.height ?? 14,
+          ghost.width ?? frame?.width ?? 12,
+          ghost.height ?? frame?.height ?? 14,
         )
       )
         continue;
       this.ghostMode = ghost.tone === 'refused' ? 2 : 1;
-      this.append(worldX, worldY, z, frame?.width ?? 12, frame?.height ?? 14, ghost.sprite, depth);
+      this.append(
+        worldX,
+        worldY,
+        z,
+        ghost.width ?? frame?.width ?? 12,
+        ghost.height ?? frame?.height ?? 14,
+        ghost.sprite,
+        depth,
+      );
       this.ghostMode = 0;
     }
   }
@@ -1500,7 +1625,8 @@ export class WebGL2Renderer implements Renderer {
       const o = i * 6;
       const x = paths[o];
       const y = paths[o + 1];
-      const z = paths[o + 2] * Z_STEP;
+      const baseHeight = paths[o + 2]!;
+      const z = baseHeight * Z_STEP;
       const flags = paths[o + 3];
       const isQueue = (flags & PathFlag.Queue) !== 0;
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
@@ -1521,21 +1647,34 @@ export class WebGL2Renderer implements Renderer {
       )
         this.append(worldX, worldY, z, 40, 26, sprite, depth + 1);
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
-        const sprite = pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]);
-        const [width, height] = sprite.includes('/shelter/')
-          ? [54, 52]
-          : sprite.includes('bench-broken')
-            ? [34, 24]
-            : sprite.includes('bin-broken')
-              ? [24, 30]
-              : (flags & PathFlag.Bench) !== 0
-                ? [30, 18]
-                : (flags & PathFlag.Bin) !== 0
-                  ? [18, 26]
-                  : (flags & PathFlag.Lamp) !== 0
-                    ? [16, 32]
-                    : [54, 52];
-        this.append(worldX, worldY, z + Z_STEP, width, height, sprite, depth + 2);
+        if (flags & PathFlag.Shelter) {
+          const shelterZ = pathAdditionGroundZ(baseHeight, flags);
+          const box = pathAdditionBox(flags);
+          this.append(
+            worldX,
+            worldY,
+            shelterZ,
+            box.width,
+            box.height,
+            pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]),
+            adjustDepthForGroundZ(depth + 2, baseHeight, shelterZ),
+          );
+        } else
+          for (const edge of pathAdditionEdges(pathConnectionEdges(flags))) {
+            const view = pathAdditionView(edge, camera.rotation);
+            const offset = pathAdditionEdgeOffset(edge);
+            const edgeZ = pathAdditionEdgeGroundZ(baseHeight, flags, edge);
+            const box = pathAdditionBox(flags, view);
+            this.append(
+              worldX + offset.x,
+              worldY + offset.y,
+              edgeZ,
+              box.width,
+              box.height,
+              pathAdditionSpriteName(flags, view, paths[o + 4]),
+              adjustDepthForGroundZ(depth + 2, baseHeight, edgeZ),
+            );
+          }
       }
       if (isQueue)
         this.append(
@@ -1563,14 +1702,16 @@ export class WebGL2Renderer implements Renderer {
       const offset = i * 5;
       const x = items[offset];
       const y = items[offset + 1];
-      const z = items[offset + 2] * Z_STEP;
+      const tile = y * map.width + x;
+      const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation);
       const item = SCENERY_CATALOG[items[offset + 4]];
       if (!item) continue;
+      const box = sceneryBox(item);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
       const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
-      const spriteHeight = item.height * SCENERY_PIXELS_PER_HEIGHT;
+      const spriteHeight = box.height;
       if (
         !inViewport(
           this.projected[0],
@@ -1578,7 +1719,7 @@ export class WebGL2Renderer implements Renderer {
           camera,
           viewportWidth,
           viewportHeight,
-          item.width,
+          box.width,
           spriteHeight,
         )
       )
@@ -1586,8 +1727,8 @@ export class WebGL2Renderer implements Renderer {
       this.append(
         worldX,
         worldY,
-        z,
-        item.width,
+        z - sceneryFrameDrop(item),
+        box.width,
         spriteHeight,
         scenerySpriteName(item.sprite),
         depth,
@@ -1668,8 +1809,9 @@ export class WebGL2Renderer implements Renderer {
   ): void {
     for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
       const metadata = layer.data[offset + 3];
+      if (isRidingGuestRow(metadata)) continue;
       const tint = metadata & 0xff;
-      const heading = (metadata >>> 16) & 0xff;
+      const heading = guestRowHeading(metadata);
       const depth =
         2 * rotatedPositionSum(layer.data[offset], layer.data[offset + 1], map, camera.rotation) -
         layer.data[offset + 2] / 64;
@@ -2016,9 +2158,11 @@ export class WebGL2Renderer implements Renderer {
         width = frame.width;
         height = frame.height;
         z += nativeSpriteWorldOffset(frame.height, entry.anchor.y);
-        anchorShift = nativeSpriteAnchorShift(frame.width, entry.anchor.x);
-      } else if (!meshMode && entry)
+        anchorShift = spriteAnchorScreenShift(frame.width, entry.anchor.x, width);
+      } else if (!meshMode && entry) {
         z += spriteAnchorWorldOffset(frame.height, entry.anchor.y, height);
+        anchorShift = spriteAnchorScreenShift(frame.width, entry.anchor.x, width);
+      }
       if (meshMode === 2) {
         const insetX = 0.28;
         const oldU0 = u0;
@@ -2034,9 +2178,18 @@ export class WebGL2Renderer implements Renderer {
         if (typeof sprite === 'string') {
           if (sprite.startsWith('paths/')) fallbackIndex = sprite.includes('/queue/') ? 10 : 9;
           else if (sprite.startsWith('water/')) fallbackIndex = 8;
-          else if (sprite.includes('/bench')) fallbackIndex = 29;
-          else if (sprite.includes('/bin')) fallbackIndex = 28;
-          else if (sprite.includes('/lamp')) fallbackIndex = 30;
+          else if (sprite.includes('/bench'))
+            fallbackIndex = sprite.includes('/view-')
+              ? 40 + Number(sprite.match(/view-(\d)/)?.[1] ?? 0)
+              : 29;
+          else if (sprite.includes('/bin'))
+            fallbackIndex = sprite.includes('/view-')
+              ? 44 + Number(sprite.match(/view-(\d)/)?.[1] ?? 0)
+              : 28;
+          else if (sprite.includes('/lamp'))
+            fallbackIndex = sprite.includes('/view-')
+              ? 48 + Number(sprite.match(/view-(\d)/)?.[1] ?? 0)
+              : 30;
           else if (sprite.includes('/park-entrance')) fallbackIndex = 31;
           else if (sprite.includes('/flower-bed')) fallbackIndex = 0;
           else if (sprite.startsWith('people/guest-walk'))
@@ -2139,6 +2292,9 @@ function drawAtlas(ctx: CanvasRenderingContext2D): void {
     else if (i === 32) drawMarker(ctx, 'out');
     else if (i >= 33 && i <= 36) drawRamp(ctx, i - 33);
     else if (i === 37) drawPathAddition(ctx, 'shelter');
+    else if (i >= 40 && i <= 43) drawPathAddition(ctx, 'bench', i - 40);
+    else if (i >= 44 && i <= 47) drawPathAddition(ctx, 'bin', i - 44);
+    else if (i >= 48 && i <= 51) drawPathAddition(ctx, 'lamp', i - 48);
     ctx.restore();
   }
 }
@@ -2286,7 +2442,13 @@ function drawTrack(ctx: CanvasRenderingContext2D): void {
 function drawPathAddition(
   ctx: CanvasRenderingContext2D,
   kind: 'bin' | 'bench' | 'lamp' | 'shelter',
+  view = 0,
 ): void {
+  if (view !== 0) {
+    ctx.translate(32, 32);
+    ctx.rotate((view * Math.PI) / 2);
+    ctx.translate(-32, -32);
+  }
   if (kind === 'bin') {
     ctx.fillStyle = '#547d58';
     ctx.fillRect(23, 23, 18, 27);

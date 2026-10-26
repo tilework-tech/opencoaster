@@ -1,3 +1,4 @@
+import type { MessageFilter } from './messages';
 import type { Command } from '../sim/core/commands';
 import type { RideType } from '../sim/rides/ride-types';
 import type { Camera, MapData } from '../render/renderer';
@@ -24,7 +25,9 @@ export type ToolMode =
   | 'track'
   | 'buy-land'
   | 'buy-rights'
-  | 'patrol';
+  | 'patrol'
+  | 'clear'
+  | 'water';
 
 /** Footpath construction as the Footpaths window drives it. */
 export interface FootpathControls {
@@ -52,6 +55,13 @@ export interface LandSettings {
 
 export const LAND_SIZE_RANGE = { min: 1, max: 10 } as const;
 
+/** Clear scenery and Water tool settings; `lower` only applies to Water. */
+export interface AreaToolSettings {
+  /** Edge length in tiles of the square the tool acts on, within `LAND_SIZE_RANGE`. */
+  size: number;
+  lower: boolean;
+}
+
 export interface GameUIActions {
   setPaused(paused: boolean): void;
   setSpeed(speed: number): void;
@@ -63,7 +73,7 @@ export interface GameUIActions {
   spawnGuests(): void;
   openMenu(): void;
   hireStaff(kind: number): void;
-  setPatrolKind(kind: number | null): void;
+  setPatrolStaff(staffId: number | null): void;
   renameStaff(staffId: number, name: string): void;
   fireStaff(staffId: number): void;
   setRidePrice(rideId: number, priceCents: number): void;
@@ -76,6 +86,8 @@ export interface GameUIActions {
   /** Puts the next map click to use the alternate action: lower land, remove, un-plant. */
   setAlternate(on: boolean): void;
   setLand(settings: LandSettings): void;
+  setClearScenery(settings: AreaToolSettings): void;
+  setWater(settings: AreaToolSettings): void;
   footpath: FootpathControls;
   setSceneryItem(item: number): void;
   /** Turns the scenery piece the Scenery tool places by a quarter turn. */
@@ -93,6 +105,8 @@ export interface GameUIActions {
     settings: Partial<Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'musicOn' | 'muted'>>,
   ): void;
   playUiSound(name: 'click' | 'open' | 'close' | 'news'): void;
+  messageFilter(): MessageFilter;
+  setMessageFilter(filter: Partial<MessageFilter>): void;
 }
 
 /** Structured guest selection; a point-in-time copy of the guest's snapshot values. */
@@ -117,6 +131,7 @@ export interface GuestSelection {
 export interface UiContext {
   windows: WindowManager;
   actions: GameUIActions;
+  alternate(): boolean;
   selectedGuest(): GuestSelection | null;
   series: { cash: SampleSeries; value: SampleSeries; profit: SampleSeries; guests: SampleSeries };
   openRide(rideId: number): void;

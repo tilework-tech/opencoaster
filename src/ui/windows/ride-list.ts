@@ -13,7 +13,7 @@ interface RideListRow {
   meta: HTMLSpanElement;
 }
 
-const LIST_TABS = [
+export const LIST_TABS = [
   {
     id: 'rides',
     label: 'Rides',

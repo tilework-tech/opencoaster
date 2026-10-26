@@ -12,6 +12,7 @@ import type { PointerSample } from '../../input/pointer-input';
 import type { SimClient } from '../../worker/sim-client';
 import type { CoasterPanel } from '../../ui/coaster-panel';
 import type { LandController } from '../tools/land-controller';
+import type { AreaController } from '../tools/area-controller';
 import { TILE_UNITS } from '../../sim/core/constants';
 
 export function centreOnTile(x: number, y: number, sim: SimClient, camera: Camera): void {
@@ -65,8 +66,15 @@ export interface CameraInputDependencies {
   removePathAt: (x: number, y: number) => void;
   pathDrag: PathDragHandlers;
   land: LandController;
+  areaTools: Record<'clear' | 'water', AreaController>;
   setPlacementHover: (hover: PlacementHover | null) => void;
-  setBuildHover: (tile: [number, number] | null, clientX: number, clientY: number) => void;
+  setBuildHover: (
+    tile: [number, number] | null,
+    clientX: number,
+    clientY: number,
+    shiftKey: boolean,
+  ) => void;
+  removeSceneryAt: (x: number, y: number) => void;
   /** Receives the canvas size in CSS pixels whenever it changes. */
   viewport: { width: number; height: number };
   /** Backing-buffer scale applied on top of the capped device pixel ratio. */
@@ -232,8 +240,10 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     pathDragCancel() {
       deps.pathDrag.cancel();
     },
-    landPress(x, y) {
-      deps.land.press(x, y);
+    press(x, y) {
+      const tool = deps.selectedTool();
+      if (tool === 'land') deps.land.press(x, y);
+      else if (tool === 'clear' || tool === 'water') deps.areaTools[tool].press(x, y);
     },
     landDragStart(x, y) {
       deps.land.dragStart(x, y);
@@ -279,8 +289,12 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
         height: rect.height,
       });
     }
-    if (deps.selectedTool() === 'land' && event.pointerType === 'mouse' && event.buttons === 0)
-      deps.land.hover(event.clientX, event.clientY);
+    const tool = deps.selectedTool();
+    if (event.pointerType === 'mouse' && event.buttons === 0) {
+      if (tool === 'land') deps.land.hover(event.clientX, event.clientY);
+      else if (tool === 'clear' || tool === 'water')
+        deps.areaTools[tool].hover(event.clientX, event.clientY);
+    }
     if (deps.selectedTool() === 'track') coasterPanel.setHover(tile);
     if (
       deps.selectedTool() === 'track' ||
@@ -290,7 +304,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
       deps.setPlacementHover(
         tile ? { tile, clientX: event.clientX, clientY: event.clientY } : null,
       );
-    deps.setBuildHover(tile, event.clientX, event.clientY);
+    deps.setBuildHover(tile, event.clientX, event.clientY, event.shiftKey);
     pointerInput.pointerMove(pointerSample(event));
   });
   canvas.addEventListener('pointerup', (event) => {
@@ -300,13 +314,21 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   canvas.addEventListener('pointerleave', (event) => {
     deps.pathDrag.hoverEnd();
     deps.setPlacementHover(null);
-    deps.setBuildHover(null, 0, 0);
-    if (deps.selectedTool() === 'land' && event.buttons === 0) deps.land.leave();
+    deps.setBuildHover(null, 0, 0, false);
+    if (event.buttons !== 0) return;
+    const tool = deps.selectedTool();
+    if (tool === 'land') deps.land.leave();
+    else if (tool === 'clear' || tool === 'water') deps.areaTools[tool].leave();
   });
   canvas.addEventListener('contextmenu', (event) => {
     event.preventDefault();
-    if (deps.selectedTool() === 'path') deps.removePathAt(event.clientX, event.clientY);
-    else deps.handleCanvasClick(event.clientX, event.clientY, false, true);
+    // A touch long-press also raises contextmenu; the gesture recognizer's hold handles it.
+    if ((event as PointerEvent).pointerType === 'touch') return;
+    const tool = deps.selectedTool();
+    if (tool === 'select') deps.handleCanvasClick(event.clientX, event.clientY, false, true);
+    else if (tool === 'patrol') deps.handleCanvasClick(event.clientX, event.clientY, true);
+    else if (tool === 'path') deps.removePathAt(event.clientX, event.clientY);
+    else deps.removeSceneryAt(event.clientX, event.clientY);
   });
 
   return keys;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { drawAnchoredSprite, drawTileTexture } from './canvas-atlas';
+import { drawAnchoredSprite, drawBoxedSprite, drawTileTexture } from './canvas-atlas';
 import type { CanvasAtlas } from './canvas-atlas';
 import { SpritePages } from './sprite-pages';
 
@@ -30,6 +30,12 @@ atlas.install(
           { page: 0, x: 0, y: 32, width: 32, height: 32 },
         ],
         anchor: { x: 0, y: 0 },
+        footprint: { width: 1, height: 1 },
+      },
+      'scenery/trimmed': {
+        category: 'world',
+        frames: [{ page: 0, x: 0, y: 0, width: 128, height: 64 }],
+        anchor: { x: 70, y: 50 },
         footprint: { width: 1, height: 1 },
       },
       'vehicles/car': {
@@ -68,6 +74,12 @@ describe('canvas sprite helpers', () => {
     const ctx = fakeContext();
     expect(drawAnchoredSprite(ctx, atlas, 'water/surface#1', 10, 20)).toBe(true);
     expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 32, 32, 32, 10, 20, 32, 32);
+  });
+
+  it('keeps a trimmed boxed sprite anchor on the ground pivot when scaled', () => {
+    const ctx = fakeContext();
+    expect(drawBoxedSprite(ctx, atlas, 'scenery/trimmed', 100, 80, 40, 20)).toBe(true);
+    expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 0, 128, 64, 78.125, 64.375, 40, 20);
   });
 
   it('reports missing sprites so callers can fall back to procedural drawing', () => {

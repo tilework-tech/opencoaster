@@ -6,11 +6,15 @@ import { SampleSeries } from './format';
 import { icon } from './icons';
 import { NewsTracker } from './news';
 import type { NewsItem } from './news';
+import { MessageQueue, filterMessages } from './messages';
+import type { MessageCategory } from './messages';
 import { objectiveLines } from './objective';
 import { StatusBar } from './status-bar';
-import { effectiveGameSpeed } from './window-layout';
+import { BUILD_SPEED_CAP, effectiveGameSpeed } from './window-layout';
 import { Toolbar } from './toolbar';
-import type { ToolbarButton } from './toolbar';
+import type { ToolbarItem } from './toolbar';
+import { GAME_SPEEDS } from './settings';
+import type { GameSpeed } from './settings';
 import type {
   GameUIActions,
   GuestSelection,
@@ -19,6 +23,7 @@ import type {
   WindowController,
 } from './ui-types';
 import type { WindowManager } from './window-manager';
+import type { TabSpec } from './window-manager';
 import { openFinanceWindow } from './windows/finance-window';
 import { openGuestWindow, openIndividualGuestWindow } from './windows/guest-window';
 import { openLandRightsWindow } from './windows/land-rights-window';
@@ -31,8 +36,9 @@ import { openRideSelect } from './windows/ride-select';
 import { openRideWindow } from './windows/ride-window';
 import { openStaffWindow } from './windows/staff-window';
 import { openWorkerWindow } from './windows/worker-window';
-import { SCENERY_WINDOW, WATER_WINDOW, openToolWindow } from './windows/tool-windows';
+import { SCENERY_WINDOW, openToolWindow } from './windows/tool-windows';
 import { openLandWindow } from './windows/land-window';
+import { openClearWindow, openWaterWindow } from './windows/area-windows';
 import { openPathWindow } from './windows/path-window';
 import { shortcutFor } from './shortcuts';
 import type { KeyLike } from './shortcuts';
@@ -40,6 +46,11 @@ import type { KeyLike } from './shortcuts';
 export type { FootpathControls, GameUIActions, GuestSelection, ToolMode } from './ui-types';
 export { guestDetailsText, guestSelectionText } from './windows/guest-window';
 export type { GuestDetails } from './windows/guest-window';
+
+/** Speed as shown to the player, e.g. "4× (2× while building)". */
+function speedLabel(speed: GameSpeed): string {
+  return speed > BUILD_SPEED_CAP ? `${speed}× (${BUILD_SPEED_CAP}× while building)` : `${speed}×`;
+}
 
 export interface RideOption {
   value: string;
@@ -73,6 +84,8 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   'buy-land': 'Buy land',
   'buy-rights': 'Buy construction rights',
   patrol: 'Patrol area',
+  clear: 'Clear scenery',
+  water: 'Water',
 };
 
 /** Windows that arm a map tool; only one of them is open at a time. */
@@ -86,6 +99,14 @@ const CONSTRUCTION_WINDOWS = [
   'land-rights',
 ];
 
+export const OPTIONS_TABS: readonly TabSpec[] = [
+  { id: 'game', label: 'Game', icon: 'options' },
+  { id: 'sound', label: 'Sound', icon: 'sound' },
+  { id: 'messages', label: 'Messages', icon: 'news' },
+  { id: 'display', label: 'Display', icon: 'view' },
+  { id: 'controls', label: 'Controls', icon: 'info' },
+];
+
 const SERIES_INTERVAL_TICKS = 160;
 const SERIES_LENGTH = 120;
 
@@ -95,10 +116,10 @@ export class GameUI {
   private readonly statusBar: StatusBar;
   private readonly status: HTMLElement;
   private readonly objective: HTMLElement;
-  private readonly parkNews: HTMLElement;
   private readonly weatherOverlay: HTMLElement;
   private readonly controllers = new Map<string, WindowController>();
   private news = new NewsTracker();
+  private readonly messages = new MessageQueue<NewsItem>();
   private readonly series = {
     cash: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
     value: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
@@ -108,8 +129,15 @@ export class GameUI {
   private readonly ctx: UiContext;
   private paused = false;
   private tool: ToolMode = 'select';
+  private alternate = false;
+  private patrolStaffId: number | null = null;
   private selectedGuest: GuestSelection | null = null;
+  /** The speed the player chose. The sim runs at `speed`, which building can cap lower. */
+  private requestedSpeed: GameSpeed = 1;
   private speed = 1;
+  private readonly speedGroup: HTMLElement;
+  private readonly speedButtons = new Map<number, HTMLButtonElement>();
+  private readonly speedNote: HTMLElement;
 
   constructor(
     private readonly parent: HTMLElement,
@@ -118,7 +146,18 @@ export class GameUI {
   ) {
     this.ctx = {
       windows,
-      actions,
+      actions: {
+        ...actions,
+        setPatrolStaff: (staffId) => {
+          this.patrolStaffId = staffId;
+          actions.setPatrolStaff(staffId);
+        },
+        setAlternate: (on) => {
+          this.alternate = on;
+          actions.setAlternate(on);
+        },
+      },
+      alternate: () => this.alternate,
       selectedGuest: () => this.selectedGuest,
       series: this.series,
       openRide: (id) => this.openRide(id),
@@ -131,44 +170,60 @@ export class GameUI {
     this.status = element('output', 'tool-status');
     this.objective = element('div', 'objective-strip');
     this.objective.hidden = true;
-    this.parkNews = element('aside', 'park-news');
-    this.parkNews.setAttribute('aria-live', 'polite');
-    this.parkNews.hidden = true;
     this.weatherOverlay = element('div', 'weather-overlay weather-sunny');
     this.weatherOverlay.setAttribute('aria-hidden', 'true');
 
     const open = (id: string) => () => this.toggleWindow(id);
-    const left: ToolbarButton[] = [
+    this.speedGroup = element('div', 'toolbar-speed');
+    this.speedGroup.setAttribute('role', 'group');
+    this.speedGroup.setAttribute('aria-label', 'Game speed');
+    this.speedNote = element(
+      'span',
+      'toolbar-speed-note',
+      `Max ${BUILD_SPEED_CAP}× while building`,
+    );
+    for (const speed of GAME_SPEEDS) {
+      const b = element('button', 'toolbar-button toolbar-speed-button');
+      const speedIcon = speed === 1 ? 'play' : speed === 2 ? 'fastForward' : 'fastForwardTriple';
+      b.append(icon(speedIcon, 16), element('span', 'toolbar-speed-label', `${speed}×`));
+      b.type = 'button';
+      b.title = `Game speed ${speedLabel(speed)} (key ${speed})`;
+      b.setAttribute('aria-label', `Game speed ${speed}×`);
+      b.addEventListener('click', () => this.setSpeed(speed));
+      this.speedButtons.set(speed, b);
+      this.speedGroup.append(b);
+    }
+    this.speedGroup.append(this.speedNote);
+    const left: ToolbarItem[] = [
       { id: 'pause', icon: 'pause', label: 'Pause', onClick: () => this.togglePause() },
+      { id: 'speed', control: this.speedGroup },
       { id: 'options', icon: 'options', label: 'Game options', onClick: open('options') },
       { id: 'zoom-out', icon: 'zoomOut', label: 'Zoom out', onClick: () => actions.zoom(-1) },
       { id: 'zoom-in', icon: 'zoomIn', label: 'Zoom in', onClick: () => actions.zoom(1) },
       {
         id: 'rotate-clockwise',
         icon: 'rotateRight',
-        label: 'Rotate clockwise',
-        caption: 'Enter / Z',
-        tooltip: 'Rotate clockwise (Enter or Z)',
+        label: 'Rotate right',
+        tooltip: 'Rotate right (Enter or Z)',
         onClick: () => actions.rotate(1),
       },
       {
         id: 'rotate-anticlockwise',
         icon: 'rotateLeft',
-        label: 'Rotate anticlockwise',
-        caption: 'Shift+Enter / X',
-        tooltip: 'Rotate anticlockwise (Shift+Enter or X)',
+        label: 'Rotate left',
+        tooltip: 'Rotate left (Shift+Enter or X)',
         onClick: () => actions.rotate(-1),
       },
       { id: 'view', icon: 'view', label: 'View options', onClick: open('view') },
       { id: 'map', icon: 'map', label: 'Map', onClick: open('map') },
     ];
-    const right: ToolbarButton[] = [
+    const right: ToolbarItem[] = [
       { id: 'clear', icon: 'demolish', label: 'Clear scenery', onClick: open('clear') },
       { id: 'land', icon: 'land', label: 'Land', onClick: open('land') },
       { id: 'water', icon: 'water', label: 'Water', onClick: open('water') },
       { id: 'scenery', icon: 'scenery', label: 'Scenery', onClick: open('scenery') },
       { id: 'paths', icon: 'paths', label: 'Footpaths', onClick: open('paths') },
-      { id: 'ride-select', icon: 'rides', label: 'New ride', onClick: open('ride-select') },
+      { id: 'ride-select', icon: 'newRide', label: 'New ride', onClick: open('ride-select') },
       { id: 'finance', icon: 'finances', label: 'Finances', onClick: open('finance') },
       { id: 'research', icon: 'research', label: 'Research', onClick: open('research') },
       { id: 'ride-list', icon: 'wheel', label: 'Rides', onClick: open('ride-list') },
@@ -178,7 +233,7 @@ export class GameUI {
       { id: 'news', icon: 'news', label: 'Messages', onClick: open('news') },
       {
         id: 'save-load',
-        icon: 'options',
+        icon: 'saveLoad',
         label: 'Save / Load',
         onClick: () => actions.openMenu(),
       },
@@ -190,8 +245,9 @@ export class GameUI {
       openPark: () => this.openWindow('park'),
       openNews: () => this.openWindow('news'),
       followNews: (item) => this.followNews(item),
+      dismissMessage: () => this.dismissMessage(),
     });
-    parent.append(this.status, this.objective, this.parkNews, this.weatherOverlay);
+    parent.append(this.status, this.objective, this.weatherOverlay);
     this.statusBar.setMessage(null);
     this.chooseTool('select');
   }
@@ -212,17 +268,11 @@ export class GameUI {
     this.objective.hidden = lines.length === 0;
     const objectiveText = lines.join('\n');
     if (this.objective.textContent !== objectiveText) this.objective.textContent = objectiveText;
-    const latestNews = snapshot?.parkNews.slice(-3).map((item) => item.text) ?? [];
-    this.parkNews.hidden = latestNews.length === 0;
-    if (this.parkNews.textContent !== latestNews.join('\n'))
-      this.parkNews.textContent = latestNews.join('\n');
-
+    const now = performance.now();
     if (snapshot) {
-      const fresh = this.news.observe(snapshot);
-      if (fresh.length > 0) {
-        this.statusBar.setMessage(fresh[fresh.length - 1]);
-        this.actions.playUiSound('news');
-      }
+      const fresh = filterMessages(this.news.observe(snapshot), this.actions.messageFilter());
+      for (const item of fresh) this.messages.enqueue(item, now);
+      if (fresh.length > 0) this.actions.playUiSound('news');
       let profit = 0;
       for (let c = 0; c < LedgerCategory.COUNT; c++) profit += snapshot.economy.thisMonth[c];
       this.series.cash.record(snapshot.tick, snapshot.park.cash - snapshot.park.loan);
@@ -230,6 +280,7 @@ export class GameUI {
       this.series.profit.record(snapshot.tick, profit);
       this.series.guests.record(snapshot.tick, stats?.guests ?? snapshot.guests.count);
     }
+    this.statusBar.setMessage(this.messages.current(now));
     this.statusBar.update(snapshot, stats);
 
     for (const [id, controller] of this.controllers) {
@@ -265,6 +316,7 @@ export class GameUI {
     this.controllers.clear();
     this.selectedGuest = null;
     this.news = new NewsTracker();
+    this.messages.clear();
     this.statusBar.setMessage(null);
     this.chooseTool('select');
     if (openPark) this.openWindow('park');
@@ -281,8 +333,42 @@ export class GameUI {
     this.toolbar.relabel('pause', paused ? 'Resume' : 'Pause', icon(paused ? 'play' : 'pause'));
   }
 
-  syncSpeed(speed: number): void {
+  /** Shows the speed restored from settings without sending it. */
+  syncSpeed(speed: GameSpeed): void {
+    this.requestedSpeed = speed;
     this.speed = speed;
+    this.syncSpeedControls();
+  }
+
+  /** Sets the speed the player asked for. Choosing a speed while paused also resumes the sim. */
+  setSpeed(requested: GameSpeed): void {
+    this.requestedSpeed = requested;
+    if (this.paused) this.togglePause();
+    this.applySpeed();
+  }
+
+  private stepSpeed(direction: 1 | -1): void {
+    const index = GAME_SPEEDS.indexOf(this.requestedSpeed);
+    const next = Math.max(0, Math.min(GAME_SPEEDS.length - 1, index + direction));
+    this.setSpeed(GAME_SPEEDS[next]);
+  }
+
+  /** Applies the requested speed, capped while track is being built, and refreshes every speed control. */
+  private applySpeed(): void {
+    const effective = effectiveGameSpeed(this.requestedSpeed, this.tool === 'track');
+    if (effective !== this.speed) {
+      this.speed = effective;
+      this.actions.setSpeed(effective);
+    }
+    this.syncSpeedControls();
+  }
+
+  private syncSpeedControls(): void {
+    const capped = this.requestedSpeed !== this.speed;
+    this.speedGroup.classList.toggle('capped', capped);
+    this.speedNote.hidden = !capped;
+    for (const [speed, b] of this.speedButtons)
+      b.setAttribute('aria-pressed', String(speed === this.speed));
   }
 
   syncRotation(rotation: number): void {
@@ -306,6 +392,15 @@ export class GameUI {
       case 'pause':
         this.togglePause();
         this.setToolStatus(this.paused ? 'Simulation paused.' : 'Simulation resumed.');
+        return true;
+      case 'speed':
+        this.setSpeed(action.speed as GameSpeed);
+        return true;
+      case 'speedStep':
+        this.stepSpeed(action.direction);
+        return true;
+      case 'dismissMessage':
+        this.dismissMessage();
         return true;
       case 'rotate':
         this.actions.rotate(action.direction);
@@ -405,6 +500,11 @@ export class GameUI {
     for (const id of [...CONSTRUCTION_WINDOWS, 'construction']) this.windows.close(id);
   }
 
+  private dismissMessage(): void {
+    this.messages.dismiss(performance.now());
+    this.statusBar.setMessage(this.messages.current(performance.now()));
+  }
+
   private followNews(item: NewsItem): void {
     if (item.target) this.actions.locate(item.target.x, item.target.y);
     if (item.target?.rideId !== undefined) this.openRide(item.target.rideId);
@@ -422,18 +522,13 @@ export class GameUI {
       case 'land':
         return openLandWindow(this.ctx);
       case 'water':
-        return openToolWindow(this.ctx, WATER_WINDOW);
+        return openWaterWindow(this.ctx);
       case 'scenery':
         return openToolWindow(this.ctx, SCENERY_WINDOW);
       case 'paths':
         return openPathWindow(this.ctx);
       case 'clear':
-        return this.openNotice(
-          'clear',
-          'Clear scenery',
-          'Clearing scenery is not available in this version.',
-          'tool',
-        );
+        return openClearWindow(this.ctx);
       case 'ride-select':
         this.chooseTool('select');
         return openRideSelect(this.ctx);
@@ -454,11 +549,20 @@ export class GameUI {
       case 'map':
         return openMapWindow(this.ctx);
       case 'news':
-        return openNewsWindow(
-          this.ctx,
-          () => this.news.history,
-          (item) => this.followNews(item),
-        );
+        return openNewsWindow(this.ctx, {
+          history: () => filterMessages(this.news.history, this.actions.messageFilter()),
+          follow: (item) => this.followNews(item),
+          dismiss: (id) => {
+            this.news.remove(id);
+            this.messages.remove(id, performance.now());
+            this.statusBar.setMessage(this.messages.current(performance.now()));
+          },
+          clearAll: () => {
+            this.news.clear();
+            this.messages.clear();
+            this.statusBar.setMessage(null);
+          },
+        });
       case 'options':
         return this.openOptions();
       case 'view':
@@ -511,12 +615,7 @@ export class GameUI {
       title: 'Options',
       kind: 'tool',
       width: 300,
-      tabs: [
-        { id: 'game', label: 'Game', icon: 'options' },
-        { id: 'sound', label: 'Sound', icon: 'news' },
-        { id: 'display', label: 'Display', icon: 'view' },
-        { id: 'controls', label: 'Controls', icon: 'info' },
-      ],
+      tabs: OPTIONS_TABS,
     });
     const speeds = new Map<number, HTMLButtonElement>();
     if (created) {
@@ -526,15 +625,8 @@ export class GameUI {
         element('p', 'ui-help', 'Game speed'),
       );
       const row = element('div', 'button-row');
-      for (const speed of [1, 2, 4]) {
-        const b = button(
-          `${speed}×`,
-          () => {
-            this.speed = effectiveGameSpeed(speed, this.tool === 'track');
-            this.actions.setSpeed(this.speed);
-          },
-          'ui-button',
-        );
+      for (const speed of GAME_SPEEDS) {
+        const b = button(speedLabel(speed), () => this.setSpeed(speed), 'ui-button');
         speeds.set(speed, b);
         row.append(b);
       }
@@ -553,12 +645,25 @@ export class GameUI {
         this.audioMusicToggle(),
         this.audioMute(),
       );
+      const messagesPane = win.pane('messages');
+      messagesPane.append(
+        element('p', 'ui-help', 'Choose which kinds of message appear on the ticker'),
+        this.messageToggle('award', 'Awards'),
+        this.messageToggle('ride', 'Ride messages (openings, breakdowns, repairs)'),
+        this.messageToggle('park', 'Park messages (weather, objectives, lost guests)'),
+        this.messageToggle('guest', 'Guest milestones'),
+      );
       const displayPane = win.pane('display');
       displayPane.append(
         element('p', 'ui-help', 'View and display options'),
-        this.optionToggle('Height labels', 'height-labels'),
+        this.optionToggle('Height labels', 'height-labels', undefined, 'Not available yet.'),
         this.optionToggle('Gridlines', 'gridlines'),
-        this.optionToggle('Construction marker', 'construction-marker'),
+        this.optionToggle(
+          'Construction marker',
+          'construction-marker',
+          undefined,
+          'Not available yet.',
+        ),
         this.optionToggle('Performance overlay', 'performance-overlay', (on) =>
           this.parent.classList.toggle('hud-visible', on),
         ),
@@ -572,6 +677,12 @@ export class GameUI {
           'Esc cancels a tool · Enter / Z rotate clockwise · Shift+Enter / X rotate anticlockwise · Ctrl+S saves a screenshot.',
         ),
         element('p', 'ui-help', 'Page Up / Page Down zoom · Backspace closes a window.'),
+        element(
+          'p',
+          'ui-help',
+          'Space pauses or resumes · 1 / 2 / 4 set game speed · + / - go faster or slower.',
+        ),
+        element('p', 'ui-help', 'Q dismisses the current message.'),
       );
     }
     return {
@@ -586,10 +697,16 @@ export class GameUI {
     labelText: string,
     key: string,
     onChange?: (enabled: boolean) => void,
+    unavailableReason?: string,
   ): HTMLLabelElement {
     const label = element('label', 'check-row');
     const input = element('input');
     input.type = 'checkbox';
+    if (unavailableReason) {
+      input.disabled = true;
+      input.title = unavailableReason;
+      label.title = unavailableReason;
+    }
     input.checked = localStorage.getItem(`opencoaster-option-${key}`) === 'true';
     input.addEventListener('change', () => {
       localStorage.setItem(`opencoaster-option-${key}`, String(input.checked));
@@ -613,6 +730,18 @@ export class GameUI {
     });
     row.append(element('span', '', labelText), input);
     return row;
+  }
+
+  private messageToggle(category: MessageCategory, labelText: string): HTMLLabelElement {
+    const label = element('label', 'check-row');
+    const input = element('input');
+    input.type = 'checkbox';
+    input.checked = this.actions.messageFilter()[category];
+    input.addEventListener('change', () =>
+      this.actions.setMessageFilter({ [category]: input.checked }),
+    );
+    label.append(input, element('span', '', labelText));
+    return label;
   }
 
   private audioMusicToggle(): HTMLLabelElement {
@@ -642,22 +771,22 @@ export class GameUI {
   private chooseTool(tool: ToolMode): void {
     this.tool = tool;
     this.actions.setTool(tool);
-    const effectiveSpeed = effectiveGameSpeed(this.speed, tool === 'track');
-    if (effectiveSpeed !== this.speed) {
-      this.speed = effectiveSpeed;
-      this.actions.setSpeed(effectiveSpeed);
-    }
+    this.applySpeed();
     this.status.textContent =
       tool === 'select'
         ? 'Select a guest or tile. Drag to pan; Page Up/Down or pinch to zoom.'
         : tool === 'land'
           ? 'Land tool selected. Tap to raise; use Lower (or Shift) to dig.'
-          : tool === 'buy-land'
-            ? 'Land purchase selected. Click a marked land tile to buy it.'
-            : tool === 'buy-rights'
-              ? 'Construction rights selected. Click a marked tile to buy the rights.'
-              : tool === 'patrol'
-                ? 'Patrol tool selected. Tap tiles to add them; use Remove tiles (or Shift) to remove.'
-                : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
+          : tool === 'clear'
+            ? 'Clear scenery selected. Tap to remove trees, scenery and path additions in the area.'
+            : tool === 'water'
+              ? 'Water tool selected. Tap to raise the water; use Lower (or Shift) to drain.'
+              : tool === 'buy-land'
+                ? 'Land purchase selected. Click a marked land tile to buy it.'
+                : tool === 'buy-rights'
+                  ? 'Construction rights selected. Click a marked tile to buy the rights.'
+                  : tool === 'patrol'
+                    ? `Patrol tool selected${this.patrolStaffId === null ? '' : ` for worker ${this.patrolStaffId}`}. Tap tiles to add them; use Remove tiles (or Shift) to remove.`
+                    : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
   }
 }

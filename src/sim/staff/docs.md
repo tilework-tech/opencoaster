@@ -10,11 +10,11 @@ Path: @/src/sim/staff
 
 ### How it fits into the larger codebase
 
-- [World](../core/world.ts) owns the staff store, four persistent patrol masks (one per role), the `grounds` byte per tile, and the player-given `staffNames` map. Staff entities retain their role's area id; unassigned staff are unrestricted.
-- [Simulation](../core/simulation.ts) applies hire, fire, rename, patrol-tile and flower-bed commands at tick boundaries. The [UI](../../ui/game-ui.ts) selects a role for patrol painting and [main thread input](../../main.ts) turns map clicks into those commands. The [staff roster](../../ui/staff-roster.ts) lists each person with rename and fire controls.
+- [World](../core/world.ts) owns staff columns and a fixed-capacity pool of per-worker patrol masks. Each mask is a packed bitset over 4×4 map-tile blocks; staff columns identify the allocated area, while an unassigned worker is unrestricted. The world also owns the `grounds` byte per tile and player-given `staffNames` map.
+- [Simulation](../core/simulation.ts) applies hire, fire, rename, patrol-tile and flower-bed commands at tick boundaries. The [worker snapshot](../../worker/snapshot.ts) publishes patrol allocation IDs and packed masks to the [UI](../../ui/docs.md), which opens editing from an individual worker window. Main-thread input routes painted map positions to per-worker patrol commands. The [staff roster](../../ui/staff-roster.ts) lists each person with rename and fire controls.
 - The system uses [pathfinding](../pathfinding/navigate.ts) for staff movement and calls [ride operations](../rides/ride-operations.ts) when a mechanic reaches a ride service tile.
 - Hiring and firing adjust the weekly wage input in [economy inputs](../economy/ledger.ts). Planting a flower bed charges `Landscaping` through [economy api](../economy/api.ts).
-- Patrol masks, staff columns, names and grounds are deterministic world state: masks, columns and grounds are included in [world hashing](../core/hash.ts) and [save files](../../save/save.ts). Names are saved but do not affect the simulation.
+- Patrol masks, staff columns, names and grounds are deterministic world state: masks, allocation IDs, columns and grounds are included in [world hashing](../core/hash.ts) and [save files](../../save/save.ts). Names are saved but do not affect the simulation.
 - The [snapshot](../../worker/snapshot.ts) publishes staff ids, names and the grounds byte per tile so renderers and the staff roster can read them without touching sim state. `vandalsStopped` is persisted simulation state but is not published in the worker snapshot or shown in a staff statistics view; presentation belongs to the UI layer.
 
 ### Core Implementation
@@ -30,7 +30,7 @@ Path: @/src/sim/staff
 
 - Task orders are stored per worker and persisted from save version 13. Older saves initialize the available orders for each worker's role. Disabled orders prevent the corresponding litter, garden, bin, ride-inspection, repair, vandalism-watch, or entertainment work.
 
-- `patrolArea` is an area id, not an entity id. Each role has one mask; `setStaffPatrolTile` edits the mask of the person's role, so per-person commands and role painting share the same area. Removing the last marked tile returns that role's staff to unrestricted movement. Per-person masks would need storage beyond the four areas.
+- `patrolArea` is a pooled area id, not a staff or entity id. The first enabled tile allocates a free row for that worker; clearing the final block or firing the worker releases the row. Tiles map to 4×4 patrol blocks, and the staff system expands a worker's selected blocks to the tile-level navigation mask used for task reachability and movement.
 - Movement falls back to a direct relocation onto the nearest walkable marked tile when pathfinding cannot return a direction. Patrol masks constrain staff destinations and pathfinding, but are not a generic job-assignment system.
 - Staff salary constants follow the cited manual monthly amounts. The economy charges their rounded weekly equivalents, matching its weekly payroll cadence.
 - The stopped-vandal counter is a saturating per-guard staff column, included in deterministic world state and save version 16. The version 15 migration preserves prior staff columns and starts this counter at zero.

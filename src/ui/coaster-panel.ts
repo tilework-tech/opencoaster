@@ -571,7 +571,7 @@ export class CoasterPanel {
     button.title = label;
     button.setAttribute('aria-label', label);
     button.classList.add('glyph-button');
-    button.append(icon(name));
+    button.append(icon(name, 16));
     return button;
   }
 

@@ -4,6 +4,8 @@ import { scenerySpriteName } from '../../render/world-art';
 import { SCENERY_CATALOG, SceneryResult } from '../../sim/map/scenery';
 import type { SceneryItem } from '../../sim/map/scenery';
 import type { SimClient } from '../../worker/sim-client';
+import { sceneryBox, sceneryFrameDrop, sceneryGroundZ } from '../../render/ground-anchor';
+import { Z_STEP } from '../../sim/core/constants';
 
 /** How long a preview answer may be reused before the sim is asked again, ms (cash can change). */
 const REFRESH_MS = 500;
@@ -21,8 +23,13 @@ export interface SceneryHover {
   x: number;
   y: number;
   level: number;
+  /** Corner-height bits used to locate the rendered surface at the tile centre. */
+  slopeMask: number;
   item: SceneryItem;
+  /** Facing requested by the player for a rotatable scenery object. */
   rotation: number;
+  /** Camera view used to choose the visible tile-centre ground surface. */
+  viewRotation: number;
   /** Pointer position in client pixels, where the label sits. */
   clientX: number;
   clientY: number;
@@ -76,11 +83,18 @@ export class ScenerySpotPreview {
     }
     this.showLabel(hover);
     if (this.result === null) return null;
+    const definition = SCENERY_CATALOG[hover.item]!;
+    const box = sceneryBox(definition);
     return {
       x: hover.x,
       y: hover.y,
-      level: hover.level,
-      sprite: scenerySpriteName(SCENERY_CATALOG[hover.item]!.sprite),
+      level:
+        (sceneryGroundZ(hover.level, hover.slopeMask, hover.viewRotation) -
+          sceneryFrameDrop(definition)) /
+        Z_STEP,
+      width: box.width,
+      height: box.height,
+      sprite: scenerySpriteName(definition.sprite),
       kind: 'scenery',
       tone: this.result === SceneryResult.Ok ? 'ok' : 'refused',
     };

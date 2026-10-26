@@ -40,12 +40,18 @@ export interface PathPieceGhost {
 export interface SpriteGhost {
   x: number;
   y: number;
-  /** Base level of the tile the piece stands on, in the same units as `MapData.heights`. */
+  /** Source map tile for edge previews whose rendered x/y fall between tile centres. */
+  tileX?: number;
+  tileY?: number;
+  /** Height in levels at the rendered ground pivot; edge props may be between tile levels. */
   level: number;
   /** Atlas key (optionally with a `#frame` suffix) already in the camera's rotation. */
   sprite: string;
   /** Which built kind the piece sorts as: rides and scenery use different depth offsets. */
-  kind: 'ride' | 'scenery';
+  kind: 'ride' | 'scenery' | 'path-addition';
+  /** Rendered world-pixel box for scenery and path additions. */
+  width?: number;
+  height?: number;
   tone: 'ok' | 'refused';
 }
 
@@ -75,6 +81,10 @@ export interface Renderer {
   setGhosts(ghosts: readonly PathPieceGhost[]): void;
   /** Ride and scenery previews drawn in the depth-sorted world pass until replaced. */
   setSpriteGhosts(ghosts: readonly SpriteGhost[]): void;
+  /** Selects the individual worker whose patrol blocks are shown; null hides them. */
+  setPatrolStaff(staffId: number | null): void;
+  /** Sets the 4×4 block shown under the pointer while editing the selected worker's area. */
+  setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void;
   draw(snapshot: Snapshot | null, camera: Camera): void;
   dispose(): void;
 }

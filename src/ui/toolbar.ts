@@ -7,8 +7,17 @@ export interface ToolbarButton {
   label: string;
   caption?: string;
   tooltip?: string;
+  disabledReason?: string;
   onClick(): void;
 }
+
+/** A toolbar slot filled by a custom control, e.g. the speed selector. */
+export interface ToolbarControl {
+  id: string;
+  control: HTMLElement;
+}
+
+export type ToolbarItem = ToolbarButton | ToolbarControl;
 
 /** Top bar. Left: game controls. Right: construction and information windows. */
 export class Toolbar {
@@ -18,11 +27,7 @@ export class Toolbar {
   private readonly menu: HTMLElement;
   private readonly compass: HTMLElement;
 
-  constructor(
-    parent: HTMLElement,
-    left: readonly ToolbarButton[],
-    right: readonly ToolbarButton[],
-  ) {
+  constructor(parent: HTMLElement, left: readonly ToolbarItem[], right: readonly ToolbarItem[]) {
     this.root = element('nav', 'game-toolbar');
     this.root.setAttribute('aria-label', 'Park controls');
     this.actionsButton = element('button', 'toolbar-actions', 'Actions');
@@ -39,6 +44,11 @@ export class Toolbar {
       [rightGroup, right],
     ] as const) {
       for (const item of items) {
+        if ('control' in item) {
+          item.control.dataset.action = item.id;
+          group.append(item.control);
+          continue;
+        }
         const b = iconButton(
           item.icon,
           item.label,
@@ -49,6 +59,10 @@ export class Toolbar {
         if (item.tooltip) b.title = item.tooltip;
         b.dataset.action = item.id;
         b.setAttribute('aria-pressed', 'false');
+        if (item.disabledReason) {
+          b.disabled = true;
+          b.title = item.disabledReason;
+        }
         this.buttons.set(item.id, b);
         b.addEventListener('click', () => this.closeMenu());
         group.append(b);

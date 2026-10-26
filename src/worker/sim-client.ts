@@ -4,6 +4,7 @@ import type { PathPiecePreview, ScenerySpot } from '../sim/map/map-commands';
 import type { SceneryResult } from '../sim/map/scenery';
 import type { InitMessage, MapMessage, Stats, ToWorker, FromWorker } from './protocol';
 import type { LandEdit, LandPlan } from '../sim/map/land-tool';
+import type { AreaEdit, AreaPlan } from '../sim/map/area-tools';
 import { snapshotBuffers } from './snapshot';
 import type { Snapshot } from './snapshot';
 
@@ -29,6 +30,10 @@ export class SimClient {
   landPreview: { edit: LandEdit; plan: LandPlan } | null = null;
   private previewSeq = 0;
   private readonly previewEdits = new Map<number, LandEdit>();
+  /** Newest Clear scenery or Water preview answer and the edit it answers. */
+  areaPreview: { edit: AreaEdit; plan: AreaPlan } | null = null;
+  private areaSeq = 0;
+  private readonly areaEdits = new Map<number, AreaEdit>();
   /** Called for every published map; `newGame` is true only for the map of a started or loaded game. */
   onMap: ((m: MapMessage, newGame: boolean) => void) | null = null;
 
@@ -73,6 +78,12 @@ export class SimClient {
         const edit = this.previewEdits.get(msg.id);
         if (edit && msg.id === this.previewSeq) this.landPreview = { edit, plan: msg.plan };
         this.previewEdits.delete(msg.id);
+        break;
+      }
+      case 'areaPreview': {
+        const edit = this.areaEdits.get(msg.id);
+        if (edit && msg.id === this.areaSeq) this.areaPreview = { edit, plan: msg.plan };
+        this.areaEdits.delete(msg.id);
         break;
       }
       case 'stats':
@@ -150,6 +161,19 @@ export class SimClient {
     this.previewSeq++;
     this.previewEdits.clear();
     this.landPreview = null;
+  }
+
+  /** Asks the worker what a Clear scenery or Water edit would do; the answer lands in `areaPreview`. */
+  previewArea(edit: AreaEdit): void {
+    const id = ++this.areaSeq;
+    this.areaEdits.clear();
+    this.areaEdits.set(id, edit);
+    this.worker.postMessage({ type: 'previewArea', id, edit } satisfies ToWorker);
+  }
+  clearAreaPreview(): void {
+    this.areaSeq++;
+    this.areaEdits.clear();
+    this.areaPreview = null;
   }
 
   command(command: Command): void {

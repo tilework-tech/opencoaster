@@ -244,11 +244,17 @@ export function pathAdditionSpriteName(flags: number, rotation: number, data: nu
   const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
   if (flags & PathFlag.Shelter) return `scenery/shelter/view-${view}`;
   if (flags & PathFlag.Bench)
-    return data & PATH_ADDITION_BROKEN ? `scenery/bench-broken/view-${view}` : 'scenery/bench';
+    return data & PATH_ADDITION_BROKEN
+      ? `scenery/bench-broken/view-${view}`
+      : `scenery/bench/view-${view}`;
   if (flags & PathFlag.Bin)
-    return data & PATH_ADDITION_BROKEN ? `scenery/bin-broken/view-${view}` : 'scenery/bin';
+    return data & PATH_ADDITION_BROKEN
+      ? `scenery/bin-broken/view-${view}`
+      : `scenery/bin/view-${view}`;
   if (flags & PathFlag.Lamp)
-    return data & PATH_ADDITION_BROKEN ? `scenery/lamp-broken/view-${view}` : 'scenery/lamp';
+    return data & PATH_ADDITION_BROKEN
+      ? `scenery/lamp-broken/view-${view}`
+      : `scenery/lamp/view-${view}`;
   return '';
 }
 

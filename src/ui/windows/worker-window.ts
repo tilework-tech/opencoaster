@@ -41,7 +41,7 @@ export function workerDetails(snapshot: Snapshot | null, staffId: number): Worke
   return null;
 }
 
-const TABS: readonly TabSpec[] = [
+export const WORKER_TABS: readonly TabSpec[] = [
   { id: 'view', label: 'View', icon: 'info' },
   { id: 'orders', label: 'Orders', icon: 'staff' },
   { id: 'statistics', label: 'Statistics', icon: 'rides' },
@@ -84,7 +84,7 @@ export function openWorkerWindow(
     title: 'Worker',
     kind: 'staff',
     width: 320,
-    tabs: TABS,
+    tabs: WORKER_TABS,
   });
   const name = element('strong', 'worker-name');
   let currentWorker: WorkerDetails | null = null;
@@ -95,7 +95,7 @@ export function openWorkerWindow(
   const patrolHint = element(
     'p',
     'ui-help',
-    'Patrol areas are shared by all workers of this role.',
+    'This worker follows only the tiles in this patrol area.',
   );
   if (created) {
     const view = win.pane('view');
@@ -134,15 +134,15 @@ export function openWorkerWindow(
     const taskOrders = element('fieldset', 'worker-task-orders');
     const taskHint = element('p', 'ui-help', 'Choose the tasks this worker should perform.');
     const patrol = button(
-      'Edit role patrol area',
+      'Edit patrol area',
       () => {
         if (!currentWorker) return;
-        ctx.actions.setPatrolKind(currentWorker.kind);
+        ctx.actions.setPatrolStaff(staffId);
         ctx.chooseTool('patrol');
       },
       'ui-button',
     );
-    patrol.setAttribute('aria-label', 'Edit patrol area shared by this worker role');
+    patrol.setAttribute('aria-label', 'Edit this worker patrol area');
     orders.append(taskOrders, taskHint, patrol, patrolHint);
 
     const statistics = win.pane('statistics');

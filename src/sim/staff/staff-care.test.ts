@@ -5,7 +5,12 @@ import { LedgerCategory } from '../economy/ledger';
 import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
 import { FLOWER_BED, FLOWER_BED_COST_CENTS, GROUNDS_GROW_INTERVAL } from './grounds';
-import { MAX_STAFF_NAME_LENGTH, StaffKind } from './staff-store';
+import {
+  MAX_STAFF_NAME_LENGTH,
+  StaffKind,
+  setStaffPatrolTile,
+  staffPatrolTileEnabled,
+} from './staff-store';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { PathAddition, setPathAddition } from '../map/paths';
 import { deserialize, serialize } from '../../save/save';
@@ -138,16 +143,17 @@ describe('security guards', () => {
 });
 
 describe('patrol masks', () => {
-  it('edits the masks of the role an unrestricted staff member belongs to', () => {
-    const sim = grassSim(7, 8);
-    const id = hire(sim, StaffKind.Mechanic);
-    const tile = sim.world.map.index(3, 3);
+  it('keeps painted tiles private to the worker who receives them', () => {
+    const sim = grassSim(7, 32);
+    const first = hire(sim, StaffKind.Mechanic);
+    const second = hire(sim, StaffKind.Mechanic);
 
-    sim.enqueue({ type: 'setStaffPatrolTile', staffId: id, x: 3, y: 3, enabled: true });
-    sim.step();
+    expect(setStaffPatrolTile(sim.world, first, 2, 3, true)).toBe(true);
+    expect(setStaffPatrolTile(sim.world, second, 10, 3, true)).toBe(true);
 
-    const size = sim.world.map.width * sim.world.map.height;
-    expect(sim.world.patrolAreas[StaffKind.Mechanic * size + tile]).toBe(1);
-    expect(sim.world.patrolAreas[StaffKind.Handyman * size + tile]).toBe(0);
+    expect(staffPatrolTileEnabled(sim.world, first, 2, 3)).toBe(true);
+    expect(staffPatrolTileEnabled(sim.world, first, 10, 3)).toBe(false);
+    expect(staffPatrolTileEnabled(sim.world, second, 10, 3)).toBe(true);
+    expect(staffPatrolTileEnabled(sim.world, second, 2, 3)).toBe(false);
   });
 });
