@@ -350,9 +350,13 @@ function wallSprites(): SpriteDef[] {
         Array.from({ length: 16 }, (_, slope) =>
           Array.from({ length: 4 }, (_, view) => ({
             key: wallSpriteName(wall, edge, slope, view),
-            frames: [renderMesh(rotateMesh(physicalToLevels(wallMesh(wall, edge, slope)), view))],
+            frames: [
+              renderMesh(
+                rotateMesh(physicalToLevels(wallMesh(wall, edge, slope)), view),
+                wall === 'hedge' ? { outline: false } : undefined,
+              ),
+            ],
             footprint: ONE_TILE,
-            raw: true,
           })),
         ),
       ),

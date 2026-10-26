@@ -104,8 +104,7 @@ describe('generated sprite catalogue', () => {
         expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.6);
       if (!key.includes('/edge-'))
         expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);
-      if (key.startsWith('scenery/shelter/') || key.includes('/edge-'))
-        expect(sprite.raw, key).toBe(true);
+      if (key.startsWith('scenery/shelter/')) expect(sprite.raw, key).toBe(true);
       else if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBeFalsy();
     }
   });

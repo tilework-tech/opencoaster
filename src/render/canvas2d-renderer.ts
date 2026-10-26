@@ -1185,7 +1185,7 @@ export class Canvas2DRenderer implements Renderer {
       this.pathLow,
     );
     if (!this.isVisible(this.pathLow[0]!, this.pathLow[1]!, cam, 40)) return;
-    if (ghost.sprite.startsWith('scenery/flower-bed/'))
+    if (ghost.sprite.startsWith('scenery/flower-bed/') || ghost.sprite.includes('/edge-'))
       drawGhostSprite(
         ctx,
         this.atlas,
@@ -1304,7 +1304,7 @@ export class Canvas2DRenderer implements Renderer {
             : scenerySpriteName(definition.sprite, cam.rotation);
       const drewSprite =
         this.atlas &&
-        (definition.sprite === 'flower-bed'
+        (wall || definition.sprite === 'flower-bed'
           ? drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0]!, this.tmp[1]!)
           : drawBoxedSprite(
               ctx,

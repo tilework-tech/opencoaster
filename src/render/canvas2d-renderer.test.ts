@@ -504,7 +504,7 @@ describe('Canvas2D fallback map art', () => {
             [ghost],
           );
           const { width: boxWidth, height: boxHeight } =
-            definition.sprite === 'flower-bed' ? STUB_FRAME : sceneryBox(definition);
+            definition.sprite === 'flower-bed' || wall ? STUB_FRAME : sceneryBox(definition);
           const placedRect = screenRect(placed, boxWidth, boxHeight);
           const ghostRect = screenRect(previewDraw, boxWidth, boxHeight);
           expect(placedRect, `placed ${key} rotation=${rotation} zoom=${zoom}`).toBeDefined();
