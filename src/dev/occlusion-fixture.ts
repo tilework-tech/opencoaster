@@ -84,7 +84,14 @@ async function main(): Promise<void> {
   canvas.style.height = `${viewHeight}px`;
   renderer.setMap(park.map);
   const centre = new Float64Array(2);
-  const { x, y, z } = park.focus;
+  // focus=gate or focus=boarding:<i> centres a ride entrance/exit or the park gate.
+  const focus = params.get('focus') ?? '';
+  const { x, y, z } =
+    focus === 'gate'
+      ? park.landmarks.gate
+      : focus.startsWith('boarding:')
+        ? (park.landmarks.boarding[Number(focus.slice(9))] ?? park.focus)
+        : park.focus;
   project(
     x * TILE_UNITS,
     y * TILE_UNITS,

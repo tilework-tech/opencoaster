@@ -28,6 +28,8 @@ export interface FuzzPark {
   snapshot: Snapshot;
   /** world tile coords + level of a point to centre the camera on */
   focus: { x: number; y: number; z: number };
+  /** Centres of the park gate and of every ride entrance and exit tile, for close-up views. */
+  landmarks: { gate: Landmark; boarding: Landmark[] };
 }
 
 /** Layout is designed on a 32-tile map; larger maps centre it. */
@@ -54,6 +56,11 @@ const WALLS: readonly SceneryItem[] = [
 ];
 
 type Tile = readonly [number, number];
+export interface Landmark {
+  x: number;
+  y: number;
+  z: number;
+}
 
 class ParkBuilder {
   readonly sim: Simulation;
@@ -547,10 +554,16 @@ function publish(b: ParkBuilder): FuzzPark {
     entranceY: w.park.entranceY,
   };
   const [fx, fy] = b.p(16, 16);
+  const landmark = ([x, y]: Tile): Landmark => ({
+    x: x + 0.5,
+    y: y + 0.5,
+    z: w.map.heightAt((x + 0.5) * TILE_UNITS, (y + 0.5) * TILE_UNITS) / Z_STEP,
+  });
   return {
     map,
     snapshot,
     focus: { x: fx, y: fy, z: w.map.heightAt(fx * TILE_UNITS, fy * TILE_UNITS) / Z_STEP },
+    landmarks: { gate: landmark(b.gate), boarding: b.boarding.map(landmark) },
   };
 }
 
