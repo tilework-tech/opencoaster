@@ -1,8 +1,10 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import sharp from 'sharp';
 import { categoryForSprite } from './categories';
 import { MaxRectsBin } from './maxrects';
+import { encodeHeight } from '../../src/render/height-encoding';
+import { DEPTH_SUFFIX, depthFileFor } from '../sprites/output';
 
 /** Largest page edge; 2048 is safe on mobile GPUs. */
 export const MAX_PAGE_SIZE = 2048;
@@ -34,6 +36,8 @@ export interface SpriteMetadata {
 export interface AtlasPage {
   /** PNG path relative to the manifest. */
   file: string;
+  /** Height-map page with the same layout as `file` (see src/render/height-encoding.ts). */
+  depthFile: string;
   width: number;
   height: number;
   category: string;
@@ -62,7 +66,11 @@ interface SourceFrame {
   spriteKey: string;
   frameIndex: number;
   sourcePath: string;
+  /** Baked height map beside the source PNG, if the sprite has one. */
+  depthPath: string | null;
   region: SpriteFrame;
+  /** Frame-local anchor, used to give sprites without a height map an upright card. */
+  anchor: { x: number; y: number };
 }
 
 interface PackedFrame extends SourceFrame {
@@ -82,7 +90,11 @@ async function listPngs(directory: string): Promise<string[]> {
       const path = join(directory, entry.name);
       return entry.isDirectory()
         ? listPngs(path)
-        : Promise.resolve(entry.isFile() && entry.name.endsWith('.png') ? [path] : []);
+        : Promise.resolve(
+            entry.isFile() && entry.name.endsWith('.png') && !entry.name.endsWith(DEPTH_SUFFIX)
+              ? [path]
+              : [],
+          );
     }),
   );
   return files.flat().sort((left, right) => left.localeCompare(right));
@@ -195,6 +207,13 @@ async function loadSprites(inputDir: string): Promise<{
           height: trim.height,
         }))
       : authored.frames;
+    const depthPath = await access(depthFileFor(file)).then(
+      () => depthFileFor(file),
+      () => null,
+    );
+    const anchor = trim
+      ? { x: authored.anchor.x - trim.left, y: authored.anchor.y - trim.top }
+      : authored.anchor;
     metadata.set(spriteKey, {
       anchor: trim
         ? { x: authored.anchor.x - trim.left, y: authored.anchor.y - trim.top }
@@ -208,12 +227,47 @@ async function loadSprites(inputDir: string): Promise<{
         spriteKey,
         frameIndex,
         sourcePath: file,
+        depthPath,
         region,
+        anchor,
       });
     });
   }
 
   return { frames, metadata };
+}
+
+/**
+ * PNG of a frame's heights: the baked height map when the sprite has one, otherwise an upright
+ * card through the anchor (each opaque pixel stands `(anchor.y - row centre) / 16` levels high).
+ */
+async function frameDepth(frame: SourceFrame): Promise<Buffer> {
+  const { x, y, width, height } = frame.region;
+  if (frame.depthPath)
+    return sharp(frame.depthPath)
+      .extract({ left: x, top: y, width, height })
+      .ensureAlpha()
+      .png()
+      .toBuffer();
+  const colour = await sharp(frame.sourcePath)
+    .extract({ left: x, top: y, width, height })
+    .ensureAlpha()
+    .raw()
+    .toBuffer();
+  const depth = Buffer.alloc(width * height * 4);
+  for (let row = 0; row < height; row++) {
+    const [hi, lo] = encodeHeight((frame.anchor.y - row - 0.5) / 16);
+    for (let column = 0; column < width; column++) {
+      const at = (row * width + column) * 4;
+      if (colour[at + 3] === 0) continue;
+      depth[at] = hi;
+      depth[at + 1] = lo;
+      depth[at + 3] = 255;
+    }
+  }
+  return sharp(depth, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
 /** Pack PNG sprites and their authored JSON frame metadata into deterministic per-category pages. */
@@ -286,6 +340,7 @@ export async function packSprites(inputDir: string, outputDir: string): Promise<
       manifestCategories[name].pages.push(page);
       pages.push({
         file: `${ATLAS_PAGE_DIRECTORY}/${name}-${binIndex}.png`,
+        depthFile: `${ATLAS_PAGE_DIRECTORY}/${name}-${binIndex}${DEPTH_SUFFIX}`,
         width: roundUp(entry.width, 4),
         height: roundUp(entry.height, 4),
         category: name,
@@ -325,6 +380,24 @@ export async function packSprites(inputDir: string, outputDir: string): Promise<
         .composite(composites)
         .png({ compressionLevel: 9, adaptiveFiltering: false })
         .toFile(join(outputDir, page.file));
+      const depthComposites = await Promise.all(
+        pageFrames[index].map(async (frame) => ({
+          input: await frameDepth(frame),
+          left: frame.x,
+          top: frame.y,
+        })),
+      );
+      await sharp({
+        create: {
+          width: page.width,
+          height: page.height,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        },
+      })
+        .composite(depthComposites)
+        .png({ compressionLevel: 9, adaptiveFiltering: false })
+        .toFile(join(outputDir, page.depthFile));
     }),
   );
 
