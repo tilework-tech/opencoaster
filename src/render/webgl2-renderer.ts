@@ -366,6 +366,7 @@ export class WebGL2Renderer implements Renderer {
   private gl: WebGL2RenderingContext | null = null;
   private map: MapData | null = null;
   private pickCacheKey = '';
+  private pickCacheSnapshot: Snapshot | null = null;
   private pickTargets: ObjectPickTarget[] = [];
   private program: WebGLProgram | null = null;
   private vao: WebGLVertexArrayObject | null = null;
@@ -443,10 +444,11 @@ export class WebGL2Renderer implements Renderer {
     viewport: { width: number; height: number },
   ): ObjectPickTarget | null {
     if (!this.map) return null;
-    const key = `${snapshot?.tick ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${spritePages.version}`;
-    if (key !== this.pickCacheKey) {
+    const key = `${snapshot?.revision ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${spritePages.version}`;
+    if (key !== this.pickCacheKey || snapshot !== this.pickCacheSnapshot) {
       this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, spritePages);
       this.pickCacheKey = key;
+      this.pickCacheSnapshot = snapshot;
     }
     return pickTopmostObject(this.pickTargets, screenX, screenY);
   }
@@ -474,6 +476,8 @@ export class WebGL2Renderer implements Renderer {
   setMap(map: MapData): void {
     this.invalidateGroundFor(this.map, map);
     this.map = map;
+    this.pickCacheKey = '';
+    this.pickCacheSnapshot = null;
   }
 
   setGhosts(ghosts: readonly PathPieceGhost[]): void {

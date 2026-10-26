@@ -134,6 +134,7 @@ export class Canvas2DRenderer implements Renderer {
   private nextDrawOrder = 0;
   private readonly surfaceDepths = new SurfaceDepths();
   private pickCacheKey = '';
+  private pickCacheSnapshot: Snapshot | null = null;
   private pickTargets: ObjectPickTarget[] = [];
 
   get visibleSpriteCount(): number {
@@ -148,10 +149,11 @@ export class Canvas2DRenderer implements Renderer {
     viewport: { width: number; height: number },
   ): ObjectPickTarget | null {
     if (!this.map || !this.atlas) return null;
-    const key = `${snapshot?.tick ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${this.atlas.version}`;
-    if (key !== this.pickCacheKey) {
+    const key = `${snapshot?.revision ?? -1}:${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}:${viewport.width}:${viewport.height}:${this.atlas.version}`;
+    if (key !== this.pickCacheKey || snapshot !== this.pickCacheSnapshot) {
       this.pickTargets = buildObjectPickTargets(snapshot, this.map, camera, viewport, this.atlas);
       this.pickCacheKey = key;
+      this.pickCacheSnapshot = snapshot;
     }
     return pickTopmostObject(this.pickTargets, screenX, screenY);
   }
@@ -188,6 +190,8 @@ export class Canvas2DRenderer implements Renderer {
 
   setMap(map: MapData): void {
     this.map = map;
+    this.pickCacheKey = '';
+    this.pickCacheSnapshot = null;
     this.ghostsByTile = null;
     const paths = map.pathElements;
     const count = Math.min(map.pathCount ?? 0, paths?.length ? paths.length / 6 : 0);

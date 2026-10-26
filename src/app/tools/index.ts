@@ -52,6 +52,7 @@ export interface ToolControllerDependencies {
 export function createToolController(deps: ToolControllerDependencies) {
   let movingPerson: MovingPerson | null = null;
   let hoverOutline: HTMLDivElement | null = null;
+  let hoveredObjectName: string | null = null;
   let objectPopup: HTMLDivElement | null = null;
   let liftedPerson: HTMLDivElement | null = null;
   let dropMarker: HTMLDivElement | null = null;
@@ -174,13 +175,17 @@ export function createToolController(deps: ToolControllerDependencies) {
   }
 
   function hoverCanvas(clientX: number, clientY: number): void {
-    if (deps.selectedTool() !== 'select') return;
+    if (deps.selectedTool() !== 'select') {
+      clearObjectHover();
+      return;
+    }
     const target = pickedObject(clientX, clientY);
     if (!target) {
       clearObjectHover();
       return;
     }
     deps.gameUi.setToolStatus(target.name);
+    hoveredObjectName = target.name;
     if (!hoverOutline) {
       hoverOutline = document.createElement('div');
       hoverOutline.className = 'object-hover-outline';
@@ -199,6 +204,10 @@ export function createToolController(deps: ToolControllerDependencies) {
 
   function clearObjectHover(): void {
     if (hoverOutline) hoverOutline.style.display = 'none';
+    if (hoveredObjectName !== null) {
+      deps.gameUi.setToolStatus('');
+      hoveredObjectName = null;
+    }
   }
 
   function showObjectInfo(target: ObjectPickTarget, clientX: number, clientY: number): void {
@@ -244,6 +253,7 @@ export function createToolController(deps: ToolControllerDependencies) {
           deps.sim.command({ type: 'setPathAddition', x: target.tileX, y: target.tileY, addition }),
         );
     }
+    button('Done', () => {});
     const left = Math.max(8, Math.min(clientX, window.innerWidth - 230));
     const top = Math.max(8, Math.min(clientY, window.innerHeight - 130));
     Object.assign(popup.style, { position: 'fixed', left: `${left}px`, top: `${top}px` });
@@ -461,59 +471,24 @@ export function createToolController(deps: ToolControllerDependencies) {
 
   function personDragStart(clientX: number, clientY: number): boolean {
     if (deps.selectedTool() !== 'select' || !deps.sim.latest) return false;
-    const rect = deps.canvas.getBoundingClientRect();
-    const map = deps.sim.map;
-    if (!map) return false;
+    if (!deps.sim.map) return false;
     if (movingPerson) return true;
-    const guest = findGuestAt(
-      clientX - rect.left,
-      clientY - rect.top,
-      rect.width,
-      rect.height,
-      map,
-      deps.camera,
-      deps.sim,
-    );
-    if (guest) {
-      if (
-        guest.state === 'queueing' ||
-        guest.state === 'waiting to board' ||
-        guest.state === 'riding'
-      ) {
+    const target = pickedObject(clientX, clientY);
+    if (target?.kind === 'guest' && target.personId !== undefined) {
+      const snapshot = deps.sim.latest;
+      const slot = snapshot.guestIds.indexOf(target.personId);
+      if (slot < 0) return false;
+      const state = guestRowState(snapshot.guests.data[slot * 4 + 3]!);
+      if (state === 1 || state === 2 || state === 5) {
         deps.gameUi.setToolStatus('Pick up refused: guests on rides or in queues cannot be moved.');
         return true;
       }
-      movingPerson = { person: 'guest', id: guest.id };
+      movingPerson = { person: 'guest', id: target.personId };
       updatePersonMoveVisual(clientX, clientY);
       return true;
     }
-    const snapshot = deps.sim.latest;
-    const point = new Float64Array(2);
-    let best = -1;
-    let distance = 18 * 18;
-    for (let slot = 0; slot < snapshot.staff.count; slot++) {
-      const offset = slot * 4;
-      project(
-        snapshot.staff.data[offset]!,
-        snapshot.staff.data[offset + 1]!,
-        snapshot.staff.data[offset + 2]!,
-        map.width,
-        map.height,
-        deps.camera.rotation,
-        point,
-      );
-      const dx =
-        rect.width / 2 + (point[0] - deps.camera.x) * deps.camera.zoom - (clientX - rect.left);
-      const dy =
-        rect.height / 2 + (point[1] - deps.camera.y) * deps.camera.zoom - (clientY - rect.top);
-      const next = dx * dx + dy * dy;
-      if (next < distance) {
-        distance = next;
-        best = slot;
-      }
-    }
-    if (best < 0) return false;
-    movingPerson = { person: 'staff', id: snapshot.staffIds[best]! };
+    if (target?.kind !== 'staff' || target.personId === undefined) return false;
+    movingPerson = { person: 'staff', id: target.personId };
     updatePersonMoveVisual(clientX, clientY);
     return true;
   }

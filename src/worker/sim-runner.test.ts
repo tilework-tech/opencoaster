@@ -5,6 +5,29 @@ import { PriceMode } from '../sim/economy/ledger';
 import { ObjectiveKind } from '../sim/scenario/scenario';
 
 describe('SimRunner', () => {
+  it('assigns a new revision whenever a pooled snapshot is published', () => {
+    const revisions: number[] = [];
+    let now = 0;
+    const r = new SimRunner(
+      {
+        post: (message) => {
+          if (message.type === 'snapshot') {
+            revisions.push(message.snapshot.revision);
+            r.handle({ type: 'recycle', snapshot: message.snapshot });
+          }
+        },
+      },
+      () => now,
+    );
+    r.handle({ type: 'init', seed: 1, width: 8, height: 8, initialGuests: 1, maxGuests: 10 });
+    for (let i = 0; i < 4; i++) {
+      now += 50;
+      r.pump();
+    }
+
+    expect(revisions).toEqual([1, 2, 3]);
+  });
+
   it('sends the map, then snapshots with the requested guest count', () => {
     const out: FromWorker[] = [];
     let now = 0;

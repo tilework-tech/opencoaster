@@ -70,6 +70,7 @@ export class SimRunner {
   private lastStats = 0;
   private mapRevision = 0;
   private snapshotIntervalMs = 0;
+  private snapshotRevision = 0;
   private lastSnapshot = -Infinity;
   /** Ticks have advanced since the last published snapshot. */
   private snapshotDue = false;
@@ -271,6 +272,7 @@ export class SimRunner {
         this.snapshotDue = false;
         this.lastSnapshot = now;
         writeSnapshot(sim.world, snap);
+        snap.revision = ++this.snapshotRevision;
         this.port.post({ type: 'snapshot', snapshot: snap }, snapshotBuffers(snap));
       }
     }

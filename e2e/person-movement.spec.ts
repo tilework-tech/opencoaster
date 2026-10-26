@@ -123,6 +123,69 @@ async function tapCanvasAt(
   else await page.mouse.click(x, y);
 }
 
+async function visibleUnownedTile(page: Page): Promise<{
+  x: number;
+  y: number;
+  point: { x: number; y: number };
+}> {
+  return page.evaluate(async () => {
+    const { project } = await import('/src/render/projection.ts');
+    const { TILE_UNITS, Z_STEP } = await import('/src/sim/core/constants.ts');
+    const { __map: map, __camera: camera } = window as unknown as {
+      __map: {
+        width: number;
+        height: number;
+        ownership: Uint8Array;
+        heights: Uint8Array;
+        pathCount: number;
+        pathElements: Int32Array;
+      };
+      __camera: { x: number; y: number; zoom: number; rotation: number };
+    };
+    const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
+    const rect = canvas.getBoundingClientRect();
+    const world = new Float64Array(2);
+    for (let y = 4; y < map.height - 4; y++) {
+      for (let x = 4; x < map.width - 4; x++) {
+        const index = y * map.width + x;
+        if ((map.ownership[index]! & 1) !== 0) continue;
+        let hasPath = false;
+        for (let path = 0; path < map.pathCount; path++) {
+          const offset = path * 6;
+          if (map.pathElements[offset] === x && map.pathElements[offset + 1] === y) {
+            hasPath = true;
+            break;
+          }
+        }
+        if (hasPath) continue;
+        project(
+          (x + 0.5) * TILE_UNITS,
+          (y + 0.5) * TILE_UNITS,
+          map.heights[index]! * Z_STEP,
+          map.width,
+          map.height,
+          camera.rotation as 0 | 1 | 2 | 3,
+          world,
+        );
+        const point = {
+          x: rect.width / 2 + (world[0]! - camera.x) * camera.zoom,
+          y: rect.height / 2 + (world[1]! - camera.y) * camera.zoom,
+        };
+        if (
+          point.x < 24 ||
+          point.x > rect.width - 24 ||
+          point.y < 210 ||
+          point.y > rect.height - 240
+        )
+          continue;
+        if (document.elementFromPoint(rect.left + point.x, rect.top + point.y) !== canvas) continue;
+        return { x, y, point };
+      }
+    }
+    throw new Error('The scenario has no visible unowned drop tile');
+  });
+}
+
 for (const backend of ['WebGL2', 'Canvas2D'] as const) {
   for (const mobile of [false, true]) {
     test(`pick up and reposition a handyman and guest in ${backend}${mobile ? ' on Pixel 8' : ' on desktop'}`, async ({
@@ -143,6 +206,10 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
         await expect(handyman).toBeVisible();
         const staffId = Number(await handyman.getAttribute('data-staff-id'));
         await toolbarAction(page, 'Pause');
+        if (mobile) {
+          await toolbarAction(page, 'Zoom out');
+          await toolbarAction(page, 'Zoom out');
+        }
         const workerButton = staffPanel
           .locator(`[data-staff-id="${staffId}"]`)
           .getByRole('button', { name: /Open .* details/ });
@@ -171,7 +238,9 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
           }, staffId);
         await expect.poll(readStaffPosition).not.toBeNull();
         const staffPosition = (await readStaffPosition())!;
-        const drop = await page.evaluate(() => {
+        const drop = await page.evaluate(async (mobile) => {
+          const { project, pickTile } = await import('/src/render/projection.ts');
+          const { TILE_UNITS, Z_STEP } = await import('/src/sim/core/constants.ts');
           const { __map: map } = window as unknown as {
             __map: {
               width: number;
@@ -180,27 +249,65 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
               heights: Uint8Array;
               waterLevel?: Uint8Array;
             };
+            __camera: { x: number; y: number; zoom: number; rotation: number };
           };
+          const { __camera: camera } = window as unknown as {
+            __camera: { x: number; y: number; zoom: number; rotation: number };
+          };
+          const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
+          const rect = canvas.getBoundingClientRect();
+          const world = new Float64Array(2);
+          let best: { x: number; y: number; distance: number } | null = null;
           for (let y = 4; y < map.height - 4; y++) {
             for (let x = 4; x < map.width - 4; x++) {
               const i = y * map.width + x;
-              if ((map.ownership[i]! & 1) !== 0 && (map.waterLevel?.[i] ?? 0) <= map.heights[i]!)
-                return { x, y };
+              if ((map.ownership[i]! & 1) === 0 || (map.waterLevel?.[i] ?? 0) > map.heights[i]!)
+                continue;
+              project(
+                (x + 0.5) * TILE_UNITS,
+                (y + 0.5) * TILE_UNITS,
+                map.heights[i]! * Z_STEP,
+                map.width,
+                map.height,
+                camera.rotation as 0 | 1 | 2 | 3,
+                world,
+              );
+              const point = {
+                x: rect.width / 2 + (world[0]! - camera.x) * camera.zoom,
+                y: rect.height / 2 + (world[1]! - camera.y) * camera.zoom,
+              };
+              if (
+                point.x < 30 ||
+                point.x > rect.width - 30 ||
+                point.y < (mobile ? 210 : 50) ||
+                point.y > rect.height - (mobile ? 240 : 50)
+              )
+                continue;
+              if (document.elementFromPoint(rect.left + point.x, rect.top + point.y) !== canvas)
+                continue;
+              const tile = pickTile(point.x, point.y, map, camera, {
+                width: rect.width,
+                height: rect.height,
+              });
+              if (tile?.[0] !== x || tile[1] !== y) continue;
+              const distance = (point.x - rect.width / 2) ** 2 + (point.y - rect.height / 2) ** 2;
+              if (!best || distance < best.distance) best = { x, y, distance };
             }
           }
-          throw new Error('The scenario has no owned drop tile');
-        });
+          if (!best) throw new Error('The scenario has no visible owned drop tile');
+          return { x: best.x, y: best.y };
+        }, mobile);
         const dropPoint = await worldPoint(page, drop.x, drop.y);
         const staffPoint = await worldPoint(page, staffPosition.x, staffPosition.y);
-        const canvasSize = await page.locator('#game').boundingBox();
-        if (!canvasSize) throw new Error('Game canvas is missing');
-        const invalidPoint = { x: canvasSize.width - 4, y: canvasSize.height - 4 };
+        const staffSpritePoint = { x: staffPoint.x, y: staffPoint.y - 19 };
+        const invalidPoint = await visibleUnownedTile(page);
         await worker.getByRole('button', { name: /Close/ }).click();
         if (mobile) {
-          await longPressStart(page, staffPoint);
-          await touchMove(page, invalidPoint);
+          await longPressStart(page, staffSpritePoint);
+          await touchMove(page, invalidPoint.point);
           await expect(page.locator('.person-drop-marker')).toHaveAttribute('data-valid', 'false');
-          await expect(page.locator('.tool-status')).toContainText(/destination|choose/i);
+          await expect(page.locator('.person-drop-marker')).toBeVisible();
+          await expect(page.locator('.tool-status')).toContainText(/owned|path/i);
           await page.screenshot({ path: testInfo.outputPath('pickup-invalid.png') });
           await touchMove(page, dropPoint);
           await expect(page.locator('.person-pickup-ghost')).toBeVisible();
@@ -211,13 +318,19 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
         } else {
           const canvasBounds = await page.locator('#game').boundingBox();
           if (!canvasBounds) throw new Error('Game canvas is missing');
-          await page.mouse.move(canvasBounds.x + staffPoint.x, canvasBounds.y + staffPoint.y);
+          await page.mouse.move(
+            canvasBounds.x + staffSpritePoint.x,
+            canvasBounds.y + staffSpritePoint.y,
+          );
           await page.mouse.down();
-          await page.mouse.move(canvasBounds.x + invalidPoint.x, canvasBounds.y + invalidPoint.y, {
-            steps: 3,
-          });
+          await page.mouse.move(
+            canvasBounds.x + invalidPoint.point.x,
+            canvasBounds.y + invalidPoint.point.y,
+            { steps: 3 },
+          );
           await expect(page.locator('.person-drop-marker')).toHaveAttribute('data-valid', 'false');
-          await expect(page.locator('.tool-status')).toContainText(/destination|choose/i);
+          await expect(page.locator('.person-drop-marker')).toBeVisible();
+          await expect(page.locator('.tool-status')).toContainText(/owned|path/i);
           await page.screenshot({ path: testInfo.outputPath('pickup-invalid.png') });
           await page.mouse.move(canvasBounds.x + dropPoint.x, canvasBounds.y + dropPoint.y, {
             steps: 5,
@@ -376,47 +489,7 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
         await pickUpGuestAgain.click();
         await guestWindow.getByRole('button', { name: /Close/ }).click();
         await guestsPanel.getByRole('button', { name: /Close/ }).click();
-        const outside = await page.evaluate(async () => {
-          const { project } = await import('/src/render/projection.ts');
-          const { TILE_UNITS, Z_STEP } = await import('/src/sim/core/constants.ts');
-          const { __map: map, __camera: camera } = window as unknown as {
-            __map: { width: number; height: number; ownership: Uint8Array; heights: Uint8Array };
-            __camera: { x: number; y: number; zoom: number; rotation: number };
-          };
-          const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
-          const rect = canvas.getBoundingClientRect();
-          const world = new Float64Array(2);
-          for (let y = 4; y < map.height - 4; y++) {
-            for (let x = 4; x < map.width - 4; x++) {
-              const i = y * map.width + x;
-              if ((map.ownership[i]! & 1) !== 0) continue;
-              project(
-                (x + 0.5) * TILE_UNITS,
-                (y + 0.5) * TILE_UNITS,
-                map.heights[i]! * Z_STEP,
-                map.width,
-                map.height,
-                camera.rotation as 0 | 1 | 2 | 3,
-                world,
-              );
-              const point = {
-                x: rect.width / 2 + (world[0]! - camera.x) * camera.zoom,
-                y: rect.height / 2 + (world[1]! - camera.y) * camera.zoom,
-              };
-              if (
-                point.x < 24 ||
-                point.x > rect.width - 24 ||
-                point.y < 24 ||
-                point.y > rect.height - 24
-              )
-                continue;
-              if (document.elementFromPoint(rect.left + point.x, rect.top + point.y) !== canvas)
-                continue;
-              return { x, y, point };
-            }
-          }
-          throw new Error('The scenario has no visible unowned drop tile');
-        });
+        const outside = await visibleUnownedTile(page);
         await tapCanvasAt(page, outside.point, mobile);
         await expect(page.locator('.tool-status')).toContainText(/owned|invalid/i);
         await expect.poll(readGuestPosition).toEqual({ x: nextDrop.x, y: nextDrop.y });

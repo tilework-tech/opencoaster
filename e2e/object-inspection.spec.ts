@@ -60,6 +60,180 @@ async function visibleSceneryPoint(page: Page): Promise<{ name: string; x: numbe
   });
 }
 
+async function visibleRidePoint(
+  page: Page,
+  kind: 'flat-ride' | 'facility',
+): Promise<{ id: number; name: string; x: number; y: number }> {
+  return page.locator('#game').evaluate(async (canvas, kind) => {
+    const [{ RIDE_CATALOG }, { RideInfo, RIDE_INFO_STRIDE }, { project }, { TILE_UNITS, Z_STEP }] =
+      await Promise.all([
+        import('/src/sim/rides/ride-types.ts'),
+        import('/src/worker/snapshot.ts'),
+        import('/src/render/projection.ts'),
+        import('/src/sim/core/constants.ts'),
+      ]);
+    const state = window as unknown as {
+      __camera: { x: number; y: number; zoom: number; rotation: 0 | 1 | 2 | 3 };
+      __map: { width: number; height: number; heights: Uint8Array };
+      __snapshot: { rides: { count: number }; rideInfo: Int32Array };
+    };
+    const { __camera: camera, __map: map, __snapshot: snapshot } = state;
+    const rect = canvas.getBoundingClientRect();
+    const point = new Float64Array(2);
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const o = i * RIDE_INFO_STRIDE;
+      const definition = RIDE_CATALOG[snapshot.rideInfo[o + RideInfo.Type]!];
+      const facility = definition && ['shop', 'stall', 'facility'].includes(definition.category);
+      if (!definition || definition.usesTrack || facility !== (kind === 'facility')) continue;
+      const tileX = snapshot.rideInfo[o + RideInfo.RideX]!;
+      const tileY = snapshot.rideInfo[o + RideInfo.RideY]!;
+      if (tileX < 0 || tileY < 0 || tileX >= map.width || tileY >= map.height) continue;
+      project(
+        (tileX + 0.5) * TILE_UNITS,
+        (tileY + 0.5) * TILE_UNITS,
+        map.heights[tileY * map.width + tileX]! * Z_STEP,
+        map.width,
+        map.height,
+        camera.rotation,
+        point,
+      );
+      return {
+        id: snapshot.rideInfo[o + RideInfo.Id]!,
+        name: definition.name,
+        x: rect.left + rect.width / 2 + (point[0]! - camera.x) * camera.zoom,
+        y: rect.top + rect.height / 2 + (point[1]! - camera.y) * camera.zoom - 16 * camera.zoom,
+      };
+    }
+    throw new Error(`The scenario has no visible ${kind}`);
+  }, kind);
+}
+
+async function visibleParkPoint(page: Page): Promise<{ x: number; y: number }> {
+  return page.locator('#game').evaluate(async (canvas) => {
+    const [{ project }, { TILE_UNITS, Z_STEP }] = await Promise.all([
+      import('/src/render/projection.ts'),
+      import('/src/sim/core/constants.ts'),
+    ]);
+    const state = window as unknown as {
+      __camera: { x: number; y: number; zoom: number; rotation: 0 | 1 | 2 | 3 };
+      __map: { width: number; height: number; heights: Uint8Array };
+      __snapshot: {
+        park: { entranceX: number; entranceY: number };
+      };
+    };
+    const { __camera: camera, __map: map, __snapshot: snapshot } = state;
+    const rect = canvas.getBoundingClientRect();
+    const { entranceX: x, entranceY: y } = snapshot.park;
+    if (x < 0 || y < 0) throw new Error('The scenario has no park entrance');
+    const point = new Float64Array(2);
+    project(
+      (x + 0.5) * TILE_UNITS,
+      (y + 0.5) * TILE_UNITS,
+      map.heights[y * map.width + x]! * Z_STEP,
+      map.width,
+      map.height,
+      camera.rotation,
+      point,
+    );
+    return {
+      x: rect.left + rect.width / 2 + (point[0]! - camera.x) * camera.zoom,
+      y: rect.top + rect.height / 2 + (point[1]! - camera.y) * camera.zoom - 18 * camera.zoom,
+    };
+  });
+}
+
+async function visiblePersonTarget(
+  page: Page,
+  kind: 'guest' | 'staff',
+): Promise<{ id: number; name: string; x: number; y: number }> {
+  const find = () =>
+    page.locator('#game').evaluate(async (canvas, kind) => {
+      const [{ buildObjectPickTargets, pickTopmostObject }, { spritePages }, { project }] =
+        await Promise.all([
+          import('/src/input/object-picking.ts'),
+          import('/src/render/sprite-pages.ts'),
+          import('/src/render/projection.ts'),
+        ]);
+      const state = window as unknown as {
+        __camera: { x: number; y: number; zoom: number; rotation: 0 | 1 | 2 | 3 };
+        __map: Parameters<typeof buildObjectPickTargets>[1];
+        __snapshot: Parameters<typeof buildObjectPickTargets>[0];
+      };
+      const { __camera: camera, __map: map, __snapshot: snapshot } = state;
+      if (!snapshot) return null;
+      const rect = canvas.getBoundingClientRect();
+      const viewport = { width: rect.width, height: rect.height };
+      const targets = buildObjectPickTargets(snapshot, map, camera, viewport, spritePages);
+      let personTarget: (typeof targets)[number] | undefined;
+      for (const target of targets) {
+        if (target.kind !== kind) continue;
+        personTarget ??= target;
+        for (let i = 0; i < target.alpha.length; i++) {
+          if (target.alpha[i] === 0) continue;
+          const pixelX = i % target.alphaWidth;
+          const pixelY = Math.floor(i / target.alphaWidth);
+          const x = target.x + ((pixelX + 0.5) / target.alphaWidth) * target.width;
+          const y = target.y + ((pixelY + 0.5) / target.alphaHeight) * target.height;
+          if (x < 4 || y < 4 || x >= viewport.width - 4 || y >= viewport.height - 80) continue;
+          if (pickTopmostObject(targets, x, y)?.id !== target.id) continue;
+          return {
+            id: target.personId!,
+            name: target.name,
+            x: rect.left + x,
+            y: rect.top + y,
+          };
+        }
+      }
+      if (personTarget?.personId !== undefined) {
+        const ids = kind === 'guest' ? snapshot.guestIds : snapshot.staffIds;
+        const rows = kind === 'guest' ? snapshot.guests : snapshot.staff;
+        const slot = ids.indexOf(personTarget.personId);
+        if (slot >= 0) {
+          const offset = slot * 4;
+          const world = new Float64Array(2);
+          project(
+            rows.data[offset]!,
+            rows.data[offset + 1]!,
+            rows.data[offset + 2]!,
+            map.width,
+            map.height,
+            camera.rotation,
+            world,
+          );
+          camera.x = world[0]!;
+          camera.y = world[1]!;
+        }
+      }
+      return null;
+    }, kind);
+  await expect.poll(find).not.toBeNull();
+  const target = await find();
+  if (!target) throw new Error(`No visible ${kind} sprite can be selected`);
+  return target;
+}
+
+async function longPress(page: Page, point: { x: number; y: number }): Promise<void> {
+  await page.locator('#game').evaluate(async (canvas, position) => {
+    if (!Object.hasOwn(canvas, 'setPointerCapture'))
+      Object.defineProperty(canvas, 'setPointerCapture', { value: () => {} });
+    const dispatch = (type: string, buttons: number) =>
+      canvas.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: 9,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          clientX: position.x,
+          clientY: position.y,
+          buttons,
+        }),
+      );
+    dispatch('pointerdown', 1);
+    await new Promise((resolve) => setTimeout(resolve, 950));
+    dispatch('pointerup', 0);
+  }, point);
+}
+
 async function openInspectionPage(browser: Browser, mobile: boolean): Promise<Page> {
   const page = await openPage(browser, mobile);
   if (!mobile) await page.setViewportSize({ width: 1280, height: 800 });
@@ -82,6 +256,31 @@ async function inspectScenery(
   try {
     await startScenario(page, 'Meadowbrook Green');
     await expect(page.locator('.hud')).toContainText(backend);
+    await toolbarAction(page, 'Pause');
+    const initialParkWindow = page.locator('[data-panel="park"]:visible');
+    if (await initialParkWindow.count())
+      await initialParkWindow.locator('button[aria-label^="Close"]').click();
+    await toolbarAction(page, 'Game options');
+    await page
+      .locator('[data-panel="options"]')
+      .getByRole('button', { name: 'Guests +1,000' })
+      .click();
+    await toolbarAction(page, 'Resume');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as unknown as { __snapshot: { guests: { count: number } } }).__snapshot.guests
+              .count,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await page.locator('[data-panel="options"]').locator('button[aria-label^="Close"]').click();
+    await toolbarAction(page, 'Staff');
+    const staffPanel = page.locator('[data-panel="staff"]');
+    await staffPanel.getByRole('button', { name: 'Hire Handyman' }).click();
+    await staffPanel.locator('button[aria-label^="Close"]').click();
+    await page.waitForTimeout(2_000);
     await toolbarAction(page, 'Pause');
     const scenery = await visibleSceneryPoint(page);
 
@@ -117,6 +316,46 @@ async function inspectScenery(
     if (mobile) await expect(page.locator('.tool-status')).toContainText(scenery.name);
     await expect(popup.getByRole('button', { name: 'Remove' })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('object-info.png') });
+    await popup.getByRole('button', { name: 'Done' }).click();
+    for (const kind of ['flat-ride', 'facility'] as const) {
+      const ride = await visibleRidePoint(page, kind);
+      if (mobile) await longPress(page, ride);
+      else {
+        await page.mouse.move(ride.x, ride.y);
+        await expect(page.locator('.tool-status')).toContainText(ride.name);
+        await expect(page.locator('.object-hover-outline')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`${kind}-hover.png`) });
+        await page.mouse.click(ride.x, ride.y);
+      }
+      const rideWindow = page.locator(`[data-panel="ride-${ride.id}"]`);
+      await expect(rideWindow).toBeVisible();
+      if (mobile) await expect(page.locator('.tool-status')).toContainText(ride.name);
+      await page.screenshot({ path: testInfo.outputPath(`${kind}-window.png`) });
+      await rideWindow.locator('button[aria-label^="Close"]').click();
+    }
+    const park = await visibleParkPoint(page);
+    if (mobile) await longPress(page, park);
+    else await page.mouse.click(park.x, park.y);
+    const parkWindow = page.locator('[data-panel="park"]');
+    await expect(parkWindow).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('park-window.png') });
+    await parkWindow.locator('button[aria-label^="Close"]').click();
+    for (const kind of ['guest', 'staff'] as const) {
+      for (let zoomOut = 0; zoomOut < 2; zoomOut++) await toolbarAction(page, 'Zoom out');
+      const person = await visiblePersonTarget(page, kind);
+      if (mobile) await page.touchscreen.tap(person.x, person.y);
+      else {
+        await page.mouse.move(person.x, person.y);
+        await expect(page.locator('.tool-status')).toContainText(person.name);
+        await page.mouse.click(person.x, person.y);
+      }
+      const panel = page.locator(
+        `[data-panel="${kind === 'guest' ? 'guest' : 'worker'}-${person.id}"]`,
+      );
+      await expect(panel).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`${kind}-window.png`) });
+      await panel.locator('button[aria-label^="Close"]').click();
+    }
   } finally {
     await page.context().close();
     await launchedBrowser?.close();

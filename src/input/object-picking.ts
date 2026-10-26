@@ -1,7 +1,7 @@
 import { rideFootprintContains } from '../sim/rides/ride-footprint';
 import { RIDE_CATALOG, type RideType } from '../sim/rides/ride-types';
 import { PathFlag, PATH_ADDITION_BROKEN } from '../sim/map/tile-map';
-import { SceneryItem, SCENERY_CATALOG } from '../sim/map/scenery';
+import { type SceneryItem, SCENERY_CATALOG } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import {
   RideFlag,
