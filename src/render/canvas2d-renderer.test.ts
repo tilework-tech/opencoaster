@@ -27,6 +27,7 @@ class RecordingContext {
   readonly spriteSources: number[] = [];
   readonly images: unknown[][] = [];
   readonly imageTransforms: number[][] = [];
+  readonly smoothingAtDraw: boolean[] = [];
   private currentTransform = [1, 0, 0, 1, 0, 0];
   imageSmoothingEnabled = true;
   fillStyle = '#000';
@@ -73,6 +74,7 @@ class RecordingContext {
     this.images.push(args);
     this.imageTransforms.push(this.currentTransform);
     this.spriteSources.push(args[1] as number);
+    this.smoothingAtDraw.push(this.imageSmoothingEnabled);
   }
 }
 
@@ -170,6 +172,36 @@ function flatMap(): MapData {
 }
 
 describe('Canvas2D fallback map art', () => {
+  it('draws terrain cliff atlas frames without image smoothing', () => {
+    const context = new RecordingContext();
+    const renderer = new Canvas2DRenderer();
+    const drawTriangle = (
+      renderer as unknown as {
+        drawCliffTextureTriangle: (
+          ctx: RecordingContext,
+          image: PageImage,
+          frame: { x: number; y: number; width: number; height: number },
+          source: readonly [[number, number], [number, number], [number, number]],
+          target: readonly [Float64Array, Float64Array, Float64Array],
+        ) => void;
+      }
+    ).drawCliffTextureTriangle;
+
+    drawTriangle(
+      context,
+      {} as PageImage,
+      { x: 0, y: 0, width: 16, height: 16 },
+      [
+        [0, 0],
+        [16, 0],
+        [0, 16],
+      ],
+      [new Float64Array([0, 0]), new Float64Array([16, 0]), new Float64Array([0, 16])],
+    );
+
+    expect(context.smoothingAtDraw).toEqual([false]);
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   it('draws staff in their walking direction and advances their walk cycle', async () => {

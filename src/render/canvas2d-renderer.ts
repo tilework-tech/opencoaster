@@ -841,6 +841,7 @@ export class Canvas2DRenderer implements Renderer {
     ctx.lineTo(target[2]![0]!, target[2]![1]!);
     ctx.closePath();
     ctx.clip();
+    ctx.imageSmoothingEnabled = false;
 
     const [sourceOrigin, sourceX, sourceY] = source;
     const [targetOrigin, targetX, targetY] = target;
