@@ -29,7 +29,7 @@ export function workerDetails(snapshot: Snapshot | null, staffId: number): Worke
     const role = STAFF_KIND_NAMES[kind] ?? 'Staff';
     return {
       id: staffId,
-      name: snapshot.staffNames.get(staffId) ?? `${role} ${staffId}`,
+      name: snapshot.staffNames.get(staffId) ?? `${role} ${staffId + 1}`,
       kind,
       role,
       tileX: Math.floor(snapshot.staff.data[offset] / TILE_UNITS),

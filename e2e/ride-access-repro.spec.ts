@@ -108,7 +108,7 @@ async function connectEntranceWithPath(
 async function screenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   const path = testInfo.outputPath(`${name}.png`);
   await mkdir(dirname(path), { recursive: true });
-  await page.screenshot({ path, fullPage: true });
+  await page.screenshot({ path, fullPage: true, timeout: 60_000 });
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 
@@ -269,8 +269,9 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   const coasterRow = page
     .locator('[data-panel="ride-list"] .list-row')
     .filter({ hasText: 'Steel Looping Coaster' });
-  const coasterId = await coasterRow.getAttribute('data-ride-id');
-  if (!coasterId) throw new Error('Steel Looping Coaster is missing its ride id');
+  const coasterIdAttribute = await coasterRow.getAttribute('data-ride-id');
+  if (!coasterIdAttribute) throw new Error('Steel Looping Coaster is missing its ride id');
+  const coasterId = Number(coasterIdAttribute);
   await coasterRow.click();
   const coasterWindow = page.locator(`[data-panel="ride-${coasterId}"]`);
   await expect(coasterWindow.locator('.ride-checklist')).toContainText('Untested');
@@ -281,7 +282,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
     .locator('.ride-checklist')
     .getByRole('button', { name: 'Build queue' })
     .click();
-  await page.getByRole('button', { name: `Close Ride #${coasterId}` }).click();
+  await page.getByRole('button', { name: `Close Ride ${coasterId + 1}` }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   const closeConstruction = page.getByRole('button', { name: 'Close Ride construction' });
   if ((await closeConstruction.count()) > 0) await closeConstruction.click();
@@ -296,7 +297,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
     .getByRole('button', { name: 'Place exit' })
     .click();
   await expect(page.locator('.tool-status')).toContainText('Place exit');
-  await page.getByRole('button', { name: `Close Ride #${coasterId}` }).click();
+  await page.getByRole('button', { name: `Close Ride ${coasterId + 1}` }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   const invalidExit = page.getByRole('button', { name: /Exit unavailable at tile/ }).first();
   await expect(invalidExit).toBeVisible();

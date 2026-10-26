@@ -77,6 +77,7 @@ import {
   rideSpriteKey,
   facilityFacingFromPaths,
   facilitySpriteKey,
+  LITTER_SPRITE_SIZE,
   rideHutFacingForFootprint,
   rideHutSpriteKey,
   spriteViewName,
@@ -593,8 +594,8 @@ export class WebGL2Renderer implements Renderer {
         camera,
         viewportWidth,
         viewportHeight,
-        7,
-        8,
+        LITTER_SPRITE_SIZE.width,
+        LITTER_SPRITE_SIZE.height,
       );
       this.appendLayer(
         snapshot.vehicles,
@@ -2529,11 +2530,11 @@ function drawTrain(ctx: CanvasRenderingContext2D): void {
 function drawLitter(ctx: CanvasRenderingContext2D, vomit: boolean): void {
   ctx.fillStyle = vomit ? '#91b84b' : '#6b4f2a';
   ctx.beginPath();
-  ctx.ellipse(32, 35, vomit ? 12 : 8, vomit ? 6 : 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(32, 42, vomit ? 4 : 3, 2, 0, 0, Math.PI * 2);
   ctx.fill();
   if (!vomit) {
     ctx.fillStyle = '#b2a47d';
-    ctx.fillRect(26, 21, 12, 5);
+    ctx.fillRect(29, 39, 6, 2);
   }
 }
 

@@ -540,12 +540,13 @@ export function createToolController(deps: ToolControllerDependencies) {
         for (let slot = 0; slot < snapshot.rides.count; slot++) {
           const offset = slot * RIDE_INFO_STRIDE;
           if (snapshot.rideInfo[offset + RideInfo.Id] === rideId) {
-            rideName = RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type]! as RideType]?.name;
+            const name = RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type]! as RideType]?.name;
+            if (name) rideName = `${name} ${rideId + 1}`;
             break;
           }
         }
       }
-      selectionStatus = `${rideName ?? `Ride ${rideId}`} information opened.`;
+      selectionStatus = `${rideName ?? `Ride ${rideId + 1}`} information opened.`;
     } else if (guest) deps.gameUi.openWindow(`guest-${guest.id}`);
     else if (staffId !== null) deps.gameUi.openWindow(`worker-${staffId}`);
     else if (tile && map.entranceX === tile[0] && map.entranceY === tile[1])

@@ -12,6 +12,18 @@ import { terrainMeshTriangles } from '../../src/render/terrain-geometry';
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
 describe('generated sprite catalogue', () => {
+  it('generates visible whole-ride previews for every sliced flat ride and animation frame', () => {
+    const previews = [...sprites.entries()].filter(([key]) => key.includes('/preview/view-'));
+    expect(previews.length).toBeGreaterThan(4);
+    for (const [key, preview] of previews) {
+      for (const [index, frame] of preview.frames.entries())
+        expect(
+          frame.pixels.filter((pixel) => pixel !== TRANSPARENT).length,
+          `${key} frame ${index}`,
+        ).toBeGreaterThan(100);
+    }
+  });
+
   it('renders path additions in four views', () => {
     for (const key of [
       'scenery/shelter',
@@ -37,8 +49,17 @@ describe('generated sprite catalogue', () => {
         const small = key.startsWith('litter/') || /(bin|lamp)/.test(key);
         const minimumWidth = small ? 10 : 20;
         const minimumHeight = key.startsWith('litter/') ? 6 : 14;
-        expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
-        expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
+        if (key.startsWith('litter/')) {
+          expect(frame?.width, `${key}, view ${view} width`).toBeLessThanOrEqual(8);
+          expect(frame?.height, `${key}, view ${view} height`).toBeLessThanOrEqual(6);
+          expect(frame?.anchor.y, `${key}, view ${view} ground anchor`).toBeGreaterThan(0);
+          expect(frame?.anchor.y, `${key}, view ${view} ground anchor`).toBeLessThanOrEqual(
+            frame!.height,
+          );
+        } else {
+          expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
+          expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
+        }
         expect(frame?.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
         views.push(Buffer.from(frame!.pixels).toString('base64'));
       }

@@ -36,7 +36,7 @@ describe('news tracker', () => {
     const news = new NewsTracker();
     news.observe(snap(1, [{ id: 7, state: RideState.Open, x: 9, y: 2 }]));
     const [item] = news.observe(snap(2, [{ id: 7, state: RideState.Broken, x: 9, y: 2 }]));
-    expect(item.text).toBe('Merry-Go-Round #7 has broken down');
+    expect(item.text).toBe('Merry-Go-Round 8 has broken down');
     expect(item.target).toEqual({ rideId: 7, x: 9, y: 2 });
   });
 
@@ -44,11 +44,11 @@ describe('news tracker', () => {
     const news = new NewsTracker();
     news.observe(snap(1, []));
     expect(news.observe(snap(2, [{ id: 2, state: RideState.Closed }]))[0].text).toBe(
-      'Merry-Go-Round #2 has been built',
+      'Merry-Go-Round 3 has been built',
     );
     news.observe(snap(3, [{ id: 2, state: RideState.Broken }]));
     expect(news.observe(snap(4, [{ id: 2, state: RideState.Open }]))[0].text).toBe(
-      'Merry-Go-Round #2 is back in service',
+      'Merry-Go-Round 3 is back in service',
     );
   });
 
@@ -97,6 +97,6 @@ describe('news tracker', () => {
     news.observe(snap(1, []));
     for (let i = 1; i <= 5; i++) news.observe(snap(1 + i, [{ id: i, state: RideState.Closed }]));
     expect(news.history).toHaveLength(3);
-    expect(news.history[0].text).toContain('#5');
+    expect(news.history[0].text).toContain(' 6 ');
   });
 });

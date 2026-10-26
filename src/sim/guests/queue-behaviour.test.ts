@@ -8,7 +8,9 @@ import { rideSystem } from '../rides/ride-system';
 import { RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, spawnGuest } from './guest-store';
 import { guestSystem } from './guest-system';
+import { hashWorld } from '../core/hash';
 import { setParkEntrance } from './park';
+import { Surface } from '../map/tile-map';
 
 /** Main path along y=5, a queue along y=5 into a ride at (11, 4), exit at (12, 4). */
 function parkWithLongQueue(queueTiles = 7): { w: World; ride: number } {
@@ -55,6 +57,102 @@ function sendToRide(w: World, ride: number, x = 2): number {
 }
 
 describe('queuing guests', () => {
+  it('keeps waiting arrivals on separate path tiles and replays the same join order', () => {
+    const createCrowd = () => {
+      const { w, ride } = parkWithLongQueue(7);
+      guestSystem.update(w);
+      const rideId = w.rides.slotToId[ride];
+      const queueTiles = [w.queues.openTile[ride]];
+      const g = w.guests.cols;
+      const queueSlots = queueTiles.map((tile, index) => {
+        const slot = guestAt(w, tile % w.map.width, Math.floor(tile / w.map.width));
+        g.state[slot] = GuestState.Queuing;
+        g.targetRide[slot] = rideId;
+        g.queueSeq[slot] = index + 1;
+        g.x[slot] = (tile % w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        g.y[slot] = Math.floor(tile / w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        return { slot, tile, sequence: index + 1 };
+      });
+      const joinTile = w.queues.joinTile[ride];
+      const pathTiles = [joinTile];
+      const seen = new Set(pathTiles);
+      for (let cursor = 0; cursor < pathTiles.length && pathTiles.length < 7; cursor++) {
+        const tile = pathTiles[cursor]!;
+        const neighbors = [
+          { tile: tile + 1, dir: 0 },
+          { tile: tile + w.map.width, dir: 1 },
+          { tile: tile - 1, dir: 2 },
+          { tile: tile - w.map.width, dir: 3 },
+        ];
+        for (const neighbor of neighbors) {
+          if (
+            seen.has(neighbor.tile) ||
+            w.map.surface[neighbor.tile] !== Surface.Path ||
+            w.map.isQueue(neighbor.tile) ||
+            (w.map.pathEdges(tile) & (1 << neighbor.dir)) === 0 ||
+            (w.map.pathEdges(neighbor.tile) & (1 << ((neighbor.dir + 2) & 3))) === 0
+          )
+            continue;
+          seen.add(neighbor.tile);
+          pathTiles.push(neighbor.tile);
+          if (pathTiles.length === 7) break;
+        }
+      }
+      if (pathTiles.length < 4) throw new Error('queue join has too few connected path tiles');
+      const slots = pathTiles.map((tile) => {
+        const x = tile % w.map.width;
+        const y = Math.floor(tile / w.map.width);
+        const slot = guestAt(w, x, y);
+        g.x[slot] = x * TILE_UNITS + TILE_UNITS / 2;
+        g.y[slot] = y * TILE_UNITS + TILE_UNITS / 2;
+        g.targetRide[slot] = rideId;
+        g.patience[slot] = 2400;
+        g.approachGap[slot] = 0;
+        g.happiness[slot] = 200;
+        g.energy[slot] = 255;
+        g.hunger[slot] = 255;
+        g.thirst[slot] = 255;
+        g.cash[slot] = 9000;
+        g.heading[slot] = 0;
+        return slot;
+      });
+      return { w, slots, queueSlots, rideId, pathTiles, joinTile };
+    };
+    const first = createCrowd();
+    const replay = createCrowd();
+    const holdQueue = (park: typeof first) => {
+      for (const { slot, tile, sequence } of park.queueSlots) {
+        const g = park.w.guests.cols;
+        g.state[slot] = GuestState.Queuing;
+        g.targetRide[slot] = park.rideId;
+        g.queueSeq[slot] = sequence;
+        g.x[slot] = (tile % park.w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        g.y[slot] = Math.floor(tile / park.w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+      }
+      guestSystem.update(park.w);
+      park.w.tick++;
+    };
+    for (let tick = 0; tick < 80; tick++) {
+      holdQueue(first);
+      holdQueue(replay);
+      const positions = first.slots.map((slot) => tileOf(first.w, slot));
+      expect(
+        new Set(positions).size,
+        JSON.stringify({
+          positions,
+          joinTile: first.joinTile,
+          pathTiles: first.pathTiles,
+        }),
+      ).toBe(positions.length);
+      expect(positions).toEqual(first.pathTiles);
+    }
+
+    const guestsAtJoin = first.slots.filter((slot) => tileOf(first.w, slot) === first.joinTile);
+    expect(guestsAtJoin).toEqual([first.slots[0]]);
+    expect(first.w.guests.cols.targetRide[first.slots[1]]).toBe(first.rideId);
+    expect(hashWorld(first.w)).toBe(hashWorld(replay.w));
+  });
+
   it('wandering guests never walk onto queue tiles', () => {
     const { w, ride } = parkWithLongQueue();
     setRideOpen(w, w.rides.slotToId[ride], false);

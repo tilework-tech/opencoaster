@@ -198,6 +198,22 @@ export function flatRideCellSprites(ride: RideTypeDef, model: RideModel): Sprite
   return out;
 }
 
+/** Complete, animated flat-ride views for the ride window preview. */
+export function flatRidePreviewSprites(ride: RideTypeDef, model: RideModel): SpriteDef[] {
+  const poses = Array.from({ length: FLAT_RIDE_FRAMES }, (_, frame) =>
+    placeOnFootprint(rideMesh(model, frame), ride.footprint),
+  );
+  const name = rideSpriteName(ride.id);
+  return Array.from({ length: 4 }, (_, view): SpriteDef => {
+    const frames = poses.map((pose) => renderMesh(rotateMesh(pose, view)));
+    return {
+      key: `${name}/preview/view-${view}`,
+      frames: sameFrames(frames) ? [frames[0]!] : frames,
+      footprint: ONE_TILE,
+    };
+  });
+}
+
 function rideSprites(): SpriteDef[] {
   return RIDE_MODELS.flatMap((baseModel) => {
     const model = baseModel.key === 'rides/go-karts' ? GO_KARTS_MODEL : baseModel;
@@ -211,7 +227,8 @@ function rideSprites(): SpriteDef[] {
         ride.category === 'coaster')
     )
       return [];
-    if (ride && isFlatRide(ride)) return flatRideCellSprites(ride, model);
+    if (ride && isFlatRide(ride))
+      return [...flatRideCellSprites(ride, model), ...flatRidePreviewSprites(ride, model)];
     const spriteName = ride ? rideSpriteName(ride.id) : model.key;
     const fit = rideFitScale(
       Array.from({ length: model.frames }, (_, frame) => rideMesh(model, frame)),

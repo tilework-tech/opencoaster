@@ -8,6 +8,9 @@ import type { MapData } from './renderer';
 import { Z_PIXELS, rotateDirection } from './projection';
 import type { Rotation } from './projection';
 
+/** Native display size of litter marks over a projected path tile. */
+export const LITTER_SPRITE_SIZE = { width: 6, height: 3 } as const;
+
 /** Simulation ticks each flat-ride animation frame is shown for. */
 export const TICKS_PER_ANIMATION_FRAME = 8;
 const GRASS_AMBIENT_TREES = [
@@ -124,6 +127,16 @@ export function rideHutSpriteKey(
 export function rideSpriteKey(type: RideType, rotation: number): string {
   const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
   return `${rideSpriteName(type)}/view-${view}`;
+}
+
+/** Whole-ride view used in the ride window; world rendering uses the footprint cell slices. */
+export function ridePreviewSpriteKey(
+  type: RideType,
+  rideDir: number,
+  cameraRotation: number,
+): string {
+  const view = (rideDir + cameraRotation) & 3;
+  return `${rideSpriteName(type)}/preview/view-${view}`;
 }
 
 /**

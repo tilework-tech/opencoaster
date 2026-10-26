@@ -376,6 +376,50 @@ function clearDestination(world: World, slot: number): void {
   world.guests.cols.targetRide[slot] = -1;
 }
 
+/** Keeps one stable guest at a blocked queue join; later arrivals turn back onto the path. */
+function turnAwayFromBlockedQueue(
+  world: World,
+  slot: number,
+  rideId: number,
+  joinTile: number,
+): void {
+  const g = world.guests.cols;
+  const guestId = world.guests.slotToId[slot];
+  let earlierGuestWaiting = false;
+  for (let other = 0; other < world.guests.count; other++) {
+    if (
+      other === slot ||
+      g.state[other] !== GuestState.Wandering ||
+      g.targetRide[other] !== rideId ||
+      world.guests.slotToId[other]! >= guestId
+    )
+      continue;
+    const otherTile = world.map.index(g.x[other]! >> 8, g.y[other]! >> 8);
+    if (otherTile !== joinTile) continue;
+    earlierGuestWaiting = true;
+    break;
+  }
+  if (!earlierGuestWaiting) return;
+  clearDestination(world, slot);
+  g.activityTicks[slot] = Math.max(g.activityTicks[slot]!, 120);
+  const heading = g.heading[slot]!;
+  const open = world.queues.openTile[world.rides.idToSlot[rideId]!];
+  const directionToQueue = directionBetween(world, joinTile, open);
+  g.heading[slot] = heading <= 3 ? (heading + 2) & 3 : (directionToQueue + 2) & 3;
+  moveAlongHeading(world, slot);
+}
+
+/** Prevents an approaching guest from stepping onto an occupied queue join tile. */
+function joinTileHasEarlierGuest(world: World, slot: number, tile: number): boolean {
+  const g = world.guests.cols;
+  const guestId = world.guests.slotToId[slot];
+  for (let other = 0; other < world.guests.count; other++) {
+    if (other === slot || world.guests.slotToId[other]! >= guestId) continue;
+    if (world.map.index(g.x[other]! >> 8, g.y[other]! >> 8) === tile) return true;
+  }
+  return false;
+}
+
 function moveAlongHeading(world: World, slot: number): void {
   const g = world.guests.cols;
   const heading = g.heading[slot];
@@ -675,7 +719,11 @@ function joinQueueLine(world: World, slot: number, ride: number): void {
     return;
   }
   const open = q.openTile[ride];
-  if (open < 0 || isQueueTileOccupied(world, open)) return;
+  if (open < 0) return;
+  if (isQueueTileOccupied(world, open)) {
+    turnAwayFromBlockedQueue(world, slot, rideId, q.joinTile[ride]);
+    return;
+  }
   claimQueueTile(world, open);
   g.state[slot] = GuestState.Queuing;
   g.patience[slot] = 0;
@@ -942,6 +990,13 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
       else arriveAtDestination(world, slot, ride);
       return false;
     }
+    if (
+      hasQueueLine(world, ride) &&
+      approach === world.queues.joinTile[ride] &&
+      isQueueTileOccupied(world, world.queues.openTile[ride]) &&
+      joinTileHasEarlierGuest(world, slot, approach)
+    )
+      return false;
     if (approach >= 0 && stepToward(world, slot, tile, approach, nav)) return false;
     clearDestination(world, slot);
   }

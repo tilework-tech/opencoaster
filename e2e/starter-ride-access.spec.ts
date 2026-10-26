@@ -245,8 +245,37 @@ async function playStarterRideAccess(
   const flatRide = page
     .locator('[data-panel="ride-list"] .list-row')
     .filter({ hasText: 'Merry-Go-Round' });
+  await expect(flatRide).toContainText('Merry-Go-Round 1');
   await flatRide.click();
   const flatWindow = page.locator('[data-panel="ride-0"]');
+  await expect(flatWindow.locator('.ui-titlebar')).toContainText('Merry-Go-Round 1');
+  await expect
+    .poll(() =>
+      flatWindow.locator('.ride-preview').evaluate((canvas) => {
+        const preview = canvas as HTMLCanvasElement;
+        const context = preview.getContext('2d');
+        if (!context) return 0;
+        const { data } = context.getImageData(0, 0, preview.width, preview.height);
+        let opaquePixels = 0;
+        for (let pixel = 0; pixel < data.length; pixel += 4) {
+          if (data[pixel + 3] === 0) continue;
+          opaquePixels++;
+        }
+        return opaquePixels;
+      }),
+    )
+    .toBeGreaterThan(100);
+  const clipped = await flatWindow.locator('.ride-preview').evaluate((canvas) => {
+    const preview = canvas as HTMLCanvasElement;
+    const context = preview.getContext('2d')!;
+    const { data } = context.getImageData(0, 0, preview.width, preview.height);
+    const rowOpaque = (row: number) =>
+      Array.from({ length: preview.width }, (_, x) => data[(row * preview.width + x) * 4 + 3]).some(
+        (alpha) => alpha !== 0,
+      );
+    return rowOpaque(0) || rowOpaque(preview.height - 1);
+  });
+  expect(clipped, 'the ride preview is not cut off at its top or bottom edge').toBe(false);
   await expect(flatWindow.locator('.ride-status')).toHaveText('Closed');
   await flatWindow.getByRole('button', { name: 'Open' }).click();
   await expect(flatWindow.locator('.ride-status')).toHaveText('Open');
@@ -264,7 +293,7 @@ async function playStarterRideAccess(
     .filter({ hasText: 'Food Stall' })
     .click();
   await expect(page.locator('[data-panel="ride-1"] .ride-status')).toHaveText('Open');
-  await page.getByRole('button', { name: 'Close Ride #1' }).click();
+  await page.getByRole('button', { name: 'Close Ride 2' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   if (mobile) {
     await toolbarAction(page, 'Rides', true);
@@ -276,11 +305,11 @@ async function playStarterRideAccess(
     await page.locator('[data-panel="ride-1"]').getByRole('button', { name: 'Locate' }).click({
       force: true,
     });
-    await page.getByRole('button', { name: 'Close Ride #1' }).click();
+    await page.getByRole('button', { name: 'Close Ride 2' }).click();
     await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
     await longPressAtTile(page, 20, 44, [20, 44], true);
     await expect(page.locator('[data-panel="ride-1"]')).toBeVisible();
-    await page.getByRole('button', { name: 'Close Ride #1' }).click();
+    await page.getByRole('button', { name: 'Close Ride 2' }).click();
   }
 
   await toolbarAction(page, 'New ride', mobile);
@@ -370,7 +399,7 @@ async function playStarterRideAccess(
     )
     .toBeGreaterThan(0);
   await rideDetail.getByRole('button', { name: 'Locate' }).click();
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+  await page.getByRole('button', { name: 'Close Ride 1' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   await toolbarAction(page, 'Zoom in', mobile);
   await toolbarAction(page, 'Zoom in', mobile);
@@ -474,7 +503,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
     await expect(rideWindow).toBeVisible();
     if (rideId === 0) {
       await page
-        .getByRole('button', { name: `Close Ride #${rideId}` })
+        .getByRole('button', { name: `Close Ride ${rideId + 1}` })
         .evaluate((button) => button.click());
       await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
       await toolbarAction(page, 'Zoom out', false);
@@ -485,7 +514,9 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
         await expect(page.locator('.hud')).toContainText(`rot ${(rotation + turn) % 4}`);
       }
       await contextClickAtTile(page, 23, 42);
-      await expect(page.locator('.tool-status')).toContainText(`Ride ${rideId} information opened`);
+      await expect(page.locator('.tool-status')).toContainText(
+        `${name} ${rideId + 1} information opened`,
+      );
     }
     await expect(rideWindow).toBeVisible();
     await expect(rideWindow.getByRole('tab', { name: 'View' })).toHaveAttribute(
@@ -499,7 +530,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
     const dialogPromise = page.waitForEvent('dialog');
     const clickPromise = demolish.click();
     const dialog = await dialogPromise;
-    expect(dialog.message()).toContain(`Demolish ${name} #${rideId}?`);
+    expect(dialog.message()).toContain(`Demolish ${name} ${rideId + 1}?`);
     expect(dialog.message()).toMatch(/refund: \$(?!0\.00)[\d,]+\.\d{2}/i);
     await dialog.accept();
     await clickPromise;
@@ -534,7 +565,7 @@ test('starts entrance setup on the newly created ride when ride types repeat', a
   await mapTileClick(page, 23, 42, mapCenter, false);
   await placeStationPart(page, 'Place exit', false, mapCenter, [21, 43]);
   await placeStationPart(page, 'Ride setup complete', false, mapCenter, [25, 43]);
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+  await page.getByRole('button', { name: 'Close Ride 1' }).click();
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
@@ -582,7 +613,7 @@ test('does not mark boarding tiles inside another ride as valid', async ({ page 
   await mapTileClick(page, 23, 42, mapCenter, false);
   await placeStationPart(page, 'Place exit', false, mapCenter, [21, 43]);
   await placeStationPart(page, 'Ride setup complete', false, mapCenter, [25, 43]);
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+  await page.getByRole('button', { name: 'Close Ride 1' }).click();
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
