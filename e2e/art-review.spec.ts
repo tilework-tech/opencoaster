@@ -423,7 +423,8 @@ if (!FLOWERBEDS_ONLY) {
           test.setTimeout(1_200_000);
           await setupReviewPage(page);
           const cells: Buffer[] = [];
-          for (const item of inventory()) cells.push(await makeCell(page, item, backend, zoom, rotation));
+          for (const item of inventory())
+            cells.push(await makeCell(page, item, backend, zoom, rotation));
           await writeSheet(`inventory-${backend}-zoom-${zoom}-rotation-${rotation}`, cells);
         });
 }

@@ -41,8 +41,7 @@ export function flowerBedMesh(variant: number, slopeMask = 0): Mesh {
   const heights = [0, 1, 2, 3].map((corner) => (slopeMask >> corner) & 1);
   const slopeX = (heights[1]! + heights[2]! - heights[0]! - heights[3]!) / 2;
   const slopeY = (heights[2]! + heights[3]! - heights[0]! - heights[1]!) / 2;
-  const groundOffset = (x: number, y: number): number =>
-    (slopeX * x + slopeY * y) / PHYSICAL_Z;
+  const groundOffset = (x: number, y: number): number => (slopeX * x + slopeY * y) / PHYSICAL_Z;
   return [
     ...mapMesh(bed, ([x, y, z]) => [x, y, z + groundOffset(x, y)]),
     ...mapMesh(plants, ([x, y, z]) => [x, y, z + groundOffset(x, y)]),

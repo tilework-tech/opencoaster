@@ -480,11 +480,7 @@ export class Canvas2DRenderer implements Renderer {
         let sceneryFlowerBed = false;
         const tileScenery = map.sceneryElements;
         if (tileScenery) {
-          for (
-            let item = this.sceneryOffsets[i]!;
-            item < this.sceneryOffsets[i + 1]!;
-            item++
-          ) {
+          for (let item = this.sceneryOffsets[i]!; item < this.sceneryOffsets[i + 1]!; item++) {
             const sceneryIndex = this.sceneryIndices[item]!;
             const definition = SCENERY_CATALOG[tileScenery[sceneryIndex * 5 + 4] ?? -1];
             if (definition?.sprite === 'flower-bed') {

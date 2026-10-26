@@ -45,11 +45,7 @@ function runPnpm(root: string, args: readonly string[]): void {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-function runReviewTests(
-  root: string,
-  env: NodeJS.ProcessEnv,
-  grep: string,
-): number {
+function runReviewTests(root: string, env: NodeJS.ProcessEnv, grep: string): number {
   const result = spawnSync(
     'corepack',
     [
@@ -94,5 +90,9 @@ if (!options) {
           if (process.exitCode !== 0) process.exit(process.exitCode);
         }
   }
-  process.exitCode = runReviewTests(root, env, 'captures flowerbeds across renderers, zooms, and rotations @art-review');
+  process.exitCode = runReviewTests(
+    root,
+    env,
+    'captures flowerbeds across renderers, zooms, and rotations @art-review',
+  );
 }
