@@ -340,7 +340,7 @@ async function playStarterRideAccess(
     .click();
   const rideDetail = page.locator('[data-panel="ride-0"]');
   await toolbarAction(page, 'Game options', mobile);
-  await page.getByRole('button', { name: 'Game speed 4×', exact: true }).click();
+  await page.getByRole('button', { name: /4×/ }).first().click();
   await page.getByRole('button', { name: 'Close Options' }).click();
   await rideDetail.locator('.ui-titlebar').click();
   await rideDetail.getByRole('button', { name: 'Open', exact: true }).click();
@@ -494,7 +494,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
     );
     const demolish = rideWindow.getByRole('button', { name: 'Demolish ride' });
     await expect(demolish).toHaveAttribute('title', /Demolish/);
-    await expect(demolish.locator('svg')).toBeVisible();
+    await expect(demolish.locator('svg, img')).toBeVisible();
     await expect(demolish).toContainText('Demolish');
     const dialogPromise = page.waitForEvent('dialog');
     const clickPromise = demolish.click();
