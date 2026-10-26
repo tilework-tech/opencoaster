@@ -11,7 +11,7 @@ const BLOCKS = ramp('stone');
 const MORTAR = ramp('asphalt');
 
 /** Physical heights (tile units); a guest stands about 0.37 tall, so a hedge reaches the waist. */
-export const HEDGE_HEIGHT = 0.2;
+export const HEDGE_HEIGHT = 0.24;
 export const STONE_WALL_HEIGHT = 0.17;
 export const STONE_PILLAR_HEIGHT = 0.28;
 export const WOODEN_FENCE_HEIGHT = 0.23;
@@ -59,6 +59,7 @@ function lerp(a: Point, b: Point, t: number): Point {
 /** Clipped-foliage pixels: clumped light and dark leaves, hashed on a grid that repeats per tile. */
 function foliage(seed: number): Material {
   return material(LEAF, {
+    levelBias: -1,
     shader: (p: Vec3, level: number) => {
       const cx = Math.floor(p[0] * FOLIAGE_CELLS);
       const cy = Math.floor(p[1] * FOLIAGE_CELLS);
@@ -125,8 +126,8 @@ function hedgeMesh(edge: number, a: Point, b: Point): Mesh {
       (hash2(step, 11, 3) - 0.5) * 0.012;
     const q0 = step === 0 ? lerp(a, b, -END_OVERHANG) : p0;
     const q1 = step === lastSeg ? lerp(a, b, 1 + END_OVERHANG) : p1;
-    mesh.push(...segmentBox(edge, q0, q1, 0.085, HEDGE_HEIGHT * 0.62, body));
-    mesh.push(...segmentBox(edge, q0, q1, 0.068, HEDGE_HEIGHT * 0.9 + wobble * 1.2, crown));
+    mesh.push(...segmentBox(edge, q0, q1, 0.105, HEDGE_HEIGHT * 0.62, body));
+    mesh.push(...segmentBox(edge, q0, q1, 0.088, HEDGE_HEIGHT * 0.9 + wobble * 1.2, crown));
   }
   return mesh;
 }
