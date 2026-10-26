@@ -50,9 +50,7 @@ async function expectTransparentGutters(
   output: string,
 ): Promise<void> {
   for (const [pageIndex, page] of manifest.pages.entries()) {
-    const atlas = await sharp(join(output, page.file))
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+    const atlas = await sharp(join(output, page.file)).raw().toBuffer({ resolveWithObject: true });
     for (const sprite of Object.values(manifest.sprites)) {
       for (const frame of sprite.frames.filter((item) => item.page === pageIndex)) {
         for (
