@@ -24,6 +24,14 @@ export interface Sprite {
   anchor: { x: number; y: number };
   /** Palette indices, row-major; `TRANSPARENT` where nothing is drawn. */
   pixels: Uint8Array;
+  /**
+   * Height in levels, relative to the model origin, of the surface seen at each pixel; NaN where
+   * nothing is drawn. Every point on one screen pixel's view ray has a distinct height (the ray
+   * rises 2 levels per tile it travels towards the camera), so comparing anchor height plus this
+   * value orders any two sprites per pixel exactly as a z-buffer over their meshes would. Absent
+   * for flat textures (terrain, water, rock, UI) that are not drawn as standing world sprites.
+   */
+  heights?: Float32Array;
 }
 
 export interface RenderOptions {
@@ -97,6 +105,7 @@ export function renderMesh(mesh: Mesh, options: RenderOptions = {}): Sprite {
   const height = bottom - top;
   const pixels = new Uint8Array(width * height).fill(TRANSPARENT);
   const depth = new Float32Array(width * height).fill(-Infinity);
+  const heights = new Float32Array(width * height).fill(NaN);
 
   mesh.forEach((tri, index) => {
     const [pa, pb, pc] = projected[index];
@@ -131,6 +140,7 @@ export function renderMesh(mesh: Mesh, options: RenderOptions = {}): Sprite {
         const at = py * width + px;
         if (d <= depth[at] + 1e-6) continue;
         depth[at] = d;
+        heights[at] = p[2];
         pixels[at] = tri.material.shader
           ? tri.material.shader(p, level)
           : tri.material.ramp[Math.min(level, tri.material.ramp.length - 1)];
@@ -142,9 +152,9 @@ export function renderMesh(mesh: Mesh, options: RenderOptions = {}): Sprite {
     const continued = options.continuedBy
       ? coverage(options.continuedBy, left, top, width, height)
       : undefined;
-    addOutline(pixels, width, height, continued);
+    addOutline(pixels, heights, width, height, continued);
   }
-  return { width, height, anchor: { x: half, y: -top }, pixels };
+  return { width, height, anchor: { x: half, y: -top }, pixels, heights };
 }
 
 /** Which pixels of a `width` x `height` grid whose origin is at screen (left, top) the mesh covers. */
@@ -178,20 +188,27 @@ function coverage(
 
 function addOutline(
   pixels: Uint8Array,
+  heights: Float32Array,
   width: number,
   height: number,
   continued?: Uint8Array,
 ): void {
   const source = pixels.slice();
+  const surface = heights.slice();
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (source[y * width + x] !== TRANSPARENT || continued?.[y * width + x]) continue;
-      const touches =
-        (x > 0 && source[y * width + x - 1] !== TRANSPARENT) ||
-        (x < width - 1 && source[y * width + x + 1] !== TRANSPARENT) ||
-        (y > 0 && source[(y - 1) * width + x] !== TRANSPARENT) ||
-        (y < height - 1 && source[(y + 1) * width + x] !== TRANSPARENT);
-      if (touches) pixels[y * width + x] = OUTLINE;
+      const at = y * width + x;
+      if (source[at] !== TRANSPARENT || continued?.[at]) continue;
+      // An outline pixel takes the height of the nearest-to-camera surface it borders.
+      let h = -Infinity;
+      if (x > 0 && source[at - 1] !== TRANSPARENT) h = Math.max(h, surface[at - 1]);
+      if (x < width - 1 && source[at + 1] !== TRANSPARENT) h = Math.max(h, surface[at + 1]);
+      if (y > 0 && source[at - width] !== TRANSPARENT) h = Math.max(h, surface[at - width]);
+      if (y < height - 1 && source[at + width] !== TRANSPARENT)
+        h = Math.max(h, surface[at + width]);
+      if (h === -Infinity) continue;
+      pixels[at] = OUTLINE;
+      heights[at] = h;
     }
   }
 }

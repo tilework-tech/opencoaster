@@ -91,3 +91,38 @@ describe('renderMesh', () => {
     expect(sprite.anchor.x).toBe(sprite.width / 2);
   });
 });
+
+describe('renderMesh height map', () => {
+  const stone = material(ramp('asphalt'));
+
+  function heightAt(sprite: ReturnType<typeof renderMesh>, sx: number, sy: number): number {
+    return sprite.heights![(sy + sprite.anchor.y) * sprite.width + sx + sprite.anchor.x];
+  }
+
+  it('records the height in levels of the visible surface at every opaque pixel', () => {
+    const sprite = renderMesh(box([-0.25, -0.25, 0], [0.25, 0.25, 2], stone), { outline: false });
+    // Screen point of the top face centre: (0, 0, 2) projects 32px above the origin.
+    expect(heightAt(sprite, 0, -32)).toBeCloseTo(2, 1);
+    // A point on the front-right wall at height 1: (0.25, 0, 1).
+    const [wx, wy] = project(0.25, 0, 1);
+    expect(heightAt(sprite, Math.floor(wx) - 1, Math.floor(wy))).toBeCloseTo(1, 0);
+  });
+
+  it('keeps the nearer surface where two parts of the mesh overlap on screen', () => {
+    const back = box([-0.5, -0.5, 0], [-0.3, -0.3, 3], stone);
+    const front = box([0.3, 0.3, 0], [0.5, 0.5, 0.5], stone);
+    const sprite = renderMesh([...back, ...front], { outline: false });
+    // The front block's top centre (0.4, 0.4, 0.5) lies on the same screen ray as a point of the
+    // tall back column at height 2.1; the front block is nearer, so its height wins.
+    const [sx, sy] = project(0.4, 0.4, 0.5);
+    expect(heightAt(sprite, Math.floor(sx), Math.floor(sy))).toBeCloseTo(0.5, 1);
+  });
+
+  it('marks transparent pixels as having no height and gives outline pixels a neighbour height', () => {
+    const sprite = renderMesh(box([-0.25, -0.25, 0], [0.25, 0.25, 1], stone));
+    for (let i = 0; i < sprite.pixels.length; i++) {
+      if (sprite.pixels[i] === TRANSPARENT) expect(Number.isNaN(sprite.heights![i])).toBe(true);
+      else expect(Number.isFinite(sprite.heights![i])).toBe(true);
+    }
+  });
+});

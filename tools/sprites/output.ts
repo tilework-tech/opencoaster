@@ -25,12 +25,21 @@ export function alignFrames(frames: readonly Sprite[]): Sprite[] {
   const height = up + down + ((up + down) % 2);
   return frames.map((f) => {
     const pixels = new Uint8Array(half * 2 * height).fill(TRANSPARENT);
+    const heights = f.heights ? new Float32Array(half * 2 * height).fill(NaN) : undefined;
     const ox = half - f.anchor.x;
     const oy = height - down - f.anchor.y;
     for (let y = 0; y < f.height; y++)
-      for (let x = 0; x < f.width; x++)
+      for (let x = 0; x < f.width; x++) {
         pixels[(y + oy) * half * 2 + x + ox] = f.pixels[y * f.width + x];
-    return { width: half * 2, height, anchor: { x: half, y: height - down }, pixels };
+        if (heights) heights[(y + oy) * half * 2 + x + ox] = f.heights![y * f.width + x];
+      }
+    return {
+      width: half * 2,
+      height,
+      anchor: { x: half, y: height - down },
+      pixels,
+      ...(heights ? { heights } : {}),
+    };
   });
 }
 
