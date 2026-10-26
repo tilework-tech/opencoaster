@@ -77,6 +77,7 @@ import {
   rideSpriteKey,
   facilityFacingFromPaths,
   facilitySpriteKey,
+  LITTER_SPRITE_SIZE,
   rideHutFacingForFootprint,
   rideHutSpriteKey,
   spriteViewName,
@@ -593,8 +594,8 @@ export class WebGL2Renderer implements Renderer {
         camera,
         viewportWidth,
         viewportHeight,
-        7,
-        8,
+        LITTER_SPRITE_SIZE.width,
+        LITTER_SPRITE_SIZE.height,
       );
       this.appendLayer(
         snapshot.vehicles,

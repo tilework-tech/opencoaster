@@ -271,7 +271,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   const rideWindow = page.locator(windowId);
   await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+  await page.getByRole('button', { name: 'Close Ride 1' }).click();
   await toolbarAction(page, 'Game options');
   await page.getByRole('button', { name: /4×/ }).first().click();
   await page.getByRole('button', { name: 'Guests +1,000' }).click();
@@ -306,7 +306,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
     )
     .toBeGreaterThan(0);
   if (options.savePlaytest) {
-    await page.getByRole('button', { name: 'Close Ride #0' }).click();
+    await page.getByRole('button', { name: 'Close Ride 1' }).click();
     await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
     await save(`${prefix}-riding.jpg`, await cropJpeg(await takeShot(page, box), box, PANE_WIDTH));
   }

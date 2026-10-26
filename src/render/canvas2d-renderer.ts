@@ -39,6 +39,7 @@ import {
   rideSpriteKey,
   facilityFacingFromPaths,
   facilitySpriteKey,
+  LITTER_SPRITE_SIZE,
   rideHutFacingForFootprint,
   rideHutSpriteKey,
   waterFrameIndex,
@@ -1594,8 +1595,8 @@ export class Canvas2DRenderer implements Renderer {
           litterSpriteName(kind, cam.rotation),
           this.tmp[0],
           this.tmp[1],
-          6,
-          3,
+          LITTER_SPRITE_SIZE.width,
+          LITTER_SPRITE_SIZE.height,
         )
       ) {
         ctx.fillStyle = kind === 1 ? '#9fc35b' : '#6b4f2a';

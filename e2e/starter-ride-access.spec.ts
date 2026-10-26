@@ -245,6 +245,7 @@ async function playStarterRideAccess(
   const flatRide = page
     .locator('[data-panel="ride-list"] .list-row')
     .filter({ hasText: 'Merry-Go-Round' });
+  await expect(flatRide).toContainText('Merry-Go-Round 1');
   await flatRide.click();
   const flatWindow = page.locator('[data-panel="ride-0"]');
   await expect(flatWindow.locator('.ui-titlebar')).toContainText('Merry-Go-Round 1');
@@ -256,12 +257,14 @@ async function playStarterRideAccess(
         if (!context) return 0;
         const { data } = context.getImageData(0, 0, preview.width, preview.height);
         let opaquePixels = 0;
-        for (let alpha = 3; alpha < data.length; alpha += 4)
-          if (data[alpha] !== 0) opaquePixels++;
+        for (let pixel = 0; pixel < data.length; pixel += 4) {
+          if (data[pixel + 3] === 0) continue;
+          opaquePixels++;
+        }
         return opaquePixels;
       }),
     )
-    .toBeGreaterThan(0);
+    .toBeGreaterThan(100);
   await expect(flatWindow.locator('.ride-status')).toHaveText('Closed');
   await flatWindow.getByRole('button', { name: 'Open' }).click();
   await expect(flatWindow.locator('.ride-status')).toHaveText('Open');
@@ -279,7 +282,7 @@ async function playStarterRideAccess(
     .filter({ hasText: 'Food Stall' })
     .click();
   await expect(page.locator('[data-panel="ride-1"] .ride-status')).toHaveText('Open');
-  await page.getByRole('button', { name: 'Close Ride #1' }).click();
+  await page.getByRole('button', { name: 'Close Ride 2' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   if (mobile) {
     await toolbarAction(page, 'Rides', true);
@@ -291,11 +294,11 @@ async function playStarterRideAccess(
     await page.locator('[data-panel="ride-1"]').getByRole('button', { name: 'Locate' }).click({
       force: true,
     });
-    await page.getByRole('button', { name: 'Close Ride #1' }).click();
+    await page.getByRole('button', { name: 'Close Ride 2' }).click();
     await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
     await longPressAtTile(page, 20, 44, [20, 44], true);
     await expect(page.locator('[data-panel="ride-1"]')).toBeVisible();
-    await page.getByRole('button', { name: 'Close Ride #1' }).click();
+    await page.getByRole('button', { name: 'Close Ride 2' }).click();
   }
 
   await toolbarAction(page, 'New ride', mobile);
@@ -385,7 +388,7 @@ async function playStarterRideAccess(
     )
     .toBeGreaterThan(0);
   await rideDetail.getByRole('button', { name: 'Locate' }).click();
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+  await page.getByRole('button', { name: 'Close Ride 1' }).click();
   await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
   await toolbarAction(page, 'Zoom in', mobile);
   await toolbarAction(page, 'Zoom in', mobile);
@@ -551,7 +554,7 @@ test('starts entrance setup on the newly created ride when ride types repeat', a
   await mapTileClick(page, 23, 42, mapCenter, false);
   await placeStationPart(page, 'Place exit', false, mapCenter, [21, 43]);
   await placeStationPart(page, 'Ride setup complete', false, mapCenter, [25, 43]);
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+  await page.getByRole('button', { name: 'Close Ride 1' }).click();
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
@@ -599,7 +602,7 @@ test('does not mark boarding tiles inside another ride as valid', async ({ page 
   await mapTileClick(page, 23, 42, mapCenter, false);
   await placeStationPart(page, 'Place exit', false, mapCenter, [21, 43]);
   await placeStationPart(page, 'Ride setup complete', false, mapCenter, [25, 43]);
-  await page.getByRole('button', { name: 'Close Ride #0' }).click();
+  await page.getByRole('button', { name: 'Close Ride 1' }).click();
 
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Gentle rides' }).click();

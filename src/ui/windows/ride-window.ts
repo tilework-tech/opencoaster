@@ -10,8 +10,13 @@ import { RIDE_STATE_NAMES } from './ride-list';
 import { priceControl } from './price-control';
 import { drawAnchoredSprite } from '../../render/canvas-atlas';
 import { spritePages } from '../../render/sprite-pages';
-import { rideCellSpriteKey, rideHutSpriteKey, rideSpriteFrame, rideSpriteKey } from '../../render/world-art';
-import { rotateOffset } from '../../render/projection';
+import {
+  rideHutSpriteKey,
+  ridePreviewSpriteKey,
+  rideSpriteFrame,
+  rideSpriteKey,
+} from '../../render/world-art';
+import { isSlicedRide } from '../../render/ride-scene';
 
 export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
   { id: 'main', label: 'View', icon: 'rides' },
@@ -255,46 +260,50 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         previewContext.clearRect(0, 0, preview.width, preview.height);
         previewContext.save();
         previewContext.translate(preview.width / 2, preview.height / 2);
-        previewContext.scale(1.5, 1.5);
         const rotation = ctx.actions.camera().rotation;
-        const rideDir = info[o + RideInfo.Dir];
-        if (def.category === 'flat') {
-          const positions = def.footprint.map(([dx, dy]) => {
-            const [rx, ry] = rotateOffset(dx, dy, ((rideDir + rotation) & 3) as 0 | 1 | 2 | 3);
-            return { dx: rx, dy: ry, x: (rx - ry) * 22, y: (rx + ry) * 11 };
-          });
-          const minX = Math.min(...positions.map(({ x }) => x));
-          const maxX = Math.max(...positions.map(({ x }) => x));
-          const minY = Math.min(...positions.map(({ y }) => y));
-          const maxY = Math.max(...positions.map(({ y }) => y));
-          for (let cellIndex = 0; cellIndex < positions.length; cellIndex++) {
-            const position = positions[cellIndex]!;
-            const key = rideCellSpriteKey(type as keyof typeof RIDE_CATALOG, cellIndex, rideDir, rotation);
-            const frame = spritePages.resolve(key);
-            if (!frame) continue;
-            drawAnchoredSprite(
-              previewContext,
-              spritePages,
-              key,
-              position.x - (minX + maxX) / 2,
-              position.y - (minY + maxY) / 2,
-              rideSpriteFrame(state, snapshot.tick, frame.frames.length),
+        if (isSlicedRide(type as keyof typeof RIDE_CATALOG)) {
+          const key = ridePreviewSpriteKey(
+            type as keyof typeof RIDE_CATALOG,
+            info[o + RideInfo.Dir],
+            rotation,
+          );
+          const frame = spritePages.resolve(key);
+          if (frame) {
+            const scale = Math.min(
+              (preview.width - 16) / frame.frames[0]!.width,
+              (preview.height - 12) / frame.frames[0]!.height,
             );
+            previewContext.scale(scale, scale);
           }
+          drawAnchoredSprite(
+            previewContext,
+            spritePages,
+            key,
+            0,
+            frame
+              ? (preview.height * 0.45) /
+                  Math.min(
+                    (preview.width - 16) / frame.frames[0]!.width,
+                    (preview.height - 12) / frame.frames[0]!.height,
+                  )
+              : 0,
+            rideSpriteFrame(state, snapshot.tick, frame?.frames.length ?? 1),
+          );
         } else {
-        const key =
-          def.category === 'coaster'
-            ? rideHutSpriteKey(type as keyof typeof RIDE_CATALOG, 'entrance', 1, rotation)
-            : rideSpriteKey(type as keyof typeof RIDE_CATALOG, rotation);
-        const frame = spritePages.resolve(key);
-        drawAnchoredSprite(
-          previewContext,
-          spritePages,
-          key,
-          0,
-          0,
-          rideSpriteFrame(state, snapshot.tick, frame?.frames.length ?? 1),
-        );
+          previewContext.scale(1.5, 1.5);
+          const key =
+            def.category === 'coaster'
+              ? rideHutSpriteKey(type as keyof typeof RIDE_CATALOG, 'entrance', 1, rotation)
+              : rideSpriteKey(type as keyof typeof RIDE_CATALOG, rotation);
+          const frame = spritePages.resolve(key);
+          drawAnchoredSprite(
+            previewContext,
+            spritePages,
+            key,
+            0,
+            0,
+            rideSpriteFrame(state, snapshot.tick, frame?.frames.length ?? 1),
+          );
         }
         previewContext.restore();
       }

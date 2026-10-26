@@ -269,8 +269,9 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   const coasterRow = page
     .locator('[data-panel="ride-list"] .list-row')
     .filter({ hasText: 'Steel Looping Coaster' });
-  const coasterId = await coasterRow.getAttribute('data-ride-id');
-  if (!coasterId) throw new Error('Steel Looping Coaster is missing its ride id');
+  const coasterIdAttribute = await coasterRow.getAttribute('data-ride-id');
+  if (!coasterIdAttribute) throw new Error('Steel Looping Coaster is missing its ride id');
+  const coasterId = Number(coasterIdAttribute);
   await coasterRow.click();
   const coasterWindow = page.locator(`[data-panel="ride-${coasterId}"]`);
   await expect(coasterWindow.locator('.ride-checklist')).toContainText('Untested');

@@ -12,6 +12,19 @@ import { terrainMeshTriangles } from '../../src/render/terrain-geometry';
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
 describe('generated sprite catalogue', () => {
+  it('generates visible whole-ride previews for every sliced flat ride and animation frame', () => {
+    const previews = [...sprites.entries()].filter(([key]) => key.includes('/preview/view-'));
+    expect(previews.length).toBeGreaterThan(4);
+    for (const [key, preview] of previews) {
+      expect(preview.frames[0]!.width, key).toBeGreaterThan(64);
+      for (const [index, frame] of preview.frames.entries())
+        expect(
+          frame.pixels.filter((pixel) => pixel !== TRANSPARENT).length,
+          `${key} frame ${index}`,
+        ).toBeGreaterThan(100);
+    }
+  });
+
   it('renders path additions in four views', () => {
     for (const key of [
       'scenery/shelter',

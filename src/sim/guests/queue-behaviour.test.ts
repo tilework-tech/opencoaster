@@ -10,6 +10,7 @@ import { GuestState, GuestThought, spawnGuest } from './guest-store';
 import { guestSystem } from './guest-system';
 import { hashWorld } from '../core/hash';
 import { setParkEntrance } from './park';
+import { Surface } from '../map/tile-map';
 
 /** Main path along y=5, a queue along y=5 into a ride at (11, 4), exit at (12, 4). */
 function parkWithLongQueue(queueTiles = 7): { w: World; ride: number } {
@@ -61,9 +62,7 @@ describe('queuing guests', () => {
       const { w, ride } = parkWithLongQueue(7);
       guestSystem.update(w);
       const rideId = w.rides.slotToId[ride];
-      const queueTiles: number[] = [];
-      for (let tile = 0; tile < w.queues.owner.length; tile++)
-        if (w.queues.owner[tile] === ride) queueTiles.push(tile);
+      const queueTiles = [w.queues.openTile[ride]];
       const g = w.guests.cols;
       const queueSlots = queueTiles.map((tile, index) => {
         const slot = guestAt(w, tile % w.map.width, Math.floor(tile / w.map.width));
@@ -75,10 +74,37 @@ describe('queuing guests', () => {
         return { slot, tile, sequence: index + 1 };
       });
       const joinTile = w.queues.joinTile[ride];
-      const slots = Array.from({ length: 8 }, (_, index) => {
-        const joinX = joinTile % w.map.width;
-        const joinY = Math.floor(joinTile / w.map.width);
-        const slot = guestAt(w, Math.max(2, joinX - (index % 3)), joinY);
+      const pathTiles = [joinTile];
+      const seen = new Set(pathTiles);
+      for (let cursor = 0; cursor < pathTiles.length && pathTiles.length < 7; cursor++) {
+        const tile = pathTiles[cursor]!;
+        const neighbors = [
+          { tile: tile + 1, dir: 0 },
+          { tile: tile + w.map.width, dir: 1 },
+          { tile: tile - 1, dir: 2 },
+          { tile: tile - w.map.width, dir: 3 },
+        ];
+        for (const neighbor of neighbors) {
+          if (
+            seen.has(neighbor.tile) ||
+            w.map.surface[neighbor.tile] !== Surface.Path ||
+            w.map.isQueue(neighbor.tile) ||
+            (w.map.pathEdges(tile) & (1 << neighbor.dir)) === 0 ||
+            (w.map.pathEdges(neighbor.tile) & (1 << ((neighbor.dir + 2) & 3))) === 0
+          )
+            continue;
+          seen.add(neighbor.tile);
+          pathTiles.push(neighbor.tile);
+          if (pathTiles.length === 7) break;
+        }
+      }
+      if (pathTiles.length < 4) throw new Error('queue join has too few connected path tiles');
+      const slots = pathTiles.map((tile) => {
+        const x = tile % w.map.width;
+        const y = Math.floor(tile / w.map.width);
+        const slot = guestAt(w, x, y);
+        g.x[slot] = x * TILE_UNITS + TILE_UNITS / 2;
+        g.y[slot] = y * TILE_UNITS + TILE_UNITS / 2;
         g.targetRide[slot] = rideId;
         g.patience[slot] = 2400;
         g.approachGap[slot] = 0;
@@ -90,7 +116,7 @@ describe('queuing guests', () => {
         g.heading[slot] = 0;
         return slot;
       });
-      return { w, slots, queueSlots, rideId, joinTile };
+      return { w, slots, queueSlots, rideId, pathTiles, joinTile };
     };
     const first = createCrowd();
     const replay = createCrowd();
@@ -109,11 +135,21 @@ describe('queuing guests', () => {
     for (let tick = 0; tick < 80; tick++) {
       holdQueue(first);
       holdQueue(replay);
+      const positions = first.slots.map((slot) => tileOf(first.w, slot));
+      expect(
+        new Set(positions).size,
+        JSON.stringify({
+          positions,
+          joinTile: first.joinTile,
+          pathTiles: first.pathTiles,
+        }),
+      ).toBe(positions.length);
+      expect(positions).toEqual(first.pathTiles);
     }
 
     const guestsAtJoin = first.slots.filter((slot) => tileOf(first.w, slot) === first.joinTile);
-    expect(guestsAtJoin.length).toBeLessThanOrEqual(1);
-    expect(first.slots.some((slot) => first.w.guests.cols.targetRide[slot] < 0)).toBe(true);
+    expect(guestsAtJoin).toEqual([first.slots[0]]);
+    expect(first.w.guests.cols.targetRide[first.slots[1]]).toBe(first.rideId);
     expect(hashWorld(first.w)).toBe(hashWorld(replay.w));
   });
 

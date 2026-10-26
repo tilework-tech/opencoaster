@@ -6,6 +6,7 @@ import {
   queueRailSprites,
 } from './world-art';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
+import { RideType } from '../sim/rides/ride-types';
 import {
   TERRAIN_SLOPE_NAMES,
   atlasFrameOrFallback,
@@ -21,12 +22,21 @@ import {
   rideSpriteFrame,
   rideSpriteKey,
   rideSpriteName,
+  ridePreviewSpriteKey,
   shrubSpriteName,
   waterFrameIndex,
   waterSpriteName,
 } from './world-art';
 
 describe('world art sprite selection', () => {
+  it('selects the ride-preview view using both ride and camera rotation', () => {
+    for (let rideDir = 0; rideDir < 4; rideDir++)
+      for (let cameraRotation = 0; cameraRotation < 4; cameraRotation++)
+        expect(ridePreviewSpriteKey(RideType.SwingingShip, rideDir, cameraRotation)).toBe(
+          `rides/flat/swinging-ship/preview/view-${(rideDir + cameraRotation) & 3}`,
+        );
+  });
+
   it('selects four stable shrub variants for each camera view', () => {
     const coordinates = Array.from({ length: 16 }, (_, index) => [index, 0] as const);
     const names = coordinates.map(([x, y]) => shrubSpriteName(x, y, 2));
