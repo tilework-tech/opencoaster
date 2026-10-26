@@ -13,9 +13,6 @@ import { refreshQueueIndex } from './queue-lines';
 import { DEFAULT_GUEST_OPTS, DIR_E, DIR_NONE, isReachable, nextDirection } from '../pathfinding';
 import type { World } from '../core/world';
 
-const DX = [1, 0, -1, 0];
-const DY = [0, 1, 0, -1];
-
 /** Ride covering (10..12, 2..4) entered from (11, 5) along a queue running west to (9, 5), exit at (13, 4). */
 function parkWithQueue(): { w: World; slot: number } {
   const w = flatWorld();
@@ -92,15 +89,15 @@ describe('queue lines', () => {
     expect(w.map.pathEdges(T(w, 10, 5)) & (1 << 3)).toBe(0);
   });
 
-  it('link a queue tile built beside the entrance to that ride', () => {
+  it('extend to a queue tile built beside the open end, but not beside the middle of the line', () => {
     const { w, slot } = parkWithQueue();
     layPath(w, [[10, 6]], true);
-    layPath(w, [[11, 6]], true);
     refreshQueueIndex(w);
-    expect(w.queues.owner[T(w, 11, 6)]).toBe(slot);
-    expect(w.queues.tiles[slot]).toBe(4);
-    void DX;
-    void DY;
+    expect(w.queues.owner[T(w, 10, 6)]).toBe(-1);
+    layPath(w, [[9, 6]], true);
+    refreshQueueIndex(w);
+    expect(w.queues.owner[T(w, 9, 6)]).toBe(slot);
+    expect(w.queues.tiles[slot]).toBe(3);
   });
 
   it('holds one guest per queue tile plus the loading area, and obeys the queue limit', () => {

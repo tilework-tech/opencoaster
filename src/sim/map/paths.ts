@@ -4,7 +4,9 @@ import {
   MAX_ELEMENT_BASE,
   PATH_ENTRANCE_MARK,
   PATH_EXIT_MARK,
-  PATH_BOARDING_MARKS,
+  PATH_KEPT_BITS,
+  PATH_QUEUE_LINK_SHIFT,
+  PATH_QUEUE_LINKS,
   PathFlag,
   PathStyle,
   repairPathElement,
@@ -40,6 +42,11 @@ export interface PathPlacement {
   slope?: number;
   queue?: boolean;
   style?: PathStyle;
+  /**
+   * Direction (0..3) from this tile to the tile it continues, for a queue piece laid as part of a
+   * drag. The piece links to that tile when it has a free link slot.
+   */
+  linkFrom?: number;
 }
 
 export interface PathRemoval {
@@ -74,7 +81,7 @@ export function setPathAddition(m: TileMap, x: number, y: number, addition: Path
   m.elFlags[element] &= ~(PathFlag.Bin | PathFlag.Bench | PathFlag.Shelter | PathFlag.Lamp);
   m.elFlags[element] |= PATH_ADDITION_FLAGS[addition] ?? 0;
   m.elData[element] =
-    (addition === PathAddition.Bin ? 0xff : 0) | (m.elData[element] & PATH_BOARDING_MARKS);
+    (addition === PathAddition.Bin ? 0xff : 0) | (m.elData[element] & PATH_KEPT_BITS);
   m.revision++;
   return true;
 }
@@ -90,7 +97,7 @@ function edgeHeight(m: TileMap, e: number, dir: number): number {
 }
 
 /** Path element of tile `n` whose height meets element `e`'s edge `dir` of tile `i`, or -1. */
-function adjoiningElement(m: TileMap, i: number, e: number, dir: number): number {
+export function adjoiningElement(m: TileMap, i: number, e: number, dir: number): number {
   const h = edgeHeight(m, e, dir);
   const n = h < 0 ? -1 : m.neighbor(i, dir);
   if (n < 0) return -1;
@@ -105,27 +112,122 @@ function isQueueElement(m: TileMap, e: number): boolean {
   return (m.elFlags[e] & PathFlag.Queue) !== 0;
 }
 
+/** Link slots of a queue piece: a line has two ends, so a piece links to at most two neighbours. */
+const QUEUE_LINK_SLOTS = 2;
+
+function popcount4(mask: number): number {
+  return (mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1) + ((mask >> 3) & 1);
+}
+
+/** Directions (bit `1 << dir`) in which queue element `e` is linked to its queue neighbours. */
+export function queueLinkMask(m: TileMap, e: number): number {
+  return (m.elData[e] & PATH_QUEUE_LINKS) >> PATH_QUEUE_LINK_SHIFT;
+}
+
+function setQueueLink(m: TileMap, e: number, dir: number, on: boolean): void {
+  const bit = 1 << (PATH_QUEUE_LINK_SHIFT + dir);
+  if (on) m.elData[e] |= bit;
+  else m.elData[e] &= ~bit;
+}
+
+/** Free link slots of queue element `e`: a ride entrance ends a line, so it takes only one link. */
+function freeLinkSlots(m: TileMap, e: number): number {
+  const slots = m.elData[e] & PATH_ENTRANCE_MARK ? 1 : QUEUE_LINK_SLOTS;
+  return slots - popcount4(queueLinkMask(m, e));
+}
+
 /**
- * Direction in which queue element `e` of tile `i` joins an ordinary path, or -1. Only the open end
- * of a queue line has one: a piece with at most one queue neighbour that is not a ride entrance
- * already joined to a line. It prefers continuing straight on from its queue neighbour, and never
- * joins a ride exit.
+ * Links queue element `e` of tile `i` to its queue neighbour across `dir` when both have a free
+ * slot. Returns true when the two are linked afterwards.
  */
-export function queueOpening(m: TileMap, i: number, e: number): number {
-  let queueNeighbours = 0;
-  let queueDir = -1;
-  let first = -1;
-  let straight = -1;
+export function linkQueuePieces(m: TileMap, i: number, e: number, dir: number): boolean {
+  const f = adjoiningElement(m, i, e, dir);
+  if (f < 0 || !isQueueElement(m, e) || !isQueueElement(m, f)) return false;
+  const back = (dir + 2) & 3;
+  if (queueLinkMask(m, e) & (1 << dir)) return queueLinkMask(m, f) & (1 << back) ? true : false;
+  if (freeLinkSlots(m, e) <= 0 || freeLinkSlots(m, f) <= 0) return false;
+  setQueueLink(m, e, dir, true);
+  setQueueLink(m, f, back, true);
+  return true;
+}
+
+/** Keeps only the lowest-direction link of a ride entrance's queue piece, which ends its line. */
+export function trimEntranceLinks(m: TileMap, i: number, e: number): void {
+  const links = queueLinkMask(m, e);
+  if (popcount4(links) <= 1) return;
+  const keep = links & -links;
+  for (let d = 0; d < 4; d++) {
+    if (!(links & (1 << d)) || keep === 1 << d) continue;
+    const f = adjoiningElement(m, i, e, d);
+    if (f >= 0) setQueueLink(m, f, (d + 2) & 3, false);
+    setQueueLink(m, e, d, false);
+  }
+}
+
+/** Drops every link of queue element `e` of tile `i`, on its neighbours as well. */
+export function unlinkQueuePiece(m: TileMap, i: number, e: number): void {
+  const links = queueLinkMask(m, e);
+  for (let d = 0; d < 4; d++) {
+    if (!(links & (1 << d))) continue;
+    const f = adjoiningElement(m, i, e, d);
+    if (f >= 0) setQueueLink(m, f, (d + 2) & 3, false);
+  }
+  m.elData[e] &= ~PATH_QUEUE_LINKS;
+}
+
+/** Steps along the line from queue element `e` of tile `i` to the ride entrance, or Infinity. */
+function entranceDistance(m: TileMap, i: number, e: number): number {
+  let tile = i;
+  let element = e;
+  let came = -1;
+  for (let steps = 0; steps <= m.width * m.height; steps++) {
+    if (m.elData[element] & PATH_ENTRANCE_MARK) return steps;
+    const links = queueLinkMask(m, element) & ~(came < 0 ? 0 : 1 << came);
+    if (links === 0) return Infinity;
+    const dir = Math.clz32(links & -links) ^ 31;
+    const next = adjoiningElement(m, tile, element, dir);
+    if (next < 0) return Infinity;
+    tile = m.neighbor(tile, dir);
+    element = next;
+    came = (dir + 2) & 3;
+  }
+  return Infinity;
+}
+
+/**
+ * Links a freshly laid queue piece to the line it extends: the drag predecessor when it has a free
+ * slot, otherwise the neighbouring line end closest (along its line) to a ride entrance. A piece
+ * links to one neighbour here, so a line never gains a junction.
+ */
+function attachQueuePiece(m: TileMap, i: number, e: number, from: number): void {
+  if (from >= 0 && from <= 3 && linkQueuePieces(m, i, e, from)) return;
+  let best = -1;
+  let bestDistance = Infinity;
   for (let d = 0; d < 4; d++) {
     const f = adjoiningElement(m, i, e, d);
-    if (f < 0) continue;
-    if (isQueueElement(m, f)) {
-      queueNeighbours++;
-      queueDir = d;
+    if (f < 0 || !isQueueElement(m, f) || freeLinkSlots(m, f) <= 0) continue;
+    const distance = entranceDistance(m, m.neighbor(i, d), f);
+    if (best < 0 || distance < bestDistance) {
+      best = d;
+      bestDistance = distance;
     }
   }
-  if (queueNeighbours >= 2) return -1;
-  if (queueNeighbours === 1 && m.elData[e] & PATH_ENTRANCE_MARK) return -1;
+  if (best >= 0) linkQueuePieces(m, i, e, best);
+}
+
+/**
+ * Direction in which queue element `e` of tile `i` joins an ordinary path, or -1. Only the open end
+ * of a queue line has one: a piece with at most one link that is not a ride entrance already
+ * joined to a line. It prefers continuing straight on from its link, and never joins a ride exit.
+ */
+export function queueOpening(m: TileMap, i: number, e: number): number {
+  const links = queueLinkMask(m, e);
+  const linked = popcount4(links);
+  if (linked >= QUEUE_LINK_SLOTS) return -1;
+  if (linked === 1 && m.elData[e] & PATH_ENTRANCE_MARK) return -1;
+  const queueDir = linked === 1 ? Math.clz32(links) ^ 31 : -1;
+  let first = -1;
+  let straight = -1;
   for (let d = 0; d < 4; d++) {
     const f = adjoiningElement(m, i, e, d);
     if (f < 0 || isQueueElement(m, f) || m.elData[f] & PATH_EXIT_MARK) continue;
@@ -135,7 +237,6 @@ export function queueOpening(m: TileMap, i: number, e: number): number {
   return straight >= 0 ? straight : first;
 }
 
-/** Whether `e` of tile `i` joins the neighbouring element across `dir` under the queue rules. */
 /** What a queue line holds: bit 0 a ride entrance, bit 1 an open end joined to an ordinary path. */
 export const enum QueueLink {
   Entrance = 1,
@@ -166,10 +267,15 @@ export function queueLinks(m: TileMap, i: number): number {
   return links;
 }
 
+/** Whether `e` of tile `i` joins the neighbouring element `f` across `dir` under the queue rules. */
 function joins(m: TileMap, i: number, e: number, dir: number, f: number): boolean {
   const qe = isQueueElement(m, e);
   const qf = isQueueElement(m, f);
-  if (qe === qf) return true;
+  if (qe && qf) {
+    const back = (dir + 2) & 3;
+    return (queueLinkMask(m, e) & (1 << dir)) !== 0 && (queueLinkMask(m, f) & (1 << back)) !== 0;
+  }
+  if (!qe && !qf) return true;
   if (qe) return queueOpening(m, i, e) === dir;
   const n = m.neighbor(i, dir);
   return queueOpening(m, n, f) === ((dir + 2) & 3) && !(m.elData[e] & PATH_EXIT_MARK);
@@ -296,13 +402,17 @@ export function placePathOutcome(m: TileMap, p: PathPlacement): PathResult {
   repairPathElement(m, existing);
 
   const keep = PathFlag.Queue | PathFlag.Sloped | PathFlag.SlopeDir;
+  const from = p.linkFrom ?? -1;
   if (existing >= 0) {
     if (
       (m.elFlags[existing] & keep) === flags &&
       m.elClear[existing] === clear &&
       m.pathStyle[existing] === style
-    )
+    ) {
+      if (p.queue && from >= 0 && linkQueuePieces(m, i, existing, from)) recomputePathEdges(m, i);
       return PathResult.Ok;
+    }
+    unlinkQueuePiece(m, i, existing);
     m.elFlags[existing] = (m.elFlags[existing] & ~keep) | flags;
     m.elClear[existing] = clear;
     m.pathStyle[existing] = style;
@@ -311,6 +421,7 @@ export function placePathOutcome(m: TileMap, p: PathPlacement): PathResult {
   } else {
     m.pathStyle[m.pathElement(i, z)] = style;
   }
+  if (p.queue) attachQueuePiece(m, i, m.pathElement(i, z), from);
   recomputePathEdges(m, i);
   m.refreshTile(i);
   return PathResult.Ok;
@@ -327,7 +438,27 @@ export function removePath(m: TileMap, p: PathRemoval): boolean {
   if (!m.canBuild(i)) return false;
   const e = m.pathElement(i, p.z ?? -1);
   if (e < 0) return false;
+  unlinkQueuePiece(m, i, e);
   m.removeElement(i, e);
   recomputePathEdges(m, i);
   return true;
+}
+
+const DRAG_DX = [1, 0, -1, 0];
+const DRAG_DY = [0, 1, 0, -1];
+
+/**
+ * Marks each placement of a drag with the direction back to the placement before it, when the two
+ * are edge-adjacent, so queue pieces laid in one drag link into a single line.
+ */
+export function withDragLinks(placements: readonly PathPlacement[]): PathPlacement[] {
+  return placements.map((p, k) => {
+    const prev = placements[k - 1];
+    if (!prev || p.linkFrom !== undefined) return p;
+    for (let d = 0; d < 4; d++) {
+      if (p.x + DRAG_DX[d]! === prev.x && p.y + DRAG_DY[d]! === prev.y)
+        return { ...p, linkFrom: d };
+    }
+    return p;
+  });
 }

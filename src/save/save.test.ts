@@ -117,7 +117,7 @@ describe('save', () => {
 
     const loaded = deserialize(legacy);
 
-    expect(loaded.staff.cols.sweeps[0]).toBe(23);
+    expect(loaded.staff.cols.sweeps[0]).toBe(24);
     expect(loaded.staff.cols.vandalsStopped[0]).toBe(0);
   });
 
