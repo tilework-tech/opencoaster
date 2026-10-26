@@ -520,7 +520,6 @@ test('keeps path pixels visible beside a garden row, guests, and a bin in every 
       );
       const x = Math.round(rotationSample[0]! - rotationCenter[0]! + 320);
       const y = Math.round(rotationSample[1]! - rotationCenter[1]! + 320);
-      const offset = (y * baselinePixels.info.width + x) * baselinePixels.info.channels;
       let unchangedPathArea = 0;
       for (let py = y - 2; py <= y + 2; py++)
         for (let px = x - 2; px <= x + 2; px++) {
