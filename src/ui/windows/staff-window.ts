@@ -7,7 +7,7 @@ import type { UiContext, WindowController } from '../ui-types';
 const PLURALS = ['Handymen', 'Mechanics', 'Security guards', 'Entertainers'] as const;
 const TAB_ICONS = ['staff', 'build', 'info', 'guests'] as const;
 
-const TABS: readonly TabSpec[] = STAFF_KIND_NAMES.map((_, kind) => ({
+export const STAFF_TABS: readonly TabSpec[] = STAFF_KIND_NAMES.map((_, kind) => ({
   id: String(kind),
   label: PLURALS[kind],
   icon: TAB_ICONS[kind],
@@ -20,7 +20,7 @@ export function openStaffWindow(ctx: UiContext): WindowController {
     title: 'Staff',
     kind: 'staff',
     width: 340,
-    tabs: TABS,
+    tabs: STAFF_TABS,
   });
   const summary = element('p', 'ui-help');
   const rosters: StaffRoster[] = [];

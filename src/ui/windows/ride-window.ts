@@ -12,7 +12,7 @@ import { drawAnchoredSprite } from '../../render/canvas-atlas';
 import { spritePages } from '../../render/sprite-pages';
 import { rideHutSpriteKey, rideSpriteFrame, rideSpriteKey } from '../../render/world-art';
 
-const TABS: readonly TabSpec[] = [
+export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
   { id: 'main', label: 'View', icon: 'rides' },
   { id: 'vehicle', label: 'Description', icon: 'coaster' },
   { id: 'operating', label: 'Mechanics', icon: 'options' },
@@ -30,7 +30,7 @@ function seconds(ticks: number): string {
   return `${(ticks / TICKS_PER_SECOND).toFixed(1)} s`;
 }
 
-/** A ride's window with the ten information tabs. Closes itself when the ride is demolished. */
+/** A ride's window with the eight information tabs. Closes itself when the ride is demolished. */
 export function openRideWindow(ctx: UiContext, rideId: number): WindowController {
   const id = `ride-${rideId}`;
   const { window: win, created } = ctx.windows.open({
@@ -38,7 +38,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     title: `Ride #${rideId}`,
     kind: 'ride',
     width: 340,
-    tabs: TABS,
+    tabs: RIDE_WINDOW_TABS,
   });
   const queueSeries = new SampleSeries(120, GRAPH_INTERVAL_TICKS);
   const servedSeries = new SampleSeries(120, GRAPH_INTERVAL_TICKS);

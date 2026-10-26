@@ -65,6 +65,59 @@ describe('generated UI icons', () => {
     }
   });
 
+  it.each([
+    'land',
+    'water',
+    'scenery',
+    'paths',
+    'rides',
+    'newRide',
+    'coaster',
+    'carousel',
+    'ship',
+    'wheel',
+    'twist',
+    'park',
+    'entrance',
+    'staff',
+    'guests',
+    'finances',
+    'cash',
+    'research',
+    'map',
+    'food',
+    'drink',
+    'demolish',
+    'sun',
+    'cloud',
+  ] as const)('%s fills the native icon cell with shaded pixel art', (name) => {
+    const sprite = renderUiIconSprite(name, 24);
+    let minX = 24;
+    let minY = 24;
+    let maxX = -1;
+    let maxY = -1;
+    sprite.pixels.forEach((color, index) => {
+      if (color === TRANSPARENT) return;
+      const x = index % 24;
+      const y = Math.floor(index / 24);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    });
+    const width = maxX - minX + 1;
+    const height = maxY - minY + 1;
+    const longestSide = Math.max(width, height);
+    const shortestSide = Math.min(width, height);
+    expect(longestSide, `${name} largest dimension`).toBeGreaterThanOrEqual(18);
+    expect(longestSide, `${name} largest dimension`).toBeLessThanOrEqual(22);
+    expect(shortestSide, `${name} smallest dimension`).toBeGreaterThanOrEqual(10);
+    expect(
+      new Set(sprite.pixels.filter((color) => color !== TRANSPARENT)).size,
+      `${name} palette`,
+    ).toBeGreaterThanOrEqual(3);
+  });
+
   it.each(['rotateLeft', 'water', 'scenery', 'finances'] as const)(
     'keeps %s free of detached single-pixel flecks',
     (name) => {

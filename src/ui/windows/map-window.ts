@@ -6,7 +6,7 @@ import { element } from '../dom';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 
-const TABS: readonly TabSpec[] = [
+export const MAP_TABS: readonly TabSpec[] = [
   { id: 'people', label: 'Guests', icon: 'guests' },
   { id: 'rides', label: 'Objects', icon: 'rides' },
 ];
@@ -50,7 +50,7 @@ export function openMapWindow(ctx: UiContext): WindowController {
     title: 'Map',
     kind: 'map',
     width: 340,
-    tabs: TABS,
+    tabs: MAP_TABS,
   });
   const canvas = element('canvas', 'minimap');
   canvas.setAttribute('aria-label', 'Park map');

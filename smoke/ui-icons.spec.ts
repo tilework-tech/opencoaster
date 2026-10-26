@@ -80,6 +80,40 @@ test('UI icon controls keep their accessible names and use native pixel art', as
       .first()
       .evaluate((image) => image.naturalWidth),
   ).toBe(16);
+  const windowActions = [
+    'view',
+    'map',
+    'clear',
+    'land',
+    'water',
+    'scenery',
+    'paths',
+    'ride-select',
+    'finance',
+    'research',
+    'ride-list',
+    'park',
+    'staff',
+    'guests',
+    'news',
+  ];
+  for (const action of windowActions) {
+    await toolbar.locator(`[data-action="${action}"]`).click();
+    await expect(page.locator(`.ui-window[data-panel="${action}"]`)).toBeVisible();
+    const tabSets = await page.locator('.ui-window').evaluateAll((windows) =>
+      windows
+        .map((window) => ({
+          title: window.querySelector('.ui-title')?.textContent ?? '',
+          icons: Array.from(window.querySelectorAll<HTMLImageElement>('.ui-tab img.ui-icon')).map(
+            (image) => image.dataset.iconId ?? '',
+          ),
+        }))
+        .filter(({ icons }) => icons.length > 0),
+    );
+    for (const { title, icons } of tabSets)
+      expect(new Set(icons).size, `${title} tab icons`).toBe(icons.length);
+  }
+
   await page.setViewportSize({ width: 412, height: 915 });
   await page.getByRole('button', { name: 'Actions' }).click();
   await expect(page.locator('#toolbar-actions-menu')).toHaveClass(/open/);

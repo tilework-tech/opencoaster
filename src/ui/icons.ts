@@ -21,6 +21,7 @@ export const ICON_NAMES = [
   'paths',
   'rides',
   'park',
+  'award',
   'staff',
   'guests',
   'finances',

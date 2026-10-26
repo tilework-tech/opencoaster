@@ -340,35 +340,107 @@ function iconShapes(name: string): Sprite {
       polygon(
         s,
         [
-          [3, 16],
-          [9, 8],
-          [14, 12],
-          [18, 7],
-          [22, 16],
+          [2, 15],
+          [7, 12],
+          [11, 6],
+          [16, 10],
+          [21, 7],
+          [22, 15],
         ],
         colors.grass[3],
       );
-      line(s, 3, 17, 22, 17, outline, 2);
-      set(8, 10, 3, 2, 'green', 4);
+      polygon(
+        s,
+        [
+          [2, 16],
+          [22, 16],
+          [22, 20],
+          [2, 20],
+        ],
+        colors.dirt[3],
+      );
+      line(s, 3, 17, 21, 17, colors.dirt[1], 2);
+      line(s, 4, 19, 19, 19, colors.dirt[4], 1);
+      line(s, 16, 12, 16, 17, colors.white[4], 2);
+      polygon(
+        s,
+        [
+          [13, 13],
+          [16, 10],
+          [19, 13],
+        ],
+        colors.white[4],
+      );
+      polygon(
+        s,
+        [
+          [13, 17],
+          [16, 20],
+          [19, 17],
+        ],
+        colors.white[4],
+      );
       break;
     case 'water':
       polygon(
         s,
         [
-          [4, 13],
-          [8, 10],
-          [12, 12],
-          [16, 9],
-          [20, 12],
-          [20, 18],
-          [4, 18],
+          [2, 14],
+          [7, 11],
+          [11, 13],
+          [16, 10],
+          [22, 13],
+          [22, 20],
+          [2, 20],
         ],
-        colors.blue[3],
+        colors.blue[2],
       );
-      line(s, 5, 14, 11, 14, colors.foam[4], 1);
-      line(s, 14, 12, 19, 12, colors.foam[4], 1);
+      line(s, 3, 16, 8, 16, colors.blue[4], 2);
+      line(s, 11, 15, 17, 15, colors.blue[4], 2);
+      line(s, 5, 19, 12, 19, colors.blue[1], 1);
+      polygon(
+        s,
+        [
+          [7, 10],
+          [9, 6],
+          [11, 3],
+          [13, 7],
+          [15, 10],
+          [11, 12],
+        ],
+        colors.foam[4],
+      );
+      line(s, 10, 7, 11, 5, colors.white[4], 1);
       break;
     case 'scenery':
+      post(10, 12, 'wood', 8);
+      polygon(
+        s,
+        [
+          [10, 2],
+          [17, 9],
+          [14, 9],
+          [20, 14],
+          [4, 14],
+          [8, 9],
+          [5, 9],
+        ],
+        colors.green[3],
+      );
+      set(9, 5, 4, 2, 'green', 4);
+      polygon(
+        s,
+        [
+          [15, 17],
+          [18, 14],
+          [21, 17],
+          [20, 20],
+          [15, 20],
+        ],
+        colors.green[3],
+      );
+      line(s, 16, 17, 19, 17, colors.green[4], 1);
+      break;
     case 'flower':
       post(10, 12, 'wood', 8);
       polygon(
@@ -390,17 +462,20 @@ function iconShapes(name: string): Sprite {
       polygon(
         s,
         [
-          [4, 18],
-          [8, 13],
-          [8, 6],
-          [13, 6],
-          [13, 13],
-          [20, 18],
+          [2, 17],
+          [11, 11],
+          [11, 4],
+          [17, 8],
+          [17, 12],
+          [22, 16],
+          [13, 21],
         ],
         colors.stone[3],
       );
-      line(s, 8, 7, 13, 7, colors.white[4], 1);
-      line(s, 12, 10, 16, 15, colors.white[4], 1);
+      line(s, 11, 5, 16, 8, colors.white[4], 1);
+      line(s, 11, 10, 16, 13, colors.stone[1], 1);
+      line(s, 6, 15, 12, 19, colors.stone[1], 1);
+      line(s, 17, 13, 17, 17, colors.stone[1], 1);
       break;
     case 'straight':
       for (const y of [7, 11, 15, 19]) line(s, 6, y, 18, y, colors.wood[2], 3);
@@ -427,18 +502,37 @@ function iconShapes(name: string): Sprite {
       break;
     case 'rides':
     case 'wheel':
-      for (let y = 5; y <= 17; y++)
-        for (let x = 5; x <= 17; x++) {
-          const d = (x - 11) ** 2 + (y - 11) ** 2;
-          if (d <= 49 && d >= 36) pixel(s, x, y, outline);
-          else if (d < 36 && d >= 25) pixel(s, x, y, colors.red[3]);
+    case 'newRide': {
+      const center = name === 'newRide' ? 10 : 12;
+      const radius = name === 'newRide' ? 7 : 8;
+      for (let y = center - radius; y <= center + radius; y++)
+        for (let x = center - radius; x <= center + radius; x++) {
+          const d = (x - center) ** 2 + (y - center) ** 2;
+          if (d <= radius ** 2 && d >= (radius - 2) ** 2) pixel(s, x, y, outline);
+          else if (d < (radius - 2) ** 2 && d >= (radius - 3) ** 2) pixel(s, x, y, colors.red[3]);
         }
-      line(s, 11, 11, 6, 6, outline, 1);
-      line(s, 11, 11, 16, 6, outline, 1);
-      line(s, 11, 11, 6, 16, outline, 1);
-      line(s, 11, 11, 16, 16, outline, 1);
-      post(10, 17, 'steel', 4);
+      for (const [x, y] of [
+        [center, center - radius],
+        [center + radius, center],
+        [center, center + radius],
+        [center - radius, center],
+      ]) {
+        line(s, center, center, x, y, colors.steel[2], 1);
+        rect(s, x - 1, y - 1, 3, 3, outline);
+        rect(s, x, y, 1, 1, colors.yellow[3]);
+      }
+      rect(s, center - 2, center - 2, 5, 5, colors.steel[2]);
+      rect(s, center - 1, center - 1, 3, 3, colors.yellow[3]);
+      line(s, center, center + radius, center - 4, 21, outline, 2);
+      line(s, center, center + radius, center + 4, 21, outline, 2);
+      if (name === 'newRide') {
+        rect(s, 16, 2, 7, 7, outline);
+        rect(s, 17, 3, 5, 5, colors.green[3]);
+        rect(s, 19, 4, 1, 3, colors.white[4]);
+        rect(s, 18, 5, 3, 1, colors.white[4]);
+      }
       break;
+    }
     case 'carousel':
       polygon(
         s,
@@ -457,24 +551,48 @@ function iconShapes(name: string): Sprite {
       rect(s, 4, 18, 16, 2, outline);
       break;
     case 'coaster':
-      line(s, 4, 17, 8, 6, outline, 2);
-      line(s, 8, 6, 12, 17, outline, 2);
-      line(s, 12, 17, 16, 8, outline, 2);
-      line(s, 16, 8, 21, 14, outline, 2);
-      line(s, 4, 16, 8, 5, colors.red[3], 1);
-      line(s, 8, 5, 12, 16, colors.red[3], 1);
-      line(s, 12, 16, 16, 7, colors.red[3], 1);
-      line(s, 16, 7, 21, 13, colors.red[3], 1);
-      post(6, 16, 'steel', 4);
-      post(15, 14, 'steel', 6);
+      line(s, 2, 17, 7, 7, outline, 3);
+      line(s, 7, 7, 12, 17, outline, 3);
+      line(s, 12, 17, 17, 9, outline, 3);
+      line(s, 17, 9, 22, 13, outline, 3);
+      line(s, 3, 16, 7, 8, colors.red[3], 1);
+      line(s, 7, 8, 12, 16, colors.red[3], 1);
+      line(s, 12, 16, 17, 10, colors.red[3], 1);
+      line(s, 17, 10, 21, 13, colors.red[3], 1);
+      post(4, 15, 'steel', 6);
+      post(13, 14, 'steel', 6);
+      rect(s, 7, 4, 5, 3, outline);
+      rect(s, 8, 3, 3, 2, colors.red[3]);
+      rect(s, 8, 5, 3, 1, colors.yellow[3]);
+      rect(s, 7, 7, 2, 2, outline);
+      rect(s, 10, 7, 2, 2, outline);
       break;
     case 'twist':
-      line(s, 6, 6, 18, 18, outline, 4);
-      line(s, 18, 6, 6, 18, outline, 4);
-      line(s, 6, 6, 18, 18, colors.red[3], 2);
-      line(s, 18, 6, 6, 18, colors.blue[3], 2);
-      post(5, 16, 'steel', 4);
-      post(16, 16, 'steel', 4);
+      polygon(
+        s,
+        [
+          [3, 14],
+          [11, 10],
+          [21, 14],
+          [13, 19],
+        ],
+        colors.red[3],
+      );
+      line(s, 4, 14, 13, 19, outline, 2);
+      line(s, 13, 19, 21, 14, outline, 2);
+      line(s, 11, 11, 12, 5, outline, 2);
+      line(s, 12, 5, 15, 3, outline, 2);
+      line(s, 13, 11, 14, 6, colors.steel[2], 1);
+      for (const [x, y] of [
+        [5, 13],
+        [11, 10],
+        [17, 12],
+        [13, 16],
+      ]) {
+        rect(s, x - 2, y - 2, 4, 3, outline);
+        rect(s, x - 1, y - 1, 2, 1, colors.yellow[3]);
+      }
+      rect(s, 8, 14, 3, 2, colors.blue[3]);
       break;
     case 'loop':
       line(s, 6, 19, 6, 12, outline, 2);
@@ -512,16 +630,101 @@ function iconShapes(name: string): Sprite {
       post(17, 14, 'steel', 6);
       break;
     case 'staff':
+      rect(s, 3, 18, 18, 3, outline);
+      rect(s, 4, 17, 16, 2, colors.steel[2]);
+      rect(s, 9, 7, 7, 7, outline);
+      rect(s, 10, 8, 5, 5, colors.skin[3]);
+      rect(s, 9, 6, 7, 2, outline);
+      rect(s, 8, 4, 9, 2, outline);
+      rect(s, 10, 3, 6, 2, colors.blue[3]);
+      rect(s, 7, 13, 12, 6, outline);
+      rect(s, 8, 14, 10, 4, colors.blue[3]);
+      rect(s, 8, 14, 3, 1, colors.blue[4]);
+      rect(s, 12, 14, 1, 3, colors.yellow[3]);
+      rect(s, 5, 13, 2, 5, outline);
+      rect(s, 4, 16, 3, 2, colors.wood[3]);
+      rect(s, 19, 12, 2, 7, outline);
+      rect(s, 20, 11, 1, 3, colors.yellow[3]);
+      break;
     case 'guests':
-      set(8, 5, 8, 7, 'skin', 3);
-      rect(s, 7, 4, 10, 2, outline);
-      framed(7, 12, 10, 8, name === 'staff' ? 'blue' : 'red');
-      set(9, 7, 1, 1, 'steel', 0);
-      set(14, 7, 1, 1, 'steel', 0);
-      set(10, 9, 4, 1, 'red', 1);
+      for (const [x, shirt] of [
+        [6, 'red'],
+        [15, 'blue'],
+      ] as const) {
+        rect(s, x, 5, 6, 6, outline);
+        rect(s, x + 1, 6, 4, 4, colors.skin[3]);
+        rect(s, x, 4, 6, 2, outline);
+        rect(s, x + 1, 3, 4, 2, colors.yellow[3]);
+        rect(s, x - 1, 11, 8, 8, outline);
+        rect(s, x, 12, 6, 6, colors[shirt][3]);
+        rect(s, x + 1, 12, 2, 2, colors[shirt][4]);
+        rect(s, x + 1, 19, 2, 2, outline);
+        rect(s, x + 4, 19, 2, 2, outline);
+      }
       break;
     case 'park':
+      polygon(
+        s,
+        [
+          [2, 20],
+          [2, 8],
+          [8, 8],
+          [8, 20],
+        ],
+        colors.wood[2],
+      );
+      polygon(
+        s,
+        [
+          [16, 20],
+          [16, 8],
+          [22, 8],
+          [22, 20],
+        ],
+        colors.wood[2],
+      );
+      polygon(
+        s,
+        [
+          [2, 8],
+          [12, 2],
+          [22, 8],
+        ],
+        colors.red[3],
+      );
+      line(s, 3, 8, 21, 8, colors.yellow[3], 2);
+      rect(s, 10, 12, 5, 8, outline);
+      rect(s, 11, 13, 3, 7, colors.stone[2]);
+      line(s, 18, 2, 18, 8, outline, 1);
+      polygon(
+        s,
+        [
+          [19, 2],
+          [23, 4],
+          [19, 5],
+        ],
+        colors.yellow[3],
+      );
+      break;
     case 'entrance':
+      rect(s, 3, 5, 5, 17, outline);
+      rect(s, 4, 6, 3, 15, colors.stone[2]);
+      rect(s, 16, 5, 5, 17, outline);
+      rect(s, 17, 6, 3, 15, colors.stone[2]);
+      rect(s, 5, 3, 14, 5, outline);
+      rect(s, 6, 4, 12, 3, colors.red[3]);
+      rect(s, 7, 4, 4, 1, colors.red[4]);
+      polygon(
+        s,
+        [
+          [8, 21],
+          [12, 17],
+          [16, 21],
+        ],
+        colors.stone[1],
+      );
+      line(s, 8, 20, 16, 20, colors.white[4], 1);
+      break;
     case 'exit':
       framed(4, 7, 16, 13, 'wood');
       framed(7, 4, 10, 4, 'red');
@@ -530,27 +733,84 @@ function iconShapes(name: string): Sprite {
       rect(s, 16, 10, 2, 3, colors.yellow[3]);
       break;
     case 'finances':
+      rect(s, 5, 3, 16, 12, outline);
+      rect(s, 6, 4, 14, 10, colors.green[3]);
+      line(s, 7, 5, 18, 5, colors.green[4], 1);
+      rect(s, 2, 9, 20, 12, outline);
+      rect(s, 3, 10, 18, 10, colors.green[3]);
+      line(s, 4, 11, 20, 11, colors.green[4], 1);
+      line(s, 4, 18, 19, 18, colors.green[1], 1);
+      rect(s, 8, 12, 8, 6, colors.green[2]);
+      rect(s, 11, 12, 4, 1, colors.yellow[4]);
+      rect(s, 10, 13, 1, 2, colors.yellow[4]);
+      rect(s, 11, 14, 4, 1, colors.yellow[4]);
+      rect(s, 14, 15, 1, 2, colors.yellow[4]);
+      rect(s, 10, 17, 5, 1, colors.yellow[4]);
+      rect(s, 12, 11, 1, 8, colors.yellow[4]);
+      break;
     case 'cash':
-      framed(3, 7, 18, 11, 'green');
-      rect(s, 5, 9, 14, 7, colors.green[1]);
-      rect(s, 9, 9, 6, 7, colors.yellow[3]);
-      rect(s, 10, 10, 4, 5, colors.yellow[2]);
+      for (let y = 4; y <= 19; y++)
+        for (let x = 4; x <= 19; x++) {
+          const d = (x - 11) ** 2 + (y - 11) ** 2;
+          if (d <= 64 && d >= 49) pixel(s, x, y, outline);
+          else if (d < 49) pixel(s, x, y, colors.yellow[3]);
+        }
+      for (let y = 6; y <= 17; y++)
+        for (let x = 6; x <= 17; x++) {
+          const d = (x - 11) ** 2 + (y - 11) ** 2;
+          if (d < 36) pixel(s, x, y, d > 25 ? colors.yellow[4] : colors.yellow[2]);
+        }
+      line(s, 9, 8, 13, 8, colors.wood[3], 1);
+      line(s, 11, 8, 11, 14, colors.wood[3], 1);
+      line(s, 9, 11, 13, 11, colors.wood[3], 1);
+      line(s, 9, 14, 13, 14, colors.wood[3], 1);
       break;
     case 'research':
-      line(s, 8, 4, 16, 4, outline, 2);
-      line(s, 9, 5, 9, 10, outline, 2);
-      line(s, 15, 5, 15, 10, outline, 2);
+      rect(s, 8, 2, 8, 3, outline);
+      rect(s, 9, 3, 6, 1, colors.steel[2]);
+      rect(s, 9, 5, 2, 6, outline);
+      rect(s, 13, 5, 2, 6, outline);
       polygon(
         s,
         [
-          [9, 9],
-          [15, 9],
-          [19, 19],
-          [5, 19],
+          [9, 10],
+          [15, 10],
+          [21, 21],
+          [3, 21],
         ],
-        colors.purple[3],
+        colors.purple[2],
       );
-      line(s, 7, 16, 17, 16, colors.foam[4], 2);
+      line(s, 5, 17, 19, 17, colors.foam[4], 2);
+      line(s, 7, 19, 17, 19, colors.purple[4], 1);
+      pixel(s, 5, 8, colors.foam[4]);
+      pixel(s, 5, 6, colors.foam[4]);
+      pixel(s, 18, 10, colors.yellow[3]);
+      pixel(s, 18, 8, colors.yellow[3]);
+      pixel(s, 16, 12, colors.white[4]);
+      break;
+    case 'award':
+      polygon(
+        s,
+        [
+          [5, 3],
+          [19, 3],
+          [18, 10],
+          [15, 13],
+          [9, 13],
+          [6, 10],
+        ],
+        colors.yellow[3],
+      );
+      rect(s, 7, 4, 10, 2, colors.yellow[4]);
+      line(s, 5, 5, 2, 5, outline, 2);
+      line(s, 2, 5, 3, 10, outline, 2);
+      line(s, 3, 10, 8, 11, outline, 2);
+      line(s, 19, 5, 22, 5, outline, 2);
+      line(s, 22, 5, 21, 10, outline, 2);
+      line(s, 21, 10, 16, 11, outline, 2);
+      rect(s, 10, 13, 4, 4, outline);
+      rect(s, 8, 17, 8, 3, outline);
+      rect(s, 9, 18, 6, 1, colors.wood[3]);
       break;
     case 'shop':
       framed(4, 8, 16, 11, 'wood');
@@ -561,11 +821,72 @@ function iconShapes(name: string): Sprite {
       framed(10, 12, 5, 7, 'blue');
       break;
     case 'food':
-      framed(4, 8, 16, 9, 'wood');
-      rect(s, 5, 7, 14, 4, colors.orange[3]);
-      rect(s, 6, 8, 12, 2, colors.yellow[3]);
-      rect(s, 7, 11, 10, 2, colors.green[3]);
-      rect(s, 6, 14, 12, 3, colors.red[3]);
+      polygon(
+        s,
+        [
+          [3, 12],
+          [3, 9],
+          [5, 6],
+          [8, 4],
+          [15, 4],
+          [18, 6],
+          [21, 9],
+          [21, 12],
+        ],
+        outline,
+      );
+      polygon(
+        s,
+        [
+          [5, 10],
+          [5, 9],
+          [7, 7],
+          [9, 6],
+          [15, 6],
+          [18, 8],
+          [19, 10],
+        ],
+        colors.orange[3],
+      );
+      line(s, 7, 8, 10, 7, colors.yellow[4], 1);
+      pixel(s, 14, 7, colors.white[4]);
+      polygon(
+        s,
+        [
+          [4, 12],
+          [7, 11],
+          [9, 13],
+          [12, 11],
+          [15, 13],
+          [18, 11],
+          [20, 12],
+          [19, 15],
+          [5, 15],
+        ],
+        colors.green[3],
+      );
+      rect(s, 5, 14, 15, 4, outline);
+      rect(s, 6, 15, 13, 2, colors.wood[3]);
+      polygon(
+        s,
+        [
+          [5, 17],
+          [19, 17],
+          [18, 20],
+          [6, 20],
+        ],
+        outline,
+      );
+      polygon(
+        s,
+        [
+          [7, 18],
+          [17, 18],
+          [16, 19],
+          [8, 19],
+        ],
+        colors.yellow[3],
+      );
       break;
     case 'drink':
       polygon(
@@ -584,53 +905,85 @@ function iconShapes(name: string): Sprite {
       rect(s, 10, 12, 4, 2, colors.white[4]);
       break;
     case 'ship':
+      line(s, 4, 4, 12, 18, outline, 2);
+      line(s, 20, 4, 12, 18, outline, 2);
+      line(s, 4, 4, 20, 4, colors.steel[2], 2);
+      line(s, 12, 4, 12, 10, outline, 2);
       polygon(
         s,
         [
-          [3, 14],
-          [21, 14],
-          [17, 19],
-          [7, 19],
+          [5, 11],
+          [19, 11],
+          [17, 17],
+          [7, 17],
         ],
-        colors.wood[3],
+        outline,
       );
-      rect(s, 4, 13, 16, 2, outline);
-      rect(s, 11, 5, 2, 8, outline);
       polygon(
         s,
         [
-          [10, 6],
-          [10, 12],
-          [5, 12],
+          [7, 12],
+          [17, 12],
+          [16, 15],
+          [8, 15],
         ],
         colors.red[3],
       );
-      polygon(
-        s,
-        [
-          [14, 7],
-          [14, 12],
-          [19, 12],
-        ],
-        colors.white[4],
-      );
-      line(s, 4, 21, 10, 21, colors.blue[3], 1);
-      line(s, 13, 21, 19, 21, colors.blue[3], 1);
+      line(s, 8, 13, 10, 14, colors.red[4], 1);
+      rect(s, 4, 19, 16, 2, colors.stone[2]);
+      line(s, 5, 20, 19, 20, colors.white[4], 1);
       break;
     case 'sun':
     case 'cloud':
     case 'rain':
     case 'storm':
       if (name === 'sun') {
-        rect(s, 9, 7, 6, 8, colors.yellow[3]);
-        rect(s, 7, 9, 10, 4, colors.yellow[3]);
-        line(s, 12, 3, 12, 5, colors.orange[3], 2);
-        line(s, 12, 17, 12, 20, colors.orange[3], 2);
-        line(s, 4, 11, 6, 11, colors.orange[3], 2);
-        line(s, 18, 11, 20, 11, colors.orange[3], 2);
+        rect(s, 8, 7, 8, 10, colors.yellow[3]);
+        rect(s, 6, 9, 12, 6, colors.yellow[3]);
+        rect(s, 9, 8, 5, 2, colors.yellow[4]);
+        rect(s, 8, 2, 2, 4, colors.orange[3]);
+        rect(s, 14, 2, 2, 4, colors.orange[3]);
+        rect(s, 2, 8, 4, 2, colors.orange[3]);
+        rect(s, 18, 8, 4, 2, colors.orange[3]);
+        rect(s, 3, 15, 4, 2, colors.orange[3]);
+        rect(s, 17, 15, 4, 2, colors.orange[3]);
+        rect(s, 8, 18, 2, 4, colors.orange[3]);
+        rect(s, 14, 18, 2, 4, colors.orange[3]);
       } else {
-        framed(5, 7, 14, 8, 'white');
-        rect(s, 8, 5, 8, 3, colors.white[4]);
+        polygon(
+          s,
+          [
+            [2, 17],
+            [2, 13],
+            [5, 13],
+            [6, 9],
+            [9, 7],
+            [13, 7],
+            [16, 10],
+            [20, 10],
+            [22, 13],
+            [22, 17],
+          ],
+          outline,
+        );
+        polygon(
+          s,
+          [
+            [4, 15],
+            [4, 13],
+            [7, 13],
+            [8, 10],
+            [10, 9],
+            [13, 9],
+            [16, 12],
+            [19, 12],
+            [20, 14],
+            [20, 15],
+          ],
+          colors.white[4],
+        );
+        rect(s, 8, 10, 3, 2, colors.white[3]);
+        rect(s, 13, 10, 2, 2, colors.white[3]);
         if (name !== 'cloud') {
           line(s, 8, 16, 6, 20, colors.blue[3], 2);
           line(s, 14, 16, 12, 20, colors.blue[3], 2);
@@ -738,12 +1091,30 @@ function iconShapes(name: string): Sprite {
       rect(s, 11, 11, 2, 2, colors.yellow[3]);
       break;
     case 'demolish':
-      framed(4, 15, 16, 4, 'stone');
-      line(s, 7, 14, 9, 9, outline, 3);
-      line(s, 9, 9, 16, 9, outline, 3);
-      line(s, 16, 9, 18, 14, outline, 3);
-      line(s, 8, 13, 10, 10, colors.orange[3], 1);
-      rect(s, 12, 5, 3, 3, colors.red[3]);
+      rect(s, 3, 17, 14, 4, outline);
+      rect(s, 4, 18, 12, 2, colors.yellow[3]);
+      for (const x of [5, 13]) {
+        rect(s, x, 18, 3, 3, outline);
+        rect(s, x + 1, 19, 1, 1, colors.steel[2]);
+      }
+      rect(s, 5, 10, 8, 7, outline);
+      rect(s, 6, 11, 6, 5, colors.yellow[3]);
+      rect(s, 7, 12, 4, 2, colors.blue[2]);
+      rect(s, 8, 12, 2, 1, colors.white[4]);
+      rect(s, 13, 14, 5, 3, outline);
+      polygon(
+        s,
+        [
+          [17, 14],
+          [22, 16],
+          [21, 18],
+          [17, 17],
+        ],
+        colors.yellow[3],
+      );
+      line(s, 18, 16, 22, 16, outline, 1);
+      rect(s, 8, 8, 3, 2, outline);
+      rect(s, 9, 6, 4, 2, colors.yellow[3]);
       break;
     case 'build':
       line(s, 6, 18, 15, 9, outline, 4);
@@ -1021,7 +1392,35 @@ function removeDetachedSinglePixels(sprite: Sprite): Sprite {
   return { ...sprite, pixels };
 }
 
+const HAND_AUTHORED_ICONS = new Set([
+  'land',
+  'water',
+  'scenery',
+  'paths',
+  'rides',
+  'wheel',
+  'newRide',
+  'park',
+  'staff',
+  'guests',
+  'finances',
+  'cash',
+  'research',
+  'map',
+  'food',
+  'drink',
+  'coaster',
+  'carousel',
+  'ship',
+  'twist',
+  'entrance',
+  'demolish',
+  'sun',
+  'cloud',
+]);
+
 export function renderUiIconSprite(name: string, size: 16 | 24): Sprite {
+  if (HAND_AUTHORED_ICONS.has(name)) return nearestSprite(iconShapes(name), size);
   const mesh = objectMesh(name);
   if (!mesh) return nearestSprite(iconShapes(name), size);
   const rendered = renderMesh(mesh);

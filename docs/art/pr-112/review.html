@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PR #112 icon review</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font:
+          16px/1.45 system-ui,
+          sans-serif;
+        color: #18221e;
+        background: #edf3ef;
+      }
+      body {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 1.6rem;
+      }
+      p {
+        margin: 0 0 18px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin: 18px 0;
+      }
+      button,
+      select {
+        border: 1px solid #597260;
+        border-radius: 4px;
+        padding: 8px 12px;
+        color: inherit;
+        background: white;
+        font: inherit;
+        cursor: pointer;
+      }
+      button[aria-pressed='true'] {
+        color: white;
+        background: #285943;
+      }
+      figure {
+        margin: 0;
+        padding: 12px;
+        border: 1px solid #9aafa1;
+        border-radius: 6px;
+        background: white;
+      }
+      figcaption {
+        margin-bottom: 10px;
+        font-weight: 650;
+      }
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        image-rendering: pixelated;
+      }
+      #preview[data-type='toolbar'],
+      #preview[data-type='park-window'],
+      #preview[data-type='phone-actions'] {
+        width: min(100%, 900px);
+      }
+      #preview[data-type='toolbar'] img {
+        width: min(100%, 900px);
+      }
+      #preview[data-type='park-window'] img {
+        width: min(100%, 600px);
+      }
+      #preview[data-type='phone-actions'] img {
+        width: min(100%, 360px);
+      }
+      .status {
+        margin-top: 10px;
+        color: #486255;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PR #112: pixel-art icon review</h1>
+    <p>
+      Compare the baseline and updated contact sheets and in-game views. The 1x sheet shows native
+      24px icons; 2x doubles each sprite for inspection.
+    </p>
+    <div class="controls" role="group" aria-label="Screenshot set">
+      <button type="button" data-state="before" aria-pressed="true">Before</button>
+      <button type="button" data-state="after" aria-pressed="false">After</button>
+      <label for="kind">View</label>
+      <select id="kind">
+        <option value="contact-sheet-1x">Contact sheet · 1x</option>
+        <option value="contact-sheet-2x">Contact sheet · 2x</option>
+        <option value="toolbar">Toolbar</option>
+        <option value="park-window">Park window</option>
+        <option value="phone-actions">Phone Actions</option>
+      </select>
+    </div>
+    <figure id="preview" data-type="contact-sheet-1x">
+      <figcaption id="caption">Before · Contact sheet · 1x</figcaption>
+      <img
+        id="image"
+        src="before/contact-sheet-1x.png"
+        alt="Before screenshot: contact sheet at 1x"
+      />
+    </figure>
+    <div class="status" id="status" aria-live="polite">Showing the baseline.</div>
+    <script>
+      const stateButtons = [...document.querySelectorAll('[data-state]')];
+      const kind = document.querySelector('#kind');
+      const image = document.querySelector('#image');
+      const preview = document.querySelector('#preview');
+      const caption = document.querySelector('#caption');
+      const status = document.querySelector('#status');
+      let state = 'before';
+      const labels = {
+        'contact-sheet-1x': 'Contact sheet · 1x',
+        'contact-sheet-2x': 'Contact sheet · 2x',
+        toolbar: 'Toolbar',
+        'park-window': 'Park window',
+        'phone-actions': 'Phone Actions',
+      };
+      function update() {
+        const label = labels[kind.value];
+        image.src = `${state}/${kind.value}.png?view=${Date.now()}`;
+        image.alt = `${state === 'before' ? 'Before' : 'After'} screenshot: ${label}`;
+        preview.dataset.type = kind.value;
+        caption.textContent = `${state === 'before' ? 'Before' : 'After'} · ${label}`;
+        status.textContent = `Showing ${state === 'before' ? 'the baseline' : 'the updated icons'} · ${label}.`;
+      }
+      for (const button of stateButtons)
+        button.addEventListener('click', () => {
+          state = button.dataset.state;
+          for (const item of stateButtons)
+            item.setAttribute('aria-pressed', String(item === button));
+          update();
+        });
+      kind.addEventListener('change', update);
+    </script>
+  </body>
+</html>

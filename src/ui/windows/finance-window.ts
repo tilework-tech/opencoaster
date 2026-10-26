@@ -17,7 +17,7 @@ import {
 } from './campaign-targets';
 import type { TargetOption } from './campaign-targets';
 
-const TABS: readonly TabSpec[] = [
+export const FINANCE_TABS: readonly TabSpec[] = [
   { id: 'summary', label: 'Financial accounts', icon: 'finances' },
   { id: 'cash', label: 'Cash graph', icon: 'cash' },
   { id: 'value', label: 'Park value', icon: 'park' },
@@ -85,7 +85,7 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
     title: 'Finances',
     kind: 'finance',
     width: 380,
-    tabs: TABS,
+    tabs: FINANCE_TABS,
   });
   const cash = statRow('Cash');
   const loan = statRow('Loan');

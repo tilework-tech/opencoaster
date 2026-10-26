@@ -24,6 +24,7 @@ import type {
   WindowController,
 } from './ui-types';
 import type { WindowManager } from './window-manager';
+import type { TabSpec } from './window-manager';
 import { openFinanceWindow } from './windows/finance-window';
 import { openGuestWindow, openIndividualGuestWindow } from './windows/guest-window';
 import { openLandRightsWindow } from './windows/land-rights-window';
@@ -97,6 +98,14 @@ const CONSTRUCTION_WINDOWS = [
   'clear',
   'ride-select',
   'land-rights',
+];
+
+export const OPTIONS_TABS: readonly TabSpec[] = [
+  { id: 'game', label: 'Game', icon: 'options' },
+  { id: 'sound', label: 'Sound', icon: 'sound' },
+  { id: 'messages', label: 'Messages', icon: 'news' },
+  { id: 'display', label: 'Display', icon: 'view' },
+  { id: 'controls', label: 'Controls', icon: 'info' },
 ];
 
 const SERIES_INTERVAL_TICKS = 160;
@@ -601,13 +610,7 @@ export class GameUI {
       title: 'Options',
       kind: 'tool',
       width: 300,
-      tabs: [
-        { id: 'game', label: 'Game', icon: 'options' },
-        { id: 'sound', label: 'Sound', icon: 'sound' },
-        { id: 'messages', label: 'Messages', icon: 'news' },
-        { id: 'display', label: 'Display', icon: 'view' },
-        { id: 'controls', label: 'Controls', icon: 'info' },
-      ],
+      tabs: OPTIONS_TABS,
     });
     const speeds = new Map<number, HTMLButtonElement>();
     if (created) {
