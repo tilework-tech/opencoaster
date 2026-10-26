@@ -10,59 +10,99 @@ export function heldLiftPixels(zoom: number): number {
   return TILE_W * LIFT_TILE_FRACTION * zoom;
 }
 
-/**
- * Paints a sprite's silhouette onto `canvas`: a bright outline one source pixel outside the
- * visible pixels plus a light tint over them, sized to the target's on-screen box.
- */
-export function drawSpriteOutline(canvas: HTMLCanvasElement, target: ObjectPickTarget): void {
-  const { alphaWidth: w, alphaHeight: h, alpha } = target;
-  const scale = target.width / w;
-  const pad = Math.max(1, Math.round(2 / scale));
-  const outW = w + pad * 2;
-  const outH = h + pad * 2;
+const OUTLINE_WIDTH = 2;
+const OUTLINE_DIRECTIONS = 16;
+
+function silhouette(target: ObjectPickTarget): HTMLCanvasElement {
   const mask = document.createElement('canvas');
-  mask.width = outW;
-  mask.height = outH;
-  const maskContext = mask.getContext('2d')!;
-  const image = maskContext.createImageData(outW, outH);
-  const solid = (x: number, y: number): boolean =>
-    x >= 0 && y >= 0 && x < w && y < h && alpha[y * w + x]! > 0;
-  for (let y = 0; y < outH; y++) {
-    for (let x = 0; x < outW; x++) {
-      const sx = x - pad;
-      const sy = y - pad;
-      let a = 0;
-      let tint = false;
-      if (solid(sx, sy)) {
-        a = 70;
-        tint = true;
-      } else {
-        for (let dy = -pad; dy <= pad && !a; dy++)
-          for (let dx = -pad; dx <= pad; dx++)
-            if (dx * dx + dy * dy <= pad * pad && solid(sx + dx, sy + dy)) {
-              a = 255;
-              break;
-            }
-      }
-      if (!a) continue;
-      const o = (y * outW + x) * 4;
-      image.data[o] = OUTLINE_RGB[0];
-      image.data[o + 1] = OUTLINE_RGB[1];
-      image.data[o + 2] = OUTLINE_RGB[2];
-      image.data[o + 3] = tint ? a : 255;
-    }
+  mask.width = target.alphaWidth;
+  mask.height = target.alphaHeight;
+  const context = mask.getContext('2d')!;
+  const image = context.createImageData(mask.width, mask.height);
+  for (let i = 0; i < target.alpha.length; i++) {
+    if (target.alpha[i] === 0) continue;
+    image.data.fill(255, i * 4, i * 4 + 4);
   }
-  maskContext.putImageData(image, 0, 0);
-  canvas.width = Math.round(outW * scale);
-  canvas.height = Math.round(outH * scale);
-  canvas.style.width = `${canvas.width}px`;
-  canvas.style.height = `${canvas.height}px`;
+  context.putImageData(image, 0, 0);
+  return mask;
+}
+
+/**
+ * Paints the combined silhouette of `targets` onto `canvas`: a bright outline around the visible
+ * sprite pixels plus a light tint over them. Returns the screen-box origin the canvas covers,
+ * relative to the viewport-local coordinates of the targets.
+ */
+export function drawSpriteOutline(
+  canvas: HTMLCanvasElement,
+  targets: readonly ObjectPickTarget[],
+): { x: number; y: number } {
+  const left = Math.floor(Math.min(...targets.map((t) => t.x))) - OUTLINE_WIDTH;
+  const top = Math.floor(Math.min(...targets.map((t) => t.y))) - OUTLINE_WIDTH;
+  const right = Math.ceil(Math.max(...targets.map((t) => t.x + t.width))) + OUTLINE_WIDTH;
+  const bottom = Math.ceil(Math.max(...targets.map((t) => t.y + t.height))) + OUTLINE_WIDTH;
+  const width = right - left;
+  const height = bottom - top;
+  const filled = document.createElement('canvas');
+  filled.width = width;
+  filled.height = height;
+  const fillContext = filled.getContext('2d')!;
+  fillContext.imageSmoothingEnabled = false;
+  for (const target of targets)
+    fillContext.drawImage(
+      silhouette(target),
+      target.x - left,
+      target.y - top,
+      target.width,
+      target.height,
+    );
+
+  canvas.width = width;
+  canvas.height = height;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
   const context = canvas.getContext('2d')!;
-  context.imageSmoothingEnabled = false;
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(mask, 0, 0, canvas.width, canvas.height);
-  canvas.dataset.padX = String(pad * scale);
-  canvas.dataset.padY = String(pad * scale);
+  context.clearRect(0, 0, width, height);
+  for (let i = 0; i < OUTLINE_DIRECTIONS; i++) {
+    const angle = (i / OUTLINE_DIRECTIONS) * Math.PI * 2;
+    context.drawImage(
+      filled,
+      Math.round(Math.cos(angle) * OUTLINE_WIDTH),
+      Math.round(Math.sin(angle) * OUTLINE_WIDTH),
+    );
+  }
+  context.globalCompositeOperation = 'source-in';
+  context.fillStyle = `rgb(${OUTLINE_RGB.join(' ')})`;
+  context.fillRect(0, 0, width, height);
+  context.globalCompositeOperation = 'destination-out';
+  context.drawImage(filled, 0, 0);
+  context.globalCompositeOperation = 'source-over';
+  context.globalAlpha = 0.3;
+  context.drawImage(tinted(filled), 0, 0);
+  context.globalAlpha = 1;
+  return { x: left, y: top };
+}
+
+function tinted(source: HTMLCanvasElement): HTMLCanvasElement {
+  const out = document.createElement('canvas');
+  out.width = source.width;
+  out.height = source.height;
+  const context = out.getContext('2d')!;
+  context.drawImage(source, 0, 0);
+  context.globalCompositeOperation = 'source-in';
+  context.fillStyle = `rgb(${OUTLINE_RGB.join(' ')})`;
+  context.fillRect(0, 0, out.width, out.height);
+  return out;
+}
+
+/** Pick targets that belong to the hovered object: a flat ride's body, entrance and exit move as one. */
+export function hoverGroup(
+  hovered: ObjectPickTarget,
+  targets: readonly ObjectPickTarget[],
+  flatRideIds: ReadonlySet<number>,
+): ObjectPickTarget[] {
+  if (hovered.kind !== 'ride' || hovered.rideId === undefined || !flatRideIds.has(hovered.rideId))
+    return [hovered];
+  return targets.filter((t) => t.kind === 'ride' && t.rideId === hovered.rideId);
 }
 
 /** Redraws a picked person's atlas sprite onto `canvas` at its on-screen size. */

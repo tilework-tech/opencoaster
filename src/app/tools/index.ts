@@ -25,7 +25,7 @@ import { guestRowState } from '../../worker/snapshot';
 import { RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import { RIDE_CATALOG, type RideType } from '../../sim/rides/ride-types';
 import type { ObjectPickTarget } from '../../input/object-picking';
-import { drawHeldSprite, drawSpriteOutline, heldLiftPixels } from './object-overlay';
+import { drawHeldSprite, drawSpriteOutline, heldLiftPixels, hoverGroup } from './object-overlay';
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 
 type MovingPerson = { person: 'guest' | 'staff'; id: number; sprite?: ObjectPickTarget };
@@ -56,6 +56,7 @@ export function createToolController(deps: ToolControllerDependencies) {
   let movingPerson: MovingPerson | null = null;
   let hoverOutline: HTMLCanvasElement | null = null;
   let hoveredTargetKey = '';
+  let hoverOrigin = { x: 0, y: 0 };
   let hoveredObjectName: string | null = null;
   let objectPopup: HTMLDivElement | null = null;
   let liftedPerson: HTMLCanvasElement | null = null;
@@ -229,16 +230,27 @@ export function createToolController(deps: ToolControllerDependencies) {
       document.body.append(hoverOutline);
     }
     const rect = deps.canvas.getBoundingClientRect();
-    const key = `${target.id}:${target.x}:${target.y}:${target.width}:${target.height}`;
+    const snapshot = deps.sim.latest;
+    const viewport = { width: rect.width, height: rect.height };
+    const flatRideIds = new Set<number>();
+    for (let i = 0; snapshot && i < snapshot.rides.count; i++) {
+      const offset = i * RIDE_INFO_STRIDE;
+      if (!RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type]! as RideType]?.usesTrack)
+        flatRideIds.add(snapshot.rideInfo[offset + RideInfo.Id]!);
+    }
+    const group = hoverGroup(
+      target,
+      deps.renderer.objectTargets(snapshot, deps.camera, viewport),
+      flatRideIds,
+    );
+    const key = `${group.map((t) => t.id).join(',')}:${target.x}:${target.y}:${target.width}`;
     if (key !== hoveredTargetKey) {
-      drawSpriteOutline(hoverOutline, target);
+      hoverOrigin = drawSpriteOutline(hoverOutline, group);
       hoveredTargetKey = key;
     }
-    const padX = Number(hoverOutline.dataset.padX);
-    const padY = Number(hoverOutline.dataset.padY);
     Object.assign(hoverOutline.style, {
-      left: `${rect.left + target.x - padX}px`,
-      top: `${rect.top + target.y - padY}px`,
+      left: `${rect.left + hoverOrigin.x}px`,
+      top: `${rect.top + hoverOrigin.y}px`,
       display: 'block',
     });
   }
@@ -252,7 +264,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     }
   }
 
-  function showObjectInfo(target: ObjectPickTarget, clientX: number, clientY: number): void {
+  function showObjectInfo(target: ObjectPickTarget, clientY: number): void {
     objectPopup?.remove();
     const popup = document.createElement('div');
     popup.dataset.objectInfo = '';
@@ -296,10 +308,31 @@ export function createToolController(deps: ToolControllerDependencies) {
         );
     }
     button('Done', () => {});
-    const left = Math.max(8, Math.min(clientX, window.innerWidth - 230));
-    const top = Math.max(8, Math.min(clientY, window.innerHeight - 130));
-    Object.assign(popup.style, { position: 'fixed', left: `${left}px`, top: `${top}px` });
+    Object.assign(popup.style, {
+      position: 'fixed',
+      left: '0px',
+      top: '0px',
+      visibility: 'hidden',
+    });
     document.body.append(popup);
+    const canvasRect = deps.canvas.getBoundingClientRect();
+    const box = {
+      left: canvasRect.left + target.x,
+      right: canvasRect.left + target.x + target.width,
+      top: canvasRect.top + target.y,
+      bottom: canvasRect.top + target.y + target.height,
+    };
+    const { width, height } = popup.getBoundingClientRect();
+    const margin = 8;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const side =
+      box.right + margin + width <= viewportWidth - margin
+        ? box.right + margin
+        : box.left - margin - width;
+    const left = Math.max(margin, Math.min(side, viewportWidth - width - margin));
+    const top = Math.max(margin, Math.min(clientY - height / 2, viewportHeight - height - margin));
+    Object.assign(popup.style, { left: `${left}px`, top: `${top}px`, visibility: 'visible' });
     objectPopup = popup;
   }
 
@@ -461,7 +494,7 @@ export function createToolController(deps: ToolControllerDependencies) {
         deps.gameUi.openWindow('park');
         deps.gameUi.setToolStatus('Park information opened.');
       } else {
-        showObjectInfo(object, clientX, clientY);
+        showObjectInfo(object, clientY);
         deps.gameUi.setToolStatus(object.name);
       }
       deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
