@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { renderSprites } from '../sprites/generate';
 import { renderUiIcons } from '../sprites/ui-icons';
 import { PREPARED_PROP_SPRITES, PREPARED_TERRAIN_MATERIALS } from './prepared-assets';
+import { earthWallPatch } from './cliff-wall';
 import { defringeRgba } from './image-cleanup';
 import { cutProps } from './prop-cutter';
 
@@ -191,8 +192,20 @@ async function prepareTerrain(): Promise<void> {
       const dimensions = await sharp(cleaned).metadata();
       if (!dimensions.width || !dimensions.height)
         throw new Error(`Could not read terrain cliff face ${materials[row]} ${direction}`);
-      await saveSprite(`terrain/${materials[row]}/cliff-face-${direction}`, cleaned, {
-        anchor: { x: Math.floor(dimensions.width / 2), y: dimensions.height },
+      const raw = await sharp(cleaned).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const patch = earthWallPatch({
+        data: raw.data,
+        width: raw.info.width,
+        height: raw.info.height,
+      });
+      const wall = await sharp(Buffer.from(patch.data), {
+        raw: { width: patch.width, height: patch.height, channels: 4 },
+      })
+        .resize(48, 48, { kernel: 'nearest' })
+        .png()
+        .toBuffer();
+      await saveSprite(`terrain/${materials[row]}/cliff-face-${direction}`, wall, {
+        anchor: { x: 24, y: 48 },
         footprint: { width: 1, height: 1 },
       });
     }

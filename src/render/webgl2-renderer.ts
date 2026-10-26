@@ -937,22 +937,8 @@ export class WebGL2Renderer implements Renderer {
         continue;
       const x = index % width;
       const y = (index - x) / width;
-      this.dropChunksAround(
-        x,
-        y,
-        previous.heights[index],
-        width,
-        height,
-        true,
-      );
-      this.dropChunksAround(
-        x,
-        y,
-        next.heights[index],
-        width,
-        height,
-        true,
-      );
+      this.dropChunksAround(x, y, previous.heights[index], width, height, true);
+      this.dropChunksAround(x, y, next.heights[index], width, height, true);
       for (const [dx, dy] of [
         [1, 0],
         [0, 1],

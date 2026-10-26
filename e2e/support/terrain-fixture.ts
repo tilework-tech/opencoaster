@@ -42,7 +42,10 @@ export async function loadTerrainFixture(
         for (let y = y0; y < y0 + h0; y++)
           for (let x = x0; x < x0 + w0; x++) heights[y * width + x] = level;
       };
-      if (fixture === 'pit') { set(cx - 1, cy - 1, 3, 3, 2); surface[(cy) * width + cx] = 1; }
+      if (fixture === 'pit') {
+        set(cx - 1, cy - 1, 3, 3, 2);
+        surface[cy * width + cx] = 1;
+      }
       if (fixture === 'plateau') set(cx - 1, cy - 1, 3, 3, 8);
       if (fixture === 'terraces') {
         set(cx - 3, cy - 3, 7, 7, 6);
