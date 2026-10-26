@@ -1458,7 +1458,7 @@ export class WebGL2Renderer implements Renderer {
       const z = flowerBedGroundZ(baseHeight, map.slope[index]!, camera.rotation);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-const depth =
+      const depth =
         2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
