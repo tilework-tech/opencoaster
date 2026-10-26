@@ -97,6 +97,8 @@ const SCENES: Record<string, Scene> = {
       { x: 8, y: 7, item: SceneryItem.OakTree },
     ],
   },
+  hedge: { paths: row(8, 3, 12), scenery: [{ x: 8, y: 7, item: SceneryItem.Hedge }] },
+  fence: { paths: row(8, 3, 12), scenery: [{ x: 8, y: 7, item: SceneryItem.WoodenFence }] },
   stall: { paths: row(8, 3, 12), scenery: [], stall: { x: 8, y: 7 } },
 };
 
