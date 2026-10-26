@@ -214,6 +214,17 @@ export function rotateY(mesh: Mesh, angle: number, cx: number, cz: number): Mesh
   });
 }
 
+/** Rotates in the y-z plane (around an axis parallel to x) through (cy, cz). */
+export function rotateX(mesh: Mesh, angle: number, cy: number, cz: number): Mesh {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return mapMesh(mesh, (p) => {
+    const y = p[1] - cy;
+    const z = p[2] - cz;
+    return [p[0], cy + y * c - z * s, cz + y * s + z * c];
+  });
+}
+
 /** Bar with a rectangular cross-section running from `a` to `b`. */
 export function beam(a: Vec3, b: Vec3, width: number, mat: Material, depth = width): Mesh {
   const d: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];

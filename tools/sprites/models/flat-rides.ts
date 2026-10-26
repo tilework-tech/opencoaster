@@ -3,10 +3,12 @@ import {
   box,
   cylinder,
   loft,
+  mapMesh,
   material,
   orientedBox,
   polygon,
   quad,
+  rotateX,
   rotateY,
   rotateZ,
   translateMesh,
@@ -83,7 +85,8 @@ function post(x: number, y: number, z0: number, z1: number, radius: number, m: M
 
 const MGR_RADIUS = 1.38;
 const MGR_DECK = 0.12;
-const MGR_CANOPY_Z = 1.35;
+const MGR_CANOPY_Z = 0.84;
+const MGR_CANOPY_RADIUS = 0.96;
 
 function horse(x: number, y: number, z: number, heading: number, coat: Material): Mesh {
   const parts: Mesh = [
@@ -161,8 +164,8 @@ export function merryGoRound(frame: number): Mesh {
       0,
       MGR_CANOPY_Z - 0.15,
       MGR_CANOPY_Z,
-      MGR_RADIUS + 0.08,
-      MGR_RADIUS + 0.08,
+      MGR_CANOPY_RADIUS,
+      MGR_CANOPY_RADIUS,
       12,
       YELLOW,
       WHITE,
@@ -173,9 +176,9 @@ export function merryGoRound(frame: number): Mesh {
       0,
       0,
       MGR_CANOPY_Z,
-      MGR_CANOPY_Z + 0.08,
-      MGR_RADIUS + 0.08,
-      MGR_RADIUS + 0.08,
+      MGR_CANOPY_Z + 0.06,
+      MGR_CANOPY_RADIUS + 0.04,
+      MGR_CANOPY_RADIUS + 0.04,
       12,
       WOOD,
       WOOD,
@@ -185,28 +188,28 @@ export function merryGoRound(frame: number): Mesh {
     ...stripedCone(
       0,
       0,
-      MGR_CANOPY_Z + 0.08,
-      MGR_CANOPY_Z + 0.85,
-      MGR_RADIUS + 0.1,
+      MGR_CANOPY_Z + 0.06,
+      MGR_CANOPY_Z + 0.38,
+      MGR_CANOPY_RADIUS + 0.04,
       0.07,
       12,
       RED,
       WHITE,
     ),
   );
-  mesh.push(...cylinder(0, 0, MGR_CANOPY_Z + 0.85, MGR_CANOPY_Z + 1.1, 0.05, 0.015, 6, YELLOW));
+  mesh.push(...cylinder(0, 0, MGR_CANOPY_Z + 0.38, MGR_CANOPY_Z + 0.49, 0.05, 0.015, 6, YELLOW));
   for (let i = 0; i < 12; i++) {
     const a = ((i + 0.5) / 12) * TAU;
     mesh.push(
       ...box(
         [
-          Math.cos(a) * (MGR_RADIUS + 0.09) - 0.03,
-          Math.sin(a) * (MGR_RADIUS + 0.09) - 0.03,
+          Math.cos(a) * (MGR_CANOPY_RADIUS + 0.03) - 0.03,
+          Math.sin(a) * (MGR_CANOPY_RADIUS + 0.03) - 0.03,
           MGR_CANOPY_Z - 0.1,
         ],
         [
-          Math.cos(a) * (MGR_RADIUS + 0.09) + 0.03,
-          Math.sin(a) * (MGR_RADIUS + 0.09) + 0.03,
+          Math.cos(a) * (MGR_CANOPY_RADIUS + 0.03) + 0.03,
+          Math.sin(a) * (MGR_CANOPY_RADIUS + 0.03) + 0.03,
           MGR_CANOPY_Z - 0.04,
         ],
         WHITE,
@@ -287,7 +290,7 @@ export function swingingShip(frame: number): Mesh {
     ...beam([0, 0.85, SHIP_AXLE_Z], [0, 0.85, hullTop + 0.2], 0.07, STEEL),
     ...translateMesh(shipHull(), 0, 0, hullTop - 0.04),
   ];
-  mesh.push(...rotateY(hanging, swing, 0, SHIP_AXLE_Z));
+  mesh.push(...rotateX(hanging, swing, 0, SHIP_AXLE_Z));
   return mesh;
 }
 
@@ -300,12 +303,12 @@ export function swingingShipSeats(frame: number): Vec3[] {
     for (const x of [-0.2, 0.2]) {
       const y = -0.95 + i * 0.38;
       const z = hullTop - 0.04 + 0.16;
-      const dx = x;
+      const dy = y;
       const dz = z - SHIP_AXLE_Z;
       out.push([
-        dx * Math.cos(swing) + dz * Math.sin(swing),
-        y,
-        SHIP_AXLE_Z - dx * Math.sin(swing) + dz * Math.cos(swing),
+        x,
+        dy * Math.cos(swing) - dz * Math.sin(swing),
+        SHIP_AXLE_Z + dy * Math.sin(swing) + dz * Math.cos(swing),
       ]);
     }
   return out;
@@ -566,7 +569,7 @@ export function hauntedHouse(frame: number): Mesh {
     mesh.push(...cylinder(gx, gy, gz, gz + 0.3, 0.12, 0.04, 6, WHITE));
     mesh.push(...cylinder(gx, gy, gz + 0.3, gz + 0.42, 0.07, 0.07, 6, WHITE, { capBottom: true }));
   }
-  return mesh;
+  return mapMesh(mesh, ([x, y, z]) => [x * 0.9, y * 0.9, z * 0.65]);
 }
 
 // ---------------------------------------------------------------------------------------------
