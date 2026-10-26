@@ -390,8 +390,6 @@ void main() {
     screen += (aCorner - 0.5) * aSize * uZoom;
     screen.x += aAnchorShift * uZoom;
   }
-  gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
-                     1.0 - screen.y / uViewport.y * 2.0, 0.0, 1.0);
   vec2 spriteUv = vec2(aCorner.x, 1.0 - aCorner.y);
   vUv = mix(aUvRect.xy, aUvRect.zw, spriteUv);
   vTileUv = aCorner;
@@ -409,6 +407,11 @@ void main() {
   if (aMeshMode > 2.5 && aMeshMode < 3.5) vHeight = aWorld.z / ${glslFloat(Z_STEP)};
   else if (aMeshMode > 0.5) vHeight = cornerHeight / ${glslFloat(Z_STEP)};
   else vHeight = vAnchorZ + (1.0 - aCorner.y) * aSize.y / ${glslFloat(Z_PIXELS)};
+  // Meshes are planar per triangle, so their depth interpolates exactly from the vertices; sprite
+  // fragments replace it with their baked per-pixel height.
+  float depth = clamp(0.5 - vHeight * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0);
+  gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
+                     1.0 - screen.y / uViewport.y * 2.0, depth * 2.0 - 1.0, 1.0);
 }`;
 
 const fragmentSource = `#version 300 es
@@ -505,6 +508,14 @@ void main() {
   }
 }`;
 
+/** Depth-only pass over terrain meshes: depth comes from the vertex shader. */
+const depthFragmentSource = `#version 300 es
+precision mediump float;
+out vec4 outColor;
+void main() {
+  outColor = vec4(0.0);
+}`;
+
 const groundVertexSource = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 aCorner;
@@ -569,6 +580,14 @@ export class WebGL2Renderer implements Renderer {
   private pickCacheSnapshot: Snapshot | null = null;
   private pickTargets: ObjectPickTarget[] = [];
   private program: WebGLProgram | null = null;
+  private depthProgram: WebGLProgram | null = null;
+  private depthUniforms: {
+    viewport: WebGLUniformLocation | null;
+    mapSize: WebGLUniformLocation | null;
+    camera: WebGLUniformLocation | null;
+    zoom: WebGLUniformLocation | null;
+    rotation: WebGLUniformLocation | null;
+  } | null = null;
   private vao: WebGLVertexArrayObject | null = null;
   private instanceBuffer: WebGLBuffer | null = null;
   private fallbackTexture: WebGLTexture | null = null;
@@ -1003,6 +1022,7 @@ export class WebGL2Renderer implements Renderer {
       if (this.instanceBuffer) gl.deleteBuffer(this.instanceBuffer);
       if (this.vao) gl.deleteVertexArray(this.vao);
       if (this.program) gl.deleteProgram(this.program);
+      if (this.depthProgram) gl.deleteProgram(this.depthProgram);
     }
     this.canvas = null;
     this.gl = null;
@@ -1028,6 +1048,15 @@ export class WebGL2Renderer implements Renderer {
       throw new Error(reason);
     }
     this.program = shaderProgram;
+    const depthProgram = this.linkProgram(vertexSource, depthFragmentSource);
+    this.depthProgram = depthProgram;
+    this.depthUniforms = {
+      viewport: gl.getUniformLocation(depthProgram, 'uViewport'),
+      mapSize: gl.getUniformLocation(depthProgram, 'uMapSize'),
+      camera: gl.getUniformLocation(depthProgram, 'uCamera'),
+      zoom: gl.getUniformLocation(depthProgram, 'uZoom'),
+      rotation: gl.getUniformLocation(depthProgram, 'uRotation'),
+    };
     this.uniforms = {
       atlas: Array.from({ length: TEXTURE_SLOTS }, (_, slot) =>
         gl.getUniformLocation(shaderProgram, `uAtlas${slot}`),
@@ -1156,6 +1185,26 @@ export class WebGL2Renderer implements Renderer {
       this.groundArtReady = ready;
       this.groundChunks.clear();
     }
+  }
+
+  private linkProgram(vertex: string, fragment: string): WebGLProgram {
+    const gl = this.gl;
+    if (!gl) throw new Error('WebGL2 unavailable');
+    const program = gl.createProgram();
+    if (!program) throw new Error('Could not create WebGL program');
+    const vertexShader = this.compileShader(gl.VERTEX_SHADER, vertex);
+    const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, fragment);
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      const reason = gl.getProgramInfoLog(program) ?? 'unknown program link error';
+      gl.deleteProgram(program);
+      throw new Error(reason);
+    }
+    return program;
   }
 
   private compileShader(kind: number, source: string): WebGLShader {
@@ -1561,7 +1610,8 @@ export class WebGL2Renderer implements Renderer {
   /**
    * Lays the depth of every visible tile's terrain and cliff faces, with colour writes off. The
    * meshes carry their true height per vertex, so ground depth is exact at every zoom, unlike the
-   * zoom-1 colour cache drawn under it.
+   * zoom-1 colour cache drawn under it. All ground is needed, not only raised tiles: track,
+   * supports and other objects may reach below the surface of flat ground.
    */
   private drawGroundDepth(
     map: MapData,
@@ -1593,18 +1643,20 @@ export class WebGL2Renderer implements Renderer {
         }
       }
     this.uploadInPainterOrder();
+    const uniforms = this.depthUniforms;
+    if (!this.depthProgram || !uniforms || !this.vao) return;
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.colorMask(false, false, false, false);
-    this.drawRuns(
-      viewportWidth,
-      viewportHeight,
-      map,
-      camera.x,
-      camera.y,
-      camera.zoom,
-      camera.rotation,
-    );
+    gl.useProgram(this.depthProgram);
+    gl.bindVertexArray(this.vao);
+    gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
+    gl.uniform2f(uniforms.mapSize, map.width, map.height);
+    gl.uniform2f(uniforms.camera, camera.x, camera.y);
+    gl.uniform1f(uniforms.zoom, camera.zoom);
+    gl.uniform1f(uniforms.rotation, camera.rotation);
+    if (this.attributeBase !== 0) this.pointInstanceAttributes(0);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
     gl.colorMask(true, true, true, true);
     this.count = 0;
   }
@@ -1641,8 +1693,7 @@ export class WebGL2Renderer implements Renderer {
     };
   }
 
-  /** Adds the on-screen water planes and the raised terrain that must hide sprites behind it. */
-  /** Terrain no higher than a flat ride's floor must not be redrawn over the ride. */
+  /** Adds the on-screen water planes and their bank faces. */
   private appendWater(
     map: MapData,
     camera: Camera,
