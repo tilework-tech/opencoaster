@@ -434,6 +434,8 @@ export class WebGL2Renderer implements Renderer {
     this.drawGroundChunks(camera, viewportWidth, viewportHeight);
 
     this.count = 0;
+    if (snapshot) this.rideCells.build(snapshot, map, camera.rotation);
+    else this.rideCells.reset();
     this.appendWaterAndOccluders(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
       this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
@@ -1122,6 +1124,12 @@ export class WebGL2Renderer implements Renderer {
   }
 
   /** Adds the on-screen water planes and the raised terrain that must hide sprites behind it. */
+  /** Terrain no higher than a flat ride's floor must not be redrawn over the ride. */
+  private hiddenByRide(map: MapData, tile: number): boolean {
+    const floor = this.rideCells.floor[tile];
+    return floor > 0 && map.heights[tile] + (map.slope[tile] !== 0 ? 1 : 0) <= floor - 1;
+  }
+
   private appendWaterAndOccluders(
     map: MapData,
     camera: Camera,
@@ -1137,6 +1145,7 @@ export class WebGL2Renderer implements Renderer {
       if (Math.abs(lists.occluderX[i] - camera.x) > halfWidth) continue;
       const dy = lists.occluderY[i] - camera.y;
       if (dy < -top || dy > bottom) continue;
+      if (this.hiddenByRide(map, lists.occluders[i])) continue;
       this.appendGroundTile(map, lists.occluders[i], camera.rotation, 5);
     }
     const frame = waterSpriteName(waterFrameIndex(tick));
@@ -1770,7 +1779,6 @@ export class WebGL2Renderer implements Renderer {
     viewportHeight: number,
   ): void {
     const scene = this.rideCells;
-    scene.build(snapshot, map, camera.rotation);
     for (let i = 0; i < scene.length; i++) {
       const item = scene.items[i];
       const entry = spritePages.resolve(item.key);

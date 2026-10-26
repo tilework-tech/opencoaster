@@ -38,6 +38,11 @@ export function isSlicedRide(type: RideType): boolean {
  */
 export class RideCellScene {
   readonly items: RideCellDraw[] = [];
+  /**
+   * Per map tile, the floor level plus one of a flat ride whose footprint stands on or touches the
+   * tile, else 0; valid after `build`. Terrain at or below that floor never hides the ride.
+   */
+  floor: Uint8Array = new Uint8Array(0);
   private count = 0;
 
   get length(): number {
@@ -46,10 +51,14 @@ export class RideCellScene {
 
   reset(): void {
     this.count = 0;
+    this.floor.fill(0);
   }
 
   build(snapshot: Snapshot, map: MapData, rotation: Rotation): void {
     this.count = 0;
+    if (this.floor.length !== map.width * map.height)
+      this.floor = new Uint8Array(map.width * map.height);
+    else this.floor.fill(0);
     for (let i = 0; i < snapshot.rides.count; i++) {
       const o = i * RIDE_INFO_STRIDE;
       const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
@@ -67,12 +76,24 @@ export class RideCellScene {
       for (let cell = 0; cell < tiles.length; cell++) {
         const [tx, ty] = tiles[cell];
         if (tx < 0 || ty < 0 || tx >= map.width || ty >= map.height) continue;
+        this.raiseFloor(map, tx, ty, base);
         const x = tx * TILE_UNITS + TILE_UNITS / 2;
         const y = ty * TILE_UNITS + TILE_UNITS / 2;
         const depth = 2 * rotatedPositionSum(x, y, map, rotation) - base;
         this.push(rideCellSpriteKey(type, cell, dir, rotation), phase, x, y, base * Z_STEP, depth);
       }
     }
+  }
+
+  private raiseFloor(map: MapData, tx: number, ty: number, base: number): void {
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const x = tx + dx;
+        const y = ty + dy;
+        if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
+        const i = y * map.width + x;
+        this.floor[i] = Math.max(this.floor[i], base + 1);
+      }
   }
 
   private push(key: string, phase: number, x: number, y: number, z: number, depth: number): void {

@@ -207,6 +207,8 @@ export class Canvas2DRenderer implements Renderer {
     const z = cam.zoom;
     const scale = z * this.dpr;
     ctx.setTransform(scale, 0, 0, scale, this.cw / 2 - cam.x * scale, this.ch / 2 - cam.y * scale);
+    if (snapshot) this.rideCells.build(snapshot, map, cam.rotation);
+    else this.rideCells.reset();
     this.drawTiles(ctx, map, cam, snapshot);
     if (snapshot) {
       this.drawParkGate(ctx, snapshot, map, cam);
@@ -463,7 +465,9 @@ export class Canvas2DRenderer implements Renderer {
           const behindIndex = behindWorldY * map.width + behindWorldX;
           return terrainPeak > map.heights[behindIndex]! + (map.slope[behindIndex] !== 0 ? 1 : 0);
         };
-        if (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1)) {
+        const rideFloor = this.rideCells.floor[i]!;
+        const belowRide = rideFloor > 0 && terrainPeak <= rideFloor - 1;
+        if (!belowRide && (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1))) {
           this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 5, () =>
             this.drawTerrainOccluder(ctx, map, cam, x, y, i, mask, terrainSurface, sx, sy, lift),
           );
@@ -1087,7 +1091,6 @@ export class Canvas2DRenderer implements Renderer {
     map: MapData,
     cam: Camera,
   ): void {
-    this.rideCells.build(snapshot, map, cam.rotation);
     for (let i = 0; i < this.rideCells.length; i++) {
       const item = this.rideCells.items[i]!;
       this.queueAtDepth(item.depth, () => this.drawRideCell(ctx, item, snapshot, map, cam));

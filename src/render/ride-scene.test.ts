@@ -45,6 +45,24 @@ function snapshotWith(
   return snapshot;
 }
 
+describe('RideCellScene floor', () => {
+  it('marks the footprint and the tiles touching it with the ride floor level plus one', () => {
+    const scene = new RideCellScene();
+    scene.build(
+      snapshotWith([{ type: RideType.MerryGoRound, x: 12, y: 14, dir: 0, base: 3 }]),
+      map(),
+      0,
+    );
+    const at = (x: number, y: number): number => scene.floor[y * SIZE + x];
+    for (const [x, y] of rideFootprintTiles(RIDE_CATALOG[RideType.MerryGoRound], 12, 14, 0))
+      expect(at(x, y)).toBe(4);
+    expect(at(14, 16)).toBe(4);
+    expect(at(16, 16)).toBe(0);
+    scene.reset();
+    expect(at(12, 14)).toBe(0);
+  });
+});
+
 describe('RideCellScene', () => {
   it('draws one slice per footprint tile at the centre of the tile it covers', () => {
     const scene = new RideCellScene();
