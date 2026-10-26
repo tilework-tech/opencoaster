@@ -23,6 +23,7 @@ import { FACILITY_MODELS } from './models/facilities';
 import { parkEntranceMesh } from './models/park-entrance';
 import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
 import { cactusTreeMesh, palmTreeMesh } from './models/trees';
+import { flowerBedMesh } from './models/flower-bed';
 import { LOG_FLUME_MODEL } from './models/log-flume';
 import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
 import { personMesh, seatedRiderMesh } from './models/people';
@@ -249,6 +250,16 @@ function treeSprites(): SpriteDef[] {
   ];
 }
 
+function flowerBedSprites(): SpriteDef[] {
+  return Array.from({ length: 4 }, (_, variant) =>
+    Array.from({ length: 4 }, (_, view) => ({
+      key: `scenery/flower-bed/variant-${variant}/view-${view}`,
+      frames: [renderMesh(rotateMesh(physicalToLevels(flowerBedMesh(variant)), view))],
+      footprint: ONE_TILE,
+    })),
+  ).flat();
+}
+
 function parkEntranceSprites(): SpriteDef[] {
   return Array.from({ length: 4 }, (_, view) => ({
     key: `scenery/park-entrance/view-${view}`,
@@ -434,6 +445,7 @@ export function buildSprites(): SpriteDef[] {
     ...pathAdditionSprites(),
     ...litterSprites(),
     ...treeSprites(),
+    ...flowerBedSprites(),
     ...coasterSprites(),
     ...waterTrackSprites(),
     ...transportSprites(),

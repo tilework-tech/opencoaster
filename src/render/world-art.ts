@@ -5,6 +5,7 @@ import { RidePhase } from '../sim/rides/ride-store';
 import { PathFlag, PATH_ADDITION_BROKEN, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
 import { Z_PIXELS } from './projection';
+import { terrainMeshTriangles } from './terrain-geometry';
 
 /** Simulation ticks each flat-ride animation frame is shown for. */
 export const TICKS_PER_ANIMATION_FRAME = 8;
@@ -193,6 +194,21 @@ export const WATER_BANK = {
 
 export function scenerySpriteName(name: string): string {
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
+}
+
+/** Deterministic color and camera-view key for a flowerbed on a map tile. */
+export function flowerBedSpriteName(x: number, y: number, rotation: number): string {
+  const variant = (((x + 2 * y) % 4) + 4) % 4;
+  const view = ((rotation % 4) + 4) % 4;
+  return `scenery/flower-bed/variant-${variant}/view-${view}`;
+}
+
+/** Height at the centre diagonal shared by the two triangles of a sloped tile. */
+export function flowerBedGroundZ(baseHeight: number, slopeMask: number, rotation: number): number {
+  const corners = [0, 1, 2, 3].map((corner) => baseHeight + ((slopeMask >> corner) & 1));
+  const [first, second] = terrainMeshTriangles(rotation);
+  const diagonal = first.filter((corner) => second.includes(corner));
+  return ((corners[diagonal[0]!]! + corners[diagonal[1]!]!) / 2) * Z_STEP;
 }
 
 export function pathAdditionSpriteName(flags: number, rotation: number, data: number): string {
