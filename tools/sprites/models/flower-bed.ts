@@ -17,6 +17,11 @@ const CORNERS: readonly Vec3[] = [
 const EDGE_WIDTH = 0.015;
 const EDGE_HEIGHT = 0.01;
 const FLOWER_HEIGHT = 0.18;
+/**
+ * The bed rests on the terrain rather than in it: one screen pixel up, like a path surface, so the
+ * soil is always nearer the camera than the ground under it.
+ */
+const SOIL_LIFT = 1 / 16 / PHYSICAL_Z;
 
 function surfaceHeight(x: number, y: number, slopeMask: number, view: number): number {
   const pointX = x + 0.5;
@@ -46,7 +51,7 @@ export function flowerBedMesh(variant: number, slopeMask = 0, view = 0): Mesh {
   const diagonal = triangles[0].filter((corner) => triangles[1].includes(corner));
   const centerHeight = diagonal.reduce((sum, corner) => sum + ((slopeMask >> corner) & 1), 0) / 2;
   const zAt = (x: number, y: number): number =>
-    (surfaceHeight(x, y, slopeMask, view) - centerHeight) / PHYSICAL_Z;
+    (surfaceHeight(x, y, slopeMask, view) - centerHeight) / PHYSICAL_Z + SOIL_LIFT;
   const point = (x: number, y: number, z = 0): Vec3 => [x, y, z + zAt(x, y)];
   const soil: Mesh = triangles.map((corners) => ({
     v: corners.map((corner) => {
