@@ -25,6 +25,9 @@ const MARK_COLOURS: Record<HeightMarkKind, string> = {
   water: '#a8e6ff',
 };
 const MARKER_COLOUR = 'rgba(255, 236, 120, 0.95)';
+const MARKER_OUTLINE = 'rgba(10, 14, 8, 0.85)';
+/** Levels the pole rises above the build level so it reads even when built at ground level. */
+const POLE_FLAG = 1.5;
 const MARKER_FILL = 'rgba(255, 236, 120, 0.18)';
 
 /** Font size, in CSS pixels, of height numbers at a camera zoom. */
@@ -134,7 +137,10 @@ export class TerrainAidOverlay {
     target: ConstructionTarget,
   ): void {
     const { ctx } = this;
-    const ground = map.heights[target.y * map.width + target.x] ?? 0;
+    const index = target.y * map.width + target.x;
+    const mask = map.slope[index] ?? 0;
+    const rise = ((mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1) + ((mask >> 3) & 1)) / 4;
+    const ground = (map.heights[index] ?? 0) + rise;
     const at = (x: number, y: number, z: number) => this.screen(map, camera, viewport, x, y, z);
     const [gx, gy] = at(target.x + 0.5, target.y + 0.5, ground);
     const [tx, ty] = at(target.x + 0.5, target.y + 0.5, target.level);
@@ -154,12 +160,20 @@ export class TerrainAidOverlay {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.lineWidth = 2;
+    const [hx, hy] = at(target.x + 0.5, target.y + 0.5, Math.max(ground, target.level) + POLE_FLAG);
     ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(gx, gy);
-    ctx.lineTo(tx, ty);
-    ctx.stroke();
+    const pole = (): void => {
+      ctx.beginPath();
+      ctx.moveTo(gx, gy);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+    };
+    ctx.strokeStyle = MARKER_OUTLINE;
+    ctx.lineWidth = 5;
+    pole();
+    ctx.strokeStyle = MARKER_COLOUR;
+    ctx.lineWidth = 2.5;
+    pole();
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     const low = Math.min(ground, target.level);
