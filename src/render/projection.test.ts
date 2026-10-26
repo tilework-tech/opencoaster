@@ -95,4 +95,21 @@ describe('projection', () => {
       }
     }
   });
+
+  it('picks a lower foreground tile over raised terrain behind it', () => {
+    const map = {
+      width: 4,
+      height: 4,
+      heights: new Uint8Array(16),
+      slope: new Uint8Array(16),
+    };
+    map.heights[map.width + 1] = 5;
+    map.slope[0] = 1;
+    const camera = { x: 0, y: 0, zoom: 1, rotation: 0 as Rotation };
+    const viewport = { width: 800, height: 600 };
+
+    expect(pickTile(viewport.width / 2, viewport.height / 2 - 16, map, camera, viewport)).toEqual([
+      0, 0,
+    ]);
+  });
 });

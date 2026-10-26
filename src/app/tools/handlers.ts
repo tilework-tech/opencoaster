@@ -21,7 +21,7 @@ export interface ToolHandlerDependencies {
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
   sceneryRotation: () => number;
-  patrolKind: () => number | null;
+  patrolStaffId: () => number | null;
 }
 
 export function handlePathTool(deps: ToolHandlerDependencies, x: number, y: number): void {
@@ -83,13 +83,13 @@ export function handlePatrolTool(
   y: number,
   shiftKey: boolean,
 ): void {
-  const kind = deps.patrolKind();
-  if (kind === null) {
-    deps.gameUi.setToolStatus('Choose a staff role or person in the Staff panel first.');
+  const staffId = deps.patrolStaffId();
+  if (staffId === null) {
+    deps.gameUi.setToolStatus('Open a worker window and choose Edit patrol area first.');
     return;
   }
   const remove = shiftKey || deps.alternate();
-  deps.sim.command({ type: 'setStaffKindPatrolTile', kind, x, y, enabled: !remove });
+  deps.sim.command({ type: 'setStaffPatrolTile', staffId, x, y, enabled: !remove });
   deps.gameUi.setToolStatus(
     `${remove ? 'Patrol tile removed from' : 'Patrol tile added to'} ${x}, ${y}.`,
   );

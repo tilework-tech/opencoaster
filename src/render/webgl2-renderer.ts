@@ -162,7 +162,7 @@ void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
   bool faceMesh = aMeshMode > 3.5;
   float cornerHeight = aWorld.z;
-  if ((aMeshMode > 0.5 && aMeshMode < 1.5) || aMeshMode > 2.5) {
+  if ((aMeshMode > 0.5 && aMeshMode < 2.5) || aMeshMode > 2.5) {
     if (aCorner.x < 0.5 && aCorner.y < 0.5) cornerHeight = aCornerHeights.x;
     else if (aCorner.x >= 0.5 && aCorner.y < 0.5) cornerHeight = aCornerHeights.y;
     else if (aCorner.x >= 0.5 && aCorner.y >= 0.5) cornerHeight = aCornerHeights.z;
@@ -199,7 +199,7 @@ void main() {
                  vec2(0.0, ${glslFloat(TILE_H / 2)});
     float baseZ = aWorld.z;
     screen += tileOffset * uZoom;
-    if (aMeshMode < 1.5)
+    if (aMeshMode < 2.5)
       screen.y -= (cornerHeight - baseZ) * ${glslFloat(Z_PIXELS / Z_STEP)} * uZoom;
   } else if (!faceMesh) {
     screen += (aCorner - 0.5) * aSize * uZoom;
@@ -238,6 +238,20 @@ ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot})
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
+  if (vMeshMode > 1.4 && vMeshMode < 2.0) outColor = vec4(0.26, 0.53, 1.0, 0.32);
+  if (vMeshMode > 1.9 && vMeshMode < 2.5) outColor = vec4(0.96, 0.2, 0.16, 0.38);
+  if (vMeshMode > 1.4 && vMeshMode < 2.5) {
+    vec2 edge = min(vTileUv, 1.0 - vTileUv);
+    float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * (vMeshMode < 1.6 ? 0.55 : 1.3);
+    float line = 1.0 - smoothstep(width, width * 1.8, min(edge.x, edge.y));
+    vec3 border = vMeshMode > 1.9
+      ? vec3(1.0, 0.28, 0.22)
+      : vMeshMode < 1.6
+        ? vec3(0.65, 0.82, 1.0)
+        : vec3(1.0);
+    outColor.rgb = mix(outColor.rgb, border, line);
+    outColor.a = max(outColor.a, line * 0.95);
+  }
   if (vMeshMode > 4.5) outColor = vec4(0.37, 0.29, 0.18, 1.0);
   if (vMeshMode > 2.5 && vMeshMode < 3.5) {
     float depth = vWaterDepth;
@@ -364,6 +378,9 @@ export class WebGL2Renderer implements Renderer {
   private count = 0;
   private ghosts: readonly PathPieceGhost[] = [];
   private spriteGhosts: readonly SpriteGhost[] = [];
+  private patrolStaffId: number | null = null;
+  private patrolPreview: readonly [number, number] | null = null;
+  private patrolPreviewRemove = false;
   private ghostMode = 0;
   private visibleCount = 0;
   private gridlinesActive = false;
@@ -415,6 +432,15 @@ export class WebGL2Renderer implements Renderer {
     this.spriteGhosts = ghosts;
   }
 
+  setPatrolStaff(staffId: number | null): void {
+    this.patrolStaffId = staffId;
+  }
+
+  setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void {
+    this.patrolPreview = tile;
+    this.patrolPreviewRemove = remove;
+  }
+
   draw(snapshot: Snapshot | null, camera: Camera): void {
     const gl = this.gl;
     const canvas = this.canvas;
@@ -432,6 +458,7 @@ export class WebGL2Renderer implements Renderer {
     this.drawGroundChunks(camera, viewportWidth, viewportHeight);
 
     this.count = 0;
+    if (snapshot) this.appendPatrolAreas(snapshot, map, camera, viewportWidth, viewportHeight);
     this.appendWaterAndOccluders(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
       this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
@@ -1191,6 +1218,89 @@ export class WebGL2Renderer implements Renderer {
           [level * 64, level * 64, level * 64, level * 64],
         );
     }
+  }
+
+  private appendPatrolAreas(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    if (this.patrolStaffId === null) return;
+    let area = 0;
+    for (let slot = 0; slot < snapshot.staff.count; slot++)
+      if (snapshot.staffIds[slot] === this.patrolStaffId) area = snapshot.patrolAreaIds[slot]!;
+    const blocksWide = Math.ceil(map.width / 4);
+    const blocksHigh = Math.ceil(map.height / 4);
+    const maskStart = area > 0 ? (area - 1) * snapshot.patrolWordsPerArea : 0;
+    for (let by = 0; by < blocksHigh; by++)
+      for (let bx = 0; bx < blocksWide; bx++) {
+        const block = by * blocksWide + bx;
+        const marked =
+          area > 0 &&
+          (snapshot.patrolAreas[maskStart + (block >>> 5)]! & (1 << (block & 31))) !== 0;
+        const previewed =
+          this.patrolPreview !== null &&
+          this.patrolPreview[0] >>> 2 === bx &&
+          this.patrolPreview[1] >>> 2 === by;
+        if (!marked && (!previewed || this.patrolPreviewRemove)) continue;
+        const meshMode = marked ? (previewed && this.patrolPreviewRemove ? 2.1 : 1.5) : 1.6;
+        for (let y = by * 4; y < Math.min(map.height, by * 4 + 4); y++)
+          for (let x = bx * 4; x < Math.min(map.width, bx * 4 + 4); x++) {
+            this.appendPatrolTile(map, camera, viewportWidth, viewportHeight, x, y, meshMode);
+          }
+      }
+  }
+
+  private appendPatrolTile(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+    x: number,
+    y: number,
+    meshMode: number,
+  ): void {
+    const index = y * map.width + x;
+    rotateForDraw(x, y, map.width, map.height, camera.rotation, this.tileCoordinates);
+    const rx = this.tileCoordinates[0];
+    const ry = this.tileCoordinates[1];
+    const height = map.heights[index]!;
+    project(
+      (x + 0.5) * TILE_UNITS,
+      (y + 0.5) * TILE_UNITS,
+      height * 64,
+      map.width,
+      map.height,
+      camera.rotation,
+      this.projected,
+    );
+    if (
+      Math.abs(this.projected[0]! - camera.x) > viewportWidth / camera.zoom / 2 + TILE_W ||
+      Math.abs(this.projected[1]! - camera.y) >
+        viewportHeight / camera.zoom / 2 + TILE_H + 32 * Z_PIXELS
+    )
+      return;
+    const mask = map.slope[index]!;
+    const worldCorners = [
+      (height + (mask & 1)) * 64,
+      (height + ((mask >> 1) & 1)) * 64,
+      (height + ((mask >> 2) & 1)) * 64,
+      (height + ((mask >> 3) & 1)) * 64,
+    ] as const;
+    const corners = viewTerrainCornerHeights(worldCorners, camera.rotation);
+    this.append(
+      rx * TILE_UNITS,
+      ry * TILE_UNITS,
+      height * 64,
+      TILE_W,
+      TILE_H,
+      0,
+      2 * (rx + ry) - height + 0.25,
+      meshMode,
+      corners,
+    );
   }
 
   /** Appends one tile's terrain, boundary cliff faces and flat path fill. */

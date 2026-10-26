@@ -75,6 +75,10 @@ export interface Renderer {
   setGhosts(ghosts: readonly PathPieceGhost[]): void;
   /** Ride and scenery previews drawn in the depth-sorted world pass until replaced. */
   setSpriteGhosts(ghosts: readonly SpriteGhost[]): void;
+  /** Selects the individual worker whose patrol blocks are shown; null hides them. */
+  setPatrolStaff(staffId: number | null): void;
+  /** Sets the 4×4 block shown under the pointer while editing the selected worker's area. */
+  setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void;
   draw(snapshot: Snapshot | null, camera: Camera): void;
   dispose(): void;
 }

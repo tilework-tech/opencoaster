@@ -1187,15 +1187,6 @@
   overflow: hidden;
   pointer-events: none;
 }
-.patrol-overlay[hidden] {
-  display: none;
-}
-.patrol-overlay polygon {
-  fill: #ffe55d44;
-  stroke: #fff18a;
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
-}
 .hud {
   position: fixed;
   z-index: 44;

@@ -13,7 +13,7 @@ const TABS: readonly TabSpec[] = STAFF_KIND_NAMES.map((_, kind) => ({
   icon: TAB_ICONS[kind],
 }));
 
-/** Staff window: one tab per role with a hire button, patrol-area editing and that role's roster. */
+/** Staff window: one tab per role with a hire button and that role's roster. */
 export function openStaffWindow(ctx: UiContext): WindowController {
   const { window: win, created } = ctx.windows.open({
     id: 'staff',
@@ -30,15 +30,6 @@ export function openStaffWindow(ctx: UiContext): WindowController {
       const pane = win.pane(String(kind));
       const row = element('div', 'button-row');
       row.append(button(`Hire ${name}`, () => ctx.actions.hireStaff(kind), 'ui-button'));
-      const patrol = button(
-        `Patrol ${name}`,
-        () => {
-          ctx.actions.setPatrolKind(kind);
-          ctx.chooseTool('patrol');
-        },
-        'ui-button',
-      );
-      row.append(patrol);
       const alternate = button(
         'Remove tiles',
         () => {
@@ -57,10 +48,6 @@ export function openStaffWindow(ctx: UiContext): WindowController {
           {
             open: (staffId) => ctx.openWorker(staffId),
             rename: (staffId, newName) => ctx.actions.renameStaff(staffId, newName),
-            patrol: (k) => {
-              ctx.actions.setPatrolKind(k);
-              ctx.chooseTool('patrol');
-            },
             fire: (staffId) => ctx.actions.fireStaff(staffId),
           },
           kind,

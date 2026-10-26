@@ -23,12 +23,13 @@ import {
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 const PRE_PATH_STYLE_SAVE_VERSION = 16;
 const PATH_STYLE_SAVE_VERSION = 17;
 /** Guests carry campaign vouchers from this version; earlier guests carry none. */
 const VOUCHER_SAVE_VERSION = 18;
 const PRE_TRACKED_WATER_RIDES_SAVE_VERSION = 19;
+const PER_STAFF_PATROL_SAVE_VERSION = 20;
 const PREVIOUS_SAVE_VERSION = 15;
 const PRE_V15_SAVE_VERSION = 14;
 const PRE_GUEST_STATS_SAVE_VERSION = 11;
@@ -465,6 +466,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_PATH_STYLE_SAVE_VERSION,
     PATH_STYLE_SAVE_VERSION,
     VOUCHER_SAVE_VERSION,
+    PRE_TRACKED_WATER_RIDES_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -478,7 +480,8 @@ export function deserialize(bytes: Uint8Array): World {
     maxGuests: header.stores.guests.capacity,
   });
   world.tick = header.tick;
-  if (header.patrolAreas) world.patrolAreas.set(header.patrolAreas);
+  if (header.patrolAreas && header.version >= PER_STAFF_PATROL_SAVE_VERSION)
+    world.patrolAreas.set(header.patrolAreas);
   if (header.umbrellas) world.umbrellas.set(header.umbrellas);
   if (header.grounds) world.grounds.set(header.grounds);
   for (const [id, name] of Object.entries(header.staffNames ?? {}))
@@ -563,6 +566,24 @@ export function deserialize(bytes: Uint8Array): World {
   if (version15Staff) {
     version15Staff.restore(header.stores.staff.count, header.stores.staff.freeTop);
     migrateVersion15Staff(world, version15Staff);
+  }
+  if (header.patrolAreas && header.version < PER_STAFF_PATROL_SAVE_VERSION) {
+    const mapSize = world.map.width * world.map.height;
+    const blocksWide = Math.ceil(world.map.width / 4);
+    for (let slot = 0; slot < world.staff.count; slot++) {
+      const oldStart = world.staff.cols.kind[slot]! * mapSize;
+      const area = slot + 1;
+      let hasBlocks = false;
+      for (let y = 0; y < world.map.height; y++)
+        for (let x = 0; x < world.map.width; x++) {
+          if (!header.patrolAreas[oldStart + y * world.map.width + x]) continue;
+          const block = Math.floor(y / 4) * blocksWide + Math.floor(x / 4);
+          world.patrolAreas[(area - 1) * world.patrolWordsPerArea + (block >>> 5)] |=
+            1 << (block & 31);
+          hasBlocks = true;
+        }
+      if (hasBlocks) world.staff.cols.patrolArea[slot] = area;
+    }
   }
   if (legacyLitter) {
     legacyLitter.restore(header.stores.litter.count, header.stores.litter.freeTop);

@@ -71,7 +71,7 @@ export interface GameUIActions {
   spawnGuests(): void;
   openMenu(): void;
   hireStaff(kind: number): void;
-  setPatrolKind(kind: number | null): void;
+  setPatrolStaff(staffId: number | null): void;
   renameStaff(staffId: number, name: string): void;
   fireStaff(staffId: number): void;
   setRidePrice(rideId: number, priceCents: number): void;

@@ -68,7 +68,12 @@ export interface CameraInputDependencies {
   land: LandController;
   areaTools: Record<'clear' | 'water', AreaController>;
   setPlacementHover: (hover: PlacementHover | null) => void;
-  setBuildHover: (tile: [number, number] | null, clientX: number, clientY: number) => void;
+  setBuildHover: (
+    tile: [number, number] | null,
+    clientX: number,
+    clientY: number,
+    shiftKey: boolean,
+  ) => void;
   removeSceneryAt: (x: number, y: number) => void;
   /** Receives the canvas size in CSS pixels whenever it changes. */
   viewport: { width: number; height: number };
@@ -299,7 +304,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
       deps.setPlacementHover(
         tile ? { tile, clientX: event.clientX, clientY: event.clientY } : null,
       );
-    deps.setBuildHover(tile, event.clientX, event.clientY);
+    deps.setBuildHover(tile, event.clientX, event.clientY, event.shiftKey);
     pointerInput.pointerMove(pointerSample(event));
   });
   canvas.addEventListener('pointerup', (event) => {
@@ -309,7 +314,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   canvas.addEventListener('pointerleave', (event) => {
     deps.pathDrag.hoverEnd();
     deps.setPlacementHover(null);
-    deps.setBuildHover(null, 0, 0);
+    deps.setBuildHover(null, 0, 0, false);
     if (event.buttons !== 0) return;
     const tool = deps.selectedTool();
     if (tool === 'land') deps.land.leave();

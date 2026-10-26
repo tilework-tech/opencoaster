@@ -111,11 +111,23 @@ export class Canvas2DRenderer implements Renderer {
   private atlas: CanvasAtlas | null = null;
   private readonly coasterScene = new CoasterScene();
   private tick = 0;
+  private patrolStaffId: number | null = null;
+  private patrolPreview: readonly [number, number] | null = null;
+  private patrolPreviewRemove = false;
   private drawOrder: { depth: number; order: number; draw: () => void }[] = [];
   private nextDrawOrder = 0;
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
+  }
+
+  setPatrolStaff(staffId: number | null): void {
+    this.patrolStaffId = staffId;
+  }
+
+  setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void {
+    this.patrolPreview = tile;
+    this.patrolPreviewRemove = remove;
   }
 
   attach(canvas: HTMLCanvasElement): void {
@@ -282,6 +294,12 @@ export class Canvas2DRenderer implements Renderer {
     snapshot: Snapshot | null,
   ): void {
     const [vw, vh] = viewSize(map.width, map.height, cam.rotation);
+    let patrolArea = 0;
+    if (snapshot && this.patrolStaffId !== null) {
+      for (let slot = 0; slot < snapshot.staff.count; slot++)
+        if (snapshot.staffIds[slot] === this.patrolStaffId)
+          patrolArea = snapshot.patrolAreaIds[slot]!;
+    }
     const z = cam.zoom;
     const minX = cam.x - this.cw / 2 / (z * this.dpr) - TILE_W;
     const maxX = cam.x + this.cw / 2 / (z * this.dpr) + TILE_W;
@@ -350,6 +368,32 @@ export class Canvas2DRenderer implements Renderer {
             texture();
             ctx.restore();
           }
+        }
+        const blocksWide = Math.ceil(map.width / 4);
+        const block = (y >>> 2) * blocksWide + (x >>> 2);
+        const patrolOffset = patrolArea > 0 ? (patrolArea - 1) * snapshot!.patrolWordsPerArea : 0;
+        const marked =
+          patrolArea > 0 &&
+          (snapshot!.patrolAreas[patrolOffset + (block >>> 5)]! & (1 << (block & 31))) !== 0;
+        if (marked) {
+          this.drawPatrolTile(ctx, map, cam, x, y, i, mask, 'active');
+        }
+        if (
+          this.patrolPreview &&
+          this.patrolPreview[0] >>> 2 === x >>> 2 &&
+          this.patrolPreview[1] >>> 2 === y >>> 2 &&
+          (this.patrolPreviewRemove ? marked : !marked)
+        ) {
+          this.drawPatrolTile(
+            ctx,
+            map,
+            cam,
+            x,
+            y,
+            i,
+            mask,
+            this.patrolPreviewRemove ? 'remove' : 'add',
+          );
         }
         if (terrainSurface === 'rock')
           this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 0.25, () =>
@@ -490,6 +534,48 @@ export class Canvas2DRenderer implements Renderer {
         this.visibleCount++;
       }
     }
+  }
+
+  private drawPatrolTile(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    index: number,
+    mask: number,
+    tone: 'active' | 'add' | 'remove',
+  ): void {
+    const corners = terrainTileCorners(x, y, map.heights[index]!, mask);
+    ctx.beginPath();
+    corners.forEach((corner, cornerIndex) => {
+      project(
+        corner.x * TILE_UNITS,
+        corner.y * TILE_UNITS,
+        corner.height * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      if (cornerIndex === 0) ctx.moveTo(this.tmp[0]!, this.tmp[1]!);
+      else ctx.lineTo(this.tmp[0]!, this.tmp[1]!);
+    });
+    ctx.closePath();
+    ctx.fillStyle =
+      tone === 'active'
+        ? 'rgba(67, 137, 255, 0.28)'
+        : tone === 'add'
+          ? 'rgba(255, 255, 255, 0.16)'
+          : 'rgba(230, 68, 54, 0.3)';
+    ctx.strokeStyle = tone === 'active' ? '#9fc8ff' : tone === 'add' ? '#ffffff' : '#ff594f';
+    ctx.lineWidth = (tone === 'active' ? 1.5 : 2) / (cam.zoom * this.dpr);
+    ctx.setLineDash(
+      tone === 'active' ? [] : [3 / (cam.zoom * this.dpr), 3 / (cam.zoom * this.dpr)],
+    );
+    ctx.fill();
+    ctx.stroke();
+    if (tone !== 'active') ctx.setLineDash([]);
   }
 
   private drawTerrainOccluder(

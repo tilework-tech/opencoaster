@@ -17,6 +17,7 @@ import {
   StaffKind,
   StaffOrder,
   setStaffPatrolTile,
+  staffPatrolTileEnabled,
   staffOrderEnabled,
   spawnStaff,
 } from '../sim/staff/staff-store';
@@ -315,7 +316,10 @@ describe('save', () => {
     const restored = deserialize(legacy);
 
     expect(restored.staff.cols.patrolArea[0]).not.toBe(restored.staff.cols.patrolArea[1]);
+    expect(staffPatrolTileEnabled(restored, firstId, 2, 8)).toBe(true);
+    expect(staffPatrolTileEnabled(restored, secondId, 2, 8)).toBe(true);
     expect(setStaffPatrolTile(restored, firstId, 2, 8, false)).toBe(true);
+    expect(staffPatrolTileEnabled(restored, secondId, 2, 8)).toBe(true);
     expect(setStaffPatrolTile(restored, firstId, 5, 8, true)).toBe(true);
     expect(restored.staff.cols.patrolArea[0]).not.toBe(restored.staff.cols.patrolArea[1]);
   });

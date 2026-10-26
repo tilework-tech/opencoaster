@@ -7,7 +7,13 @@ import { RidePhase, RideState } from '../rides/ride-store';
 import { createRide } from '../rides/ride-operations';
 import { triggerRideBreakdown } from '../rides/ride-maintenance';
 import { RideType } from '../rides/ride-types';
-import { StaffKind, StaffOrder, setStaffKindPatrolTile, setStaffPatrolTile, spawnStaff } from './staff-store';
+import {
+  StaffKind,
+  StaffOrder,
+  setStaffKindPatrolTile,
+  setStaffPatrolTile,
+  spawnStaff,
+} from './staff-store';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { staffSystem } from './staff-system';
 import { isReachable } from '../pathfinding';
@@ -86,7 +92,7 @@ describe('staff commands and work', () => {
     for (let x = 0; x <= 23; x++) placePath(world.map, { x, y: 8, z: 2 });
     spawnStaff(world, StaffKind.Handyman);
     const firedId = world.staff.slotToId[0];
-    expect(setStaffPatrolTile(world, firedId, 2, 8, true)).toBe(true);
+    expect(setStaffPatrolTile(world, firedId, 17, 8, true)).toBe(true);
     expect(setStaffPatrolTile(world, firedId, 21, 8, true)).toBe(true);
     const releasedArea = world.staff.cols.patrolArea[0];
     expect(releasedArea).toBeGreaterThan(0);
@@ -102,7 +108,7 @@ describe('staff commands and work', () => {
     world.staff.cols.targetY[0] = 8;
     expect(setStaffPatrolTile(world, replacementId, 21, 8, true)).toBe(true);
     expect(world.staff.cols.patrolArea[0]).toBe(releasedArea);
-    dropLitter(world, 6, 8, LitterKind.Trash);
+    dropLitter(world, 19, 8, LitterKind.Trash);
 
     for (let tick = 0; tick < 500; tick++) {
       world.tick = tick;

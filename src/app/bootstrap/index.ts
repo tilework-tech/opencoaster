@@ -1,7 +1,6 @@
 import { SimClient } from '../../worker/sim-client';
 import { createRenderer } from '../../render/create-renderer';
 import type { Camera } from '../../render/renderer';
-import { project } from '../../render/projection';
 import { Hud } from '../../ui/hud';
 import { GameUI } from '../../ui/game-ui';
 import type { GuestSelection, ToolMode } from '../../ui/game-ui';
@@ -13,8 +12,7 @@ import { SaveMenu } from '../../ui/save-menu';
 import { ScenarioDialog } from '../../ui/scenario-dialog';
 import { loadSettings } from '../../ui/settings';
 import type { GameSpeed } from '../../ui/settings';
-import { DEFAULT_MAP_SIZE, TILE_UNITS, Z_STEP } from '../../sim/core/constants';
-import { PathFlag } from '../../sim/map/tile-map';
+import { DEFAULT_MAP_SIZE } from '../../sim/core/constants';
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprite, TrackPreviewOverlay } from '../../ui/track-preview';
@@ -86,7 +84,8 @@ export async function bootstrap(): Promise<void> {
   let placementHover: PlacementHover | null = null;
   let buildHoverTile: [number, number] | null = null;
   let sceneryRotation = 0;
-  let patrolKind: number | null = null;
+  let patrolStaffId: number | null = null;
+  let patrolPreviewRemove = false;
   let alternate = false;
   const pathState = createPathState();
   let sceneryItem = SceneryItem.OakTree;
@@ -100,11 +99,6 @@ export async function bootstrap(): Promise<void> {
     map: () => sim.map,
     status: (text) => gameUi.setToolStatus(text),
   });
-  const patrolOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  patrolOverlay.classList.add('patrol-overlay');
-  patrolOverlay.setAttribute('aria-hidden', 'true');
-  root.append(patrolOverlay);
-  let patrolOverlaySignature = '';
   const trackPreview = new TrackPreviewOverlay(root);
   const scenerySpot = new ScenerySpotPreview(root, sim);
   const pathFeedback = new PathFeedback(root);
@@ -208,8 +202,8 @@ export async function bootstrap(): Promise<void> {
     hireStaff(kind) {
       sim.command({ type: 'hireStaff', kind });
     },
-    setPatrolKind(kind) {
-      patrolKind = kind;
+    setPatrolStaff(staffId) {
+      patrolStaffId = staffId;
     },
     renameStaff(staffId, name) {
       sim.command({ type: 'renameStaff', staffId, name });
@@ -361,7 +355,7 @@ export async function bootstrap(): Promise<void> {
     pathTool,
     sceneryItem: () => sceneryItem,
     sceneryRotation: () => sceneryRotation,
-    patrolKind: () => patrolKind,
+    patrolStaffId: () => patrolStaffId,
     clearRideSetupNotice: rideSetupState.current.clearNotice,
     rideTileClick: rideSetupState.current.rideTileClick,
   });
@@ -387,9 +381,11 @@ export async function bootstrap(): Promise<void> {
     land: landController,
     areaTools,
     setPlacementHover: (hover) => (placementHover = hover),
-    setBuildHover: (tile, x, y) => {
+    setBuildHover: (tile, x, y, shiftKey) => {
       buildHoverTile = tile;
       buildHoverFeedback.pointAt(x, y);
+      patrolPreviewRemove = shiftKey;
+      renderer.setPatrolPreview(tile, shiftKey || alternate);
     },
     removeSceneryAt: toolController.removeSceneryAt,
     viewport,
@@ -427,78 +423,6 @@ export async function bootstrap(): Promise<void> {
     sim.setSnapshotInterval(wanted);
   }
 
-  function drawPatrolOverlay(): void {
-    if (
-      !saveLoad.current() ||
-      selectedTool !== 'patrol' ||
-      patrolKind === null ||
-      !sim.map ||
-      !sim.latest
-    ) {
-      patrolOverlay.setAttribute('hidden', '');
-      patrolOverlaySignature = '';
-      return;
-    }
-    patrolOverlay.removeAttribute('hidden');
-    const map = sim.map;
-    const snapshot = sim.latest;
-    const mapSize = map.width * map.height;
-    const start = patrolKind * mapSize;
-    const mask = snapshot.patrolAreas;
-    const rect = viewport;
-    const signature = [
-      snapshot.tick,
-      patrolKind,
-      camera.x,
-      camera.y,
-      camera.zoom,
-      camera.rotation,
-      rect.width,
-      rect.height,
-    ].join(':');
-    if (signature === patrolOverlaySignature) return;
-    patrolOverlaySignature = signature;
-    const polygons: SVGPolygonElement[] = [];
-    const point = new Float64Array(2);
-    const surfaceHeights = Float32Array.from(map.heights, (height) => height * Z_STEP);
-    const hasPath = new Uint8Array(mapSize);
-    for (let path = 0; path < map.pathCount; path++) {
-      const offset = path * 5;
-      const x = map.pathElements[offset]!;
-      const y = map.pathElements[offset + 1]!;
-      const tile = y * map.width + x;
-      if (hasPath[tile]) continue;
-      const flags = map.pathElements[offset + 3]!;
-      surfaceHeights[tile] =
-        map.pathElements[offset + 2]! * Z_STEP + ((flags & PathFlag.Sloped) !== 0 ? Z_STEP / 2 : 0);
-      hasPath[tile] = 1;
-    }
-    for (let tile = 0; tile < mapSize; tile++) {
-      if (mask[start + tile] !== 1) continue;
-      const x = tile % map.width;
-      const y = Math.floor(tile / map.width);
-      project(
-        x * TILE_UNITS + TILE_UNITS / 2,
-        y * TILE_UNITS + TILE_UNITS / 2,
-        surfaceHeights[tile]!,
-        map.width,
-        map.height,
-        camera.rotation,
-        point,
-      );
-      const cx = rect.width / 2 + (point[0] - camera.x) * camera.zoom;
-      const cy = rect.height / 2 + (point[1] - camera.y) * camera.zoom;
-      const halfX = 32 * camera.zoom;
-      const halfY = 16 * camera.zoom;
-      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      polygon.setAttribute(
-        'points',
-        `${cx},${cy - halfY} ${cx + halfX},${cy} ${cx},${cy + halfY} ${cx - halfX},${cy}`,
-      );
-      polygons.push(polygon);
-    }
-    patrolOverlay.replaceChildren(...polygons);
-  }
   function frame(now: number): void {
     const dt = now - last;
     last = now;
@@ -537,7 +461,6 @@ export async function bootstrap(): Promise<void> {
     camera.showGridlines = localStorage.getItem('opencoaster-option-gridlines') === 'true';
     const renderStart = performance.now();
     renderer.draw(sim.latest, camera);
-    drawPatrolOverlay();
     renderMs = performance.now() - renderStart;
     if (now - lastHud >= HUD_INTERVAL_MS) {
       lastHud = now;
@@ -599,6 +522,11 @@ export async function bootstrap(): Promise<void> {
       scenerySpot.hide();
     }
     renderer.setSpriteGhosts(spriteGhosts);
+    renderer.setPatrolStaff(selectedTool === 'patrol' ? patrolStaffId : null);
+    renderer.setPatrolPreview(
+      selectedTool === 'patrol' ? buildHoverTile : null,
+      patrolPreviewRemove || alternate,
+    );
     const pathGhost =
       latest && sim.map ? pathFeedback.update(latest.feedback, sim.map.width, now) : null;
     const hoverGhost =

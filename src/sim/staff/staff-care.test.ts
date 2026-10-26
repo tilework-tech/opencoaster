@@ -5,7 +5,12 @@ import { LedgerCategory } from '../economy/ledger';
 import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
 import { FLOWER_BED, FLOWER_BED_COST_CENTS, GROUNDS_GROW_INTERVAL } from './grounds';
-import { MAX_STAFF_NAME_LENGTH, StaffKind, setStaffPatrolTile } from './staff-store';
+import {
+  MAX_STAFF_NAME_LENGTH,
+  StaffKind,
+  setStaffPatrolTile,
+  staffPatrolTileEnabled,
+} from './staff-store';
 import { dropLitter, LitterKind } from '../guests/litter-store';
 import { PathAddition, setPathAddition } from '../map/paths';
 import { deserialize, serialize } from '../../save/save';
@@ -138,7 +143,7 @@ describe('security guards', () => {
 });
 
 describe('patrol masks', () => {
-  it('assigns a different patrol area when two workers of the same role paint different blocks', () => {
+  it('keeps painted tiles private to the worker who receives them', () => {
     const sim = grassSim(7, 32);
     const first = hire(sim, StaffKind.Mechanic);
     const second = hire(sim, StaffKind.Mechanic);
@@ -146,10 +151,9 @@ describe('patrol masks', () => {
     expect(setStaffPatrolTile(sim.world, first, 2, 3, true)).toBe(true);
     expect(setStaffPatrolTile(sim.world, second, 10, 3, true)).toBe(true);
 
-    const firstSlot = sim.world.staff.idToSlot[first];
-    const secondSlot = sim.world.staff.idToSlot[second];
-    expect(sim.world.staff.cols.patrolArea[firstSlot]).not.toBe(
-      sim.world.staff.cols.patrolArea[secondSlot],
-    );
+    expect(staffPatrolTileEnabled(sim.world, first, 2, 3)).toBe(true);
+    expect(staffPatrolTileEnabled(sim.world, first, 10, 3)).toBe(false);
+    expect(staffPatrolTileEnabled(sim.world, second, 10, 3)).toBe(true);
+    expect(staffPatrolTileEnabled(sim.world, second, 2, 3)).toBe(false);
   });
 });
