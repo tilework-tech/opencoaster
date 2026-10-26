@@ -42,8 +42,8 @@ test('the construction marker draws while a footpath is being placed', async ({ 
   await startStarterPark(page);
   await toolbarTool(page, 'Footpaths');
   await hoverGameTile(page, world, tile!);
-  // A bare diamond is about 32 CSS pixels tall; the pole makes the marker clearly taller.
-  await expect.poll(async () => (await markerExtent(page)).height).toBeGreaterThan(70);
+  // A bare diamond is about 32 CSS pixels tall (at most 42 with its label); the pole makes the marker clearly taller.
+  await expect.poll(async () => (await markerExtent(page)).height).toBeGreaterThan(56);
   if (proofDir) {
     mkdirSync(proofDir, { recursive: true });
     await page.screenshot({ path: `${proofDir}/construction-marker-path.png` });

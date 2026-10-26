@@ -27,7 +27,7 @@ const MARK_COLOURS: Record<HeightMarkKind, string> = {
 const MARKER_COLOUR = 'rgba(255, 236, 120, 0.95)';
 const MARKER_OUTLINE = 'rgba(10, 14, 8, 0.85)';
 /** Levels the pole rises above the build level so it reads even when built at ground level. */
-const POLE_FLAG = 1.5;
+const POLE_FLAG = 3;
 const MARKER_FILL = 'rgba(255, 236, 120, 0.18)';
 
 /** Font size, in CSS pixels, of height numbers at a camera zoom. */
