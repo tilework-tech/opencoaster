@@ -287,7 +287,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     return true;
   }
 
-  function personDragMove(_clientX: number, _clientY: number): void {
+  function personDragMove(): void {
     if (!movingPerson) return;
     deps.gameUi.setToolStatus(`Moving ${movingPerson.person} ${movingPerson.id} · release to drop.`);
   }

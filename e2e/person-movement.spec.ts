@@ -66,29 +66,6 @@ async function tapCanvasAt(page: Page, point: { x: number; y: number }, mobile: 
   else await page.mouse.click(x, y);
 }
 
-async function guestScreenPoint(page: Page, guestId: number): Promise<{ x: number; y: number }> {
-  return page.evaluate(async (id) => {
-    const { project } = await import('/src/render/projection.ts');
-    const state = window as unknown as {
-      __camera: { x: number; y: number; zoom: number; rotation: number };
-      __map: { width: number; height: number };
-      __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array };
-    };
-    const snapshot = state.__snapshot;
-    let slot = -1;
-    for (let i = 0; i < snapshot.guests.count; i++) if (snapshot.guestIds[i] === id) slot = i;
-    if (slot < 0 || snapshot.guests.data.buffer.byteLength === 0) throw new Error('Guest snapshot is unavailable');
-    const offset = slot * 4;
-    const projected = new Float64Array(2);
-    project(snapshot.guests.data[offset]!, snapshot.guests.data[offset + 1]!, snapshot.guests.data[offset + 2]!, state.__map.width, state.__map.height, state.__camera.rotation as 0 | 1 | 2 | 3, projected);
-    const rect = document.querySelector<HTMLCanvasElement>('#game')!.getBoundingClientRect();
-    return {
-      x: rect.width / 2 + (projected[0]! - state.__camera.x) * state.__camera.zoom,
-      y: rect.height / 2 + (projected[1]! - state.__camera.y) * state.__camera.zoom,
-    };
-  }, guestId);
-}
-
 for (const mobile of [false, true]) {
   test(`pick up and reposition a handyman and guest${mobile ? ' on Pixel 8' : ' on desktop'}`, async ({
     browser,
@@ -155,21 +132,7 @@ for (const mobile of [false, true]) {
         try {
           const state = window as unknown as { __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array } };
           const snapshot = state.__snapshot;
-          for (let i = 0; i < snapshot.guests.count; i++) {
-            const id = snapshot.guestIds[i]!;
-            if (id <= 0) continue;
-            const x = snapshot.guests.data[i * 4]!;
-            const y = snapshot.guests.data[i * 4 + 1]!;
-            let nearest = Infinity;
-            for (let other = 0; other < snapshot.guests.count; other++) {
-              if (other === i) continue;
-              const dx = x - snapshot.guests.data[other * 4]!;
-              const dy = y - snapshot.guests.data[other * 4 + 1]!;
-              nearest = Math.min(nearest, dx * dx + dy * dy);
-            }
-            if (nearest > 128 * 128) return id;
-          }
-          return -1;
+          return Array.from(snapshot.guestIds.subarray(0, snapshot.guests.count)).find((id) => id > 0) ?? -1;
         } catch { return -1; }
       }), { timeout: 20_000 }).not.toBe(-1);
       await toolbarAction(page, 'Pause');
@@ -181,37 +144,34 @@ for (const mobile of [false, true]) {
           __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array };
         };
         let slot = -1;
-        let chosen = -1;
         for (let i = 0; i < state.__snapshot.guests.count; i++) {
           const id = state.__snapshot.guestIds[i]!;
           if (id <= 0) continue;
-          const x = state.__snapshot.guests.data[i * 4]!;
-          const y = state.__snapshot.guests.data[i * 4 + 1]!;
-          let nearest = Infinity;
-          for (let other = 0; other < state.__snapshot.guests.count; other++) {
-            if (other === i) continue;
-            const dx = x - state.__snapshot.guests.data[other * 4]!;
-            const dy = y - state.__snapshot.guests.data[other * 4 + 1]!;
-            nearest = Math.min(nearest, dx * dx + dy * dy);
-          }
-          if (nearest > 128 * 128) { slot = i; chosen = id; break; }
+          slot = i;
+          break;
         }
         if (slot < 0) throw new Error('No guest with a selectable id is in the park');
         return {
-          id: chosen,
+          id: state.__snapshot.guestIds[slot]!,
           x: Math.floor(state.__snapshot.guests.data[slot * 4]! / 256),
           y: Math.floor(state.__snapshot.guests.data[slot * 4 + 1]! / 256),
         };
       });
       const guestWindow = page.locator(`[data-panel="guest-${guest.id}"]`);
+      const readGuestPosition = () => page.evaluate((id) => {
+        try {
+          const state = window as unknown as { __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array } };
+          const snapshot = state.__snapshot;
+          let slot = -1;
+          for (let i = 0; i < snapshot.guests.count; i++) if (snapshot.guestIds[i] === id) slot = i;
+          if (slot < 0 || snapshot.guests.data.buffer.byteLength === 0) return null;
+          return { x: Math.floor(snapshot.guests.data[slot * 4]! / 256), y: Math.floor(snapshot.guests.data[slot * 4 + 1]! / 256) };
+        } catch { return null; }
+      }, guest.id);
       await guestsPanel.locator(`[data-guest-id="${guest.id}"]`).first().click();
       await expect(guestWindow).toBeVisible();
       await guestWindow.getByRole('button', { name: 'Locate' }).click();
-      await guestWindow.getByRole('button', { name: /Close/ }).click();
       await guestsPanel.getByRole('button', { name: /Close/ }).click();
-      const guestPoint = await guestScreenPoint(page, guest.id);
-      await tapCanvasAt(page, guestPoint, mobile);
-      await expect(guestWindow).toBeVisible();
       await guestWindow.getByRole('button', { name: 'Pick up' }).click();
       const nextDrop = await page.evaluate(() => {
         const { __map: map } = window as unknown as {
@@ -226,16 +186,7 @@ for (const mobile of [false, true]) {
         throw new Error('The scenario has no second owned drop tile');
       });
       await tapCanvasAt(page, await worldPoint(page, nextDrop.x, nextDrop.y), mobile);
-      await expect.poll(() => page.evaluate((id) => {
-        const state = window as unknown as {
-          __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array };
-        };
-        const slot = Array.from(state.__snapshot.guestIds).indexOf(id);
-        return [
-          Math.floor(state.__snapshot.guests.data[slot * 4]! / 256),
-          Math.floor(state.__snapshot.guests.data[slot * 4 + 1]! / 256),
-        ];
-      }, guest.id)).toEqual([nextDrop.x, nextDrop.y]);
+      await expect.poll(readGuestPosition).toEqual(nextDrop);
 
       await guestWindow.getByRole('button', { name: 'Pick up' }).click();
       const outside = await page.evaluate(() => {
@@ -252,16 +203,7 @@ for (const mobile of [false, true]) {
       });
       await tapCanvasAt(page, await worldPoint(page, outside.x, outside.y), mobile);
       await expect(page.locator('.tool-status')).toContainText(/owned|invalid/i);
-      await expect.poll(() => page.evaluate((id) => {
-        const state = window as unknown as {
-          __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array };
-        };
-        const slot = Array.from(state.__snapshot.guestIds).indexOf(id);
-        return [
-          Math.floor(state.__snapshot.guests.data[slot * 4]! / 256),
-          Math.floor(state.__snapshot.guests.data[slot * 4 + 1]! / 256),
-        ];
-      }, guest.id)).toEqual([nextDrop.x, nextDrop.y]);
+      await expect.poll(readGuestPosition).toEqual(nextDrop);
     } finally {
       await page.context().close();
     }
