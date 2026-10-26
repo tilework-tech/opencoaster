@@ -20,6 +20,8 @@ import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprite, TrackPreviewOverlay } from '../../ui/track-preview';
 import type { SpriteGhost } from '../../render/renderer';
 import { ScenerySpotPreview } from '../tools/scenery-preview';
+import { pathAdditionPreviewGhosts } from '../tools/path-addition-preview';
+import { flowerbedPreviewGhost } from '../tools/flowerbed-preview';
 import type { PlacementHover } from '../input';
 import { SCENARIOS } from '../../sim/scenario/catalog';
 import { ScenarioStatus } from '../../sim/scenario/scenario';
@@ -587,8 +589,10 @@ export async function bootstrap(): Promise<void> {
           x,
           y,
           level: sim.map.heights[y * sim.map.width + x] ?? 0,
+          slopeMask: sim.map.slope[y * sim.map.width + x] ?? 0,
           item: sceneryItem,
           rotation: sceneryRotation,
+          viewRotation: camera.rotation,
           clientX: placementHover.clientX,
           clientY: placementHover.clientY,
         },
@@ -598,6 +602,35 @@ export async function bootstrap(): Promise<void> {
     } else {
       scenerySpot.hide();
     }
+    if (placementHover && sim.map && selectedTool === 'flowerbed') {
+      const tile = placementHover.tile[1] * sim.map.width + placementHover.tile[0];
+      spriteGhosts.push(
+        flowerbedPreviewGhost(
+          placementHover.tile[0],
+          placementHover.tile[1],
+          sim.map.heights[tile] ?? 0,
+          sim.map.slope[tile] ?? 0,
+          camera.rotation,
+        ),
+      );
+    }
+    if (
+      placementHover &&
+      sim.map &&
+      (selectedTool === 'bench' ||
+        selectedTool === 'bin' ||
+        selectedTool === 'lamp' ||
+        selectedTool === 'shelter')
+    )
+      spriteGhosts.push(
+        ...pathAdditionPreviewGhosts(
+          sim.map,
+          placementHover.tile[0],
+          placementHover.tile[1],
+          selectedTool,
+          camera.rotation,
+        ),
+      );
     renderer.setSpriteGhosts(spriteGhosts);
     const pathGhost =
       latest && sim.map ? pathFeedback.update(latest.feedback, sim.map.width, now) : null;

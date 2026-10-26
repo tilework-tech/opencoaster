@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { PathFlag } from '../../sim/map/tile-map';
+import { pathAdditionPreviewGhosts } from './path-addition-preview';
+
+function mapWithPath(flags: number) {
+  return {
+    width: 3,
+    height: 3,
+    heights: new Uint8Array(9),
+    surface: new Uint8Array(9),
+    slope: new Uint8Array(9),
+    pathElements: Int32Array.of(1, 1, 2, flags, 0, 0),
+    pathCount: 1,
+  };
+}
+
+describe('path addition placement preview', () => {
+  it.each([
+    ['straight', 0b0101, 1],
+    ['corner', 0b0011, 1],
+    ['T-junction', 0b0111, 1],
+    ['crossroads', 0b1111, 0],
+    ['dead-end', 0b0001, 1],
+  ])('previews %s props on the same open edge as rendering', (_shape, edges, count) => {
+    const ghosts = pathAdditionPreviewGhosts(mapWithPath(edges), 1, 1, 'bench', 0);
+    expect(ghosts).toHaveLength(count);
+    for (const ghost of ghosts) {
+      expect(ghost.kind).toBe('path-addition');
+      expect(ghost.width).toBeUndefined();
+      expect(ghost.height).toBeUndefined();
+    }
+  });
+
+  it('rotates the preview around all four views and follows a sloped edge height', () => {
+    const flags = PathFlag.Sloped | 0b0101;
+    const sprites = Array.from({ length: 4 }, (_, rotation) =>
+      pathAdditionPreviewGhosts(mapWithPath(flags), 1, 1, 'bench', rotation).map(
+        (ghost) => ghost.sprite,
+      ),
+    );
+    expect(sprites).toEqual([
+      ['scenery/bench/view-1'],
+      ['scenery/bench/view-2'],
+      ['scenery/bench/view-3'],
+      ['scenery/bench/view-0'],
+    ]);
+    const sloped = pathAdditionPreviewGhosts(mapWithPath(flags), 1, 1, 'bench', 0);
+    for (const { level } of sloped) expect(level).toBeCloseTo(2 + 33 / 64);
+  });
+});

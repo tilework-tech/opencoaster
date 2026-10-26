@@ -40,13 +40,20 @@ import type { TerrainSurface } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
+import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
 import {
-  AMBIENT_TREE_BOX,
-  FLOWER_BED_BOX,
-  GUEST_BOX,
-  SCENERY_PIXELS_PER_HEIGHT,
-  STAFF_BOX,
-} from './sprite-layout';
+  pathAdditionBox,
+  pathAdditionEdgeGroundZ,
+  pathAdditionEdgeOffset,
+  pathAdditionEdges,
+  pathAdditionGroundZ,
+  pathAdditionView,
+  flowerBedGroundZ,
+  pathConnectionEdges,
+  sceneryBox,
+  sceneryFrameDrop,
+  sceneryGroundZ,
+} from './ground-anchor';
 import {
   clipTerrainTileTrianglesBelowHeight,
   terrainEdgeFace,
@@ -468,8 +475,14 @@ export class Canvas2DRenderer implements Renderer {
         const centerX = x * TILE_UNITS + TILE_UNITS / 2;
         const centerY = y * TILE_UNITS + TILE_UNITS / 2;
         if (this.atlas)
-          this.enqueue(map, cam, centerX, centerY, terrainZ, 2, () =>
-            this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
+          this.enqueue(
+            map,
+            cam,
+            centerX,
+            centerY,
+            sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+            2,
+            () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         this.enqueue(map, cam, centerX, centerY, terrainZ, -1, () =>
           this.drawMapElements(ctx, map, cam, i),
@@ -478,13 +491,29 @@ export class Canvas2DRenderer implements Renderer {
           this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 0, () =>
             this.drawPathGhost(ctx, map, cam, ghost),
           );
-        this.enqueue(map, cam, centerX, centerY, terrainZ, 2, () =>
-          this.drawSceneryElements(ctx, map, cam, i),
+        this.enqueue(
+          map,
+          cam,
+          centerX,
+          centerY,
+          sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+          2,
+          () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
           if (ghost.kind === 'scenery')
             this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 2, () =>
               this.drawSpriteGhost(ctx, map, cam, ghost),
+            );
+          else if (ghost.kind === 'path-addition')
+            this.enqueue(
+              map,
+              cam,
+              ghost.x * TILE_UNITS + TILE_UNITS / 2,
+              ghost.y * TILE_UNITS + TILE_UNITS / 2,
+              ghost.level * Z_STEP,
+              -1,
+              () => this.drawSpriteGhost(ctx, map, cam, ghost),
             );
         }
         this.visibleCount++;
@@ -707,34 +736,95 @@ export class Canvas2DRenderer implements Renderer {
     ctx: CanvasRenderingContext2D,
     flags: number,
     data: number,
-    rotation: number,
+    view: number,
   ): void {
-    const sprite = pathAdditionSpriteName(flags, rotation, data);
-    if (
-      this.atlas &&
-      sprite &&
-      drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1])
-    )
-      return;
+    const sprite = pathAdditionSpriteName(flags, view, data);
+    const box = pathAdditionBox(flags, view);
+    if (this.atlas && sprite) {
+      const drawn =
+        flags & PathFlag.Shelter
+          ? drawBoxedSprite(
+              ctx,
+              this.atlas,
+              sprite,
+              this.tmp[0],
+              this.tmp[1],
+              box.width,
+              box.height,
+            )
+          : drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1]);
+      if (drawn) return;
+    }
+    const x = this.tmp[0];
+    const y = this.tmp[1];
     if (flags & PathFlag.Bin) {
       ctx.fillStyle = '#547d58';
-      ctx.fillRect(this.tmp[0] - 3, this.tmp[1] - 13, 6, 9);
+      ctx.fillRect(
+        x - (view & 1 ? 13 : 3),
+        y - (view & 1 ? 3 : 13),
+        view & 1 ? 9 : 6,
+        view & 1 ? 6 : 9,
+      );
     } else if (flags & PathFlag.Bench) {
       ctx.fillStyle = '#805535';
-      ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 11, 18, 3);
+      if (view & 1) {
+        ctx.fillRect(x - 2, y - 9, 4, 18);
+        ctx.fillRect(x - 5, y - 9, 3, 18);
+      } else {
+        ctx.fillRect(x - 9, y - 11, 18, 3);
+      }
     } else if (flags & PathFlag.Shelter) {
       ctx.fillStyle = '#5c6fa1';
       ctx.beginPath();
-      ctx.moveTo(this.tmp[0] - 7, this.tmp[1] - 9);
-      ctx.quadraticCurveTo(this.tmp[0], this.tmp[1] - 19, this.tmp[0] + 7, this.tmp[1] - 9);
+      ctx.moveTo(x - 7, y - 9);
+      ctx.quadraticCurveTo(x, y - 19, x + 7, y - 9);
       ctx.closePath();
       ctx.fill();
-      ctx.fillRect(this.tmp[0] - 1, this.tmp[1] - 9, 2, 9);
+      ctx.fillRect(x - 1, y - 9, 2, 9);
     } else if (flags & PathFlag.Lamp) {
       ctx.fillStyle = '#e9d784';
       ctx.beginPath();
-      ctx.arc(this.tmp[0], this.tmp[1] - 13, 3, 0, Math.PI * 2);
+      ctx.arc(x, y - 13, 3, 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  private drawPathAdditions(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    flags: number,
+    data: number,
+    baseHeight: number,
+    centerX: number,
+    centerY: number,
+  ): void {
+    if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) === 0) return;
+    if (flags & PathFlag.Shelter) {
+      project(
+        centerX,
+        centerY,
+        pathAdditionGroundZ(baseHeight, flags),
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      this.drawPathAddition(ctx, flags, data, cam.rotation);
+      return;
+    }
+    for (const edge of pathAdditionEdges(pathConnectionEdges(flags))) {
+      const offset = pathAdditionEdgeOffset(edge);
+      project(
+        centerX + offset.x,
+        centerY + offset.y,
+        pathAdditionEdgeGroundZ(baseHeight, flags, edge),
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      this.drawPathAddition(ctx, flags, data, pathAdditionView(edge, cam.rotation));
     }
   }
 
@@ -759,7 +849,7 @@ export class Canvas2DRenderer implements Renderer {
       project(
         centerX,
         centerY,
-        z + (sloped ? Z_STEP / 2 : 1),
+        pathAdditionGroundZ(paths[o + 2]!, flags),
         map.width,
         map.height,
         cam.rotation,
@@ -777,7 +867,7 @@ export class Canvas2DRenderer implements Renderer {
           this.pathLow[1],
         )
       ) {
-        this.drawPathAddition(ctx, flags, paths[o + 4], cam.rotation);
+        this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
         this.visibleCount++;
         continue;
       }
@@ -822,7 +912,7 @@ export class Canvas2DRenderer implements Renderer {
       } else {
         ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 4, 18, 8);
       }
-      this.drawPathAddition(ctx, flags, paths[o + 4], cam.rotation);
+      this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
       if (flags & PathFlag.Queue) {
         ctx.fillStyle = '#d7bb65';
         ctx.fillRect(this.tmp[0] - 7, this.tmp[1] - 5, 14, 1.5);
@@ -851,7 +941,7 @@ export class Canvas2DRenderer implements Renderer {
     if (!this.spriteGhostsByTile) {
       this.spriteGhostsByTile = new Map();
       for (const ghost of this.spriteGhosts) {
-        const index = ghost.y * map.width + ghost.x;
+        const index = (ghost.tileY ?? ghost.y) * map.width + (ghost.tileX ?? ghost.x);
         const list = this.spriteGhostsByTile.get(index);
         if (list) list.push(ghost);
         else this.spriteGhostsByTile.set(index, [ghost]);
@@ -860,7 +950,7 @@ export class Canvas2DRenderer implements Renderer {
     return this.spriteGhostsByTile.get(tile) ?? [];
   }
 
-  /** Draws a ride or scenery preview at the projected centre of its tile, like the built piece. */
+  /** Draws a sprite preview at the built piece's projected ground pivot and box. */
   private drawSpriteGhost(
     ctx: CanvasRenderingContext2D,
     map: MapData,
@@ -878,7 +968,16 @@ export class Canvas2DRenderer implements Renderer {
       this.pathLow,
     );
     if (!this.isVisible(this.pathLow[0]!, this.pathLow[1]!, cam, 40)) return;
-    drawGhostSprite(ctx, this.atlas, ghost.sprite, this.pathLow[0]!, this.pathLow[1]!, ghost.tone);
+    drawGhostSprite(
+      ctx,
+      this.atlas,
+      ghost.sprite,
+      this.pathLow[0]!,
+      this.pathLow[1]!,
+      ghost.tone,
+      ghost.width,
+      ghost.height,
+    );
   }
 
   private drawPathGhost(
@@ -924,34 +1023,21 @@ export class Canvas2DRenderer implements Renderer {
       const offset = this.sceneryIndices[sceneryIndex] * 5;
       const x = scenery[offset];
       const y = scenery[offset + 1];
-      const z = scenery[offset + 2] * Z_STEP;
+      const tile = y * map.width + x;
+      const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation);
       const definition = SCENERY_CATALOG[scenery[offset + 4]];
       if (!definition) continue;
+      const box = sceneryBox(definition);
       project(
         x * TILE_UNITS + TILE_UNITS / 2,
         y * TILE_UNITS + TILE_UNITS / 2,
-        z,
+        z - sceneryFrameDrop(definition),
         map.width,
         map.height,
         cam.rotation,
         this.tmp,
       );
-      const treeKey =
-        definition.category === SceneryCategory.Trees ? scenerySpriteName(definition.sprite) : null;
-      const treeEntry = treeKey && this.atlas ? this.atlas.resolve(treeKey) : undefined;
-      const treeFrame = treeEntry?.frames[0];
-      if (treeEntry && treeFrame && this.atlas) {
-        const margin = Math.max(
-          treeFrame.width - treeEntry.anchor.x,
-          treeEntry.anchor.x,
-          treeFrame.height,
-        );
-        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, margin)) continue;
-        drawAnchoredSprite(ctx, this.atlas, treeKey!, this.tmp[0], this.tmp[1]);
-        this.visibleCount++;
-        continue;
-      }
-      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, definition.width)) continue;
+      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, Math.max(box.width, box.height))) continue;
       if (
         this.atlas &&
         drawBoxedSprite(
@@ -960,8 +1046,8 @@ export class Canvas2DRenderer implements Renderer {
           scenerySpriteName(definition.sprite),
           this.tmp[0],
           this.tmp[1],
-          definition.width,
-          definition.height * SCENERY_PIXELS_PER_HEIGHT,
+          box.width,
+          box.height,
         )
       ) {
         this.visibleCount++;
@@ -1311,7 +1397,7 @@ export class Canvas2DRenderer implements Renderer {
   ): void {
     const atlas = this.atlas;
     if (!atlas) return;
-    const z = map.heights[tile] * Z_STEP;
+    const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation);
     const worldX = x * TILE_UNITS + TILE_UNITS / 2;
     const worldY = y * TILE_UNITS + TILE_UNITS / 2;
     const place = (name: string, offsetZ: number, width: number, height: number): void => {
@@ -1323,7 +1409,12 @@ export class Canvas2DRenderer implements Renderer {
     const tree = ambientTreeName(map.surface[tile]!, x, y);
     if (tree) place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
-      place(scenerySpriteName('flower-bed'), 1, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
+      place(
+        scenerySpriteName('flower-bed'),
+        flowerBedGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation) - z - Z_STEP,
+        FLOWER_BED_BOX.width,
+        FLOWER_BED_BOX.height,
+      );
   }
 
   private isVisible(x: number, y: number, cam: Camera, margin: number): boolean {

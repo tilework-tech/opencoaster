@@ -29,9 +29,12 @@ import { personMesh, seatedRiderMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
 import {
+  benchMesh,
+  binMesh,
   brokenBenchMesh,
   brokenBinMesh,
   brokenLampMesh,
+  lampMesh,
   shelterMesh,
 } from './models/path-additions';
 import { trashMesh, vomitMesh } from './models/litter';
@@ -235,11 +238,13 @@ function treeSprites(): SpriteDef[] {
       key: 'trees/tree-palm',
       frames: [renderMesh(physicalToLevels(palmTreeMesh()))],
       footprint: ONE_TILE,
+      raw: true,
     },
     {
       key: 'trees/tree-cactus',
       frames: [renderMesh(physicalToLevels(cactusTreeMesh()))],
       footprint: ONE_TILE,
+      raw: true,
     },
   ];
 }
@@ -253,17 +258,21 @@ function parkEntranceSprites(): SpriteDef[] {
 }
 
 function pathAdditionSprites(): SpriteDef[] {
-  const models: readonly (readonly [string, () => Mesh])[] = [
-    ['scenery/shelter', shelterMesh],
-    ['scenery/bench-broken', brokenBenchMesh],
-    ['scenery/bin-broken', brokenBinMesh],
-    ['scenery/lamp-broken', brokenLampMesh],
+  const models: readonly (readonly [string, () => Mesh, boolean])[] = [
+    ['scenery/shelter', shelterMesh, true],
+    ['scenery/bench', benchMesh, false],
+    ['scenery/bin', binMesh, false],
+    ['scenery/lamp', lampMesh, false],
+    ['scenery/bench-broken', brokenBenchMesh, false],
+    ['scenery/bin-broken', brokenBinMesh, false],
+    ['scenery/lamp-broken', brokenLampMesh, false],
   ] as const;
-  return models.flatMap(([key, build]) =>
+  return models.flatMap(([key, build, raw]) =>
     Array.from({ length: 4 }, (_, view) => ({
       key: `${key}/view-${view}`,
       frames: [renderMesh(rotateMesh(physicalToLevels(build()), view))],
       footprint: ONE_TILE,
+      raw,
     })),
   );
 }

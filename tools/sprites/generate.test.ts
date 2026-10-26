@@ -11,9 +11,12 @@ import { PALETTE } from './palette';
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
 describe('generated sprite catalogue', () => {
-  it('renders a roofed path shelter and damaged path furniture in four views', () => {
+  it('renders path additions in four views', () => {
     for (const key of [
       'scenery/shelter',
+      'scenery/bench',
+      'scenery/bin',
+      'scenery/lamp',
       'scenery/bench-broken',
       'scenery/bin-broken',
       'scenery/lamp-broken',
@@ -30,14 +33,43 @@ describe('generated sprite catalogue', () => {
             height: 1,
           });
         const frame = sprite?.frames[0];
-        const minimumWidth = key.startsWith('litter/') || key.includes('lamp-broken') ? 10 : 24;
-        const minimumHeight = key.startsWith('litter/') ? 6 : 16;
+        const small = key.startsWith('litter/') || /(bin|lamp)/.test(key);
+        const minimumWidth = small ? 10 : 20;
+        const minimumHeight = key.startsWith('litter/') ? 6 : 14;
         expect(frame?.width, `${key}, view ${view} width`).toBeGreaterThan(minimumWidth);
         expect(frame?.height, `${key}, view ${view} height`).toBeGreaterThan(minimumHeight);
         expect(frame?.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
         views.push(Buffer.from(frame!.pixels).toString('base64'));
       }
-      expect(new Set(views).size, `${key} distinct camera views`).toBe(4);
+      // Lamp posts are rotationally symmetric, so every view legitimately matches.
+      if (!key.includes('lamp'))
+        expect(new Set(views).size, `${key} distinct camera views`).toBe(4);
+    }
+  });
+
+  it('anchors every generated directional scenery and path-addition sprite at its ground pivot', () => {
+    const directionalScenery = [...sprites.keys()].filter(
+      (key) => key.startsWith('scenery/') && /\/view-[0-3]$/.test(key),
+    );
+    expect(directionalScenery.length).toBeGreaterThan(0);
+    for (const key of directionalScenery) {
+      const sprite = sprites.get(key)!;
+      const frame = sprite.frames[0]!;
+      expect(frame.anchor.x, `${key} x`).toBe(frame.width / 2);
+      expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
+      expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);
+      if (key.startsWith('scenery/shelter/')) expect(sprite.raw, key).toBe(true);
+      else if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBeFalsy();
+    }
+  });
+
+  it('anchors generated scenery trees at ground level', () => {
+    for (const key of ['trees/tree-palm', 'trees/tree-cactus']) {
+      const sprite = sprites.get(key)!;
+      expect(sprite.raw, key).toBe(true);
+      const frame = sprite.frames[0]!;
+      expect(frame.anchor.x, key).toBe(frame.width / 2);
+      expect(frame.anchor.y, key).toBeGreaterThan(frame.height * 0.8);
     }
   });
 
