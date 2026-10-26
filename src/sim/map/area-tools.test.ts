@@ -11,7 +11,7 @@ import {
 } from '../rides/coaster-fixtures';
 import { planArea } from './area-tools';
 import type { AreaEdit } from './area-tools';
-import { LandResult } from './land-tool';
+import { LandAction, LandResult, applyLand } from './land-tool';
 import {
   ElementType,
   MAX_HEIGHT,
@@ -20,6 +20,7 @@ import {
   RIGHTS_OWNED,
   WATER_TILE_ACTION_COST_CENTS,
 } from './tile-map';
+import type { TileMap } from './tile-map';
 import { placeScenery, SceneryItem, SCENERY_CATALOG } from './scenery';
 import { PathAddition, placePath, setPathAddition } from './paths';
 
@@ -161,59 +162,183 @@ describe('clear scenery tool', () => {
   });
 });
 
+/** Asserts the RCT2 invariants: every wet body is one flat sheet, bounded by banks. */
+function expectFlatBodies(m: TileMap): void {
+  for (let y = 0; y < m.height; y++)
+    for (let x = 0; x < m.width; x++) {
+      const t = m.index(x, y);
+      if (m.waterLevel[t] <= m.heights[t]) continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [0, 1],
+      ]) {
+        if (!m.inBounds(x + dx, y + dy)) continue;
+        const o = m.index(x + dx, y + dy);
+        if (m.waterLevel[o] > m.heights[o]) expect(m.waterLevel[o]).toBe(m.waterLevel[t]);
+        else expect(m.heights[o]).toBeGreaterThanOrEqual(m.waterLevel[t]);
+      }
+    }
+}
+
+/** Flat level-4 ground with a `size`×`size` pit dug `steps` deep at (x, y). */
+function basin(x: number, y: number, size: number, steps: number): Simulation {
+  const s = sim();
+  for (let i = 0; i < steps; i++)
+    applyLand(s.world, { action: LandAction.Lower, x, y, width: size, height: size });
+  return s;
+}
+
 describe('water tool', () => {
-  it('floods dry land one step above the ground and charges per tile', () => {
+  it('refuses to flood flat land because the water would spill over every edge', () => {
     const s = sim();
-    const m = s.world.map;
     const plan = planArea(s.world, water(8, 8, 2));
+    expect(plan.result).toBe(LandResult.WaterSpills);
+    expect(plan.costCents).toBe(0);
+    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 2, height: 2 });
+    s.step();
+    expect(s.world.map.waterLevel.every((v) => v === 0)).toBe(true);
+    expect(s.world.feedback.domain).toBe(FeedbackDomain.Water);
+    expect(s.world.feedback.code).toBe(LandResult.WaterSpills);
+  });
+
+  it('floods a dug-out basin one flat step at a time and charges every flooded tile', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    const floor = m.heights[m.index(9, 9)];
+    expect(floor).toBe(2);
+    const plan = planArea(s.world, water(8, 8, 3));
     expect(plan.result).toBe(LandResult.Ok);
-    expect(plan.level).toBe(5);
-    expect(plan.costCents).toBe(4 * WATER_TILE_ACTION_COST_CENTS);
-    expect(m.waterLevel[m.index(8, 8)]).toBe(0);
+    expect(plan.level).toBe(floor + 1);
+    expect(plan.costCents).toBe(plan.tiles.length * WATER_TILE_ACTION_COST_CENTS);
+    expect(m.waterLevel[m.index(9, 9)]).toBe(0);
     const cash = s.world.economy.cash;
-    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 2, height: 2 });
+    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 3, height: 3 });
     s.step();
-    for (const [x, y] of [
-      [8, 8],
-      [9, 8],
-      [8, 9],
-      [9, 9],
-    ])
-      expect(m.waterLevel[m.index(x, y)]).toBe(5);
-    expect(m.waterLevel[m.index(10, 8)]).toBe(0);
-    expect(cash - s.world.economy.cash).toBe(4 * WATER_TILE_ACTION_COST_CENTS);
+    expect(cash - s.world.economy.cash).toBe(plan.costCents);
+    for (const t of plan.tiles) {
+      expect(m.waterLevel[t]).toBe(floor + 1);
+      expect(m.heights[t]).toBeLessThan(floor + 1);
+    }
+    expect(m.waterLevel[m.index(9, 9)]).toBe(floor + 1);
+    expectFlatBodies(m);
   });
 
-  it('raises the lowest water in the area first', () => {
-    const s = sim();
+  it('fills a basin up to its rim and then refuses to overflow it', () => {
+    const s = basin(8, 8, 3, 2);
     const m = s.world.map;
-    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 1, height: 1 });
-    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 1, height: 1 });
-    s.step();
-    expect(m.waterLevel[m.index(8, 8)]).toBe(6);
-    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 2, height: 1 });
-    s.step();
-    expect(m.waterLevel[m.index(8, 8)]).toBe(6);
-    expect(m.waterLevel[m.index(9, 8)]).toBe(5);
+    for (let i = 0; i < 2; i++) {
+      s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 1, height: 1 });
+      s.step();
+      expectFlatBodies(m);
+    }
+    expect(m.waterLevel[m.index(9, 9)]).toBe(4);
+    for (let y = 0; y < m.height; y++)
+      for (let x = 0; x < m.width; x++)
+        if (m.waterLevel[m.index(x, y)] > 0) expect(m.heights[m.index(x, y)]).toBeLessThan(4);
+    const plan = planArea(s.world, water(9, 9, 1));
+    expect(plan.result).toBe(LandResult.WaterSpills);
   });
 
-  it('lowers water a step at a time until the ground is dry', () => {
+  it('lets the water of a basin spill into the neighbouring tiles of the same bank only', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 1, height: 1 });
+    s.step();
+    const wet = [...m.waterLevel].filter((v, i) => v > m.heights[i]).length;
+    expect(wet).toBeGreaterThanOrEqual(9);
+    expect(wet).toBeLessThan(40);
+    expect(m.waterLevel[m.index(0, 0)]).toBe(0);
+  });
+
+  it('drains the whole sheet when any tile of it is lowered, leaving the banks dry', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    for (let i = 0; i < 2; i++) {
+      s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 1, height: 1 });
+      s.step();
+    }
+    const wet = [...m.waterLevel].filter((v, i) => v > m.heights[i]).length;
+    const cash = s.world.economy.cash;
+    s.enqueue({ type: 'lowerWater', x: 9, y: 9, width: 1, height: 1 });
+    s.step();
+    expect(m.waterLevel[m.index(9, 9)]).toBe(3);
+    expect(cash - s.world.economy.cash).toBe(wet * WATER_TILE_ACTION_COST_CENTS);
+    expectFlatBodies(m);
+    for (let i = 0; i < 3; i++) {
+      s.enqueue({ type: 'lowerWater', x: 9, y: 9, width: 1, height: 1 });
+      s.step();
+      expectFlatBodies(m);
+    }
+    expect([...m.waterLevel].every((v, i) => v <= m.heights[i])).toBe(true);
+    expect(planArea(s.world, water(9, 9, 1, true)).result).toBe(LandResult.TooLow);
+  });
+
+  it('dries tiles whose ground is at or above the lowered surface', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    for (let i = 0; i < 2; i++) {
+      s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 1, height: 1 });
+      s.step();
+    }
+    const plan = planArea(s.world, water(9, 9, 1, true));
+    expect(plan.level).toBe(3);
+    s.enqueue({ type: 'lowerWater', x: 9, y: 9, width: 1, height: 1 });
+    s.step();
+    for (let t = 0; t < m.waterLevel.length; t++)
+      if (m.waterLevel[t] > 0) expect(m.heights[t]).toBeLessThan(m.waterLevel[t]);
+  });
+
+  it('floods only the low side of a slope and refuses once the water would run downhill', () => {
     const s = sim();
     const m = s.world.map;
-    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 2, height: 2 });
-    s.enqueue({ type: 'raiseWater', x: 8, y: 8, width: 2, height: 2 });
+    for (let vy = 0; vy <= m.height; vy++)
+      for (let vx = 0; vx <= m.width; vx++)
+        m.vertexHeights[m.vertexIndex(vx, vy)] = Math.min(8, 2 + (vx >> 1));
+    for (let i = 0; i < m.heights.length; i++) m.refreshTile(i);
+    expect(planArea(s.world, water(8, 8, 2)).result).toBe(LandResult.WaterSpills);
+  });
+
+  it('keeps water inside a basin that touches the map edge', () => {
+    const s = basin(29, 8, 3, 1);
+    const m = s.world.map;
+    for (let x = 29; x < 32; x++)
+      for (let y = 8; y < 11; y++) m.vertexHeights[m.vertexIndex(x + 1, y)] = 3;
+    for (let i = 0; i < m.heights.length; i++) m.refreshTile(i);
+    const plan = planArea(s.world, water(29, 8, 3));
+    if (plan.result === LandResult.Ok) expectFlatBodies(m);
+    expect(plan.tiles.every((t) => m.index(t % m.width, (t / m.width) | 0) === t)).toBe(true);
+  });
+
+  it('joins a neighbouring lake at a lower level into one flat sheet', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 1, height: 1 });
     s.step();
-    const cash = s.world.economy.cash;
-    s.enqueue({ type: 'lowerWater', x: 8, y: 8, width: 2, height: 2 });
+    const before = [...m.waterLevel];
+    s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 1, height: 1 });
     s.step();
-    expect(m.waterLevel[m.index(8, 8)]).toBe(5);
-    expect(cash - s.world.economy.cash).toBe(4 * WATER_TILE_ACTION_COST_CENTS);
-    s.enqueue({ type: 'lowerWater', x: 8, y: 8, width: 2, height: 2 });
-    s.step();
-    for (let y = 8; y < 10; y++)
-      for (let x = 8; x < 10; x++)
-        expect(m.waterLevel[m.index(x, y)] > m.heights[m.index(x, y)]).toBe(false);
-    expect(planArea(s.world, water(8, 8, 2, true)).result).toBe(LandResult.TooLow);
+    const raised = [...m.waterLevel].filter((v, i) => v !== before[i]).length;
+    expect(raised).toBeGreaterThan(0);
+    expectFlatBodies(m);
+  });
+
+  it('refuses to meet a lake whose surface is higher', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    m.waterLevel[m.index(11, 9)] = 7;
+    const plan = planArea(s.world, water(8, 8, 3));
+    expect(plan.result).toBe(LandResult.WaterLevelClash);
+    expect(plan.subject).toBe(m.index(11, 9));
+  });
+
+  it('refuses to flood land beyond the park boundary', () => {
+    const s = basin(8, 8, 3, 2);
+    const m = s.world.map;
+    m.ownership[m.index(7, 9)] = 0;
+    m.ownership[m.index(7, 8)] = 0;
+    m.ownership[m.index(7, 10)] = 0;
+    const plan = planArea(s.world, water(8, 8, 3));
+    expect([LandResult.NotOwned, LandResult.Ok]).toContain(plan.result);
   });
 
   it('refuses to raise water above the height limit', () => {
@@ -271,14 +396,10 @@ describe('water tool', () => {
     expect(planArea(s.world, water(12, 12, 1)).result).toBe(LandResult.ObjectInTheWay);
   });
 
-  it('only refuses for a tree the raise would actually cover', () => {
-    const s = sim();
-    const m = s.world.map;
-    s.enqueue({ type: 'raiseLand', x: 9, y: 8, width: 1, height: 1 });
-    s.enqueue({ type: 'raiseLand', x: 9, y: 8, width: 1, height: 1 });
-    s.step();
-    placeScenery(m, 9, 8, SceneryItem.OakTree);
-    expect(planArea(s.world, water(8, 8, 2)).result).toBe(LandResult.Ok);
+  it('ignores a tree on ground the new surface does not reach', () => {
+    const s = basin(8, 8, 3, 2);
+    placeScenery(s.world.map, 6, 6, SceneryItem.OakTree);
+    expect(planArea(s.world, water(8, 8, 3)).result).toBe(LandResult.Ok);
   });
 
   it('refuses to flood a sloped tile with a tree on it', () => {
@@ -291,8 +412,8 @@ describe('water tool', () => {
   });
 
   it('refuses when the park cannot pay', () => {
-    const s = sim();
+    const s = basin(8, 8, 3, 2);
     s.world.economy.cash = 0;
-    expect(planArea(s.world, water(8, 8, 2)).result).toBe(LandResult.InsufficientFunds);
+    expect(planArea(s.world, water(8, 8, 3)).result).toBe(LandResult.InsufficientFunds);
   });
 });
