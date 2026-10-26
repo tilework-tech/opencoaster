@@ -1,4 +1,11 @@
-import { TILE_H, TILE_W, unrotateTile, viewSize, Z_PIXELS } from '../../render/projection';
+import {
+  TILE_H,
+  TILE_W,
+  unrotatePoint,
+  unrotateTile,
+  viewSize,
+  Z_PIXELS,
+} from '../../render/projection';
 import type { Rotation } from '../../render/projection';
 
 export interface LandSelection {
@@ -89,26 +96,7 @@ function tileFraction(
   const worldY = camera.y + (screenY - viewport.height / 2) / camera.zoom + level * Z_PIXELS;
   const rx = (worldX / (TILE_W / 2) + worldY / (TILE_H / 2)) / 2;
   const ry = (worldY / (TILE_H / 2) - worldX / (TILE_W / 2)) / 2;
-  let tx: number;
-  let ty: number;
-  switch (camera.rotation) {
-    case 0:
-      tx = rx;
-      ty = ry;
-      break;
-    case 1:
-      tx = ry;
-      ty = map.height - rx;
-      break;
-    case 2:
-      tx = map.width - rx;
-      ty = map.height - ry;
-      break;
-    default:
-      tx = map.width - ry;
-      ty = rx;
-      break;
-  }
+  const [tx, ty] = unrotatePoint(rx, ry, map.width, map.height, camera.rotation);
   return [Math.max(0, Math.min(1, tx - tile[0])), Math.max(0, Math.min(1, ty - tile[1]))];
 }
 
