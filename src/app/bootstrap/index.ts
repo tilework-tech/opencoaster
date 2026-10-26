@@ -217,6 +217,10 @@ export async function bootstrap(): Promise<void> {
     fireStaff(staffId) {
       sim.command({ type: 'fireStaff', staffId });
     },
+    pickUpPerson(person, personId) {
+      gameUi.setToolStatus(`Pick up ${person} ${personId}; choose a valid destination tile.`);
+      toolController.beginPersonMove(person, personId);
+    },
     setRidePrice(rideId, priceCents) {
       sim.command({ type: 'setRidePrice', rideId, priceCents });
     },
@@ -382,6 +386,12 @@ export async function bootstrap(): Promise<void> {
     setHiddenPaused: (value) => (hiddenPaused = value),
     syncPause,
     handleCanvasClick: toolController.handleCanvasClick,
+    personDrag: {
+      start: toolController.personDragStart,
+      move: toolController.personDragMove,
+      end: toolController.personDragEnd,
+      cancel: toolController.personDragCancel,
+    },
     removePathAt: toolController.removePathAt,
     pathDrag: toolController.pathDrag,
     land: landController,
