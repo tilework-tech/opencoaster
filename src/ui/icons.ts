@@ -91,7 +91,7 @@ export function iconArtKind(name: IconName): 'pixel-art' {
 }
 
 export function iconAssetPath(name: IconName, size: 16 | 24): string {
-  return `/sprites/ui-icons/${size}/${name}.png`;
+  return `${import.meta.env.BASE_URL}sprites/ui-icons/${size}/${name}.png`;
 }
 
 /** A decorative generated pixel-art icon; its containing control supplies the accessible name. */
