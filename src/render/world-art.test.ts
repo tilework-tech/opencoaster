@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ambientTreeName,
-  flowerBedSpriteName,
-  pathElementSprite,
-} from './world-art';
+import { ambientTreeName, flowerBedSpriteName, pathElementSprite } from './world-art';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import {
   TERRAIN_SLOPE_NAMES,

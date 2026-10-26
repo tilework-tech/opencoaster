@@ -7,6 +7,7 @@ import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import { SCENERY_CATALOG } from '../src/sim/map/scenery';
 import { project } from '../src/render/projection';
 import { TILE_UNITS } from '../src/sim/core/constants';
+import { pathAdditionPlacements } from '../src/render/ground-anchor';
 
 interface ReviewItem {
   key: string;
@@ -210,7 +211,7 @@ async function initialise(page: Page): Promise<void> {
     const originalShrub = originalManifest.sprites['scenery/shrub'];
     const originalShrubWidth = SCENERY_CATALOG[3]!.width;
 
-    const makeMap = (item: ReviewItem, rotation: number) => {
+    const makeMap = (item: ReviewItem) => {
       const width = 8;
       const height = 8;
       const tile = 4 * width + 4;
@@ -296,7 +297,7 @@ async function initialise(page: Page): Promise<void> {
         SCENERY_CATALOG[3]!.width = enabled ? 30 : originalShrubWidth;
       },
       render: (item, backend, zoom, rotation) => {
-        const { map, tile } = makeMap(item, rotation);
+        const { map, tile } = makeMap(item);
         const snapshot = createSnapshot({
           guests: item.kind === 'garden-fixture' ? 1 : 0,
           staff: 0,
@@ -520,10 +521,21 @@ test('keeps path pixels visible beside a garden row, guests, and a bin in every 
       const x = Math.round(rotationSample[0]! - rotationCenter[0]! + 320);
       const y = Math.round(rotationSample[1]! - rotationCenter[1]! + 320);
       const offset = (y * baselinePixels.info.width + x) * baselinePixels.info.channels;
+      let unchangedPathArea = 0;
+      for (let py = y - 2; py <= y + 2; py++)
+        for (let px = x - 2; px <= x + 2; px++) {
+          const pixel = (py * baselinePixels.info.width + px) * baselinePixels.info.channels;
+          if (
+            baselinePixels.data
+              .subarray(pixel, pixel + 3)
+              .equals(bedPixels.data.subarray(pixel, pixel + 3))
+          )
+            unchangedPathArea++;
+        }
       expect(
-        bedPixels.data.subarray(offset, offset + 3),
-        `${backend} path pixel beside beds, rotation ${rotation}`,
-      ).toEqual(baselinePixels.data.subarray(offset, offset + 3));
+        unchangedPathArea,
+        `${backend} path pixels beside beds, rotation ${rotation}`,
+      ).toBeGreaterThan(22);
 
       const guest = new Float64Array(2);
       project(3.5 * TILE_UNITS, 4.5 * TILE_UNITS, 0, 8, 8, rotation as 0 | 1 | 2 | 3, guest);
@@ -543,7 +555,36 @@ test('keeps path pixels visible beside a garden row, guests, and a bin in every 
       expect(
         unchangedGuestArea,
         `${backend} guest pixels beside beds, rotation ${rotation}`,
-      ).toBeGreaterThan(350);
+      ).toBeGreaterThan(450);
+
+      const binPlacement = pathAdditionPlacements(0x1000 | 0b1110, 0)[0]!;
+      const bin = new Float64Array(2);
+      project(
+        2.5 * TILE_UNITS + binPlacement.x,
+        4.5 * TILE_UNITS + binPlacement.y,
+        binPlacement.groundZ,
+        8,
+        8,
+        rotation as 0 | 1 | 2 | 3,
+        bin,
+      );
+      const binX = Math.round(bin[0]! - rotationCenter[0]! + 320);
+      const binY = Math.round(bin[1]! - rotationCenter[1]! + 320);
+      let unchangedBinArea = 0;
+      for (let py = binY - 26; py <= binY + 2; py++)
+        for (let px = binX - 10; px <= binX + 10; px++) {
+          const pixel = (py * baselinePixels.info.width + px) * baselinePixels.info.channels;
+          if (
+            baselinePixels.data
+              .subarray(pixel, pixel + 3)
+              .equals(bedPixels.data.subarray(pixel, pixel + 3))
+          )
+            unchangedBinArea++;
+        }
+      expect(
+        unchangedBinArea,
+        `${backend} bin pixels beside beds, rotation ${rotation}`,
+      ).toBeGreaterThan(420);
     }
   }
 });

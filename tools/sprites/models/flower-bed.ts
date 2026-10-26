@@ -14,8 +14,8 @@ const CORNERS: readonly Vec3[] = [
   [0.5, 0.5, 0],
   [-0.5, 0.5, 0],
 ];
-const EDGE_WIDTH = 0.035;
-const EDGE_HEIGHT = 0.025;
+const EDGE_WIDTH = 0.015;
+const EDGE_HEIGHT = 0.01;
 const FLOWER_HEIGHT = 0.18;
 
 function surfaceHeight(x: number, y: number, slopeMask: number, view: number): number {
@@ -24,15 +24,12 @@ function surfaceHeight(x: number, y: number, slopeMask: number, view: number): n
   const heights = CORNERS.map((_, corner) => (slopeMask >> corner) & 1);
   for (const triangle of terrainMeshTriangles(view)) {
     const [a, b, c] = triangle.map((index) => CORNERS[index]!);
-    const denominator =
-      (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+    const denominator = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
     const wa =
-      ((b[1] - c[1]) * (pointX - (c[0] + 0.5)) +
-        (c[0] - b[0]) * (pointY - (c[1] + 0.5))) /
+      ((b[1] - c[1]) * (pointX - (c[0] + 0.5)) + (c[0] - b[0]) * (pointY - (c[1] + 0.5))) /
       denominator;
     const wb =
-      ((c[1] - a[1]) * (pointX - (c[0] + 0.5)) +
-        (a[0] - c[0]) * (pointY - (c[1] + 0.5))) /
+      ((c[1] - a[1]) * (pointX - (c[0] + 0.5)) + (a[0] - c[0]) * (pointY - (c[1] + 0.5))) /
       denominator;
     const wc = 1 - wa - wb;
     if (wa >= -1e-7 && wb >= -1e-7 && wc >= -1e-7)
@@ -72,14 +69,10 @@ export function flowerBedMesh(variant: number, slopeMask = 0, view = 0): Mesh {
     const outsideEnd = point(ex, ey);
     const insideEnd = point(ex + ix, ey + iy);
     const insideStart = point(sx + ix, sy + iy);
-    const top = [outsideStart, outsideEnd, insideEnd, insideStart].map(([x, y, z]) => [x, y, z + EDGE_HEIGHT] as Vec3);
-    bed.push(...quad(top as [Vec3, Vec3, Vec3, Vec3], STONE));
-    bed.push(
-      ...quad(
-        [outsideStart, outsideEnd, top[1]!, top[0]!],
-        STONE,
-      ),
+    const top = [outsideStart, outsideEnd, insideEnd, insideStart].map(
+      ([x, y, z]) => [x, y, z + EDGE_HEIGHT] as Vec3,
     );
+    bed.push(...quad(top as [Vec3, Vec3, Vec3, Vec3], STONE));
   };
   addEdge([-0.5, -0.5], [0.5, -0.5], [0, EDGE_WIDTH]);
   addEdge([0.5, -0.5], [0.5, 0.5], [-EDGE_WIDTH, 0]);

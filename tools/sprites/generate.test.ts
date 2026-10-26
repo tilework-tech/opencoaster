@@ -73,7 +73,14 @@ describe('generated sprite catalogue', () => {
       [0.5, 0.5],
       [-0.5, 0.5],
     ] as const;
-    const contains = (px: number, py: number, triangle: number[], heights: number[], center: number, view: number) => {
+    const contains = (
+      px: number,
+      py: number,
+      triangle: number[],
+      heights: number[],
+      center: number,
+      view: number,
+    ) => {
       const projected = triangle.map((corner) => {
         let [x, y] = corners[corner]!;
         if (view === 1) [x, y] = [-y, x];
@@ -82,12 +89,16 @@ describe('generated sprite catalogue', () => {
         const z = (heights[corner]! - center) * 16;
         return [(x - y) * 32, (x + y) * 16 - z];
       });
-      const [[ax, ay], [bx, by], [cx, cy]] = projected as [[number, number], [number, number], [number, number]];
+      const [[ax, ay], [bx, by], [cx, cy]] = projected as [
+        [number, number],
+        [number, number],
+        [number, number],
+      ];
       const denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
       const wa = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator;
       const wb = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator;
       const wc = 1 - wa - wb;
-      return wa >= -0.04 && wb >= -0.04 && wc >= -0.04;
+      return wa >= -0.02 && wb >= -0.02 && wc >= -0.02;
     };
     for (let slopeMask = 0; slopeMask < 16; slopeMask++) {
       const heights = corners.map((_, corner) => (slopeMask >> corner) & 1);
