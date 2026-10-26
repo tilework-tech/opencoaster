@@ -84,7 +84,7 @@ function line(
   }
 }
 
-function polygon(
+function fillPolygon(
   sprite: Sprite,
   points: readonly (readonly [number, number])[],
   color: number,
@@ -103,6 +103,14 @@ function polygon(
     for (let i = 0; i + 1 < xs.length; i += 2)
       for (let x = Math.ceil(xs[i]); x <= Math.floor(xs[i + 1]); x++) pixel(sprite, x, y, color);
   }
+}
+
+function polygon(
+  sprite: Sprite,
+  points: readonly (readonly [number, number])[],
+  color: number,
+): void {
+  fillPolygon(sprite, points, color);
   for (let i = 0; i < points.length; i++)
     line(sprite, ...points[i], ...points[(i + 1) % points.length], outline, 2);
 }
@@ -459,7 +467,7 @@ function iconShapes(name: string): Sprite {
       set(10, 5, 3, 2, 'green', 4);
       break;
     case 'paths':
-      polygon(
+      fillPolygon(
         s,
         [
           [2, 10],
@@ -469,7 +477,7 @@ function iconShapes(name: string): Sprite {
         ],
         colors.stone[1],
       );
-      polygon(
+      fillPolygon(
         s,
         [
           [21, 10],
@@ -479,7 +487,7 @@ function iconShapes(name: string): Sprite {
         ],
         colors.stone[0],
       );
-      polygon(
+      fillPolygon(
         s,
         [
           [12, 2],
@@ -489,11 +497,7 @@ function iconShapes(name: string): Sprite {
         ],
         colors.stone[4],
       );
-      line(s, 12, 2, 21, 10, outline, 1);
-      line(s, 21, 10, 12, 18, outline, 1);
-      line(s, 12, 18, 2, 10, outline, 1);
-      line(s, 2, 10, 12, 2, outline, 1);
-      polygon(
+      fillPolygon(
         s,
         [
           [12, 4],
@@ -505,6 +509,12 @@ function iconShapes(name: string): Sprite {
       );
       line(s, 8, 7, 16, 13, colors.stone[1], 1);
       line(s, 16, 7, 8, 13, colors.stone[1], 1);
+      line(s, 2, 10, 12, 2, outline, 1);
+      line(s, 12, 2, 21, 10, outline, 1);
+      line(s, 21, 10, 21, 12, outline, 1);
+      line(s, 21, 12, 12, 20, outline, 1);
+      line(s, 12, 20, 2, 12, outline, 1);
+      line(s, 2, 12, 2, 10, outline, 1);
       break;
     case 'straight':
       for (const y of [7, 11, 15, 19]) line(s, 6, y, 18, y, colors.wood[2], 3);
