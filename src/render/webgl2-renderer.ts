@@ -7,6 +7,7 @@ import {
 } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
+import { PathFlag } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG, isWallScenery } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
