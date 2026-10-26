@@ -16,7 +16,11 @@ function findOwnedEmptyTile(world: World, near: Tile): Tile {
         if (Math.max(Math.abs(x - near.x), Math.abs(y - near.y)) !== radius) continue;
         if (x < 2 || y < 2 || x >= world.map.width - 2 || y >= world.map.height - 2) continue;
         const index = world.map.index(x, y);
-        if (world.map.ownership[index]! & OWNED && world.map.firstElement(index) < 0)
+        if (
+          world.map.ownership[index]! & OWNED &&
+          world.map.slope[index] === 0 &&
+          world.map.firstElement(index) < 0
+        )
           return { x, y };
       }
   throw new Error('No empty owned tile found near the park centre');
