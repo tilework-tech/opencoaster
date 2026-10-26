@@ -227,13 +227,20 @@ export function placeScenery(
   return element >= 0;
 }
 
-export function removeScenery(map: TileMap, x: number, y: number): SceneryItem | null {
+export function removeScenery(
+  map: TileMap,
+  x: number,
+  y: number,
+  edge?: number,
+): SceneryItem | null {
   if (!map.inBounds(x, y)) return null;
   const tile = map.index(x, y);
   if ((map.ownership[tile] & (OWNED | RIGHTS_OWNED)) === 0) return null;
   for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element)) {
     if (map.elType[element] !== ElementType.SmallScenery) continue;
     const item = map.elData[element] as SceneryItem;
+    if (isWallScenery(item) && edge !== undefined && map.elFlags[element] !== edge) continue;
+    if (!isWallScenery(item) && edge !== undefined) continue;
     map.removeElement(tile, element);
     if (isWallScenery(item)) markPathsChanged(map);
     return SCENERY_CATALOG[item] ? item : null;

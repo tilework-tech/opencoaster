@@ -11,7 +11,7 @@ describe('guest ride history saves', () => {
 
     const restored = deserialize(serialize(world));
 
-    expect(SAVE_VERSION).toBe(23);
+    expect(SAVE_VERSION).toBe(24);
     expect(restored.guests.cols.rideHistory0[0]).toBe(31);
     expect(restored.guests.cols.rideHistory1[0]).toBe(42);
   });

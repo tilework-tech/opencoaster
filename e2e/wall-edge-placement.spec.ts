@@ -147,7 +147,9 @@ test.describe('wall edge placement', () => {
       .toBe(run.length);
   });
 
-  test('places edge walls with the Canvas2D renderer', async ({ page }) => {
+  test('places all four edges and a continuous run with the Canvas2D renderer', async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       const original = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
@@ -159,14 +161,40 @@ test.describe('wall edge placement', () => {
     const tile = findOwnedEmptyTile(world, { x: 28, y: 42 });
     await startStarterPark(page);
     await chooseWall(page);
-    const [x, y] = await edgeScreenPoint(page, world, tile, 1);
-    await page.mouse.move(x, y);
-    await page.mouse.click(x, y);
+    for (let edge = 0; edge < 4; edge++) {
+      const [x, y] = await edgeScreenPoint(page, world, tile, edge);
+      await page.mouse.move(x, y);
+      await expect(page.locator('.placement-label')).toContainText('Wooden fence');
+      await page.mouse.click(x, y);
+      await expect
+        .poll(
+          async () =>
+            (await scenery(page)).filter((item) => item.x === tile.x && item.y === tile.y).length,
+        )
+        .toBe(edge + 1);
+      await page.keyboard.press('z');
+    }
+    expect(
+      (await scenery(page))
+        .filter((item) => item.x === tile.x && item.y === tile.y)
+        .map((item) => item.edge)
+        .sort(),
+    ).toEqual([0, 1, 2, 3]);
+
+    const runStart = findOwnedEmptyTile(world, { x: tile.x + 4, y: tile.y + 4 });
+    const run = Array.from({ length: 4 }, (_, offset) => ({
+      x: runStart.x + offset,
+      y: runStart.y,
+    }));
+    await dragThrough(page, world, run);
+    await page.mouse.up();
     await expect
       .poll(
         async () =>
-          (await scenery(page)).filter((item) => item.x === tile.x && item.y === tile.y).length,
+          (await scenery(page)).filter((item) =>
+            run.some((point) => point.x === item.x && point.y === item.y),
+          ).length,
       )
-      .toBe(1);
+      .toBe(run.length);
   });
 });

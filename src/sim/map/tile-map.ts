@@ -331,7 +331,7 @@ export class TileMap {
     if (prev < 0) this.tileHead[i] = e;
     else this.elNext[prev] = e;
     meta[META_COUNT]++;
-    if (type === ElementType.Path) this.pathVersion++;
+    if (type === ElementType.Path || isWallSceneryElement(type, data)) this.pathVersion++;
     this.refreshTile(i);
     return e;
   }
@@ -346,7 +346,11 @@ export class TileMap {
     if (cur < 0) return;
     if (prev < 0) this.tileHead[i] = this.elNext[e];
     else this.elNext[prev] = this.elNext[e];
-    if (this.elType[e] === ElementType.Path) this.pathVersion++;
+    if (
+      this.elType[e] === ElementType.Path ||
+      isWallSceneryElement(this.elType[e]!, this.elData[e]!)
+    )
+      this.pathVersion++;
     this.elType[e] = 0;
     this.elNext[e] = this.meta[META_FREE];
     this.meta[META_FREE] = e;
@@ -407,11 +411,24 @@ export class TileMap {
       for (let d = 0; d < 4; d++) {
         if (!(mask & (1 << d))) continue;
         const n = this.neighbor(i, d);
-        if (n < 0 || this.isQueue(n)) mask &= ~(1 << d);
+        if (n < 0 || this.isQueue(n) || this.wallOnEdge(i, d) || this.wallOnEdge(n, (d + 2) & 3))
+          mask &= ~(1 << d);
       }
       walk[i] = mask;
     }
     this.walkEdgesVersion = this.pathVersion;
+  }
+
+  private wallOnEdge(tile: number, edge: number): boolean {
+    for (let e = this.tileHead[tile]; e >= 0; e = this.elNext[e]) {
+      if (
+        this.elType[e] === ElementType.SmallScenery &&
+        isWallSceneryElement(this.elType[e]!, this.elData[e]!) &&
+        this.elFlags[e] === edge
+      )
+        return true;
+    }
+    return false;
   }
 
   /** Marks edges of a path element as connected to something that is not a path. */
@@ -505,4 +522,8 @@ export class TileMap {
   canBuild(i: number): boolean {
     return (this.ownership[i] & (OWNED | RIGHTS_OWNED)) !== 0;
   }
+}
+
+function isWallSceneryElement(type: number, data: number): boolean {
+  return type === ElementType.SmallScenery && data >= 5 && data <= 7;
 }

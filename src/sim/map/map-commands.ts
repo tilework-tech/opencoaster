@@ -84,7 +84,7 @@ export type MapCommand =
   | { type: 'removePath'; x: number; y: number; z?: number }
   | { type: 'setPathAddition'; x: number; y: number; addition: PathAddition }
   | { type: 'placeScenery'; x: number; y: number; item: SceneryItem; rotation?: number }
-  | { type: 'removeScenery'; x: number; y: number }
+  | { type: 'removeScenery'; x: number; y: number; edge?: number }
   | { type: 'buyLand'; x: number; y: number; width: number; height: number; rights: boolean };
 
 /** Places one footpath piece, charging for it and reporting a refusal to the UI. */
@@ -275,7 +275,7 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     }
     case 'removeScenery': {
-      const item = removeScenery(m, c.x, c.y);
+      const item = removeScenery(m, c.x, c.y, c.edge);
       if (item !== null)
         charge(w, LedgerCategory.Landscaping, SCENERY_CATALOG[item].removalPriceCents);
       break;

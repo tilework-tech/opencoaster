@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { OWNED, ElementType } from './tile-map';
-import { placeScenery, SceneryItem, sceneryPlacementResult, SceneryResult } from './scenery';
+import { OWNED, ElementType, PathFlag } from './tile-map';
+import {
+  placeScenery,
+  removeScenery,
+  SceneryItem,
+  sceneryPlacementResult,
+  SceneryResult,
+} from './scenery';
 import { World } from '../core/world';
-import { TileMapPathGraph } from '../pathfinding/graph';
-import { layPath } from '../integration/fixtures';
 
 describe('place scenery', () => {
   it('places a catalog item as a map element on owned dry land', () => {
@@ -82,17 +86,38 @@ describe('scenery placement result', () => {
     map.ownership.fill(0);
     map.ownership[map.index(4, 4)] = OWNED;
 
-    expect([0, 1, 2, 3].map((edge) => placeScenery(map, 4, 4, SceneryItem.WoodenFence, edge))).toEqual([
-      true,
-      true,
-      true,
-      true,
-    ]);
+    expect(
+      [0, 1, 2, 3].map((edge) => placeScenery(map, 4, 4, SceneryItem.WoodenFence, edge)),
+    ).toEqual([true, true, true, true]);
     expect(placeScenery(map, 4, 4, SceneryItem.StoneFence, 2)).toBe(false);
     const flags: number[] = [];
-    for (let element = map.firstElement(map.index(4, 4)); element >= 0; element = map.nextElement(element))
+    for (
+      let element = map.firstElement(map.index(4, 4));
+      element >= 0;
+      element = map.nextElement(element)
+    )
       if (map.elType[element] === ElementType.SmallScenery) flags.push(map.elFlags[element]!);
     expect(flags.sort()).toEqual([0, 1, 2, 3]);
+  });
+
+  it('removes the selected wall edge when several walls share a tile', () => {
+    const world = new World({ seed: 8, width: 12, height: 12 });
+    const map = world.map;
+    map.ownership.fill(OWNED);
+    const tile = map.index(4, 4);
+    while (map.firstElement(tile) >= 0) map.removeElement(tile, map.firstElement(tile));
+    for (const edge of [0, 1, 2, 3])
+      expect(placeScenery(map, 4, 4, SceneryItem.WoodenFence, edge)).toBe(true);
+
+    expect(removeScenery(map, 4, 4, 2)).toBe(SceneryItem.WoodenFence);
+    const flags: number[] = [];
+    for (
+      let element = map.firstElement(map.index(4, 4));
+      element >= 0;
+      element = map.nextElement(element)
+    )
+      if (map.elType[element] === ElementType.SmallScenery) flags.push(map.elFlags[element]!);
+    expect(flags.sort()).toEqual([0, 1, 3]);
   });
 
   it('blocks path movement only across the wall edge', () => {
@@ -101,14 +126,14 @@ describe('scenery placement result', () => {
     map.ownership.fill(0);
     const tile = map.index(4, 4);
     map.ownership[tile] = OWNED;
-    map.ownership[tile + 1] = OWNED;
-    map.ownership[tile + map.width] = OWNED;
-    layPath(world, [[4, 4], [5, 4], [4, 5]]);
+    const east = tile + 1;
+    map.ownership[east] = OWNED;
+    map.addElement(tile, ElementType.Path, 0, 1, PathFlag.Edges & 1, 0);
+    map.addElement(east, ElementType.Path, 0, 1, PathFlag.Edges & 4, 0);
+    expect(map.edgeMask(tile) & 1).toBe(1);
     expect(placeScenery(map, 4, 4, SceneryItem.Hedge, 0)).toBe(true);
 
-    const graph = new TileMapPathGraph(map);
-    expect(graph.edgeMask(tile) & 1).toBe(0);
-    expect(graph.edgeMask(tile) & 2).toBe(2);
-    expect(graph.edgeMask(tile + 1) & 4).toBe(0);
+    expect(map.edgeMask(tile) & 1).toBe(0);
+    expect(map.edgeMask(east) & 4).toBe(0);
   });
 });

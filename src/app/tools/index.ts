@@ -319,7 +319,11 @@ export function createToolController(deps: ToolControllerDependencies) {
     };
     if (target.kind === 'scenery')
       button('Remove', () => {
-        deps.sim.command({ type: 'removeScenery', x: target.tileX, y: target.tileY });
+        const scenery = deps.sim.map?.sceneryElements ?? [];
+        const offset = (target.sceneryIndex ?? -1) * 5;
+        const item = scenery[offset + 4] as SceneryItem | undefined;
+        const edge = item !== undefined && isWallScenery(item) ? scenery[offset + 3] : undefined;
+        deps.sim.command({ type: 'removeScenery', x: target.tileX, y: target.tileY, edge });
       });
     if (target.kind === 'path-addition') {
       const flags = deps.sim.map?.pathElements?.[target.pathIndex! * 6 + 3] ?? 0;
