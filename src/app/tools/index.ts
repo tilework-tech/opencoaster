@@ -25,9 +25,10 @@ import { guestRowState } from '../../worker/snapshot';
 import { RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import { RIDE_CATALOG, type RideType } from '../../sim/rides/ride-types';
 import type { ObjectPickTarget } from '../../input/object-picking';
+import { drawHeldSprite, drawSpriteOutline, heldLiftPixels, hoverGroup } from './object-overlay';
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 
-type MovingPerson = { person: 'guest' | 'staff'; id: number };
+type MovingPerson = { person: 'guest' | 'staff'; id: number; sprite?: ObjectPickTarget };
 
 export interface ToolControllerDependencies {
   canvas: HTMLCanvasElement;
@@ -53,10 +54,12 @@ export interface ToolControllerDependencies {
 
 export function createToolController(deps: ToolControllerDependencies) {
   let movingPerson: MovingPerson | null = null;
-  let hoverOutline: HTMLDivElement | null = null;
+  let hoverOutline: HTMLCanvasElement | null = null;
+  let hoveredTargetKey = '';
+  let hoverOrigin = { x: 0, y: 0 };
   let hoveredObjectName: string | null = null;
   let objectPopup: HTMLDivElement | null = null;
-  let liftedPerson: HTMLDivElement | null = null;
+  let liftedPerson: HTMLCanvasElement | null = null;
   let dropMarker: HTMLDivElement | null = null;
   let dropShadow: HTMLDivElement | null = null;
   const handlerDeps = {
@@ -105,7 +108,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     if (!movingPerson) return;
     const map = deps.sim.map;
     const rect = deps.canvas.getBoundingClientRect();
-    liftedPerson ??= Object.assign(document.createElement('div'), {
+    liftedPerson ??= Object.assign(document.createElement('canvas'), {
       className: 'person-pickup-ghost',
     });
     dropMarker ??= Object.assign(document.createElement('div'), {
@@ -117,8 +120,16 @@ export function createToolController(deps: ToolControllerDependencies) {
     if (!liftedPerson.isConnected) document.body.append(liftedPerson);
     if (!dropMarker.isConnected) document.body.append(dropMarker);
     if (!dropShadow.isConnected) document.body.append(dropShadow);
-    liftedPerson.textContent = movingPerson.person === 'guest' ? '●' : '◆';
-    Object.assign(liftedPerson.style, { left: `${clientX - 8}px`, top: `${clientY - 34}px` });
+    const sprite = movingPerson.sprite;
+    if (sprite && liftedPerson.dataset.person !== `${movingPerson.person}:${movingPerson.id}`) {
+      drawHeldSprite(liftedPerson, sprite);
+      liftedPerson.dataset.person = `${movingPerson.person}:${movingPerson.id}`;
+    }
+    const lift = heldLiftPixels(deps.camera.zoom);
+    Object.assign(liftedPerson.style, {
+      left: `${clientX - (sprite?.anchorX ?? 8)}px`,
+      top: `${clientY - lift - (sprite?.anchorY ?? 20)}px`,
+    });
     const tile = tileAt(clientX, clientY);
     const check = dropCheck(tile);
     dropMarker.dataset.valid = String(check.ok);
@@ -136,12 +147,21 @@ export function createToolController(deps: ToolControllerDependencies) {
       );
       const x = rect.left + rect.width / 2 + (point[0]! - deps.camera.x) * deps.camera.zoom;
       const y = rect.top + rect.height / 2 + (point[1]! - deps.camera.y) * deps.camera.zoom;
+      const zoom = deps.camera.zoom;
       Object.assign(dropMarker.style, {
-        left: `${x - 14}px`,
-        top: `${y - 14}px`,
+        left: `${x - 22 * zoom}px`,
+        top: `${y - 11 * zoom}px`,
+        width: `${44 * zoom}px`,
+        height: `${22 * zoom}px`,
         display: 'block',
       });
-      Object.assign(dropShadow.style, { left: `${x - 9}px`, top: `${y - 4}px`, display: 'block' });
+      Object.assign(dropShadow.style, {
+        left: `${clientX - 10 * zoom}px`,
+        top: `${clientY - 4 * zoom}px`,
+        width: `${20 * zoom}px`,
+        height: `${8 * zoom}px`,
+        display: 'block',
+      });
     } else {
       dropMarker.style.display = 'none';
       dropShadow.style.display = 'none';
@@ -150,6 +170,8 @@ export function createToolController(deps: ToolControllerDependencies) {
   }
 
   function hidePersonMoveVisual(): void {
+    deps.renderer.setHeldPerson(null);
+    if (liftedPerson) delete liftedPerson.dataset.person;
     if (liftedPerson) liftedPerson.remove();
     if (dropMarker) dropMarker.remove();
     if (dropShadow) dropShadow.remove();
@@ -177,6 +199,19 @@ export function createToolController(deps: ToolControllerDependencies) {
   }
 
   function hoverCanvas(clientX: number, clientY: number): void {
+    if (movingPerson) {
+      clearObjectHover();
+      if (!movingPerson.sprite) {
+        const rect = deps.canvas.getBoundingClientRect();
+        const held = movingPerson;
+        movingPerson.sprite = deps.renderer
+          .objectTargets(deps.sim.latest, deps.camera, { width: rect.width, height: rect.height })
+          .find((t) => t.personId === held.id && t.kind === held.person);
+        deps.renderer.setHeldPerson(held.person, held.id);
+      }
+      updatePersonMoveVisual(clientX, clientY);
+      return;
+    }
     if (deps.selectedTool() !== 'select') {
       clearObjectHover();
       return;
@@ -189,30 +224,47 @@ export function createToolController(deps: ToolControllerDependencies) {
     deps.gameUi.setToolStatus(target.name);
     hoveredObjectName = target.name;
     if (!hoverOutline) {
-      hoverOutline = document.createElement('div');
+      hoverOutline = document.createElement('canvas');
       hoverOutline.className = 'object-hover-outline';
       hoverOutline.setAttribute('aria-hidden', 'true');
       document.body.append(hoverOutline);
     }
     const rect = deps.canvas.getBoundingClientRect();
+    const snapshot = deps.sim.latest;
+    const viewport = { width: rect.width, height: rect.height };
+    const flatRideIds = new Set<number>();
+    for (let i = 0; snapshot && i < snapshot.rides.count; i++) {
+      const offset = i * RIDE_INFO_STRIDE;
+      if (!RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type]! as RideType]?.usesTrack)
+        flatRideIds.add(snapshot.rideInfo[offset + RideInfo.Id]!);
+    }
+    const group = hoverGroup(
+      target,
+      deps.renderer.objectTargets(snapshot, deps.camera, viewport),
+      flatRideIds,
+    );
+    const key = `${group.map((t) => t.id).join(',')}:${target.x}:${target.y}:${target.width}`;
+    if (key !== hoveredTargetKey) {
+      hoverOrigin = drawSpriteOutline(hoverOutline, group);
+      hoveredTargetKey = key;
+    }
     Object.assign(hoverOutline.style, {
-      left: `${rect.left + target.x}px`,
-      top: `${rect.top + target.y}px`,
-      width: `${target.width}px`,
-      height: `${target.height}px`,
+      left: `${rect.left + hoverOrigin.x}px`,
+      top: `${rect.top + hoverOrigin.y}px`,
       display: 'block',
     });
   }
 
   function clearObjectHover(): void {
     if (hoverOutline) hoverOutline.style.display = 'none';
+    hoveredTargetKey = '';
     if (hoveredObjectName !== null) {
       deps.gameUi.setToolStatus('');
       hoveredObjectName = null;
     }
   }
 
-  function showObjectInfo(target: ObjectPickTarget, clientX: number, clientY: number): void {
+  function showObjectInfo(target: ObjectPickTarget, clientY: number): void {
     objectPopup?.remove();
     const popup = document.createElement('div');
     popup.dataset.objectInfo = '';
@@ -256,10 +308,31 @@ export function createToolController(deps: ToolControllerDependencies) {
         );
     }
     button('Done', () => {});
-    const left = Math.max(8, Math.min(clientX, window.innerWidth - 230));
-    const top = Math.max(8, Math.min(clientY, window.innerHeight - 130));
-    Object.assign(popup.style, { position: 'fixed', left: `${left}px`, top: `${top}px` });
+    Object.assign(popup.style, {
+      position: 'fixed',
+      left: '0px',
+      top: '0px',
+      visibility: 'hidden',
+    });
     document.body.append(popup);
+    const canvasRect = deps.canvas.getBoundingClientRect();
+    const box = {
+      left: canvasRect.left + target.x,
+      right: canvasRect.left + target.x + target.width,
+      top: canvasRect.top + target.y,
+      bottom: canvasRect.top + target.y + target.height,
+    };
+    const { width, height } = popup.getBoundingClientRect();
+    const margin = 8;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const side =
+      box.right + margin + width <= viewportWidth - margin
+        ? box.right + margin
+        : box.left - margin - width;
+    const left = Math.max(margin, Math.min(side, viewportWidth - width - margin));
+    const top = Math.max(margin, Math.min(clientY - height / 2, viewportHeight - height - margin));
+    Object.assign(popup.style, { left: `${left}px`, top: `${top}px`, visibility: 'visible' });
     objectPopup = popup;
   }
 
@@ -421,7 +494,7 @@ export function createToolController(deps: ToolControllerDependencies) {
         deps.gameUi.openWindow('park');
         deps.gameUi.setToolStatus('Park information opened.');
       } else {
-        showObjectInfo(object, clientX, clientY);
+        showObjectInfo(object, clientY);
         deps.gameUi.setToolStatus(object.name);
       }
       deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
@@ -495,12 +568,14 @@ export function createToolController(deps: ToolControllerDependencies) {
         deps.gameUi.setToolStatus('Pick up refused: guests on rides or in queues cannot be moved.');
         return true;
       }
-      movingPerson = { person: 'guest', id: target.personId };
+      movingPerson = { person: 'guest', id: target.personId, sprite: target };
+      deps.renderer.setHeldPerson('guest', target.personId);
       updatePersonMoveVisual(clientX, clientY);
       return true;
     }
     if (target?.kind !== 'staff' || target.personId === undefined) return false;
-    movingPerson = { person: 'staff', id: target.personId };
+    movingPerson = { person: 'staff', id: target.personId, sprite: target };
+    deps.renderer.setHeldPerson('staff', target.personId);
     updatePersonMoveVisual(clientX, clientY);
     return true;
   }

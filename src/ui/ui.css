@@ -1656,9 +1656,7 @@
   position: fixed;
   z-index: 40;
   display: none;
-  outline: 2px solid #ffe46b;
-  outline-offset: 1px;
-  background: rgb(255 228 107 / 12%);
+  image-rendering: pixelated;
   pointer-events: none;
 }
 
@@ -1682,16 +1680,9 @@
 .person-pickup-ghost {
   position: fixed;
   z-index: 80;
-  width: 16px;
-  height: 20px;
-  color: #fff7cd;
-  font: 700 18px/20px sans-serif;
-  text-shadow:
-    0 2px 0 #243029,
-    1px 0 #243029,
-    -1px 0 #243029;
+  image-rendering: pixelated;
   pointer-events: none;
-  transform: translateY(-5px);
+  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 45%));
 }
 
 .person-drop-marker,
@@ -1702,8 +1693,7 @@
 }
 
 .person-drop-marker {
-  width: 28px;
-  height: 28px;
+  box-sizing: border-box;
   border: 3px solid #47c66b;
   border-radius: 50%;
   box-shadow:
@@ -1719,9 +1709,7 @@
 }
 
 .person-drop-shadow {
-  width: 18px;
-  height: 8px;
   border-radius: 50%;
   background: rgb(20 24 20 / 45%);
-  filter: blur(1px);
+  filter: blur(1.5px);
 }
