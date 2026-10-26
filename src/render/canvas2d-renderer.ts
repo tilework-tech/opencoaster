@@ -43,13 +43,10 @@ import { FLOWER_BED } from '../sim/staff/grounds';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
 import {
   pathAdditionBox,
-  pathAdditionEdgeGroundZ,
-  pathAdditionEdgeOffset,
-  pathAdditionEdges,
+  pathAdditionPlacements,
   pathAdditionGroundZ,
   pathAdditionView,
   flowerBedGroundZ,
-  pathConnectionEdges,
   sceneryBox,
   sceneryFrameDrop,
   sceneryGroundZ,
@@ -899,18 +896,17 @@ export class Canvas2DRenderer implements Renderer {
       this.drawPathAddition(ctx, flags, data, cam.rotation);
       return;
     }
-    for (const edge of pathAdditionEdges(pathConnectionEdges(flags))) {
-      const offset = pathAdditionEdgeOffset(edge);
+    for (const placement of pathAdditionPlacements(flags, baseHeight)) {
       project(
-        centerX + offset.x,
-        centerY + offset.y,
-        pathAdditionEdgeGroundZ(baseHeight, flags, edge),
+        centerX + placement.x,
+        centerY + placement.y,
+        placement.groundZ,
         map.width,
         map.height,
         cam.rotation,
         this.tmp,
       );
-      this.drawPathAddition(ctx, flags, data, pathAdditionView(edge, cam.rotation));
+      this.drawPathAddition(ctx, flags, data, pathAdditionView(placement.edge, cam.rotation));
     }
   }
 
