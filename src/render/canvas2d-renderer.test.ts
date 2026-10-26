@@ -18,6 +18,7 @@ import { ScenerySpotPreview } from '../app/tools/scenery-preview';
 import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
 import { pathAdditionPreviewGhosts } from '../app/tools/path-addition-preview';
 import { FLOWER_BED } from '../sim/staff/grounds';
+import { rotatedPositionSum } from './depth-key';
 import { flowerBedSpriteName, scenerySpriteName, shrubSpriteName } from './world-art';
 
 class RecordingContext {
@@ -662,6 +663,44 @@ describe('Canvas2D fallback map art', () => {
       expect(context.spriteSources, `rotation ${rotation}`).toEqual(
         farFirst ? [2, 3, 1] : [1, 3, 2],
       );
+    }
+  });
+
+  it('orders a guest against a tree in the same tile by sub-tile position in every rotation', async () => {
+    for (const rotation of [0, 1, 2, 3] as const) {
+      for (const infront of [true, false]) {
+        const map = { ...flatMap(), width: 12, height: 12 };
+        map.heights = new Uint8Array(144);
+        map.surface = new Uint8Array(144).fill(1);
+        map.slope = new Uint8Array(144);
+        map.waterLevel = new Uint8Array(144);
+        map.sceneryElements = Int32Array.of(5, 5, 0, 0, SceneryItem.OakTree);
+        map.sceneryCount = 1;
+        const centre = 5.5 * TILE_UNITS;
+        const nearer =
+          rotatedPositionSum(centre + 64, centre, map, rotation) >
+          rotatedPositionSum(centre, centre, map, rotation);
+        const guestX = centre + (infront === nearer ? 64 : -64);
+        const snapshot = createSnapshot({ guests: 1, staff: 0, vehicles: 0, litter: 0 });
+        snapshot.guests.count = 1;
+        snapshot.guests.data.set([guestX, centre, 0, 0]);
+        const context = await renderWithAtlas(
+          map,
+          ['trees/tree-oak', 'people/guest-walk'],
+          snapshot,
+          {
+            x: 0,
+            y: 0,
+            zoom: 1,
+            rotation,
+          },
+        );
+        // Source x of each stub: tree 1, guest 2.
+        expect(
+          context.spriteSources,
+          `rotation ${rotation}, guest ${infront ? 'in front' : 'behind'}`,
+        ).toEqual(infront ? [1, 2] : [2, 1]);
+      }
     }
   });
 

@@ -587,7 +587,7 @@ export class Canvas2DRenderer implements Renderer {
             groundFlowerBed || sceneryFlowerBed
               ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
               : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-            groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
+            SOLID_BIAS,
             () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         for (
@@ -623,12 +623,12 @@ export class Canvas2DRenderer implements Renderer {
           sceneryFlowerBed
             ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
             : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-          sceneryFlowerBed ? SOLID_BIAS : 2,
+          SOLID_BIAS,
           () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
           if (ghost.kind === 'scenery')
-            this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 2, () =>
+            this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, SOLID_BIAS, () =>
               this.drawSpriteGhost(ctx, map, cam, ghost),
             );
           else if (ghost.kind === 'path-addition')
