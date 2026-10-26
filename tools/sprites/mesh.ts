@@ -315,3 +315,37 @@ export function clipMesh(mesh: Mesh, minX: number, maxX: number, minY: number, m
   }
   return out;
 }
+
+/**
+ * Cuts a camera-rotated mesh on the vertical plane through the origin that is level with the
+ * camera: `back` is the geometry farther from the camera than anything standing at the origin,
+ * `front` the geometry nearer. Painted before and after an occupant of the tile, the two halves
+ * show the occupant behind the front face and in front of the back wall.
+ */
+export function splitMeshByDepth(mesh: Mesh): { back: Mesh; front: Mesh } {
+  const half = (sign: 1 | -1): Mesh => {
+    const out: Mesh = [];
+    for (const triangle of mesh) {
+      const polygon: Vec3[] = [];
+      for (let i = 0; i < 3; i++) {
+        const a = triangle.v[i]!;
+        const b = triangle.v[(i + 1) % 3]!;
+        const da = (a[0] + a[1]) * sign;
+        const db = (b[0] + b[1]) * sign;
+        if (da >= 0) polygon.push(a);
+        if (da >= 0 !== db >= 0) {
+          const t = da / (da - db);
+          polygon.push([
+            a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t,
+          ]);
+        }
+      }
+      for (let i = 1; i + 1 < polygon.length; i++)
+        out.push({ v: [polygon[0]!, polygon[i]!, polygon[i + 1]!], material: triangle.material });
+    }
+    return out;
+  };
+  return { back: half(-1), front: half(1) };
+}

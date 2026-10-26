@@ -19,6 +19,7 @@ import {
   physicalToLevels,
   rotateMesh,
   rotatePoint,
+  splitMeshByDepth,
   translateMesh,
 } from './mesh';
 import type { Mesh } from './mesh';
@@ -280,21 +281,17 @@ function stationSprites(): SpriteDef[] {
     for (const part of ['entrance', 'exit'] as const)
       for (let facing = 0; facing < 4; facing++)
         for (let view = 0; view < 4; view++)
-          out.push({
-            key:
+          out.push(
+            ...layeredSprites(
               category === 'coaster'
                 ? `rides/coaster/${family}/stations/${part}/facing-${facing}/view-${view}`
                 : `${group}/stations/${category}/${part}/facing-${facing}/view-${view}`,
-            frames: [
-              renderMesh(
-                rotateMesh(
-                  rotateMesh(physicalToLevels(stationHutMesh(category, part)), (facing + 3) & 3),
-                  view,
-                ),
+              rotateMesh(
+                rotateMesh(physicalToLevels(stationHutMesh(category, part)), (facing + 3) & 3),
+                view,
               ),
-            ],
-            footprint: ONE_TILE,
-          });
+            ),
+          );
   }
   return out;
 }
@@ -364,12 +361,29 @@ function wallSprites(): SpriteDef[] {
     .flat(2);
 }
 
+/**
+ * A structure guests walk into, as the whole sprite plus its back and front layers
+ * (`<key>/back`, `<key>/front`): the renderers paint the back layer before and the front layer
+ * after anyone standing on the tile. All three share one frame size and anchor.
+ */
+function layeredSprites(key: string, view: Mesh, raw = false): SpriteDef[] {
+  const { back, front } = splitMeshByDepth(view);
+  const whole = renderMesh(view);
+  const layer = (mesh: Mesh): Sprite => renderMesh(mesh, { extent: view, continuedBy: view });
+  return [
+    { key, frames: [whole], footprint: ONE_TILE, raw },
+    { key: `${key}/back`, frames: [layer(back)], footprint: ONE_TILE, raw },
+    { key: `${key}/front`, frames: [layer(front)], footprint: ONE_TILE, raw },
+  ];
+}
+
 function parkEntranceSprites(): SpriteDef[] {
-  return Array.from({ length: 4 }, (_, view) => ({
-    key: `scenery/park-entrance/view-${view}`,
-    frames: [renderMesh(rotateMesh(physicalToLevels(parkEntranceMesh(0)), view))],
-    footprint: ONE_TILE,
-  }));
+  return Array.from({ length: 4 }, (_, view) =>
+    layeredSprites(
+      `scenery/park-entrance/view-${view}`,
+      rotateMesh(physicalToLevels(parkEntranceMesh(0)), view),
+    ),
+  ).flat();
 }
 
 function pathAdditionSprites(): SpriteDef[] {

@@ -33,6 +33,8 @@ export interface RenderOptions {
    * taken from): no outline is drawn on pixels it covers, so adjoining cells show no seam.
    */
   continuedBy?: Mesh;
+  /** Geometry that sets the frame size and anchor in place of the mesh, so cut layers align with the whole. */
+  extent?: Mesh;
 }
 
 /** Exact 2:1 dimetric orthographic projection: one tile is a 64x32 diamond, one level 16px. */
@@ -75,16 +77,15 @@ export function renderMesh(mesh: Mesh, options: RenderOptions = {}): Sprite {
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  const projected = mesh.map((t) =>
-    t.v.map((p) => {
+  for (const t of options.extent ?? mesh)
+    for (const p of t.v) {
       const s = project(p[0], p[1], p[2]);
       minX = Math.min(minX, s[0]);
       maxX = Math.max(maxX, s[0]);
       minY = Math.min(minY, s[1]);
       maxY = Math.max(maxY, s[1]);
-      return s;
-    }),
-  );
+    }
+  const projected = mesh.map((t) => t.v.map((p) => project(p[0], p[1], p[2])));
   let left = Math.floor(minX) - margin;
   const right = Math.ceil(maxX) + margin;
   let top = Math.floor(minY) - margin;

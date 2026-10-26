@@ -55,6 +55,8 @@ import type { ObjectPickTarget } from '../input/object-picking';
 import { guestFrame, guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import {
   SOLID_BIAS,
+  structureDepth,
+  structureLayerKey,
   SurfaceDepths,
   pathSlabDepth,
   personDepth,
@@ -344,6 +346,28 @@ export class Canvas2DRenderer implements Renderer {
   ): void {
     const sum = rotatedPositionSum(x, y, map, cam.rotation);
     this.queueAtDepth(2 * sum - z / Z_STEP + offset, draw);
+  }
+
+  /**
+   * Queues a structure guests walk into as its back and front layers around its occupants, or as
+   * one sprite at the tile's solid key while the layers are not loaded. `draw` receives the atlas
+   * key to draw.
+   */
+  private enqueueStructure(
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    z: number,
+    key: string,
+    draw: (spriteKey: string) => void,
+  ): void {
+    const back = structureLayerKey(key, 'back');
+    const front = structureLayerKey(key, 'front');
+    if (this.atlas?.resolve(back) && this.atlas.resolve(front)) {
+      this.queueAtDepth(structureDepth(map, cam.rotation, x, y, z, 'back'), () => draw(back));
+      this.queueAtDepth(structureDepth(map, cam.rotation, x, y, z, 'front'), () => draw(front));
+    } else this.enqueue(map, cam, x, y, z, SOLID_BIAS, () => draw(key));
   }
 
   private queueAtDepth(depth: number, draw: () => void): void {
@@ -1422,26 +1446,22 @@ export class Canvas2DRenderer implements Renderer {
         const worldX = x * TILE_UNITS + 128;
         const worldY = y * TILE_UNITS + 128;
         const z = map.heights[y * map.width + x]! * Z_STEP;
-        this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
+        const facing = rideHutFacingForFootprint(
+          type,
+          snapshot.rideInfo[o + RideInfo.RideX]!,
+          snapshot.rideInfo[o + RideInfo.RideY]!,
+          snapshot.rideInfo[o + RideInfo.Dir]!,
+          x,
+          y,
+        );
+        const hutKey = rideHutSpriteKey(type, part, facing, cam.rotation);
+        this.enqueueStructure(map, cam, worldX, worldY, z, hutKey, (spriteKey) => {
           project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
           if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 24)) return;
-          const facing = rideHutFacingForFootprint(
-            type,
-            snapshot.rideInfo[o + RideInfo.RideX]!,
-            snapshot.rideInfo[o + RideInfo.RideY]!,
-            snapshot.rideInfo[o + RideInfo.Dir]!,
-            x,
-            y,
-          );
           if (
-            !this.atlas ||
-            !drawAnchoredSprite(
-              ctx,
-              this.atlas,
-              rideHutSpriteKey(type, part, facing, cam.rotation),
-              this.tmp[0]!,
-              this.tmp[1]!,
-            )
+            (!this.atlas ||
+              !drawAnchoredSprite(ctx, this.atlas, spriteKey, this.tmp[0]!, this.tmp[1]!)) &&
+            spriteKey === hutKey
           ) {
             ctx.fillStyle = part === 'entrance' ? '#46ae72' : '#d36355';
             ctx.beginPath();
@@ -1465,11 +1485,11 @@ export class Canvas2DRenderer implements Renderer {
     const worldX = x * TILE_UNITS + TILE_UNITS / 2;
     const worldY = y * TILE_UNITS + TILE_UNITS / 2;
     const z = map.heights[y * map.width + x]! * Z_STEP;
-    this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
+    const gateKey = `scenery/park-entrance/view-${cam.rotation}`;
+    this.enqueueStructure(map, cam, worldX, worldY, z, gateKey, (spriteKey) => {
       project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
       if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 40)) return;
-      const key = `scenery/park-entrance/view-${cam.rotation}`;
-      if (this.atlas) drawAnchoredSprite(ctx, this.atlas, key, this.tmp[0]!, this.tmp[1]!);
+      if (this.atlas) drawAnchoredSprite(ctx, this.atlas, spriteKey, this.tmp[0]!, this.tmp[1]!);
     });
   }
 

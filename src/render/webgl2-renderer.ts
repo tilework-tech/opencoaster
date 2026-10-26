@@ -57,6 +57,8 @@ import { TERRAIN_OCCLUDER_DEPTH_OFFSET, sceneryDepth } from './terrain-occlusion
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import {
   SOLID_BIAS,
+  structureDepth,
+  structureLayerKey,
   SurfaceDepths,
   pathSlabDepth,
   personDepth,
@@ -1607,8 +1609,6 @@ export class WebGL2Renderer implements Renderer {
     const z = map.heights[entranceY * map.width + entranceX] * Z_STEP + 1;
     const worldX = entranceX * TILE_UNITS + TILE_UNITS / 2;
     const worldY = entranceY * TILE_UNITS + TILE_UNITS / 2;
-    const depth =
-      2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
     project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
     if (
       inViewport(
@@ -1621,15 +1621,64 @@ export class WebGL2Renderer implements Renderer {
         PARK_GATE_BOX.height,
       )
     )
-      this.append(
+      this.appendStructure(
+        map,
+        camera,
         worldX,
         worldY,
         z,
         46,
         40,
         spriteViewName(scenerySpriteName('park-entrance'), camera.rotation),
-        depth,
       );
+  }
+
+  /**
+   * Appends a structure guests walk into as its back and front layers around its occupants, or
+   * as one sprite at the tile's solid key while the layers are not loaded.
+   */
+  private appendStructure(
+    map: MapData,
+    camera: Camera,
+    x: number,
+    y: number,
+    z: number,
+    width: number,
+    height: number,
+    key: string,
+  ): void {
+    const back = structureLayerKey(key, 'back');
+    const front = structureLayerKey(key, 'front');
+    if (spritePages.resolve(back) && spritePages.resolve(front)) {
+      this.append(
+        x,
+        y,
+        z,
+        width,
+        height,
+        back,
+        structureDepth(map, camera.rotation, x, y, z, 'back'),
+      );
+      this.append(
+        x,
+        y,
+        z,
+        width,
+        height,
+        front,
+        structureDepth(map, camera.rotation, x, y, z, 'front'),
+      );
+      return;
+    }
+    this.append(
+      x,
+      y,
+      z,
+      width,
+      height,
+      key,
+      2 * rotatedPositionSum(x, y, map, camera.rotation) - z / Z_STEP + SOLID_BIAS,
+    );
   }
 
   private appendPathGhosts(
@@ -1906,8 +1955,6 @@ export class WebGL2Renderer implements Renderer {
         const z = map.heights[index] * Z_STEP + 1;
         const centerX = x * TILE_UNITS + 128;
         const centerY = y * TILE_UNITS + 128;
-        const depth =
-          2 * rotatedPositionSum(centerX, centerY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
         project(centerX, centerY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1929,14 +1976,15 @@ export class WebGL2Renderer implements Renderer {
             x,
             y,
           );
-          this.append(
+          this.appendStructure(
+            map,
+            camera,
             centerX,
             centerY,
             z,
             30,
             28,
             rideHutSpriteKey(type, part as 'entrance' | 'exit', facing, camera.rotation),
-            depth,
           );
         }
       }

@@ -14,6 +14,17 @@ import type { Rotation } from './projection';
 export const PERSON_BIAS = 0.5;
 /** Offset of an object filling its tile, from the tile-centre key: after people one tile behind it. */
 export const SOLID_BIAS = 0.25;
+/**
+ * Offset of a structure's back layer from the tile-centre key. Anyone on the tile, back edge
+ * included, is drawn after it; anyone on the tile behind is drawn before it.
+ */
+export const STRUCTURE_BACK_BIAS = -0.75;
+/**
+ * Offset of a structure's front layer from the tile-centre key: a hair after a person standing
+ * at the tile centre, so the occupant of the tile is behind the front face and anyone nearer the
+ * camera than the centre is in front of it.
+ */
+export const STRUCTURE_FRONT_BIAS = PERSON_BIAS + 0.01;
 /** Offset of flat ground cover from the tile-centre key: just after the terrain, under people. */
 export const GROUND_COVER_BIAS = -1.75;
 
@@ -35,6 +46,27 @@ export function rotatedPositionSum(
   rotation: Rotation,
 ): number {
   return viewDepth(x / TILE_UNITS, y / TILE_UNITS, rotation, map);
+}
+
+/** Atlas key of the layer of a structure sprite drawn before (`back`) or after (`front`) its occupants. */
+export function structureLayerKey(key: string, layer: 'back' | 'front'): string {
+  return `${key}/${layer}`;
+}
+
+/** Key of a structure's back or front layer on the tile centred at world (x, y) and height z. */
+export function structureDepth(
+  map: { width: number; height: number },
+  rotation: Rotation,
+  x: number,
+  y: number,
+  z: number,
+  layer: 'back' | 'front',
+): number {
+  return (
+    2 * rotatedPositionSum(x, y, map, rotation) -
+    z / Z_STEP +
+    (layer === 'back' ? STRUCTURE_BACK_BIAS : STRUCTURE_FRONT_BIAS)
+  );
 }
 
 /** Key of a tile's terrain, taken at the tile's rearmost corner. */
