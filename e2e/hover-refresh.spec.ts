@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openPage, startScenario } from './support/park';
+import { openPage, startScenario, toolbarAction } from './support/park';
 
 interface Hovered {
   name: string | null;
@@ -7,9 +7,16 @@ interface Hovered {
 
 async function ridePoint(page: Page): Promise<{ x: number; y: number; name: string }> {
   return page.locator('#game').evaluate(async (canvas) => {
-    const [{ buildObjectPickTargets, pickTopmostObject }, { spritePages }] = await Promise.all([
+    const [
+      { buildObjectPickTargets, pickTopmostObject },
+      { spritePages },
+      { project },
+      { TILE_UNITS },
+    ] = await Promise.all([
       import('/src/input/object-picking.ts'),
       import('/src/render/sprite-pages.ts'),
+      import('/src/render/projection.ts'),
+      import('/src/sim/core/constants.ts'),
     ]);
     const state = window as unknown as {
       __camera: { x: number; y: number; zoom: number; rotation: 0 | 1 | 2 | 3 };
@@ -18,9 +25,8 @@ async function ridePoint(page: Page): Promise<{ x: number; y: number; name: stri
     };
     const rect = canvas.getBoundingClientRect();
     const viewport = { width: rect.width, height: rect.height };
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     const camera = state.__camera;
-    const { project } = await import('/src/render/projection.ts');
-    const { TILE_UNITS } = await import('/src/sim/core/constants.ts');
     const build = () =>
       buildObjectPickTargets(state.__snapshot, state.__map, camera, viewport, spritePages);
     const info = state.__snapshot.rideInfo;
@@ -51,7 +57,9 @@ async function ridePoint(page: Page): Promise<{ x: number; y: number; name: stri
         return { x: rect.left + x, y: rect.top + y, name: target.name };
       }
     }
-    throw new Error('No visible ride to hover');
+    throw new Error(
+      `No visible ride to hover: ${targets.length} targets, kinds ${[...new Set(targets.map((t) => t.kind))]}, rides ${targets.filter((t) => t.kind === 'ride').map((t) => `${t.x | 0},${t.y | 0},${t.width | 0}`)} viewport ${viewport.width}x${viewport.height} len ${info.length} count ${state.__snapshot.rides.count} entrance ${info[16]},${info[17]} cam ${camera.x},${camera.y},${camera.zoom} map ${state.__map.width}`,
+    );
   });
 }
 
