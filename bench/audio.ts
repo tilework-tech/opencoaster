@@ -80,7 +80,15 @@ for (let i = 0; i < rides; i++) {
 }
 const camera = { x: 0, y: 3200, zoom: 1, rotation: 0 as const };
 const audio = new AudioEngine(
-  { speed: 1, paused: false, soundVolume: 1, musicVolume: 0.7, musicOn: true, muted: false },
+  {
+    speed: 1,
+    paused: false,
+    soundVolume: 1,
+    musicVolume: 0.7,
+    musicOn: true,
+    muted: false,
+    messageFilter: { award: true, ride: true, park: true, guest: true },
+  },
   () => new FakeContext() as unknown as AudioContext,
 );
 await audio.unlock();

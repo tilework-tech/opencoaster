@@ -9,6 +9,7 @@ export type ShortcutAction =
   | { type: 'pause' }
   | { type: 'speed'; speed: number }
   | { type: 'speedStep'; direction: -1 | 1 }
+  | { type: 'dismissMessage' }
   | { type: 'rotate'; direction: -1 | 1 }
   | { type: 'rotatePiece' }
   | { type: 'zoom'; direction: -1 | 1 }
@@ -62,6 +63,7 @@ export function shortcutFor(event: KeyLike): ShortcutAction | null {
     case 'Pause':
       return { type: 'pause' };
   }
+  if (event.key.toLowerCase() === 'q') return { type: 'dismissMessage' };
   if (event.key.toLowerCase() === 'z') return { type: 'rotate', direction: 1 };
   if (event.key.toLowerCase() === 'x') return { type: 'rotate', direction: -1 };
   const id = WINDOW_KEYS[event.key] ?? WINDOW_KEYS[event.key.toLowerCase()];

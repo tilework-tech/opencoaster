@@ -763,6 +763,53 @@
 .status-ticker[data-category='park'] {
   color: #b8f0b0;
 }
+.status-ticker[data-category='award'] {
+  color: #ffd76a;
+}
+.status-ticker-dismiss {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  background: #3a4046;
+  color: #cfe8ff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.status-ticker-dismiss[hidden] {
+  display: none;
+}
+.status-ticker-dismiss .ui-icon,
+.message-dismiss .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+.status-ticker {
+  touch-action: pan-y;
+}
+.message-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.message-row > .list-row {
+  flex: 1;
+  min-width: 0;
+}
+.message-dismiss {
+  flex: 0 0 auto;
+  width: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--bevel-dark);
+  background: #e3dfcd;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
 .status-news {
   width: 24px;
   height: 22px;
@@ -1360,6 +1407,19 @@
   .status-news {
     width: 44px;
     height: 44px;
+  }
+  .status-ticker-dismiss {
+    width: 44px;
+    height: 44px;
+  }
+  .status-ticker-dismiss .ui-icon,
+  .message-dismiss .ui-icon {
+    width: 18px;
+    height: 18px;
+  }
+  .message-dismiss {
+    width: 44px;
+    min-height: 44px;
   }
   .status-left .status-chip {
     min-width: 44px;

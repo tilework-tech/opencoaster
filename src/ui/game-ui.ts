@@ -6,6 +6,8 @@ import { SampleSeries } from './format';
 import { icon } from './icons';
 import { NewsTracker } from './news';
 import type { NewsItem } from './news';
+import { MessageQueue, filterMessages } from './messages';
+import type { MessageCategory } from './messages';
 import { objectiveLines } from './objective';
 import { StatusBar } from './status-bar';
 import { BUILD_SPEED_CAP, effectiveGameSpeed } from './window-layout';
@@ -106,10 +108,10 @@ export class GameUI {
   private readonly statusBar: StatusBar;
   private readonly status: HTMLElement;
   private readonly objective: HTMLElement;
-  private readonly parkNews: HTMLElement;
   private readonly weatherOverlay: HTMLElement;
   private readonly controllers = new Map<string, WindowController>();
   private news = new NewsTracker();
+  private readonly messages = new MessageQueue<NewsItem>();
   private readonly series = {
     cash: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
     value: new SampleSeries(SERIES_LENGTH, SERIES_INTERVAL_TICKS),
@@ -154,9 +156,6 @@ export class GameUI {
     this.status = element('output', 'tool-status');
     this.objective = element('div', 'objective-strip');
     this.objective.hidden = true;
-    this.parkNews = element('aside', 'park-news');
-    this.parkNews.setAttribute('aria-live', 'polite');
-    this.parkNews.hidden = true;
     this.weatherOverlay = element('div', 'weather-overlay weather-sunny');
     this.weatherOverlay.setAttribute('aria-hidden', 'true');
 
@@ -232,8 +231,9 @@ export class GameUI {
       openPark: () => this.openWindow('park'),
       openNews: () => this.openWindow('news'),
       followNews: (item) => this.followNews(item),
+      dismissMessage: () => this.dismissMessage(),
     });
-    parent.append(this.status, this.objective, this.parkNews, this.weatherOverlay);
+    parent.append(this.status, this.objective, this.weatherOverlay);
     this.statusBar.setMessage(null);
     this.chooseTool('select');
   }
@@ -254,17 +254,11 @@ export class GameUI {
     this.objective.hidden = lines.length === 0;
     const objectiveText = lines.join('\n');
     if (this.objective.textContent !== objectiveText) this.objective.textContent = objectiveText;
-    const latestNews = snapshot?.parkNews.slice(-3).map((item) => item.text) ?? [];
-    this.parkNews.hidden = latestNews.length === 0;
-    if (this.parkNews.textContent !== latestNews.join('\n'))
-      this.parkNews.textContent = latestNews.join('\n');
-
+    const now = performance.now();
     if (snapshot) {
-      const fresh = this.news.observe(snapshot);
-      if (fresh.length > 0) {
-        this.statusBar.setMessage(fresh[fresh.length - 1]);
-        this.actions.playUiSound('news');
-      }
+      const fresh = filterMessages(this.news.observe(snapshot), this.actions.messageFilter());
+      for (const item of fresh) this.messages.enqueue(item, now);
+      if (fresh.length > 0) this.actions.playUiSound('news');
       let profit = 0;
       for (let c = 0; c < LedgerCategory.COUNT; c++) profit += snapshot.economy.thisMonth[c];
       this.series.cash.record(snapshot.tick, snapshot.park.cash - snapshot.park.loan);
@@ -272,6 +266,7 @@ export class GameUI {
       this.series.profit.record(snapshot.tick, profit);
       this.series.guests.record(snapshot.tick, stats?.guests ?? snapshot.guests.count);
     }
+    this.statusBar.setMessage(this.messages.current(now));
     this.statusBar.update(snapshot, stats);
 
     for (const [id, controller] of this.controllers) {
@@ -307,6 +302,7 @@ export class GameUI {
     this.controllers.clear();
     this.selectedGuest = null;
     this.news = new NewsTracker();
+    this.messages.clear();
     this.statusBar.setMessage(null);
     this.chooseTool('select');
     if (openPark) this.openWindow('park');
@@ -388,6 +384,9 @@ export class GameUI {
         return true;
       case 'speedStep':
         this.stepSpeed(action.direction);
+        return true;
+      case 'dismissMessage':
+        this.dismissMessage();
         return true;
       case 'rotate':
         this.actions.rotate(action.direction);
@@ -487,6 +486,11 @@ export class GameUI {
     for (const id of [...CONSTRUCTION_WINDOWS, 'construction']) this.windows.close(id);
   }
 
+  private dismissMessage(): void {
+    this.messages.dismiss(performance.now());
+    this.statusBar.setMessage(this.messages.current(performance.now()));
+  }
+
   private followNews(item: NewsItem): void {
     if (item.target) this.actions.locate(item.target.x, item.target.y);
     if (item.target?.rideId !== undefined) this.openRide(item.target.rideId);
@@ -531,11 +535,20 @@ export class GameUI {
       case 'map':
         return openMapWindow(this.ctx);
       case 'news':
-        return openNewsWindow(
-          this.ctx,
-          () => this.news.history,
-          (item) => this.followNews(item),
-        );
+        return openNewsWindow(this.ctx, {
+          history: () => filterMessages(this.news.history, this.actions.messageFilter()),
+          follow: (item) => this.followNews(item),
+          dismiss: (id) => {
+            this.news.remove(id);
+            this.messages.remove(id, performance.now());
+            this.statusBar.setMessage(this.messages.current(performance.now()));
+          },
+          clearAll: () => {
+            this.news.clear();
+            this.messages.clear();
+            this.statusBar.setMessage(null);
+          },
+        });
       case 'options':
         return this.openOptions();
       case 'view':
@@ -591,6 +604,7 @@ export class GameUI {
       tabs: [
         { id: 'game', label: 'Game', icon: 'options' },
         { id: 'sound', label: 'Sound', icon: 'news' },
+        { id: 'messages', label: 'Messages', icon: 'news' },
         { id: 'display', label: 'Display', icon: 'view' },
         { id: 'controls', label: 'Controls', icon: 'info' },
       ],
@@ -623,6 +637,14 @@ export class GameUI {
         this.audioMusicToggle(),
         this.audioMute(),
       );
+      const messagesPane = win.pane('messages');
+      messagesPane.append(
+        element('p', 'ui-help', 'Choose which kinds of message appear on the ticker'),
+        this.messageToggle('award', 'Awards'),
+        this.messageToggle('ride', 'Ride messages (openings, breakdowns, repairs)'),
+        this.messageToggle('park', 'Park messages (weather, objectives, lost guests)'),
+        this.messageToggle('guest', 'Guest milestones'),
+      );
       const displayPane = win.pane('display');
       displayPane.append(
         element('p', 'ui-help', 'View and display options'),
@@ -652,6 +674,7 @@ export class GameUI {
           'ui-help',
           'Space pauses or resumes · 1 / 2 / 4 set game speed · + / - go faster or slower.',
         ),
+        element('p', 'ui-help', 'Q dismisses the current message.'),
       );
     }
     return {
@@ -699,6 +722,18 @@ export class GameUI {
     });
     row.append(element('span', '', labelText), input);
     return row;
+  }
+
+  private messageToggle(category: MessageCategory, labelText: string): HTMLLabelElement {
+    const label = element('label', 'check-row');
+    const input = element('input');
+    input.type = 'checkbox';
+    input.checked = this.actions.messageFilter()[category];
+    input.addEventListener('change', () =>
+      this.actions.setMessageFilter({ [category]: input.checked }),
+    );
+    label.append(input, element('span', '', labelText));
+    return label;
   }
 
   private audioMusicToggle(): HTMLLabelElement {
