@@ -442,8 +442,7 @@ async function initialise(page: Page): Promise<void> {
         const drawItems = scene.items.slice(0, scene.length);
         const spriteNames = drawItems.map((drawItem) => drawItem.key.split('#')[0]!);
         const trackSprites = drawItems.filter(
-          (drawItem) =>
-            drawItem.key.includes('/track/') || drawItem.key.startsWith('track/'),
+          (drawItem) => drawItem.key.includes('/track/') || drawItem.key.startsWith('track/'),
         );
         return {
           trackPieces: snapshot.tracks.count,
@@ -457,34 +456,33 @@ async function initialise(page: Page): Promise<void> {
             return !frame || !spritePages.pageImage(frame.page);
           }),
           opaquePixelsPerTrackSprite: trackSprites.map((entry) => {
-              const hash = entry.key.lastIndexOf('#');
-              const name = hash < 0 ? entry.key : entry.key.slice(0, hash);
-              const frameIndex = hash < 0 ? 0 : Number(entry.key.slice(hash + 1));
-              const frame = spritePages.resolve(name)?.frames[frameIndex];
-              const image = frame && spritePages.pageImage(frame.page);
-              if (!frame || !image) return { key: entry.key, count: 0 };
-              const sample = document.createElement('canvas');
-              sample.width = frame.width;
-              sample.height = frame.height;
-              const context = sample.getContext('2d');
-              if (!context) return { key: entry.key, count: 0 };
-              context.drawImage(
-                image,
-                frame.x,
-                frame.y,
-                frame.width,
-                frame.height,
-                0,
-                0,
-                frame.width,
-                frame.height,
-              );
-              const pixels = context.getImageData(0, 0, frame.width, frame.height).data;
-              let opaque = 0;
-              for (let index = 3; index < pixels.length; index += 4)
-                if (pixels[index]! > 0) opaque++;
-              return { key: entry.key, count: opaque };
-            }),
+            const hash = entry.key.lastIndexOf('#');
+            const name = hash < 0 ? entry.key : entry.key.slice(0, hash);
+            const frameIndex = hash < 0 ? 0 : Number(entry.key.slice(hash + 1));
+            const frame = spritePages.resolve(name)?.frames[frameIndex];
+            const image = frame && spritePages.pageImage(frame.page);
+            if (!frame || !image) return { key: entry.key, count: 0 };
+            const sample = document.createElement('canvas');
+            sample.width = frame.width;
+            sample.height = frame.height;
+            const context = sample.getContext('2d');
+            if (!context) return { key: entry.key, count: 0 };
+            context.drawImage(
+              image,
+              frame.x,
+              frame.y,
+              frame.width,
+              frame.height,
+              0,
+              0,
+              frame.width,
+              frame.height,
+            );
+            const pixels = context.getImageData(0, 0, frame.width, frame.height).data;
+            let opaque = 0;
+            for (let index = 3; index < pixels.length; index += 4) if (pixels[index]! > 0) opaque++;
+            return { key: entry.key, count: opaque };
+          }),
         };
       },
     };

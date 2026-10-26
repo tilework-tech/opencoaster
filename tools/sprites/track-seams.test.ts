@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { TILE_UNITS, Z_STEP } from '../../src/sim/core/constants';
-import { PIECES, TRANSPORT_PIECES as CATALOG_TRANSPORT_PIECES, pieceByName } from '../../src/sim/track/catalog';
+import {
+  PIECES,
+  TRANSPORT_PIECES as CATALOG_TRANSPORT_PIECES,
+  pieceByName,
+} from '../../src/sim/track/catalog';
 import { pieceExit } from '../../src/sim/track/construction';
 import { PieceMode } from '../../src/sim/track/track-types';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
