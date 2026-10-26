@@ -1804,7 +1804,7 @@ export class WebGL2Renderer implements Renderer {
           : item.sprite === 'shrub'
             ? shrubSpriteName(x, y, camera.rotation)
             : scenerySpriteName(item.sprite),
-        item.sprite === 'flower-bed' ? flowerBedDepth(depth) : depth,
+        depth,
       );
     }
   }
