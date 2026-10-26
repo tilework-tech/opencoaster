@@ -144,11 +144,16 @@ export class SurfaceDepths {
     const feet = z / Z_STEP + FEET_TOLERANCE;
     let floor = terrainDepth(map, this.rotation, tx, ty, map.heights[ty * map.width + tx]!) + 0.25;
     if (!paths) return floor;
-    for (let ny = Math.max(0, ty - 1); ny <= Math.min(map.height - 1, ty + 1); ny++) {
-      for (let nx = Math.max(0, tx - 1); nx <= Math.min(map.width - 1, tx + 1); nx++) {
+    const fx = x / TILE_UNITS - tx;
+    const fy = y / TILE_UNITS - ty;
+    const fromX = fx < SPRITE_REACH ? tx - 1 : tx;
+    const toX = fx > 1 - SPRITE_REACH ? tx + 1 : tx;
+    const fromY = fy < SPRITE_REACH ? ty - 1 : ty;
+    const toY = fy > 1 - SPRITE_REACH ? ty + 1 : ty;
+    for (let ny = Math.max(0, fromY); ny <= Math.min(map.height - 1, toY); ny++) {
+      for (let nx = Math.max(0, fromX); nx <= Math.min(map.width - 1, toX); nx++) {
         const tile = ny * map.width + nx;
         const own = nx === tx && ny === ty;
-        if (!own && !withinReach(x, y, nx, ny)) continue;
         for (let at = this.offsets[tile]!; at < this.offsets[tile + 1]!; at++) {
           const element = this.indices[at]!;
           const base = paths[element * 6 + 2]!;
@@ -184,19 +189,8 @@ function rearCornerSum(
   x: number,
   y: number,
 ): number {
-  // Rearmost corner of the tile in view space: the corner with the smallest rotated sum.
-  let lowest = Infinity;
-  for (let cy = 0; cy <= 1; cy++)
-    for (let cx = 0; cx <= 1; cx++)
-      lowest = Math.min(
-        lowest,
-        rotatedPositionSum((x + cx) * TILE_UNITS, (y + cy) * TILE_UNITS, map, rotation),
-      );
-  return lowest;
-}
-
-function withinReach(x: number, y: number, tileX: number, tileY: number): boolean {
-  const dx = Math.max(tileX - x / TILE_UNITS, x / TILE_UNITS - (tileX + 1), 0);
-  const dy = Math.max(tileY - y / TILE_UNITS, y / TILE_UNITS - (tileY + 1), 0);
-  return Math.max(dx, dy) <= SPRITE_REACH;
+  // The corner farthest from the camera: the rotated sum is smallest there.
+  const cornerX = rotation >= 2 ? x + 1 : x;
+  const cornerY = rotation === 1 || rotation === 2 ? y + 1 : y;
+  return rotatedPositionSum(cornerX * TILE_UNITS, cornerY * TILE_UNITS, map, rotation);
 }
