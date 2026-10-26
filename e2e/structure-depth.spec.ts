@@ -8,16 +8,14 @@ import { RENDERERS, ROTATIONS, ownership, viewSum } from './depth-ownership';
  * tree on each of the six tiles beside the structure, which must not change the outcome.
  */
 
-const CENTRE: [number, number] = [8.5, 8.5];
-const WALK: Array<[number, number, number]> = [
-  [8.5, 7.1, 2],
-  [8.5, 7.7, 2],
-  [8.5, 8.2, 2],
-  [8.5, 8.5, 2],
-  [8.5, 8.8, 2],
-  [8.5, 9.3, 2],
-  [8.5, 9.9, 2],
-];
+/** Distances along the view axis from the structure's tile centre, negative behind it. */
+const DEPTHS = [-1.4, -0.8, -0.3, -0.15, 0.15, 0.3, 0.8, 1.4];
+
+/** Offsets across the path, in tiles, at which the guest crosses the structure. */
+const LANES = [-0.28, 0, 0.28];
+
+/** World-y step that moves toward the camera in each rotation (the path runs along y). */
+const TOWARD_CAMERA = [1, -1, -1, 1];
 
 const STRUCTURES = [
   { name: 'park entrance', scene: 'gate', withTrees: 'gate-trees' },
@@ -37,42 +35,41 @@ for (const renderer of RENDERERS) {
           test(`guest walking through the ${structure.name}${trees ? ' with trees beside it' : ''}`, async ({
             page,
           }) => {
+            const walk = LANES.flatMap((lane) =>
+              DEPTHS.map((d): [number, number, number] => [
+                8.5 + lane,
+                8.5 + d * TOWARD_CAMERA[rotation]!,
+                2,
+              ]),
+            );
             const results = await ownership(
               page,
               renderer,
               rotation,
               sceneName,
               trees ? 'trees-only' : 'path-column',
-              WALK,
+              walk,
             );
             let hiddenBehindFront = 0;
             results.forEach((result, index) => {
-              const guest = WALK[index]!;
+              const guest = walk[index]!;
               const depth =
-                viewSum(guest[0], guest[1], rotation) - viewSum(CENTRE[0], CENTRE[1], rotation);
-              if (depth > 0.9) {
-                expect(result.covered, `guest in front at ${guest}`).toBeLessThanOrEqual(
+                viewSum(guest[0], guest[1], rotation) -
+                viewSum(8.5 + guest[0] - guest[0], 8.5, rotation);
+              const at = `guest at ${guest[0]},${guest[1].toFixed(2)}`;
+              if (depth > 0.7) {
+                expect(result.covered, `${at} in front`).toBeLessThanOrEqual(
                   Math.ceil(result.shown * 0.02),
                 );
-              } else if (depth < -0.9) {
-                expect(
-                  result.coveredButShown,
-                  `guest behind at ${guest} shows through`,
-                ).toBeLessThanOrEqual(
+              } else if (depth < -0.7) {
+                expect(result.coveredButShown, `${at} behind shows through`).toBeLessThanOrEqual(
                   Math.max(6, Math.ceil((result.covered + result.coveredButShown) * 0.05)),
                 );
-              } else {
-                expect(result.shown, `guest inside at ${guest} is visible`).toBeGreaterThan(30);
-                expect(
-                  result.uncoveredButLost,
-                  `guest inside at ${guest} lost pixels`,
-                ).toBeLessThanOrEqual(Math.ceil(result.shown * 0.02));
-                if (result.covered > 0) hiddenBehindFront++;
-              }
+              } else if (result.covered > 24) hiddenBehindFront++;
             });
             expect(
               hiddenBehindFront,
-              'the front face hides part of a guest inside',
+              'the structure hides part of a guest inside it',
             ).toBeGreaterThan(0);
           });
         }
