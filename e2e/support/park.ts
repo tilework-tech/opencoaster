@@ -203,3 +203,22 @@ export async function savedWorld(page: Page): Promise<World> {
   await page.getByRole('button', { name: 'Close Options' }).click();
   return world;
 }
+
+/** Replaces the running park with a world through the in-game Import save file control. */
+export async function importWorld(page: Page, bytes: Uint8Array): Promise<void> {
+  await toolbarAction(page, 'Game options');
+  await page.getByRole('button', { name: 'Save, load and quit…' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Import save file' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'water.ocsave',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from(bytes),
+  });
+  await expect(page.getByText('Imported save file.')).toBeAttached();
+  await page.waitForTimeout(1500);
+  const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
+  while (await closeButtons.count()) await closeButtons.first().click();
+}

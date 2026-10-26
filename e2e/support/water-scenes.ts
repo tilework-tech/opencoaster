@@ -58,10 +58,15 @@ export function waterWorld(): { world: World; scenes: WaterScene[] } {
     world,
     scenes: [
       { name: 'flat', target: { x: 44, y: 8 }, size: 3, clicks: ['raise', 'raise', 'lower'] },
-      { name: 'dip', target: { x: 51, y: 9 }, size: 3, clicks: ['raise', 'raise', 'raise'] },
-      { name: 'lake', target: { x: 48, y: 18 }, size: 3, clicks: ['raise', 'raise'] },
+      { name: 'dip', target: { x: 50, y: 8 }, size: 3, clicks: ['raise', 'raise', 'raise'] },
+      {
+        name: 'lake',
+        target: { x: 48, y: 18 },
+        size: 3,
+        clicks: ['raise', 'raise', 'lower', 'lower'],
+      },
       { name: 'slope', target: { x: 57, y: 20 }, size: 3, clicks: ['raise', 'raise'] },
-      { name: 'edge', target: { x: 62, y: 25 }, size: 3, clicks: ['raise', 'raise'] },
+      { name: 'edge', target: { x: 61, y: 24 }, size: 3, clicks: ['raise', 'raise'] },
     ],
   };
 }

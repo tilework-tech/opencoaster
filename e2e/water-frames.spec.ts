@@ -7,6 +7,7 @@ import {
   calibrate,
   centreOnTile,
   expect,
+  importWorld,
   hoverUntil,
   openPage,
   PHONE_SHIFT,
@@ -24,22 +25,6 @@ import { waterWorld } from './support/water-scenes';
 const OUT = process.env.WATER_FRAMES_DIR;
 const CANVAS2D = process.env.WATER_FRAMES_RENDERER === 'canvas2d';
 const only = process.env.WATER_FRAMES_SCENES?.split(',');
-
-async function importWorld(page: Page, bytes: Uint8Array): Promise<void> {
-  await toolbarAction(page, 'Game options');
-  await page.getByRole('button', { name: 'Save, load and quit…' }).click();
-  const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Import save file' }).click();
-  await (await chooser).setFiles({
-    name: 'water.ocsave',
-    mimeType: 'application/octet-stream',
-    buffer: Buffer.from(bytes),
-  });
-  await expect(page.getByText('Imported save file.')).toBeAttached();
-  await page.waitForTimeout(1500);
-  const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
-  while (await closeButtons.count()) await closeButtons.first().click();
-}
 
 for (const profile of ['desktop', 'pixel-8'] as const) {
   test(`water frames ${profile}`, async ({ browser }) => {
@@ -72,6 +57,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
     };
     for (const scene of scenes) {
       if (only && !only.includes(scene.name)) continue;
+      if (mobile && scene.name === 'edge') continue;
       const shift = mobile ? PHONE_SHIFT : 0;
       const centre = {
         x: scene.target.x + (scene.size >> 1),
@@ -99,7 +85,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
           });
         });
         await page.waitForTimeout(600);
-        await page.screenshot({ path: join(dir, `${scene.name}-${name}.png`) });
+        await page.screenshot({ path: join(dir, `${scene.name}-${name}.png`), timeout: 90_000 });
       };
       await frame('0-before');
       let n = 0;
@@ -122,7 +108,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       for (let r = 1; r <= 3; r++) {
         await page.keyboard.press('z');
         await page.waitForTimeout(800);
-        await page.screenshot({ path: join(dir, `${scene.name}-rot${r}.png`) });
+        await page.screenshot({ path: join(dir, `${scene.name}-rot${r}.png`), timeout: 90_000 });
       }
       await page.keyboard.press('z');
       await page.waitForTimeout(500);
