@@ -494,6 +494,23 @@ describe('generated sprite catalogue', () => {
           }
         }
     }
+    for (const facility of [
+      'food-stall',
+      'drink-stall',
+      'burger-stall',
+      'information-kiosk',
+      'toilets',
+    ])
+      for (let facing = 0; facing < 4; facing++)
+        for (let view = 0; view < 4; view++) {
+          const key = `stalls/${facility}/facing-${facing}/view-${view}`;
+          const sprite = sprites.get(key);
+          expect(sprite, key).toBeDefined();
+          for (const [frameIndex, frame] of sprite!.frames.entries()) {
+            const opaquePixels = frame.pixels.filter((pixel) => pixel !== TRANSPARENT).length;
+            expect(opaquePixels, `${key}, frame ${frameIndex}`).toBeGreaterThanOrEqual(900);
+          }
+        }
   });
 
   it('renders water track geometry and passenger-dependent boat sprites', () => {

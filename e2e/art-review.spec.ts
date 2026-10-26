@@ -19,7 +19,8 @@ interface ReviewItem {
     | 'addition'
     | 'ride'
     | 'background'
-    | 'garden-fixture';
+    | 'garden-fixture'
+    | 'context';
   index?: number;
   type?: number;
   surface?: number;
@@ -61,6 +62,7 @@ const CROP = { left: 160, top: 120, width: 320, height: 400 };
 const FACILITY_MIN_VISIBLE_PIXELS = 900;
 const OUTPUT_DIR = resolve(process.env.ART_REVIEW_OUTPUT ?? 'docs/art/review');
 const FLOWERBEDS_ONLY = process.env.ART_REVIEW_FLOWERBEDS_ONLY === '1';
+const CANVAS_ONLY = process.env.ART_REVIEW_BACKENDS === 'canvas2d';
 const test = process.env.ART_REVIEW_CDP
   ? baseTest.extend<{ page: Page }>({
       page: async ({ browserName }, use) => {
@@ -159,7 +161,7 @@ function flowerbedReviewItems(): ReviewItem[] {
 }
 
 async function initialise(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+  await page.evaluate(async (canvasOnly) => {
     const reviewSize = 640;
     const [
       { Canvas2DRenderer },
@@ -209,13 +211,20 @@ async function initialise(page: Page): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    const canvases = {} as Record<'webgl2' | 'canvas2d', HTMLCanvasElement>;
-    const renderers = {} as Record<'webgl2' | 'canvas2d', InstanceType<typeof Canvas2DRenderer>>;
+    const canvases = {} as Partial<Record<'webgl2' | 'canvas2d', HTMLCanvasElement>>;
+    const renderers = {} as Partial<
+      Record<'webgl2' | 'canvas2d', InstanceType<typeof Canvas2DRenderer>>
+    >;
     const canvas2d = document.createElement('canvas');
     canvas2d.id = 'art-review-canvas2d';
-    const webgl2 = document.createElement('canvas');
-    webgl2.id = 'art-review-webgl2';
-    for (const canvas of [canvas2d, webgl2]) {
+    const canvasesToAttach = [canvas2d];
+    if (!canvasOnly) {
+      const webgl2 = document.createElement('canvas');
+      webgl2.id = 'art-review-webgl2';
+      canvases.webgl2 = webgl2;
+      canvasesToAttach.push(webgl2);
+    }
+    for (const canvas of canvasesToAttach) {
       canvas.width = reviewSize;
       canvas.height = reviewSize;
       canvas.style.cssText = `position:fixed;left:0;top:0;width:${reviewSize}px;height:${reviewSize}px;z-index:1000000;background:#151510`;
@@ -224,13 +233,33 @@ async function initialise(page: Page): Promise<void> {
     const renderer2d = new Canvas2DRenderer();
     renderer2d.attach(canvas2d);
     renderer2d.resize(reviewSize, reviewSize, 1);
-    const rendererWebGL = new WebGL2Renderer();
-    rendererWebGL.attach(webgl2);
-    rendererWebGL.resize(reviewSize, reviewSize, 1);
     canvases.canvas2d = canvas2d;
-    canvases.webgl2 = webgl2;
     renderers.canvas2d = renderer2d;
-    renderers.webgl2 = rendererWebGL as unknown as InstanceType<typeof Canvas2DRenderer>;
+    if (!canvasOnly) {
+      const rendererWebGL = new WebGL2Renderer();
+      rendererWebGL.attach(canvases.webgl2!);
+      rendererWebGL.resize(reviewSize, reviewSize, 1);
+      renderers.webgl2 = rendererWebGL as unknown as InstanceType<typeof Canvas2DRenderer>;
+    }
+
+    const rendererAtlas = (renderer2d as unknown as { atlas: typeof spritePages }).atlas;
+    const rendererManifestDeadline = Date.now() + 30_000;
+    while (rendererAtlas.pageInfos.length === 0) {
+      if (Date.now() > rendererManifestDeadline)
+        throw new Error('Renderer sprite manifest did not finish loading');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    for (const category of Object.keys(manifest.categories)) rendererAtlas.requestCategory(category);
+    const rendererPagesDeadline = Date.now() + 60_000;
+    while (Object.keys(manifest.categories).some((category) => !rendererAtlas.isLoaded(category))) {
+      if (Date.now() > rendererPagesDeadline) {
+        const missing = Object.keys(manifest.categories).filter(
+          (category) => !rendererAtlas.isLoaded(category),
+        );
+        throw new Error(`Renderer sprite pages did not finish loading: ${missing.join(', ')}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 
     const originalManifest = (
       spritePages as unknown as { manifest: { sprites: Record<string, unknown> } }
@@ -295,10 +324,12 @@ async function initialise(page: Page): Promise<void> {
       const tile = 4 * width + 4;
       const heights = new Uint8Array(width * height);
       const surface = new Uint8Array(width * height);
+      if (item.kind !== 'context') surface.fill(2);
       const slope = new Uint8Array(width * height);
       if (item.slope) {
         const cornerHeights = new Uint8Array((width + 1) * (height + 1));
-        for (let y = 5; y <= height; y++)
+        const slopeRow = item.kind === 'context' ? 6 : 5;
+        for (let y = slopeRow; y <= height; y++)
           for (let x = 0; x <= width; x++) cornerHeights[y * (width + 1) + x] = 1;
         for (let y = 0; y < height; y++)
           for (let x = 0; x < width; x++) {
@@ -339,7 +370,12 @@ async function initialise(page: Page): Promise<void> {
         sceneryCount: 0,
       };
       const pathRows: number[][] = [];
-      if (item.kind === 'path' || item.kind === 'addition')
+      if (item.kind === 'context') {
+        for (let x = 1; x <= 6; x++) {
+          const addition = x === 1 ? 0x8000 : x === 3 ? 0x2000 : x === 5 ? 0x1000 : 0;
+          pathRows.push([x, 4, 0, 0x0f | addition, x === 1 ? 0x40000000 : 0, 0]);
+        }
+      } else if (item.kind === 'path' || item.kind === 'addition')
         pathRows.push([
           4,
           4,
@@ -362,6 +398,11 @@ async function initialise(page: Page): Promise<void> {
       if (item.kind === 'scenery') {
         map.sceneryElements = Int32Array.of(4, 4, 0, 0, item.index ?? 0);
         map.sceneryCount = 1;
+      } else if (item.kind === 'context') {
+        map.sceneryElements = Int32Array.from([
+          1, 1, 0, 0, 3, 2, 1, 0, 0, 3, 1, 2, 0, 0, 3, 6, 1, 0, 0, 3, 7, 1, 0, 0, 3,
+        ]);
+        map.sceneryCount = 5;
       }
       return { map, tile };
     };
@@ -385,11 +426,11 @@ async function initialise(page: Page): Promise<void> {
         const snapshot = usesTrack
           ? makeRideFixture(rideType!).snapshot
           : createSnapshot({
-              guests: item.kind === 'garden-fixture' ? 1 : 0,
+              guests: item.kind === 'context' ? 3 : item.kind === 'garden-fixture' ? 1 : 0,
               staff: 0,
               vehicles: 0,
               litter: 0,
-              rides: item.kind === 'background' ? 0 : 1,
+              rides: item.kind === 'background' ? 0 : item.kind === 'context' ? 5 : 1,
               tracks: 0,
               mapTiles: 64,
             });
@@ -411,11 +452,55 @@ async function initialise(page: Page): Promise<void> {
           snapshot.rideInfo[1] = item.type ?? 0;
           snapshot.rideInfo[22] = 4;
           snapshot.rideInfo[23] = 4;
+        } else if (item.kind === 'context') {
+          snapshot.grounds[4 * 8] = 0x10;
+          const facilities = Object.entries(
+            (
+              window as unknown as {
+                __rideCatalog: Record<number, { category: string; name: string }>;
+              }
+            ).__rideCatalog,
+          ).filter(([, definition]) => ['shop', 'stall', 'facility'].includes(definition.category));
+          const typeByName = Object.fromEntries(
+            facilities.map(([type, definition]) => [definition.name, Number(type)]),
+          );
+          const placements: [number, number, number][] = [
+            [typeByName['Food Stall']!, 1, 3],
+            [typeByName['Drink Stall']!, 3, 3],
+            [typeByName['Information Kiosk']!, 5, 3],
+            [typeByName['Food Stall']!, 2, 5],
+            [typeByName.Toilets!, 5, 5],
+          ];
+          snapshot.rides.count = placements.length;
+          placements.forEach(([type, x, y], index) => {
+            const offset = index * 25;
+            snapshot.rideInfo[offset] = index + 1;
+            snapshot.rideInfo[offset + 1] = type!;
+            snapshot.rideInfo[offset + 22] = x!;
+            snapshot.rideInfo[offset + 23] = y!;
+          });
+          snapshot.guests.count = 3;
+          snapshot.guests.data.set([
+            2 * 256 + 128,
+            4 * 256 + 128,
+            0,
+            0,
+            4 * 256 + 128,
+            4 * 256 + 128,
+            0,
+            0,
+            6 * 256 + 128,
+            4 * 256 + 128,
+            0,
+            0,
+          ]);
         }
         const renderer = renderers[backend];
         const canvas = canvases[backend];
+        if (!renderer || !canvas) throw new Error(`${backend} renderer was not initialized`);
         canvas.style.display = 'block';
-        canvases[backend === 'webgl2' ? 'canvas2d' : 'webgl2'].style.display = 'none';
+        const otherCanvas = canvases[backend === 'webgl2' ? 'canvas2d' : 'webgl2'];
+        if (otherCanvas) otherCanvas.style.display = 'none';
         renderer.setMap(map);
         renderer.resize(reviewSize, reviewSize, 1);
         const focus = new Float64Array(2);
@@ -485,14 +570,20 @@ async function initialise(page: Page): Promise<void> {
         };
       },
     };
-    (window as unknown as { __rideCatalog: Record<number, { usesTrack: boolean }> }).__rideCatalog =
-      Object.fromEntries(
-        Object.entries((await import('../src/sim/rides/ride-types')).RIDE_CATALOG).map(
-          ([type, ride]) => [type, { usesTrack: ride.usesTrack }],
-        ),
-      );
+    (
+      window as unknown as {
+        __rideCatalog: Record<number, { usesTrack: boolean; category: string; name: string }>;
+      }
+    ).__rideCatalog = Object.fromEntries(
+      Object.entries((await import('../src/sim/rides/ride-types')).RIDE_CATALOG).map(
+        ([type, ride]) => [
+          type,
+          { usesTrack: ride.usesTrack, category: ride.category, name: ride.name },
+        ],
+      ),
+    );
     void SCENERY_CATALOG;
-  });
+  }, CANVAS_ONLY);
 }
 
 async function makeCell(
@@ -536,9 +627,10 @@ async function makeCell(
       )
         visiblePixels++;
     }
-    expect(visiblePixels, `${backend} ${item.label} at default zoom`).toBeGreaterThanOrEqual(
-      FACILITY_MIN_VISIBLE_PIXELS,
-    );
+    expect(
+      visiblePixels,
+      `${backend} ${item.label} at default zoom`,
+    ).toBeGreaterThanOrEqual(FACILITY_MIN_VISIBLE_PIXELS);
   }
   const label = Buffer.from(
     `<svg width="${CELL_WIDTH}" height="${CELL_HEIGHT}"><rect width="100%" height="100%" fill="#f1ecd9"/><text x="8" y="16" font-family="sans-serif" font-size="12" fill="#25261f">${item.label.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</text></svg>`,
@@ -637,7 +729,7 @@ async function setupReviewPage(page: Page): Promise<void> {
   await initialise(page);
 }
 
-const backends = ['webgl2', 'canvas2d'] as const;
+const backends = CANVAS_ONLY ? (['canvas2d'] as const) : (['webgl2', 'canvas2d'] as const);
 
 if (!FLOWERBEDS_ONLY) {
   for (const backend of backends)
@@ -666,7 +758,7 @@ test('captures flowerbeds across renderers, zooms, and rotations @art-review', a
           cells.push(await makeCell(page, item, backend, zoom, rotation));
         await writeSheet(`flowerbeds-${backend}-zoom-${zoom}-rotation-${rotation}`, cells);
       }
-  expect(await page.locator('#art-review-webgl2').count()).toBe(1);
+  expect(await page.locator('#art-review-webgl2').count()).toBe(CANVAS_ONLY ? 0 : 1);
   expect(await page.locator('#art-review-canvas2d').count()).toBe(1);
 });
 
@@ -784,4 +876,28 @@ test('keeps path pixels visible beside a garden row, guests, and a bin in every 
       ).toBeGreaterThan(420);
     }
   }
+});
+
+test('captures placeable art in a populated path scene @art-context-review', async ({ page }) => {
+  test.setTimeout(1_200_000);
+  await setupReviewPage(page);
+  for (const backend of backends)
+    for (const rotation of ROTATIONS) {
+      const cell = await makeCell(
+        page,
+        {
+          key: 'context',
+          label: 'Facilities, shrubs, flowerbed, paths, and guests',
+          kind: 'context',
+          slope: true,
+        },
+        backend,
+        1,
+        rotation,
+      );
+      await writeSheet(`context-${backend}-rotation-${rotation}`, [cell]);
+      await sharp(await page.locator(`#art-review-${backend}`).screenshot({ type: 'png' })).toFile(
+        join(OUTPUT_DIR, `context-scene-${backend}-rotation-${rotation}.png`),
+      );
+    }
 });
