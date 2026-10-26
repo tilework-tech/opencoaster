@@ -200,7 +200,8 @@ export class PointerInput {
   }
 
   private landDragTool(): boolean {
-    return this.actions.tool() === 'land' && this.actions.landDragStart !== undefined;
+    const tool = this.actions.tool();
+    return (tool === 'land' || tool === 'water') && this.actions.landDragStart !== undefined;
   }
 
   private endLandDrag(): void {

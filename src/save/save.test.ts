@@ -27,7 +27,7 @@ import { PathStyle } from '../sim/map/tile-map';
 
 describe('save', () => {
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(21);
+    expect(SAVE_VERSION).toBe(22);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -35,7 +35,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(21);
+    expect(header.version).toBe(22);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -647,6 +647,35 @@ describe('save: map and economy together', () => {
       copy.step();
     }
     expect(hashWorld(copy.world)).toBe(hashWorld(sim.world));
+  });
+
+  it('flattens stepped water into one sheet when loading a version 20 save', () => {
+    const sim = new Simulation({ seed: 46, width: 16, height: 16 });
+    const m = sim.world.map;
+    m.fillFlat(2);
+    for (const [x, level] of [
+      [4, 5],
+      [5, 4],
+      [6, 3],
+    ])
+      m.waterLevel[m.index(x, 8)] = level;
+    m.waterLevel[m.index(10, 10)] = 6;
+    const current = serialize(sim.world);
+    const dataView = new DataView(current.buffer, current.byteOffset, current.byteLength);
+    const headerEnd = 8 + dataView.getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+    header.version = 20;
+    const headerBytes = new TextEncoder().encode(JSON.stringify(header));
+    const legacy = new Uint8Array(8 + headerBytes.length + current.length - headerEnd);
+    new DataView(legacy.buffer).setUint32(0, dataView.getUint32(0, true), true);
+    new DataView(legacy.buffer).setUint32(4, headerBytes.length, true);
+    legacy.set(headerBytes, 8);
+    legacy.set(current.subarray(headerEnd), 8 + headerBytes.length);
+
+    const restored = deserialize(legacy).map;
+
+    for (const x of [4, 5, 6]) expect(restored.waterLevel[restored.index(x, 8)]).toBe(3);
+    expect(restored.waterLevel[restored.index(10, 10)]).toBe(6);
   });
 
   it('rejects saves from an older format version', () => {

@@ -246,12 +246,15 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
       else if (tool === 'clear' || tool === 'water') deps.areaTools[tool].press(x, y);
     },
     landDragStart(x, y) {
-      deps.land.dragStart(x, y);
+      if (deps.selectedTool() === 'water') deps.areaTools.water.dragStart(x, y);
+      else deps.land.dragStart(x, y);
     },
     landDragMove(x, y) {
-      deps.land.dragMove(x, y);
+      if (deps.selectedTool() === 'water') deps.areaTools.water.dragMove(x, y);
+      else deps.land.dragMove(x, y);
     },
     landDragEnd() {
+      deps.areaTools.water.dragEnd();
       deps.land.dragEnd();
     },
     paint(x, y, shiftKey) {

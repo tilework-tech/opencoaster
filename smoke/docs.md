@@ -21,6 +21,7 @@ Path: @/smoke
 - Frame sampling has a bounded observation window, and the test captures a frame after adding guests and asserts that WebGL2 remains active.
 - The visual check captures the starter park before and after enabling gridlines.
 - [mobile-fps.spec.ts](mobile-fps.spec.ts) emulates a Pixel 8 (4× CPU throttle, device scale factor 2.6) with 2,000 and 5,000 guests and prints median FPS, p95 frame time and render scale. Budgets (55 and 30 FPS median) are soft: a miss adds a `soft-budget-miss` annotation and a warning, not a failure, because SwiftShader timing varies by host.
+- [no-4xx.spec.ts](no-4xx.spec.ts) loads the game, opens every toolbar window and fails on any 4xx network response; under `pnpm smoke:subpath` it runs against the production build served at `/opencoaster/`.
 - Playwright screenshots are stored in `.local/playwright-results/` (dev) and `.local/playwright-results-subpath/` (subpath).
 - Specs navigate with `page.goto('./')` so the same spec runs at the origin root and under the subpath.
 

@@ -34,6 +34,10 @@ export const enum LandResult {
   PathInTheWay = 9,
   InsufficientFunds = 10,
   InvalidEdit = 11,
+  /** Water would flow over the bank of the selection onto open ground. */
+  WaterSpills = 12,
+  /** Water would meet a lake whose surface is higher. */
+  WaterLevelClash = 13,
 }
 
 export interface LandEdit {
