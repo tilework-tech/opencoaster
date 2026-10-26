@@ -108,7 +108,7 @@ describe('ground anchors', () => {
 
   it('uses one shared render box for intact and vandalised path additions', () => {
     expect(pathAdditionBox(PathFlag.Bench)).toEqual({ width: 38, height: 12 });
-    expect(pathAdditionBox(PathFlag.Bin)).toEqual({ width: 14, height: 18 });
+    expect(pathAdditionBox(PathFlag.Bin)).toEqual({ width: 14, height: 12 });
     expect(pathAdditionBox(PathFlag.Lamp)).toEqual({ width: 10, height: 36 });
     expect(pathAdditionBox(PathFlag.Shelter).width).toBeGreaterThan(0);
   });

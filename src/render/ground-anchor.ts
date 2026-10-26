@@ -48,7 +48,7 @@ export function pathAdditionBox(flags: number, view = 0): GroundBox {
   let box: GroundBox;
   if (flags & PathFlag.Shelter) box = { width: 54, height: 52 };
   else if (flags & PathFlag.Bench) box = { width: 38, height: 12 };
-  else if (flags & PathFlag.Bin) box = { width: 14, height: 18 };
+  else if (flags & PathFlag.Bin) box = { width: 14, height: 12 };
   else if (flags & PathFlag.Lamp) box = { width: 10, height: 36 };
   else return { width: 0, height: 0 };
   return view & 1 ? { width: box.height, height: box.width } : box;
