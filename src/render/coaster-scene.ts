@@ -20,6 +20,7 @@ import type { Rotation } from './projection';
 /** One sprite to draw: the atlas key with its anchor at world (x, y, z), sorted by `depth`. */
 export interface CoasterDrawItem {
   key: string;
+  rideId: number;
   x: number;
   y: number;
   z: number;
@@ -64,13 +65,14 @@ export class CoasterScene {
     return this.count;
   }
 
-  private push(key: string, x: number, y: number, z: number, depth: number): void {
+  private push(key: string, rideId: number, x: number, y: number, z: number, depth: number): void {
     let item = this.items[this.count];
     if (!item) {
-      item = { key, x, y, z, depth };
+      item = { key, rideId, x, y, z, depth };
       this.items.push(item);
     } else {
       item.key = key;
+      item.rideId = rideId;
       item.x = x;
       item.y = y;
       item.z = z;
@@ -126,9 +128,21 @@ export class CoasterScene {
         const x = tileX * TILE_UNITS + TILE_UNITS / 2;
         const y = tileY * TILE_UNITS + TILE_UNITS / 2;
         const depth = tileDepth(x, y, map, rotation);
-        this.push(cells[c].key, x, y, z, depth + TRACK_OFFSET);
+        this.push(cells[c].key, rideId, x, y, z, depth + TRACK_OFFSET);
         if (family && family !== 'log-flume' && family !== 'river-rapids')
-          this.addSupports(pieceType, c, family, dir, rotation, map, tileX, tileY, z, depth);
+          this.addSupports(
+            pieceType,
+            c,
+            family,
+            rideId,
+            dir,
+            rotation,
+            map,
+            tileX,
+            tileY,
+            z,
+            depth,
+          );
       }
     }
   }
@@ -137,6 +151,7 @@ export class CoasterScene {
     pieceType: number,
     cell: number,
     family: CoasterFamily,
+    rideId: number,
     dir: number,
     rotation: Rotation,
     map: MapData,
@@ -155,6 +170,7 @@ export class CoasterScene {
     for (let level = 0; level < stack.full; level++)
       this.push(
         `${prefix}-column/view-${view}`,
+        rideId,
         x,
         y,
         (ground + level) * Z_STEP,
@@ -163,13 +179,21 @@ export class CoasterScene {
     if (stack.quarters > 0)
       this.push(
         `${prefix}-cap${stack.quarters}/view-${view}`,
+        rideId,
         x,
         y,
         (ground + stack.full) * Z_STEP,
         depth + SUPPORT_OFFSET,
       );
     if (stack.full + stack.quarters > 0)
-      this.push(`${prefix}-base/view-${view}`, x, y, ground * Z_STEP, depth + SUPPORT_OFFSET);
+      this.push(
+        `${prefix}-base/view-${view}`,
+        rideId,
+        x,
+        y,
+        ground * Z_STEP,
+        depth + SUPPORT_OFFSET,
+      );
   }
 
   private addCars(snapshot: Snapshot, map: MapData, rotation: Rotation): void {
@@ -185,6 +209,7 @@ export class CoasterScene {
         family
           ? carSpriteKey(family, pose.heading, pose.pitch, pose.bank, rotation, pose.passengers)
           : transportCarSpriteKey(transport!, pose.heading, pose.pitch, rotation),
+        pose.rideId,
         x,
         y,
         cars.data[o + 2],
@@ -218,6 +243,7 @@ export class CoasterScene {
       const riderY = y + dy * along;
       this.push(
         `people/rider-seated#${((car + k) & 7) * 4 + facing}`,
+        pose.rideId,
         riderX,
         riderY,
         z + SEAT_HEIGHT,

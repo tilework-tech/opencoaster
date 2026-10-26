@@ -14,6 +14,7 @@ import {
   type Snapshot,
 } from '../worker/snapshot';
 import { peopleSpriteKey } from '../render/people-art';
+import { CoasterScene } from '../render/coaster-scene';
 import {
   sceneryBox,
   sceneryFrameDrop,
@@ -212,6 +213,25 @@ export function buildObjectPickTargets(
           { rideId: id },
         );
       }
+    }
+    const coasterScene = new CoasterScene();
+    coasterScene.build(snapshot, map, camera.rotation);
+    const rideDefinitions = new Map<number, string>();
+    for (let i = 0; i < snapshot.rides.count; i++) {
+      const offset = i * RIDE_INFO_STRIDE;
+      const definition = RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type]! as RideType];
+      if (definition)
+        rideDefinitions.set(snapshot.rideInfo[offset + RideInfo.Id]!, definition.name);
+    }
+    for (let i = 0; i < coasterScene.length; i++) {
+      const item = coasterScene.items[i]!;
+      const name = rideDefinitions.get(item.rideId);
+      const x = Math.floor(item.x / TILE_UNITS);
+      const y = Math.floor(item.y / TILE_UNITS);
+      if (!name || x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
+      add(item.key, item.x, item.y, item.z, 'ride', name, x, y, item.depth, {
+        rideId: item.rideId,
+      });
     }
     const gateX = snapshot.park.entranceX;
     const gateY = snapshot.park.entranceY;

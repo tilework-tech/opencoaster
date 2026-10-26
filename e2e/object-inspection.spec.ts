@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
 import { openPage, startScenario, toolbarAction } from './support/park';
 
 async function visibleSceneryPoint(page: Page): Promise<{ name: string; x: number; y: number }> {
@@ -66,47 +66,67 @@ async function openInspectionPage(browser: Browser, mobile: boolean): Promise<Pa
   return page;
 }
 
-for (const mobile of [false, true]) {
-  test(`inspect scenery by ${mobile ? 'tapping on Pixel 8' : 'clicking on desktop'}`, async ({
-    browser,
-  }) => {
-    const page = await openInspectionPage(browser, mobile);
-    try {
-      await startScenario(page, 'Meadowbrook Green');
-      await toolbarAction(page, 'Pause');
-      const scenery = await visibleSceneryPoint(page);
+async function inspectScenery(
+  browser: Browser,
+  mobile: boolean,
+  backend: 'WebGL2' | 'Canvas2D',
+  testInfo: TestInfo,
+): Promise<void> {
+  let testBrowser = browser;
+  let launchedBrowser: Browser | null = null;
+  if (backend === 'Canvas2D') {
+    launchedBrowser = await browser.browserType().launch({ args: ['--disable-webgl'] });
+    testBrowser = launchedBrowser;
+  }
+  const page = await openInspectionPage(testBrowser, mobile);
+  try {
+    await startScenario(page, 'Meadowbrook Green');
+    await expect(page.locator('.hud')).toContainText(backend);
+    await toolbarAction(page, 'Pause');
+    const scenery = await visibleSceneryPoint(page);
 
-      if (mobile) {
-        await page.locator('#game').evaluate(async (canvas, point) => {
-          Object.defineProperty(canvas, 'setPointerCapture', { value: () => {} });
-          const send = (type: string, buttons: number) =>
-            canvas.dispatchEvent(
-              new PointerEvent(type, {
-                pointerId: 2,
-                pointerType: 'touch',
-                isPrimary: true,
-                bubbles: true,
-                clientX: point.x,
-                clientY: point.y,
-                buttons,
-              }),
-            );
-          send('pointerdown', 1);
-          await new Promise((resolve) => setTimeout(resolve, 950));
-          send('pointerup', 0);
-        }, scenery);
-      } else {
-        await page.mouse.move(scenery.x, scenery.y);
-        await expect(page.locator('.tool-status')).toContainText(scenery.name);
-        await page.mouse.click(scenery.x, scenery.y);
-      }
-      const popup = page.locator('[data-object-info]');
-      await expect(popup).toBeVisible();
-      await expect(popup).toContainText(scenery.name);
-      if (mobile) await expect(page.locator('.tool-status')).toContainText(scenery.name);
-      await expect(popup.getByRole('button', { name: 'Remove' })).toBeVisible();
-    } finally {
-      await page.context().close();
+    if (mobile) {
+      await page.locator('#game').evaluate(async (canvas, point) => {
+        Object.defineProperty(canvas, 'setPointerCapture', { value: () => {} });
+        const send = (type: string, buttons: number) =>
+          canvas.dispatchEvent(
+            new PointerEvent(type, {
+              pointerId: 2,
+              pointerType: 'touch',
+              isPrimary: true,
+              bubbles: true,
+              clientX: point.x,
+              clientY: point.y,
+              buttons,
+            }),
+          );
+        send('pointerdown', 1);
+        await new Promise((resolve) => setTimeout(resolve, 950));
+        send('pointerup', 0);
+      }, scenery);
+    } else {
+      await page.mouse.move(scenery.x, scenery.y);
+      await expect(page.locator('.tool-status')).toContainText(scenery.name);
+      await expect(page.locator('.object-hover-outline')).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('hover.png') });
+      await page.mouse.click(scenery.x, scenery.y);
     }
-  });
+    const popup = page.locator('[data-object-info]');
+    await expect(popup).toBeVisible();
+    await expect(popup).toContainText(scenery.name);
+    if (mobile) await expect(page.locator('.tool-status')).toContainText(scenery.name);
+    await expect(popup.getByRole('button', { name: 'Remove' })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('object-info.png') });
+  } finally {
+    await page.context().close();
+    await launchedBrowser?.close();
+  }
+}
+
+for (const backend of ['WebGL2', 'Canvas2D'] as const) {
+  for (const mobile of [false, true]) {
+    test(`${backend} scenery inspection on ${mobile ? 'Pixel 8' : 'desktop'}`, async ({
+      browser,
+    }, testInfo) => inspectScenery(browser, mobile, backend, testInfo));
+  }
 }
