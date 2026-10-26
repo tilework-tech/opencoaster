@@ -505,6 +505,10 @@ export function buildSprites(): SpriteDef[] {
 
 export async function renderSprites(outputDir: string): Promise<SpriteDef[]> {
   const defs = buildSprites();
-  await Promise.all(defs.map((def) => writeSpriteDef(outputDir, def)));
+  const batchSize = 32;
+  for (let index = 0; index < defs.length; index += batchSize)
+    await Promise.all(
+      defs.slice(index, index + batchSize).map((def) => writeSpriteDef(outputDir, def)),
+    );
   return defs;
 }
