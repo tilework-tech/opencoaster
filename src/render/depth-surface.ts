@@ -48,19 +48,18 @@ export class DepthSurface {
         : typeof document === 'object'
           ? document.createElement('canvas')
           : null;
-    const surface = this;
     this.context = new Proxy(real, {
-      get(target, property) {
-        if (!surface.composing) {
+      get: (target, property) => {
+        if (!this.composing) {
           const value = Reflect.get(target, property, target) as unknown;
           return typeof value === 'function' ? value.bind(target) : value;
         }
-        return surface.composingGet(property);
+        return this.composingGet(property);
       },
-      set(target, property, value) {
-        if (!surface.composing) return Reflect.set(target, property, value, target);
-        if (property === 'globalAlpha') surface.alpha = Number(value);
-        surface.deferred.push(() => Reflect.set(target, property, value, target));
+      set: (target, property, value) => {
+        if (!this.composing) return Reflect.set(target, property, value, target);
+        if (property === 'globalAlpha') this.alpha = Number(value);
+        this.deferred.push(() => Reflect.set(target, property, value, target));
         return true;
       },
     });

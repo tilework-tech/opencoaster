@@ -69,7 +69,12 @@ test('renderer object ownership matches the occlusion oracle on fuzzed parks', a
                 join(OUT, `${name}-${kind}.png`),
                 Buffer.from(score[kind]!.split(',')[1]!, 'base64'),
               );
-          const { rendered: _r, oracle: _o, heat: _h, ...numbers } = score;
+          const numbers = {
+            objectPixels: score.objectPixels,
+            mismatched: score.mismatched,
+            coverage: score.coverage,
+            pairs: score.pairs,
+          };
           cases[name] = numbers;
           totals.objectPixels += score.objectPixels;
           totals.mismatched += score.mismatched;
