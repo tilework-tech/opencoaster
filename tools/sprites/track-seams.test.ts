@@ -57,6 +57,7 @@ const waterPieces = (type: RideType) =>
 const KINDS: TrackKind[] = [
   coasterKind('steel', 'steel'),
   coasterKind('wood', 'wood'),
+  coasterKind('wood', 'mouse'),
   coasterKind('junior', 'junior'),
   waterKind('log-flume', waterPieces(RideType.LogFlume)),
   waterKind('river-rapids', waterPieces(RideType.RiverRapids)),
@@ -64,6 +65,29 @@ const KINDS: TrackKind[] = [
   transportKind('monorail', [...TRANSPORT_PIECES]),
   transportKind('chairlift', [...TRANSPORT_PIECES]),
 ];
+
+describe('placeable track sprite coverage', () => {
+  for (const kind of KINDS) {
+    it(`${kind.name}: every piece has opaque sprites in every direction and camera rotation`, () => {
+      for (const piece of kind.pieces)
+        for (let dir = 0; dir < 4; dir++)
+          for (let rotation = 0; rotation < 4; rotation++) {
+            const cells = kind.cells(piece, dir, rotation);
+            expect(cells, `${kind.name} ${piece.name} direction ${dir} view ${rotation}`).toHaveLength(
+              piece.footprint.length,
+            );
+            for (const cell of cells) {
+              const sprite = lookup.get(cell.key);
+              expect(sprite, cell.key).toBeDefined();
+              expect(
+                sprite?.frames.every((frame) => frame.pixels.some((pixel) => pixel !== TRANSPARENT)),
+                cell.key,
+              ).toBe(true);
+            }
+          }
+    });
+  }
+});
 
 describe('track piece models', () => {
   it('meet end to end: rails, height and cross-section agree at every connection', () => {
