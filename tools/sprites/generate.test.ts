@@ -11,9 +11,12 @@ import { PALETTE } from './palette';
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
 describe('generated sprite catalogue', () => {
-  it('renders a roofed path shelter and damaged path furniture in four views', () => {
+  it('renders path additions in four views', () => {
     for (const key of [
       'scenery/shelter',
+      'scenery/bench',
+      'scenery/bin',
+      'scenery/lamp',
       'scenery/bench-broken',
       'scenery/bin-broken',
       'scenery/lamp-broken',

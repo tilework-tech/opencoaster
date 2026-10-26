@@ -29,9 +29,12 @@ import { personMesh, seatedRiderMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
 import {
+  benchMesh,
+  binMesh,
   brokenBenchMesh,
   brokenBinMesh,
   brokenLampMesh,
+  lampMesh,
   shelterMesh,
 } from './models/path-additions';
 import { trashMesh, vomitMesh } from './models/litter';
@@ -257,6 +260,9 @@ function parkEntranceSprites(): SpriteDef[] {
 function pathAdditionSprites(): SpriteDef[] {
   const models: readonly (readonly [string, () => Mesh])[] = [
     ['scenery/shelter', shelterMesh],
+    ['scenery/bench', benchMesh],
+    ['scenery/bin', binMesh],
+    ['scenery/lamp', lampMesh],
     ['scenery/bench-broken', brokenBenchMesh],
     ['scenery/bin-broken', brokenBinMesh],
     ['scenery/lamp-broken', brokenLampMesh],
