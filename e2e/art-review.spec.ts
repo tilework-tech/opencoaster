@@ -130,7 +130,10 @@ function inventory(): ReviewItem[] {
       kind: 'ride',
       type: Number(type),
     });
-  return items;
+  const only = process.env.ART_REVIEW_ITEMS?.split(',').map((name) => name.trim().toLowerCase());
+  return only
+    ? items.filter((item) => only.some((name) => item.label.toLowerCase().includes(name)))
+    : items;
 }
 
 function flowerbedReviewItems(): ReviewItem[] {
@@ -374,7 +377,14 @@ async function initialise(page: Page): Promise<void> {
       if (item.kind === 'context') {
         for (let x = 1; x <= 6; x++) {
           const addition = x === 1 ? 0x8000 : x === 3 ? 0x2000 : x === 5 ? 0x1000 : 0;
-          pathRows.push([x, 4, 0, 0x0f | addition, x === 1 ? 0x40000000 : 0, 0]);
+          pathRows.push([
+            x,
+            4,
+            0,
+            (addition && x !== 1 ? 0b0101 : 0x0f) | addition,
+            x === 1 ? 0x40000000 : 0,
+            0,
+          ]);
         }
       } else if (item.kind === 'path' || item.kind === 'addition')
         pathRows.push([
