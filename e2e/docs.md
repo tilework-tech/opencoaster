@@ -4,7 +4,7 @@ Path: @/e2e
 
 ### Overview
 
-- Browser playtests cover user-facing park setup, ride access, save flows, mobile input, and offline startup. Tests drive the Vite app through Playwright, exercising the UI, worker-backed simulation, and save system together.
+- Browser playtests cover user-facing park setup, ride access, save flows, mobile input, message controls, and offline startup. Tests drive the Vite app through Playwright, exercising the UI, worker-backed simulation, and save system together.
 - Starter Park browser flows cover flat-ride setup, admission pricing, save-file round trips, and ride and stall access. Ride flows cover coaster and water rides, invalid-placement explanations, testing/opening, guest use, and demolition. Separate cases verify research gating, touch input, and offline startup; the year-one objective run remains opt-in.
 - The P1 UI fidelity flow covers WebGL2 desktop window placement, coaster construction controls, paused construction, the 2× construction cap, ownership display and feedback, Land Rights purchase controls, and the ride-window preview.
 
@@ -34,6 +34,7 @@ Path: @/e2e
 - [mobile-input.spec.ts](mobile-input.spec.ts) checks path tap and drag painting, pan and pinch effects via changed picked tiles, rotation controls, capped backing-buffer scale, page zoom/scroll prevention, visibility pause, and viewport resizing. It pauses the simulation, exports and deserializes the current save to locate a guest in the viewport, then long-presses the guest with Path active and asserts Guest details open. It also long-presses a path tile to check mobile removal, verifies saved map paths, and records HUD FPS samples with 2,000 guests on emulated Pixel 8.
 - [mobile-runtime.spec.ts](mobile-runtime.spec.ts) checks the manifest, service-worker control, and that the app can reload offline and start a progressing sandbox simulation. It disables Chromium's HTTP cache before taking the browser offline, so the reload exercises the service-worker cache.
 - [deferred-ui.spec.ts](deferred-ui.spec.ts) covers worker inspection and orders, patrol editing, Options categories, desktop resizing, Ctrl+S screenshot download, and the classic scenario selector tabs, preview and objective. Mobile guest/path coverage checks guest details, queue/slope/removal controls including touch-and-hold removal, and 44 px targets.
+- [message-controls.spec.ts](message-controls.spec.ts) runs on desktop and emulated Pixel 8. It creates guest milestone messages through the Options UI, checks ticker X and Q dismissal plus phone swipe, opens Recent Messages and clears it, then disables Guest milestones through Options > Messages and verifies the setting suppresses the next event. It also checks the Controls description and that unavailable Marketing and Research categories are not offered.
 - When enabled with `E2E_RUN_YEAR=1`, the final stage runs at 4× speed until the year-one outcome dialog appears and captures whether the objective was met or missed.
 
 ### Things to Know
