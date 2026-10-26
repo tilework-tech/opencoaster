@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { pickTile, project, rotateTile, unrotateTile } from './projection';
+import {
+  pickTile,
+  project,
+  rotateDirection,
+  rotateFootprint,
+  rotateOffset,
+  rotatePoint,
+  rotateTile,
+  screenToWorld,
+  unrotateTile,
+  worldToScreen,
+} from './projection';
 import type { Rotation } from './projection';
 import { terrainMeshTriangles, terrainTileCorners } from './terrain-geometry';
 
@@ -111,5 +122,68 @@ describe('projection', () => {
     expect(pickTile(viewport.width / 2, viewport.height / 2 - 16, map, camera, viewport)).toEqual([
       0, 0,
     ]);
+  });
+});
+
+describe('canonical projection API', () => {
+  const rotations: Rotation[] = [0, 1, 2, 3];
+  const map = { width: 9, height: 5 };
+
+  it('worldToScreen and screenToWorld are exact inverses at every rotation and height', () => {
+    for (const rot of rotations) {
+      for (const z of [0, 2.5, 7]) {
+        const [sx, sy] = worldToScreen(3.25, 1.75, z, rot, map);
+        const [x, y] = screenToWorld(sx, sy, z, rot, map);
+        expect(x).toBeCloseTo(3.25, 9);
+        expect(y).toBeCloseTo(1.75, 9);
+      }
+    }
+  });
+
+  it('rotateTile is the floor of rotating the tile centre', () => {
+    for (const rot of rotations) {
+      const [cx, cy] = rotatePoint(4.5, 2.5, map.width, map.height, rot);
+      expect(rotateTile(4, 2, map.width, map.height, rot)).toEqual([
+        Math.floor(cx),
+        Math.floor(cy),
+      ]);
+    }
+  });
+
+  it('rotateOffset matches the difference of rotated points', () => {
+    for (const rot of rotations) {
+      const a = rotatePoint(2.5, 2.5, map.width, map.height, rot);
+      const b = rotatePoint(3.5, 1.5, map.width, map.height, rot);
+      expect(rotateOffset(1, -1, rot)).toEqual([b[0] - a[0], b[1] - a[1]]);
+    }
+  });
+
+  it('rotateDirection turns a world direction by the same quarter turns as rotateOffset', () => {
+    const steps: Array<[number, number]> = [
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1],
+    ];
+    for (const rot of rotations)
+      for (let d = 0; d < 4; d++) {
+        const [dx, dy] = rotateOffset(...steps[d]!, rot);
+        expect(steps[rotateDirection(d, rot)]).toEqual([dx, dy]);
+      }
+  });
+
+  it('rotateFootprint keeps the cells where the map puts them', () => {
+    const footprint = [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+    ] as const;
+    for (const rot of rotations) {
+      const rotated = rotateFootprint(3, 2, footprint, map.width, map.height, rot);
+      footprint.forEach(([dx, dy], i) =>
+        expect(rotated.cells[i]).toEqual(rotateTile(3 + dx, 2 + dy, map.width, map.height, rot)),
+      );
+      expect(Math.min(...rotated.offsets.map((o) => o[0]))).toBe(0);
+    }
   });
 });
