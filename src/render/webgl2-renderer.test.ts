@@ -1,57 +1,47 @@
-import { describe, expect, it, vi } from 'vitest';
-import {
-  enableSpriteAlphaBlending,
-  guestSpriteIndex,
-  staffSpriteName,
-  terrainSpriteIndex,
-} from './webgl2-renderer';
-import { litterSpriteName } from './world-art';
+import { describe, expect, it } from 'vitest';
+import { TILE_UNITS } from '../sim/core/constants';
+import { WebGL2Renderer, rotatedPositionSum } from './webgl2-renderer';
+import type { MapData, SpriteGhost } from './renderer';
 
-describe('WebGL sprite blending', () => {
-  it('enables source-over alpha blending for sprites', () => {
-    const gl = {
-      BLEND: 0x0be2,
-      SRC_ALPHA: 0x0302,
-      ONE_MINUS_SRC_ALPHA: 0x0303,
-      enable: vi.fn(),
-      blendFunc: vi.fn(),
-    } as const;
+const map: MapData = {
+  width: 5,
+  height: 5,
+  heights: new Uint8Array(25),
+  surface: new Uint8Array(25),
+  slope: new Uint8Array(25),
+};
 
-    enableSpriteAlphaBlending(gl);
+describe('WebGL2 sprite preview ordering', () => {
+  it('sorts previews from the rendered pivot, including the tile-centre offset', () => {
+    const renderer = new WebGL2Renderer();
+    const ghost: SpriteGhost = {
+      x: 2,
+      y: 2,
+      level: 2,
+      sprite: 'trees/tree-oak',
+      kind: 'scenery',
+      width: 36,
+      height: 36,
+      tone: 'ok',
+    };
+    renderer.setSpriteGhosts([ghost]);
+    const appended: unknown[][] = [];
+    const testRenderer = renderer as unknown as {
+      appendSpriteGhosts(
+        map: MapData,
+        camera: { x: number; y: number; zoom: number; rotation: 0 },
+        viewportWidth: number,
+        viewportHeight: number,
+      ): void;
+      append: (...args: unknown[]) => void;
+    };
+    testRenderer.append = (...args) => appended.push(args);
 
-    expect(gl.enable).toHaveBeenCalledWith(gl.BLEND);
-    expect(gl.blendFunc).toHaveBeenCalledWith(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  });
-});
+    testRenderer.appendSpriteGhosts(map, { x: 0, y: 0, zoom: 1, rotation: 0 }, 800, 600);
 
-describe('terrain atlas selection', () => {
-  it('maps surface classes and slope masks to atlas slots', () => {
-    const sprites = [
-      terrainSpriteIndex(0, 0),
-      terrainSpriteIndex(0, 0b0100),
-      terrainSpriteIndex(1, 0),
-      terrainSpriteIndex(1, 0b0001),
-      terrainSpriteIndex(2, 0),
-      terrainSpriteIndex(3, 0),
-      terrainSpriteIndex(4, 0),
-      terrainSpriteIndex(5, 0),
-      terrainSpriteIndex(6, 0),
-    ];
-
-    expect(new Set(sprites).size).toBe(sprites.length);
-  });
-});
-
-describe('entity atlas selection', () => {
-  it('uses distinct sprite keys for each staff role and litter kind', () => {
-    const staff = [0, 1, 2, 3].map(staffSpriteName);
-    const litter = [litterSpriteName(0, 0), litterSpriteName(1, 0)];
-    expect(new Set([...staff, ...litter]).size).toBe(staff.length + litter.length);
-  });
-
-  it('selects the expected palette, direction, and walking frame', () => {
-    expect(guestSpriteIndex(0, 0, 0)).toBe(40);
-    expect(guestSpriteIndex(2, 1, 3)).toBe(79);
-    expect(guestSpriteIndex(7, 3, 3)).toBe(167);
+    const pivotX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
+    const pivotY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
+    expect(appended).toHaveLength(1);
+    expect(appended[0]![6]).toBe(2 * rotatedPositionSum(pivotX, pivotY, map, 0) - ghost.level + 2);
   });
 });

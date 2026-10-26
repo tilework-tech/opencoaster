@@ -1454,12 +1454,7 @@ export class WebGL2Renderer implements Renderer {
       const z = ghost.level * Z_STEP;
       const worldX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
-      const rotated = rotatedPositionSum(
-        ghost.x * TILE_UNITS,
-        ghost.y * TILE_UNITS,
-        map,
-        camera.rotation,
-      );
+      const rotated = rotatedPositionSum(worldX, worldY, map, camera.rotation);
       const depth =
         ghost.kind === 'ride'
           ? 2 * rotated - ghost.level + 1
