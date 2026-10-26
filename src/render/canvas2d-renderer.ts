@@ -55,8 +55,9 @@ import type { ObjectPickTarget } from '../input/object-picking';
 import { guestFrame, guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import {
   SOLID_BIAS,
-  structureDepth,
-  structureLayerKey,
+  STRUCTURE_SLICES,
+  structureSliceDepth,
+  structureSliceKey,
   SurfaceDepths,
   pathSlabDepth,
   personDepth,
@@ -349,7 +350,7 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   /**
-   * Queues a structure guests walk into as its back and front layers around its occupants, or as
+   * Queues a structure guests walk into as depth slices around its occupants, or as
    * one sprite at the tile's solid key while the layers are not loaded. `draw` receives the atlas
    * key to draw.
    */
@@ -362,12 +363,14 @@ export class Canvas2DRenderer implements Renderer {
     key: string,
     draw: (spriteKey: string) => void,
   ): void {
-    const back = structureLayerKey(key, 'back');
-    const front = structureLayerKey(key, 'front');
-    if (this.atlas?.resolve(back) && this.atlas.resolve(front)) {
-      this.queueAtDepth(structureDepth(map, cam.rotation, x, y, z, 'back'), () => draw(back));
-      this.queueAtDepth(structureDepth(map, cam.rotation, x, y, z, 'front'), () => draw(front));
-    } else this.enqueue(map, cam, x, y, z, SOLID_BIAS, () => draw(key));
+    let sliced = false;
+    for (let index = 0; index < STRUCTURE_SLICES; index++) {
+      const slice = structureSliceKey(key, index);
+      if (!this.atlas?.resolve(slice)) continue;
+      sliced = true;
+      this.queueAtDepth(structureSliceDepth(map, cam.rotation, x, y, z, index), () => draw(slice));
+    }
+    if (!sliced) this.enqueue(map, cam, x, y, z, SOLID_BIAS, () => draw(key));
   }
 
   private queueAtDepth(depth: number, draw: () => void): void {

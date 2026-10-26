@@ -317,35 +317,46 @@ export function clipMesh(mesh: Mesh, minX: number, maxX: number, minY: number, m
 }
 
 /**
- * Cuts a camera-rotated mesh on the vertical plane through the origin that is level with the
- * camera: `back` is the geometry farther from the camera than anything standing at the origin,
- * `front` the geometry nearer. Painted before and after an occupant of the tile, the two halves
- * show the occupant behind the front face and in front of the back wall.
+ * Cuts a camera-rotated mesh into `count` strips of equal `width` along the camera's depth axis
+ * (rotated `x + y`), centred on the origin: strip `i` covers `x + y` in
+ * `[(i - count / 2) * width, (i + 1 - count / 2) * width]`. Painted in order, interleaved with the
+ * things standing on the tile, the strips put an occupant behind the parts of the structure that
+ * are nearer the camera than it and in front of the rest.
  */
-export function splitMeshByDepth(mesh: Mesh): { back: Mesh; front: Mesh } {
-  const half = (sign: 1 | -1): Mesh => {
+export function sliceMeshByDepth(mesh: Mesh, width: number, count: number): Mesh[] {
+  const strip = (lower: number, upper: number): Mesh => {
     const out: Mesh = [];
     for (const triangle of mesh) {
-      const polygon: Vec3[] = [];
-      for (let i = 0; i < 3; i++) {
-        const a = triangle.v[i]!;
-        const b = triangle.v[(i + 1) % 3]!;
-        const da = (a[0] + a[1]) * sign;
-        const db = (b[0] + b[1]) * sign;
-        if (da >= 0) polygon.push(a);
-        if (da >= 0 !== db >= 0) {
-          const t = da / (da - db);
-          polygon.push([
-            a[0] + (b[0] - a[0]) * t,
-            a[1] + (b[1] - a[1]) * t,
-            a[2] + (b[2] - a[2]) * t,
-          ]);
+      let polygon: Vec3[] = [...triangle.v];
+      for (const [sign, limit] of [
+        [1, lower],
+        [-1, upper],
+      ] as const) {
+        const next: Vec3[] = [];
+        for (let i = 0; i < polygon.length; i++) {
+          const a = polygon[i]!;
+          const b = polygon[(i + 1) % polygon.length]!;
+          const da = (a[0] + a[1] - limit) * sign;
+          const db = (b[0] + b[1] - limit) * sign;
+          if (da >= 0) next.push(a);
+          if (da >= 0 !== db >= 0) {
+            const t = da / (da - db);
+            next.push([
+              a[0] + (b[0] - a[0]) * t,
+              a[1] + (b[1] - a[1]) * t,
+              a[2] + (b[2] - a[2]) * t,
+            ]);
+          }
         }
+        polygon = next;
+        if (polygon.length < 3) break;
       }
       for (let i = 1; i + 1 < polygon.length; i++)
         out.push({ v: [polygon[0]!, polygon[i]!, polygon[i + 1]!], material: triangle.material });
     }
     return out;
   };
-  return { back: half(-1), front: half(1) };
+  return Array.from({ length: count }, (_, i) =>
+    strip((i - count / 2) * width, (i + 1 - count / 2) * width),
+  );
 }

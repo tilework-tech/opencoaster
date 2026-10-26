@@ -19,10 +19,15 @@ import {
   physicalToLevels,
   rotateMesh,
   rotatePoint,
-  splitMeshByDepth,
+  sliceMeshByDepth,
   translateMesh,
 } from './mesh';
 import type { Mesh } from './mesh';
+import {
+  STRUCTURE_SLICES,
+  STRUCTURE_SLICE_WIDTH,
+  structureSliceKey,
+} from '../../src/render/depth-key';
 import { FACILITY_MODELS } from './models/facilities';
 import { parkEntranceMesh } from './models/park-entrance';
 import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
@@ -362,19 +367,23 @@ function wallSprites(): SpriteDef[] {
 }
 
 /**
- * A structure guests walk into, as the whole sprite plus its back and front layers
- * (`<key>/back`, `<key>/front`): the renderers paint the back layer before and the front layer
- * after anyone standing on the tile. All three share one frame size and anchor.
+ * A structure guests walk into, as the whole sprite plus its depth slices (`<key>/slice-N`, see
+ * `STRUCTURE_SLICES`): the renderers paint each slice among the people standing on the tile, by
+ * the slice's distance from the camera. Empty slices are omitted; all sprites share one frame
+ * size and anchor.
  */
 function layeredSprites(key: string, view: Mesh, raw = false): SpriteDef[] {
-  const { back, front } = splitMeshByDepth(view);
-  const whole = renderMesh(view);
-  const layer = (mesh: Mesh): Sprite => renderMesh(mesh, { extent: view, continuedBy: view });
-  return [
-    { key, frames: [whole], footprint: ONE_TILE, raw },
-    { key: `${key}/back`, frames: [layer(back)], footprint: ONE_TILE, raw },
-    { key: `${key}/front`, frames: [layer(front)], footprint: ONE_TILE, raw },
-  ];
+  const out: SpriteDef[] = [{ key, frames: [renderMesh(view)], footprint: ONE_TILE, raw }];
+  sliceMeshByDepth(view, STRUCTURE_SLICE_WIDTH, STRUCTURE_SLICES).forEach((mesh, index) => {
+    if (mesh.length > 0)
+      out.push({
+        key: structureSliceKey(key, index),
+        frames: [renderMesh(mesh, { extent: view, continuedBy: view })],
+        footprint: ONE_TILE,
+        raw,
+      });
+  });
+  return out;
 }
 
 function parkEntranceSprites(): SpriteDef[] {

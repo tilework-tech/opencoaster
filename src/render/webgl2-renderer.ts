@@ -57,8 +57,9 @@ import { TERRAIN_OCCLUDER_DEPTH_OFFSET, sceneryDepth } from './terrain-occlusion
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import {
   SOLID_BIAS,
-  structureDepth,
-  structureLayerKey,
+  STRUCTURE_SLICES,
+  structureSliceDepth,
+  structureSliceKey,
   SurfaceDepths,
   pathSlabDepth,
   personDepth,
@@ -1634,7 +1635,7 @@ export class WebGL2Renderer implements Renderer {
   }
 
   /**
-   * Appends a structure guests walk into as its back and front layers around its occupants, or
+   * Appends a structure guests walk into as depth slices around its occupants, or
    * as one sprite at the tile's solid key while the layers are not loaded.
    */
   private appendStructure(
@@ -1647,29 +1648,22 @@ export class WebGL2Renderer implements Renderer {
     height: number,
     key: string,
   ): void {
-    const back = structureLayerKey(key, 'back');
-    const front = structureLayerKey(key, 'front');
-    if (spritePages.resolve(back) && spritePages.resolve(front)) {
+    let sliced = false;
+    for (let index = 0; index < STRUCTURE_SLICES; index++) {
+      const slice = structureSliceKey(key, index);
+      if (!spritePages.resolve(slice)) continue;
+      sliced = true;
       this.append(
         x,
         y,
         z,
         width,
         height,
-        back,
-        structureDepth(map, camera.rotation, x, y, z, 'back'),
+        slice,
+        structureSliceDepth(map, camera.rotation, x, y, z, index),
       );
-      this.append(
-        x,
-        y,
-        z,
-        width,
-        height,
-        front,
-        structureDepth(map, camera.rotation, x, y, z, 'front'),
-      );
-      return;
     }
+    if (sliced) return;
     this.append(
       x,
       y,

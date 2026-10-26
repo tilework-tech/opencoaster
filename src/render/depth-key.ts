@@ -14,17 +14,6 @@ import type { Rotation } from './projection';
 export const PERSON_BIAS = 0.5;
 /** Offset of an object filling its tile, from the tile-centre key: after people one tile behind it. */
 export const SOLID_BIAS = 0.25;
-/**
- * Offset of a structure's back layer from the tile-centre key. Anyone on the tile, back edge
- * included, is drawn after it; anyone on the tile behind is drawn before it.
- */
-export const STRUCTURE_BACK_BIAS = -0.75;
-/**
- * Offset of a structure's front layer from the tile-centre key: a hair after a person standing
- * at the tile centre, so the occupant of the tile is behind the front face and anyone nearer the
- * camera than the centre is in front of it.
- */
-export const STRUCTURE_FRONT_BIAS = PERSON_BIAS + 0.01;
 /** Offset of flat ground cover from the tile-centre key: just after the terrain, under people. */
 export const GROUND_COVER_BIAS = -1.75;
 
@@ -48,25 +37,31 @@ export function rotatedPositionSum(
   return viewDepth(x / TILE_UNITS, y / TILE_UNITS, rotation, map);
 }
 
-/** Atlas key of the layer of a structure sprite drawn before (`back`) or after (`front`) its occupants. */
-export function structureLayerKey(key: string, layer: 'back' | 'front'): string {
-  return `${key}/${layer}`;
+/** Number of depth slices a structure is cut into, and the depth each spans in tile units. */
+export const STRUCTURE_SLICES = 8;
+export const STRUCTURE_SLICE_WIDTH = 0.25;
+
+/** Atlas key of depth slice `index` (nearest the camera last) of a structure sprite. */
+export function structureSliceKey(key: string, index: number): string {
+  return `${key}/slice-${index}`;
 }
 
-/** Key of a structure's back or front layer on the tile centred at world (x, y) and height z. */
-export function structureDepth(
+/**
+ * Key of depth slice `index` of a structure on the tile centred at world (x, y) and height z: the
+ * tile-centre key plus the slice's own distance from the camera, so people on the tile are drawn
+ * after the slices behind them and before the slices in front, and objects on the tiles around it
+ * order against each slice as they do against any tile-sized object.
+ */
+export function structureSliceDepth(
   map: { width: number; height: number },
   rotation: Rotation,
   x: number,
   y: number,
   z: number,
-  layer: 'back' | 'front',
+  index: number,
 ): number {
-  return (
-    2 * rotatedPositionSum(x, y, map, rotation) -
-    z / Z_STEP +
-    (layer === 'back' ? STRUCTURE_BACK_BIAS : STRUCTURE_FRONT_BIAS)
-  );
+  const middle = (index + 0.5 - STRUCTURE_SLICES / 2) * STRUCTURE_SLICE_WIDTH;
+  return 2 * (rotatedPositionSum(x, y, map, rotation) + middle) - z / Z_STEP + SOLID_BIAS;
 }
 
 /** Key of a tile's terrain, taken at the tile's rearmost corner. */

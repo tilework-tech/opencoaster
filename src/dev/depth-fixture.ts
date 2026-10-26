@@ -7,7 +7,7 @@ import { WebGL2Renderer } from '../render/webgl2-renderer';
 import { project } from '../render/projection';
 import type { Rotation } from '../render/projection';
 import type { Camera, MapData, Renderer } from '../render/renderer';
-import { RIDE_INFO_STRIDE, RideInfo, createSnapshot } from '../worker/snapshot';
+import { RIDE_INFO_STRIDE, RideFlag, RideInfo, createSnapshot } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 
 /**
@@ -31,6 +31,28 @@ interface Scene {
   paths: PathPiece[];
   scenery: Array<{ x: number; y: number; item: SceneryItem }>;
   stall?: { x: number; y: number };
+  /** The park entrance gate. */
+  gate?: { x: number; y: number };
+  /** A ride's entrance or exit hut on tile (x, y), served by a ride standing at (rideX, rideY). */
+  hut?: { x: number; y: number; part: 'entrance' | 'exit'; type: RideType };
+}
+
+const GATE_TILE = { x: 8, y: 8 };
+
+/** A path row with the structure's tile on it and an oak tree on each of the eight neighbours. */
+function structureScene(extra: Partial<Scene>): Scene {
+  const neighbours: Array<{ x: number; y: number; item: SceneryItem }> = [];
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++)
+      if (dx !== 0)
+        neighbours.push({ x: GATE_TILE.x + dx, y: GATE_TILE.y + dy, item: SceneryItem.OakTree });
+  return { paths: [...column(8, 3, 13)], scenery: neighbours, ...extra };
+}
+
+function column(x: number, from: number, to: number, base = GROUND): PathPiece[] {
+  const out: PathPiece[] = [];
+  for (let y = from; y <= to; y++) out.push({ x, y, base });
+  return out;
 }
 
 function row(y: number, from: number, to: number, base = GROUND): PathPiece[] {
@@ -98,6 +120,34 @@ const SCENES: Record<string, Scene> = {
     ],
   },
   stall: { paths: row(8, 3, 12), scenery: [], stall: { x: 8, y: 7 } },
+  'path-column': { paths: column(8, 3, 13), scenery: [] },
+  'trees-only': structureScene({}),
+  gate: { paths: column(8, 3, 13), scenery: [], gate: GATE_TILE },
+  'gate-trees': structureScene({ gate: GATE_TILE }),
+  'ride-entrance': {
+    paths: column(8, 3, 13),
+    scenery: [],
+    hut: { ...GATE_TILE, part: 'entrance', type: RideType.MerryGoRound },
+  },
+  'ride-exit': {
+    paths: column(8, 3, 13),
+    scenery: [],
+    hut: { ...GATE_TILE, part: 'exit', type: RideType.MerryGoRound },
+  },
+  'station-entrance': {
+    paths: column(8, 3, 13),
+    scenery: [],
+    hut: { ...GATE_TILE, part: 'entrance', type: RideType.WoodenCoaster },
+  },
+  'ride-entrance-trees': structureScene({
+    hut: { ...GATE_TILE, part: 'entrance', type: RideType.MerryGoRound },
+  }),
+  'ride-exit-trees': structureScene({
+    hut: { ...GATE_TILE, part: 'exit', type: RideType.MerryGoRound },
+  }),
+  'station-trees': structureScene({
+    hut: { ...GATE_TILE, part: 'entrance', type: RideType.WoodenCoaster },
+  }),
 };
 
 const params = new URLSearchParams(location.search);
@@ -189,8 +239,23 @@ function buildSnapshot(scene: Scene): Snapshot {
     snapshot.rideInfo[o + RideInfo.RideY] = scene.stall.y;
     void RIDE_INFO_STRIDE;
   }
-  snapshot.park.entranceX = -1;
-  snapshot.park.entranceY = -1;
+  snapshot.park.entranceX = scene.gate?.x ?? -1;
+  snapshot.park.entranceY = scene.gate?.y ?? -1;
+  if (scene.hut) {
+    const o = snapshot.rides.count * RIDE_INFO_STRIDE;
+    snapshot.rides.count++;
+    snapshot.rideInfo[o + RideInfo.Type] = scene.hut.type;
+    snapshot.rideInfo[o + RideInfo.RideX] = scene.hut.x + 6;
+    snapshot.rideInfo[o + RideInfo.RideY] = scene.hut.y;
+    snapshot.rideInfo[o + RideInfo.Flags] =
+      scene.hut.part === 'entrance' ? RideFlag.EntrancePlaced : RideFlag.ExitPlaced;
+    const [xField, yField] =
+      scene.hut.part === 'entrance'
+        ? [RideInfo.EntranceX, RideInfo.EntranceY]
+        : [RideInfo.ExitX, RideInfo.ExitY];
+    snapshot.rideInfo[o + xField] = scene.hut.x;
+    snapshot.rideInfo[o + yField] = scene.hut.y;
+  }
   return snapshot;
 }
 
