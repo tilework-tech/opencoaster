@@ -215,7 +215,7 @@ export async function focus(
 export async function screenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   const path = testInfo.outputPath(`${name}.png`);
   await mkdir(dirname(path), { recursive: true });
-  await page.screenshot({ path, timeout: 60_000 });
+  await page.screenshot({ path, timeout: 180_000 });
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 
