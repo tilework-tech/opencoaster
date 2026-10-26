@@ -67,6 +67,10 @@ export function sceneryGroundZ(baseHeight: number, slopeMask: number, rotation: 
   return ((corners[diagonal[0]]! + corners[diagonal[1]]!) / 2) * Z_STEP;
 }
 
+export function flowerBedGroundZ(baseHeight: number, slopeMask: number, rotation: number): number {
+  return sceneryGroundZ(baseHeight, slopeMask, rotation) + 1;
+}
+
 export function sceneryBox(definition: SceneryDefinition): GroundBox {
   return {
     width: definition.width,

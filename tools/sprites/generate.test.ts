@@ -41,29 +41,18 @@ describe('generated sprite catalogue', () => {
     }
   });
 
-  it('anchors every directional path addition at ground level in all four views', () => {
-    for (const family of [
-      'scenery/park-entrance',
-      'scenery/shelter',
-      'scenery/bench-broken',
-      'scenery/bin-broken',
-      'scenery/lamp-broken',
-    ]) {
-      for (let view = 0; view < 4; view++) {
-        const key = `${family}/view-${view}`;
-        const sprite = sprites.get(key);
-        const frame = sprite?.frames[0];
-        expect(frame, key).toBeDefined();
-        if (family !== 'scenery/park-entrance') expect(sprite?.raw, key).toBe(true);
-        if (!frame) continue;
-        expect(frame.anchor.x, `${key} view ${view} x`).toBe(frame.width / 2);
-        expect(frame.anchor.y, `${key} view ${view} ground pivot`).toBeGreaterThan(
-          frame.height * 0.7,
-        );
-        expect(frame.anchor.y, `${key} view ${view} ground pivot`).toBeLessThanOrEqual(
-          frame.height,
-        );
-      }
+  it('anchors every generated directional scenery and path-addition sprite at its ground pivot', () => {
+    const directionalScenery = [...sprites.keys()].filter(
+      (key) => key.startsWith('scenery/') && /\/view-[0-3]$/.test(key),
+    );
+    expect(directionalScenery.length).toBeGreaterThan(0);
+    for (const key of directionalScenery) {
+      const sprite = sprites.get(key)!;
+      const frame = sprite.frames[0]!;
+      expect(frame.anchor.x, `${key} x`).toBe(frame.width / 2);
+      expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
+      expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);
+      if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBe(true);
     }
   });
 

@@ -96,10 +96,8 @@ export function drawGhostSprite(
     0,
     frame.width,
     frame.height,
-    Math.round(
-      x - renderedWidth / 2 + spriteAnchorScreenShift(frame.width, entry.anchor.x, renderedWidth),
-    ),
-    Math.round(y - (entry.anchor.y / frame.height) * renderedHeight),
+    x - renderedWidth / 2 + spriteAnchorScreenShift(frame.width, entry.anchor.x, renderedWidth),
+    y - (entry.anchor.y / frame.height) * renderedHeight,
     renderedWidth,
     renderedHeight,
   );

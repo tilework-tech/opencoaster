@@ -58,6 +58,8 @@ export function pathAdditionPreviewGhosts(
       return {
         x: x + position.x / TILE_UNITS,
         y: y + position.y / TILE_UNITS,
+        tileX: x,
+        tileY: y,
         level: pathAdditionEdgeGroundZ(baseHeight, flags, edge) / Z_STEP,
         sprite: pathAdditionSpriteName(additionFlag, view, 0),
         kind: 'path-addition',

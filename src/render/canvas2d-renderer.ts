@@ -48,6 +48,7 @@ import {
   pathAdditionEdges,
   pathAdditionGroundZ,
   pathAdditionView,
+  flowerBedGroundZ,
   pathConnectionEdges,
   sceneryBox,
   sceneryGroundZ,
@@ -473,8 +474,14 @@ export class Canvas2DRenderer implements Renderer {
         const centerX = x * TILE_UNITS + TILE_UNITS / 2;
         const centerY = y * TILE_UNITS + TILE_UNITS / 2;
         if (this.atlas)
-          this.enqueue(map, cam, centerX, centerY, terrainZ, 2, () =>
-            this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
+          this.enqueue(
+            map,
+            cam,
+            centerX,
+            centerY,
+            sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+            2,
+            () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         this.enqueue(map, cam, centerX, centerY, terrainZ, -1, () =>
           this.drawMapElements(ctx, map, cam, i),
@@ -483,8 +490,14 @@ export class Canvas2DRenderer implements Renderer {
           this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 0, () =>
             this.drawPathGhost(ctx, map, cam, ghost),
           );
-        this.enqueue(map, cam, centerX, centerY, terrainZ, 2, () =>
-          this.drawSceneryElements(ctx, map, cam, i),
+        this.enqueue(
+          map,
+          cam,
+          centerX,
+          centerY,
+          sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+          2,
+          () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
           if (ghost.kind === 'scenery')
@@ -918,7 +931,7 @@ export class Canvas2DRenderer implements Renderer {
     if (!this.spriteGhostsByTile) {
       this.spriteGhostsByTile = new Map();
       for (const ghost of this.spriteGhosts) {
-        const index = ghost.y * map.width + ghost.x;
+        const index = (ghost.tileY ?? ghost.y) * map.width + (ghost.tileX ?? ghost.x);
         const list = this.spriteGhostsByTile.get(index);
         if (list) list.push(ghost);
         else this.spriteGhostsByTile.set(index, [ghost]);
@@ -927,7 +940,7 @@ export class Canvas2DRenderer implements Renderer {
     return this.spriteGhostsByTile.get(tile) ?? [];
   }
 
-  /** Draws a ride or scenery preview at the projected centre of its tile, like the built piece. */
+  /** Draws a sprite preview at the built piece's projected ground pivot and box. */
   private drawSpriteGhost(
     ctx: CanvasRenderingContext2D,
     map: MapData,
@@ -1386,7 +1399,12 @@ export class Canvas2DRenderer implements Renderer {
     const tree = ambientTreeName(map.surface[tile]!, x, y);
     if (tree) place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
-      place(scenerySpriteName('flower-bed'), 1, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
+      place(
+        scenerySpriteName('flower-bed'),
+        flowerBedGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation) - z,
+        FLOWER_BED_BOX.width,
+        FLOWER_BED_BOX.height,
+      );
   }
 
   private isVisible(x: number, y: number, cam: Camera, margin: number): boolean {

@@ -27,6 +27,7 @@ import {
   pathAdditionEdges,
   pathAdditionGroundZ,
   pathAdditionView,
+  flowerBedGroundZ,
   pathConnectionEdges,
   sceneryBox,
   sceneryGroundZ,
@@ -1336,14 +1337,10 @@ export class WebGL2Renderer implements Renderer {
       const x = index % map.width;
       const y = Math.floor(index / map.width);
       const baseHeight = map.heights[index]!;
-      const z = sceneryGroundZ(baseHeight, map.slope[index]!, camera.rotation) + 1;
+      const z = flowerBedGroundZ(baseHeight, map.slope[index]!, camera.rotation);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth = adjustDepthForGroundZ(
-        2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) + 1,
-        baseHeight,
-        z,
-      );
+      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1464,9 +1461,9 @@ export class WebGL2Renderer implements Renderer {
         camera.rotation,
       );
       const depth =
-        ghost.kind === 'ride' || ghost.kind === 'path-addition'
+        ghost.kind === 'ride'
           ? 2 * rotated - ghost.level + 1
-          : 2 * rotated + 2;
+          : 2 * rotated - ghost.level + (ghost.kind === 'scenery' ? 2 : 1);
       const [spriteName, frameSuffix] = ghost.sprite.split('#');
       const entry = spritePages.resolve(spriteName!);
       const frame = entry?.frames[Number(frameSuffix ?? 0)] ?? entry?.frames[0];
