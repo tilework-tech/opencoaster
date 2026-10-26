@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import {
   BLOCK_QUEUE,
@@ -41,13 +41,20 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
       });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
+      await expect(page.locator('.hud')).toContainText(
+        renderer === 'webgl2' ? 'WebGL2' : 'Canvas2D',
+      );
       await buildQueuedRide(page, testInfo, layout, 0.5, false);
       const deadline = Date.now() + 200_000;
       while (Date.now() < deadline) {
         const p = await probe(page);
-        if (p.guests.filter((g) => g.state === 1).length >= 8) break;
+        if (p.guests.some((g) => g.state === 1)) break;
         await page.waitForTimeout(500);
       }
+      expect(
+        (await probe(page)).guests.some((g) => g.state === 1),
+        'at least one guest is standing in the queue',
+      ).toBe(true);
       await closeWindows(page);
       const actions = page
         .locator('.game-toolbar')
