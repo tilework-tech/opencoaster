@@ -53,6 +53,21 @@ describe('scenario opening camera', () => {
     ).toEqual([256, 896]);
   });
 
+  it('falls back to the rotated map centre on a non-square map at every rotation', () => {
+    const map: MapData = {
+      width: 64,
+      height: 48,
+      heights: new Uint8Array(64 * 48),
+      surface: new Uint8Array(64 * 48),
+      slope: new Uint8Array(64 * 48),
+    };
+    for (const rotation of [0, 1, 2, 3] as const) {
+      const expected = new Float64Array(2);
+      project(32 * TILE_UNITS, 24 * TILE_UNITS, 0, 64, 48, rotation, expected);
+      expect(scenarioOpeningPosition(map, rotation)).toEqual([expected[0], expected[1]]);
+    }
+  });
+
   it('does not drift past the entrance when its path connects to park roads', () => {
     const tiles = Array.from({ length: 8 }, (_, step) => [9 - step, 7]);
     const map: MapData = {

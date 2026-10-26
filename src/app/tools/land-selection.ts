@@ -4,6 +4,7 @@ import {
   unrotatePoint,
   unrotateTile,
   viewSize,
+  worldToScreen,
   Z_PIXELS,
 } from '../../render/projection';
 import type { Rotation } from '../../render/projection';
@@ -66,8 +67,7 @@ function pickFrontTile(
       if (rx < 0 || ry < 0 || rx >= viewW || ry >= viewH) continue;
       const [x, y] = unrotateTile(rx, ry, map.width, map.height, camera.rotation);
       const level = map.heights[y * map.width + x];
-      const centreX = (rx - ry) * (TILE_W / 2);
-      const centreY = (rx + ry) * (TILE_H / 2) + TILE_H / 2 - level * Z_PIXELS;
+      const [centreX, centreY] = worldToScreen(x + 0.5, y + 0.5, level, camera.rotation, map);
       const distance =
         Math.abs(worldX - centreX) / (TILE_W / 2) + Math.abs(worldY - centreY) / (TILE_H / 2);
       if (distance > 1) continue;
