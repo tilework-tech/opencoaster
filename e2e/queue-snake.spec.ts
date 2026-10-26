@@ -25,10 +25,11 @@ for (const mobile of [false, true]) {
       await setSpeed(page, 1);
 
       const furthest = new Map<number, number>();
-      const visited = new Set<number>();
+      const visitsByGuest = new Map<number, Set<number>>();
       let screenshotted = false;
+      let completedGuest = false;
       const deadline = Date.now() + 300_000;
-      while (Date.now() < deadline && !(visited.size === ORDER.length)) {
+      while (Date.now() < deadline && !completedGuest) {
         await page.waitForTimeout(150);
         const p = await probe(page);
         const queuing = p.guests.filter((g) => g.state === 1);
@@ -42,17 +43,26 @@ for (const mobile of [false, true]) {
           if (before >= 0)
             expect(at - before, `guest ${g.id} skipped tiles`).toBeLessThanOrEqual(2);
           furthest.set(g.id, at);
-          visited.add(at);
+          let visits = visitsByGuest.get(g.id);
+          if (!visits) {
+            visits = new Set<number>();
+            visitsByGuest.set(g.id, visits);
+          }
+          visits.add(at);
+          if (at === ORDER.length - 1 && visits.size === ORDER.length) completedGuest = true;
         }
         if (!screenshotted && queuing.length >= 6) {
           screenshotted = true;
           await screenshot(page, testInfo, 'snake-queuing');
         }
       }
+      expect(completedGuest, 'one guest walked from the open end to the ride entrance').toBe(true);
       expect(
-        [...visited].sort((a, b) => a - b),
-        'tiles walked by queuing guests',
-      ).toEqual(ORDER.map((_, k) => k));
+        [...visitsByGuest.values()].some(
+          (visits) => visits.size === ORDER.length && ORDER.every((_, k) => visits.has(k)),
+        ),
+        'one guest visited every snake tile from the open end to the ride entrance',
+      ).toBe(true);
     });
   });
 }
