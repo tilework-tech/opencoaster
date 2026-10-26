@@ -108,9 +108,8 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
 
     test('a dug-out basin fills into a flat lake up to its rim and drains again', async () => {
       const { page } = setup;
-      const win = await openWater();
+      await openWater();
       const floor = stagedWorld.map.heights[stagedWorld.map.index(PIT_CENTRE.x, PIT_CENTRE.y)];
-      let flooded = 0;
 
       for (const level of [floor + 1, floor + 2]) {
         await hoverUntil(page, aim, async () => {
@@ -118,7 +117,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
           const first = page.locator('.area-overlay .area-water').first();
           await expect(first).toHaveAttribute('data-level', String(level), { timeout: 1500 });
         });
-        flooded = await page.locator('.area-overlay .area-water').count();
+        const flooded = await page.locator('.area-overlay .area-water').count();
         expect(flooded).toBeGreaterThanOrEqual(9);
         await expect(tip(page)).toHaveText(
           new RegExp(`^Raise water, ${flooded} tiles: \\$${(flooded * STEP_CENTS) / 100}\\.00$`),
@@ -178,7 +177,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
 
     test('dragging up raises the water step by step and dragging down lowers it', async () => {
       const { page } = setup;
-      const win = await openWater();
+      await openWater();
       const floor = stagedWorld.map.heights[stagedWorld.map.index(PIT_CENTRE.x, PIT_CENTRE.y)];
       const drag = async (dy: number): Promise<void> => {
         const to: [number, number] = [aim[0], aim[1] + dy];
@@ -202,7 +201,6 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       await drag(90);
       const lowered = (await savedWorld(page)).map;
       expect(lowered.waterLevel[center]).toBeLessThanOrEqual(lowered.heights[center]);
-      void win;
     });
   });
 }
