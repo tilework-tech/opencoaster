@@ -18,13 +18,8 @@ import {
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
-import {
-  AMBIENT_TREE_BOX,
-  FLOWER_BED_BOX,
-  GUEST_BOX,
-  PARK_GATE_BOX,
-  SCENERY_PIXELS_PER_HEIGHT,
-} from './sprite-layout';
+import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
+import { pathAdditionBox, pathAdditionGroundZ, sceneryBox, sceneryGroundZ } from './ground-anchor';
 import { TILE_H, TILE_W, Z_PIXELS } from './projection';
 import { spritePages } from './sprite-pages';
 import { peopleSpriteKey, walkingFrame } from './people-art';
@@ -1288,7 +1283,7 @@ export class WebGL2Renderer implements Renderer {
         const tree = ambientTreeName(map.surface[index]!, x, y);
         if (!tree) continue;
         const sprite = scenerySpriteName(tree);
-        const z = map.heights[index] * Z_STEP;
+        const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
         const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
@@ -1329,7 +1324,7 @@ export class WebGL2Renderer implements Renderer {
       if ((snapshot.grounds[index] & FLOWER_BED) === 0) continue;
       const x = index % map.width;
       const y = Math.floor(index / map.width);
-      const z = map.heights[index] * Z_STEP + 1;
+      const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation) + 1;
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
       const depth =
@@ -1489,7 +1484,8 @@ export class WebGL2Renderer implements Renderer {
       const o = i * 6;
       const x = paths[o];
       const y = paths[o + 1];
-      const z = paths[o + 2] * Z_STEP;
+      const baseHeight = paths[o + 2]!;
+      const z = baseHeight * Z_STEP;
       const flags = paths[o + 3];
       const isQueue = (flags & PathFlag.Queue) !== 0;
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
@@ -1511,20 +1507,16 @@ export class WebGL2Renderer implements Renderer {
         this.append(worldX, worldY, z, 40, 26, sprite, depth + 1);
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
         const sprite = pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]);
-        const [width, height] = sprite.includes('/shelter/')
-          ? [54, 52]
-          : sprite.includes('bench-broken')
-            ? [34, 24]
-            : sprite.includes('bin-broken')
-              ? [24, 30]
-              : (flags & PathFlag.Bench) !== 0
-                ? [30, 18]
-                : (flags & PathFlag.Bin) !== 0
-                  ? [18, 26]
-                  : (flags & PathFlag.Lamp) !== 0
-                    ? [16, 32]
-                    : [54, 52];
-        this.append(worldX, worldY, z + Z_STEP, width, height, sprite, depth + 2);
+        const box = pathAdditionBox(flags);
+        this.append(
+          worldX,
+          worldY,
+          pathAdditionGroundZ(baseHeight, flags),
+          box.width,
+          box.height,
+          sprite,
+          depth + 2,
+        );
       }
       if (isQueue)
         this.append(
@@ -1552,14 +1544,16 @@ export class WebGL2Renderer implements Renderer {
       const offset = i * 5;
       const x = items[offset];
       const y = items[offset + 1];
-      const z = items[offset + 2] * Z_STEP;
+      const tile = y * map.width + x;
+      const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation);
       const item = SCENERY_CATALOG[items[offset + 4]];
       if (!item) continue;
+      const box = sceneryBox(item);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
       const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
-      const spriteHeight = item.height * SCENERY_PIXELS_PER_HEIGHT;
+      const spriteHeight = box.height;
       if (
         !inViewport(
           this.projected[0],
@@ -1567,7 +1561,7 @@ export class WebGL2Renderer implements Renderer {
           camera,
           viewportWidth,
           viewportHeight,
-          item.width,
+          box.width,
           spriteHeight,
         )
       )
@@ -1576,7 +1570,7 @@ export class WebGL2Renderer implements Renderer {
         worldX,
         worldY,
         z,
-        item.width,
+        box.width,
         spriteHeight,
         scenerySpriteName(item.sprite),
         depth,

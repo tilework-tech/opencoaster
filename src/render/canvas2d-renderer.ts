@@ -40,13 +40,8 @@ import type { TerrainSurface } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
-import {
-  AMBIENT_TREE_BOX,
-  FLOWER_BED_BOX,
-  GUEST_BOX,
-  SCENERY_PIXELS_PER_HEIGHT,
-  STAFF_BOX,
-} from './sprite-layout';
+import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
+import { pathAdditionBox, pathAdditionGroundZ, sceneryBox, sceneryGroundZ } from './ground-anchor';
 import {
   clipTerrainTileTrianglesBelowHeight,
   terrainEdgeFace,
@@ -710,10 +705,11 @@ export class Canvas2DRenderer implements Renderer {
     rotation: number,
   ): void {
     const sprite = pathAdditionSpriteName(flags, rotation, data);
+    const box = pathAdditionBox(flags);
     if (
       this.atlas &&
       sprite &&
-      drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1])
+      drawBoxedSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1], box.width, box.height)
     )
       return;
     if (flags & PathFlag.Bin) {
@@ -759,7 +755,7 @@ export class Canvas2DRenderer implements Renderer {
       project(
         centerX,
         centerY,
-        z + (sloped ? Z_STEP / 2 : 1),
+        pathAdditionGroundZ(paths[o + 2]!, flags),
         map.width,
         map.height,
         cam.rotation,
@@ -924,9 +920,11 @@ export class Canvas2DRenderer implements Renderer {
       const offset = this.sceneryIndices[sceneryIndex] * 5;
       const x = scenery[offset];
       const y = scenery[offset + 1];
-      const z = scenery[offset + 2] * Z_STEP;
+      const tile = y * map.width + x;
+      const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation);
       const definition = SCENERY_CATALOG[scenery[offset + 4]];
       if (!definition) continue;
+      const box = sceneryBox(definition);
       project(
         x * TILE_UNITS + TILE_UNITS / 2,
         y * TILE_UNITS + TILE_UNITS / 2,
@@ -936,22 +934,7 @@ export class Canvas2DRenderer implements Renderer {
         cam.rotation,
         this.tmp,
       );
-      const treeKey =
-        definition.category === SceneryCategory.Trees ? scenerySpriteName(definition.sprite) : null;
-      const treeEntry = treeKey && this.atlas ? this.atlas.resolve(treeKey) : undefined;
-      const treeFrame = treeEntry?.frames[0];
-      if (treeEntry && treeFrame && this.atlas) {
-        const margin = Math.max(
-          treeFrame.width - treeEntry.anchor.x,
-          treeEntry.anchor.x,
-          treeFrame.height,
-        );
-        if (!this.isVisible(this.tmp[0], this.tmp[1], cam, margin)) continue;
-        drawAnchoredSprite(ctx, this.atlas, treeKey!, this.tmp[0], this.tmp[1]);
-        this.visibleCount++;
-        continue;
-      }
-      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, definition.width)) continue;
+      if (!this.isVisible(this.tmp[0], this.tmp[1], cam, Math.max(box.width, box.height))) continue;
       if (
         this.atlas &&
         drawBoxedSprite(
@@ -960,8 +943,8 @@ export class Canvas2DRenderer implements Renderer {
           scenerySpriteName(definition.sprite),
           this.tmp[0],
           this.tmp[1],
-          definition.width,
-          definition.height * SCENERY_PIXELS_PER_HEIGHT,
+          box.width,
+          box.height,
         )
       ) {
         this.visibleCount++;
@@ -1311,7 +1294,7 @@ export class Canvas2DRenderer implements Renderer {
   ): void {
     const atlas = this.atlas;
     if (!atlas) return;
-    const z = map.heights[tile] * Z_STEP;
+    const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, cam.rotation);
     const worldX = x * TILE_UNITS + TILE_UNITS / 2;
     const worldY = y * TILE_UNITS + TILE_UNITS / 2;
     const place = (name: string, offsetZ: number, width: number, height: number): void => {

@@ -264,6 +264,7 @@ function pathAdditionSprites(): SpriteDef[] {
       key: `${key}/view-${view}`,
       frames: [renderMesh(rotateMesh(physicalToLevels(build()), view))],
       footprint: ONE_TILE,
+      raw: true,
     })),
   );
 }

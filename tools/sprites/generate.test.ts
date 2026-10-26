@@ -41,6 +41,39 @@ describe('generated sprite catalogue', () => {
     }
   });
 
+  it('anchors every directional path addition at ground level in all four views', () => {
+    for (const family of [
+      'scenery/shelter',
+      'scenery/bench-broken',
+      'scenery/bin-broken',
+      'scenery/lamp-broken',
+    ]) {
+      for (let view = 0; view < 4; view++) {
+        const key = `${family}/view-${view}`;
+        const sprite = sprites.get(key);
+        expect(sprite?.raw, key).toBe(true);
+        const frame = sprite?.frames[0];
+        expect(frame, key).toBeDefined();
+        if (!frame) continue;
+        expect(frame.anchor.x, `${key} view ${view} x`).toBe(frame.width / 2);
+        expect(frame.anchor.y, `${key} view ${view} ground pivot`).toBeGreaterThan(
+          frame.height * 0.7,
+        );
+        expect(frame.anchor.y, `${key} view ${view} ground pivot`).toBeLessThanOrEqual(
+          frame.height,
+        );
+      }
+    }
+  });
+
+  it('anchors generated scenery trees at ground level', () => {
+    for (const key of ['trees/tree-palm', 'trees/tree-cactus']) {
+      const frame = sprites.get(key)!.frames[0]!;
+      expect(frame.anchor.x, key).toBe(frame.width / 2);
+      expect(frame.anchor.y, key).toBeGreaterThan(frame.height * 0.8);
+    }
+  });
+
   it('renders the shelter canopy wider than its support posts near the top of the sprite', () => {
     const { width, height, pixels } = sprites.get('scenery/shelter/view-0')!.frames[0];
     const widestUpperRow = Math.max(

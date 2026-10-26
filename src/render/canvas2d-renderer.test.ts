@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
+import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
 import { createSnapshot } from '../worker/snapshot';
@@ -200,6 +201,18 @@ describe('Canvas2D fallback map art', () => {
 
     expect(context.spriteSources).toContain(40);
     expect(context.arcs).toEqual([]);
+  });
+
+  it('draws placed scenery trees inside the same catalog box used by WebGL2', async () => {
+    const map = flatMap();
+    map.sceneryElements = Int32Array.of(2, 2, 0, 0, SceneryItem.OakTree);
+    map.sceneryCount = 1;
+
+    const context = await renderWithAtlas(map, ['trees/tree-oak']);
+    const image = context.images.find((args) => args[1] === 1);
+    const definition = SCENERY_CATALOG[SceneryItem.OakTree]!;
+
+    expect(image?.slice(-2)).toEqual([definition.width, definition.height * 12]);
   });
 
   it('draws queue rails over queue paths', () => {
