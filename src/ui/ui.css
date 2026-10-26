@@ -1220,6 +1220,9 @@
   .toolbar-menu.open {
     display: grid;
   }
+  .game-toolbar:has(.toolbar-menu.open) .camera-compass {
+    display: none;
+  }
   .toolbar-group {
     display: contents;
   }
