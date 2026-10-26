@@ -118,6 +118,21 @@ describe('generated UI icons', () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
+  it('draws the paths icon as an isometric footpath segment about 20px square', () => {
+    const sprite = renderUiIconSprite('paths', 24);
+    const xs: number[] = [];
+    const ys: number[] = [];
+    sprite.pixels.forEach((color, index) => {
+      if (color === TRANSPARENT) return;
+      xs.push(index % 24);
+      ys.push(Math.floor(index / 24));
+    });
+    expect(Math.max(...xs) - Math.min(...xs) + 1).toBeGreaterThanOrEqual(19);
+    expect(Math.max(...xs) - Math.min(...xs) + 1).toBeLessThanOrEqual(21);
+    expect(Math.max(...ys) - Math.min(...ys) + 1).toBeGreaterThanOrEqual(19);
+    expect(Math.max(...ys) - Math.min(...ys) + 1).toBeLessThanOrEqual(21);
+  });
+
   it.each(['rotateLeft', 'water', 'scenery', 'finances'] as const)(
     'keeps %s free of detached single-pixel flecks',
     (name) => {
