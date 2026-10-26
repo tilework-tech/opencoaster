@@ -77,6 +77,8 @@ async function main(): Promise<void> {
   const canvas = document.getElementById('game') as HTMLCanvasElement;
   const renderer = backend === 'canvas2d' ? new Canvas2DRenderer() : new WebGL2Renderer();
   renderer.attach(canvas);
+  // `painter=1` measures the Canvas2D renderer without its depth composite.
+  if (params.get('painter') === '1') (renderer as unknown as { surface: null }).surface = null;
   renderer.resize(viewWidth, viewHeight, 1);
   canvas.style.width = `${viewWidth}px`;
   canvas.style.height = `${viewHeight}px`;
