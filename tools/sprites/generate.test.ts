@@ -135,6 +135,7 @@ describe('generated sprite catalogue', () => {
 
   it('anchors generated scenery trees at ground level', () => {
     for (const tree of ['tree-palm', 'tree-cactus']) {
+      const viewPixels: string[] = [];
       for (let view = 0; view < 4; view++) {
         const key = `trees/${tree}/view-${view}`;
         const sprite = sprites.get(key)!;
@@ -142,7 +143,9 @@ describe('generated sprite catalogue', () => {
         const frame = sprite.frames[0]!;
         expect(frame.anchor.x, key).toBe(frame.width / 2);
         expect(frame.anchor.y, key).toBeGreaterThan(frame.height * 0.8);
+        viewPixels.push(Buffer.from(frame.pixels).toString('base64'));
       }
+      expect(new Set(viewPixels).size, `${tree} distinct camera views`).toBe(4);
     }
   });
 
