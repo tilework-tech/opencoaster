@@ -1,5 +1,6 @@
 import { devices, expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
+import { RideType } from '../src/sim/rides/ride-types';
 import {
   MAP_CENTER,
   centerMapOnTile,
@@ -278,6 +279,12 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await page.getByRole('button', { name: 'Close Options' }).click();
   await clearTransientUi(page);
 
+  await chooseRide(page, 'Shops & Stalls', RideType.FoodStall);
+  const stallPoint = await tilePickPoint(page, [SITE_LEFT, STREET_Y + 1]);
+  await page.mouse.click(stallPoint.x, stallPoint.y);
+  await expect(status).toContainText('Food Stall is open');
+  await clearTransientUi(page);
+
   const built = await withoutOverlays(page, () => shootAllRotations(page, footprint));
   const panes: Buffer[] = [];
   for (const [turn, { shot, box: viewBox }] of built.entries()) {
@@ -341,25 +348,25 @@ test.describe('flat ride footprints (WebGL2)', () => {
 
 test.describe('flat ride footprints (Canvas2D)', () => {
   test.slow();
-  test('Swinging Ship turned one quarter turn renders in every view rotation', async ({
-    page,
-  }, testInfo) => {
-    test.setTimeout(240_000);
-    page.setDefaultTimeout(10_000);
-    await page.addInitScript(() => {
-      const originalGetContext = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
-        if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') return null;
-        return originalGetContext.call(this, type as '2d', ...(args as []));
-      } as typeof HTMLCanvasElement.prototype.getContext;
+  for (const ride of FLAT_RIDES) {
+    test(`${ride.name} is visible beside guests and a stall`, async ({ page }, testInfo) => {
+      test.setTimeout(240_000);
+      page.setDefaultTimeout(10_000);
+      await page.addInitScript(() => {
+        const originalGetContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
+          if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') return null;
+          return originalGetContext.call(this, type as '2d', ...(args as []));
+        } as typeof HTMLCanvasElement.prototype.getContext;
+      });
+      await buildAndRide(page, testInfo, {
+        ride,
+        dir: 0,
+        canvas2d: true,
+        skipRiding: true,
+      });
     });
-    await buildAndRide(page, testInfo, {
-      ride: bySlug('swinging-ship'),
-      dir: 1,
-      canvas2d: true,
-      skipRiding: true,
-    });
-  });
+  }
 });
 
 test('the Rotate ride button clears the phone HUD and docked windows', async ({
