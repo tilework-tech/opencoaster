@@ -120,6 +120,7 @@ export async function calibrate(
   ref: { x: number; y: number },
   mobile: boolean,
   cursor: Locator,
+  world: World = starterWorld(),
 ): Promise<Calibration> {
   const game = await page.locator('#game').boundingBox();
   if (!game) throw new Error('Game viewport is missing');
@@ -130,7 +131,6 @@ export async function calibrate(
     await expect(cursor).toHaveCount(1, { timeout: 1500 });
   }).toPass({ timeout: 30_000, intervals: [1_000] });
   const first = await readDiamond(cursor);
-  const world = starterWorld();
   const tile = { x: first.tile % world.map.width, y: Math.floor(first.tile / world.map.width) };
   const half = first.width / 2;
   const dx = ref.x - tile.x;
