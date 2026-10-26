@@ -33,7 +33,7 @@ function oneRide(ratings: { excitement: number; intensity: number; nausea: numbe
   addNearbyRubbish(world, 5, 5);
   world.guests.cols.preferredIntensity[guest] = 100;
   world.guests.cols.nauseaTolerance[guest] = 150;
-  const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
+  const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [9, 4], [[7, 5]]);
   world.rides.cols.excitement[ride] = ratings.excitement;
   world.rides.cols.intensity[ride] = ratings.intensity;
   world.rides.cols.nausea[ride] = ratings.nausea;
@@ -67,7 +67,7 @@ describe('ride lines', () => {
     const guest = guestAt(world, 5, 5);
     addNearbyRubbish(world, 5, 5);
     world.guests.cols.preferredIntensity[guest] = 100;
-    const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
+    const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [9, 4], [[7, 5]]);
     world.rides.cols.excitement[ride] = 500;
     world.rides.cols.intensity[ride] = 450;
     world.rides.cols.nausea[ride] = 0;

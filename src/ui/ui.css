@@ -155,6 +155,20 @@
   height: 100dvh;
   pointer-events: none;
 }
+.ride-rotate-button {
+  position: fixed;
+  z-index: 40;
+  right: 16px;
+  bottom: calc(var(--status-h) + 12px);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px outset var(--bevel-light);
+  background: var(--chrome);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
 .ride-placement-targets {
   position: fixed;
   z-index: 39;
@@ -1230,6 +1244,11 @@
 
 /* Phones and narrow windows */
 @media (max-width: 699px) {
+  .ride-rotate-button {
+    top: 216px;
+    right: 12px;
+    bottom: auto;
+  }
   :root {
     --status-h: 100px;
   }

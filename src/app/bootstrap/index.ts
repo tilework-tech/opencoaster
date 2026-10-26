@@ -15,7 +15,7 @@ import type { GameSpeed } from '../../ui/settings';
 import { DEFAULT_MAP_SIZE } from '../../sim/core/constants';
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
-import { rideGhostSprite, TrackPreviewOverlay } from '../../ui/track-preview';
+import { rideGhostSprites, TrackPreviewOverlay } from '../../ui/track-preview';
 import type { SpriteGhost } from '../../render/renderer';
 import { ScenerySpotPreview } from '../tools/scenery-preview';
 import { pathAdditionPreviewGhosts } from '../tools/path-addition-preview';
@@ -139,6 +139,9 @@ export async function bootstrap(): Promise<void> {
     rotate(direction) {
       rotateCameraAtCenter(camera, sim.map, direction, viewport, sim.latest ?? undefined);
     },
+    rotateConstruction() {
+      return rideSetupState.current.rotatePlacement();
+    },
     zoom(direction) {
       camera.zoom = stepZoom(camera.zoom, direction);
     },
@@ -162,6 +165,7 @@ export async function bootstrap(): Promise<void> {
       sceneryItem = item as SceneryItem;
     },
     rotatePiece() {
+      if (rideSetupState.current.rotatePlacement()) return;
       sceneryRotation = (sceneryRotation + 1) % 4;
     },
     locate(x, y) {
@@ -502,9 +506,8 @@ export async function bootstrap(): Promise<void> {
       latest
         ? rideSetupState.current.createRideGhost(placementHover.tile[0], placementHover.tile[1])
         : null;
-    const rideSprite =
-      rideGhost && sim.map ? rideGhostSprite(rideGhost, sim.map, camera.rotation) : null;
-    if (rideSprite) spriteGhosts.push(rideSprite);
+    if (rideGhost && sim.map)
+      spriteGhosts.push(...rideGhostSprites(rideGhost, sim.map, camera.rotation));
     if (selectedTool === 'scenery' && placementHover && sim.map) {
       const [x, y] = placementHover.tile;
       const sceneryGhost = scenerySpot.update(

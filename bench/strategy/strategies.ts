@@ -29,7 +29,7 @@ export const STRATEGIES: Record<string, StrategyFactory> = {
     opening: OPENING,
     growth: LONG_GROWTH,
     reserveCents: 500_000,
-    itemsPerHandyman: 2,
+    itemsPerHandyman: 1,
     attractionsPerMechanic: 3,
   }),
   meadowbrook: growthStrategy({
@@ -41,7 +41,7 @@ export const STRATEGIES: Record<string, StrategyFactory> = {
   }),
 };
 
-const BASE = { reserveCents: 500_000, itemsPerHandyman: 2, attractionsPerMechanic: 3 };
+const BASE = { reserveCents: 500_000, itemsPerHandyman: 1, attractionsPerMechanic: 3 };
 
 STRATEGIES['bramblewood-hollow'] = growthStrategy({
   ...BASE,
@@ -71,6 +71,7 @@ STRATEGIES['copper-ridge'] = growthStrategy({
 
 STRATEGIES['tidewater-docks'] = growthStrategy({
   ...BASE,
+  itemsPerHandyman: 1.5,
   reserveCents: 600_000,
   prices: RIDE_PRICES,
   jitter: { skipPercent: 15, startDelayMonths: 2 },
@@ -84,6 +85,7 @@ STRATEGIES['tidewater-docks'] = growthStrategy({
 
 STRATEGIES['thunderhead-mesa'] = growthStrategy({
   ...BASE,
+  itemsPerHandyman: 1.5,
   prices: RIDE_PRICES,
   jitter: { skipPercent: 25, startDelayMonths: 3 },
   opening: OPENING,

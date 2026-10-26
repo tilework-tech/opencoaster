@@ -1,10 +1,12 @@
 import { Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import type { RideType } from '../sim/rides/ride-types';
 import { RidePhase } from '../sim/rides/ride-store';
 import { PathFlag, PATH_ADDITION_BROKEN, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
-import { Z_PIXELS } from './projection';
+import { Z_PIXELS, rotateDirection } from './projection';
+import type { Rotation } from './projection';
 
 /** Simulation ticks each flat-ride animation frame is shown for. */
 export const TICKS_PER_ANIMATION_FRAME = 8;
@@ -69,6 +71,27 @@ export function rideHutFacing(rideX: number, rideY: number, partX: number, partY
   return 1;
 }
 
+/**
+ * Facing (0 = +x, 1 = +y, 2 = -x, 3 = -y) of a hut on (`partX`, `partY`) toward the ride tile it
+ * touches. Rides without a footprint list (stalls, track rides) are measured from their anchor.
+ */
+export function rideHutFacingForFootprint(
+  type: RideType,
+  rideX: number,
+  rideY: number,
+  rideDir: number,
+  partX: number,
+  partY: number,
+): number {
+  const def = RIDE_CATALOG[type];
+  if (!def || def.usesTrack || def.footprint.length <= 1)
+    return rideHutFacing(rideX, rideY, partX, partY);
+  for (const [tx, ty] of rideFootprintTiles(def, rideX, rideY, rideDir))
+    if (Math.abs(partX - tx) + Math.abs(partY - ty) === 1)
+      return rideHutFacing(tx, ty, partX, partY);
+  return rideHutFacing(rideX, rideY, partX, partY);
+}
+
 export function rideHutSpriteKey(
   type: RideType,
   part: 'entrance' | 'exit',
@@ -101,6 +124,29 @@ export function rideHutSpriteKey(
 export function rideSpriteKey(type: RideType, rotation: number): string {
   const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
   return `${rideSpriteName(type)}/view-${view}`;
+}
+
+/**
+ * Sprite view of a flat-ride slice. Slices are cut from the model turned by this many quarter
+ * turns: the ride's own orientation (`rotateTile`) followed by the camera rotation, which turn
+ * tile offsets in the same sense.
+ */
+export function rideCellView(cameraRotation: number, rideDir: number): number {
+  return rotateDirection(rideDir & 3, (cameraRotation & 3) as Rotation);
+}
+
+/**
+ * Atlas key of the slice of a flat ride over footprint tile `cellIndex` (an index into the
+ * unrotated `RIDE_CATALOG[type].footprint`). Draw it at that tile's centre; slices of tiles that
+ * hold no geometry are not generated, so callers must tolerate a missing key.
+ */
+export function rideCellSpriteKey(
+  type: RideType,
+  cellIndex: number,
+  rideDir: number,
+  cameraRotation: number,
+): string {
+  return `${rideSpriteName(type)}/view-${rideCellView(cameraRotation, rideDir)}/cell-${cellIndex}`;
 }
 
 /** Frame zero is the idle pose; active cycle frames show riders. */

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { FeedbackDomain } from '../core/feedback';
-import { RideType } from '../rides/ride-types';
+import { rideFootprintTiles } from '../rides/ride-footprint';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import {
   buildCircuit,
   createCoaster,
@@ -142,18 +143,30 @@ describe('land tool planning', () => {
 });
 
 describe('land tool and structures', () => {
-  it('refuses to change land under a flat ride and under tiles it would tilt', () => {
-    const s = flatOwnedSim();
-    s.world.research.unlocked.add(RideType.FerrisWheel);
-    s.enqueue({ type: 'createRide', rideType: RideType.FerrisWheel, x: 10, y: 10 });
-    s.step();
-    const under = edit(s, { action: LandAction.Raise, x: 10, y: 10, width: 1, height: 1 });
-    expect(under.result).toBe(LandResult.RideInTheWay);
-    expect(under.subject).toBe(s.world.map.index(10, 10));
-    const next = edit(s, { action: LandAction.Raise, x: 11, y: 10, width: 1, height: 1 });
-    expect(next.result).toBe(LandResult.RideInTheWay);
-    const far = edit(s, { action: LandAction.Raise, x: 20, y: 20, width: 1, height: 1 });
-    expect(far.result).toBe(LandResult.Ok);
+  it('refuses to change land under every tile of a flat ride and under tiles it would tilt', () => {
+    for (const dir of [0, 1, 2, 3]) {
+      const s = flatOwnedSim();
+      s.world.research.unlocked.add(RideType.SwingingShip);
+      s.enqueue({ type: 'createRide', rideType: RideType.SwingingShip, x: 20, y: 20, dir });
+      s.step();
+      expect(s.world.rides.count).toBe(1);
+      const tiles = rideFootprintTiles(RIDE_CATALOG[RideType.SwingingShip], 20, 20, dir);
+      expect(tiles).toHaveLength(5);
+      for (const [x, y] of tiles) {
+        const under = edit(s, { action: LandAction.Raise, x, y, width: 1, height: 1 });
+        expect(under.result).toBe(LandResult.RideInTheWay);
+        expect(tiles.map(([tx, ty]) => s.world.map.index(tx, ty))).toContain(under.subject);
+      }
+      const [lx, ly] = tiles[tiles.length - 1];
+      const beyond = edit(s, {
+        action: LandAction.Raise,
+        x: lx + 3,
+        y: ly + 3,
+        width: 1,
+        height: 1,
+      });
+      expect(beyond.result).toBe(LandResult.Ok);
+    }
   });
 
   it('refuses under ground-level track and stations but allows land far below elevated track', () => {

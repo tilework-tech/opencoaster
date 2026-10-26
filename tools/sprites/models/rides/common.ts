@@ -13,8 +13,8 @@ export type Seat = readonly [x: number, y: number, z: number];
 
 export function rider(x: number, y: number, z: number, color = BODY): Mesh {
   return [
-    ...box([x - 0.026, y - 0.025, z], [x + 0.026, y + 0.025, z + 0.07], color),
-    ...cylinder(x, y, z + 0.07, z + 0.115, 0.027, 0.027, 6, SKIN, { capBottom: true }),
+    ...box([x - 0.055, y - 0.05, z], [x + 0.055, y + 0.05, z + 0.15], color),
+    ...cylinder(x, y, z + 0.15, z + 0.24, 0.05, 0.05, 6, SKIN, { capBottom: true }),
   ];
 }
 
@@ -25,7 +25,7 @@ export function withRiders(name: string, seatsAt: (frame: number) => readonly Se
     key: base.key,
     frames: 9,
     build(frame) {
-      if (frame === 0) return base.build(0);
+      if (frame === 0) return base.build(-1);
       const operationFrame = frame - 1;
       const mesh = base.build(operationFrame);
       for (const [index, [x, y, z]] of seatsAt(operationFrame).entries())

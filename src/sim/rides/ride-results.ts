@@ -23,4 +23,8 @@ export const enum RideResult {
   /** The test train stopped part way round the circuit and could not continue. */
   TestStalled = 17,
   ResearchRequired = 18,
+  /** The ground under the footprint is too uneven for the ride's supports. */
+  TooSteep = 19,
+  /** Part of the footprint is under water. */
+  Underwater = 20,
 }

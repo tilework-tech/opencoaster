@@ -8,6 +8,8 @@ import { COASTER_TEMPLATES, mirrored } from './coasters';
 import type { CoasterTemplate } from './coasters';
 import { RideState } from '../../src/sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
+import { validateRidePlacement } from '../../src/sim/rides/ride-footprint';
+import { RideResult } from '../../src/sim/rides/ride-results';
 import { PREBUILT_TYPES } from '../../src/sim/scenario/scenario-prebuilt';
 import { ParkGrid, rideFrontage } from '../../src/sim/scenario/park-grid';
 import type { ScenarioDef } from '../../src/sim/scenario/scenario';
@@ -64,7 +66,7 @@ export class ParkBuilder {
     this.spineRow = def.entrance?.length ?? 4;
     this.maxRow = (def.terrain?.buildLength ?? 30) - 1;
     for (const p of def.prebuilt ?? []) {
-      this.occupy(p.row, Math.sign(p.lateral));
+      this.occupy(p.row, Math.sign(p.lateral), this.rowsFor(p.type));
       this.spineRow = Math.max(this.spineRow, p.row);
     }
   }
@@ -81,26 +83,33 @@ export class ParkBuilder {
     return `${row}:${side}`;
   }
 
-  private occupy(row: number, side: number): void {
-    this.occupied.add(this.key(row - 1, side));
-    this.occupied.add(this.key(row, side));
-    this.occupied.add(this.key(row + 1, side));
+  /** Rows a ride of this name covers along the spine, from its front corner away from the gate. */
+  private rowsFor(name: string): number {
+    const footprint = RIDE_CATALOG[PREBUILT_TYPES[name]].footprint;
+    return rideFrontage(this.grid, 2, RIDE_REACH, footprint).rows;
+  }
+
+  /** Reserves the exit row, the footprint rows and one row of margin beyond them. */
+  private occupy(row: number, side: number, rows: number): void {
+    for (let r = row - 1; r <= row + rows; r++) this.occupied.add(this.key(r, side));
   }
 
   reserve(side: number, first: number, last: number): void {
     this.reserved.push({ side, first, last });
   }
 
-  private free(row: number, side: number): boolean {
-    if (this.occupied.has(this.key(row, side))) return false;
-    return !this.reserved.some((r) => r.side === side && row + 1 >= r.first && row - 1 <= r.last);
+  private free(row: number, side: number, rows: number): boolean {
+    for (let r = row; r < row + rows; r++) if (this.occupied.has(this.key(r, side))) return false;
+    return !this.reserved.some(
+      (r) => r.side === side && row + rows >= r.first && row - 1 <= r.last,
+    );
   }
 
-  /** Free slots nearest the gate first, alternating sides. */
-  nextSlot(): Slot | null {
-    for (let row = 2; row <= this.maxRow; row += 1) {
+  /** Free slots for a ride covering `rows` rows, nearest the gate first, alternating sides. */
+  nextSlot(rows = 1): Slot | null {
+    for (let row = 2; row + rows - 1 <= this.maxRow; row += 1) {
       for (const side of [1, -1]) {
-        if (this.free(row, side)) return { row, lateral: side };
+        if (this.free(row, side, rows)) return { row, lateral: side };
       }
     }
     return null;
@@ -124,12 +133,18 @@ export class ParkBuilder {
 
   /** Places and opens one flat ride or stall; returns its id, or -1 with nothing built. */
   build(name: string, reserveCents = 0): number {
-    const slot = this.nextSlot();
+    const type = PREBUILT_TYPES[name];
+    const rows = this.rowsFor(name);
+    const slot = this.nextSlot(rows);
     if (!slot || this.cash < this.costOf(name) + reserveCents) return -1;
     const reach = STALLS.has(name) ? STALL_REACH : RIDE_REACH;
     const lateral = slot.lateral * reach;
+    const frontage = rideFrontage(this.grid, slot.row, lateral, RIDE_CATALOG[type].footprint);
+    if (
+      validateRidePlacement(this.sim.world, type, ...frontage.ride, frontage.dir) !== RideResult.Ok
+    )
+      return -1;
     this.extendSpine(slot.row);
-    const frontage = rideFrontage(this.grid, slot.row, lateral);
     const serviceRide = STALLS.has(name);
     for (const [x, y] of frontage.queue) {
       this.sim.enqueue({ type: 'placePath', x, y, queue: !serviceRide });
@@ -141,9 +156,10 @@ export class ParkBuilder {
     }
     this.sim.enqueue({
       type: 'createRide',
-      rideType: PREBUILT_TYPES[name],
+      rideType: type,
       x: frontage.ride[0],
       y: frontage.ride[1],
+      dir: frontage.dir,
     });
     this.sim.step();
     const world = this.sim.world;
@@ -160,7 +176,7 @@ export class ParkBuilder {
     const price = this.prices[name];
     if (price !== undefined) this.sim.enqueue({ type: 'setRidePrice', rideId, priceCents: price });
     this.sim.step();
-    this.occupy(slot.row, slot.lateral);
+    this.occupy(slot.row, slot.lateral, rows);
     this.rideIds.push(rideId);
     return rideId;
   }

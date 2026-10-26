@@ -47,6 +47,7 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
+import { RideCellScene, isSlicedRide } from './ride-scene';
 import {
   SOLID_BIAS,
   SurfaceDepths,
@@ -66,7 +67,7 @@ import {
   rideSpriteKey,
   facilityFacingFromPaths,
   facilitySpriteKey,
-  rideHutFacing,
+  rideHutFacingForFootprint,
   rideHutSpriteKey,
   spriteViewName,
   terrainCliffSpriteName,
@@ -370,6 +371,7 @@ export class WebGL2Renderer implements Renderer {
   private syncedPageVersion = -1;
   private attributeBase = 0;
   private readonly coasterScene = new CoasterScene();
+  private readonly rideCells = new RideCellScene();
   private uniforms: {
     atlas: (WebGLUniformLocation | null)[];
     viewport: WebGLUniformLocation | null;
@@ -488,6 +490,8 @@ export class WebGL2Renderer implements Renderer {
     this.drawGroundChunks(camera, viewportWidth, viewportHeight);
 
     this.count = 0;
+    if (snapshot) this.rideCells.build(snapshot, map, camera.rotation);
+    else this.rideCells.reset();
     if (snapshot) this.appendPatrolAreas(snapshot, map, camera, viewportWidth, viewportHeight);
     this.appendWaterAndOccluders(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
@@ -1178,6 +1182,12 @@ export class WebGL2Renderer implements Renderer {
   }
 
   /** Adds the on-screen water planes and the raised terrain that must hide sprites behind it. */
+  /** Terrain no higher than a flat ride's floor must not be redrawn over the ride. */
+  private hiddenByRide(map: MapData, tile: number): boolean {
+    const floor = this.rideCells.floor[tile];
+    return floor > 0 && map.heights[tile] + (map.slope[tile] !== 0 ? 1 : 0) <= floor - 1;
+  }
+
   private appendWaterAndOccluders(
     map: MapData,
     camera: Camera,
@@ -1193,6 +1203,7 @@ export class WebGL2Renderer implements Renderer {
       if (Math.abs(lists.occluderX[i] - camera.x) > halfWidth) continue;
       const dy = lists.occluderY[i] - camera.y;
       if (dy < -top || dy > bottom) continue;
+      if (this.hiddenByRide(map, lists.occluders[i])) continue;
       this.appendGroundTile(map, lists.occluders[i], camera.rotation, 5);
     }
     const frame = waterSpriteName(waterFrameIndex(tick));
@@ -1810,9 +1821,11 @@ export class WebGL2Renderer implements Renderer {
           )
         ) {
           const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
-          const facing = rideHutFacing(
+          const facing = rideHutFacingForFootprint(
+            type,
             snapshot.rideInfo[o + RideInfo.RideX],
             snapshot.rideInfo[o + RideInfo.RideY],
+            snapshot.rideInfo[o + RideInfo.Dir],
             x,
             y,
           );
@@ -1949,6 +1962,45 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  private appendRideCells(
+    snapshot: Snapshot,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const scene = this.rideCells;
+    for (let i = 0; i < scene.length; i++) {
+      const item = scene.items[i];
+      const entry = spritePages.resolve(item.key);
+      if (!entry) continue;
+      const frameIndex = rideSpriteFrame(item.phase, snapshot.tick, entry.frames.length);
+      const frame = entry.frames[frameIndex] ?? entry.frames[0];
+      project(item.x, item.y, item.z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          frame.width,
+          frame.height,
+        )
+      )
+        continue;
+      this.append(
+        item.x,
+        item.y,
+        item.z,
+        frame.width,
+        frame.height,
+        `${item.key}#${frameIndex}`,
+        item.depth,
+      );
+    }
+  }
+
   private appendRides(
     snapshot: Snapshot,
     map: MapData,
@@ -1956,6 +2008,7 @@ export class WebGL2Renderer implements Renderer {
     viewportWidth: number,
     viewportHeight: number,
   ): void {
+    this.appendRideCells(snapshot, map, camera, viewportWidth, viewportHeight);
     for (let i = 0; i < snapshot.rides.count; i++) {
       const offset = i * RIDE_INFO_STRIDE;
       const type = snapshot.rideInfo[offset + RideInfo.Type] as RideType;
@@ -1965,6 +2018,7 @@ export class WebGL2Renderer implements Renderer {
       if (
         !definition ||
         definition.usesTrack ||
+        isSlicedRide(type) ||
         tileX < 0 ||
         tileY < 0 ||
         tileX >= map.width ||

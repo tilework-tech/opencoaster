@@ -23,8 +23,11 @@ import {
 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
+import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
 
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
+/** Flat rides gained multi-tile footprints and a stored orientation in version 22. */
+const FOOTPRINT_SAVE_VERSION = 22;
 const PRE_PATH_STYLE_SAVE_VERSION = 16;
 const PATH_STYLE_SAVE_VERSION = 17;
 /** Guests carry campaign vouchers from this version; earlier guests carry none. */
@@ -436,13 +439,14 @@ function guestColumnsAbsent(version: number): number {
   );
 }
 
-/** Ride columns appended after a save's version: income, the train layout, then reliability. */
+/** Ride columns appended after a save's version: income, the train layout, reliability, history, then orientation. */
 function rideColumnsAbsent(version: number): number {
   let absent = 0;
   if (version <= PRE_INCOME_SAVE_VERSION) absent += 1;
   if (version <= PRE_TRAIN_LAYOUT_SAVE_VERSION) absent += 2;
   if (version <= PRE_RELIABILITY_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V10;
   if (version < RIDER_HISTORY_SAVE_VERSION) absent += RIDER_HISTORY_WINDOWS;
+  if (version < FOOTPRINT_SAVE_VERSION) absent += 1;
   return absent;
 }
 
@@ -471,6 +475,7 @@ export function deserialize(bytes: Uint8Array): World {
     VOUCHER_SAVE_VERSION,
     PRE_TRACKED_WATER_RIDES_SAVE_VERSION,
     PER_STAFF_PATROL_SAVE_VERSION,
+    FLAT_WATER_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -615,6 +620,7 @@ export function deserialize(bytes: Uint8Array): World {
     migrateVoucherlessGuests(world, header.stores.guests.count);
   if (header.version < PRE_TRACKED_WATER_RIDES_SAVE_VERSION) migrateFlatWaterRides(world);
   if (header.version < FLAT_WATER_SAVE_VERSION) flattenWaterBodies(world.map);
+  if (header.version < FOOTPRINT_SAVE_VERSION) migrateSingleTileRides(world);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION

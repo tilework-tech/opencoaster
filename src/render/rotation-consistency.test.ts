@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
-import { RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
+import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE, createSnapshot } from '../worker/snapshot';
@@ -13,12 +14,15 @@ import {
   pickTile,
   project,
   rotateDirection,
+  rotateFootprint,
   rotateOffset,
   worldToScreen,
   screenToWorld,
 } from './projection';
 import type { Rotation } from './projection';
 import type { Camera, MapData, PathPieceGhost, SpriteGhost } from './renderer';
+import type { RideCellScene } from './ride-scene';
+import { rideCellSpriteKey } from './world-art';
 import { spritePages } from './sprite-pages';
 import type { SpriteEntry } from './sprite-pages';
 import { WebGL2Renderer } from './webgl2-renderer';
@@ -98,6 +102,22 @@ function fixedRow(tx: number, ty: number, level: number, metadata: number): numb
 }
 
 const STALL = { tile: [3, 4] as const, facing: 0 };
+/** A turned multi-tile flat ride whose footprint shares no tile with the rest of the fixture. */
+const BIG_RIDE = { type: RideType.SwingingShip, tile: [3, 8] as const, dir: 1 };
+
+function bigRideTiles(): Array<[number, number]> {
+  return rideFootprintTiles(
+    RIDE_CATALOG[BIG_RIDE.type],
+    BIG_RIDE.tile[0],
+    BIG_RIDE.tile[1],
+    BIG_RIDE.dir,
+  );
+}
+
+function bigRideBase(): number {
+  return Math.max(...bigRideTiles().map(([x, y]) => heightAt(x, y)));
+}
+
 const FLAT_RIDE = { tile: [9, 7] as const, entrance: [9, 6] as const, exit: [10, 7] as const };
 
 function fixtureSnapshot(map: MapData): Snapshot {
@@ -119,10 +139,11 @@ function fixtureSnapshot(map: MapData): Snapshot {
   snapshot.staff.data.set(fixedRow(8.25, 3.75, heightAt(8, 3), 1 | (1 << 8)));
   snapshot.litter.count = 1;
   snapshot.litter.data.set(fixedRow(5.5, 7.5, heightAt(5, 7), 0));
-  snapshot.rides.count = 2;
+  snapshot.rides.count = 3;
   const rides = [
     { type: RideType.MerryGoRound, tile: FLAT_RIDE.tile, hut: true },
     { type: RideType.FoodStall, tile: STALL.tile, hut: false },
+    { type: BIG_RIDE.type, tile: BIG_RIDE.tile, hut: false },
   ];
   rides.forEach((ride, i) => {
     const o = i * RIDE_INFO_STRIDE;
@@ -130,6 +151,10 @@ function fixtureSnapshot(map: MapData): Snapshot {
     snapshot.rideInfo[o + RideInfo.Type] = ride.type;
     snapshot.rideInfo[o + RideInfo.RideX] = ride.tile[0];
     snapshot.rideInfo[o + RideInfo.RideY] = ride.tile[1];
+    if (ride.type === BIG_RIDE.type) {
+      snapshot.rideInfo[o + RideInfo.Dir] = BIG_RIDE.dir;
+      snapshot.rideInfo[o + RideInfo.BaseLevel] = bigRideBase();
+    }
     if (ride.hut) {
       snapshot.rideInfo[o + RideInfo.Flags] = RideFlag.EntrancePlaced | RideFlag.ExitPlaced;
       snapshot.rideInfo[o + RideInfo.EntranceX] = FLAT_RIDE.entrance[0];
@@ -343,6 +368,7 @@ function webglPlacements(
   test.appendSpriteGhosts!(...args);
   test.appendParkGate!(snapshot, ...args);
   test.appendRideMarkers!(snapshot, ...args);
+  (renderer as unknown as { rideCells: RideCellScene }).rideCells.build(snapshot, map, rotation);
   test.appendRides!(snapshot, ...args);
   test.appendGuests!(snapshot.guests, snapshot.tick, ...args);
   test.appendStaff!(snapshot.staff, snapshot.tick, ...args);
@@ -400,6 +426,28 @@ describe('rotation consistency', () => {
             );
           }
         }
+      },
+    );
+
+    it.each(ROTATIONS)(
+      'draws every slice of a turned multi-tile flat ride on its own world tile at rotation %i',
+      (rotation) => {
+        const map = fixtureMap();
+        const snapshot = fixtureSnapshot(map);
+        const placements = probe(map, snapshot, rotation);
+        const tiles = bigRideTiles();
+        expect(tiles.every(([x, y]) => x >= 0 && y >= 0 && x < W && y < H)).toBe(true);
+        const view = rotateDirection(BIG_RIDE.dir, rotation);
+        const viewCells = rotateFootprint(0, 0, tiles, W, H, rotation).cells;
+        expect(new Set(viewCells.map(([rx, ry]) => `${rx},${ry}`)).size).toBe(tiles.length);
+        tiles.forEach(([x, y], cell) => {
+          const key = rideCellSpriteKey(BIG_RIDE.type, cell, BIG_RIDE.dir, rotation);
+          expect(key).toContain(`view-${view}/cell-${cell}`);
+          const placed = placements.find((p) => p.key.split('#')[0] === key);
+          expect(placed, `slice ${cell} is drawn at rotation ${rotation}`).toBeDefined();
+          const [sx, sy] = worldToScreen(x + 0.5, y + 0.5, bigRideBase(), rotation, map);
+          expect(Math.hypot(placed!.sx - sx, placed!.sy - sy)).toBeLessThanOrEqual(1.5);
+        });
       },
     );
 

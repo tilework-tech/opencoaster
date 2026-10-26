@@ -205,6 +205,8 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.TestStalled]:
     'Test failed: the train stalled part way round. Give the lift more speed or move the inversion.',
   [RideResult.TestPassed]: 'Test complete: ratings updated.',
+  [RideResult.TooSteep]: 'The ground under the ride is too uneven for its supports.',
+  [RideResult.Underwater]: 'Part of the ride would be under water.',
 };
 
 /** Player-facing text for a command outcome from the simulation. */

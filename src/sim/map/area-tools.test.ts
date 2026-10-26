@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { FeedbackDomain } from '../core/feedback';
-import { RideType } from '../rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { rideFootprintTiles } from '../rides/ride-footprint';
 import {
   buildCircuit,
   createCoaster,
@@ -377,7 +378,8 @@ describe('water tool', () => {
     s.step();
     const plan = planArea(s.world, water(9, 9, 3));
     expect(plan.result).toBe(LandResult.RideInTheWay);
-    expect(plan.subject).toBe(s.world.map.index(10, 10));
+    const footprint = rideFootprintTiles(RIDE_CATALOG[RideType.FerrisWheel], 10, 10, 0);
+    expect(footprint.map(([x, y]) => s.world.map.index(x, y))).toContain(plan.subject);
     s.enqueue({ type: 'raiseWater', x: 9, y: 9, width: 3, height: 3 });
     s.step();
     expect(s.world.map.waterLevel[s.world.map.index(10, 10)]).toBe(0);

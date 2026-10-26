@@ -16,8 +16,8 @@ function chooseRide(weather: WeatherKind, umbrella: boolean) {
   const guest = guestAt(world, 5, 5);
   world.guests.cols.preferredIntensity[guest] = 100;
   world.guests.cols.nauseaTolerance[guest] = 255;
-  const gentle = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [8, 3], [[7, 5]]);
-  const thrill = openRide(world, RideType.SwingingShip, [12, 4], [12, 5], [12, 3], [[11, 5]]);
+  const gentle = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [9, 4], [[7, 5]]);
+  const thrill = openRide(world, RideType.SwingingShip, [12, 4], [12, 5], [13, 4], [[11, 5]]);
   world.rides.cols.excitement[gentle] = 500;
   world.rides.cols.excitement[thrill] = 650;
   world.rides.cols.intensity[gentle] = 450;

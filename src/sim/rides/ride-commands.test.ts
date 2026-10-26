@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
-import { flatWorld } from '../integration/fixtures';
+import { createRideAtCorner, flatWorld } from '../integration/fixtures';
 import { createRide } from './ride-operations';
 import { applyRideCommand } from './ride-commands';
 import type { RideCommand } from './ride-commands';
@@ -24,7 +24,7 @@ import { removePath } from '../map/paths';
 describe('ride commands', () => {
   it('opens a flat ride when its queue is connected after entrance and exit placement', () => {
     const world = flatWorld(16, 17);
-    const rideId = createRide(world, RideType.MerryGoRound, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.MerryGoRound, [4, 4]);
     const apply = (command: RideCommand) => applyRideCommand(world, command);
 
     expect(apply({ type: 'placeRideEntrance', rideId, x: 4, y: 5 })).toBe(RideResult.Ok);
@@ -38,10 +38,10 @@ describe('ride commands', () => {
     [5, 4],
     [4, 5],
     [3, 4],
-    [4, 3],
+    [4, 0],
   ])('places Ferris Wheel access on each side at (%i, %i)', (x, y) => {
     const world = flatWorld(16, 17);
-    const rideId = createRide(world, RideType.FerrisWheel, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.FerrisWheel, [4, 4]);
     expect(applyRideCommand(world, { type: 'placeRideEntrance', rideId, x, y })).toBe(
       RideResult.Ok,
     );
@@ -49,7 +49,7 @@ describe('ride commands', () => {
       [5, 4],
       [4, 5],
       [3, 4],
-      [4, 3],
+      [4, 0],
     ].find(([exitX, exitY]) => exitX !== x || exitY !== y)!;
     expect(applyRideCommand(world, { type: 'placeRideExit', rideId, x: exit[0], y: exit[1] })).toBe(
       RideResult.Ok,
@@ -58,7 +58,7 @@ describe('ride commands', () => {
 
   it('dry-runs a flat ride without serving guests and returns it to closed', () => {
     const world = flatWorld(16, 17);
-    const rideId = createRide(world, RideType.FerrisWheel, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.FerrisWheel, [4, 4]);
     const slot = world.rides.idToSlot[rideId];
     expect(applyRideCommand(world, { type: 'setRideStatus', rideId, status: 'test' })).toBe(
       RideResult.Ok,
@@ -93,7 +93,7 @@ describe('ride commands', () => {
   it('demolishes an unused ride and refunds its full construction cost once', () => {
     const world = flatWorld(16, 17);
     const definition = RIDE_CATALOG[RideType.MerryGoRound];
-    const rideId = createRide(world, RideType.MerryGoRound, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.MerryGoRound, [4, 4]);
     charge(world, LedgerCategory.RideConstruction, definition.cost);
     const cashAfterConstruction = world.economy.cash;
     const demolition: RideCommand = { type: 'demolishRide', rideId };
@@ -111,7 +111,7 @@ describe('ride commands', () => {
   it('refunds less after a ride has served guests and clears their destination', () => {
     const world = flatWorld(16, 17);
     const definition = RIDE_CATALOG[RideType.MerryGoRound];
-    const rideId = createRide(world, RideType.MerryGoRound, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.MerryGoRound, [4, 4]);
     const rideSlot = world.rides.idToSlot[rideId];
     world.rides.cols.guestsServed[rideSlot] = 1;
     charge(world, LedgerCategory.RideConstruction, definition.cost);
@@ -129,7 +129,7 @@ describe('ride commands', () => {
 
   it('moves a rider to the exit when their ride is demolished', () => {
     const world = flatWorld(16, 17);
-    const rideId = createRide(world, RideType.MerryGoRound, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.MerryGoRound, [4, 4]);
     const rideSlot = world.rides.idToSlot[rideId];
     expect(applyRideCommand(world, { type: 'placeRideEntrance', rideId, x: 4, y: 5 })).toBe(
       RideResult.Ok,
@@ -153,7 +153,7 @@ describe('ride commands', () => {
 
   it('uses the entrance when the ride exit is no longer walkable', () => {
     const world = flatWorld(16, 17);
-    const rideId = createRide(world, RideType.MerryGoRound, 4, 4);
+    const rideId = createRideAtCorner(world, RideType.MerryGoRound, [4, 4]);
     expect(applyRideCommand(world, { type: 'placeRideEntrance', rideId, x: 4, y: 5 })).toBe(
       RideResult.Ok,
     );

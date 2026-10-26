@@ -1,3 +1,4 @@
+import { rideFootprintContains } from '../sim/rides/ride-footprint';
 import { RIDE_CATALOG, type RideType } from '../sim/rides/ride-types';
 import { RIDE_INFO_STRIDE, RideInfo, SNAPSHOT_STRIDE, type Snapshot } from '../worker/snapshot';
 
@@ -10,7 +11,8 @@ export function findRideIdAtTile(snapshot: Snapshot, tileX: number, tileY: numbe
     const y = snapshot.rideInfo[offset + RideInfo.RideY];
     const type = snapshot.rideInfo[offset + RideInfo.Type] as RideType;
     const definition = RIDE_CATALOG[type];
-    if (definition?.footprint.some(([dx, dy]) => x + dx === tileX && y + dy === tileY)) {
+    const dir = snapshot.rideInfo[offset + RideInfo.Dir];
+    if (definition && rideFootprintContains(definition, x, y, dir, tileX, tileY)) {
       return snapshot.rideInfo[offset + RideInfo.Id];
     }
   }

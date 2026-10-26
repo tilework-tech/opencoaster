@@ -24,6 +24,10 @@ describe('default shortcuts', () => {
     expect(key('x')).toEqual({ type: 'rotate', direction: -1 });
   });
 
+  it('rotates the piece being placed on T', () => {
+    expect(key('t')).toEqual({ type: 'rotatePiece' });
+  });
+
   it('sets game speed with 1, 2 and 4, and steps faster or slower with + and -', () => {
     expect(key('1')).toEqual({ type: 'speed', speed: 1 });
     expect(key('2')).toEqual({ type: 'speed', speed: 2 });

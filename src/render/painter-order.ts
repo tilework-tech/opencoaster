@@ -21,3 +21,5 @@ export function sortByDepth(keys: Int32Array, count: number, order: Int32Array):
   for (let i = 1; i <= range; i++) counts[i] += counts[i - 1];
   for (let i = 0; i < count; i++) order[counts[keys[i] - min]++] = i;
 }
+
+export { rotatedPositionSum } from './depth-key';

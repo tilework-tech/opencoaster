@@ -246,57 +246,60 @@ describe('generated sprite catalogue', () => {
     expect(used.size).toBeLessThanOrEqual(5);
   });
 
-  it('renders every gentle and thrill flat ride with idle and occupied animation frames', () => {
+  it('renders every flat ride as per-tile slices with an idle and eight operating poses', () => {
     const targetRides = Object.values(RIDE_CATALOG).filter(
       (ride) =>
         ride.id !== RideType.GoKarts &&
         !ride.usesTrack &&
         (ride.category === 'gentle' || ride.category === 'thrill'),
     );
-    expect(targetRides.length).toBeGreaterThan(0);
+    expect(targetRides.length).toBe(9);
 
     for (const ride of targetRides) {
-      const xs = ride.footprint.map(([x]) => x);
-      const ys = ride.footprint.map(([, y]) => y);
-      const expectedFootprint = {
-        width: Math.max(...xs) - Math.min(...xs) + 1,
-        height: Math.max(...ys) - Math.min(...ys) + 1,
-      };
       for (let view = 0; view < 4; view++) {
-        const sprite = sprites.get(`${rideSpriteName(ride.id)}/view-${view}`);
-        expect(sprite, `${ride.name}, view ${view}`).toBeDefined();
-        expect(sprite?.frames, `${ride.name}, view ${view}`).toHaveLength(9);
-        expect(sprite?.footprint, `${ride.name}, view ${view}`).toEqual(expectedFootprint);
-        const aligned = alignFrames(sprite!.frames);
-        const signatures = aligned.map((frame) => {
-          expect(frame.width).toBe(aligned[0].width);
-          expect(frame.height).toBe(aligned[0].height);
-          expect(frame.anchor).toEqual(aligned[0].anchor);
-          expect(frame.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
-          return Buffer.from(frame.pixels).toString('base64');
-        });
-        expect(aligned[0].anchor.x).toBe(aligned[0].width / 2);
-        expect(aligned[0].height % 2).toBe(0);
-        expect(
-          new Set(signatures).size,
-          `${ride.name}, view ${view} occupied poses`,
-        ).toBeGreaterThanOrEqual(8);
-        expect(signatures.slice(1).every((signature) => signature !== signatures[0])).toBe(true);
+        const cells = ride.footprint.map((_, cell) =>
+          sprites.get(`${rideSpriteName(ride.id)}/view-${view}/cell-${cell}`),
+        );
+        const present = cells.filter((cell) => cell !== undefined);
+        expect(present.length, `${ride.name}, view ${view}`).toBeGreaterThan(0);
+        expect(sprites.has(`${rideSpriteName(ride.id)}/view-${view}`)).toBe(false);
+        const poses = Array.from({ length: 9 }, (_, frame) =>
+          present
+            .map((cell) => {
+              const aligned = alignFrames(cell!.frames);
+              return Buffer.from(aligned[Math.min(frame, aligned.length - 1)].pixels).toString(
+                'base64',
+              );
+            })
+            .join('|'),
+        );
+        for (const cell of present) {
+          expect([1, 9]).toContain(cell!.frames.length);
+          expect(cell!.footprint).toEqual({ width: 1, height: 1 });
+          const aligned = alignFrames(cell!.frames);
+          expect(aligned[0].anchor.x).toBe(aligned[0].width / 2);
+          expect(aligned[0].pixels.length).toBeGreaterThan(0);
+        }
+        expect(new Set(poses).size, `${ride.name}, view ${view} poses`).toBeGreaterThanOrEqual(8);
+        expect(poses.slice(1).every((pose) => pose !== poses[0])).toBe(true);
       }
     }
   });
 
-  it('enlarges flat rides that stop short of their tile edge without exceeding the tile width', () => {
-    const thrill = (name: string) =>
-      Object.values(RIDE_CATALOG).find((ride) => ride.name === name)!;
-    const width = (name: string) =>
-      sprites.get(`${rideSpriteName(thrill(name).id)}/view-0`)!.frames[0].width;
-    expect(width('Swinging Ship')).toBeGreaterThanOrEqual(54);
-    expect(width('Top Spin')).toBeGreaterThanOrEqual(54);
-    for (const ride of Object.values(RIDE_CATALOG)) {
-      if (ride.usesTrack || (ride.category !== 'gentle' && ride.category !== 'thrill')) continue;
-      expect(width(ride.name), ride.name).toBeLessThanOrEqual(66);
-    }
+  it('draws flat rides across their whole footprint', () => {
+    const widthOf = (type: RideType): number => {
+      const def = RIDE_CATALOG[type];
+      const xs: number[] = [];
+      def.footprint.forEach((_, cell) => {
+        const sprite = sprites.get(`${rideSpriteName(type)}/view-0/cell-${cell}`);
+        if (sprite) xs.push(alignFrames(sprite.frames)[0].width);
+      });
+      return xs.length;
+    };
+    expect(widthOf(RideType.MerryGoRound)).toBeGreaterThanOrEqual(7);
+    expect(widthOf(RideType.SwingingShip)).toBe(5);
+    expect(widthOf(RideType.FerrisWheel)).toBe(4);
+    expect(widthOf(RideType.Enterprise)).toBeGreaterThanOrEqual(12);
   });
 
   it('never shrinks a ride and caps how much it enlarges one', () => {

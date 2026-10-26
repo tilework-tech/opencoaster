@@ -319,7 +319,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   await page.mouse.move(500, 52);
   await page.mouse.up();
   await toolbarAction(page, 'Game options');
-  await page.getByRole('button', { name: '4×' }).click();
+  await page.getByRole('button', { name: 'Game speed 4×', exact: true }).click();
   await page.getByRole('button', { name: 'Close Options' }).click();
   await coasterWindow.locator('.ui-titlebar').click();
   const rideWindowBounds = await coasterWindow.boundingBox();

@@ -18,12 +18,14 @@ import {
   facilitySpriteKey,
   rideHutSpriteKey,
   rideSpriteKey,
+  rideSpriteName,
   scenerySpriteName,
   terrainCliffSpriteName,
   terrainSpriteName,
   terrainSurfaceSpriteName,
 } from '../../src/render/world-art';
 import { transportTrackCells } from '../../src/render/coaster-art';
+import { isSlicedRide } from '../../src/render/ride-scene';
 import { buildSprites } from './generate';
 import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
 import { ICON_NAMES } from '../../src/ui/icons';
@@ -47,6 +49,22 @@ let cachedAvailable: Set<string> | undefined;
 
 function unique(keys: string[]): string[] {
   return [...new Set(keys.map((key) => key.split('#')[0]!))];
+}
+
+/**
+ * Slice keys of a flat ride: every generated `cell-<i>` sprite (tiles without geometry get none),
+ * or the first cell of any view with no slice at all, which reports that view as missing.
+ */
+function flatRideSliceKeys(type: RideType): string[] {
+  const name = rideSpriteName(type);
+  const generated = [...availableSpriteKeys()].filter(
+    (key) => key.startsWith(`${name}/view-`) && key.includes('/cell-'),
+  );
+  const keys = [...generated];
+  for (let view = 0; view < 4; view++)
+    if (!generated.some((key) => key.startsWith(`${name}/view-${view}/`)))
+      keys.push(`${name}/view-${view}/cell-0`);
+  return keys;
 }
 
 function trackKeys(family: NonNullable<ReturnType<typeof trackedRideFamily>>): string[] {
@@ -144,7 +162,9 @@ export function buildArtCoverage(): ArtCoverageRow[] {
         for (let pitch = -2; pitch <= 2; pitch++)
           for (let rotation = 0; rotation < 4; rotation++)
             keys.push(transportCarSpriteKey(transport, heading, pitch, rotation));
-    } else if (ride.category === 'gentle' || ride.category === 'thrill')
+    } else if (isSlicedRide(ride.id as RideType))
+      keys.push(...flatRideSliceKeys(ride.id as RideType));
+    else if (ride.category === 'gentle' || ride.category === 'thrill')
       for (let rotation = 0; rotation < 4; rotation++) keys.push(rideSpriteKey(ride.id, rotation));
     else if (ride.category === 'stall' || ride.category === 'facility')
       for (let facing = 0; facing < 4; facing++)

@@ -36,7 +36,7 @@ The park is scripted in [bench/balance-park.ts](../bench/balance-park.ts) on fla
 | Far rides starve (the wooden coaster, a 35-tile walk from the gate, served a quarter of the merry-go-round's guests) | The old 220-255 spawn energy and 32-tick walk drain made guests run out of energy en route; earlier pathfinding work separately changed route selection.  | Current guest cadence is one need update every 128 ticks, and guests spawn with 65-128 energy. On the combined navigation/ride baseline, the current starter run served 408 coaster guests and 819 merry-go-round guests. See [guest fidelity](fidelity/guests.md) and the current balance below. |
 | Guests who cannot find a target never knew it                                                                        | The lost branch never ran, and a leaving guest with no route to the gate was despawned silently.                                                          | Lost state, park maps and visible leaving guests ([guests docs](../src/sim/guests/docs.md)).                                                                                                                                                                                                      |
 
-Related guest changes: needs decay every 128 world ticks and happiness motives run every 512 ticks, matching the audited cadence; ride happiness grows with ride excitement; guests drop trash at one in 96 litter checks (calibrated from one in 48 to keep the rebased starter winnable).
+Related guest changes: needs decay every 128 world ticks and happiness motives run every 512 ticks, matching the audited cadence; ride happiness grows with ride excitement; guests drop trash at one in 128 litter checks (calibrated from one in 48, then 96, for the rebased starter and real flat-ride footprints).
 
 ## Constants
 
@@ -84,7 +84,7 @@ On the current tree, the default-seed modest starter build rates 453 after month
 | Repeat ride         | last-ride gate                                                                        | Requires the audited ride, happiness, energy, nausea, hunger/thirst and toilet checks plus a random roll.                                                        |
 | Ride happiness      | `8 + excitement / 40`                                                                 |                                                                                                                                                                  |
 | Stall line limit    | 8 guests                                                                              | Guests look for another stall past this.                                                                                                                         |
-| Trash               | one in 96 checks per guest                                                            | A check is every 160 ticks; this simplified rate is calibrated because the checked-in source evidence does not establish the original chance.                    |
+| Trash               | one in 128 checks per guest                                                           | A check is every 160 ticks; this simplified rate is calibrated because the checked-in source evidence does not establish the original chance.                    |
 
 ### Navigation
 
@@ -299,13 +299,13 @@ The scripts play a competent but imperfect player. All build gate-relative: a sp
 | -------------------- | ----------- | ----------------------------------------------------------------- | ------------------------------------------------------ | ----- |
 | Meadowbrook Green    | Beginner    | 300 guests, rating 500+, by end of year 2                         | $60k cash, $15k loan, admission $3, south gate         | 12/12 |
 | Lantern Bay          | Beginner    | park value $7,000 by end of year 3                                | $50k, $10k loan, pay per ride, sand and sea, east gate | 12/12 |
-| Bramblewood Hollow   | Beginner    | $750 a month ride ticket income by end of year 3                  | $45k, $15k loan, pay per ride, dense trees, west gate  | 12/12 |
+| Bramblewood Hollow   | Beginner    | $750 a month ride ticket income by end of year 3                  | $45k, $15k loan, pay per ride, dense trees, west gate  | 11/12 |
 | Copper Ridge         | Challenging | five coasters of 4.60+ excitement before the end of year 1        | $30k, $25k loan, pay per ride, hills, south gate       | 12/12 |
-| Tidewater Docks      | Challenging | repay the $6k loan and reach park value $5,500 by end of year 4   | $28k, $6k loan, pay per ride, west gate                | 11/12 |
-| Thunderhead Mesa     | Expert      | 460 guests and rating 700+ by end of year 4                       | $30k, $30k loan, difficult rating, hot and dry         | 9/12  |
+| Tidewater Docks      | Challenging | repay the $6k loan and reach park value $5,500 by end of year 4   | $28k, $6k loan, pay per ride, west gate                | 12/12 |
+| Thunderhead Mesa     | Expert      | 460 guests and rating 700+ by end of year 4                       | $30k, $30k loan, difficult rating, hot and dry         | 7/12  |
 | Glacier Point        | Expert      | six coasters of 4.90+ excitement within 22,528 ticks (1.4 months) | $33k, $20k loan, pay per ride, cold, hesitant script   | 6/12  |
 | Seaside Promenade    | Real        | $380 a month food and drink profit by end of year 3               | $40k, $20k loan, free entry and rides                  | 12/12 |
-| Riverside Fairground | Real        | 645 guests, rating 600+, by end of year 3                         | $50k, $25k loan, admission $3, north gate              | 5/12  |
+| Riverside Fairground | Real        | 645 guests, rating 600+, by end of year 3                         | $50k, $25k loan, admission $3, north gate              | 12/12 |
 | Open Grounds         | Other       | Have Fun (no deadline)                                            | $80k, no loan                                          | 12/12 |
 
 Notes on reading the table:
@@ -315,6 +315,17 @@ Notes on reading the table:
 - Riverside Fairground wins 5/12. Its five wins reach 646 to 653 guests with rating 795 to 915; the seven misses fall below the 645-guest condition. Open Grounds has no in-game objective to win. The harness counts a run as healthy when, after four years, the park is solvent, rated 600 or more and holds 200 or more guests; all twelve seeds meet that health check in this run.
 - Glacier Point is a race against the script's random start delay (up to three months). With $33k all six coasters are placed on the first decision after the delay; $30k only pays for five. The six losing seeds (3 and 7 to 11) were still waiting at the deadline with just the four opening items built.
 - Coaster ratings in the table are measured on the apron after a 7,000-tick test: the compact circuit rates 4.67, the "river run" 4.92 and the "switchback" 4.94 (see [bench/strategy/coasters.ts](../bench/strategy/coasters.ts)). These are the best of about 500 closed circuits found by randomised search over a 16-tile box; the wooden coaster's ratings top out near 5.2 for larger circuits, which is why coaster targets stay at 4.90 or below. Scenery within five tiles of a station would add 0.05 per item, but the apron is tree-free and the scripts place no scenery, so only trees just past its edge could add to a station's rating.
+
+### Real flat-ride footprints
+
+Flat rides now occupy their real footprints (Merry-Go-Round 3x3, Ship 1x5, Ferris wheel 1x4, Enterprise 4x4, ...), so a scripted park spans more tiles and holds fewer attractions in the same apron. With the old constants the sweep fell to Bramblewood Hollow 0/12, Lantern Bay 0/12, Riverside Fairground 0/12, Thunderhead Mesa 0/12 and Tidewater Docks 0/12. Causes found with traces: parks twice as long keep the handymen sweeping spine litter, so bins stop being emptied and litter pins the rating; and the 30-row apron only fits 17 rides, where the park value and guest objectives assumed 28. Retunes:
+
+- Trash drop rate 1 in 96 to 1 in 128 per litter check (still a calibrated simplification).
+- Scripted handymen: one per ride or stall (Tidewater Docks and Thunderhead Mesa one per 1.5), was one per two.
+- Build aprons widened where the script ran out of rows: Lantern Bay 50 rows (owned margin 16%), Riverside Fairground 54 (16%), Tidewater Docks 50 (16%), Thunderhead Mesa 60 (16%).
+- Starter objective, twelve seeds (11 - 16, 21 - 26), year-end check: modest 12/12, ambitious 11/12.
+
+Scenario sweep after the retune (`pnpm balance -- --scenario all --seeds 12`): the table above. Bramblewood Hollow 11/12 (one miss), Riverside Fairground 12/12 (was 5/12, the wider apron now fits 31 rides), Thunderhead Mesa 7/12 and Glacier Point 6/12 stay inside the Expert band.
 
 ## Known gaps
 

@@ -17,6 +17,8 @@ import {
 import { spritePages } from './sprite-pages';
 import type { PageImage, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
+import { RideCellScene, isSlicedRide } from './ride-scene';
+import type { RideCellDraw } from './ride-scene';
 import type { CanvasAtlas } from './canvas-atlas';
 import {
   WATER_BANK,
@@ -29,7 +31,7 @@ import {
   rideSpriteKey,
   facilityFacingFromPaths,
   facilitySpriteKey,
-  rideHutFacing,
+  rideHutFacingForFootprint,
   rideHutSpriteKey,
   waterFrameIndex,
   ambientTreeName,
@@ -121,6 +123,7 @@ export class Canvas2DRenderer implements Renderer {
   private spriteGhostsByTile: Map<number, SpriteGhost[]> | null = null;
   private atlas: CanvasAtlas | null = null;
   private readonly coasterScene = new CoasterScene();
+  private readonly rideCells = new RideCellScene();
   private tick = 0;
   private patrolStaffId: number | null = null;
   private patrolPreview: readonly [number, number] | null = null;
@@ -228,6 +231,8 @@ export class Canvas2DRenderer implements Renderer {
     const z = cam.zoom;
     const scale = z * this.dpr;
     ctx.setTransform(scale, 0, 0, scale, this.cw / 2 - cam.x * scale, this.ch / 2 - cam.y * scale);
+    if (snapshot) this.rideCells.build(snapshot, map, cam.rotation);
+    else this.rideCells.reset();
     this.drawTiles(ctx, map, cam, snapshot);
     if (snapshot) {
       this.drawParkGate(ctx, snapshot, map, cam);
@@ -501,7 +506,9 @@ export class Canvas2DRenderer implements Renderer {
           const behindIndex = behindWorldY * map.width + behindWorldX;
           return terrainPeak > map.heights[behindIndex]! + (map.slope[behindIndex] !== 0 ? 1 : 0);
         };
-        if (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1)) {
+        const rideFloor = this.rideCells.floor[i]!;
+        const belowRide = rideFloor > 0 && terrainPeak <= rideFloor - 1;
+        if (!belowRide && (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1))) {
           this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 5, () =>
             this.drawTerrainOccluder(ctx, map, cam, x, y, i, mask, terrainSurface, sx, sy, lift),
           );
@@ -1245,9 +1252,11 @@ export class Canvas2DRenderer implements Renderer {
         this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
           project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
           if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 24)) return;
-          const facing = rideHutFacing(
+          const facing = rideHutFacingForFootprint(
+            type,
             snapshot.rideInfo[o + RideInfo.RideX]!,
             snapshot.rideInfo[o + RideInfo.RideY]!,
+            snapshot.rideInfo[o + RideInfo.Dir]!,
             x,
             y,
           );
@@ -1297,6 +1306,10 @@ export class Canvas2DRenderer implements Renderer {
     map: MapData,
     cam: Camera,
   ): void {
+    for (let i = 0; i < this.rideCells.length; i++) {
+      const item = this.rideCells.items[i]!;
+      this.queueAtDepth(item.depth, () => this.drawRideCell(ctx, item, snapshot, map, cam));
+    }
     for (let i = 0; i < snapshot.rides.count; i++) {
       const offset = i * RIDE_INFO_STRIDE;
       const type = snapshot.rideInfo[offset + RideInfo.Type] as RideType;
@@ -1306,6 +1319,7 @@ export class Canvas2DRenderer implements Renderer {
       if (
         !definition ||
         definition.usesTrack ||
+        isSlicedRide(type) ||
         tileX < 0 ||
         tileY < 0 ||
         tileX >= map.width ||
@@ -1349,6 +1363,26 @@ export class Canvas2DRenderer implements Renderer {
         this.drawSpriteGhost(ctx, map, cam, ghost),
       );
     }
+  }
+
+  /** One footprint slice of a flat ride; a slice missing from the atlas is simply not drawn. */
+  private drawRideCell(
+    ctx: CanvasRenderingContext2D,
+    item: RideCellDraw,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const atlas = this.atlas;
+    const entry = atlas?.resolve(item.key);
+    if (!atlas || !entry) return;
+    project(item.x, item.y, item.z, map.width, map.height, cam.rotation, this.tmp);
+    const frameIndex = rideSpriteFrame(item.phase, snapshot.tick, entry.frames.length);
+    const frame = entry.frames[frameIndex] ?? entry.frames[0]!;
+    const margin = Math.max(frame.width - entry.anchor.x, entry.anchor.x, frame.height);
+    if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, margin)) return;
+    drawAnchoredSprite(ctx, atlas, item.key, this.tmp[0]!, this.tmp[1]!, frameIndex);
+    this.visibleCount++;
   }
 
   /** Draws coaster track, supports and cars from the atlas in painter order; false without art. */

@@ -11,7 +11,7 @@ import type { Rotation } from './projection';
  */
 
 /** Added to a person's key so a tie with the surface they stand on resolves in their favour. */
-const PERSON_BIAS = 0.5;
+export const PERSON_BIAS = 0.5;
 /** Offset of an object filling its tile, from the tile-centre key: after people one tile behind it. */
 export const SOLID_BIAS = 0.25;
 /** Offset of flat ground cover from the tile-centre key: just after the terrain, under people. */

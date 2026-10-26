@@ -6,6 +6,7 @@ import {
   placeRideEntranceExit,
   setRideOpen,
 } from '../rides/ride-operations';
+import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
 import { GUEST_SCHEMA, spawnGuest } from '../guests/guest-store';
 import { setParkEntrance } from '../guests/park';
@@ -68,7 +69,37 @@ export function row(y: number, x0: number, x1: number): Array<[number, number]> 
   return out;
 }
 
-/** An open ride/stall at (x, y) whose entrance is `entrance`; the queue (if any) is `queue`. */
+/**
+ * Anchor tile for an unrotated ride of `type` whose footprint ends at `corner` (its largest x and
+ * largest y). A one-tile ride anchors on `corner` itself; larger rides extend towards -x/-y, so the
+ * tiles at corner + (0, 1) and corner + (1, 0) are always edge-adjacent to the footprint.
+ */
+export function anchorForCorner(
+  type: RideType,
+  corner: readonly [number, number],
+): [number, number] {
+  let maxX = 0;
+  let maxY = 0;
+  for (const [dx, dy] of RIDE_CATALOG[type].footprint) {
+    maxX = Math.max(maxX, dx);
+    maxY = Math.max(maxY, dy);
+  }
+  return [corner[0] - maxX, corner[1] - maxY];
+}
+
+/** A closed ride whose unrotated footprint ends at `corner`; see {@link anchorForCorner}. */
+export function createRideAtCorner(
+  w: World,
+  type: RideType,
+  corner: readonly [number, number],
+): number {
+  const [x, y] = anchorForCorner(type, corner);
+  return createRide(w, type, x, y);
+}
+
+/**
+ * An open ride/stall whose unrotated footprint ends at `at` (see {@link anchorForCorner}), with
+ * entrance `entrance`; the queue (if any) is `queue`. */
 export function openRide(
   w: World,
   type: RideType,
@@ -77,7 +108,7 @@ export function openRide(
   exit: readonly [number, number],
   queue: ReadonlyArray<readonly [number, number]> = [],
 ): number {
-  const id = createRide(w, type, at[0], at[1]);
+  const id = createRideAtCorner(w, type, at);
   if (id < 0) throw new Error('createRide');
   if (
     !placeRideEntranceExit(w, id, { x: entrance[0], y: entrance[1] }, { x: exit[0], y: exit[1] })

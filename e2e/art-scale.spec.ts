@@ -8,6 +8,14 @@ import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { serialize } from '../src/save/save';
 import sharp from 'sharp';
+import { footprintRing, footprintTiles } from './support/footprints';
+import { expectRingCandidates } from './support/shots';
+
+/** One tile's diamond at the default zoom: 64 x 32 CSS px. */
+const TILE_AREA = (64 * 32) / 2;
+
+/** Head-room above the footprint's top candidate that a standing sprite may reach, in CSS px. */
+const SPRITE_HEIGHT_ALLOWANCE = 90;
 
 const MAP_CENTER: readonly [number, number] = [28, 43];
 const starterScenario = parseScenarioFile(
@@ -121,32 +129,22 @@ async function clickTile(page: Page, x: number, y: number, mobile: boolean): Pro
   await expect(page.locator('.tool-status')).toContainText(new RegExp(`${x}, ${y}`));
 }
 
-async function placeStationPart(
-  page: Page,
-  expected: string,
-  mobile: boolean,
-  at?: readonly [number, number],
-): Promise<void> {
-  await centerMapOnTile(page, ...MAP_CENTER, mobile);
-  const part = expected === 'Place exit' ? 'entrance' : 'exit';
-  const exact = at
-    ? page.getByRole('button', { name: `Place ${part} at tile ${at[0]}, ${at[1]}` })
-    : null;
-  const target =
-    exact && (await exact.count()) > 0
-      ? exact
-      : page.getByRole('button', { name: new RegExp(`Place ${part} at tile`) }).first();
-  await target.click();
-  await expect(page.locator('.tool-status')).toContainText(expected);
+interface ArtScaleRide {
+  name: string;
+  tab: string;
+  type: number;
+  anchor: readonly [number, number];
 }
+
+const RIDES: readonly ArtScaleRide[] = [
+  { name: 'Swinging Ship', tab: 'Thrill rides', type: 2, anchor: [28, 42] },
+  { name: 'Top Spin', tab: 'Thrill rides', type: 13, anchor: [27, 42] },
+];
 
 for (const profile of ['desktop', 'pixel-8'] as const) {
   const mobile = profile === 'pixel-8';
   test.describe(`art scale on ${profile}`, () => {
-    for (const ride of [
-      { name: 'Swinging Ship', tab: 'Thrill rides', type: 2 },
-      { name: 'Top Spin', tab: 'Thrill rides', type: 13 },
-    ]) {
+    for (const ride of RIDES) {
       test(`${ride.name} covers its tile footprint`, async ({ browser }, testInfo) => {
         test.setTimeout(120_000);
         const page = await openPage(browser, mobile);
@@ -156,72 +154,45 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         const viewport = (await page.locator('#game').boundingBox())!;
         await toolbarAction(page, 'Pause', mobile);
         await centerMapOnTile(page, ...MAP_CENTER, mobile);
+        const before = await capture(page, testInfo, `${profile}-${ride.type}-before`);
 
-        await toolbarAction(page, 'Resume', mobile);
-        await toolbarAction(page, 'Footpaths', mobile);
-        for (const [x, y] of [
-          [26, 43],
-          [27, 43],
-          [28, 43],
-          [28, 42],
-          [28, 41],
-          [28, 40],
-        ])
-          await clickTile(page, x, y, mobile);
-        await toolbarAction(page, 'Pause', mobile);
-        await centerMapOnTile(page, ...MAP_CENTER, mobile);
         await toolbarAction(page, 'Resume', mobile);
         await toolbarAction(page, 'New ride', mobile);
         await page.getByRole('tab', { name: ride.tab }).click();
         await page.locator(`.ride-card[data-ride-type="${ride.type}"]`).click();
-        await clickTile(page, 27, 42, mobile);
+        await clickTile(page, ...ride.anchor, mobile);
+        const footprint = footprintTiles(ride.type, ride.anchor);
+        const ring = footprintRing(ride.type, ride.anchor);
         const candidates = page.getByRole('button', { name: /Place entrance at tile/ });
-        await expect(candidates).toHaveCount(4);
+        await expect(candidates).not.toHaveCount(0);
+        await expectRingCandidates(page, candidates, ring);
+        await toolbarAction(page, 'Pause', mobile);
         const boxes = await candidates.evaluateAll((nodes) =>
           nodes.map((node) => {
             const r = node.getBoundingClientRect();
             return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
           }),
         );
-        const cx = boxes.reduce((sum, b) => sum + b.x, 0) / boxes.length;
-        const cy = boxes.reduce((sum, b) => sum + b.y, 0) / boxes.length;
-        // Both frames share the same UI (the ride panel and status text animate in), so the only
-        // difference between them is the preview sprite itself.
-        const withPreview = await capture(page, testInfo, `${profile}-${ride.type}-with-preview`);
         await page.addStyleTag({
-          content: '.ride-placement-preview { visibility: hidden !important; }',
+          content:
+            '.ride-placement-preview, .ride-placement-targets { visibility: hidden !important; }',
         });
-        const withoutPreview = await capture(
-          page,
-          testInfo,
-          `${profile}-${ride.type}-without-preview`,
-        );
-        const scale = withPreview.width / viewport.width;
-        let area = 0;
-        const cropArea = 80 * 90;
-        for (let y = Math.round((cy - 70) * scale); y < Math.round((cy + 20) * scale); y++)
-          for (let x = Math.round((cx - 40) * scale); x < Math.round((cx + 40) * scale); x++)
-            if (changed(withPreview, withoutPreview, x, y)) area++;
-        const cropFraction = area / (scale * scale * cropArea);
-        expect(
-          cropFraction,
-          `${ride.name} visible area as a share of its screen crop`,
-        ).toBeGreaterThan(0.16);
-
-        await placeStationPart(page, 'Place exit', mobile, [27, 43]);
-        await placeStationPart(page, 'Ride setup complete', mobile);
-        await toolbarAction(page, 'Rides', mobile);
-        const rideRow = page
-          .locator('[data-panel="ride-list"] .list-row')
-          .filter({ hasText: ride.name });
-        await rideRow.click();
-        const rideWindow = page.locator('[data-panel="ride-0"]');
-        await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
-        await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
-        await page.getByRole('button', { name: 'Close Ride #0' }).click();
-        await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
-        await toolbarAction(page, 'Pause', mobile);
+        const after = await capture(page, testInfo, `${profile}-${ride.type}-after`);
         await page.context().close();
+
+        const left = Math.min(...boxes.map((b) => b.x)) - 32;
+        const right = Math.max(...boxes.map((b) => b.x)) + 32;
+        const top = Math.min(...boxes.map((b) => b.y)) - SPRITE_HEIGHT_ALLOWANCE;
+        const bottom = Math.max(...boxes.map((b) => b.y)) + 16;
+        const scale = after.width / viewport.width;
+        let area = 0;
+        for (let y = Math.max(0, Math.round(top * scale)); y < Math.round(bottom * scale); y++)
+          for (let x = Math.max(0, Math.round(left * scale)); x < Math.round(right * scale); x++)
+            if (x < after.width && y < after.height && changed(before, after, x, y)) area++;
+        const cssArea = area / (scale * scale);
+        expect(cssArea, `${ride.name} on-screen area in CSS px²`).toBeGreaterThan(
+          footprint.length * TILE_AREA,
+        );
       });
     }
   });
