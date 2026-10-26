@@ -1,3 +1,4 @@
+import type { MessageFilter } from './messages';
 import type { Command } from '../sim/core/commands';
 import type { RideType } from '../sim/rides/ride-types';
 import type { Camera, MapData } from '../render/renderer';
@@ -102,6 +103,8 @@ export interface GameUIActions {
     settings: Partial<Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'musicOn' | 'muted'>>,
   ): void;
   playUiSound(name: 'click' | 'open' | 'close' | 'news'): void;
+  messageFilter(): MessageFilter;
+  setMessageFilter(filter: Partial<MessageFilter>): void;
 }
 
 /** Structured guest selection; a point-in-time copy of the guest's snapshot values. */

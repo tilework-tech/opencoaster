@@ -1,3 +1,6 @@
+import { DEFAULT_MESSAGE_FILTER, MESSAGE_CATEGORIES } from './messages';
+import type { MessageFilter } from './messages';
+
 export const SETTINGS_KEY = 'opencoaster.settings.v1';
 
 export const GAME_SPEEDS = [1, 2, 4] as const;
@@ -11,6 +14,7 @@ export interface PlayerSettings {
   musicVolume: number;
   musicOn: boolean;
   muted: boolean;
+  messageFilter: MessageFilter;
 }
 
 export const DEFAULT_SETTINGS: PlayerSettings = {
@@ -20,12 +24,22 @@ export const DEFAULT_SETTINGS: PlayerSettings = {
   musicVolume: 0.7,
   musicOn: true,
   muted: false,
+  messageFilter: { ...DEFAULT_MESSAGE_FILTER },
 };
 
 function volume(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, Math.min(1, value))
     : fallback;
+}
+
+function parseMessageFilter(value: unknown): MessageFilter {
+  const record = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const filter = { ...DEFAULT_MESSAGE_FILTER };
+  for (const category of MESSAGE_CATEGORIES) {
+    if (typeof record[category] === 'boolean') filter[category] = record[category];
+  }
+  return filter;
 }
 
 /** Reads saved settings, keeping each field that is valid and defaulting the rest. */
@@ -48,6 +62,7 @@ export function parseSettings(raw: string | null): PlayerSettings {
     musicVolume: volume(record.musicVolume, DEFAULT_SETTINGS.musicVolume),
     musicOn: typeof record.musicOn === 'boolean' ? record.musicOn : DEFAULT_SETTINGS.musicOn,
     muted: typeof record.muted === 'boolean' ? record.muted : DEFAULT_SETTINGS.muted,
+    messageFilter: parseMessageFilter(record.messageFilter),
   };
 }
 

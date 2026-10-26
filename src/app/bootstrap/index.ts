@@ -189,6 +189,11 @@ export async function bootstrap(): Promise<void> {
     playUiSound(name) {
       audio.playUi(name);
     },
+    messageFilter: () => settings.messageFilter,
+    setMessageFilter(next) {
+      settings.messageFilter = { ...settings.messageFilter, ...next };
+      persistSettings();
+    },
     setTool(tool) {
       selectedTool = tool;
       rideSetupState.current?.clearNotice();

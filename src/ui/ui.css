@@ -763,6 +763,43 @@
 .status-ticker[data-category='park'] {
   color: #b8f0b0;
 }
+.status-ticker[data-category='award'] {
+  color: #ffd76a;
+}
+.status-ticker-dismiss {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  background: #3a4046;
+  color: #cfe8ff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.status-ticker-dismiss[hidden] {
+  display: none;
+}
+.message-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.message-row > .list-row {
+  flex: 1;
+  min-width: 0;
+}
+.message-dismiss {
+  flex: 0 0 auto;
+  width: 28px;
+  border: 1px solid var(--bevel-dark);
+  background: #e3dfcd;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
 .status-news {
   width: 24px;
   height: 22px;
