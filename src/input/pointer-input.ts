@@ -23,8 +23,8 @@ export interface PointerInputActions {
   pathDragMove(x: number, y: number): void;
   pathDragEnd(): void;
   pathDragCancel(): void;
-  /** Land tool: a pointer went down on the map. */
-  landPress?(x: number, y: number): void;
+  /** A single pointer went down on the map; tools with a live preview show it straight away. */
+  press?(x: number, y: number): void;
   /** Land tool: the pointer moved past the tap threshold; the drag began at (x, y). */
   landDragStart?(x: number, y: number): void;
   landDragMove?(x: number, y: number): void;
@@ -70,8 +70,7 @@ export class PointerInput {
       timer: null,
     };
     this.pointers.set(sample.pointerId, active);
-    if (this.pointers.size === 1 && this.actions.tool() === 'land')
-      this.actions.landPress?.(sample.x, sample.y);
+    if (this.pointers.size === 1) this.actions.press?.(sample.x, sample.y);
 
     if (this.pointers.size === 1 && sample.pointerType === 'touch') {
       active.timer = setTimeout(() => {

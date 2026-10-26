@@ -32,8 +32,9 @@ import { openRideSelect } from './windows/ride-select';
 import { openRideWindow } from './windows/ride-window';
 import { openStaffWindow } from './windows/staff-window';
 import { openWorkerWindow } from './windows/worker-window';
-import { SCENERY_WINDOW, WATER_WINDOW, openToolWindow } from './windows/tool-windows';
+import { SCENERY_WINDOW, openToolWindow } from './windows/tool-windows';
 import { openLandWindow } from './windows/land-window';
+import { openClearWindow, openWaterWindow } from './windows/area-windows';
 import { openPathWindow } from './windows/path-window';
 import { shortcutFor } from './shortcuts';
 import type { KeyLike } from './shortcuts';
@@ -74,6 +75,8 @@ const TOOL_LABELS: Record<ToolMode, string> = {
   'buy-land': 'Buy land',
   'buy-rights': 'Buy construction rights',
   patrol: 'Patrol area',
+  clear: 'Clear scenery',
+  water: 'Water',
 };
 
 /** Windows that arm a map tool; only one of them is open at a time. */
@@ -171,21 +174,9 @@ export class GameUI {
       { id: 'map', icon: 'map', label: 'Map', onClick: open('map') },
     ];
     const right: ToolbarButton[] = [
-      {
-        id: 'clear',
-        icon: 'demolish',
-        label: 'Clear scenery',
-        onClick: open('clear'),
-        disabledReason: 'Clearing scenery is not available in this version.',
-      },
+      { id: 'clear', icon: 'demolish', label: 'Clear scenery', onClick: open('clear') },
       { id: 'land', icon: 'land', label: 'Land', onClick: open('land') },
-      {
-        id: 'water',
-        icon: 'water',
-        label: 'Water',
-        onClick: open('water'),
-        disabledReason: 'Water tools are not available in this version.',
-      },
+      { id: 'water', icon: 'water', label: 'Water', onClick: open('water') },
       { id: 'scenery', icon: 'scenery', label: 'Scenery', onClick: open('scenery') },
       { id: 'paths', icon: 'paths', label: 'Footpaths', onClick: open('paths') },
       { id: 'ride-select', icon: 'rides', label: 'New ride', onClick: open('ride-select') },
@@ -442,18 +433,13 @@ export class GameUI {
       case 'land':
         return openLandWindow(this.ctx);
       case 'water':
-        return openToolWindow(this.ctx, WATER_WINDOW);
+        return openWaterWindow(this.ctx);
       case 'scenery':
         return openToolWindow(this.ctx, SCENERY_WINDOW);
       case 'paths':
         return openPathWindow(this.ctx);
       case 'clear':
-        return this.openNotice(
-          'clear',
-          'Clear scenery',
-          'Clearing scenery is not available in this version.',
-          'tool',
-        );
+        return openClearWindow(this.ctx);
       case 'ride-select':
         this.chooseTool('select');
         return openRideSelect(this.ctx);
@@ -683,12 +669,16 @@ export class GameUI {
         ? 'Select a guest or tile. Drag to pan; Page Up/Down or pinch to zoom.'
         : tool === 'land'
           ? 'Land tool selected. Tap to raise; use Lower (or Shift) to dig.'
-          : tool === 'buy-land'
-            ? 'Land purchase selected. Click a marked land tile to buy it.'
-            : tool === 'buy-rights'
-              ? 'Construction rights selected. Click a marked tile to buy the rights.'
-              : tool === 'patrol'
-                ? `Patrol tool selected${this.patrolKind === null ? '' : ` for ${STAFF_KIND_NAMES[this.patrolKind] ?? 'Staff'}`}. Tap tiles to add them; use Remove tiles (or Shift) to remove.`
-                : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
+          : tool === 'clear'
+            ? 'Clear scenery selected. Tap to remove trees, scenery and path additions in the area.'
+            : tool === 'water'
+              ? 'Water tool selected. Tap to raise the water; use Lower (or Shift) to drain.'
+              : tool === 'buy-land'
+                ? 'Land purchase selected. Click a marked land tile to buy it.'
+                : tool === 'buy-rights'
+                  ? 'Construction rights selected. Click a marked tile to buy the rights.'
+                  : tool === 'patrol'
+                    ? `Patrol tool selected${this.patrolKind === null ? '' : ` for ${STAFF_KIND_NAMES[this.patrolKind] ?? 'Staff'}`}. Tap tiles to add them; use Remove tiles (or Shift) to remove.`
+                    : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
   }
 }

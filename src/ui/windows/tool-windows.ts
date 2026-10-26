@@ -72,20 +72,6 @@ export const SCENERY_WINDOW: ToolWindowSpec = {
   ],
 };
 
-export const WATER_WINDOW: ToolWindowSpec = {
-  id: 'water',
-  title: 'Water',
-  tabs: [
-    {
-      id: 'water',
-      label: 'Water',
-      icon: 'water',
-      tool: 'select',
-      help: 'Water tools are not available in this version.',
-    },
-  ],
-};
-
 /** A window of build-tool tabs: choosing a tab picks its map tool; closing the window returns to Select. */
 export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowController {
   const byId = new Map(spec.tabs.map((tab) => [tab.id, tab]));

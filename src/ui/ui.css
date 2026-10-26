@@ -1426,7 +1426,8 @@
 .land-overlay .land-down {
   stroke: #ffb04d;
 }
-.land-tip {
+.land-tip,
+.area-tip {
   position: fixed;
   z-index: 46;
   max-width: 260px;
@@ -1437,12 +1438,14 @@
   color: #fff6c4;
   font-size: 12px;
 }
-.land-tip.land-tip-bad {
+.land-tip.land-tip-bad,
+.area-tip.area-tip-bad {
   background: rgba(46, 16, 14, 0.92);
   border-color: #c85a4e;
   color: #ffd9d3;
 }
-.land-tip[hidden] {
+.land-tip[hidden],
+.area-tip[hidden] {
   display: none;
 }
 
@@ -1475,4 +1478,50 @@
   fill: rgba(125, 255, 154, 0.18);
   stroke: #7dff9a;
   stroke-width: 1.5;
+}
+
+.area-overlay {
+  position: fixed;
+  z-index: 35;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  pointer-events: none;
+}
+.area-overlay[hidden] {
+  display: none;
+}
+.area-overlay polygon {
+  vector-effect: non-scaling-stroke;
+}
+.area-overlay .area-sel {
+  fill: rgba(255, 241, 138, 0.16);
+  stroke: #fff18a;
+  stroke-width: 1.5;
+}
+.area-overlay .area-bad {
+  fill: rgba(235, 80, 70, 0.3);
+  stroke: #ff7a6e;
+}
+.area-overlay .area-hit {
+  fill: rgba(255, 122, 110, 0.4);
+  stroke: #ff7a6e;
+  stroke-width: 2;
+}
+.area-overlay .area-water {
+  fill: rgba(90, 170, 255, 0.45);
+  stroke: #9fd2ff;
+  stroke-width: 1.5;
+}
+.area-overlay .area-cursor {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.area-overlay .area-block {
+  fill: rgba(235, 80, 70, 0.5);
+  stroke: #ff3b30;
+  stroke-width: 2;
 }

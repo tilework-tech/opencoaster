@@ -16,6 +16,7 @@ import {
 import { findGuestAt } from './selection';
 import type { PathFeedback } from './path-feedback';
 import type { LandController } from './land-controller';
+import type { AreaController } from './area-controller';
 import type { PathTool } from './path/controller';
 import type { Tile } from './path/run';
 
@@ -30,6 +31,7 @@ export interface ToolControllerDependencies {
   setSelectedGuest: (guest: GuestSelection | null) => void;
   alternate: () => boolean;
   land: LandController;
+  areaTools: Record<'clear' | 'water', AreaController>;
   pathFeedback: PathFeedback;
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
@@ -161,6 +163,8 @@ export function createToolController(deps: ToolControllerDependencies) {
       }
       const [x, y] = tile;
       if (selectedTool === 'land') deps.land.tap(clientX, clientY, shiftKey);
+      else if (selectedTool === 'clear' || selectedTool === 'water')
+        deps.areaTools[selectedTool].tap(clientX, clientY, shiftKey || deps.alternate());
       else if (selectedTool === 'buy-land') handleLandPurchase(handlerDeps, x, y, false);
       else if (selectedTool === 'buy-rights') handleLandPurchase(handlerDeps, x, y, true);
       else if (selectedTool === 'path') handlePathTool(handlerDeps, x, y);

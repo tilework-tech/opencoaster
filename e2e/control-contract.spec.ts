@@ -610,20 +610,6 @@ async function toolbarClick(page: Page, name: string, mobile: boolean): Promise<
 }
 
 async function checkDisabledControls(page: Page, mobile = false): Promise<void> {
-  const actions = page
-    .locator('.game-toolbar')
-    .getByRole('button', { name: 'Actions', exact: true });
-  if (mobile && (await actions.getAttribute('aria-expanded')) !== 'true')
-    await actions.tap({ timeout: 5_000 });
-  for (const [name, reason] of [
-    ['Clear scenery', /not available/i],
-    ['Water', /not available/i],
-  ] as const) {
-    const control = page.locator('.game-toolbar').getByRole('button', { name, exact: true });
-    await expect(control).toBeDisabled();
-    await expect(control).toHaveAttribute('title', reason);
-  }
-  if (mobile) await actions.tap({ timeout: 5_000 });
   await toolbarClick(page, 'Game options', mobile);
   const options = page.locator('[data-panel="options"]');
   if (mobile) await options.getByRole('tab', { name: 'Display' }).tap({ timeout: 5_000 });

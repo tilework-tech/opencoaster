@@ -24,7 +24,9 @@ export type ToolMode =
   | 'track'
   | 'buy-land'
   | 'buy-rights'
-  | 'patrol';
+  | 'patrol'
+  | 'clear'
+  | 'water';
 
 /** Footpath construction as the Footpaths window drives it. */
 export interface FootpathControls {
@@ -52,6 +54,13 @@ export interface LandSettings {
 
 export const LAND_SIZE_RANGE = { min: 1, max: 10 } as const;
 
+/** Clear scenery and Water tool settings; `lower` only applies to Water. */
+export interface AreaToolSettings {
+  /** Edge length in tiles of the square the tool acts on, within `LAND_SIZE_RANGE`. */
+  size: number;
+  lower: boolean;
+}
+
 export interface GameUIActions {
   setPaused(paused: boolean): void;
   setSpeed(speed: number): void;
@@ -74,6 +83,8 @@ export interface GameUIActions {
   /** Puts the next map click to use the alternate action: lower land, remove, un-plant. */
   setAlternate(on: boolean): void;
   setLand(settings: LandSettings): void;
+  setClearScenery(settings: AreaToolSettings): void;
+  setWater(settings: AreaToolSettings): void;
   footpath: FootpathControls;
   setSceneryItem(item: number): void;
   /** Turns the scenery piece the Scenery tool places by a quarter turn. */
