@@ -1,3 +1,4 @@
+import { occluderDepth, sceneryDepth } from './terrain-occlusion';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import { SNAPSHOT_STRIDE, guestRowHeading, isRidingGuestRow } from '../worker/snapshot';
@@ -559,7 +560,7 @@ export class Canvas2DRenderer implements Renderer {
         const rideFloor = this.rideCells.floor[i]!;
         const belowRide = rideFloor > 0 && terrainPeak <= rideFloor - 1;
         if (!belowRide && (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1))) {
-          this.enqueue(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 5, () =>
+          this.queueAtDepth(occluderDepth(map, x, y, cam.rotation), () =>
             this.drawTerrainOccluder(ctx, map, cam, x, y, i, mask, terrainSurface, sx, sy, lift),
           );
         }
@@ -579,15 +580,17 @@ export class Canvas2DRenderer implements Renderer {
           }
         }
         if (this.atlas)
-          this.enqueue(
-            map,
-            cam,
-            centerX,
-            centerY,
-            groundFlowerBed || sceneryFlowerBed
-              ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
-              : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-            groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
+          this.queueAtDepth(
+            sceneryDepth(
+              map,
+              x,
+              y,
+              cam.rotation,
+              groundFlowerBed || sceneryFlowerBed
+                ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
+                : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+              groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
+            ),
             () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         for (
@@ -615,15 +618,17 @@ export class Canvas2DRenderer implements Renderer {
           this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 0, () =>
             this.drawPathGhost(ctx, map, cam, ghost),
           );
-        this.enqueue(
-          map,
-          cam,
-          centerX,
-          centerY,
-          sceneryFlowerBed
-            ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
-            : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-          sceneryFlowerBed ? SOLID_BIAS : 2,
+        this.queueAtDepth(
+          sceneryDepth(
+            map,
+            x,
+            y,
+            cam.rotation,
+            sceneryFlowerBed
+              ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
+              : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
+            sceneryFlowerBed ? SOLID_BIAS : 2,
+          ),
           () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
@@ -867,6 +872,7 @@ export class Canvas2DRenderer implements Renderer {
     ctx.lineTo(target[2]![0]!, target[2]![1]!);
     ctx.closePath();
     ctx.clip();
+    ctx.imageSmoothingEnabled = false;
 
     const [sourceOrigin, sourceX, sourceY] = source;
     const [targetOrigin, targetX, targetY] = target;
@@ -1223,7 +1229,7 @@ export class Canvas2DRenderer implements Renderer {
           ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
           : definition.sprite === 'shrub'
             ? shrubSpriteName(x, y, cam.rotation)
-            : scenerySpriteName(definition.sprite);
+            : scenerySpriteName(definition.sprite, cam.rotation);
       const drewSprite =
         this.atlas &&
         (definition.sprite === 'flower-bed'
@@ -1625,7 +1631,13 @@ export class Canvas2DRenderer implements Renderer {
       if (drawn) this.visibleCount++;
     };
     const tree = ambientTreeName(map.surface[tile]!, x, y);
-    if (tree) place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
+    if (tree)
+      place(
+        scenerySpriteName(tree, cam.rotation),
+        0,
+        AMBIENT_TREE_BOX.width,
+        AMBIENT_TREE_BOX.height,
+      );
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
       place(
         flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!),

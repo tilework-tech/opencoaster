@@ -6,6 +6,8 @@ import { MaxRectsBin } from './maxrects';
 
 /** Largest page edge; 2048 is safe on mobile GPUs. */
 export const MAX_PAGE_SIZE = 2048;
+/** Transparent gutter between packed frames to prevent neighbouring texels from bleeding in scaled draws. */
+export const SPRITE_PADDING = 2;
 /** Directory under the sprite output holding the page PNGs; excluded from packer input. */
 export const ATLAS_PAGE_DIRECTORY = 'atlas';
 
@@ -243,14 +245,19 @@ export async function packSprites(inputDir: string, outputDir: string): Promise<
     );
     const bins: { bin: MaxRectsBin; frames: PackedFrame[]; width: number; height: number }[] = [];
     for (const frame of sorted) {
-      if (frame.region.width > MAX_PAGE_SIZE || frame.region.height > MAX_PAGE_SIZE)
+      if (
+        frame.region.width + SPRITE_PADDING * 2 > MAX_PAGE_SIZE ||
+        frame.region.height + SPRITE_PADDING * 2 > MAX_PAGE_SIZE
+      )
         throw new Error(
           `Sprite ${frame.spriteKey} (${frame.region.width}x${frame.region.height}) exceeds the ` +
             `${MAX_PAGE_SIZE}px page limit`,
         );
       let placed = null;
+      const paddedWidth = frame.region.width + SPRITE_PADDING * 2;
+      const paddedHeight = frame.region.height + SPRITE_PADDING * 2;
       let target = bins.find((candidate) => {
-        placed = candidate.bin.insert(frame.region.width, frame.region.height);
+        placed = candidate.bin.insert(paddedWidth, paddedHeight);
         return placed !== null;
       });
       if (!target) {
@@ -261,12 +268,17 @@ export async function packSprites(inputDir: string, outputDir: string): Promise<
           height: 0,
         };
         bins.push(target);
-        placed = target.bin.insert(frame.region.width, frame.region.height);
+        placed = target.bin.insert(paddedWidth, paddedHeight);
       }
       const rect = placed!;
-      target.frames.push({ ...frame, page: -1, x: rect.x, y: rect.y });
-      target.width = Math.max(target.width, rect.x + frame.region.width);
-      target.height = Math.max(target.height, rect.y + frame.region.height);
+      target.frames.push({
+        ...frame,
+        page: -1,
+        x: rect.x + SPRITE_PADDING,
+        y: rect.y + SPRITE_PADDING,
+      });
+      target.width = Math.max(target.width, rect.x + paddedWidth);
+      target.height = Math.max(target.height, rect.y + paddedHeight);
     }
     manifestCategories[name] = { lazy, pages: [] };
     bins.forEach((entry, binIndex) => {

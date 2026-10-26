@@ -27,6 +27,8 @@ class RecordingContext {
   readonly spriteSources: number[] = [];
   readonly images: unknown[][] = [];
   readonly imageTransforms: number[][] = [];
+  readonly smoothingAtDraw: boolean[] = [];
+  readonly operations: string[] = [];
   private currentTransform = [1, 0, 0, 1, 0, 0];
   imageSmoothingEnabled = true;
   fillStyle = '#000';
@@ -53,6 +55,7 @@ class RecordingContext {
 
   fill(): void {
     this.fills.push(this.fillStyle);
+    this.operations.push(`fill:${this.fillStyle}`);
   }
 
   arc(): void {
@@ -71,8 +74,10 @@ class RecordingContext {
 
   drawImage(...args: unknown[]): void {
     this.images.push(args);
+    this.operations.push(`image:${String(args[1])}`);
     this.imageTransforms.push(this.currentTransform);
     this.spriteSources.push(args[1] as number);
+    this.smoothingAtDraw.push(this.imageSmoothingEnabled);
   }
 }
 
@@ -170,6 +175,36 @@ function flatMap(): MapData {
 }
 
 describe('Canvas2D fallback map art', () => {
+  it('draws terrain cliff atlas frames without image smoothing', () => {
+    const context = new RecordingContext();
+    const renderer = new Canvas2DRenderer();
+    const drawTriangle = (
+      renderer as unknown as {
+        drawCliffTextureTriangle: (
+          ctx: RecordingContext,
+          image: PageImage,
+          frame: { x: number; y: number; width: number; height: number },
+          source: readonly [[number, number], [number, number], [number, number]],
+          target: readonly [Float64Array, Float64Array, Float64Array],
+        ) => void;
+      }
+    ).drawCliffTextureTriangle;
+
+    drawTriangle(
+      context,
+      {} as PageImage,
+      { x: 0, y: 0, width: 16, height: 16 },
+      [
+        [0, 0],
+        [16, 0],
+        [0, 16],
+      ],
+      [new Float64Array([0, 0]), new Float64Array([16, 0]), new Float64Array([0, 16])],
+    );
+
+    expect(context.smoothingAtDraw).toEqual([false]);
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   it('draws staff in their walking direction and advances their walk cycle', async () => {
@@ -362,6 +397,32 @@ describe('Canvas2D fallback map art', () => {
     expect(image?.slice(-2)).toEqual([definition.width, definition.height * 12]);
   });
 
+  it('draws a tree on a sloped tile after that tile is redrawn over the sprites behind it', async () => {
+    for (const rotation of [0, 1, 2, 3] as const) {
+      const map = flatMap();
+      map.heights.fill(2);
+      map.slope[2 * 5 + 2] = 0b0110;
+      map.sceneryElements = Int32Array.of(2, 2, 0, 0, SceneryItem.OakTree);
+      map.sceneryCount = 1;
+
+      const context = await renderWithAtlas(map, ['trees/tree-oak'], null, {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        rotation,
+      });
+
+      const tree = context.operations.indexOf('image:1');
+      const occluder = context.operations.lastIndexOf('fill:#5aa24a', tree);
+      expect(tree, `tree drawn at rotation ${rotation}`).toBeGreaterThanOrEqual(0);
+      expect(occluder, `occluder before tree at rotation ${rotation}`).toBeGreaterThanOrEqual(0);
+      expect(
+        context.operations.slice(tree).filter((op) => op === 'fill:#5aa24a'),
+        `no terrain redraw over the tree at rotation ${rotation}`,
+      ).toEqual([]);
+    }
+  });
+
   it('renders scenery placement previews in the same screen rect as placed scenery on slopes', async () => {
     vi.stubGlobal('document', {
       createElement: (tag: string) =>
@@ -396,7 +457,7 @@ describe('Canvas2D fallback map art', () => {
               ? flowerBedSpriteName(tileX, tileY, rotation, map.slope[tile]!)
               : definition.sprite === 'shrub'
                 ? shrubSpriteName(tileX, tileY, rotation)
-                : scenerySpriteName(definition.sprite);
+                : scenerySpriteName(definition.sprite, rotation);
           const placed = await renderWithAtlas(map, [key], null, {
             x: 0,
             y: 0,
@@ -624,7 +685,7 @@ describe('Canvas2D fallback map art', () => {
     const camera = { x: (x - y) * 32, y: (x + y) * 16, zoom: 1, rotation: 0 as const };
     const context = await renderWithAtlas(
       map,
-      ['trees/tree-palm', 'trees/tree-cactus'],
+      ['trees/tree-palm/view-0', 'trees/tree-cactus/view-0'],
       null,
       camera,
     );

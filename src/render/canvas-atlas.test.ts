@@ -82,6 +82,17 @@ describe('canvas sprite helpers', () => {
     expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 0, 128, 64, 78.125, 64.375, 40, 20);
   });
 
+  it('disables image smoothing while drawing scaled sprites', () => {
+    const ctx = fakeContext();
+    ctx.drawImage.mockImplementation(() => {
+      expect(ctx.imageSmoothingEnabled).toBe(false);
+    });
+
+    drawBoxedSprite(ctx, atlas, 'scenery/trimmed', 100, 80, 40, 20);
+
+    expect(ctx.restore).toHaveBeenCalledTimes(1);
+  });
+
   it('reports missing sprites so callers can fall back to procedural drawing', () => {
     expect(drawAnchoredSprite(fakeContext(), atlas, 'paths/none', 0, 0)).toBe(false);
     expect(drawTileTexture(fakeContext(), atlas, 'water/none', 0, 0, 0, 64, 32)).toBe(false);

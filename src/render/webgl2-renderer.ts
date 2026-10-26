@@ -47,6 +47,7 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
+import { TERRAIN_OCCLUDER_DEPTH_OFFSET, sceneryDepth } from './terrain-occlusion';
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import {
   SOLID_BIAS,
@@ -1254,7 +1255,12 @@ export class WebGL2Renderer implements Renderer {
       const dy = lists.occluderY[i] - camera.y;
       if (dy < -top || dy > bottom) continue;
       if (this.hiddenByRide(map, lists.occluders[i])) continue;
-      this.appendGroundTile(map, lists.occluders[i], camera.rotation, 5);
+      this.appendGroundTile(
+        map,
+        lists.occluders[i],
+        camera.rotation,
+        TERRAIN_OCCLUDER_DEPTH_OFFSET,
+      );
     }
     const frame = waterSpriteName(waterFrameIndex(tick));
     for (let i = 0; i < lists.water.length; i++) {
@@ -1489,12 +1495,11 @@ export class WebGL2Renderer implements Renderer {
         const index = y * map.width + x;
         const tree = ambientTreeName(map.surface[index]!, x, y);
         if (!tree) continue;
-        const sprite = scenerySpriteName(tree);
+        const sprite = scenerySpriteName(tree, camera.rotation);
         const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-        const depth =
-          2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+        const depth = sceneryDepth(map, x, y, camera.rotation, z);
         project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1802,8 +1807,7 @@ export class WebGL2Renderer implements Renderer {
       const box = sceneryBox(item);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth =
-        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+      const depth = sceneryDepth(map, x, y, camera.rotation, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       const spriteHeight = box.height;
       if (
@@ -1828,7 +1832,7 @@ export class WebGL2Renderer implements Renderer {
           ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
           : item.sprite === 'shrub'
             ? shrubSpriteName(x, y, camera.rotation)
-            : scenerySpriteName(item.sprite),
+            : scenerySpriteName(item.sprite, camera.rotation),
         depth,
       );
     }

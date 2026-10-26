@@ -5,6 +5,7 @@ import { renderSprites } from '../sprites/generate';
 import { renderUiIcons } from '../sprites/ui-icons';
 import { PREPARED_PROP_SPRITES, PREPARED_TERRAIN_MATERIALS } from './prepared-assets';
 import { defringeRgba } from './image-cleanup';
+import { cutProps } from './prop-cutter';
 
 const sourceDirectory = new URL('./source/', import.meta.url);
 const outputDirectory = new URL('../../public/sprites/', import.meta.url);
@@ -200,17 +201,25 @@ async function prepareTerrain(): Promise<void> {
 
 async function prepareProps(): Promise<void> {
   const source = await readFile(new URL('world-props.png', sourceDirectory));
-  const { width, height } = await sharp(source).metadata();
-  if (!width || !height) throw new Error('Could not read world props dimensions');
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   const spriteIds = PREPARED_PROP_SPRITES;
+  const props = cutProps(data, info.width, info.height, 4, 4);
+  if (props.length !== spriteIds.length) throw new Error('Prop sheet does not match sprite list');
   for (let index = 0; index < spriteIds.length; index++) {
-    const bounds = gridBounds(width, height, 4, 4, index % 4, Math.floor(index / 4));
-    const image = await cell(source, bounds);
+    const prop = props[index]!;
+    const image = await sharp(prop.data, {
+      raw: { width: prop.width, height: prop.height, channels: 4 },
+    })
+      .png()
+      .toBuffer();
     const cleaned = await cleanedImage(image, 128);
     const { width: imageWidth, height: imageHeight } = await sharp(cleaned).metadata();
     if (!imageWidth || !imageHeight)
       throw new Error(`Could not read cleaned prop ${spriteIds[index]}`);
-    await saveSprite(spriteIds[index], cleaned, {
+    await saveSprite(spriteIds[index]!, cleaned, {
       anchor: { x: Math.floor(imageWidth / 2), y: imageHeight },
       footprint: { width: 1, height: 1 },
     });

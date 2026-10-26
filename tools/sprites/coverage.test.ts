@@ -8,6 +8,7 @@ import {
   spriteCoverageStatus,
 } from './coverage';
 import { PREPARED_PROP_SPRITES, PREPARED_TERRAIN_MATERIALS } from '../art/prepared-assets';
+import { scenerySpriteName } from '../../src/render/world-art';
 
 const rows = buildArtCoverage();
 
@@ -57,10 +58,10 @@ describe('art coverage inventory', () => {
     for (const key of [...PREPARED_PROP_SPRITES, ...terrain])
       expect(available.has(key), key).toBe(true);
     for (const item of SCENERY_CATALOG) {
-      const key = item.sprite.startsWith('tree-')
-        ? `trees/${item.sprite}`
-        : `scenery/${item.sprite}`;
-      expect(available.has(key), item.name).toBe(true);
+      for (const rotation of [0, 1, 2, 3]) {
+        const key = scenerySpriteName(item.sprite, rotation);
+        expect(available.has(key), `${item.name}: ${key}`).toBe(true);
+      }
     }
   });
 

@@ -80,6 +80,15 @@ describe('scenery spot preview', () => {
     expect(label.style.top).toBe('94px');
   });
 
+  it('uses the camera-facing palm view in the placement preview', async () => {
+    const preview = new ScenerySpotPreview(parent as never, fakeSim(SceneryResult.Ok));
+    const treeHover = hover({ item: SceneryItem.PalmTree, viewRotation: 3 });
+    preview.update(treeHover, 0);
+    await flush();
+
+    expect(preview.update(treeHover, 0)?.sprite).toBe('trees/tree-palm/view-3');
+  });
+
   it('tints the piece red and states the reason when the sim refuses the spot', async () => {
     const preview = new ScenerySpotPreview(parent as never, fakeSim(SceneryResult.NotOwned));
     preview.update(hover(), 0);

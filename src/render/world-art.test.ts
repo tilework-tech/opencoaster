@@ -36,6 +36,15 @@ describe('world art sprite selection', () => {
     expect(ambientTreeName(0, 4, 1)).toBe('tree-topiary');
     expect(ambientTreeName(4, 4, 1)).toBeNull();
   });
+
+  it('selects a camera-facing view for palms and cacti in every map rotation', () => {
+    for (const tree of ['tree-palm', 'tree-cactus']) {
+      expect([0, 1, 2, 3].map((rotation) => scenerySpriteName(tree, rotation))).toEqual(
+        [0, 1, 2, 3].map((view) => `trees/${tree}/view-${view}`),
+      );
+    }
+    expect(scenerySpriteName('tree-oak', 2)).toBe('trees/tree-oak');
+  });
   it('selects one authored terrain shape for every corner-height mask and surface', () => {
     const surfaces = ['grass', 'dirt', 'sand', 'rock'] as const;
     for (const surface of surfaces) {
