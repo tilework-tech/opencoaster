@@ -89,6 +89,11 @@ export interface CameraInputDependencies {
   renderScale: () => number;
   /** Hands back the resize routine so the frame loop can re-run it when the render scale changes. */
   registerResize: (resize: () => void) => void;
+  /**
+   * Hands back a routine that recomputes every hover for a stationary cursor, for when the camera
+   * or the world changes underneath it.
+   */
+  registerRefreshHover: (refresh: () => void) => void;
 }
 
 function localPosition(canvas: HTMLCanvasElement, x: number, y: number): [number, number] {
@@ -300,36 +305,43 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
     pointerInput.pointerDown(pointerSample(event));
     canvas.setPointerCapture(event.pointerId);
   });
-  canvas.addEventListener('pointermove', (event) => {
-    if (event.pointerType === 'mouse' && event.buttons === 0)
-      deps.hoverObject(event.clientX, event.clientY);
-    if (deps.selectedTool() === 'path' && event.pointerType === 'mouse' && event.buttons === 0)
-      deps.pathDrag.hover(event.clientX, event.clientY);
+  /** Last mouse position over the canvas while no button is held; null once it leaves. */
+  let hoverPointer: { clientX: number; clientY: number; shiftKey: boolean } | null = null;
+
+  function updateHover(clientX: number, clientY: number, shiftKey: boolean, mouse: boolean): void {
+    if (mouse) deps.hoverObject(clientX, clientY);
+    if (deps.selectedTool() === 'path' && mouse) deps.pathDrag.hover(clientX, clientY);
     const map = sim.map;
     let tile: [number, number] | null = null;
     if (map) {
       const rect = canvas.getBoundingClientRect();
-      tile = pickTile(event.clientX - rect.left, event.clientY - rect.top, map, camera, {
+      tile = pickTile(clientX - rect.left, clientY - rect.top, map, camera, {
         width: rect.width,
         height: rect.height,
       });
     }
     const tool = deps.selectedTool();
-    if (event.pointerType === 'mouse' && event.buttons === 0) {
-      if (tool === 'land') deps.land.hover(event.clientX, event.clientY);
-      else if (tool === 'clear' || tool === 'water')
-        deps.areaTools[tool].hover(event.clientX, event.clientY);
+    if (mouse) {
+      if (tool === 'land') deps.land.hover(clientX, clientY);
+      else if (tool === 'clear' || tool === 'water') deps.areaTools[tool].hover(clientX, clientY);
     }
-    if (deps.selectedTool() === 'track') coasterPanel.setHover(tile);
-    if (
-      deps.selectedTool() === 'track' ||
-      deps.selectedTool() === 'ride' ||
-      deps.selectedTool() === 'scenery'
-    )
-      deps.setPlacementHover(
-        tile ? { tile, clientX: event.clientX, clientY: event.clientY } : null,
-      );
-    deps.setBuildHover(tile, event.clientX, event.clientY, event.shiftKey);
+    if (tool === 'track') coasterPanel.setHover(tile);
+    if (tool === 'track' || tool === 'ride' || tool === 'scenery')
+      deps.setPlacementHover(tile ? { tile, clientX, clientY } : null);
+    deps.setBuildHover(tile, clientX, clientY, shiftKey);
+  }
+
+  deps.registerRefreshHover(() => {
+    if (!hoverPointer) return;
+    updateHover(hoverPointer.clientX, hoverPointer.clientY, hoverPointer.shiftKey, true);
+  });
+
+  canvas.addEventListener('pointermove', (event) => {
+    const mouseHover = event.pointerType === 'mouse' && event.buttons === 0;
+    hoverPointer = mouseHover
+      ? { clientX: event.clientX, clientY: event.clientY, shiftKey: event.shiftKey }
+      : null;
+    updateHover(event.clientX, event.clientY, event.shiftKey, mouseHover);
     pointerInput.pointerMove(pointerSample(event));
   });
   canvas.addEventListener('pointerup', (event) => {
@@ -337,6 +349,7 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   });
   canvas.addEventListener('pointercancel', (event) => pointerInput.pointerCancel(event.pointerId));
   canvas.addEventListener('pointerleave', (event) => {
+    hoverPointer = null;
     deps.clearObjectHover();
     deps.pathDrag.hoverEnd();
     deps.setPlacementHover(null);

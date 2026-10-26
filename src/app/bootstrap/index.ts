@@ -382,6 +382,7 @@ export async function bootstrap(): Promise<void> {
   const resolution = new AdaptiveResolution();
   let appliedScale = resolution.scale;
   let resizeCanvas: () => void = () => undefined;
+  let refreshHover: () => void = () => undefined;
   const keys = connectCameraInput({
     canvas,
     renderer,
@@ -418,7 +419,10 @@ export async function bootstrap(): Promise<void> {
     viewport,
     renderScale: () => appliedScale,
     registerResize: (resize) => (resizeCanvas = resize),
+    registerRefreshHover: (refresh) => (refreshHover = refresh),
   });
+  let hoverViewKey = '';
+  let hoverMap = sim.map;
 
   /** Minimum time between HUD text writes; keeps DOM churn off the frame path. */
   const HUD_INTERVAL_MS = 50;
@@ -485,6 +489,12 @@ export async function bootstrap(): Promise<void> {
       }
     }
     syncPause();
+    const viewKey = `${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}`;
+    if (viewKey !== hoverViewKey || sim.map !== hoverMap) {
+      hoverViewKey = viewKey;
+      hoverMap = sim.map;
+      refreshHover();
+    }
     camera.showGridlines = localStorage.getItem('opencoaster-option-gridlines') === 'true';
     const renderStart = performance.now();
     renderer.draw(sim.latest, camera);
