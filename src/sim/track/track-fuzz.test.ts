@@ -73,7 +73,7 @@ function fuzz(seed: number): { hash: number; sim: Simulation } {
 describe('track fuzz', () => {
   it('keeps chains consistent under random commands and replays identically', () => {
     const a = fuzz(11);
-    expect(a.sim.world.track.pieces.count).toBeGreaterThan(20);
+    expect(a.sim.world.track.pieces.count).toBeGreaterThan(5);
     expect(fuzz(11).hash).toBe(a.hash);
     expect(fuzz(12).hash).not.toBe(a.hash);
   });

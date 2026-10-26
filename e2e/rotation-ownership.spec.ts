@@ -279,3 +279,158 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
   expect(report.checked).toBeGreaterThan(80);
   expect(report.misses).toEqual([]);
 });
+
+test('coaster circuit tiles keep world ownership beside path and stall in every view', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1600 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Sandbox' }).click();
+
+  const report = await page.evaluate(async () => {
+    const [
+      { Canvas2DRenderer },
+      { WebGL2Renderer },
+      { CoasterScene },
+      { spritePages },
+      { worldToScreen },
+      { createSnapshot, writeSnapshot, RideInfo, RIDE_INFO_STRIDE },
+      { buildCircuit, connectStation, createCoaster, flatOwnedSim },
+      { RideType },
+    ] = await Promise.all([
+      import('/src/render/canvas2d-renderer.ts'),
+      import('/src/render/webgl2-renderer.ts'),
+      import('/src/render/coaster-scene.ts'),
+      import('/src/render/sprite-pages.ts'),
+      import('/src/render/projection.ts'),
+      import('/src/worker/snapshot.ts'),
+      import('/src/sim/rides/coaster-fixtures.ts'),
+      import('/src/sim/rides/ride-types.ts'),
+    ]);
+    const sim = flatOwnedSim(31);
+    const rideId = createCoaster(sim, RideType.WoodenCoaster);
+    buildCircuit(sim, rideId);
+    connectStation(sim, rideId);
+    const stallId = createCoaster(sim, RideType.FoodStall, 22, 18);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
+    sim.step();
+    sim.step();
+    const world = sim.world;
+    const width = world.map.width;
+    const height = world.map.height;
+    const snapshot = createSnapshot({
+      guests: 0,
+      staff: 0,
+      vehicles: 8,
+      cars: 64,
+      litter: 0,
+      rides: 4,
+      tracks: 64,
+      mapTiles: width * height,
+    });
+    writeSnapshot(world, snapshot);
+    if (snapshot.tracks.count < 10 || snapshot.cars.count === 0)
+      throw new Error('coaster circuit or test train is missing from the render snapshot');
+    const map = {
+      width,
+      height,
+      heights: world.map.heights,
+      surface: world.map.surface,
+      slope: world.map.slope,
+      waterLevel: world.map.waterLevel,
+      pathElements: Int32Array.from([20, 19, 2, 0b1111, 0, 0]),
+      pathCount: 1,
+    };
+    spritePages.start();
+    const manifestDeadline = Date.now() + 15_000;
+    while (spritePages.pageInfos.length === 0) {
+      if (Date.now() > manifestDeadline) throw new Error('sprite manifest did not finish loading');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    const categories = ['coaster-wood', 'people', 'stalls', 'vehicles', 'world'];
+    for (const category of categories) spritePages.requestCategory(category);
+    const deadline = Date.now() + 30_000;
+    while (categories.some((category) => !spritePages.isLoaded(category))) {
+      if (Date.now() > deadline) throw new Error('track sprite pages did not finish loading');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const grid = document.createElement('main');
+    grid.style.cssText =
+      'display:flex;flex-direction:column;gap:8px;padding:12px;background:#182312;color:white;font:14px sans-serif';
+    document.body.replaceChildren(grid);
+    const scene = new CoasterScene();
+    const checked: string[] = [];
+    for (let rotation = 0; rotation < 4; rotation++) {
+      scene.build(snapshot, map, rotation);
+      const track = scene.items.find((item) => item.key.includes('/track/station/'));
+      if (!track) throw new Error('station track sprite was not built');
+      const trackScreen = worldToScreen(track.x / 256, track.y / 256, track.z / 64, rotation, map);
+      const expectedTrack = worldToScreen(20.5, 20.5, 2, rotation, map);
+      if (Math.hypot(trackScreen[0] - expectedTrack[0], trackScreen[1] - expectedTrack[1]) > 1)
+        throw new Error(`station moved from its world tile at rotation ${rotation}`);
+      if (!scene.items.some((item) => item.key.includes('/vehicles/car/')))
+        throw new Error(`test train is not being drawn at rotation ${rotation}`);
+      const path = worldToScreen(20.5, 19.5, 2, rotation, map);
+      const stall = worldToScreen(22.5, 18.5, 2, rotation, map);
+      const relativeTrackPath = [trackScreen[0] - path[0], trackScreen[1] - path[1]];
+      const canonicalRelative = [expectedTrack[0] - path[0], expectedTrack[1] - path[1]];
+      if (
+        Math.hypot(
+          relativeTrackPath[0] - canonicalRelative[0],
+          relativeTrackPath[1] - canonicalRelative[1],
+        ) > 1
+      )
+        throw new Error(`track to path offset changed at rotation ${rotation}`);
+      const relativeTrackStall = [trackScreen[0] - stall[0], trackScreen[1] - stall[1]];
+      const canonicalTrackStall = [expectedTrack[0] - stall[0], expectedTrack[1] - stall[1]];
+      if (
+        Math.hypot(
+          relativeTrackStall[0] - canonicalTrackStall[0],
+          relativeTrackStall[1] - canonicalTrackStall[1],
+        ) > 1
+      )
+        throw new Error(`track to stall offset changed at rotation ${rotation}`);
+      const stallIndex = Array.from({ length: snapshot.rides.count }, (_, i) => i).find(
+        (i) => snapshot.rideInfo[i * RIDE_INFO_STRIDE + RideInfo.Id] === stallId,
+      );
+      if (stallIndex === undefined) throw new Error('stall is missing from rendered ride data');
+      if (
+        snapshot.rideInfo[stallIndex * RIDE_INFO_STRIDE + RideInfo.RideX] !== 22 ||
+        snapshot.rideInfo[stallIndex * RIDE_INFO_STRIDE + RideInfo.RideY] !== 18
+      )
+        throw new Error('stall world tile changed');
+      const center = worldToScreen(22, 19, 0, rotation, map);
+      const panel = document.createElement('section');
+      panel.style.cssText = 'display:flex;gap:8px;align-items:flex-start';
+      const title = document.createElement('h2');
+      title.style.cssText = 'width:120px;flex:none';
+      title.textContent = `rotation ${rotation}`;
+      panel.append(title);
+      for (const [backend, Renderer] of [
+        ['Canvas2D', Canvas2DRenderer],
+        ['WebGL2', WebGL2Renderer],
+      ] as const) {
+        const renderer = new Renderer();
+        const canvas = document.createElement('canvas');
+        renderer.attach(canvas);
+        renderer.resize(450, 260, 1);
+        renderer.setMap(map as never);
+        renderer.draw(snapshot, { x: center[0], y: center[1], zoom: 1, rotation });
+        const figure = document.createElement('figure');
+        figure.style.cssText = 'margin:0';
+        const caption = document.createElement('figcaption');
+        caption.textContent = backend;
+        figure.append(caption, canvas);
+        panel.append(figure);
+      }
+      grid.append(panel);
+      checked.push(`rotation-${rotation}:ride-${rideId}:stall-${stallId}:${Math.round(stall[0])}`);
+    }
+    return checked;
+  });
+  expect(report).toHaveLength(4);
+  await page.screenshot({
+    path: '.local/pr-proof/coaster-circuit-rotations-after.png',
+    fullPage: true,
+  });
+});

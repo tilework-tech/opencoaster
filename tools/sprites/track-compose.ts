@@ -5,7 +5,13 @@ import type { TrackPieceDef } from '../../src/sim/track/track-types';
 import { PieceMode } from '../../src/sim/track/track-types';
 import { artPieces, trackCellSprites, transportTrackCells } from '../../src/render/coaster-art';
 import type { TrackArt, TrackRideFamily, TransportFamily } from '../../src/render/coaster-art';
-import { project, Z_PIXELS } from '../../src/render/projection';
+import {
+  project,
+  rotateDirection,
+  rotatePoint as rotateWorldPoint,
+  viewDepth,
+  Z_PIXELS,
+} from '../../src/render/projection';
 import { nativeSpriteAnchorShift, nativeSpriteWorldOffset } from '../../src/render/world-art';
 import type { Rotation } from '../../src/render/projection';
 import { rotateMesh, translateMesh } from './mesh';
@@ -134,18 +140,7 @@ function screenOf(tx: number, ty: number, level: number, rotation: Rotation): [n
 
 /** Painter order of a tile in a rotated view: far tiles first. */
 function tileDepth(x: number, y: number, rotation: Rotation): number {
-  const tx = x + 0.5;
-  const ty = y + 0.5;
-  switch (rotation) {
-    case 0:
-      return tx + ty;
-    case 1:
-      return MAP_SIZE - ty + tx;
-    case 2:
-      return 2 * MAP_SIZE - tx - ty;
-    default:
-      return ty + MAP_SIZE - tx;
-  }
+  return viewDepth(x + 0.5, y + 0.5, rotation, { width: MAP_SIZE, height: MAP_SIZE });
 }
 
 export interface SpriteLookup {
@@ -275,7 +270,7 @@ export function composeModels(
 ): Canvas {
   const mesh: Mesh = [];
   for (const placement of placements) {
-    const view = (placement.dir + rotation) & 3;
+    const view = rotateDirection(placement.dir, rotation);
     const [vx, vy] = viewTile(placement.x + 0.5, placement.y + 0.5, rotation);
     mesh.push(...translateMesh(rotateMesh(kind.mesh(placement.piece), view), vx, vy, placement.z));
   }
@@ -287,16 +282,7 @@ export function composeModels(
 
 /** Continuous view-space tile position of a world tile position (see `project`). */
 export function viewTile(tx: number, ty: number, rotation: Rotation): [number, number] {
-  switch (rotation) {
-    case 0:
-      return [tx, ty];
-    case 1:
-      return [MAP_SIZE - ty, tx];
-    case 2:
-      return [MAP_SIZE - tx, MAP_SIZE - ty];
-    default:
-      return [ty, MAP_SIZE - tx];
-  }
+  return rotateWorldPoint(tx, ty, MAP_SIZE, MAP_SIZE, rotation);
 }
 
 export { PIECES };

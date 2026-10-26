@@ -1,3 +1,5 @@
+import { rotateOffset } from '../../src/render/projection';
+
 export type Vec3 = readonly [number, number, number];
 
 /** Surface appearance: a colour ramp indexed by light level, optionally overridden per pixel. */
@@ -160,16 +162,8 @@ export function translateMesh(mesh: Mesh, dx: number, dy: number, dz: number): M
 
 /** Rotates around the vertical axis by quarter turns in the sense of the renderer's camera rotation. */
 export function rotatePoint(p: Vec3, quarterTurns: number): Vec3 {
-  switch (((quarterTurns % 4) + 4) % 4) {
-    case 0:
-      return p;
-    case 1:
-      return [-p[1], p[0], p[2]];
-    case 2:
-      return [-p[0], -p[1], p[2]];
-    default:
-      return [p[1], -p[0], p[2]];
-  }
+  const [x, y] = rotateOffset(p[0], p[1], (((quarterTurns % 4) + 4) % 4) as 0 | 1 | 2 | 3);
+  return [x, y, p[2]];
 }
 
 export function rotateMesh(mesh: Mesh, quarterTurns: number): Mesh {

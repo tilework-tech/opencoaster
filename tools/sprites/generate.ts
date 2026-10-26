@@ -443,8 +443,9 @@ export function waterTrackSprites(): SpriteDef[] {
     const ride = RIDE_CATALOG[family === 'log-flume' ? RideType.LogFlume : RideType.RiverRapids];
     for (const piece of PIECES) {
       if (!ride.trackRules?.allowedPieces?.includes(piece.id)) continue;
-      const variants = [''];
+      const variants: Array<'' | '+water-lift' | '+brake' | '+block'> = [''];
       if (piece.flags & PieceFlag.LiftOk) variants.push('+water-lift');
+      if (piece.flags & PieceFlag.BrakeOk) variants.push('+brake', '+block');
       for (let view = 0; view < 4; view++)
         for (const variant of variants)
           for (let cell = 0; cell < piece.footprint.length; cell++) {
@@ -453,6 +454,7 @@ export function waterTrackSprites(): SpriteDef[] {
               piece,
               !!(piece.flags & PieceFlag.WaterSplash),
               variant === '+water-lift',
+              variant === '+brake' || variant === '+block' ? variant : '',
             );
             const turned = rotateMesh(local, view);
             const clipped = clipMesh(
@@ -505,6 +507,10 @@ export function buildSprites(): SpriteDef[] {
 
 export async function renderSprites(outputDir: string): Promise<SpriteDef[]> {
   const defs = buildSprites();
-  await Promise.all(defs.map((def) => writeSpriteDef(outputDir, def)));
+  const batchSize = 32;
+  for (let index = 0; index < defs.length; index += batchSize)
+    await Promise.all(
+      defs.slice(index, index + batchSize).map((def) => writeSpriteDef(outputDir, def)),
+    );
   return defs;
 }

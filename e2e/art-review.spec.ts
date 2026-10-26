@@ -27,6 +27,10 @@ interface TrackRenderStats {
   trackPieces: number;
   circuitClosed: boolean;
   cars: number;
+  trackSprites: number;
+  missingSprites: string[];
+  unresolvedSprites: string[];
+  missingFrames: string[];
   opaquePixelsPerTrackSprite: Array<{ key: string; count: number }>;
 }
 
@@ -435,45 +439,50 @@ async function initialise(page: Page): Promise<void> {
         if (!definition?.usesTrack) return undefined;
         const scene = new CoasterScene();
         scene.build(snapshot, map, rotation as 0 | 1 | 2 | 3);
+        const drawItems = scene.items.slice(0, scene.length);
+        const spriteNames = drawItems.map((drawItem) => drawItem.key.split('#')[0]!);
+        const trackSprites = drawItems.filter(
+          (drawItem) => drawItem.key.includes('/track/') || drawItem.key.startsWith('track/'),
+        );
         return {
           trackPieces: snapshot.tracks.count,
           circuitClosed: (snapshot.rideInfo[RideInfo.Flags]! & RideFlag.CircuitClosed) !== 0,
           cars: snapshot.cars.count,
-          opaquePixelsPerTrackSprite: scene.items
-            .slice(0, scene.length)
-            .filter(
-              (candidate) =>
-                candidate.key.includes('/track/') || candidate.key.startsWith('track/'),
-            )
-            .map((entry) => {
-              const hash = entry.key.lastIndexOf('#');
-              const name = hash < 0 ? entry.key : entry.key.slice(0, hash);
-              const frameIndex = hash < 0 ? 0 : Number(entry.key.slice(hash + 1));
-              const frame = spritePages.resolve(name)?.frames[frameIndex];
-              const image = frame && spritePages.pageImage(frame.page);
-              if (!frame || !image) return { key: entry.key, count: 0 };
-              const sample = document.createElement('canvas');
-              sample.width = frame.width;
-              sample.height = frame.height;
-              const context = sample.getContext('2d');
-              if (!context) return { key: entry.key, count: 0 };
-              context.drawImage(
-                image,
-                frame.x,
-                frame.y,
-                frame.width,
-                frame.height,
-                0,
-                0,
-                frame.width,
-                frame.height,
-              );
-              const pixels = context.getImageData(0, 0, frame.width, frame.height).data;
-              let opaque = 0;
-              for (let index = 3; index < pixels.length; index += 4)
-                if (pixels[index]! > 0) opaque++;
-              return { key: entry.key, count: opaque };
-            }),
+          trackSprites: trackSprites.length,
+          missingSprites: spriteNames.filter((name) => !(name in originalManifest.sprites)),
+          unresolvedSprites: spriteNames.filter((name) => !spritePages.resolve(name)),
+          missingFrames: spriteNames.filter((name) => {
+            const frame = spritePages.resolve(name)?.frames[0];
+            return !frame || !spritePages.pageImage(frame.page);
+          }),
+          opaquePixelsPerTrackSprite: trackSprites.map((entry) => {
+            const hash = entry.key.lastIndexOf('#');
+            const name = hash < 0 ? entry.key : entry.key.slice(0, hash);
+            const frameIndex = hash < 0 ? 0 : Number(entry.key.slice(hash + 1));
+            const frame = spritePages.resolve(name)?.frames[frameIndex];
+            const image = frame && spritePages.pageImage(frame.page);
+            if (!frame || !image) return { key: entry.key, count: 0 };
+            const sample = document.createElement('canvas');
+            sample.width = frame.width;
+            sample.height = frame.height;
+            const context = sample.getContext('2d');
+            if (!context) return { key: entry.key, count: 0 };
+            context.drawImage(
+              image,
+              frame.x,
+              frame.y,
+              frame.width,
+              frame.height,
+              0,
+              0,
+              frame.width,
+              frame.height,
+            );
+            const pixels = context.getImageData(0, 0, frame.width, frame.height).data;
+            let opaque = 0;
+            for (let index = 3; index < pixels.length; index += 4) if (pixels[index]! > 0) opaque++;
+            return { key: entry.key, count: opaque };
+          }),
         };
       },
     };
@@ -532,6 +541,10 @@ async function expectCompletedTrackRender(
   expect(stats?.trackPieces, `${item.label} placed through the track builder`).toBe(14);
   expect(stats?.circuitClosed, `${item.label} circuit is complete`).toBe(true);
   expect(stats?.cars, `${item.label} train cars`).toBeGreaterThan(0);
+  expect(stats?.trackSprites, `${item.label} rendered track pieces`).toBeGreaterThan(0);
+  expect(stats?.missingSprites, `${item.label} missing sprites`).toEqual([]);
+  expect(stats?.unresolvedSprites, `${item.label} unresolved sprites`).toEqual([]);
+  expect(stats?.missingFrames, `${item.label} missing sprite frames`).toEqual([]);
   expect(stats?.opaquePixelsPerTrackSprite.length, `${item.label} track sprites`).toBeGreaterThan(
     0,
   );

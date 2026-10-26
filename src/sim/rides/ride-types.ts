@@ -4,6 +4,7 @@ import { FERRIS_BACKWARD_EXCITEMENT, RideMode, modeDef } from './ride-modes';
 import type { RideModeDef } from './ride-modes';
 import { kmhToSpeedQ8 } from '../vehicles/speed-units';
 import type { RatingProfile } from '../vehicles/vehicle-ratings';
+import { TRANSPORT_PIECES } from '../track/catalog';
 
 export enum RideType {
   MerryGoRound = 1,
@@ -237,6 +238,7 @@ function addedRide(
 }
 
 const JUNIOR_PIECES = [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 34, 35];
+const SLOPED_CURVE_PIECES = Array.from({ length: 24 }, (_, index) => 67 + index);
 const WILD_MOUSE_PIECES = [
   ...JUNIOR_PIECES,
   4,
@@ -285,6 +287,7 @@ const WILD_MOUSE_PIECES = [
   63,
   64,
   65,
+  ...SLOPED_CURVE_PIECES,
 ];
 
 const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
@@ -660,7 +663,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     0,
     18,
     5,
-    { usesTrack: true, maxLevel: 30 },
+    {
+      usesTrack: true,
+      maxLevel: 30,
+      allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
+    },
   ),
   [RideType.Monorail]: addedRide(
     RideType.Monorail,
@@ -677,7 +684,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     0,
     19,
     7,
-    { usesTrack: true, maxLevel: 50 },
+    {
+      usesTrack: true,
+      maxLevel: 50,
+      allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
+    },
   ),
   [RideType.Chairlift]: addedRide(
     RideType.Chairlift,
@@ -691,7 +702,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     0,
     20,
     6,
-    { usesTrack: true, maxLevel: 40 },
+    {
+      usesTrack: true,
+      maxLevel: 40,
+      allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
+    },
   ),
   [RideType.JuniorRollerCoaster]: addedRide(
     RideType.JuniorRollerCoaster,

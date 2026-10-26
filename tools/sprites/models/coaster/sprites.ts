@@ -1,6 +1,7 @@
 import { CHAIN_FRAMES as RENDER_CHAIN_FRAMES, artPieces } from '../../../../src/render/coaster-art';
+import { rotateOffset } from '../../../../src/render/projection';
 import { renderMesh } from '../../raster';
-import { clipMesh, rotateMesh, rotatePoint, translateMesh } from '../../mesh';
+import { clipMesh, rotateMesh, translateMesh } from '../../mesh';
 import type { Mesh } from '../../mesh';
 import type { SpriteDef } from '../../output';
 import { CAR_BANK_NAMES, CAR_HEADINGS, CAR_PITCH_NAMES, carMesh } from './cars';
@@ -25,7 +26,8 @@ export function coasterSprites(): SpriteDef[] {
         );
         piece.footprint.forEach((cell, index) => {
           for (let view = 0; view < 4; view++) {
-            const centre = rotatePoint([cell.i, cell.j, 0], view);
+            const [centreX, centreY] = rotateOffset(cell.i, cell.j, view as 0 | 1 | 2 | 3);
+            const centre = [centreX, centreY, 0] as const;
             const shift = (mesh: Mesh): Mesh => translateMesh(mesh, -centre[0], -centre[1], 0);
             const turned = locals.map((local) => rotateMesh(local, view));
             const cells = turned.map((mesh) =>
