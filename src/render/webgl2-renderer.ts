@@ -40,6 +40,13 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
+import {
+  SOLID_BIAS,
+  SurfaceDepths,
+  pathSlabDepth,
+  personDepth,
+  rotatedPositionSum,
+} from './depth-key';
 import { OwnershipOverlay } from './ownership-overlay';
 import type { Rotation } from './projection';
 import {
@@ -358,6 +365,7 @@ export class WebGL2Renderer implements Renderer {
   } | null = null;
   private instanceData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private depths = new Int32Array(INITIAL_INSTANCE_CAPACITY);
+  private readonly surfaceDepths = new SurfaceDepths();
   private pageIds = new Int16Array(INITIAL_INSTANCE_CAPACITY);
   private readonly runs: { start: number; count: number; pages: number[] }[] = [];
   private orderedData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
@@ -518,6 +526,7 @@ export class WebGL2Renderer implements Renderer {
         0,
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
+      this.surfaceDepths.prepare(map, camera.rotation);
       this.appendStaff(snapshot.staff, snapshot.tick, map, camera, viewportWidth, viewportHeight);
       this.appendGuests(snapshot.guests, snapshot.tick, map, camera, viewportWidth, viewportHeight);
     }
@@ -1408,7 +1417,8 @@ export class WebGL2Renderer implements Renderer {
         const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-        const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
+        const depth =
+          2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
         project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1451,7 +1461,7 @@ export class WebGL2Renderer implements Renderer {
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
       const depth = flowerBedDepth(
-        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2,
+        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS,
       );
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
@@ -1490,8 +1500,7 @@ export class WebGL2Renderer implements Renderer {
     const worldX = entranceX * TILE_UNITS + TILE_UNITS / 2;
     const worldY = entranceY * TILE_UNITS + TILE_UNITS / 2;
     const depth =
-      2 * rotatedPositionSum(entranceX * TILE_UNITS, entranceY * TILE_UNITS, map, camera.rotation) +
-      3;
+      2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
     project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
     if (
       inViewport(
@@ -1622,6 +1631,15 @@ export class WebGL2Renderer implements Renderer {
       const worldX = x * TILE_UNITS + 128;
       const worldY = y * TILE_UNITS + 128;
       const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP - 1;
+      const slabDepth = pathSlabDepth(
+        map,
+        camera.rotation,
+        x,
+        y,
+        baseHeight,
+        flags,
+        map.heights[y * map.width + x]!,
+      );
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1634,7 +1652,7 @@ export class WebGL2Renderer implements Renderer {
           26,
         )
       )
-        this.append(worldX, worldY, z, 40, 26, sprite, depth + 1);
+        this.append(worldX, worldY, z, 40, 26, sprite, slabDepth);
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
         if (flags & PathFlag.Shelter) {
           const shelterZ = pathAdditionGroundZ(baseHeight, flags);
@@ -1709,7 +1727,8 @@ export class WebGL2Renderer implements Renderer {
       const box = sceneryBox(item);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + 2;
+      const depth =
+        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       const spriteHeight = box.height;
       if (
@@ -1760,12 +1779,10 @@ export class WebGL2Renderer implements Renderer {
         const y = snapshot.rideInfo[o + yField];
         const index = y * map.width + x;
         const z = map.heights[index] * Z_STEP + 1;
-        const depth =
-          2 * rotatedPositionSum(x * TILE_UNITS, y * TILE_UNITS, map, camera.rotation) -
-          z / Z_STEP +
-          2;
         const centerX = x * TILE_UNITS + 128;
         const centerY = y * TILE_UNITS + 128;
+        const depth =
+          2 * rotatedPositionSum(centerX, centerY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
         project(centerX, centerY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1812,9 +1829,14 @@ export class WebGL2Renderer implements Renderer {
       if (isRidingGuestRow(metadata)) continue;
       const tint = metadata & 0xff;
       const heading = guestRowHeading(metadata);
-      const depth =
-        2 * rotatedPositionSum(layer.data[offset], layer.data[offset + 1], map, camera.rotation) -
-        layer.data[offset + 2] / 64;
+      const depth = personDepth(
+        map,
+        camera.rotation,
+        this.surfaceDepths,
+        layer.data[offset],
+        layer.data[offset + 1],
+        layer.data[offset + 2],
+      );
       this.appendLayerSprite(
         layer,
         offset,
@@ -1953,9 +1975,7 @@ export class WebGL2Renderer implements Renderer {
       const width = frame?.width ?? 12;
       const height = frame?.height ?? 14;
       const depth =
-        2 * rotatedPositionSum(tileX * TILE_UNITS, tileY * TILE_UNITS, map, camera.rotation) -
-        z / Z_STEP +
-        1;
+        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         !inViewport(
@@ -2024,7 +2044,7 @@ export class WebGL2Renderer implements Renderer {
       const frame = entry?.frames[0];
       const width = frame?.width ?? 16;
       const height = frame?.height ?? 24;
-      const depth = 2 * rotatedPositionSum(x, y, map, camera.rotation) - z / 64;
+      const depth = personDepth(map, camera.rotation, this.surfaceDepths, x, y, z);
       project(x, y, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -2540,21 +2560,6 @@ function unrotateForDraw(
 }
 
 /** Depth key of a world point: the painter sorts by it, doubled, so the ride and scenery offsets stay integers. */
-export function rotatedPositionSum(x: number, y: number, map: MapData, rotation: Rotation): number {
-  const tx = x / TILE_UNITS;
-  const ty = y / TILE_UNITS;
-  switch (rotation) {
-    case 0:
-      return tx + ty;
-    case 1:
-      return map.height - ty + tx;
-    case 2:
-      return map.width - tx + map.height - ty;
-    case 3:
-      return ty + map.width - tx;
-  }
-}
-
 function project(
   x: number,
   y: number,
@@ -2603,3 +2608,5 @@ function inViewport(
   const halfHeight = viewportHeight / camera.zoom / 2 + height;
   return Math.abs(x - camera.x) <= halfWidth && Math.abs(y - camera.y) <= halfHeight;
 }
+
+export { rotatedPositionSum };

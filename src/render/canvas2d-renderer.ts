@@ -40,6 +40,13 @@ import {
 import { OwnershipOverlay } from './ownership-overlay';
 import type { TerrainSurface } from './world-art';
 import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
+import {
+  SOLID_BIAS,
+  SurfaceDepths,
+  pathSlabDepth,
+  personDepth,
+  rotatedPositionSum,
+} from './depth-key';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
@@ -122,6 +129,7 @@ export class Canvas2DRenderer implements Renderer {
   private patrolPreviewRemove = false;
   private drawOrder: { depth: number; order: number; draw: () => void }[] = [];
   private nextDrawOrder = 0;
+  private readonly surfaceDepths = new SurfaceDepths();
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
@@ -239,6 +247,7 @@ export class Canvas2DRenderer implements Renderer {
         '#c0392b',
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
+      this.surfaceDepths.prepare(map, cam.rotation);
       if (this.atlas) this.drawStaff(ctx, snapshot.staff, map, cam, snapshot.tick);
       else
         this.drawLayer(ctx, snapshot.staff, map, cam, 3, [
@@ -265,23 +274,7 @@ export class Canvas2DRenderer implements Renderer {
     offset: number,
     draw: () => void,
   ): void {
-    const tx = x / TILE_UNITS;
-    const ty = y / TILE_UNITS;
-    let sum: number;
-    switch (cam.rotation) {
-      case 0:
-        sum = tx + ty;
-        break;
-      case 1:
-        sum = map.height - ty + tx;
-        break;
-      case 2:
-        sum = map.width - tx + map.height - ty;
-        break;
-      case 3:
-        sum = ty + map.width - tx;
-        break;
-    }
+    const sum = rotatedPositionSum(x, y, map, cam.rotation);
     this.queueAtDepth(2 * sum - z / Z_STEP + offset, draw);
   }
 
@@ -539,11 +532,29 @@ export class Canvas2DRenderer implements Renderer {
             groundFlowerBed || sceneryFlowerBed
               ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
               : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-            groundFlowerBed || sceneryFlowerBed ? flowerBedDepth(2) : 2,
+            groundFlowerBed || sceneryFlowerBed ? flowerBedDepth(SOLID_BIAS) : SOLID_BIAS,
             () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
-        this.enqueue(map, cam, centerX, centerY, terrainZ, -1, () =>
-          this.drawMapElements(ctx, map, cam, i),
+        for (
+          let path = this.pathOffsets[i];
+          map.pathElements && path < this.pathOffsets[i + 1];
+          path++
+        ) {
+          const element = this.pathIndices[path]! * 6;
+          const slabDepth = pathSlabDepth(
+            map,
+            cam.rotation,
+            x,
+            y,
+            map.pathElements[element + 2]!,
+            map.pathElements[element + 3]!,
+            map.heights[i]!,
+          );
+          this.queueAtDepth(slabDepth, () => this.drawMapElements(ctx, map, cam, i, 'slab'));
+          break;
+        }
+        this.enqueue(map, cam, centerX, centerY, terrainZ, 1, () =>
+          this.drawMapElements(ctx, map, cam, i, 'additions'),
         );
         for (const ghost of this.ghostsAt(map, i))
           this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 0, () =>
@@ -557,7 +568,7 @@ export class Canvas2DRenderer implements Renderer {
           sceneryFlowerBed
             ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
             : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-          sceneryFlowerBed ? flowerBedDepth(2) : 2,
+          sceneryFlowerBed ? flowerBedDepth(SOLID_BIAS) : SOLID_BIAS,
           () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
@@ -934,6 +945,7 @@ export class Canvas2DRenderer implements Renderer {
     map: MapData,
     cam: Camera,
     tile: number,
+    part: 'slab' | 'additions',
   ): void {
     const paths = map.pathElements;
     for (let path = this.pathOffsets[tile]; paths && path < this.pathOffsets[tile + 1]; path++) {
@@ -958,6 +970,10 @@ export class Canvas2DRenderer implements Renderer {
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 22)) continue;
       project(centerX, centerY, z, map.width, map.height, cam.rotation, this.pathLow);
+      if (part === 'additions') {
+        this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
+        continue;
+      }
       if (
         this.atlas &&
         drawAnchoredSprite(
@@ -968,7 +984,6 @@ export class Canvas2DRenderer implements Renderer {
           this.pathLow[1],
         )
       ) {
-        this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
         this.visibleCount++;
         continue;
       }
@@ -1013,7 +1028,6 @@ export class Canvas2DRenderer implements Renderer {
       } else {
         ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 4, 18, 8);
       }
-      this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
       if (flags & PathFlag.Queue) {
         ctx.fillStyle = '#d7bb65';
         ctx.fillRect(this.tmp[0] - 7, this.tmp[1] - 5, 14, 1.5);
@@ -1216,7 +1230,7 @@ export class Canvas2DRenderer implements Renderer {
         const worldX = x * TILE_UNITS + 128;
         const worldY = y * TILE_UNITS + 128;
         const z = map.heights[y * map.width + x]! * Z_STEP;
-        this.enqueue(map, cam, worldX, worldY, z, 2, () => {
+        this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
           project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
           if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 24)) return;
           const facing = rideHutFacing(
@@ -1257,7 +1271,7 @@ export class Canvas2DRenderer implements Renderer {
     const worldX = x * TILE_UNITS + TILE_UNITS / 2;
     const worldY = y * TILE_UNITS + TILE_UNITS / 2;
     const z = map.heights[y * map.width + x]! * Z_STEP;
-    this.enqueue(map, cam, worldX, worldY, z, 2, () => {
+    this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
       project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
       if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 40)) return;
       const key = `scenery/park-entrance/view-${cam.rotation}`;
@@ -1290,7 +1304,7 @@ export class Canvas2DRenderer implements Renderer {
       const z = map.heights[tileY * map.width + tileX] * Z_STEP;
       const worldX = tileX * TILE_UNITS + TILE_UNITS / 2;
       const worldY = tileY * TILE_UNITS + TILE_UNITS / 2;
-      this.enqueue(map, cam, worldX, worldY, z, 0, () => {
+      this.enqueue(map, cam, worldX, worldY, z, SOLID_BIAS, () => {
         project(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
         const isFacility = ['shop', 'stall', 'facility'].includes(definition.category);
         const key = isFacility
@@ -1440,7 +1454,7 @@ export class Canvas2DRenderer implements Renderer {
       const z = d[o + 2]!;
       const metadata = d[o + 3]!;
       if (isRidingGuestRow(metadata)) continue;
-      this.enqueue(map, cam, x, y, z, 0, () => {
+      this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
         project(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
         const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), tick >>> 2) - 40}`;
@@ -1467,7 +1481,7 @@ export class Canvas2DRenderer implements Renderer {
       const y = d[o + 1]!;
       const z = d[o + 2]!;
       const metadata = d[o + 3]!;
-      this.enqueue(map, cam, x, y, z, 0, () => {
+      this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
         project(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, Math.max(STAFF_BOX.height, 24))) return;
         const kind = metadata & 0xff;
