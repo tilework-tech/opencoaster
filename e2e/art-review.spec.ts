@@ -249,7 +249,8 @@ async function initialise(page: Page): Promise<void> {
         throw new Error('Renderer sprite manifest did not finish loading');
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
-    for (const category of Object.keys(manifest.categories)) rendererAtlas.requestCategory(category);
+    for (const category of Object.keys(manifest.categories))
+      rendererAtlas.requestCategory(category);
     const rendererPagesDeadline = Date.now() + 60_000;
     while (Object.keys(manifest.categories).some((category) => !rendererAtlas.isLoaded(category))) {
       if (Date.now() > rendererPagesDeadline) {
@@ -627,10 +628,9 @@ async function makeCell(
       )
         visiblePixels++;
     }
-    expect(
-      visiblePixels,
-      `${backend} ${item.label} at default zoom`,
-    ).toBeGreaterThanOrEqual(FACILITY_MIN_VISIBLE_PIXELS);
+    expect(visiblePixels, `${backend} ${item.label} at default zoom`).toBeGreaterThanOrEqual(
+      FACILITY_MIN_VISIBLE_PIXELS,
+    );
   }
   const label = Buffer.from(
     `<svg width="${CELL_WIDTH}" height="${CELL_HEIGHT}"><rect width="100%" height="100%" fill="#f1ecd9"/><text x="8" y="16" font-family="sans-serif" font-size="12" fill="#25261f">${item.label.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</text></svg>`,
