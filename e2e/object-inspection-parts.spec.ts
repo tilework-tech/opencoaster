@@ -159,7 +159,7 @@ async function inspect(
     await page.mouse.move(point.x, point.y);
     await expect(page.locator('.tool-status')).toContainText(point.name);
     await expect(page.locator('.object-hover-outline')).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath(`${part}-hover.png`) });
+    await page.screenshot({ path: testInfo.outputPath(`${part}-hover.png`), timeout: 60_000 });
     await page.mouse.click(point.x, point.y);
   }
   return point;
@@ -189,7 +189,6 @@ async function inspectParts(
       const hit = await inspect(page, mobile, part, testInfo);
       await expect(page.locator('[data-panel^="ride-"]:visible')).toHaveCount(1);
       await expect(page.locator('.tool-status')).toContainText(`${hit.name} information opened.`);
-      await page.screenshot({ path: testInfo.outputPath(`${part}-window.png`) });
       await closeRideWindows(page);
     }
 
@@ -208,7 +207,7 @@ async function inspectParts(
     expect(box!.y).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
     expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
-    await page.screenshot({ path: testInfo.outputPath('bench-popup.png') });
+    await page.screenshot({ path: testInfo.outputPath('bench-popup.png'), timeout: 60_000 });
     await popup.getByRole('button', { name: 'Repair' }).click();
     await expect(popup).toBeHidden();
     await toolbarAction(page, 'Resume');
