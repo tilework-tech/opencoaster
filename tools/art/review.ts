@@ -45,14 +45,11 @@ function runPnpm(root: string, args: readonly string[]): void {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-const options = parseOptions(process.argv.slice(2).filter((arg) => arg !== '--'));
-if (!options) {
-  process.stdout.write(`${usage()}\n`);
-} else {
-  const root = fileURLToPath(new URL('../../', import.meta.url));
-  runPnpm(root, ['art:prepare']);
-  runPnpm(root, ['art:pack']);
-  const sessionBrowser = process.env.NORI_SESSION_URL !== undefined;
+function runReviewTests(
+  root: string,
+  env: NodeJS.ProcessEnv,
+  grep: string,
+): number {
   const result = spawnSync(
     'corepack',
     [
@@ -61,21 +58,41 @@ if (!options) {
       'playwright',
       'test',
       '--config=playwright.art-review.config.ts',
-      '--grep=@art-review',
+      `--grep=${grep}`,
     ],
-    {
-      cwd: root,
-      env: {
-        ...process.env,
-        ART_REVIEW_OUTPUT: resolve(root, options.outputDir),
-        ART_REVIEW_FLOWERBEDS_ONLY: options.flowerbedsOnly ? '1' : '0',
-        ...(sessionBrowser
-          ? { ART_REVIEW_CDP: process.env.ART_REVIEW_CDP ?? 'http://127.0.0.1:9222' }
-          : {}),
-      },
-      stdio: 'inherit',
-    },
+    { cwd: root, env, stdio: 'inherit' },
   );
   if (result.error) throw result.error;
-  process.exitCode = result.status ?? 1;
+  return result.status ?? 1;
+}
+
+const options = parseOptions(process.argv.slice(2).filter((arg) => arg !== '--'));
+if (!options) {
+  process.stdout.write(`${usage()}\n`);
+} else {
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  runPnpm(root, ['art:prepare']);
+  runPnpm(root, ['art:pack']);
+  const sessionBrowser = process.env.NORI_SESSION_URL !== undefined;
+  const env = {
+    ...process.env,
+    ART_REVIEW_OUTPUT: resolve(root, options.outputDir),
+    ART_REVIEW_FLOWERBEDS_ONLY: options.flowerbedsOnly ? '1' : '0',
+    ...(sessionBrowser
+      ? { ART_REVIEW_CDP: process.env.ART_REVIEW_CDP ?? 'http://127.0.0.1:9222' }
+      : {}),
+  };
+  const backends = ['webgl2', 'canvas2d'] as const;
+  const zooms = [1, 4] as const;
+  const rotations = [0, 1, 2, 3] as const;
+  if (!options.flowerbedsOnly) {
+    for (const backend of backends)
+      for (const zoom of zooms)
+        for (const rotation of rotations) {
+          const title = `captures ${backend} inventory at zoom ${zoom}, rotation ${rotation} @art-review`;
+          process.exitCode = runReviewTests(root, env, title);
+          if (process.exitCode !== 0) process.exit(process.exitCode);
+        }
+  }
+  process.exitCode = runReviewTests(root, env, 'captures flowerbeds across renderers, zooms, and rotations @art-review');
 }
