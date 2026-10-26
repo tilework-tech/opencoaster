@@ -71,7 +71,7 @@ export interface GameUIActions {
   spawnGuests(): void;
   openMenu(): void;
   hireStaff(kind: number): void;
-  setPatrolKind(kind: number | null): void;
+  setPatrolStaff(staffId: number | null): void;
   renameStaff(staffId: number, name: string): void;
   fireStaff(staffId: number): void;
   setRidePrice(rideId: number, priceCents: number): void;
@@ -129,6 +129,7 @@ export interface GuestSelection {
 export interface UiContext {
   windows: WindowManager;
   actions: GameUIActions;
+  alternate(): boolean;
   selectedGuest(): GuestSelection | null;
   series: { cash: SampleSeries; value: SampleSeries; profit: SampleSeries; guests: SampleSeries };
   openRide(rideId: number): void;

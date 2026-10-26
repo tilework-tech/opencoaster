@@ -1,4 +1,5 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { terrainMeshTriangles, terrainTileCorners } from './terrain-geometry';
 
 export type Rotation = 0 | 1 | 2 | 3;
 
@@ -91,11 +92,11 @@ export function project(
   out[1] = (rx + ry) * (TILE_H / 2) - (fz / Z_STEP) * Z_PIXELS;
 }
 
-/** Returns the highest tile diamond under a viewport-local point, or null outside the map. */
+/** Returns the last terrain surface under a viewport-local point in painter order. */
 export function pickTile(
   screenX: number,
   screenY: number,
-  map: { width: number; height: number; heights: Uint8Array },
+  map: { width: number; height: number; heights: Uint8Array; slope?: Uint8Array },
   camera: { x: number; y: number; zoom: number; rotation: Rotation },
   viewport: { width: number; height: number },
 ): [number, number] | null {
@@ -111,27 +112,68 @@ export function pickTile(
   const estimatedRx = Math.round(centerRx);
   const estimatedRy = Math.round(centerRy);
   let selected: [number, number] | null = null;
-  let selectedDistance = Number.POSITIVE_INFINITY;
-  let selectedHeight = -1;
+  let selectedDepth = Number.NEGATIVE_INFINITY;
+  const projected = [
+    new Float64Array(2),
+    new Float64Array(2),
+    new Float64Array(2),
+    new Float64Array(2),
+  ];
 
   // Elevation can shift the projected tile by at most half the 31-level map range.
   for (let ry = estimatedRy - 16; ry <= estimatedRy + 16; ry++) {
     for (let rx = estimatedRx - 16; rx <= estimatedRx + 16; rx++) {
       if (rx < 0 || ry < 0 || rx >= viewW || ry >= viewH) continue;
       const [x, y] = unrotateTile(rx, ry, map.width, map.height, camera.rotation);
-      const height = map.heights[y * map.width + x];
-      const centerX = (rx - ry) * (TILE_W / 2);
-      const centerY = (rx + ry) * (TILE_H / 2) + TILE_H / 2 - height * Z_PIXELS;
-      const dx = Math.abs(worldX - centerX) / (TILE_W / 2);
-      const dy = Math.abs(worldY - centerY) / (TILE_H / 2);
-      const distance = dx + dy;
-      if (distance > 1 || distance > selectedDistance) continue;
-      if (distance === selectedDistance && height < selectedHeight) continue;
-      selected = [x, y];
-      selectedDistance = distance;
-      selectedHeight = height;
+      const index = y * map.width + x;
+      const corners = terrainTileCorners(x, y, map.heights[index]!, map.slope?.[index] ?? 0);
+      for (let corner = 0; corner < 4; corner++)
+        project(
+          corners[corner]!.x * TILE_UNITS,
+          corners[corner]!.y * TILE_UNITS,
+          corners[corner]!.height * Z_STEP,
+          map.width,
+          map.height,
+          camera.rotation,
+          projected[corner]!,
+        );
+      const triangles = terrainMeshTriangles(camera.rotation);
+      for (const triangle of triangles) {
+        const a = projected[triangle[0]]!;
+        const b = projected[triangle[1]]!;
+        const c = projected[triangle[2]]!;
+        const ax = viewport.width / 2 + (a[0]! - camera.x) * camera.zoom;
+        const ay = viewport.height / 2 + (a[1]! - camera.y) * camera.zoom;
+        const bx = viewport.width / 2 + (b[0]! - camera.x) * camera.zoom;
+        const by = viewport.height / 2 + (b[1]! - camera.y) * camera.zoom;
+        const cx = viewport.width / 2 + (c[0]! - camera.x) * camera.zoom;
+        const cy = viewport.height / 2 + (c[1]! - camera.y) * camera.zoom;
+        const weights = barycentric(screenX, screenY, ax, ay, bx, by, cx, cy);
+        if (!weights || weights.some((weight) => weight < -1e-7)) continue;
+        const depth = 2 * (rx + ry) - map.heights[index]!;
+        if (depth < selectedDepth) continue;
+        selected = [x, y];
+        selectedDepth = depth;
+      }
     }
   }
 
   return selected;
+}
+
+function barycentric(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+): [number, number, number] | null {
+  const denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+  if (Math.abs(denominator) < 1e-9) return null;
+  const a = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator;
+  const b = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator;
+  return [a, b, 1 - a - b];
 }

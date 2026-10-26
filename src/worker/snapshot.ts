@@ -146,8 +146,10 @@ export interface Snapshot {
   buildable: Uint8Array;
   /** Per-tile grass overgrowth and flower-bed bits (see staff/grounds.ts). */
   grounds: Uint8Array;
-  /** Four per-role patrol masks, each map-width × map-height. */
-  patrolAreas: Uint8Array;
+  /** Packed 4×4-tile masks indexed by allocated patrol area id. */
+  patrolAreas: Uint32Array;
+  patrolWordsPerArea: number;
+  patrolAreaIds: Uint16Array;
   park: { cash: number; loan: number; rides: number; entranceX: number; entranceY: number };
   scenario: SnapshotScenario;
   economy: SnapshotEconomy;
@@ -203,6 +205,8 @@ export interface SnapshotCapacities {
   rides?: number;
   tracks?: number;
   mapTiles?: number;
+  patrolAreas?: number;
+  patrolWordsPerArea?: number;
 }
 
 export function createSnapshot(caps: SnapshotCapacities): Snapshot {
@@ -230,7 +234,9 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
     grounds: new Uint8Array(caps.mapTiles ?? 0),
-    patrolAreas: new Uint8Array((caps.mapTiles ?? 0) * 4),
+    patrolAreas: new Uint32Array(caps.patrolAreas ?? 0),
+    patrolWordsPerArea: caps.patrolWordsPerArea ?? 0,
+    patrolAreaIds: new Uint16Array(caps.staff),
     park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1 },
     scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
     activeAwards: [],
@@ -271,6 +277,7 @@ export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
       s.patrolAreas.buffer as ArrayBuffer,
       s.staffIds.buffer as ArrayBuffer,
       s.staffOrders.buffer as ArrayBuffer,
+      s.patrolAreaIds.buffer as ArrayBuffer,
       s.guestDetails.buffer as ArrayBuffer,
       s.guestIds.buffer as ArrayBuffer,
     );
@@ -424,10 +431,12 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   );
   const staffIdCount = Math.min(world.staff.count, out.staffIds.length);
   for (let i = 0; i < staffIdCount; i++) out.staffIds[i] = world.staff.slotToId[i];
+  for (let i = 0; i < staffIdCount; i++) out.patrolAreaIds[i] = world.staff.cols.patrolArea[i]!;
   out.staffOrders.set(world.staff.cols.orderFlags.subarray(0, staffIdCount));
   out.staffNames = world.staffNames;
   const groundCount = Math.min(world.grounds.length, out.grounds.length);
   out.grounds.set(world.grounds.subarray(0, groundCount));
+  out.patrolWordsPerArea = world.patrolWordsPerArea;
   const patrolCount = Math.min(world.patrolAreas.length, out.patrolAreas.length);
   out.patrolAreas.set(world.patrolAreas.subarray(0, patrolCount));
   writeLayer(out.vehicles, world.vehicles, world.vehicles.cols.state, null);

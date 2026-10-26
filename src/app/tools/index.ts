@@ -36,7 +36,7 @@ export interface ToolControllerDependencies {
   pathTool: PathTool;
   sceneryItem: () => SceneryItem;
   sceneryRotation: () => number;
-  patrolKind: () => number | null;
+  patrolStaffId: () => number | null;
   clearRideSetupNotice: () => void;
   rideTileClick: (x: number, y: number) => void;
 }
@@ -50,7 +50,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     pathTool: deps.pathTool,
     sceneryItem: deps.sceneryItem,
     sceneryRotation: deps.sceneryRotation,
-    patrolKind: deps.patrolKind,
+    patrolStaffId: deps.patrolStaffId,
   };
 
   function tileAt(clientX: number, clientY: number): Tile | null {

@@ -15,7 +15,6 @@ import { Toolbar } from './toolbar';
 import type { ToolbarItem } from './toolbar';
 import { GAME_SPEEDS } from './settings';
 import type { GameSpeed } from './settings';
-import { STAFF_KIND_NAMES } from './staff-roster';
 import type {
   GameUIActions,
   GuestSelection,
@@ -130,7 +129,8 @@ export class GameUI {
   private readonly ctx: UiContext;
   private paused = false;
   private tool: ToolMode = 'select';
-  private patrolKind: number | null = null;
+  private alternate = false;
+  private patrolStaffId: number | null = null;
   private selectedGuest: GuestSelection | null = null;
   /** The speed the player chose. The sim runs at `speed`, which building can cap lower. */
   private requestedSpeed: GameSpeed = 1;
@@ -148,11 +148,16 @@ export class GameUI {
       windows,
       actions: {
         ...actions,
-        setPatrolKind: (kind) => {
-          this.patrolKind = kind;
-          actions.setPatrolKind(kind);
+        setPatrolStaff: (staffId) => {
+          this.patrolStaffId = staffId;
+          actions.setPatrolStaff(staffId);
+        },
+        setAlternate: (on) => {
+          this.alternate = on;
+          actions.setAlternate(on);
         },
       },
+      alternate: () => this.alternate,
       selectedGuest: () => this.selectedGuest,
       series: this.series,
       openRide: (id) => this.openRide(id),
@@ -781,7 +786,7 @@ export class GameUI {
                 : tool === 'buy-rights'
                   ? 'Construction rights selected. Click a marked tile to buy the rights.'
                   : tool === 'patrol'
-                    ? `Patrol tool selected${this.patrolKind === null ? '' : ` for ${STAFF_KIND_NAMES[this.patrolKind] ?? 'Staff'}`}. Tap tiles to add them; use Remove tiles (or Shift) to remove.`
+                    ? `Patrol tool selected${this.patrolStaffId === null ? '' : ` for worker ${this.patrolStaffId}`}. Tap tiles to add them; use Remove tiles (or Shift) to remove.`
                     : `${TOOL_LABELS[tool]} tool selected. Tap a tile to place.`;
   }
 }

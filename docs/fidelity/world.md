@@ -72,7 +72,8 @@ Security guard:
 
 Patrol areas:
 
-- Stored as one bit per 4×4 tile block, 128 blocks per map line, so 512 tiles across. Storage is allocated only while a patrol area is set `[V]`.
+- Stored as one bit per 4×4 tile block, with a separate area per staff member. A worker's mask is allocated when their first block is assigned and released when its last block is removed or the worker is fired; packed masks and area IDs are deterministic world state `[V]`.
+- Save version 20 migrates the previous four role masks by copying the old role's marked blocks to every employed worker of that role `[V]`.
 - No cap on area size or staff count found `[U]`.
 
 ### 1.4 Wage charging in our implementation

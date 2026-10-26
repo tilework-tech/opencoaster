@@ -12,8 +12,6 @@ export interface RosterEntry {
 export interface StaffRosterActions {
   open(staffId: number): void;
   rename(staffId: number, name: string): void;
-  /** Opens the role's patrol area for editing; patrol masks are kept per role. */
-  patrol(kind: number): void;
   fire(staffId: number): void;
 }
 
@@ -71,7 +69,6 @@ export class StaffRoster {
       label,
       inspect,
       this.button('Rename', () => this.promptRename(entry), `rename-staff-${entry.id}`),
-      this.button('Patrol', () => this.actions.patrol(entry.kind), `patrol-role-of-${entry.id}`),
       this.button('Fire', () => this.actions.fire(entry.id), `fire-staff-${entry.id}`),
     );
     return item;

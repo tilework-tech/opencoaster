@@ -2,6 +2,7 @@ import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/navigate';
+import type { PatrolMask } from '../pathfinding/navigate';
 import type { NavOptions } from '../pathfinding/navigate';
 import { isRideInspectionDue } from '../rides/ride-operations';
 import { rideServiceX, rideServiceY, serviceRide } from '../rides/ride-maintenance';
@@ -11,6 +12,10 @@ import { RideState } from '../rides/ride-store';
 import { growGrounds, mowGrass, needsMowing, needsWatering, waterFlowerBed } from './grounds';
 
 const STAFF_UPDATE_STRIDE = 16;
+
+function patrolAllows(patrol: PatrolMask, tile: number): boolean {
+  return patrol instanceof Uint8Array ? patrol[tile] !== 0 : patrol.contains(tile);
+}
 const STAFF_SPEED = 48;
 const GARDEN_SEARCH_RADIUS = 10;
 const WANDER_STRIDE = 80;
@@ -21,7 +26,7 @@ const HANDYMAN_IGNORE_QUEUE_ROLL = 58982;
 function moveStaff(
   world: World,
   slot: number,
-  patrol: Uint8Array,
+  patrol: PatrolMask,
   walkableTiles: Int32Array,
   walkableCount: number,
   navOptions: NavOptions,
@@ -41,7 +46,7 @@ function moveStaff(
     let distance = 0x7fffffff;
     for (let i = 0; i < walkableCount; i++) {
       const tile = walkableTiles[i];
-      if (patrol[tile] === 0) continue;
+      if (!patrolAllows(patrol, tile)) continue;
       const d = Math.abs((tile % map.width) - x) + Math.abs(((tile / map.width) | 0) - y);
       if (d < distance) {
         best = tile;
@@ -68,8 +73,9 @@ function moveStaff(
 
 export function createStaffSystem(): System {
   let unrestricted = new Uint8Array(0);
-  let patrolSource: Uint8Array | null = null;
-  let patrolMasks: Uint8Array[] = [];
+  let patrolSource: Uint32Array | null = null;
+  let patrolRevision = -1;
+  const patrolMasks = new Map<number, PatrolMask>();
   const navOptions: NavOptions = { ...DEFAULT_STAFF_OPTS, patrol: unrestricted };
   let binTiles = new Int32Array(0);
   let binElements = new Int32Array(0);
@@ -98,12 +104,12 @@ export function createStaffSystem(): System {
       if (unrestricted.length !== mapSize) {
         unrestricted = new Uint8Array(mapSize).fill(1);
       }
-      if (patrolSource !== world.patrolAreas) {
+      if (patrolSource !== world.patrolAreas || patrolRevision !== world.patrolRevision) {
         patrolSource = world.patrolAreas;
-        patrolMasks = new Array<Uint8Array>(4);
-        for (let area = 0; area < patrolMasks.length; area++)
-          patrolMasks[area] = world.patrolAreas.subarray(area * mapSize, (area + 1) * mapSize);
+        patrolRevision = world.patrolRevision;
+        patrolMasks.clear();
       }
+
       const staff = world.staff.cols;
       if (litterHeadByTile.length !== mapSize) {
         litterHeadByTile = new Int32Array(mapSize);
@@ -182,7 +188,24 @@ export function createStaffSystem(): System {
         if ((world.tick + world.staff.slotToId[slot]) % STAFF_UPDATE_STRIDE !== 0) continue;
         const orders = staff.orderFlags[slot];
         const area = staff.patrolArea[slot];
-        const activePatrol = area > 0 ? patrolMasks[area - 1] : unrestricted;
+        let activePatrol: PatrolMask = unrestricted;
+        if (area > 0) {
+          let mask = patrolMasks.get(area);
+          if (!mask) {
+            const blocksWide = Math.ceil(map.width / 4);
+            const row = (area - 1) * world.patrolWordsPerArea;
+            mask = {
+              contains: (tile) => {
+                const x = tile % map.width;
+                const y = (tile / map.width) | 0;
+                const block = (y >>> 2) * blocksWide + (x >>> 2);
+                return (world.patrolAreas[row + (block >>> 5)]! & (1 << (block & 31))) !== 0;
+              },
+            };
+            patrolMasks.set(area, mask);
+          }
+          activePatrol = mask;
+        }
         const x = (staff.x[slot] / TILE_UNITS) | 0;
         const y = (staff.y[slot] / TILE_UNITS) | 0;
         if (staff.kind[slot] === StaffKind.Handyman) {
@@ -236,7 +259,7 @@ export function createStaffSystem(): System {
           const staffTile = map.index(x, y);
           for (let i = 0; (orders & (1 << StaffOrder.EmptyBins)) !== 0 && i < binCount; i++) {
             const tile = binTiles[i];
-            if (area > 0 && activePatrol[tile] === 0) continue;
+            if (area > 0 && !patrolAllows(activePatrol, tile)) continue;
             const element = binElements[i];
             if ((map.elData[element] & 0xff) === 0xff || isPathElementBroken(map, element))
               continue;
@@ -263,11 +286,11 @@ export function createStaffSystem(): System {
           }
           if (area === 0) continue;
           const targetTile = map.index(staff.targetX[slot], staff.targetY[slot]);
-          if (area > 0 && activePatrol[targetTile] === 0) {
+          if (area > 0 && !patrolAllows(activePatrol, targetTile)) {
             let chosen = -1;
             for (let attempt = 0; attempt < 24; attempt++) {
               const candidate = world.rng.int(mapSize);
-              if (activePatrol[candidate] && map.isWalkable(candidate)) {
+              if (patrolAllows(activePatrol, candidate) && map.isWalkable(candidate)) {
                 chosen = candidate;
                 break;
               }
@@ -284,7 +307,7 @@ export function createStaffSystem(): System {
           let targetTile = -1;
           let targetKey = 0x7fffffff;
           const staffTile = map.index(x, y);
-          if (area > 0 && activePatrol[staffTile] === 0) {
+          if (area > 0 && !patrolAllows(activePatrol, staffTile)) {
             moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             continue;
           }
@@ -305,7 +328,10 @@ export function createStaffSystem(): System {
               const tileY = rideY + DIR_DY[dir];
               if (!map.inBounds(tileX, tileY)) continue;
               const candidate = map.index(tileX, tileY);
-              if (!map.isWalkable(candidate) || (area > 0 && activePatrol[candidate] === 0))
+              if (
+                !map.isWalkable(candidate) ||
+                (area > 0 && !patrolAllows(activePatrol, candidate))
+              )
                 continue;
               if (
                 canCheckRoute &&
@@ -351,10 +377,15 @@ export function createStaffSystem(): System {
         ) {
           const workTick = (world.tick + world.staff.slotToId[slot]) % WANDER_STRIDE === 0;
           const target = mapIndex(world, staff.targetX[slot], staff.targetY[slot]);
-          if (workTick || target < 0 || !activePatrol[target] || !map.isWalkable(target)) {
+          if (
+            workTick ||
+            target < 0 ||
+            !patrolAllows(activePatrol, target) ||
+            !map.isWalkable(target)
+          ) {
             for (let attempt = 0; attempt < 24; attempt++) {
               const candidate = world.rng.int(mapSize);
-              if (activePatrol[candidate] && map.isWalkable(candidate)) {
+              if (patrolAllows(activePatrol, candidate) && map.isWalkable(candidate)) {
                 staff.targetX[slot] = candidate % map.width;
                 staff.targetY[slot] = (candidate / map.width) | 0;
                 break;
@@ -400,7 +431,7 @@ export function createStaffSystem(): System {
  * Nearest site within reach that a handyman can work from, or -1. Scans only the search window
  * around the handyman; ties go to the lowest tile index.
  */
-function findGardenSite(world: World, x: number, y: number, patrol: Uint8Array | null): number {
+function findGardenSite(world: World, x: number, y: number, patrol: PatrolMask | null): number {
   const map = world.map;
   const from = map.index(x, y);
   let best = -1;
@@ -424,7 +455,7 @@ function findGardenSite(world: World, x: number, y: number, patrol: Uint8Array |
 }
 
 /** A walkable, reachable tile beside `site` where a handyman can work on it, or -1. */
-function standTileFor(world: World, site: number, from: number, patrol: Uint8Array | null): number {
+function standTileFor(world: World, site: number, from: number, patrol: PatrolMask | null): number {
   const map = world.map;
   const siteX = site % map.width;
   const siteY = (site / map.width) | 0;
@@ -433,7 +464,7 @@ function standTileFor(world: World, site: number, from: number, patrol: Uint8Arr
     const tileY = siteY + DIR_DY[dir];
     if (!map.inBounds(tileX, tileY)) continue;
     const tile = map.index(tileX, tileY);
-    if (!map.isWalkable(tile) || (patrol !== null && patrol[tile] === 0)) continue;
+    if (!map.isWalkable(tile) || (patrol !== null && !patrolAllows(patrol, tile))) continue;
     if (tile !== from && !isReachable(world, from, tile, patrol)) continue;
     return tile;
   }
@@ -450,7 +481,7 @@ function nearestLitterSlot(
   x: number,
   y: number,
   z: number,
-  patrol: Uint8Array | null,
+  patrol: PatrolMask | null,
   headByTile: Int32Array,
   stampByTile: Uint32Array,
   indexVersion: number,
@@ -466,7 +497,7 @@ function nearestLitterSlot(
       const tileY = y + dy;
       if (!map.inBounds(tileX, tileY)) continue;
       const tile = map.index(tileX, tileY);
-      if (!map.isWalkable(tile) || (patrol !== null && patrol[tile] === 0)) continue;
+      if (!map.isWalkable(tile) || (patrol !== null && !patrolAllows(patrol, tile))) continue;
       if (tile !== from && !isReachable(world, from, tile, patrol)) continue;
       for (
         let id = stampByTile[tile] === indexVersion ? headByTile[tile] : -1;

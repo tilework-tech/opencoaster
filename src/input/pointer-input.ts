@@ -39,6 +39,7 @@ interface ActivePointer {
   held: boolean;
   /** This pointer is laying a footpath run rather than panning. */
   pathDrag: boolean;
+  paintDrag: boolean;
   timer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -67,6 +68,7 @@ export class PointerInput {
       moved: false,
       held: false,
       pathDrag: false,
+      paintDrag: false,
       timer: null,
     };
     this.pointers.set(sample.pointerId, active);
@@ -142,10 +144,16 @@ export class PointerInput {
         this.actions.paint(active.startX, active.startY, sample.shiftKey);
       else if (this.actions.tool() === 'path')
         active.pathDrag = this.actions.pathDragStart(active.startX, active.startY);
+      else if (this.actions.tool() === 'patrol') {
+        active.paintDrag = true;
+        this.actions.paint(active.startX, active.startY, sample.shiftKey);
+      }
     }
 
     if (this.landDragging) this.actions.landDragMove?.(sample.x, sample.y);
     else if (this.actions.tool() === 'land')
+      this.paintBetween(startsDrag ? { x: active.startX, y: active.startY } : previous, sample);
+    else if (active.paintDrag)
       this.paintBetween(startsDrag ? { x: active.startX, y: active.startY } : previous, sample);
     else if (active.pathDrag) this.actions.pathDragMove(sample.x, sample.y);
     else if (startsDrag) this.actions.pan(dx, dy);

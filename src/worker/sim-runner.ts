@@ -62,6 +62,8 @@ export class SimRunner {
   private pool: Snapshot[] = [];
   /** Tile count the pooled snapshots were sized for; a larger map replaces the pool. */
   private poolTiles = 0;
+  private poolMapWidth = 0;
+  private poolMapHeight = 0;
   private emaMs = 0;
   private maxMs = 0;
   private lastStats = 0;
@@ -197,13 +199,16 @@ export class SimRunner {
   private start(sim: Simulation): void {
     this.sim = sim;
     this.pausedCommands = [];
-    this.ensurePool(sim.world.map.width * sim.world.map.height);
+    this.ensurePool(sim.world.map.width, sim.world.map.height);
     this.postMap(sim);
   }
 
-  private ensurePool(mapTiles: number): void {
-    if (this.poolTiles >= mapTiles) return;
+  private ensurePool(mapWidth: number, mapHeight: number): void {
+    const mapTiles = mapWidth * mapHeight;
+    if (this.poolMapWidth === mapWidth && this.poolMapHeight === mapHeight) return;
     this.poolTiles = mapTiles;
+    this.poolMapWidth = mapWidth;
+    this.poolMapHeight = mapHeight;
     this.pool = [];
     for (let i = 0; i < SNAPSHOT_POOL; i++) {
       this.pool.push(
@@ -214,6 +219,9 @@ export class SimRunner {
           litter: MAX_LITTER,
           rides: SNAPSHOT_RIDE_CAPACITY,
           mapTiles,
+          patrolWordsPerArea: Math.ceil((Math.ceil(mapWidth / 4) * Math.ceil(mapHeight / 4)) / 32),
+          patrolAreas:
+            MAX_STAFF * Math.ceil((Math.ceil(mapWidth / 4) * Math.ceil(mapHeight / 4)) / 32),
         }),
       );
     }

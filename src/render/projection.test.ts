@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pickTile, project, rotateTile, unrotateTile } from './projection';
 import type { Rotation } from './projection';
+import { terrainMeshTriangles, terrainTileCorners } from './terrain-geometry';
 
 describe('projection', () => {
   it('unrotateTile inverts rotateTile for every rotation on a non-square map', () => {
@@ -52,5 +53,63 @@ describe('projection', () => {
         ).toEqual(target);
       }
     }
+  });
+
+  it('picks the visible terrain tile on raised and sloped surfaces at every rotation and zoom', () => {
+    const map = {
+      width: 8,
+      height: 6,
+      heights: new Uint8Array(48),
+      slope: new Uint8Array(48),
+    };
+    const target: [number, number] = [3, 2];
+    const index = target[1] * map.width + target[0];
+    map.heights[index] = 4;
+    map.slope[index] = 0b0101;
+    const camera = { x: 0, y: 0, zoom: 1, rotation: 0 as Rotation };
+    const viewport = { width: 800, height: 600 };
+    const point = new Float64Array(2);
+    const corners = terrainTileCorners(target[0], target[1], 4, map.slope[index]);
+
+    for (const rotation of [0, 1, 2, 3] as Rotation[]) {
+      camera.rotation = rotation;
+      for (const zoom of [0.5, 1, 1.5, 2]) {
+        camera.zoom = zoom;
+        for (const triangle of terrainMeshTriangles(rotation)) {
+          const sample = [0.4, 0.3, 0.3];
+          const fx = triangle.reduce((sum, corner, i) => sum + corners[corner]!.x * sample[i]!, 0);
+          const fy = triangle.reduce((sum, corner, i) => sum + corners[corner]!.y * sample[i]!, 0);
+          const fz = triangle.reduce(
+            (sum, corner, i) => sum + corners[corner]!.height * 64 * sample[i]!,
+            0,
+          );
+          project(fx * 256, fy * 256, fz, map.width, map.height, rotation, point);
+          const screenX = viewport.width / 2 + (point[0] - camera.x) * camera.zoom;
+          const screenY = viewport.height / 2 + (point[1] - camera.y) * camera.zoom;
+
+          expect(
+            pickTile(screenX, screenY, map, camera, viewport),
+            `rotation ${rotation}, zoom ${zoom}, triangle ${triangle.join(',')}`,
+          ).toEqual(target);
+        }
+      }
+    }
+  });
+
+  it('picks a lower foreground tile over raised terrain behind it', () => {
+    const map = {
+      width: 4,
+      height: 4,
+      heights: new Uint8Array(16),
+      slope: new Uint8Array(16),
+    };
+    map.heights[map.width + 1] = 5;
+    map.slope[0] = 1;
+    const camera = { x: 0, y: 0, zoom: 1, rotation: 0 as Rotation };
+    const viewport = { width: 800, height: 600 };
+
+    expect(pickTile(viewport.width / 2, viewport.height / 2 - 16, map, camera, viewport)).toEqual([
+      0, 0,
+    ]);
   });
 });
