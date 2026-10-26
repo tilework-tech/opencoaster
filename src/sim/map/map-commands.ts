@@ -234,8 +234,14 @@ export function applyMapCommand(w: World, c: MapCommand): void {
           ? { tool: 'water', lower: c.type === 'lowerWater', ...square }
           : { tool: 'clear', ...square },
       );
-      if (plan.result === LandResult.Ok) charge(w, LedgerCategory.Landscaping, plan.costCents);
-      else
+      if (plan.result === LandResult.Ok) {
+        charge(w, LedgerCategory.Landscaping, plan.costCents);
+        if (water) {
+          const flooded = new Uint8Array(m.width * m.height);
+          for (const tile of plan.tiles) flooded[tile] = 1;
+          removeLitterOnTerrainTiles(w, flooded);
+        }
+      } else
         reportFeedback(
           w.feedback,
           water ? FeedbackDomain.Water : FeedbackDomain.Clear,

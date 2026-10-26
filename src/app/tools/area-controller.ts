@@ -12,7 +12,8 @@ import { pickLandSelection } from './land-selection';
 import type { LandSelection } from './land-selection';
 
 const FEEDBACK_MS = 2500;
-const PAUSED_TEXT = 'The game is paused: the change is made when it resumes.';
+/** Re-asks the worker this often so a preview follows cash, rides and terrain changing under it. */
+const REFRESH_MS = 500;
 
 export interface AreaControllerDependencies {
   tool: AreaTool;
@@ -23,7 +24,6 @@ export interface AreaControllerDependencies {
   gameUi: GameUI;
   viewport: { width: number; height: number };
   active: () => boolean;
-  paused: () => boolean;
 }
 
 /**
@@ -39,6 +39,7 @@ export class AreaController {
   private pointer = { x: 0, y: 0 };
   private requestedKey = '';
   private requestedMap: unknown = null;
+  private requestedAt = 0;
   private feedbackSeq = -1;
   private feedbackText = '';
   private feedbackTile: number | undefined;
@@ -86,16 +87,6 @@ export class AreaController {
     const verb =
       edit.tool === 'clear' ? 'Clearing scenery' : edit.lower ? 'Lowering water' : 'Raising water';
     this.deps.gameUi.setToolStatus(`${verb} at ${selection.cursorX}, ${selection.cursorY}.`);
-    const answered = this.deps.sim.areaPreview;
-    if (
-      answered &&
-      answered.plan.result !== LandResult.Ok &&
-      JSON.stringify(answered.edit) === JSON.stringify(edit)
-    ) {
-      this.flash(areaRefusalText(this.deps.tool, answered.plan.result), answered.plan.subject);
-      return;
-    }
-    if (this.deps.paused()) this.flash(PAUSED_TEXT);
     const { x, y, width, height } = edit;
     const type = edit.tool === 'clear' ? 'clearScenery' : edit.lower ? 'lowerWater' : 'raiseWater';
     this.deps.sim.command({ type, x, y, width, height });
@@ -127,8 +118,9 @@ export class AreaController {
     }
     const edit = this.editFor(this.selection, false);
     const key = JSON.stringify(edit);
-    if (key !== this.requestedKey) {
+    if (key !== this.requestedKey || now - this.requestedAt >= REFRESH_MS) {
       this.requestedKey = key;
+      this.requestedAt = now;
       sim.previewArea(edit);
     }
     const answered = sim.areaPreview;
@@ -154,12 +146,6 @@ export class AreaController {
   dispose(): void {
     this.overlay.clear();
     this.tip.remove();
-  }
-
-  private flash(text: string, tile?: number): void {
-    this.feedbackText = text;
-    this.feedbackTile = tile !== undefined && tile >= 0 ? tile : undefined;
-    this.feedbackUntil = performance.now() + FEEDBACK_MS;
   }
 
   private showTip(text: string, bad: boolean): void {
@@ -190,6 +176,6 @@ export class AreaController {
   private editFor(selection: LandSelection, alternate: boolean): AreaEdit {
     const { x, y, width, height } = selection;
     if (this.deps.tool === 'clear') return { tool: 'clear', x, y, width, height };
-    return { tool: 'water', x, y, width, height, lower: this.settings.lower !== alternate };
+    return { tool: 'water', x, y, width, height, lower: this.settings.lower || alternate };
   }
 }

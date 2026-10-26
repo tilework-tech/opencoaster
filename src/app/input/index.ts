@@ -317,6 +317,8 @@ export function connectCameraInput(deps: CameraInputDependencies): Set<string> {
   });
   canvas.addEventListener('contextmenu', (event) => {
     event.preventDefault();
+    // A touch long-press also raises contextmenu; the gesture recognizer's hold handles it.
+    if ((event as PointerEvent).pointerType === 'touch') return;
     const tool = deps.selectedTool();
     if (tool === 'select') deps.handleCanvasClick(event.clientX, event.clientY, false, true);
     else if (tool === 'patrol') deps.handleCanvasClick(event.clientX, event.clientY, true);

@@ -89,9 +89,13 @@ function benchAt(map: TileMap, x: number, y: number): boolean {
   return e >= 0 && (map.elFlags[e] & PathFlag.Bench) !== 0;
 }
 
+/** Writes to the test output; set UPDATE_SCREENSHOTS=1 to refresh the committed copies. */
 async function shot(page: Page, name: string, mobile: boolean): Promise<void> {
-  await mkdir(SHOTS, { recursive: true });
-  await page.screenshot({ path: `${SHOTS}/${mobile ? 'pixel-8' : 'desktop'}-${name}.png` });
+  const file = `${mobile ? 'pixel-8' : 'desktop'}-${name}.png`;
+  if (process.env.UPDATE_SCREENSHOTS) {
+    await mkdir(SHOTS, { recursive: true });
+    await page.screenshot({ path: `${SHOTS}/${file}` });
+  } else await page.screenshot({ path: test.info().outputPath(file) });
 }
 
 for (const profile of ['desktop', 'pixel-8'] as const) {
@@ -139,7 +143,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
 
       const target = point(cal, CLEAR_CENTRE.x, CLEAR_CENTRE.y);
       await hoverUntil(page, target, async () => {
-        await expect(tip(page)).toHaveText(`Clear 3 items: $0.${2 * OAK_REMOVAL_CENTS}`, {
+        await expect(tip(page)).toHaveText('Clear 3 items: $0.50', {
           timeout: 1500,
         });
         await expect(overlay(page, 'area-sel')).toHaveCount(9, { timeout: 1500 });

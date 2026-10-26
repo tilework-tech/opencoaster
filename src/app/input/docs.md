@@ -25,7 +25,7 @@ Path: @/src/app/input
 | Footpaths      | Removes the path under the pointer                                               |
 | Any other tool | Single-tile scenery removal (a ride on the tile opens its window instead)        |
 
-- Patrol right-click removal is a deliberate departure from RCT2/OpenRCT2, where right-click does not remove patrol tiles ([OpenRCT2 #25646](https://github.com/OpenRCT2/OpenRCT2/pull/25646)): the patrol tool here only adds on a plain tap rather than toggling, so right-click gives desktop players a removal gesture besides Shift. An earlier version returned early for Select and Patrol without suppressing the menu, which showed the browser menu and stopped right-click from opening rides; `e2e/context-menu.spec.ts` guards both cases.
+- Patrol right-click removal is a deliberate departure from RCT2/OpenRCT2, where right-click does not remove patrol tiles ([OpenRCT2 #25646](https://github.com/OpenRCT2/OpenRCT2/pull/25646)): the patrol tool here only adds on a plain tap rather than toggling, so right-click gives desktop players a removal gesture besides Shift. `e2e/context-menu.spec.ts` checks that both suppress the browser menu.
 - A touch hold forces selection except while Footpaths is active, when it removes a path.
 - Pointer routing for area tools: the gesture recognizer's `press` and mouse hover/leave go to the Land controller or the matching Clear scenery / Water `AreaController` depending on the selected tool; only the Land tool receives drags.
 - `centreOnTile` projects a map tile into camera coordinates for locate actions.

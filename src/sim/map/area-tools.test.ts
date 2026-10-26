@@ -134,7 +134,7 @@ describe('clear scenery tool', () => {
     const m = s.world.map;
     placePath(m, { x: 8, y: 8 });
     setPathAddition(m, 8, 8, PathAddition.Lamp);
-    s.world.economy.cash = 0;
+    s.world.economy.cash = -500;
     const plan = planArea(s.world, clear(8, 8, 1));
     expect(plan.result).toBe(LandResult.Ok);
     expect(plan.costCents).toBe(0);
@@ -279,6 +279,15 @@ describe('water tool', () => {
     s.step();
     placeScenery(m, 9, 8, SceneryItem.OakTree);
     expect(planArea(s.world, water(8, 8, 2)).result).toBe(LandResult.Ok);
+  });
+
+  it('refuses to flood a sloped tile with a tree on it', () => {
+    const s = sim();
+    const m = s.world.map;
+    s.enqueue({ type: 'raiseLand', x: 8, y: 8, width: 1, height: 1, corners: 0b0001 });
+    s.step();
+    placeScenery(m, 8, 8, SceneryItem.OakTree);
+    expect(planArea(s.world, water(8, 8, 1)).result).toBe(LandResult.ObjectInTheWay);
   });
 
   it('refuses when the park cannot pay', () => {

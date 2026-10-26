@@ -78,7 +78,8 @@ function clearScenery(w: World, selected: Int32Array, commit: boolean): AreaPlan
     level: -1,
     removed: scenery.length + paths.length,
   };
-  if (w.economy.cash < costCents) return { ...plan, result: LandResult.InsufficientFunds };
+  if (costCents > 0 && w.economy.cash < costCents)
+    return { ...plan, result: LandResult.InsufficientFunds };
   if (!commit) return plan;
   for (const [, e] of paths) {
     m.elFlags[e] &= ~PATH_ADDITIONS;
@@ -113,9 +114,9 @@ function moveWater(w: World, selected: Int32Array, lower: boolean, commit: boole
   if (!lower)
     for (const t of changed)
       for (let e = m.firstElement(t); e >= 0; e = m.nextElement(e)) {
-        if (m.elBase[e] >= target) continue;
-        if (m.elType[e] === ElementType.Path) return refuse(LandResult.PathInTheWay, t, selected);
-        return refuse(LandResult.ObjectInTheWay, t, selected);
+        if (m.elType[e] === ElementType.Path) {
+          if (m.elBase[e] < target) return refuse(LandResult.PathInTheWay, t, selected);
+        } else return refuse(LandResult.ObjectInTheWay, t, selected);
       }
   const plan: AreaPlan = {
     result: LandResult.Ok,

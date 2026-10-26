@@ -337,7 +337,6 @@ export async function bootstrap(): Promise<void> {
       gameUi,
       viewport,
       active: () => selectedTool === tool,
-      paused: () => userPaused || hiddenPaused,
     });
   const areaTools = { clear: areaController('clear'), water: areaController('water') };
   Object.assign(areaHolder, areaTools);
