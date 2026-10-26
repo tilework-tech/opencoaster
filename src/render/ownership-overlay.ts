@@ -2,6 +2,7 @@ import { OWNED, SALE_LAND, SALE_RIGHTS } from '../sim/map/tile-map';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import type { Camera, MapData } from './renderer';
 import { project } from './projection';
+import { terrainTileCorners } from './terrain-geometry';
 
 /** Draws parcel state over terrain without changing the ground textures or tile cache. */
 export class OwnershipOverlay {
@@ -59,8 +60,7 @@ export class OwnershipOverlay {
         const index = y * map.width + x;
         const ownership = flags[index];
         if (ownership & OWNED) continue;
-        const z = (map.heights[index] ?? 0) * Z_STEP;
-        this.projectTile(x, y, z, map, camera);
+        this.projectTile(x, y, map, camera);
         ctx.beginPath();
         this.traceTile(ctx);
         ctx.closePath();
@@ -142,7 +142,7 @@ export class OwnershipOverlay {
       for (let x = 0; x < map.width; x++) {
         const index = y * map.width + x;
         if (!(flags[index] & OWNED)) continue;
-        this.projectTile(x, y, (map.heights[index] ?? 0) * Z_STEP, map, camera);
+        this.projectTile(x, y, map, camera);
         for (const [dx, dy, from, to] of directions) {
           const nx = x + dx;
           const ny = y + dy;
@@ -184,17 +184,19 @@ export class OwnershipOverlay {
     }
   }
 
-  private projectTile(x: number, y: number, z: number, map: MapData, camera: Camera): void {
-    for (const [index, dx, dy] of [
-      [0, 0, 0],
-      [1, 1, 0],
-      [2, 1, 1],
-      [3, 0, 1],
-    ] as const) {
+  private projectTile(x: number, y: number, map: MapData, camera: Camera): void {
+    const tileIndex = y * map.width + x;
+    const corners = terrainTileCorners(
+      x,
+      y,
+      map.heights[tileIndex] ?? 0,
+      map.slope?.[tileIndex] ?? 0,
+    );
+    for (const [index, corner] of corners.entries()) {
       project(
-        (x + dx) * TILE_UNITS,
-        (y + dy) * TILE_UNITS,
-        z,
+        corner.x * TILE_UNITS,
+        corner.y * TILE_UNITS,
+        corner.height * Z_STEP,
         map.width,
         map.height,
         camera.rotation,

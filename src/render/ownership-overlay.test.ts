@@ -63,4 +63,46 @@ describe('ownership overlay', () => {
     overlay.draw(updatedMap, { ...camera, x: 1 });
     expect(context.clearRect).toHaveBeenCalledTimes(5);
   });
+
+  it('projects park fence posts and rails onto each sloped tile corner', () => {
+    const lineCalls = (slope: number) => {
+      const context = {
+        beginPath: vi.fn(),
+        clearRect: vi.fn(),
+        closePath: vi.fn(),
+        fill: vi.fn(),
+        fillRect: vi.fn(),
+        lineTo: vi.fn(),
+        moveTo: vi.fn(),
+        setLineDash: vi.fn(),
+        setTransform: vi.fn(),
+        stroke: vi.fn(),
+      } as unknown as CanvasRenderingContext2D;
+      const canvas = {
+        className: '',
+        getContext: () => context,
+        setAttribute: vi.fn(),
+        style: {},
+        width: 1,
+        height: 1,
+        remove: vi.fn(),
+      } as unknown as HTMLCanvasElement;
+      vi.stubGlobal('document', { createElement: () => canvas });
+      const overlay = new OwnershipOverlay({ append: vi.fn() } as unknown as HTMLElement);
+      overlay.resize(640, 400, 1);
+      overlay.draw(
+        {
+          width: 1,
+          height: 1,
+          heights: new Uint8Array([0]),
+          slope: new Uint8Array([slope]),
+          ownership: new Uint8Array([OWNED]),
+        } as unknown as MapData,
+        { x: 0, y: 0, zoom: 1, rotation: 0 },
+      );
+      return (context.lineTo as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    };
+
+    expect(lineCalls(1)).not.toEqual(lineCalls(0));
+  });
 });
