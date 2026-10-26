@@ -39,7 +39,7 @@ export function openStaffWindow(ctx: UiContext): WindowController {
         },
         'ui-button',
       );
-      alternate.setAttribute('aria-pressed', 'false');
+      alternate.setAttribute('aria-pressed', String(ctx.alternate()));
       row.append(alternate);
       pane.append(row);
       rosters.push(

@@ -289,6 +289,10 @@ describe('save', () => {
     expect(restored.staff.cols.patrolArea[0]).not.toBe(restored.staff.cols.patrolArea[1]);
     expect(restored.staff.cols.patrolArea[0]).toBeGreaterThan(0);
     expect(restored.staff.cols.patrolArea[1]).toBeGreaterThan(0);
+    expect(staffPatrolTileEnabled(restored, firstId, 2, 8)).toBe(true);
+    expect(staffPatrolTileEnabled(restored, firstId, 5, 8)).toBe(false);
+    expect(staffPatrolTileEnabled(restored, secondId, 5, 8)).toBe(true);
+    expect(staffPatrolTileEnabled(restored, secondId, 2, 8)).toBe(false);
   });
 
   it('copies a version 19 role patrol area to each worker during migration', () => {

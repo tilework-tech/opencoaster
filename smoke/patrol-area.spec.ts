@@ -9,6 +9,45 @@ import { savedWorld, startStarterPark, starterWorld, toolbarAction } from '../e2
 
 type Tile = { x: number; y: number };
 
+interface CdpSession {
+  send(method: string, params?: Record<string, unknown>): Promise<unknown>;
+}
+
+async function tapMap(page: Page, point: readonly [number, number]): Promise<void> {
+  if ((page.viewportSize()?.width ?? 1280) < 600) await page.touchscreen.tap(...point);
+  else await page.mouse.click(...point);
+}
+
+async function dragMap(
+  page: Page,
+  start: readonly [number, number],
+  end: readonly [number, number],
+): Promise<void> {
+  if ((page.viewportSize()?.width ?? 1280) >= 600) {
+    await page.mouse.move(...start);
+    await page.mouse.down();
+    await page.mouse.move(...end, { steps: 12 });
+    await page.mouse.up();
+    return;
+  }
+  const cdp = (await page.context().newCDPSession(page)) as CdpSession;
+  const dispatch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) =>
+    cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ id: 1, x, y, radiusX: 1, radiusY: 1, force: 1 }],
+    });
+  await dispatch('touchStart', ...start);
+  for (let step = 1; step <= 12; step++) {
+    await dispatch(
+      'touchMove',
+      start[0] + ((end[0] - start[0]) * step) / 12,
+      start[1] + ((end[1] - start[1]) * step) / 12,
+    );
+  }
+  await dispatch('touchEnd', 0, 0);
+  await cdp.detach();
+}
+
 function nearestTile(
   world: ReturnType<typeof starterWorld>,
   predicate: (tile: Tile) => boolean,
@@ -209,9 +248,14 @@ test('paints separate staff patrol blocks on hills through the worker windows', 
   await expect(page.locator('.tool-status')).toContainText(
     `Patrol tool selected for worker ${firstId}`,
   );
+  await page.screenshot({
+    path: `.local/pr-proof/patrol-worker-window-${test.info().project.name}.png`,
+  });
+  await worker.getByRole('button', { name: 'Close Worker' }).click();
+  await staff.getByRole('button', { name: 'Close Staff' }).click();
 
   const hillBeforeDrag = await aimAtTile(page, world, hill, 0, 2);
-  await page.mouse.click(...hillBeforeDrag);
+  await tapMap(page, hillBeforeDrag);
   await expect(page.locator('.tool-status')).toContainText('Patrol tile added');
   await page.waitForTimeout(500);
   await mkdir('.local/pr-proof', { recursive: true });
@@ -225,12 +269,8 @@ test('paints separate staff patrol blocks on hills through the worker windows', 
   const canvas = await page.locator('#game').boundingBox();
   if (!canvas) throw new Error('Game canvas is not visible');
   const hillDragEnd = screenPoint(world, nextBlock, 0, 1, canvas, camera);
-  await page.mouse.move(...hillDragStart);
-  await page.mouse.down();
-  await page.mouse.move(...hillDragEnd, { steps: 12 });
-  await page.mouse.up();
+  await dragMap(page, hillDragStart, hillDragEnd);
 
-  await worker.getByRole('button', { name: 'Close Worker' }).click();
   if (!(await staff.isVisible())) {
     await toolbarAction(page, 'Staff');
     await expect(staff).toBeVisible();
@@ -245,17 +285,44 @@ test('paints separate staff patrol blocks on hills through the worker windows', 
   await expect(page.locator('.tool-status')).toContainText(
     `Patrol tool selected for worker ${secondId}`,
   );
+  await worker.getByRole('button', { name: 'Close Worker' }).click();
+  await staff.getByRole('button', { name: 'Close Staff' }).click();
   const flatAt = await aimAtTile(page, world, flat, 2, 1.25);
-  await page.mouse.click(...flatAt);
+  await tapMap(page, flatAt);
   await page.waitForTimeout(500);
   await captureRotationMatrix(page, world, flat, 'flat');
+
+  await toolbarAction(page, 'Staff');
+  await expect(staff).toBeVisible();
+  const removeTiles = staff.getByRole('button', { name: 'Remove tiles' });
+  await expect(removeTiles).toHaveAttribute('aria-pressed', 'false');
+  await removeTiles.click();
+  await expect(removeTiles).toHaveAttribute('aria-pressed', 'true');
+  await staff.getByRole('button', { name: 'Close Staff' }).click();
   const removeAt = await aimAtTile(page, world, flat, 2, 1.25);
-  await page.keyboard.down('Shift');
-  await page.mouse.click(...removeAt);
-  await page.keyboard.up('Shift');
-  await page.waitForTimeout(200);
+  await page.mouse.move(...removeAt);
+  await page.waitForTimeout(100);
+  const windows = await page.addStyleTag({
+    content: '.ui-windows { visibility: hidden !important; }',
+  });
+  await page.screenshot({
+    path: `.local/pr-proof/patrol-remove-preview-${test.info().project.name}.png`,
+  });
+  await windows.evaluate((style) => style.remove());
+  await tapMap(page, removeAt);
+  await expect(page.locator('.tool-status')).toContainText('Patrol tile removed');
+  const removed = await savedWorld(page);
+  expect(staffPatrolTileEnabled(removed, secondId, flat.x, flat.y)).toBe(false);
+
+  await toolbarAction(page, 'Staff');
+  await expect(staff).toBeVisible();
+  const reopenedRemoveTiles = staff.getByRole('button', { name: 'Remove tiles' });
+  await expect(reopenedRemoveTiles).toHaveAttribute('aria-pressed', 'true');
+  await reopenedRemoveTiles.click();
+  await expect(reopenedRemoveTiles).toHaveAttribute('aria-pressed', 'false');
+  await staff.getByRole('button', { name: 'Close Staff' }).click();
   const restoreFlatAt = await aimAtTile(page, world, flat, 2, 1.25);
-  await page.mouse.click(...restoreFlatAt);
+  await tapMap(page, restoreFlatAt);
 
   const saved = await savedWorld(page);
   for (const tile of patrolBlockTiles(hill)) {

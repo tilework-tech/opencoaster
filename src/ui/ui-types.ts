@@ -129,6 +129,7 @@ export interface GuestSelection {
 export interface UiContext {
   windows: WindowManager;
   actions: GameUIActions;
+  alternate(): boolean;
   selectedGuest(): GuestSelection | null;
   series: { cash: SampleSeries; value: SampleSeries; profit: SampleSeries; guests: SampleSeries };
   openRide(rideId: number): void;

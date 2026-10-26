@@ -120,6 +120,7 @@ export class GameUI {
   private readonly ctx: UiContext;
   private paused = false;
   private tool: ToolMode = 'select';
+  private alternate = false;
   private patrolStaffId: number | null = null;
   private selectedGuest: GuestSelection | null = null;
   /** The speed the player chose. The sim runs at `speed`, which building can cap lower. */
@@ -142,7 +143,12 @@ export class GameUI {
           this.patrolStaffId = staffId;
           actions.setPatrolStaff(staffId);
         },
+        setAlternate: (on) => {
+          this.alternate = on;
+          actions.setAlternate(on);
+        },
       },
+      alternate: () => this.alternate,
       selectedGuest: () => this.selectedGuest,
       series: this.series,
       openRide: (id) => this.openRide(id),
