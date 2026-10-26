@@ -1,20 +1,21 @@
-import { readFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
-import { devices, expect as baseExpect, test } from '@playwright/test';
-import type { Browser, Locator, Page } from '@playwright/test';
-import { World } from '../src/sim/core/world';
-import { deserialize } from '../src/save/save';
-import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
-import { prepareScenario } from '../src/sim/scenario/scenario-layout';
-
-/** Software-rendered WebGL on a shared runner draws a few frames per second; give overlays time. */
-const expect = baseExpect.configure({ timeout: 20_000 });
-
-const starterScenario = parseScenarioFile(
-  JSON.parse(
-    readFileSync(new URL('../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
-  ),
-);
+import { test } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
+import {
+  calibrate,
+  centreOnTile,
+  expect,
+  hoverUntil,
+  hudCash,
+  openPage,
+  PHONE_SHIFT,
+  point,
+  savedWorld,
+  startStarterPark,
+  starterWorld,
+  toolbarAction,
+} from './support/park';
+import type { Calibration } from './support/park';
+import type { World } from '../src/sim/core/world';
 
 /** Owned grass at level 2 with flat tiles around it: x 27..29, y 41..43 of Starter Park. */
 const FLAT = { x: 28, y: 42 };
@@ -27,131 +28,8 @@ interface Setup {
   mobile: boolean;
 }
 
-interface Calibration {
-  /** Tile `centre` belongs to. */
-  ref: { x: number; y: number };
-  /** Screen centre of the flat reference tile and the diamond's width in CSS pixels. */
-  centre: { x: number; y: number };
-  tileWidth: number;
-}
-
-function starterWorld(): World {
-  const world = new World({
-    seed: starterScenario.seed,
-    width: starterScenario.mapWidth,
-    height: starterScenario.mapHeight,
-  });
-  prepareScenario(world, starterScenario);
-  return world;
-}
-
-async function openPage(browser: Browser, mobile: boolean): Promise<Page> {
-  const { defaultBrowserType: _type, ...options } = mobile ? devices['Pixel 8'] : {};
-  void _type;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'block' });
-  const page = await context.newPage();
-  page.setDefaultTimeout(15_000);
-  return page;
-}
-
-async function startStarterPark(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'New game' }).click();
-  await page
-    .locator('.scenario-card')
-    .filter({ hasText: 'Starter Park' })
-    .getByRole('button', { name: 'Start', exact: true })
-    .click();
-  await expect(page.locator('.game-toolbar')).toBeVisible();
-  await expect(page.locator('.hud')).toContainText('tick');
-}
-
-async function toolbarAction(page: Page, name: string): Promise<void> {
-  const toolbar = page.locator('.game-toolbar');
-  const action = toolbar.getByRole('button', { name, exact: true });
-  if (!(await action.isVisible())) {
-    const actions = toolbar.getByRole('button', { name: 'Actions', exact: true });
-    if ((await actions.getAttribute('aria-expanded')) !== 'true') await actions.click();
-    await expect(action).toBeVisible();
-  }
-  await action.click();
-}
-
-async function centreOnTile(page: Page, x: number, y: number): Promise<void> {
-  await toolbarAction(page, 'Map');
-  const minimap = page.locator('.minimap');
-  await expect.poll(() => minimap.evaluate((canvas) => canvas.width)).toBe(128);
-  const bounds = await minimap.boundingBox();
-  if (!bounds) throw new Error('Park map is missing');
-  const size = await minimap.evaluate((canvas) => ({ width: canvas.width, height: canvas.height }));
-  const mapHeight = size.height - 1;
-  await minimap.click({
-    position: {
-      x: ((x - y + mapHeight + 0.5) / size.width) * bounds.width,
-      y: (((x + y) / 2 + 0.25) / size.height) * bounds.height,
-    },
-  });
-  await page.getByRole('button', { name: 'Close Map' }).click();
-}
-
 function selected(page: Page): Locator {
   return page.locator('.land-overlay .land-sel');
-}
-
-/** Centre and width of the diamond the overlay draws around the tile under the pointer. */
-async function readDiamond(
-  page: Page,
-): Promise<{ tile: number; centre: { x: number; y: number }; width: number }> {
-  return selected(page)
-    .first()
-    .evaluate((node) => {
-      const points = (node.getAttribute('points') ?? '')
-        .split(' ')
-        .map((pair) => pair.split(',').map(Number));
-      const xs = points.map((p) => p[0]);
-      const ys = points.map((p) => p[1]);
-      return {
-        tile: Number((node as SVGElement).dataset.tile),
-        centre: {
-          x: (Math.min(...xs) + Math.max(...xs)) / 2,
-          y: (Math.min(...ys) + Math.max(...ys)) / 2,
-        },
-        width: Math.max(...xs) - Math.min(...xs),
-      };
-    });
-}
-
-/** The phone canvas is full-screen behind the tool sheets, so the camera is centred below the target. */
-const PHONE_SHIFT = 5;
-
-async function calibrate(
-  page: Page,
-  ref: { x: number; y: number },
-  mobile: boolean,
-): Promise<Calibration> {
-  const game = await page.locator('#game').boundingBox();
-  if (!game) throw new Error('Game viewport is missing');
-  // The camera was centred PHONE_SHIFT tiles beyond the target diagonally, i.e. 16 px per tile up.
-  const lift = mobile ? PHONE_SHIFT * 2 * 16 : 0;
-  await expect(async () => {
-    await page.mouse.move(game.x + game.width / 2, game.y + game.height / 2 - lift);
-    await expect(selected(page)).toHaveCount(1, { timeout: 1500 });
-  }).toPass({ timeout: 30_000, intervals: [1_000] });
-  const first = await readDiamond(page);
-  const world = starterWorld();
-  const tile = { x: first.tile % world.map.width, y: Math.floor(first.tile / world.map.width) };
-  const half = first.width / 2;
-  const dx = ref.x - tile.x;
-  const dy = ref.y - tile.y;
-  const levels = world.map.heights[world.map.index(ref.x, ref.y)] - world.map.heights[first.tile];
-  return {
-    ref,
-    centre: {
-      x: first.centre.x + (dx - dy) * half,
-      y: first.centre.y + (dx + dy) * (half / 2) - levels * 16 * (first.width / 64),
-    },
-    tileWidth: first.width,
-  };
 }
 
 async function openLandTool(page: Page, mobile: boolean): Promise<Calibration> {
@@ -159,14 +37,7 @@ async function openLandTool(page: Page, mobile: boolean): Promise<Calibration> {
   await centreOnTile(page, FLAT.x + shift, FLAT.y + shift);
   await toolbarAction(page, 'Land');
   await expect(page.getByRole('button', { name: 'Flatten', exact: true })).toBeVisible();
-  return calibrate(page, FLAT, mobile);
-}
-
-function point(cal: Calibration, x: number, y: number, fx = 0.5, fy = 0.5): [number, number] {
-  const half = cal.tileWidth / 2;
-  const dx = x - cal.ref.x + (fx - 0.5);
-  const dy = y - cal.ref.y + (fy - 0.5);
-  return [cal.centre.x + (dx - dy) * half, cal.centre.y + (dx + dy) * (half / 2)];
+  return calibrate(page, FLAT, mobile, selected(page));
 }
 
 interface Preview {
@@ -190,51 +61,6 @@ async function readPreview(page: Page): Promise<Preview> {
     };
   });
   return { ...raw, vertices: new Map(raw.vertices as Array<[number, number]>) };
-}
-
-/**
- * Moves the pointer over `target` and waits for the preview to satisfy `check`, nudging the
- * pointer on every retry so a slow software-rendered frame cannot leave the preview stale.
- */
-async function hoverUntil(
-  page: Page,
-  target: [number, number],
-  check: () => Promise<void>,
-): Promise<void> {
-  let attempt = 0;
-  await expect(async () => {
-    await page.mouse.move(target[0] + (attempt++ % 2) * 0.3, target[1]);
-    await check();
-  }).toPass({ timeout: 40_000, intervals: [1_000] });
-}
-
-async function hudCash(page: Page): Promise<number> {
-  const readouts = page.getByText(/^\$[\d,]+\.\d\d$/);
-  const count = await readouts.count();
-  for (let i = 0; i < count; i++) {
-    const box = await readouts.nth(i).boundingBox();
-    if (box && box.x < 300 && box.y > 400) {
-      const text = await readouts.nth(i).innerText();
-      return Math.round(Number(text.replace(/[$,]/g, '')) * 100);
-    }
-  }
-  throw new Error('HUD cash readout is missing');
-}
-
-async function savedWorld(page: Page): Promise<World> {
-  const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
-  while (await closeButtons.count()) await closeButtons.first().click();
-  await toolbarAction(page, 'Game options');
-  await page.getByRole('button', { name: 'Save, load and quit…' }).click();
-  const exportPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export save file' }).click();
-  const download = await exportPromise;
-  const path = await download.path();
-  if (!path) throw new Error('Save export did not produce a file');
-  const world = deserialize(new Uint8Array(await readFile(path)));
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await page.getByRole('button', { name: 'Close Options' }).click();
-  return world;
 }
 
 function tip(page: Page): Locator {

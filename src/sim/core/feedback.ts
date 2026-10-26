@@ -11,6 +11,10 @@ export const enum FeedbackDomain {
   Path = 4,
   /** `LandResult` */
   Land = 5,
+  /** `LandResult` from the Water tool */
+  Water = 6,
+  /** `LandResult` from the Clear scenery tool */
+  Clear = 7,
 }
 
 /**

@@ -33,6 +33,7 @@ import { BuildHoverFeedback, buildHoverGhost } from '../tools/build-hover-feedba
 import { PathFeedback } from '../tools/path-feedback';
 import { PathTool } from '../tools/path/controller';
 import { LandController } from '../tools/land-controller';
+import { AreaController } from '../tools/area-controller';
 import { createPathState } from '../tools/path/state';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
@@ -90,6 +91,7 @@ export async function bootstrap(): Promise<void> {
   const pathState = createPathState();
   let sceneryItem = SceneryItem.OakTree;
   const landHolder: { controller?: LandController } = {};
+  const areaHolder: { clear?: AreaController; water?: AreaController } = {};
   const windows = new WindowManager(root);
   const coasterPanel = new CoasterPanel(windows, {
     command: (command) => sim.command(command),
@@ -152,6 +154,12 @@ export async function bootstrap(): Promise<void> {
     },
     setLand(settings) {
       landHolder.controller?.configure(settings);
+    },
+    setClearScenery(settings) {
+      areaHolder.clear?.configure(settings);
+    },
+    setWater(settings) {
+      areaHolder.water?.configure(settings);
     },
     footpath: pathTool,
     setSceneryItem(item) {
@@ -319,6 +327,20 @@ export async function bootstrap(): Promise<void> {
     paused: () => userPaused || hiddenPaused,
   });
   landHolder.controller = landController;
+  const areaController = (tool: 'clear' | 'water'): AreaController =>
+    new AreaController({
+      tool,
+      parent: root,
+      canvas,
+      sim,
+      camera,
+      gameUi,
+      viewport,
+      active: () => selectedTool === tool,
+      paused: () => userPaused || hiddenPaused,
+    });
+  const areaTools = { clear: areaController('clear'), water: areaController('water') };
+  Object.assign(areaHolder, areaTools);
   const toolController = createToolController({
     canvas,
     sim,
@@ -330,6 +352,7 @@ export async function bootstrap(): Promise<void> {
     setSelectedGuest: (guest) => (selectedGuest = guest),
     alternate: () => alternate,
     land: landController,
+    areaTools,
     pathFeedback,
     pathTool,
     sceneryItem: () => sceneryItem,
@@ -358,6 +381,7 @@ export async function bootstrap(): Promise<void> {
     removePathAt: toolController.removePathAt,
     pathDrag: toolController.pathDrag,
     land: landController,
+    areaTools,
     setPlacementHover: (hover) => (placementHover = hover),
     setBuildHover: (tile, x, y) => {
       buildHoverTile = tile;
@@ -594,6 +618,8 @@ export async function bootstrap(): Promise<void> {
       pathGhost ?? hoverGhost,
     );
     landController.update(now);
+    areaTools.clear.update(now);
+    areaTools.water.update(now);
     rideSetupState.current.drawPreview(viewport.width, viewport.height);
     requestAnimationFrame(frame);
   }
@@ -607,6 +633,8 @@ export async function bootstrap(): Promise<void> {
     scenerySpot.dispose();
     pathFeedback.dispose();
     landController.dispose();
+    areaTools.clear.dispose();
+    areaTools.water.dispose();
     buildHoverFeedback.dispose();
     renderer.dispose();
   });

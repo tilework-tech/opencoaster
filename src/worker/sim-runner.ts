@@ -7,6 +7,7 @@ import { deserialize, serialize } from '../save/save';
 import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
 import { planLand } from '../sim/map/land-tool';
+import { planArea } from '../sim/map/area-tools';
 import { extractMapData } from './map-data';
 import { previewPathRun, previewScenery } from '../sim/map/map-commands';
 import type { ScenerySpot } from '../sim/map/map-commands';
@@ -34,6 +35,9 @@ function isConstructionCommand(command: Command): boolean {
     case 'raiseLand':
     case 'lowerLand':
     case 'setWater':
+    case 'raiseWater':
+    case 'lowerWater':
+    case 'clearScenery':
     case 'paintLand':
     case 'placePath':
     case 'removePath':
@@ -122,6 +126,14 @@ export class SimRunner {
             type: 'landPreview',
             id: msg.id,
             plan: planLand(this.sim.world, msg.edit),
+          });
+        break;
+      case 'previewArea':
+        if (this.sim)
+          this.port.post({
+            type: 'areaPreview',
+            id: msg.id,
+            plan: planArea(this.sim.world, msg.edit),
           });
         break;
       case 'previewScenery':

@@ -3,6 +3,7 @@ import { LedgerCategory, post } from '../economy/ledger';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { paintLand, planSetTileHeight, setTileHeight, setWaterLevel } from './land';
 import { applyLand, LandAction, LandResult } from './land-tool';
+import { applyArea } from './area-tools';
 import type { LandEdit } from './land-tool';
 import {
   PathResult,
@@ -63,6 +64,10 @@ export type MapCommand =
       anchorY: number;
     }
   | { type: 'setWater'; x: number; y: number; width: number; height: number; level: number }
+  /** One Water tool step: raises the lowest or lowers the highest water in the square. */
+  | { type: 'raiseWater' | 'lowerWater'; x: number; y: number; width: number; height: number }
+  /** Removes scenery and footpath additions from the owned tiles of the square. */
+  | { type: 'clearScenery'; x: number; y: number; width: number; height: number }
   | { type: 'paintLand'; x: number; y: number; width: number; height: number; surface: number }
   | {
       type: 'placePath';
@@ -216,6 +221,27 @@ export function applyMapCommand(w: World, c: MapCommand): void {
           charge(w, LedgerCategory.Landscaping, cost);
         }
       }
+      break;
+    }
+    case 'raiseWater':
+    case 'lowerWater':
+    case 'clearScenery': {
+      const square = { x: c.x | 0, y: c.y | 0, width: c.width | 0, height: c.height | 0 };
+      const water = c.type !== 'clearScenery';
+      const plan = applyArea(
+        w,
+        water
+          ? { tool: 'water', lower: c.type === 'lowerWater', ...square }
+          : { tool: 'clear', ...square },
+      );
+      if (plan.result === LandResult.Ok) charge(w, LedgerCategory.Landscaping, plan.costCents);
+      else
+        reportFeedback(
+          w.feedback,
+          water ? FeedbackDomain.Water : FeedbackDomain.Clear,
+          plan.result,
+          plan.subject,
+        );
       break;
     }
     case 'paintLand':
