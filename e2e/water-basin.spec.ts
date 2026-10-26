@@ -59,11 +59,15 @@ async function touchDrag(page: Page, from: [number, number], to: [number, number
   await cdp.detach();
 }
 
-/** Water surface of every wet tile, by tile index. */
+/** Water surface of every wet tile around the pit, by tile index. */
 function lake(map: TileMap): Map<number, number> {
   const wet = new Map<number, number>();
-  for (let i = 0; i < map.waterLevel.length; i++)
-    if (map.waterLevel[i] > map.heights[i]) wet.set(i, map.waterLevel[i]);
+  for (let i = 0; i < map.waterLevel.length; i++) {
+    const x = i % map.width;
+    const y = Math.floor(i / map.width);
+    const inPitArea = Math.abs(x - PIT_CENTRE.x) <= 4 && Math.abs(y - PIT_CENTRE.y) <= 4;
+    if (inPitArea && map.waterLevel[i] > map.heights[i]) wet.set(i, map.waterLevel[i]);
+  }
   return wet;
 }
 
@@ -120,7 +124,9 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         const flooded = await page.locator('.area-overlay .area-water').count();
         expect(flooded).toBeGreaterThanOrEqual(9);
         await expect(tip(page)).toHaveText(
-          new RegExp(`^Raise water, ${flooded} tiles: \\$${(flooded * STEP_CENTS) / 100}\\.00$`),
+          new RegExp(
+            `^Raise water, ${flooded} tiles: \\$${((flooded * STEP_CENTS) / 100).toFixed(2)}$`,
+          ),
         );
         const before = await hudCash(page);
         await tapAt(setup, aim);
