@@ -2,6 +2,7 @@ import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import { pieceByName } from '../sim/track/catalog';
 import { pieceExit } from '../sim/track/construction';
+import type { TrackPoint } from '../sim/track/construction';
 import { worldToScreen } from '../render/projection';
 import type { Rotation } from '../render/projection';
 import {
@@ -71,7 +72,7 @@ interface LoopPiece {
 /** Pieces of the preview loop, each starting where the previous one ends. */
 export function previewLoop(): LoopPiece[] {
   const pieces: LoopPiece[] = [];
-  let cursor = { x: LOOP_ORIGIN.x, y: LOOP_ORIGIN.y, z: 0, dir: 0 };
+  let cursor: TrackPoint = { x: LOOP_ORIGIN.x, y: LOOP_ORIGIN.y, z: 0, dir: 0 };
   for (const name of LOOP_PIECES) {
     const piece = pieceByName(name)!;
     pieces.push({ pieceType: piece.id, x: cursor.x, y: cursor.y, dir: cursor.dir });
