@@ -55,11 +55,11 @@ export function waterWorld(): { world: World; scenes: WaterScene[] } {
   }
   for (let i = 0; i < m.heights.length; i++) m.refreshTile(i);
   // shore: a pit ringed by a footpath, a tree row and a conifer cluster just outside its banks
-  dig(world, 58, 7, 3, 2);
-  for (let x = 55; x <= 62; x++) placePath(m, { x, y: 12 });
-  for (let y = 5; y <= 11; y++) placePath(m, { x: 55, y });
-  for (const y of [6, 8, 10]) placeScenery(m, 54, y, SceneryItem.OakTree);
-  for (const x of [57, 59, 61]) placeScenery(m, x, 13, SceneryItem.Conifer);
+  dig(world, 51, 25, 3, 2);
+  for (let x = 48; x <= 56; x++) placePath(m, { x, y: 30 });
+  for (let y = 23; y <= 29; y++) placePath(m, { x: 48, y });
+  for (const y of [24, 26, 28]) placeScenery(m, 56, y, SceneryItem.OakTree);
+  for (const y of [25, 27]) placeScenery(m, 57, y, SceneryItem.Conifer);
   // edge: pit touching the east map edge
   dig(world, 61, 24, 3, 2);
   return {
@@ -75,7 +75,7 @@ export function waterWorld(): { world: World; scenes: WaterScene[] } {
       },
       {
         name: 'shore',
-        target: { x: 58, y: 7 },
+        target: { x: 51, y: 25 },
         size: 3,
         clicks: ['raise', 'raise', 'raise', 'lower'],
       },
