@@ -109,11 +109,11 @@ export function rotateOffset(dx: number, dy: number, rot: Rotation): [number, nu
     case 0:
       return [dx, dy];
     case 1:
-      return [-dy, dx];
+      return [0 - dy, dx];
     case 2:
-      return [-dx, -dy];
+      return [0 - dx, 0 - dy];
     case 3:
-      return [dy, -dx];
+      return [dy, 0 - dx];
   }
 }
 
