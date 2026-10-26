@@ -46,6 +46,8 @@ export interface SpritePickTarget {
   alphaHeight: number;
   /** Row-major alpha values for the unscaled source sprite. */
   alpha: Uint8Array;
+  /** Atlas sprite key the target was drawn from. */
+  sprite?: string;
   /** Screen-space offset of the sprite's world anchor (its ground point) from x, y. */
   anchorX?: number;
   anchorY?: number;
@@ -154,6 +156,7 @@ export function buildObjectPickTargets(
       alphaWidth: mask.width,
       alphaHeight: mask.height,
       alpha: mask.alpha,
+      sprite: key,
       anchorX: anchorX - targetX,
       anchorY: anchorY - targetY,
       source: { image, x: frame.x, y: frame.y, width: frame.width, height: frame.height },
