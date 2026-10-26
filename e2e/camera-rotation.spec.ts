@@ -177,12 +177,14 @@ test('toolbar controls preserve the viewport focus through four turns in both di
   const toolbar = page.locator('.game-toolbar');
   const initialRotation = await rotation(page);
 
-  await expect(
-    toolbar.getByRole('button', { name: 'Rotate right', exact: true }),
-  ).toHaveAttribute('title', /Enter|Z/);
-  await expect(
-    toolbar.getByRole('button', { name: 'Rotate left', exact: true }),
-  ).toHaveAttribute('title', /Shift\+Enter|X/);
+  await expect(toolbar.getByRole('button', { name: 'Rotate right', exact: true })).toHaveAttribute(
+    'title',
+    /Enter|Z/,
+  );
+  await expect(toolbar.getByRole('button', { name: 'Rotate left', exact: true })).toHaveAttribute(
+    'title',
+    /Shift\+Enter|X/,
+  );
 
   await toolbar.getByRole('button', { name: 'Game options', exact: true }).click();
   await page.locator('[data-panel="options"]').getByRole('tab', { name: 'Controls' }).click();
@@ -252,16 +254,13 @@ test('Pixel 8 exposes both rotate controls and rotates both ways with a two-fing
 
   const actions = toolbar.getByRole('button', { name: 'Actions', exact: true });
   await actions.tap();
-  await expect(
-    toolbar.getByRole('button', { name: 'Rotate right', exact: true }),
-  ).toBeVisible();
-  await expect(
-    toolbar.getByRole('button', { name: 'Rotate left', exact: true }),
-  ).toBeVisible();
+  await expect(toolbar.getByRole('button', { name: 'Rotate right', exact: true })).toBeVisible();
+  await expect(toolbar.getByRole('button', { name: 'Rotate left', exact: true })).toBeVisible();
   await toolbar.getByRole('button', { name: 'Rotate right', exact: true }).tap();
   await expect.poll(() => rotation(page)).toBe((initialRotation + 1) % 4);
   await expectCenterTile(page, focus);
-  await actions.tap();
+  if ((await actions.getAttribute('aria-expanded')) === 'true') await actions.tap();
+  await expect(actions).toHaveAttribute('aria-expanded', 'false');
 
   const bounds = await page.locator('#game').boundingBox();
   if (!bounds) throw new Error('The park viewport is missing');
@@ -274,7 +273,10 @@ test('Pixel 8 exposes both rotate controls and rotates both ways with a two-fing
   });
   await cdp.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
-    touchPoints: [first, { id: 2, x: center.x, y: center.y + 50 }].map((point) => ({
+    touchPoints: [
+      { id: 1, x: center.x - 25, y: center.y - 43 },
+      { id: 2, x: center.x + 25, y: center.y + 43 },
+    ].map((point) => ({
       ...point,
       radiusX: 1,
       radiusY: 1,
@@ -291,7 +293,10 @@ test('Pixel 8 exposes both rotate controls and rotates both ways with a two-fing
   });
   await cdp.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
-    touchPoints: [first, { id: 2, x: center.x, y: center.y - 50 }].map((point) => ({
+    touchPoints: [
+      { id: 1, x: center.x - 25, y: center.y + 43 },
+      { id: 2, x: center.x + 25, y: center.y - 43 },
+    ].map((point) => ({
       ...point,
       radiusX: 1,
       radiusY: 1,
