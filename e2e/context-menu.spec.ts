@@ -129,7 +129,7 @@ test.describe('map right-click', () => {
       expect(await rightClick(page, at)).toBe(true);
       await expect(page.locator(`.ui-window[data-panel="ride-${ride.id}"]`)).toBeVisible();
       await expect(page.locator('.tool-status')).toContainText(
-        `Ride ${ride.id} information opened`,
+        `Ride ${ride.id + 1} information opened`,
       );
       await closeWindows(page);
     }
