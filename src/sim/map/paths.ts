@@ -196,10 +196,31 @@ function entranceDistance(m: TileMap, i: number, e: number): number {
   return Infinity;
 }
 
+/** Whether the line through queue element `e` of tile `i` runs through tile `target`. */
+function lineReaches(m: TileMap, i: number, e: number, target: number): boolean {
+  const seen = new Set<number>([i]);
+  const stack: Array<[number, number]> = [[i, e]];
+  while (stack.length > 0) {
+    const [tile, element] = stack.pop()!;
+    if (tile === target) return true;
+    const links = queueLinkMask(m, element);
+    for (let d = 0; d < 4; d++) {
+      if (!(links & (1 << d))) continue;
+      const next = m.neighbor(tile, d);
+      const f = adjoiningElement(m, tile, element, d);
+      if (f < 0 || seen.has(next)) continue;
+      seen.add(next);
+      stack.push([next, f]);
+    }
+  }
+  return false;
+}
+
 /**
  * Links a freshly laid queue piece to the line it extends: the drag predecessor when it has a free
  * slot, otherwise the neighbouring line end closest (along its line) to a ride entrance. A piece
- * links to one neighbour here, so a line never gains a junction.
+ * links to one neighbour here, so a line never gains a junction, and never to its own line, so a
+ * line never closes into a ring.
  */
 function attachQueuePiece(m: TileMap, i: number, e: number, p: PathPlacement): void {
   const from = p.linkFrom ?? -1;
@@ -211,6 +232,7 @@ function attachQueuePiece(m: TileMap, i: number, e: number, p: PathPlacement): v
     if (queueLinkMask(m, e) & (1 << d)) continue;
     const f = adjoiningElement(m, i, e, d);
     if (f < 0 || !isQueueElement(m, f) || freeLinkSlots(m, f) <= 0) continue;
+    if (lineReaches(m, i, e, m.neighbor(i, d))) continue;
     const distance = entranceDistance(m, m.neighbor(i, d), f);
     if (best < 0 || distance < bestDistance) {
       best = d;

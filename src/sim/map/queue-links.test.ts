@@ -191,6 +191,15 @@ describe('queue links', () => {
     expect(w.queues.openTile[0]).toBe(w.map.index(8, 5));
   });
 
+  it('never closes a line into a ring', () => {
+    const w = flatWorld();
+    const loop: Tile[] = [...row(5, 3, 6), ...row(6, 3, 6).reverse()].map(([x, y]) => [x, y]);
+    drag(w, loop);
+    expectSingleFile(w);
+    expect(queueEdgesBetween(w, [3, 5], [3, 6])).toBe(false);
+    expect(queueEdgesBetween(w, [6, 5], [6, 6])).toBe(true);
+  });
+
   it('splits the line cleanly when a tile is removed', () => {
     const w = flatWorld();
     drag(
