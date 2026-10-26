@@ -7,6 +7,7 @@ import { alignFrames } from './output';
 import { TRANSPARENT } from './raster';
 import { TRANSPORT_STYLES } from './models/transport';
 import { PALETTE } from './palette';
+import { terrainMeshTriangles } from '../../src/render/terrain-geometry';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
 
@@ -56,10 +57,79 @@ describe('generated sprite catalogue', () => {
       const sprite = sprites.get(key)!;
       const frame = sprite.frames[0]!;
       expect(frame.anchor.x, `${key} x`).toBe(frame.width / 2);
-      expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
+      if (!key.startsWith('scenery/flower-bed/'))
+        expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
       expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);
       if (key.startsWith('scenery/shelter/')) expect(sprite.raw, key).toBe(true);
       else if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBeFalsy();
+    }
+  });
+
+  it('keeps every flowerbed view inside its tile footprint with only a low flower crown above it', () => {
+    const flowerHeightAllowance = 8;
+    const corners = [
+      [-0.5, -0.5],
+      [0.5, -0.5],
+      [0.5, 0.5],
+      [-0.5, 0.5],
+    ] as const;
+    const contains = (
+      px: number,
+      py: number,
+      triangle: number[],
+      heights: number[],
+      center: number,
+      view: number,
+    ) => {
+      const projected = triangle.map((corner) => {
+        let [x, y] = corners[corner]!;
+        if (view === 1) [x, y] = [-y, x];
+        else if (view === 2) [x, y] = [-x, -y];
+        else if (view === 3) [x, y] = [y, -x];
+        const z = (heights[corner]! - center) * 16;
+        return [(x - y) * 32, (x + y) * 16 - z];
+      });
+      const [[ax, ay], [bx, by], [cx, cy]] = projected as [
+        [number, number],
+        [number, number],
+        [number, number],
+      ];
+      const denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+      const wa = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator;
+      const wb = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator;
+      const wc = 1 - wa - wb;
+      return wa >= -0.02 && wb >= -0.02 && wc >= -0.02;
+    };
+    for (let slopeMask = 0; slopeMask < 16; slopeMask++) {
+      const heights = corners.map((_, corner) => (slopeMask >> corner) & 1);
+      for (let variant = 0; variant < 4; variant++) {
+        for (let view = 0; view < 4; view++) {
+          const key =
+            slopeMask === 0
+              ? `scenery/flower-bed/variant-${variant}/view-${view}`
+              : `scenery/flower-bed/slope-${slopeMask}/variant-${variant}/view-${view}`;
+          const frame = sprites.get(key)!.frames[0]!;
+          const triangles = terrainMeshTriangles(view);
+          const diagonal = triangles[0].filter((corner) => triangles[1].includes(corner));
+          const center = diagonal.reduce((sum, corner) => sum + heights[corner]!, 0) / 2;
+          for (let y = 0; y < frame.height; y++) {
+            for (let x = 0; x < frame.width; x++) {
+              if (frame.pixels[y * frame.width + x] === TRANSPARENT) continue;
+              const px = x + 0.5 - frame.anchor.x;
+              const py = y + 0.5 - frame.anchor.y;
+              const belongsToTile = Array.from(
+                { length: flowerHeightAllowance + 1 },
+                (_, lift) => py + lift,
+              ).some((groundY) =>
+                triangles.some((triangle) =>
+                  contains(px, groundY, triangle, heights, center, view),
+                ),
+              );
+              expect(belongsToTile, `${key} opaque pixel (${x},${y}) leaves its tile`).toBe(true);
+            }
+          }
+        }
+      }
     }
   });
 

@@ -5,3 +5,4 @@ coverage
 .DS_Store
 .local
 /public/sprites/
+/docs/art/review/*.png

@@ -81,11 +81,6 @@ export function sceneryBox(definition: SceneryDefinition): GroundBox {
   };
 }
 
-/** Height units the sprite frame's bottom edge sits below the projected ground point. */
-export function sceneryFrameDrop(definition: SceneryDefinition): number {
-  return definition.sprite === 'flower-bed' ? Z_STEP : 0;
-}
-
 export function adjustDepthForGroundZ(
   depthAtBaseHeight: number,
   baseHeight: number,

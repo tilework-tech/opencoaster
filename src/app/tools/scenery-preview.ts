@@ -1,10 +1,10 @@
 import { formatMoney } from '../../ui/format';
 import type { SpriteGhost } from '../../render/renderer';
-import { scenerySpriteName } from '../../render/world-art';
+import { flowerBedSpriteName, scenerySpriteName } from '../../render/world-art';
 import { SCENERY_CATALOG, SceneryResult } from '../../sim/map/scenery';
 import type { SceneryItem } from '../../sim/map/scenery';
 import type { SimClient } from '../../worker/sim-client';
-import { sceneryBox, sceneryFrameDrop, sceneryGroundZ } from '../../render/ground-anchor';
+import { sceneryBox, sceneryGroundZ } from '../../render/ground-anchor';
 import { Z_STEP } from '../../sim/core/constants';
 
 /** How long a preview answer may be reused before the sim is asked again, ms (cash can change). */
@@ -88,13 +88,13 @@ export class ScenerySpotPreview {
     return {
       x: hover.x,
       y: hover.y,
-      level:
-        (sceneryGroundZ(hover.level, hover.slopeMask, hover.viewRotation) -
-          sceneryFrameDrop(definition)) /
-        Z_STEP,
+      level: sceneryGroundZ(hover.level, hover.slopeMask, hover.viewRotation) / Z_STEP,
       width: box.width,
       height: box.height,
-      sprite: scenerySpriteName(definition.sprite),
+      sprite:
+        definition.sprite === 'flower-bed'
+          ? flowerBedSpriteName(hover.x, hover.y, hover.viewRotation, hover.slopeMask)
+          : scenerySpriteName(definition.sprite),
       kind: 'scenery',
       tone: this.result === SceneryResult.Ok ? 'ok' : 'refused',
     };

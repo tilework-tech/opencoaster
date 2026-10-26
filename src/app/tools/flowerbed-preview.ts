@@ -1,7 +1,7 @@
 import { flowerBedGroundZ } from '../../render/ground-anchor';
 import { FLOWER_BED_BOX } from '../../render/sprite-layout';
 import { Z_STEP } from '../../sim/core/constants';
-import { scenerySpriteName } from '../../render/world-art';
+import { flowerBedSpriteName } from '../../render/world-art';
 import type { SpriteGhost } from '../../render/renderer';
 
 export function flowerbedPreviewGhost(
@@ -14,8 +14,8 @@ export function flowerbedPreviewGhost(
   return {
     x,
     y,
-    level: flowerBedGroundZ(baseHeight, slopeMask, rotation) / Z_STEP - 1,
-    sprite: scenerySpriteName('flower-bed'),
+    level: flowerBedGroundZ(baseHeight, slopeMask, rotation) / Z_STEP,
+    sprite: flowerBedSpriteName(x, y, rotation, slopeMask),
     kind: 'scenery',
     width: FLOWER_BED_BOX.width,
     height: FLOWER_BED_BOX.height,
