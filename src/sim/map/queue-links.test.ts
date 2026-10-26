@@ -171,6 +171,26 @@ describe('queue links', () => {
     expect(queueEdgesBetween(w, [8, 5], [7, 5])).toBe(false);
   });
 
+  it('joins a ride entrance when a drag ends beside it', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 7));
+    layPath(w, [[11, 5]], true);
+    layPath(w, [[13, 4]]);
+    const id = createRide(w, RideType.MerryGoRound, 11, 3);
+    placeRideEntranceExit(w, id, { x: 11, y: 5 }, { x: 13, y: 4 });
+    refreshQueueIndex(w);
+    drag(
+      w,
+      row(5, 8, 10).map(([x, y]) => [x, y] as Tile),
+    );
+    refreshQueueIndex(w);
+    expectSingleFile(w);
+    expect(links(w, [11, 5])).toBe(0b0100);
+    expect(links(w, [10, 5])).toBe(0b0101);
+    expect(w.queues.tiles[0]).toBe(3);
+    expect(w.queues.openTile[0]).toBe(w.map.index(8, 5));
+  });
+
   it('splits the line cleanly when a tile is removed', () => {
     const w = flatWorld();
     drag(

@@ -47,6 +47,8 @@ export interface PathPlacement {
    * drag. The piece links to that tile when it has a free link slot.
    */
   linkFrom?: number;
+  /** Last piece of a drag: it also links to a neighbouring line end, such as a ride entrance. */
+  linkEnd?: boolean;
 }
 
 export interface PathRemoval {
@@ -199,11 +201,14 @@ function entranceDistance(m: TileMap, i: number, e: number): number {
  * slot, otherwise the neighbouring line end closest (along its line) to a ride entrance. A piece
  * links to one neighbour here, so a line never gains a junction.
  */
-function attachQueuePiece(m: TileMap, i: number, e: number, from: number): void {
-  if (from >= 0 && from <= 3 && linkQueuePieces(m, i, e, from)) return;
+function attachQueuePiece(m: TileMap, i: number, e: number, p: PathPlacement): void {
+  const from = p.linkFrom ?? -1;
+  const followed = from >= 0 && from <= 3 && linkQueuePieces(m, i, e, from);
+  if (followed && !p.linkEnd) return;
   let best = -1;
   let bestDistance = Infinity;
   for (let d = 0; d < 4; d++) {
+    if (queueLinkMask(m, e) & (1 << d)) continue;
     const f = adjoiningElement(m, i, e, d);
     if (f < 0 || !isQueueElement(m, f) || freeLinkSlots(m, f) <= 0) continue;
     const distance = entranceDistance(m, m.neighbor(i, d), f);
@@ -402,14 +407,16 @@ export function placePathOutcome(m: TileMap, p: PathPlacement): PathResult {
   repairPathElement(m, existing);
 
   const keep = PathFlag.Queue | PathFlag.Sloped | PathFlag.SlopeDir;
-  const from = p.linkFrom ?? -1;
   if (existing >= 0) {
     if (
       (m.elFlags[existing] & keep) === flags &&
       m.elClear[existing] === clear &&
       m.pathStyle[existing] === style
     ) {
-      if (p.queue && from >= 0 && linkQueuePieces(m, i, existing, from)) recomputePathEdges(m, i);
+      if (p.queue && (p.linkFrom !== undefined || p.linkEnd)) {
+        attachQueuePiece(m, i, existing, p);
+        recomputePathEdges(m, i);
+      }
       return PathResult.Ok;
     }
     unlinkQueuePiece(m, i, existing);
@@ -421,7 +428,7 @@ export function placePathOutcome(m: TileMap, p: PathPlacement): PathResult {
   } else {
     m.pathStyle[m.pathElement(i, z)] = style;
   }
-  if (p.queue) attachQueuePiece(m, i, m.pathElement(i, z), from);
+  if (p.queue) attachQueuePiece(m, i, m.pathElement(i, z), p);
   recomputePathEdges(m, i);
   m.refreshTile(i);
   return PathResult.Ok;
@@ -449,15 +456,17 @@ const DRAG_DY = [0, 1, 0, -1];
 
 /**
  * Marks each placement of a drag with the direction back to the placement before it, when the two
- * are edge-adjacent, so queue pieces laid in one drag link into a single line.
+ * are edge-adjacent, so queue pieces laid in one drag link into a single line. The last piece also
+ * links to a line end it reaches, so a drag that ends at a ride entrance joins it.
  */
 export function withDragLinks(placements: readonly PathPlacement[]): PathPlacement[] {
+  const last = placements.length - 1;
   return placements.map((p, k) => {
     const prev = placements[k - 1];
     if (!prev || p.linkFrom !== undefined) return p;
     for (let d = 0; d < 4; d++) {
       if (p.x + DRAG_DX[d]! === prev.x && p.y + DRAG_DY[d]! === prev.y)
-        return { ...p, linkFrom: d };
+        return { ...p, linkFrom: d, ...(k === last ? { linkEnd: true } : {}) };
     }
     return p;
   });
