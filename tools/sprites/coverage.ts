@@ -275,7 +275,7 @@ export function buildArtCoverage(): ArtCoverageRow[] {
                   : `scenery/flower-bed/slope-${slopeMask}/variant-${variant}/view-${view}`,
               ),
             ),
-          )
+          ).flat()
         : [scenerySpriteName(item.sprite)],
       item.sprite === 'flower-bed'
         ? `${item.category}; generated raised flowerbed with four colour variants, four camera views, and all 16 slope masks.`
