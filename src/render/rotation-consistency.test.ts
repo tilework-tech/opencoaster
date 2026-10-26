@@ -6,6 +6,7 @@ import {
   connectStation,
   createCoaster,
   flatOwnedSim,
+  run,
 } from '../sim/rides/coaster-fixtures';
 import { PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
@@ -31,6 +32,7 @@ import {
   rotateOffset,
   worldToScreen,
   screenToWorld,
+  viewDepth,
 } from './projection';
 import type { Rotation } from './projection';
 import type { Camera, MapData, PathPieceGhost, SpriteGhost } from './renderer';
@@ -422,6 +424,9 @@ describe('rotation consistency', () => {
       const rideId = createCoaster(sim, RideType.WoodenCoaster);
       buildCircuit(sim, rideId);
       connectStation(sim, rideId);
+      sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
+      sim.step();
+      run(sim, 20);
       const snapshot = createSnapshot({
         guests: 0,
         staff: 0,
@@ -446,7 +451,7 @@ describe('rotation consistency', () => {
       for (let i = 0; i < snapshot.tracks.count; i++) {
         const o = i * 4;
         const packed = snapshot.tracks.data[o + 3]!;
-        if ((packed >>> 16) !== rideId) continue;
+        if (packed >>> 16 !== rideId) continue;
         const piece = PIECES[packed & 0xff]!;
         const dir = (packed >>> 8) & 3;
         const originX = Math.floor(snapshot.tracks.data[o]! / TILE_UNITS);
@@ -499,6 +504,13 @@ describe('rotation consistency', () => {
       );
       const expectedStationAnchor = worldToScreen(20.5, 20.5, 2, rotation, map);
       expect(stationAnchor).toEqual(expectedStationAnchor);
+      const cars = scene.items.filter((item) => item.key.includes('/vehicles/car/'));
+      expect(cars.length).toBeGreaterThan(0);
+      for (const car of cars)
+        expect(car.depth).toBeCloseTo(
+          2 * viewDepth(car.x / TILE_UNITS, car.y / TILE_UNITS, rotation, map) + 1.5,
+          10,
+        );
     },
   );
 

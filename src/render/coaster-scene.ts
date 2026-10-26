@@ -30,9 +30,7 @@ export interface CoasterDrawItem {
 
 /** Painter depth of a world point, in the renderer's convention: far tiles first. */
 function tileDepth(x: number, y: number, map: MapData, rotation: Rotation): number {
-  const tx = Math.floor(x / TILE_UNITS) + 0.5;
-  const ty = Math.floor(y / TILE_UNITS) + 0.5;
-  return 2 * viewDepth(tx, ty, rotation, map);
+  return 2 * viewDepth(x / TILE_UNITS, y / TILE_UNITS, rotation, map);
 }
 
 const TRACK_OFFSET = 1;
