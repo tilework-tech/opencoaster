@@ -74,6 +74,22 @@ export const SNAKE_QUEUE: Layout = {
   ],
 };
 
+/** Three rows of queue laid side by side next to the ride: the block the owner reported as a plaza. */
+export const BLOCK_QUEUE: Layout = {
+  ride: { x: 53, y: 62 },
+  entrance: { x: 53, y: 64 },
+  exit: { x: 51, y: 63 },
+  queueDrags: [64, 65, 66].map((y) => [48, 49, 50, 51, 52].map((x) => ({ x, y }))),
+  get queue(): Tile[] {
+    return this.queueDrags!.flat();
+  },
+  exitRun: [
+    { x: 50, y: 63 },
+    { x: 49, y: 63 },
+    { x: 48, y: 63 },
+  ],
+};
+
 /** The entrance is the whole queue: it touches the walkway, so the line holds only the loading area. */
 export const SHORT_QUEUE: Layout = {
   ride: { x: 49, y: 62 },
