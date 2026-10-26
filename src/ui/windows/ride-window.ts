@@ -1,4 +1,5 @@
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
+import type { RideType } from '../../sim/rides/ride-types';
 import { MAX_CARS, MAX_TRAINS_PER_RIDE } from '../../sim/vehicles/ride-trains';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
@@ -8,18 +9,8 @@ import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 import { RIDE_STATE_NAMES } from './ride-list';
 import { priceControl } from './price-control';
-import { drawAnchoredSprite } from '../../render/canvas-atlas';
 import { spritePages } from '../../render/sprite-pages';
-import {
-  rideHutSpriteKey,
-  ridePreviewSpriteKey,
-  rideSpriteFrame,
-  rideSpriteKey,
-} from '../../render/world-art';
-import { isSlicedRide } from '../../render/ride-scene';
-
-/** Largest magnification of a small sprite (a station hut, a stall) in the preview. */
-const PREVIEW_MAX_SCALE = 3;
+import { drawRidePreview } from '../ride-preview';
 
 export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
   { id: 'main', label: 'View', icon: 'rides' },
@@ -55,8 +46,6 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
 
   const status = element('div', 'ride-status');
   const preview = element('canvas', 'ride-preview');
-  preview.width = 360;
-  preview.height = 180;
   preview.setAttribute('role', 'img');
   preview.setAttribute('aria-label', 'Ride preview');
   spritePages.start();
@@ -258,37 +247,14 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       const state = info[o + RideInfo.State];
       win.setTitle(rideName);
       preview.setAttribute('aria-label', `${rideName} preview`);
-      const previewContext = preview.getContext('2d');
-      if (previewContext && def) {
-        previewContext.clearRect(0, 0, preview.width, preview.height);
-        previewContext.save();
-        previewContext.translate(preview.width / 2, preview.height / 2);
-        const rotation = ctx.actions.camera().rotation;
-        const rideType = type as keyof typeof RIDE_CATALOG;
-        const key = isSlicedRide(rideType)
-          ? ridePreviewSpriteKey(rideType, info[o + RideInfo.Dir], rotation)
-          : def.category === 'coaster'
-            ? rideHutSpriteKey(rideType, 'entrance', 1, rotation)
-            : rideSpriteKey(rideType, rotation);
-        const entry = spritePages.resolve(key);
-        const size = entry?.frames[0];
-        if (entry && size) {
-          const scale = Math.min(
-            (preview.width - 16) / size.width,
-            (preview.height - 12) / size.height,
-            PREVIEW_MAX_SCALE,
-          );
-          previewContext.scale(scale, scale);
-          drawAnchoredSprite(
-            previewContext,
-            spritePages,
-            key,
-            entry.anchor.x - size.width / 2,
-            entry.anchor.y - size.height / 2,
-            rideSpriteFrame(state, snapshot.tick, entry.frames.length),
-          );
-        }
-        previewContext.restore();
+      if (def) {
+        drawRidePreview(preview, spritePages, {
+          type: type as RideType,
+          dir: info[o + RideInfo.Dir],
+          rotation: ctx.actions.camera().rotation,
+          phase: state,
+          tick: snapshot.tick,
+        });
       }
       setText(status, `${RIDE_STATE_NAMES[state] ?? ''}`);
       excitement.set(
