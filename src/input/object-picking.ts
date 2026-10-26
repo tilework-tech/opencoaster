@@ -17,7 +17,6 @@ import { peopleSpriteKey } from '../render/people-art';
 import { CoasterScene } from '../render/coaster-scene';
 import {
   sceneryBox,
-  sceneryFrameDrop,
   sceneryGroundZ,
   pathAdditionBox,
   pathAdditionPlacements,
@@ -321,9 +320,7 @@ export function buildObjectPickTargets(
     const definition = SCENERY_CATALOG[item];
     if (!definition) continue;
     const tile = y * map.width + x;
-    const z =
-      sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation) -
-      sceneryFrameDrop(definition);
+    const z = sceneryGroundZ(map.heights[tile]!, map.slope[tile]!, camera.rotation);
     const box = sceneryBox(definition);
     const key =
       definition.sprite === 'flower-bed'
