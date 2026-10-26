@@ -25,6 +25,7 @@ interface ReviewItem {
 
 interface TrackRenderStats {
   trackPieces: number;
+  circuitClosed: boolean;
   cars: number;
   opaquePixelsPerTrackSprite: Array<{ key: string; count: number }>;
 }
@@ -156,7 +157,7 @@ async function initialise(page: Page): Promise<void> {
       { Canvas2DRenderer },
       { WebGL2Renderer },
       { spritePages },
-      { createSnapshot },
+      { createSnapshot, RideFlag, RideInfo },
       { project },
       { SCENERY_CATALOG },
       { CoasterScene },
@@ -436,6 +437,7 @@ async function initialise(page: Page): Promise<void> {
         scene.build(snapshot, map, rotation as 0 | 1 | 2 | 3);
         return {
           trackPieces: snapshot.tracks.count,
+          circuitClosed: (snapshot.rideInfo[RideInfo.Flags]! & RideFlag.CircuitClosed) !== 0,
           cars: snapshot.cars.count,
           opaquePixelsPerTrackSprite: scene.items
             .slice(0, scene.length)
@@ -528,6 +530,7 @@ async function expectCompletedTrackRender(
 ): Promise<void> {
   const stats = renderStats.get(page);
   expect(stats?.trackPieces, `${item.label} placed through the track builder`).toBe(14);
+  expect(stats?.circuitClosed, `${item.label} circuit is complete`).toBe(true);
   expect(stats?.cars, `${item.label} train cars`).toBeGreaterThan(0);
   expect(stats?.opaquePixelsPerTrackSprite.length, `${item.label} track sprites`).toBeGreaterThan(
     0,
