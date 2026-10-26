@@ -45,14 +45,19 @@ export function shelterMesh(): Mesh {
  * Path additions are authored for the edge of tile (0, 0) facing +x: the open path edge is toward
  * +x, so a bench puts its backrest on +x and its seat faces -x, into the path. Each view rotates
  * the model about the vertical axis, so every rotation is the same object turned.
+ *
+ * Sizes are fractions of a guest (0.373 tall in these units): a bench is about 0.6 of a guest
+ * with its backrest and spans half the tile edge, a bin about 0.45, a lamp about 1.4. The
+ * vandalised variants reach the same height as the intact ones.
  */
-const BENCH_HALF_LENGTH = 0.2;
-const BENCH_SEAT_Z = 0.2;
+const BENCH_HALF_LENGTH = 0.24;
+const BENCH_SEAT_Z = 0.11;
+const BENCH_TOP_Z = 0.22;
 
 function benchFrame(y: number): Mesh {
   return [
-    ...box([-0.09, y - 0.02, 0], [0.09, y + 0.02, BENCH_SEAT_Z], WOOD),
-    ...box([0.06, y - 0.02, BENCH_SEAT_Z], [0.1, y + 0.02, 0.46], WOOD),
+    ...box([-0.05, y - 0.012, 0], [0.05, y + 0.012, BENCH_SEAT_Z], WOOD),
+    ...box([0.035, y - 0.012, BENCH_SEAT_Z], [0.06, y + 0.012, BENCH_TOP_Z - 0.01], WOOD),
   ];
 }
 
@@ -61,17 +66,17 @@ export function benchMesh(): Mesh {
     ...benchFrame(-BENCH_HALF_LENGTH + 0.03),
     ...benchFrame(BENCH_HALF_LENGTH - 0.03),
     ...box(
-      [-0.1, -BENCH_HALF_LENGTH, BENCH_SEAT_Z],
-      [-0.01, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.04],
+      [-0.06, -BENCH_HALF_LENGTH, BENCH_SEAT_Z],
+      [-0.005, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.022],
       WOOD,
     ),
     ...box(
       [0.0, -BENCH_HALF_LENGTH, BENCH_SEAT_Z],
-      [0.09, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.04],
+      [0.05, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.022],
       WOOD,
     ),
-    ...box([0.08, -BENCH_HALF_LENGTH, 0.28], [0.12, BENCH_HALF_LENGTH, 0.35], TIMBER),
-    ...box([0.08, -BENCH_HALF_LENGTH, 0.38], [0.12, BENCH_HALF_LENGTH, 0.45], TIMBER),
+    ...box([0.045, -BENCH_HALF_LENGTH, 0.15], [0.07, BENCH_HALF_LENGTH, 0.18], TIMBER),
+    ...box([0.045, -BENCH_HALF_LENGTH, 0.19], [0.07, BENCH_HALF_LENGTH, BENCH_TOP_Z], TIMBER),
   ];
 }
 
@@ -81,49 +86,55 @@ export function brokenBenchMesh(): Mesh {
     ...benchFrame(BENCH_HALF_LENGTH - 0.03),
     ...box(
       [0.0, -BENCH_HALF_LENGTH, BENCH_SEAT_Z],
-      [0.09, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.04],
+      [0.05, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.022],
       TIMBER,
     ),
-    ...box([-0.1, -BENCH_HALF_LENGTH, BENCH_SEAT_Z], [-0.01, 0.04, BENCH_SEAT_Z + 0.04], TIMBER),
-    ...box([-0.17, 0.09, 0], [-0.08, 0.23, 0.04], TIMBER),
-    ...box([0.08, -BENCH_HALF_LENGTH, 0.28], [0.12, BENCH_HALF_LENGTH, 0.35], TIMBER),
-    ...box([0.08, -BENCH_HALF_LENGTH, 0.38], [0.12, -0.02, 0.45], TIMBER),
+    ...box([-0.06, -BENCH_HALF_LENGTH, BENCH_SEAT_Z], [-0.005, 0.03, BENCH_SEAT_Z + 0.022], TIMBER),
+    ...box([-0.1, 0.07, 0], [-0.045, 0.17, 0.022], TIMBER),
+    ...box([0.045, -BENCH_HALF_LENGTH, 0.15], [0.07, BENCH_HALF_LENGTH, 0.18], TIMBER),
+    ...box([0.045, -BENCH_HALF_LENGTH, 0.19], [0.07, -0.02, BENCH_TOP_Z], TIMBER),
   ];
 }
 
+const BIN_TOP_Z = 0.17;
+
 export function binMesh(): Mesh {
   return [
-    ...box([-0.1, -0.1, 0], [0.1, 0.1, 0.34], GREEN),
-    ...box([-0.115, -0.115, 0.34], [0.115, 0.115, 0.39], STEEL),
-    ...box([-0.07, -0.07, 0.39], [0.02, 0.07, 0.4], GLASS),
-    ...box([0.03, -0.09, 0.39], [0.09, 0.09, 0.44], STEEL),
+    ...box([-0.05, -0.05, 0], [0.05, 0.05, 0.145], GREEN),
+    ...box([-0.06, -0.06, 0.145], [0.06, 0.06, 0.16], STEEL),
+    ...box([-0.04, -0.04, 0.16], [0.01, 0.04, 0.165], GLASS),
+    ...box([0.02, -0.05, 0.16], [0.055, 0.05, BIN_TOP_Z], STEEL),
   ];
 }
 
 export function brokenBinMesh(): Mesh {
   return [
-    ...box([-0.1, -0.1, 0], [0.1, 0.1, 0.3], GREEN),
-    ...box([-0.07, -0.07, 0.3], [0.07, 0.07, 0.31], GLASS),
-    ...box([-0.25, -0.02, 0], [-0.13, 0.12, 0.04], STEEL),
+    ...box([-0.05, -0.05, 0], [0.05, 0.05, 0.145], GREEN),
+    ...box([-0.06, -0.06, 0.145], [0.06, 0.0, 0.16], STEEL),
+    ...box([0.02, -0.05, 0.16], [0.055, 0.0, BIN_TOP_Z], STEEL),
+    ...box([-0.04, 0.0, 0.145], [0.04, 0.04, 0.15], GLASS),
+    ...box([-0.14, 0.01, 0], [-0.07, 0.08, 0.02], STEEL),
   ];
 }
 
+const LAMP_TOP_Z = 0.52;
+
 export function lampMesh(): Mesh {
   return [
-    ...cylinder(0, 0, 0, 0.06, 0.06, 0.05, 8, STEEL, { capTop: false }),
-    ...cylinder(0, 0, 0.06, 0.72, 0.03, 0.03, 8, STEEL),
-    ...box([-0.08, -0.08, 0.72], [0.08, 0.08, 0.76], STEEL),
-    ...box([-0.065, -0.065, 0.76], [0.065, 0.065, 0.88], YELLOW),
-    ...box([-0.09, -0.09, 0.88], [0.09, 0.09, 0.92], RED),
+    ...cylinder(0, 0, 0, 0.03, 0.035, 0.035, 8, STEEL, { capTop: false }),
+    ...cylinder(0, 0, 0.03, 0.43, 0.016, 0.016, 8, STEEL),
+    ...box([-0.04, -0.04, 0.43], [0.04, 0.04, 0.45], STEEL),
+    ...box([-0.032, -0.032, 0.45], [0.032, 0.032, 0.5], YELLOW),
+    ...box([-0.045, -0.045, 0.5], [0.045, 0.045, LAMP_TOP_Z], RED),
   ];
 }
 
 export function brokenLampMesh(): Mesh {
   return [
-    ...cylinder(0, 0, 0, 0.06, 0.06, 0.05, 8, STEEL, { capTop: false }),
-    ...cylinder(0, 0, 0.06, 0.58, 0.03, 0.03, 8, STEEL),
-    ...box([-0.08, -0.08, 0.58], [0.08, 0.08, 0.62], STEEL),
-    ...box([-0.065, -0.065, 0.62], [0.065, 0.065, 0.74], GLASS),
-    ...box([-0.075, -0.075, 0.74], [0.0, 0.075, 0.78], RED),
+    ...cylinder(0, 0, 0, 0.03, 0.035, 0.035, 8, STEEL, { capTop: false }),
+    ...cylinder(0, 0, 0.03, 0.43, 0.016, 0.016, 8, STEEL),
+    ...box([-0.04, -0.04, 0.43], [0.04, 0.04, 0.45], STEEL),
+    ...box([-0.032, -0.032, 0.45], [0.032, 0.032, 0.5], GLASS),
+    ...box([-0.045, -0.045, 0.5], [0.0, 0.045, LAMP_TOP_Z], RED),
   ];
 }

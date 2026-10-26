@@ -47,8 +47,8 @@ describe('generated sprite catalogue', () => {
           });
         const frame = sprite?.frames[0];
         const small = key.startsWith('litter/') || /(bin|lamp)/.test(key);
-        const minimumWidth = small ? 10 : 20;
-        const minimumHeight = key.startsWith('litter/') ? 6 : 14;
+        const minimumWidth = small ? 6 : 16;
+        const minimumHeight = key.startsWith('litter/') ? 6 : 8;
         if (key.startsWith('litter/')) {
           expect(frame?.width, `${key}, view ${view} width`).toBeLessThanOrEqual(8);
           expect(frame?.height, `${key}, view ${view} height`).toBeLessThanOrEqual(6);
@@ -99,7 +99,7 @@ describe('generated sprite catalogue', () => {
         expect(frame.anchor.y, `${key} bush ground pivot`).toBeGreaterThan(frame.height * 0.55);
         expect(frame.anchor.y, `${key} bush ground pivot`).toBeLessThanOrEqual(frame.height * 0.8);
       } else if (!key.startsWith('scenery/flower-bed/'))
-        expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.7);
+        expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.6);
       expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);
       if (key.startsWith('scenery/shelter/')) expect(sprite.raw, key).toBe(true);
       else if (!key.startsWith('scenery/park-entrance/')) expect(sprite.raw, key).toBeFalsy();
