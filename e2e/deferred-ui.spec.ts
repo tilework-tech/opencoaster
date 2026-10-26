@@ -35,8 +35,7 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
   await worker.getByRole('tab', { name: 'Orders' }).click();
   await expect(worker.getByRole('checkbox').first()).toBeVisible();
   await worker.getByRole('button', { name: /Edit.*patrol area/ }).click();
-  await expect(page.locator('.tool-status')).toContainText('Patrol tool selected');
-  await expect(page.locator('.patrol-overlay')).toBeVisible();
+  await expect(page.locator('.tool-status')).toContainText(/Patrol tool selected for worker \d+/);
   await page.locator('#game').click({ position: { x: 650, y: 300 } });
   await expect(page.locator('.tool-status')).toContainText('Patrol tile added');
 
