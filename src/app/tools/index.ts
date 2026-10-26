@@ -569,12 +569,14 @@ export function createToolController(deps: ToolControllerDependencies) {
         return true;
       }
       movingPerson = { person: 'guest', id: target.personId, sprite: target };
+      clearObjectHover();
       deps.renderer.setHeldPerson('guest', target.personId);
       updatePersonMoveVisual(clientX, clientY);
       return true;
     }
     if (target?.kind !== 'staff' || target.personId === undefined) return false;
     movingPerson = { person: 'staff', id: target.personId, sprite: target };
+    clearObjectHover();
     deps.renderer.setHeldPerson('staff', target.personId);
     updatePersonMoveVisual(clientX, clientY);
     return true;

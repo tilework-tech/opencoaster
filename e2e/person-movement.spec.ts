@@ -579,3 +579,107 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
     });
   }
 }
+
+test('dragging a guest off the ground hides the hover outline left at its old spot', async ({
+  browser,
+}) => {
+  const page = await startPage(browser, false, 'WebGL2');
+  try {
+    await startScenario(page, 'Meadowbrook Green');
+    await toolbarAction(page, 'Pause');
+    await toolbarAction(page, 'Game options');
+    const options = page.locator('[data-panel="options"]');
+    await options.getByRole('button', { name: 'Guests +1,000' }).click();
+    await options.getByRole('button', { name: /Close/ }).click();
+    await toolbarAction(page, 'Resume');
+    await page.waitForTimeout(8_000);
+    await toolbarAction(page, 'Pause');
+    const centreOnWalkingGuest = () =>
+      page.evaluate(async () => {
+        const [{ project }, { TILE_UNITS }, { guestRowState }] = await Promise.all([
+          import('/src/render/projection.ts'),
+          import('/src/sim/core/constants.ts'),
+          import('/src/worker/snapshot.ts'),
+        ]);
+        const state = window as unknown as {
+          __camera: { x: number; y: number; rotation: 0 | 1 | 2 | 3 };
+          __map: { width: number; height: number };
+          __snapshot: { guests: { count: number; data: Int32Array }; guestIds: Int32Array };
+        };
+        const { guests, guestIds } = state.__snapshot;
+        for (let slot = 0; slot < guests.count; slot++) {
+          const rowState = guestRowState(guests.data[slot * 4 + 3]!);
+          if (guestIds[slot]! <= 0 || rowState === 1 || rowState === 2 || rowState === 5) continue;
+          const world = new Float64Array(2);
+          project(
+            (guests.data[slot * 4]! / 256) * TILE_UNITS,
+            (guests.data[slot * 4 + 1]! / 256) * TILE_UNITS,
+            0,
+            state.__map.width,
+            state.__map.height,
+            state.__camera.rotation,
+            world,
+          );
+          if (!Number.isFinite(world[0])) continue;
+          state.__camera.x = world[0]!;
+          state.__camera.y = world[1]!;
+          return true;
+        }
+        return false;
+      });
+    await expect.poll(centreOnWalkingGuest).toBe(true);
+    await page.waitForTimeout(1_500);
+    const guest = await page.evaluate(async () => {
+      const [{ buildObjectPickTargets, pickTopmostObject }, { spritePages }, { guestRowState }] =
+        await Promise.all([
+          import('/src/input/object-picking.ts'),
+          import('/src/render/sprite-pages.ts'),
+          import('/src/worker/snapshot.ts'),
+        ]);
+      const state = window as unknown as {
+        __camera: Parameters<typeof buildObjectPickTargets>[2];
+        __map: Parameters<typeof buildObjectPickTargets>[1];
+        __snapshot: Parameters<typeof buildObjectPickTargets>[0];
+      };
+      const snapshot = state.__snapshot!;
+      const rect = document.querySelector<HTMLCanvasElement>('#game')!.getBoundingClientRect();
+      const targets = buildObjectPickTargets(
+        snapshot,
+        state.__map,
+        state.__camera,
+        { width: rect.width, height: rect.height },
+        spritePages,
+      );
+      for (const target of targets) {
+        if (target.kind !== 'guest' || target.personId === undefined) continue;
+        const slot = snapshot.guestIds.indexOf(target.personId);
+        const rowState = guestRowState(snapshot.guests.data[slot * 4 + 3]!);
+        if (rowState === 1 || rowState === 2 || rowState === 5) continue;
+        for (let pixel = 0; pixel < target.alpha.length; pixel++) {
+          if (target.alpha[pixel] === 0) continue;
+          const x =
+            target.x + (((pixel % target.alphaWidth) + 0.5) / target.alphaWidth) * target.width;
+          const y =
+            target.y +
+            ((Math.floor(pixel / target.alphaWidth) + 0.5) / target.alphaHeight) * target.height;
+          if (x < 40 || y < 80 || x > rect.width - 40 || y > rect.height - 80) continue;
+          if (pickTopmostObject(targets, x, y)?.id !== target.id) continue;
+          return { x: rect.left + x, y: rect.top + y };
+        }
+      }
+      throw new Error(
+        `No walking guest has a visible sprite pixel: ${targets.length} targets, ${targets.filter((t) => t.kind === 'guest').length} guests, camera ${JSON.stringify(state.__camera)}`,
+      );
+    });
+    await page.mouse.move(guest.x - 4, guest.y);
+    await page.mouse.move(guest.x, guest.y);
+    await expect(page.locator('.object-hover-outline')).toBeVisible();
+    await page.mouse.down();
+    await page.mouse.move(guest.x + 60, guest.y + 30, { steps: 4 });
+    await expect(page.locator('.person-pickup-ghost')).toBeVisible();
+    await expect(page.locator('.object-hover-outline')).toBeHidden();
+    await page.mouse.up();
+  } finally {
+    await page.context().close();
+  }
+});
