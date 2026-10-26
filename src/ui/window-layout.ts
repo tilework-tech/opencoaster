@@ -12,8 +12,11 @@ export function isMobileWidth(width: number): boolean {
   return width <= MOBILE_MAX_WIDTH;
 }
 
+/** Fastest speed the sim runs while track is being built. */
+export const BUILD_SPEED_CAP = 2;
+
 export function effectiveGameSpeed(speed: number, constructionActive: boolean): number {
-  return constructionActive ? Math.min(speed, 2) : speed;
+  return constructionActive ? Math.min(speed, BUILD_SPEED_CAP) : speed;
 }
 
 export interface Point {

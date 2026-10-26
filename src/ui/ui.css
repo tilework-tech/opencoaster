@@ -95,6 +95,26 @@
   height: 36px;
   padding: 0;
 }
+.toolbar-speed {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.toolbar-speed-button {
+  width: auto;
+  min-width: 36px;
+  padding: 0 6px;
+  font-weight: 700;
+}
+.toolbar-speed-note {
+  padding-left: 4px;
+  color: var(--ink);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.toolbar-speed-note[hidden] {
+  display: none;
+}
 .toolbar-button[aria-pressed='true'],
 .ui-tab.active,
 .glyph-button[aria-pressed='true'],
@@ -1200,8 +1220,27 @@
   .toolbar-menu.open {
     display: grid;
   }
+  .game-toolbar:has(.toolbar-menu.open) .camera-compass {
+    display: none;
+  }
   .toolbar-group {
     display: contents;
+  }
+  .toolbar-speed {
+    grid-column: span 3;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .toolbar-speed-button {
+    min-width: 0;
+    min-height: 52px;
+    font-size: 18px;
+  }
+  .toolbar-speed-note {
+    grid-column: 1 / -1;
+    padding: 0;
+    text-align: center;
   }
   .toolbar-button {
     width: auto;

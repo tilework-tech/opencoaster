@@ -11,6 +11,14 @@ export interface ToolbarButton {
   onClick(): void;
 }
 
+/** A toolbar slot filled by a custom control, e.g. the speed selector. */
+export interface ToolbarControl {
+  id: string;
+  control: HTMLElement;
+}
+
+export type ToolbarItem = ToolbarButton | ToolbarControl;
+
 /** Top bar. Left: game controls. Right: construction and information windows. */
 export class Toolbar {
   readonly root: HTMLElement;
@@ -19,11 +27,7 @@ export class Toolbar {
   private readonly menu: HTMLElement;
   private readonly compass: HTMLElement;
 
-  constructor(
-    parent: HTMLElement,
-    left: readonly ToolbarButton[],
-    right: readonly ToolbarButton[],
-  ) {
+  constructor(parent: HTMLElement, left: readonly ToolbarItem[], right: readonly ToolbarItem[]) {
     this.root = element('nav', 'game-toolbar');
     this.root.setAttribute('aria-label', 'Park controls');
     this.actionsButton = element('button', 'toolbar-actions', 'Actions');
@@ -40,6 +44,11 @@ export class Toolbar {
       [rightGroup, right],
     ] as const) {
       for (const item of items) {
+        if ('control' in item) {
+          item.control.dataset.action = item.id;
+          group.append(item.control);
+          continue;
+        }
         const b = iconButton(
           item.icon,
           item.label,
