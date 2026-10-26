@@ -14,7 +14,7 @@ export function flowerbedPreviewGhost(
   return {
     x,
     y,
-    level: flowerBedGroundZ(baseHeight, slopeMask, rotation) / Z_STEP - 1,
+    level: flowerBedGroundZ(baseHeight, slopeMask, rotation) / Z_STEP,
     sprite: flowerBedSpriteName(x, y, rotation, slopeMask),
     kind: 'scenery',
     width: FLOWER_BED_BOX.width,

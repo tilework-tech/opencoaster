@@ -258,7 +258,11 @@ function flowerBedSprites(): SpriteDef[] {
           slopeMask === 0
             ? `scenery/flower-bed/variant-${variant}/view-${view}`
             : `scenery/flower-bed/slope-${slopeMask}/variant-${variant}/view-${view}`,
-        frames: [renderMesh(rotateMesh(physicalToLevels(flowerBedMesh(variant, slopeMask)), view))],
+        frames: [
+          renderMesh(rotateMesh(physicalToLevels(flowerBedMesh(variant, slopeMask, view)), view), {
+            outline: false,
+          }),
+        ],
         footprint: ONE_TILE,
       })),
     ),

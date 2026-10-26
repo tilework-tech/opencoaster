@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PathFlag } from '../sim/map/tile-map';
 import { Z_STEP } from '../sim/core/constants';
+import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
 import {
   pathAdditionEdgeGroundZ,
   pathAdditionPlacements,
@@ -9,6 +10,7 @@ import {
   pathAdditionBox,
   pathAdditionGroundZ,
   adjustDepthForGroundZ,
+  flowerBedGroundZ,
   sceneryGroundZ,
   spriteAnchorScreenShift,
 } from './ground-anchor';
@@ -119,6 +121,15 @@ describe('ground anchors', () => {
       sceneryGroundZ(2, 0b0101, 3),
     ];
     expect(heights).toEqual([2 * Z_STEP, 3 * Z_STEP, 2 * Z_STEP, 3 * Z_STEP]);
+  });
+
+  it('anchors the flowerbed placement preview at the terrain surface in every view', () => {
+    for (let slopeMask = 0; slopeMask < 16; slopeMask++)
+      for (let rotation = 0; rotation < 4; rotation++) {
+        const groundZ = flowerBedGroundZ(2, slopeMask, rotation);
+        const preview = flowerbedPreviewGhost(3, 4, 2, slopeMask, rotation);
+        expect(preview.level * Z_STEP, `slope=${slopeMask} rotation=${rotation}`).toBe(groundZ);
+      }
   });
 
   it('keeps trimmed sprite ground pivots aligned after scaling', () => {
