@@ -259,6 +259,13 @@ export function buildArtCoverage(): ArtCoverageRow[] {
         'Generated sloped tile.',
       );
   }
+  for (let direction = 0; direction < 2; direction++)
+    add(
+      'Path',
+      `queue / rail ${direction}`,
+      [`paths/queue/rail-${direction}`],
+      'Generated queue rail drawn after the people on the tile.',
+    );
   for (const surface of SURFACES) {
     for (let slope = 0; slope < 16; slope++)
       add(

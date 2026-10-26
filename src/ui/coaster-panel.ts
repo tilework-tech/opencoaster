@@ -497,7 +497,11 @@ export class CoasterPanel {
       this.actions.status('Place exit next to the station.');
     } else if (closed && hasEntrance && hasExit && !tested && this.buildMode !== 'track') {
       this.buildMode = 'track';
-      this.actions.status('Test ride to finish setup.');
+      this.actions.status(
+        flags & RideFlag.QueueConnected
+          ? 'Test ride to finish setup.'
+          : 'Test ride to finish setup, and build its queue from the ride window (Build queue).',
+      );
     } else if (closed && hasEntrance && hasExit && tested && this.buildMode !== 'track') {
       this.buildMode = 'track';
       this.actions.status('Ride setup complete.');

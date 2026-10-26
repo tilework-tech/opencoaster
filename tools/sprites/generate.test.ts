@@ -232,6 +232,11 @@ describe('generated sprite catalogue', () => {
     }
   });
 
+  it('renders the camera-facing queue rails as separate sprites', () => {
+    expect(sprites.has('paths/queue/rail-0')).toBe(true);
+    expect(sprites.has('paths/queue/rail-1')).toBe(true);
+  });
+
   it('draws every flat path tile on the 64x32 diamond centred on the tile', () => {
     for (const [key, sprite] of sprites) {
       if (!key.startsWith('paths/') || key.includes('ramp')) continue;

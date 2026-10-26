@@ -17,6 +17,7 @@ import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
 import { TILE_UNITS } from '../sim/core/constants';
 import { demolitionRefund } from '../sim/rides/ride-refund';
+import { estimatedWaitTicks, rideQueueCapacity } from '../sim/rides/ride-operations';
 
 /** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
@@ -24,7 +25,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 27;
+export const RIDE_INFO_STRIDE = 31;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -35,6 +36,13 @@ const GUEST_STATE_SHIFT = 24;
 /** Last walking direction (0..3, or the sim's no-heading value) in a guest row's metadata word. */
 export function guestRowHeading(word: number): number {
   return (word >>> GUEST_HEADING_SHIFT) & 0xff;
+}
+
+const GUEST_IDLE_BIT = 1 << 10;
+
+/** True while a guest stands still (waiting at a ride or stall, or paused in a queue). */
+export function guestRowIdle(word: number): boolean {
+  return (word & GUEST_IDLE_BIT) !== 0;
 }
 
 /** The sim's `GuestState` in a guest row's metadata word. */
@@ -81,6 +89,14 @@ export const enum RideInfo {
   Dir = 25,
   /** Height level of the floor of a flat ride: the highest ground corner under its footprint. */
   BaseLevel = 26,
+  /** Queue tiles behind the entrance (0 when the ride has no built queue line). */
+  QueueTiles = 27,
+  /** Estimated wait for a guest joining the line, in ticks. */
+  WaitTicks = 28,
+  /** Guests the whole line holds before it turns people away. */
+  QueueCapacity = 29,
+  /** The operator's queue length limit; 0 means none. */
+  QueueLimit = 30,
 }
 
 export const enum RideFlag {
@@ -89,6 +105,8 @@ export const enum RideFlag {
   QueueConnected = 1 << 2,
   Tested = 1 << 3,
   CircuitClosed = 1 << 4,
+  /** The entrance sits on a queue tile, so guests line up on a built queue. */
+  HasQueue = 1 << 5,
 }
 
 export interface DecodedCursor {
@@ -157,7 +175,15 @@ export interface Snapshot {
   patrolAreas: Uint32Array;
   patrolWordsPerArea: number;
   patrolAreaIds: Uint16Array;
-  park: { cash: number; loan: number; rides: number; entranceX: number; entranceY: number };
+  park: {
+    cash: number;
+    loan: number;
+    rides: number;
+    entranceX: number;
+    entranceY: number;
+    /** Queue tiles that no ride entrance owns. */
+    orphanQueueTiles: number;
+  };
   scenario: SnapshotScenario;
   economy: SnapshotEconomy;
   research: SnapshotResearch;
@@ -245,7 +271,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     patrolAreas: new Uint32Array(caps.patrolAreas ?? 0),
     patrolWordsPerArea: caps.patrolWordsPerArea ?? 0,
     patrolAreaIds: new Uint16Array(caps.staff),
-    park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1 },
+    park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1, orphanQueueTiles: 0 },
     scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
     activeAwards: [],
     parkNews: [],
@@ -348,6 +374,7 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
     (r.exitPlaced[slot] ? RideFlag.ExitPlaced : 0) |
     (r.queueConnected[slot] ? RideFlag.QueueConnected : 0) |
     (r.tested[slot] ? RideFlag.Tested : 0) |
+    (world.queues.hasQueue[slot] ? RideFlag.HasQueue : 0) |
     (trackRide && world.track.closed[rideId] ? RideFlag.CircuitClosed : 0);
   info[o + RideInfo.GuestsServed] = r.guestsServed[slot];
   info[o + RideInfo.Price] = r.price[slot];
@@ -366,6 +393,10 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.BaseLevel] = definition
     ? rideBaseLevel(world.map, definition, r.rideX[slot], r.rideY[slot], r.dir[slot])
     : 0;
+  info[o + RideInfo.QueueTiles] = world.queues.tiles[slot];
+  info[o + RideInfo.WaitTicks] = estimatedWaitTicks(world, slot);
+  info[o + RideInfo.QueueCapacity] = rideQueueCapacity(world, slot);
+  info[o + RideInfo.QueueLimit] = r.queueLimit[slot];
   if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;
@@ -401,11 +432,19 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     (slot) => Math.min(3, world.guests.cols.heading[slot]),
   );
   const guests = world.guests.cols;
-  for (let i = 0; i < out.guests.count; i++)
+  for (let i = 0; i < out.guests.count; i++) {
+    const state = guests.state[i]!;
+    const atCentre = (guests.x[i]! & 255) === 128 && (guests.y[i]! & 255) === 128;
+    const idle =
+      state === GuestState.Waiting ||
+      state === GuestState.Shopping ||
+      (state === GuestState.Queuing && atCentre);
     out.guests.data[i * SNAPSHOT_STRIDE + 3] =
-      (guests.state[i]! << GUEST_STATE_SHIFT) |
+      (state << GUEST_STATE_SHIFT) |
       (guests.heading[i]! << GUEST_HEADING_SHIFT) |
-      (out.guests.data[i * SNAPSHOT_STRIDE + 3]! & 0xffff);
+      (idle ? GUEST_IDLE_BIT : 0) |
+      (out.guests.data[i * SNAPSHOT_STRIDE + 3]! & 0x3ff);
+  }
   const guestCount = Math.min(world.guests.count, out.guestDetails.length / GUEST_DETAIL_STRIDE);
   for (let i = 0; i < guestCount; i++) {
     const o = i * GUEST_DETAIL_STRIDE;
@@ -493,6 +532,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.park.rides = rides.count;
   out.park.entranceX = world.park.entranceX;
   out.park.entranceY = world.park.entranceY;
+  out.park.orphanQueueTiles = world.queues.orphanTiles;
   const scenario = world.scenario;
   out.scenario.status = scenario.status;
   out.scenario.objective = scenario.objective ? { ...scenario.objective } : null;

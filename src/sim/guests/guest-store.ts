@@ -28,6 +28,7 @@ export const enum GuestThought {
   Lost = 9,
   Scenery = 10,
   VeryClean = 11,
+  QueuingForAges = 12,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */
@@ -88,6 +89,8 @@ export const GUEST_SCHEMA = {
   voucherKind: Uint8Array,
   /** Ride or stall the carried voucher names, or -1. */
   voucherTarget: Int32Array,
+  /** Position in the ride's queue order: the ride's serial when the guest joined its line. */
+  queueSeq: Uint32Array,
 } as const;
 
 export function recordRideHistory(w: World, slot: number, rideId: number): void {

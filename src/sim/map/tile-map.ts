@@ -96,6 +96,11 @@ export const enum PathFlag {
 }
 /** High payload bit marks a broken path addition without destroying its contents. */
 export const PATH_ADDITION_BROKEN = 0x40000000;
+/** `elData` marks on the path tile that is a ride's entrance; set and cleared by the ride queue sync. */
+export const PATH_ENTRANCE_MARK = 0x20000000;
+/** `elData` mark on the path tile that is a ride's exit; queues never join it. */
+export const PATH_EXIT_MARK = 0x10000000;
+export const PATH_BOARDING_MARKS = PATH_ENTRANCE_MARK | PATH_EXIT_MARK;
 
 export function isPathElementBroken(map: TileMap, element: number): boolean {
   return element >= 0 && (map.elData[element] & PATH_ADDITION_BROKEN) !== 0;
@@ -109,7 +114,7 @@ export function markPathElementBroken(map: TileMap, element: number): void {
 
 export function repairPathElement(map: TileMap, element: number): void {
   if (element < 0 || !isPathElementBroken(map, element)) return;
-  map.elData[element] = 0;
+  map.elData[element] &= PATH_BOARDING_MARKS;
   map.revision++;
 }
 export const SLOPE_DIR_SHIFT = 10;
@@ -159,6 +164,9 @@ export class TileMap {
   revision = 0;
   /** Bumped whenever a path element or its edges change; lets the pathfinder drop caches. */
   pathVersion = 0;
+  /** Per-tile walkable exits: path edges minus anything touching a queue tile; rebuilt lazily. */
+  private readonly walkEdges: Uint8Array;
+  private walkEdgesVersion = -1;
 
   readonly elementCapacity: number;
 
@@ -185,6 +193,7 @@ export class TileMap {
     this.elData = new Int32Array(elementCapacity);
     this.elNext = new Int32Array(elementCapacity);
     this.pathStyle = new Uint8Array(elementCapacity);
+    this.walkEdges = new Uint8Array(tiles);
     this.meta = Int32Array.of(-1, 0, 0);
   }
 
@@ -377,9 +386,32 @@ export class TileMap {
     return e < 0 ? 0 : this.pathEdgesOf(e);
   }
 
-  /** `PathGraph` view for the pathfinder: the tile's lowest path element's edges. */
+  /**
+   * `PathGraph` view for the pathfinder: the tile's walkable exits. Queue tiles are not part of the
+   * general walking network, so they expose no exits and no ordinary tile exposes one toward them.
+   */
   edgeMask(i: number): number {
-    return this.pathEdges(i);
+    if (this.walkEdgesVersion !== this.pathVersion) this.rebuildWalkEdges();
+    return this.walkEdges[i];
+  }
+
+  private rebuildWalkEdges(): void {
+    const walk = this.walkEdges;
+    for (let i = 0; i < walk.length; i++) {
+      const e = this.pathElement(i, -1);
+      if (e < 0 || this.elFlags[e] & PathFlag.Queue) {
+        walk[i] = 0;
+        continue;
+      }
+      let mask = this.pathEdgesOf(e);
+      for (let d = 0; d < 4; d++) {
+        if (!(mask & (1 << d))) continue;
+        const n = this.neighbor(i, d);
+        if (n < 0 || this.isQueue(n)) mask &= ~(1 << d);
+      }
+      walk[i] = mask;
+    }
+    this.walkEdgesVersion = this.pathVersion;
   }
 
   /** Marks edges of a path element as connected to something that is not a path. */

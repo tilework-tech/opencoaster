@@ -1,3 +1,5 @@
+import { refreshQueueIndex } from './queue-lines';
+import { popcount4 } from '../pathfinding/directions';
 import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
@@ -16,6 +18,7 @@ import {
   setRideMode,
   setRideOpen,
   setRidePrice,
+  setRideQueueLimit,
   setTrainLayout,
 } from './ride-operations';
 import type { RideMode } from './ride-modes';
@@ -31,6 +34,7 @@ export type RideCommand =
   | { type: 'placeRideExit'; rideId: number; x: number; y: number }
   | { type: 'setRideStatus'; rideId: number; status: 'open' | 'close' | 'test' }
   | { type: 'setRidePrice'; rideId: number; priceCents: number }
+  | { type: 'setRideQueueLimit'; rideId: number; limit: number }
   | { type: 'setRideTrains'; rideId: number; trains: number; cars: number }
   | { type: 'setRideMode'; rideId: number; mode: RideMode }
   /** `minutes` is one of `INSPECTION_INTERVAL_MINUTES`, or 0 for never. */
@@ -92,34 +96,15 @@ function isBusy(world: World, slot: number): boolean {
 }
 
 /**
- * Walks the queue tiles from the entrance. The queue is connected when a plain path tile
- * touches it; its capacity grows with the number of queue tiles.
+ * Re-reads the ride's queue line from the map: the line is connected when it has an open end on
+ * an ordinary path (or the entrance is itself on a path), and its length is the queue tiles
+ * behind the entrance.
  */
 function connectQueueFromEntrance(world: World, slot: number): void {
-  const map = world.map;
   const ride = world.rides.cols;
-  const exit = ride.exitPlaced[slot] ? map.index(ride.exitX[slot], ride.exitY[slot]) : -1;
-  const start = map.index(ride.entranceX[slot], ride.entranceY[slot]);
-  const seen = new Set<number>([start]);
-  const stack = [start];
-  let queueTiles = 0;
-  let reachesPath = false;
-  while (stack.length > 0 && queueTiles < 64) {
-    const tile = stack.pop() as number;
-    queueTiles++;
-    for (let dir = 0; dir < 4; dir++) {
-      const next = map.neighbor(tile, dir);
-      if (next < 0 || next === exit || seen.has(next)) continue;
-      if (map.surface[next] === Surface.Queue) {
-        seen.add(next);
-        stack.push(next);
-      } else if (map.surface[next] === Surface.Path) {
-        reachesPath = true;
-      }
-    }
-  }
-  ride.queueLineTiles[slot] = queueTiles;
-  ride.queueConnected[slot] = reachesPath ? 1 : 0;
+  refreshQueueIndex(world);
+  ride.queueLineTiles[slot] = world.queues.tiles[slot];
+  ride.queueConnected[slot] = world.queues.joinTile[slot] >= 0 ? 1 : 0;
 }
 
 export function refreshRideQueueConnections(world: World): void {
@@ -238,6 +223,8 @@ function placeBoardingTile(
     kind === 'entrance'
       ? surface === Surface.Queue
       : surface === Surface.Path || surface === Surface.Queue;
+  if (kind === 'entrance' && surface === Surface.Path && popcount4(world.map.pathEdges(tile)) >= 2)
+    return RideResult.CutsPath;
   if (!alreadyRight) {
     if (world.economy.cash < PATH_COST_CENTS) return RideResult.InsufficientFunds;
     if (!placePath(world.map, { x, y, queue: wanted === Surface.Queue })) return RideResult.Blocked;
@@ -351,6 +338,9 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
       break;
     case 'setRidePrice':
       result = setRidePrice(world, c.rideId, c.priceCents) ? RideResult.Ok : RideResult.Blocked;
+      break;
+    case 'setRideQueueLimit':
+      result = setRideQueueLimit(world, c.rideId, c.limit) ? RideResult.Ok : RideResult.Blocked;
       break;
     case 'setRideTrains':
       result = setTrainLayout(world, c.rideId, c.trains, c.cars)

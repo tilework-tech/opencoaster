@@ -2,7 +2,7 @@ import { project } from '../../../render/projection';
 import type { Camera } from '../../../render/renderer';
 import { TILE_UNITS, Z_STEP } from '../../../sim/core/constants';
 import type { PathPiecePreview } from '../../../sim/map/map-commands';
-import { PathResult } from '../../../sim/map/paths';
+import { PathResult, QueueLink } from '../../../sim/map/paths';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../../../sim/map/tile-map';
 import type { PathPieceGhost } from '../../../render/renderer';
 import type { Tile } from './run';
@@ -187,6 +187,17 @@ export class PathGhost {
       shape.dataset.edges = String(piece.edges);
     }
     this.svg.append(shape);
-    if (!piece) return;
+    if (!piece?.queue) return;
+    const cx = points.reduce((sum, [px]) => sum + px, 0) / points.length;
+    const cy = points.reduce((sum, [, py]) => sum + py, 0) / points.length;
+    const marker = document.createElementNS(SVG_NS, 'circle');
+    marker.setAttribute('class', 'path-ghost-link');
+    marker.setAttribute('cx', String(cx));
+    marker.setAttribute('cy', String(cy));
+    marker.setAttribute('r', '5');
+    marker.dataset.link = String(piece.link);
+    marker.dataset.entrance = String((piece.link & QueueLink.Entrance) !== 0);
+    marker.dataset.openEnd = String((piece.link & QueueLink.OpenEnd) !== 0);
+    this.svg.append(marker);
   }
 }

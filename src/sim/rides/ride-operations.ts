@@ -273,9 +273,25 @@ export function configureRide(world: World, rideId: number, options: RideOperati
   return true;
 }
 
-/** Guests a ride's line can hold: its queue tiles plus the entrance tile itself. */
+/**
+ * Guests a ride's line can hold. A built queue holds one guest per queue tile single file, plus
+ * the loading area at the entrance; a ride entered straight from a path counts its declared tiles.
+ */
 export function rideQueueCapacity(world: World, slot: number): number {
-  return (world.rides.cols.queueLineTiles[slot] + 1) * QUEUE_GUESTS_PER_TILE;
+  const ride = world.rides.cols;
+  const limit = ride.queueLimit[slot];
+  const built = world.queues.hasQueue[slot]
+    ? world.queues.tiles[slot] + Math.max(1, ride.capacity[slot])
+    : (ride.queueLineTiles[slot] + 1) * QUEUE_GUESTS_PER_TILE;
+  return limit > 0 && limit < built ? limit : built;
+}
+
+/** Sets the longest line the ride accepts, in guests; 0 lifts the limit. */
+export function setRideQueueLimit(world: World, rideId: number, limit: number): boolean {
+  const slot = slotForRide(world, rideId);
+  if (slot < 0 || !inRangeInteger(limit, 0, 0xffff)) return false;
+  world.rides.cols.queueLimit[slot] = limit;
+  return true;
 }
 
 export function joinRideQueue(world: World, rideId: number, guests: number): boolean {
@@ -509,14 +525,17 @@ export function calculateRideThroughputPerHour(
   return Math.floor((capacityPerDispatch * 40 * 60 * 60) / cycleTicks);
 }
 
-export function getEstimatedRideWaitTicks(world: World, rideId: number): number {
-  const slot = slotForRide(world, rideId);
-  if (slot < 0) return 0;
+/** Ticks a guest joining the line now would wait: the whole line (queuing and waiting) divided into trips. */
+export function estimatedWaitTicks(world: World, slot: number): number {
   const ride = world.rides.cols;
   const serviceTicks = ride.loadTicks[slot] + ride.runTicks[slot] + ride.unloadTicks[slot];
-  return ride.capacity[slot] === 0
-    ? 0
-    : Math.floor((ride.queueLength[slot] * serviceTicks) / ride.capacity[slot]);
+  const line = Math.max(ride.queueLength[slot], world.rideLines.queued[slot]);
+  return ride.capacity[slot] === 0 ? 0 : Math.floor((line * serviceTicks) / ride.capacity[slot]);
+}
+
+export function getEstimatedRideWaitTicks(world: World, rideId: number): number {
+  const slot = slotForRide(world, rideId);
+  return slot < 0 ? 0 : estimatedWaitTicks(world, slot);
 }
 
 export function isRideInspectionDue(world: World, rideId: number): boolean {

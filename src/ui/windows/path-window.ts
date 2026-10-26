@@ -177,5 +177,9 @@ export function openPathWindow(ctx: UiContext): WindowController {
   piecePane.append(actions);
 
   ctx.chooseTool('path');
-  return { update() {} };
+  return {
+    update() {
+      pressAll(queueToggles, () => state.queue);
+    },
+  };
 }

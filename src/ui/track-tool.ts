@@ -205,6 +205,7 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.ResearchRequired]: 'Research this ride type before building it.',
   [RideResult.NotOwned]: 'You need to own that land or its construction rights.',
   [RideResult.Blocked]: 'Something is in the way.',
+  [RideResult.CutsPath]: 'That tile is part of a footpath; an entrance there would cut it in two.',
   [RideResult.InsufficientFunds]: 'Not enough cash.',
   [RideResult.OutOfBounds]: 'That is outside the map.',
   [RideResult.TestFailed]: 'Test failed: the train crashed or never finished the lap.',

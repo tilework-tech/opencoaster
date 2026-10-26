@@ -167,6 +167,7 @@ export class Simulation {
       case 'placeRideExit':
       case 'setRideStatus':
       case 'setRidePrice':
+      case 'setRideQueueLimit':
       case 'setRideTrains':
       case 'setRideMode':
       case 'setRideInspection':

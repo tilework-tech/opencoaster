@@ -1,5 +1,10 @@
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
-import { SNAPSHOT_STRIDE, guestRowHeading, isRidingGuestRow } from '../worker/snapshot';
+import {
+  SNAPSHOT_STRIDE,
+  guestRowHeading,
+  guestRowIdle,
+  isRidingGuestRow,
+} from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, Surface } from '../sim/map/tile-map';
@@ -54,6 +59,7 @@ import {
   SurfaceDepths,
   pathSlabDepth,
   personDepth,
+  queueRailDepth,
   rotatedPositionSum,
 } from './depth-key';
 import { OwnershipOverlay } from './ownership-overlay';
@@ -62,6 +68,7 @@ import type { ObjectPickTarget } from '../input/object-picking';
 import type { Rotation } from './projection';
 import {
   pathElementSprite,
+  queueRailSprites,
   flowerBedSpriteName,
   pathSpriteName,
   pathAdditionSpriteName,
@@ -148,6 +155,11 @@ export function terrainSpriteIndex(surface: number, slopeMask: number): number {
 
 export function staffSpriteName(kind: number): string {
   return `people/staff-costumes#${(kind >= 0 && kind <= 3 ? kind : 0) * 4}`;
+}
+
+/** Animation frame for a guest: the walk cycle, or a slow weight shift while standing still. */
+export function guestFrame(tick: number, idle: boolean): number {
+  return idle ? 1 + 2 * ((tick >>> 5) & 1) : tick >>> 2;
 }
 
 /** Sprite index of a guest: `heading` is the world walking direction, shown as seen at `rotation`. */
@@ -1640,6 +1652,16 @@ export class WebGL2Renderer implements Renderer {
         pathElementSprite(ghost.flags, ghost.surface, camera.rotation),
         depth + 1,
       );
+      for (const rail of queueRailSprites(ghost.flags, camera.rotation))
+        this.append(
+          worldX,
+          worldY,
+          z,
+          40,
+          26,
+          rail.sprite,
+          queueRailDepth(map, camera.rotation, ghost.x, ghost.y, rail.worldDir, ghost.level) + 0.1,
+        );
       this.ghostMode = 0;
     }
   }
@@ -1706,7 +1728,6 @@ export class WebGL2Renderer implements Renderer {
       const baseHeight = paths[o + 2]!;
       const z = baseHeight * Z_STEP;
       const flags = paths[o + 3];
-      const isQueue = (flags & PathFlag.Queue) !== 0;
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
       const worldX = x * TILE_UNITS + 128;
       const worldY = y * TILE_UNITS + 128;
@@ -1731,8 +1752,19 @@ export class WebGL2Renderer implements Renderer {
           40,
           26,
         )
-      )
+      ) {
         this.append(worldX, worldY, z, 40, 26, sprite, slabDepth);
+        for (const rail of queueRailSprites(flags, camera.rotation))
+          this.append(
+            worldX,
+            worldY,
+            z,
+            40,
+            26,
+            rail.sprite,
+            queueRailDepth(map, camera.rotation, x, y, rail.worldDir, baseHeight),
+          );
+      }
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
         if (flags & PathFlag.Shelter) {
           const shelterZ = pathAdditionGroundZ(baseHeight, flags);
@@ -1774,16 +1806,6 @@ export class WebGL2Renderer implements Renderer {
             );
           }
       }
-      if (isQueue)
-        this.append(
-          worldX,
-          worldY,
-          z + Z_STEP / 2,
-          30,
-          10,
-          scenerySpriteName('queue-rail'),
-          depth + 2,
-        );
     }
   }
 
@@ -1923,7 +1945,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendLayerSprite(
         layer,
         offset,
-        `people/guest-walk#${guestSpriteIndex(tint, heading, tick >>> 2, camera.rotation) - 40}`,
+        `people/guest-walk#${guestSpriteIndex(tint, heading, guestFrame(tick, guestRowIdle(metadata)), camera.rotation) - 40}`,
         map,
         camera,
         viewportWidth,

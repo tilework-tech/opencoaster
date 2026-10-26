@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ambientTreeName, flowerBedSpriteName, pathElementSprite } from './world-art';
+import {
+  ambientTreeName,
+  flowerBedSpriteName,
+  pathElementSprite,
+  queueRailSprites,
+} from './world-art';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import {
   TERRAIN_SLOPE_NAMES,
@@ -88,6 +93,22 @@ describe('world art sprite selection', () => {
     expect(pathSpriteName('tarmac', 0b1000, undefined, 1)).toBe('paths/tarmac/connection-01');
     expect(pathSpriteName('queue', 0b0101, undefined, 2)).toBe('paths/queue/connection-05');
     expect(pathSpriteName('dirt', 0, 3, 2)).toBe('paths/dirt/ramp-1');
+  });
+
+  it('adds a rail sprite for each open edge of a flat queue piece that faces the camera', () => {
+    const queue = PathFlag.Queue;
+    expect(queueRailSprites(queue | 0b1100, 0).map((r) => r.sprite)).toEqual([
+      'paths/queue/rail-0',
+      'paths/queue/rail-1',
+    ]);
+    expect(queueRailSprites(queue | 0b0101, 0).map((r) => r.sprite)).toEqual([
+      'paths/queue/rail-1',
+    ]);
+    expect(queueRailSprites(queue | 0b0101, 1)).toEqual([
+      { sprite: 'paths/queue/rail-0', worldDir: 3 },
+    ]);
+    expect(queueRailSprites(0b0101, 0)).toEqual([]);
+    expect(queueRailSprites(queue | PathFlag.Sloped, 0)).toEqual([]);
   });
 
   it('cycles eight water palette frames at five frames per second on the 40 Hz simulation clock', () => {

@@ -877,6 +877,14 @@
 .path-ghost-pending {
   stroke: #fff0bd;
 }
+.path-ghost-link {
+  fill: #e8b84a;
+  stroke: #2a2112;
+  stroke-width: 1.5;
+}
+.path-ghost-link[data-entrance='true'] {
+  fill: #6fe08a;
+}
 .path-ghost-label,
 .placement-label,
 .build-hover-tip {

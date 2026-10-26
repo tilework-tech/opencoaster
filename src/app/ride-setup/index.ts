@@ -19,6 +19,7 @@ import { rotateTile } from '../../sim/track/construction';
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 import { capDevicePixelRatio } from '../../input/camera-controls';
 import { feedbackMessage } from '../../ui/track-tool';
+import type { FootpathControls } from '../../ui/ui-types';
 
 interface RidePlacement {
   rideId: number;
@@ -39,7 +40,11 @@ export interface RideSetupDependencies {
   preview: HTMLCanvasElement;
   targets: SVGSVGElement;
   setPlacementHover: (hover: PlacementHover | null) => void;
+  footpath: FootpathControls;
 }
+
+const QUEUE_PROMPT =
+  'Build the queue: drag from the highlighted entrance out to a path. Guests only line up once the queue reaches a path.';
 
 export function createRideSetup(deps: RideSetupDependencies) {
   const { sim, gameUi, coasterPanel, camera } = deps;
@@ -65,6 +70,10 @@ export function createRideSetup(deps: RideSetupDependencies) {
   rotateButton.hidden = true;
   rotateButton.addEventListener('click', () => rotatePlacement());
   ridePlacementPreview.parentElement?.append(rotateButton);
+  /** The ride whose queue the player is being asked to build; its entrance is highlighted. */
+  let queuePromptRideId: number | null = null;
+  /** Snapshots left in which the prompt is shown again, after the ride feedback line has had its say. */
+  let queuePromptRepeats = 0;
 
   function chooseRideType(type: number): void {
     coasterPanel.rideType = type;
@@ -106,6 +115,77 @@ export function createRideSetup(deps: RideSetupDependencies) {
     gameUi.setToolStatus(`Click a tile next to ride ${rideId} to place its ${part}.`);
   }
 
+  /** Opens Footpaths with Queue line on and highlights the ride's entrance until its queue is built. */
+  function promptQueue(rideId: number): void {
+    queuePromptRideId = rideId;
+    ridePlacement = null;
+    ridePlacementCommandPending = false;
+    deps.footpath.setMode('line');
+    deps.footpath.setQueue(true);
+    gameUi.openWindow('paths');
+    gameUi.selectTool('path');
+    queuePromptRepeats = 3;
+    gameUi.setToolStatus(QUEUE_PROMPT);
+  }
+
+  function advanceQueuePrompt(snapshot: NonNullable<typeof sim.latest>): void {
+    if (queuePromptRideId === null) return;
+    const row = rideRow(snapshot, undefined, queuePromptRideId);
+    const flags = row === null ? 0 : snapshot.rideInfo[row * RIDE_INFO_STRIDE + RideInfo.Flags];
+    if (row === null || deps.selectedTool() !== 'path') {
+      queuePromptRideId = null;
+      queuePromptRepeats = 0;
+    } else if (flags & RideFlag.QueueConnected && flags & RideFlag.HasQueue) {
+      queuePromptRideId = null;
+      queuePromptRepeats = 0;
+      gameUi.setToolStatus('Queue connected. Test the ride, then open it.');
+    } else if (queuePromptRepeats > 0) {
+      queuePromptRepeats--;
+      gameUi.setToolStatus(QUEUE_PROMPT);
+    }
+  }
+
+  function drawQueuePrompt(context: CanvasRenderingContext2D): void {
+    const snapshot = sim.latest;
+    const map = sim.map;
+    if (queuePromptRideId === null || !snapshot || !map) return;
+    const row = rideRow(snapshot, undefined, queuePromptRideId);
+    if (row === null) return;
+    const offset = row * RIDE_INFO_STRIDE;
+    const tileX = snapshot.rideInfo[offset + RideInfo.EntranceX];
+    const tileY = snapshot.rideInfo[offset + RideInfo.EntranceY];
+    const index = tileY * map.width + tileX;
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+    const point = new Float64Array(2);
+    context.fillStyle = `rgba(255, 214, 84, ${0.25 + 0.25 * pulse})`;
+    context.strokeStyle = 'rgba(255, 236, 150, .95)';
+    context.lineWidth = 2.5;
+    context.beginPath();
+    for (const [dx, dy, first] of [
+      [0, 0, true],
+      [1, 0, false],
+      [1, 1, false],
+      [0, 1, false],
+    ] as const) {
+      project(
+        (tileX + dx) * TILE_UNITS,
+        (tileY + dy) * TILE_UNITS,
+        (map.heights[index] ?? 0) * Z_STEP,
+        map.width,
+        map.height,
+        camera.rotation as Rotation,
+        point,
+      );
+      const px = context.canvas.clientWidth / 2 + (point[0] - camera.x) * camera.zoom;
+      const py = context.canvas.clientHeight / 2 + (point[1] - camera.y) * camera.zoom;
+      if (first) context.moveTo(px, py);
+      else context.lineTo(px, py);
+    }
+    context.closePath();
+    context.fill();
+    context.stroke();
+  }
+
   function rideTileClick(x: number, y: number): void {
     if (ridePlacement) {
       if (ridePlacementCommandPending) return;
@@ -137,6 +217,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   }
 
   function advanceRideSetup(snapshot: NonNullable<typeof sim.latest>): void {
+    advanceQueuePrompt(snapshot);
     if (pendingRideCreation && snapshot.rides.count > pendingRideCreation.rideIds.length) {
       const created = rideRow(
         snapshot,
@@ -218,12 +299,17 @@ export function createRideSetup(deps: RideSetupDependencies) {
         gameUi.setToolStatus('Place exit next to the ride.');
       }
     } else if (ridePlacement.part === 'exit' && flags & RideFlag.ExitPlaced) {
-      gameUi.openRide(ridePlacement.rideId);
+      const rideId = ridePlacement.rideId;
+      gameUi.openRide(rideId);
       ridePlacement = null;
       ridePlacementFeedbackMessage = null;
       ridePlacementCommandPending = false;
-      rideSetupNotice = 'Ride setup complete. Test the ride before opening it.';
-      gameUi.setToolStatus(rideSetupNotice);
+      if (flags & RideFlag.QueueConnected) {
+        rideSetupNotice = 'Ride setup complete. Test the ride before opening it.';
+        gameUi.setToolStatus(rideSetupNotice);
+      } else {
+        promptQueue(rideId);
+      }
     } else if (!ridePlacementCommandPending) {
       gameUi.setToolStatus(
         ridePlacementFeedbackMessage ?? `Place ${ridePlacement.part} next to the ride.`,
@@ -294,6 +380,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     if (!context) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
+    drawQueuePrompt(context);
     const snapshot = sim.latest;
     const map = sim.map;
     rotateButton.hidden =
@@ -439,19 +526,36 @@ export function createRideSetup(deps: RideSetupDependencies) {
         map.surface[index] !== Surface.Water &&
         map.slope[index] === 0 &&
         (map.waterLevel?.[index] ?? 0) <= map.heights[index];
+      const cutsPath =
+        placement?.part === 'entrance' &&
+        map.surface[index] === Surface.Path &&
+        [
+          [1, 0],
+          [0, 1],
+          [-1, 0],
+          [0, -1],
+        ].filter(([dx, dy]) => {
+          const nx = candidate.x + dx!;
+          const ny = candidate.y + dy!;
+          if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) return false;
+          const side = map.surface[ny * map.width + nx];
+          return side === Surface.Path || side === Surface.Queue;
+        }).length >= 2;
       const invalidReason = !level
         ? 'You need to own the land or its construction rights.'
         : occupiedBoardingTile
           ? 'An entrance or exit is already placed here.'
-          : occupiedByTrack
-            ? 'Track occupies this tile.'
-            : occupiedRideTiles.has(index)
-              ? 'Another ride occupies this tile.'
-              : !existingPath && !dryAndLevel
-                ? map.surface[index] === Surface.Water
-                  ? 'This tile is under open water.'
-                  : 'The ground must be level and dry.'
-                : null;
+          : cutsPath
+            ? 'An entrance here would cut the footpath in two.'
+            : occupiedByTrack
+              ? 'Track occupies this tile.'
+              : occupiedRideTiles.has(index)
+                ? 'Another ride occupies this tile.'
+                : !existingPath && !dryAndLevel
+                  ? map.surface[index] === Surface.Water
+                    ? 'This tile is under open water.'
+                    : 'The ground must be level and dry.'
+                  : null;
       const valid = invalidReason === null;
       context.fillStyle = valid ? 'rgba(70, 225, 115, .48)' : 'rgba(230, 70, 65, .46)';
       context.strokeStyle = 'rgba(255,255,220,.9)';
@@ -541,6 +645,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     chooseRideType,
     rotatePlacement,
     placeRidePart,
+    promptQueue,
     rideTileClick,
     clearNotice: () => (rideSetupNotice = null),
     notice: () => rideSetupNotice,

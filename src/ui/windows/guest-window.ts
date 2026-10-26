@@ -24,6 +24,9 @@ export const THOUGHT_LABELS: readonly string[] = [
   'Queue is too long',
   'Leaving the park',
   "I'm lost!",
+  'Enjoying the scenery',
+  'The park is very clean',
+  "I've been queuing for ages",
 ];
 
 export interface GuestDetails {

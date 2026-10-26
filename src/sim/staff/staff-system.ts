@@ -7,7 +7,14 @@ import type { NavOptions } from '../pathfinding/navigate';
 import { isRideInspectionDue } from '../rides/ride-operations';
 import { rideServiceX, rideServiceY, serviceRide } from '../rides/ride-maintenance';
 import { StaffKind, StaffOrder } from './staff-store';
-import { DIR_DX, DIR_DY, ElementType, isPathElementBroken, PathFlag } from '../map/tile-map';
+import {
+  DIR_DX,
+  DIR_DY,
+  ElementType,
+  isPathElementBroken,
+  PATH_BOARDING_MARKS,
+  PathFlag,
+} from '../map/tile-map';
 import { RideState } from '../rides/ride-store';
 import { growGrounds, mowGrass, needsMowing, needsWatering, waterFlowerBed } from './grounds';
 
@@ -280,7 +287,8 @@ export function createStaffSystem(): System {
             moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
             if (x === staff.targetX[slot] && y === staff.targetY[slot]) {
               const element = map.pathElement(bin, -1);
-              if (element >= 0 && !isPathElementBroken(map, element)) map.elData[element] = 0xff;
+              if (element >= 0 && !isPathElementBroken(map, element))
+                map.elData[element] = 0xff | (map.elData[element] & PATH_BOARDING_MARKS);
             }
             continue;
           }

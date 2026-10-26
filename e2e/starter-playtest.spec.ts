@@ -134,7 +134,7 @@ test('plays the starter park shell and exercises save file round trips', async (
     .getByRole('button', { name: /Place exit at tile/ })
     .first()
     .click();
-  await expect(page.locator('.tool-status')).toContainText('Ride setup complete');
+  await expect(page.locator('.tool-status')).toContainText('Build the queue');
   await screenshot('05-flat-ride-built');
 
   await toolbarButton('Finances').click();

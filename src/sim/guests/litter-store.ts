@@ -1,6 +1,11 @@
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
-import { isPathElementBroken, PATH_ADDITION_BROKEN, PathFlag } from '../map/tile-map';
+import {
+  isPathElementBroken,
+  PATH_ADDITION_BROKEN,
+  PATH_BOARDING_MARKS,
+  PathFlag,
+} from '../map/tile-map';
 
 export const enum LitterKind {
   Trash = 0,
@@ -42,7 +47,7 @@ function assignBirthOrder(w: World, slot: number): void {
 export function dropLitter(w: World, x: number, y: number, kind: LitterKind): boolean {
   if (!w.map.inBounds(x, y)) return false;
   const tile = w.map.index(x, y);
-  if (!w.map.isWalkable(tile)) return false;
+  if (!w.map.isWalkable(tile) || w.map.isQueue(tile)) return false;
   const element = w.map.pathElement(tile, -1);
   if (
     kind === LitterKind.Trash &&
@@ -58,7 +63,7 @@ export function dropLitter(w: World, x: number, y: number, kind: LitterKind): bo
         const value = (corners >> shift) & 3;
         if (value > 0 && w.rng.int(8) === 0) corners -= 1 << shift;
       }
-      w.map.elData[element] = brokenBit | corners;
+      w.map.elData[element] = brokenBit | corners | (w.map.elData[element] & PATH_BOARDING_MARKS);
       return true;
     }
   }

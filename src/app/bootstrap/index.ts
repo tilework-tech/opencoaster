@@ -47,6 +47,7 @@ export async function bootstrap(): Promise<void> {
   registerPwa();
 
   const sim = new SimClient();
+  if (import.meta.env.DEV) (window as unknown as { __sim?: SimClient }).__sim = sim;
   sim.onMap = (map, newGame) => {
     renderer.setMap(map);
     if (import.meta.env.DEV) (window as unknown as { __map?: typeof map }).__map = map;
@@ -221,6 +222,9 @@ export async function bootstrap(): Promise<void> {
       gameUi.setToolStatus(`Pick up ${person} ${personId}; choose a valid destination tile.`);
       toolController.beginPersonMove(person, personId);
     },
+    setRideQueueLimit(rideId, limit) {
+      sim.command({ type: 'setRideQueueLimit', rideId, limit });
+    },
     setRidePrice(rideId, priceCents) {
       sim.command({ type: 'setRidePrice', rideId, priceCents });
     },
@@ -236,6 +240,9 @@ export async function bootstrap(): Promise<void> {
     placeRidePart(rideId, part) {
       rideSetupState.current.placeRidePart(rideId, part);
     },
+    buildRideQueue(rideId) {
+      rideSetupState.current.promptQueue(rideId);
+    },
   });
   gameUi.syncPaused(userPaused);
   gameUi.syncSpeed(speed);
@@ -249,6 +256,7 @@ export async function bootstrap(): Promise<void> {
     preview: ridePlacementPreview,
     targets: ridePlacementTargets,
     setPlacementHover: (hover) => (placementHover = hover),
+    footpath: pathTool,
   });
 
   const outcomeDialog = new ScenarioDialog(root);

@@ -2,7 +2,7 @@ import type { Camera, Renderer } from '../../../render/renderer';
 import type { MapMessage } from '../../../worker/protocol';
 import type { SimClient } from '../../../worker/sim-client';
 import type { PathPiecePreview } from '../../../sim/map/map-commands';
-import { PathResult } from '../../../sim/map/paths';
+import { PathResult, QueueLink } from '../../../sim/map/paths';
 import type { PathPlacement } from '../../../sim/map/paths';
 import { PATH_COST_CENTS } from '../../../sim/map/tile-map';
 import type { PathStyle } from '../../../sim/map/tile-map';
@@ -91,7 +91,11 @@ export class PathTool implements FootpathControls {
 
   setQueue(queue: boolean): void {
     this.deps.state.queue = queue;
-    this.deps.setStatus(`Queue line ${queue ? 'on' : 'off'}.`);
+    this.deps.setStatus(
+      queue
+        ? 'Queue line on: build it from a ride entrance out to a path. Guests only walk it once they have chosen that ride, and it joins other paths at its open end only.'
+        : 'Queue line off.',
+    );
     this.refreshHover();
     this.refreshPiece();
   }
@@ -296,10 +300,14 @@ export class PathTool implements FootpathControls {
     if (last.tone === 'refused')
       return { text: pathRefusalText(last.piece!.result), tone: 'refused' };
     const buildable = items.filter((item) => item.tone === 'ok').length;
-    return {
-      text: `${buildable} tile${buildable === 1 ? '' : 's'} · ${formatMoney(buildable * PATH_COST_CENTS)}`,
-      tone: 'ok',
-    };
+    const cost = `${buildable} tile${buildable === 1 ? '' : 's'} · ${formatMoney(buildable * PATH_COST_CENTS)}`;
+    const queued = items.filter((item) => item.tone === 'ok' && item.piece?.queue);
+    if (queued.length === 0) return { text: cost, tone: 'ok' };
+    const link = queued.reduce((bits, item) => bits | item.piece!.link, 0);
+    const entrance =
+      link & QueueLink.Entrance ? 'links to a ride entrance' : 'no ride entrance yet';
+    const openEnd = link & QueueLink.OpenEnd ? 'open end joins the path' : 'open end not on a path';
+    return { text: `${cost} · ${entrance} · ${openEnd}`, tone: 'ok' };
   }
 
   /**

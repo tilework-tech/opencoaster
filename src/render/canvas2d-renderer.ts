@@ -1,7 +1,12 @@
 import { occluderDepth, sceneryDepth } from './terrain-occlusion';
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
-import { SNAPSHOT_STRIDE, guestRowHeading, isRidingGuestRow } from '../worker/snapshot';
+import {
+  SNAPSHOT_STRIDE,
+  guestRowHeading,
+  guestRowIdle,
+  isRidingGuestRow,
+} from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag } from '../sim/map/tile-map';
@@ -25,6 +30,7 @@ import {
   WATER_BANK,
   flowerBedSpriteName,
   pathElementSprite,
+  queueRailSprites,
   pathAdditionSpriteName,
   litterSpriteName,
   scenerySpriteName,
@@ -44,12 +50,13 @@ import { OwnershipOverlay } from './ownership-overlay';
 import type { TerrainSurface } from './world-art';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
 import type { ObjectPickTarget } from '../input/object-picking';
-import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
+import { guestFrame, guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import {
   SOLID_BIAS,
   SurfaceDepths,
   pathSlabDepth,
   personDepth,
+  queueRailDepth,
   rotatedPositionSum,
 } from './depth-key';
 import { peopleSpriteKey, walkingFrame } from './people-art';
@@ -610,6 +617,35 @@ export class Canvas2DRenderer implements Renderer {
           );
           this.queueAtDepth(slabDepth, () => this.drawMapElements(ctx, map, cam, i, 'slab'));
           break;
+        }
+        for (
+          let path = this.pathOffsets[i];
+          map.pathElements && path < this.pathOffsets[i + 1];
+          path++
+        ) {
+          const element = this.pathIndices[path]! * 6;
+          const flags = map.pathElements[element + 3]!;
+          for (const rail of queueRailSprites(flags, cam.rotation))
+            this.queueAtDepth(
+              queueRailDepth(
+                map,
+                cam.rotation,
+                x,
+                y,
+                rail.worldDir,
+                map.pathElements[element + 2]!,
+              ),
+              () =>
+                this.drawQueueRail(
+                  ctx,
+                  map,
+                  cam,
+                  x,
+                  y,
+                  map.pathElements![element + 2]!,
+                  rail.sprite,
+                ),
+            );
         }
         this.enqueue(map, cam, centerX, centerY, terrainZ, 1, () =>
           this.drawMapElements(ctx, map, cam, i, 'additions'),
@@ -1191,6 +1227,32 @@ export class Canvas2DRenderer implements Renderer {
       this.pathLow[1],
       ghost.tone,
     );
+    for (const rail of queueRailSprites(ghost.flags, cam.rotation))
+      drawGhostSprite(ctx, this.atlas, rail.sprite, this.pathLow[0], this.pathLow[1], ghost.tone);
+  }
+
+  /** One queue rail along a tile edge, drawn after the people standing on the tile. */
+  private drawQueueRail(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    base: number,
+    sprite: string,
+  ): void {
+    if (!this.atlas) return;
+    project(
+      x * TILE_UNITS + 128,
+      y * TILE_UNITS + 128,
+      base * Z_STEP,
+      map.width,
+      map.height,
+      cam.rotation,
+      this.pathLow,
+    );
+    if (!this.isVisible(this.pathLow[0], this.pathLow[1], cam, 22)) return;
+    drawAnchoredSprite(ctx, this.atlas, sprite, this.pathLow[0], this.pathLow[1]);
   }
 
   private drawSceneryElements(
@@ -1561,7 +1623,7 @@ export class Canvas2DRenderer implements Renderer {
       this.queueAtDepth(personDepth(map, cam.rotation, this.surfaceDepths, x, y, z), () => {
         project(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
-        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), tick >>> 2, cam.rotation) - 40}`;
+        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), guestFrame(tick, guestRowIdle(metadata)), cam.rotation) - 40}`;
         if (!this.atlas || !drawAnchoredSprite(ctx, this.atlas, sprite, t[0]!, t[1]!)) {
           ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
           ctx.fillRect(t[0]! - 1.5, t[1]! - 1.5, 3, 3);

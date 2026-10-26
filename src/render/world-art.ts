@@ -214,6 +214,27 @@ export function pathElementSprite(flags: number, surface: number, rotation: numb
   return pathSpriteName(style, edges, sloped ? direction : undefined, rotation);
 }
 
+/**
+ * Rail sprites of a flat queue piece to draw after the people on its tile: one for each edge
+ * facing the camera that the piece does not join to a neighbour. Each carries the world
+ * direction of its edge so the caller can sort it.
+ */
+export function queueRailSprites(
+  flags: number,
+  rotation: number,
+): Array<{ sprite: string; worldDir: number }> {
+  if (!(flags & PathFlag.Queue) || flags & PathFlag.Sloped) return [];
+  const turns = ((rotation % 4) + 4) % 4;
+  const edges = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
+  const out: Array<{ sprite: string; worldDir: number }> = [];
+  for (let view = 0; view < 2; view++) {
+    const worldDir = (view - turns + 4) & 3;
+    if (edges & (1 << worldDir)) continue;
+    out.push({ sprite: `paths/queue/rail-${view}`, worldDir });
+  }
+  return out;
+}
+
 /** Palette-cycle frames of the water texture. */
 export const WATER_FRAMES = 8;
 

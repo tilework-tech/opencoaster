@@ -25,9 +25,11 @@ import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
 
-export const SAVE_VERSION = 22;
+export const SAVE_VERSION = 23;
 /** Flat rides gained multi-tile footprints and a stored orientation in version 22. */
 const FOOTPRINT_SAVE_VERSION = 22;
+/** Last version before guests and rides carried queue-order counters and queue limits. */
+const PRE_QUEUE_ORDER_SAVE_VERSION = 22;
 const PRE_PATH_STYLE_SAVE_VERSION = 16;
 const PATH_STYLE_SAVE_VERSION = 17;
 /** Guests carry campaign vouchers from this version; earlier guests carry none. */
@@ -435,7 +437,8 @@ function guestColumnsAbsent(version: number): number {
     (version <= PRE_NAVIGATION_SAVE_VERSION ? 5 : 0) +
     (version <= PRE_RIDE_HISTORY_SAVE_VERSION ? 5 : 0) +
     (version < GUEST_MEMORY_SAVE_VERSION ? 2 : 0) +
-    (version < VOUCHER_SAVE_VERSION ? 2 : 0)
+    (version < VOUCHER_SAVE_VERSION ? 2 : 0) +
+    (version <= PRE_QUEUE_ORDER_SAVE_VERSION ? 1 : 0)
   );
 }
 
@@ -447,6 +450,7 @@ function rideColumnsAbsent(version: number): number {
   if (version <= PRE_RELIABILITY_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V10;
   if (version < RIDER_HISTORY_SAVE_VERSION) absent += RIDER_HISTORY_WINDOWS;
   if (version < FOOTPRINT_SAVE_VERSION) absent += 1;
+  if (version <= PRE_QUEUE_ORDER_SAVE_VERSION) absent += 2;
   return absent;
 }
 
@@ -476,6 +480,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_TRACKED_WATER_RIDES_SAVE_VERSION,
     PER_STAFF_PATROL_SAVE_VERSION,
     FLAT_WATER_SAVE_VERSION,
+    PRE_QUEUE_ORDER_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {

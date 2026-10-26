@@ -14,7 +14,7 @@ function park(): World {
   return w;
 }
 
-/** Rewrites a current save as a version 19 one: no orientation column, old version number. */
+/** Rewrites a current save as a version 19 one: no orientation or queue columns, old version number. */
 function asVersion19(w: World): Uint8Array {
   const bytes = serialize(w);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -22,20 +22,39 @@ function asVersion19(w: World): Uint8Array {
   const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
   header.version = 19;
   const newHeader = new TextEncoder().encode(JSON.stringify(header));
-  const trackBytes = [...w.track.pieces.arrays(), ...w.track.rideTables()].reduce(
-    (n, a) => n + a.byteLength,
-    0,
-  );
-  const dirBytes = w.rides.cols.dir.byteLength;
+  const arrays = [
+    ...w.map.arrays(),
+    ...w.guests.arrays(),
+    ...w.staff.arrays(),
+    ...w.vehicles.arrays(),
+    ...w.litter.arrays(),
+    ...w.rides.arrays(),
+    ...w.track.pieces.arrays(),
+    ...w.track.rideTables(),
+  ];
+  const dropped = new Set<ArrayBufferView>([
+    w.rides.cols.dir,
+    w.rides.cols.queueSerial,
+    w.rides.cols.queueLimit,
+    w.guests.cols.queueSeq,
+  ]);
   const body = bytes.subarray(8 + headerLength);
-  const keep = body.length - trackBytes - dirBytes;
-  const out = new Uint8Array(8 + newHeader.length + body.length - dirBytes);
+  const kept: Uint8Array[] = [];
+  let offset = 0;
+  for (const array of arrays) {
+    if (!dropped.has(array)) kept.push(body.subarray(offset, offset + array.byteLength));
+    offset += array.byteLength;
+  }
+  const out = new Uint8Array(8 + newHeader.length + kept.reduce((n, part) => n + part.length, 0));
   const outView = new DataView(out.buffer);
   outView.setUint32(0, view.getUint32(0, true), true);
   outView.setUint32(4, newHeader.length, true);
   out.set(newHeader, 8);
-  out.set(body.subarray(0, keep), 8 + newHeader.length);
-  out.set(body.subarray(keep + dirBytes), 8 + newHeader.length + keep);
+  let at = 8 + newHeader.length;
+  for (const part of kept) {
+    out.set(part, at);
+    at += part.length;
+  }
   return out;
 }
 
