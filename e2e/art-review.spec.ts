@@ -170,7 +170,7 @@ async function initialise(page: Page): Promise<void> {
       { Canvas2DRenderer },
       { WebGL2Renderer },
       { spritePages },
-      { createSnapshot, RideFlag, RideInfo },
+      { createSnapshot, RideFlag, RideInfo, RIDE_INFO_STRIDE },
       { project },
       { SCENERY_CATALOG },
       { CoasterScene },
@@ -484,11 +484,11 @@ async function initialise(page: Page): Promise<void> {
           ];
           snapshot.rides.count = placements.length;
           placements.forEach(([type, x, y], index) => {
-            const offset = index * 25;
-            snapshot.rideInfo[offset] = index + 1;
-            snapshot.rideInfo[offset + 1] = type!;
-            snapshot.rideInfo[offset + 22] = x!;
-            snapshot.rideInfo[offset + 23] = y!;
+            const offset = index * RIDE_INFO_STRIDE;
+            snapshot.rideInfo[offset + RideInfo.Id] = index + 1;
+            snapshot.rideInfo[offset + RideInfo.Type] = type!;
+            snapshot.rideInfo[offset + RideInfo.RideX] = x!;
+            snapshot.rideInfo[offset + RideInfo.RideY] = y!;
           });
           snapshot.guests.count = 3;
           snapshot.guests.data.set([
