@@ -63,12 +63,12 @@ export function benchMesh(): Mesh {
     ...box(
       [-0.1, -BENCH_HALF_LENGTH, BENCH_SEAT_Z],
       [-0.01, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.04],
-      TIMBER,
+      WOOD,
     ),
     ...box(
       [0.0, -BENCH_HALF_LENGTH, BENCH_SEAT_Z],
       [0.09, BENCH_HALF_LENGTH, BENCH_SEAT_Z + 0.04],
-      TIMBER,
+      WOOD,
     ),
     ...box([0.08, -BENCH_HALF_LENGTH, 0.28], [0.12, BENCH_HALF_LENGTH, 0.35], TIMBER),
     ...box([0.08, -BENCH_HALF_LENGTH, 0.38], [0.12, BENCH_HALF_LENGTH, 0.45], TIMBER),
@@ -125,6 +125,5 @@ export function brokenLampMesh(): Mesh {
     ...box([-0.08, -0.08, 0.58], [0.08, 0.08, 0.62], STEEL),
     ...box([-0.065, -0.065, 0.62], [0.065, 0.065, 0.74], GLASS),
     ...box([-0.075, -0.075, 0.74], [0.0, 0.075, 0.78], RED),
-    ...box([0.1, 0.0, 0], [0.2, 0.1, 0.04], RED),
   ];
 }

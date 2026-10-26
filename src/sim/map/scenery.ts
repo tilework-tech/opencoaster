@@ -69,7 +69,7 @@ export const SCENERY_CATALOG: readonly SceneryDefinition[] = [
     priceCents: 50,
     removalPriceCents: 10,
     height: 1,
-    width: 26,
+    width: 32,
   },
   {
     name: 'Flower bed',

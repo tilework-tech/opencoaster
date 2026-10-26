@@ -1,4 +1,4 @@
-import { box, quad } from '../../mesh';
+import { box, polygon, quad } from '../../mesh';
 import type { Mesh } from '../../mesh';
 import type { FacilityModel } from './common';
 import { facilityMaterials as m } from './common';
@@ -27,18 +27,40 @@ export const informationKiosk: FacilityModel = {
   key: 'facilities/information-kiosk',
   frames: 4,
   build(frame) {
-    const roofTop = frame % 2 === 0 ? m.blue : m.purple;
     return [
       ...box([-0.3, -0.3, 0], [0.3, 0.3, 0.27], m.wood),
       ...box([-0.38, -0.38, 0.27], [0.38, 0.38, 0.32], m.white),
-      ...quad(
+      ...polygon(
         [
           [-0.4, -0.4, 0.32],
           [0.4, -0.4, 0.32],
           [0, 0, 0.58],
-          [-0.4, 0.4, 0.32],
         ],
-        roofTop,
+        m.blue,
+      ),
+      ...polygon(
+        [
+          [0.4, -0.4, 0.32],
+          [0.4, 0.4, 0.32],
+          [0, 0, 0.58],
+        ],
+        m.blue,
+      ),
+      ...polygon(
+        [
+          [0.4, 0.4, 0.32],
+          [-0.4, 0.4, 0.32],
+          [0, 0, 0.58],
+        ],
+        m.blue,
+      ),
+      ...polygon(
+        [
+          [-0.4, 0.4, 0.32],
+          [-0.4, -0.4, 0.32],
+          [0, 0, 0.58],
+        ],
+        m.blue,
       ),
       ...mapBoard(frame),
       ...box([-0.04, -0.34, 0.2], [0.04, -0.3, 0.26], m.yellow),
