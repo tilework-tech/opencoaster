@@ -66,7 +66,26 @@ export class StatusBar {
     this.dismiss.type = 'button';
     this.dismiss.title = 'Dismiss message';
     this.dismiss.setAttribute('aria-label', 'Dismiss message');
+    this.dismiss.replaceChildren(icon('close'));
     this.dismiss.addEventListener('click', actions.dismissMessage);
+    let touchStart: { pointerId: number; x: number; y: number } | null = null;
+    this.ticker.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'touch') return;
+      touchStart = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+      this.ticker.setPointerCapture(event.pointerId);
+    });
+    this.ticker.addEventListener('pointerup', (event) => {
+      if (!touchStart || event.pointerId !== touchStart.pointerId) return;
+      const deltaX = event.clientX - touchStart.x;
+      const deltaY = event.clientY - touchStart.y;
+      touchStart = null;
+      if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+      event.preventDefault();
+      actions.dismissMessage();
+    });
+    this.ticker.addEventListener('pointercancel', () => {
+      touchStart = null;
+    });
     const history = element('button', 'status-chip status-news');
     history.type = 'button';
     history.title = 'Recent messages';

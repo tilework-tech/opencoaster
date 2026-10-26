@@ -385,6 +385,9 @@ export class GameUI {
       case 'speedStep':
         this.stepSpeed(action.direction);
         return true;
+      case 'dismissMessage':
+        this.dismissMessage();
+        return true;
       case 'rotate':
         this.actions.rotate(action.direction);
         return true;
@@ -671,6 +674,7 @@ export class GameUI {
           'ui-help',
           'Space pauses or resumes · 1 / 2 / 4 set game speed · + / - go faster or slower.',
         ),
+        element('p', 'ui-help', 'Q dismisses the current message.'),
       );
     }
     return {

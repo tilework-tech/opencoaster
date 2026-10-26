@@ -70,6 +70,12 @@ describe('default shortcuts', () => {
     expect(key('Pause')).toEqual({ type: 'pause' });
   });
 
+  it('dismisses the current message on Q', () => {
+    expect(key('q')).toEqual({ type: 'dismissMessage' });
+    expect(key('Q')).toEqual({ type: 'dismissMessage' });
+    expect(key('Q', { shiftKey: true })).toEqual({ type: 'dismissMessage' });
+  });
+
   it('ignores browser shortcuts with modifiers', () => {
     expect(key('r', { ctrlKey: true })).toBeNull();
     expect(key('p', { metaKey: true })).toBeNull();

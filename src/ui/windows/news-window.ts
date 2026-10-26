@@ -1,5 +1,6 @@
 import { element } from '../dom';
 import { formatDate } from '../format';
+import { icon } from '../icons';
 import type { NewsItem } from '../news';
 import type { UiContext, WindowController } from '../ui-types';
 
@@ -48,10 +49,11 @@ export function openNewsWindow(ctx: UiContext, actions: NewsWindowActions): Wind
           );
           b.disabled = !item.target;
           b.addEventListener('click', () => actions.follow(item));
-          const dismiss = element('button', 'message-dismiss', '×');
+          const dismiss = element('button', 'message-dismiss');
           dismiss.type = 'button';
           dismiss.setAttribute('aria-label', `Dismiss: ${item.text}`);
           dismiss.title = 'Dismiss';
+          dismiss.append(icon('close'));
           dismiss.addEventListener('click', () => actions.dismiss(item.id));
           row.append(b, dismiss);
           return row;
