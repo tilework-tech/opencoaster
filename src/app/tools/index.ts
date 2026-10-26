@@ -187,10 +187,15 @@ export function createToolController(deps: ToolControllerDependencies) {
         return;
       }
       deps.sim.command({
-        type: 'setPersonPosition', person: person.person, personId: person.id,
-        x: tile[0], y: tile[1],
+        type: 'setPersonPosition',
+        person: person.person,
+        personId: person.id,
+        x: tile[0],
+        y: tile[1],
       });
-      deps.gameUi.setToolStatus(`${person.person === 'guest' ? 'Guest' : 'Staff'} moved to tile ${tile[0]}, ${tile[1]}.`);
+      deps.gameUi.setToolStatus(
+        `${person.person === 'guest' ? 'Guest' : 'Staff'} moved to tile ${tile[0]}, ${tile[1]}.`,
+      );
       return;
     }
     if (selectedTool !== 'select' && !forceSelect) {
@@ -222,9 +227,7 @@ export function createToolController(deps: ToolControllerDependencies) {
       return;
     }
     const rideId =
-      tile && deps.sim.latest
-        ? findRideIdAtTile(deps.sim.latest, tile[0], tile[1])
-        : null;
+      tile && deps.sim.latest ? findRideIdAtTile(deps.sim.latest, tile[0], tile[1]) : null;
     const guest =
       rideId === null
         ? findGuestAt(localX, localY, rect.width, rect.height, map, deps.camera, deps.sim)
@@ -236,11 +239,22 @@ export function createToolController(deps: ToolControllerDependencies) {
       let nearest = 18 * 18;
       for (let slot = 0; slot < snapshot.staff.count; slot++) {
         const offset = slot * 4;
-        project(snapshot.staff.data[offset]!, snapshot.staff.data[offset + 1]!, snapshot.staff.data[offset + 2]!, map.width, map.height, deps.camera.rotation, point);
+        project(
+          snapshot.staff.data[offset]!,
+          snapshot.staff.data[offset + 1]!,
+          snapshot.staff.data[offset + 2]!,
+          map.width,
+          map.height,
+          deps.camera.rotation,
+          point,
+        );
         const dx = rect.width / 2 + (point[0] - deps.camera.x) * deps.camera.zoom - localX;
         const dy = rect.height / 2 + (point[1] - deps.camera.y) * deps.camera.zoom - localY;
         const distance = dx * dx + dy * dy;
-        if (distance < nearest) { nearest = distance; staffId = snapshot.staffIds[slot]!; }
+        if (distance < nearest) {
+          nearest = distance;
+          staffId = snapshot.staffIds[slot]!;
+        }
       }
     }
     deps.setSelectedGuest(guest);
@@ -250,7 +264,8 @@ export function createToolController(deps: ToolControllerDependencies) {
       selectionStatus = `Ride ${rideId} information opened.`;
     } else if (guest) deps.gameUi.openWindow(`guest-${guest.id}`);
     else if (staffId !== null) deps.gameUi.openWindow(`worker-${staffId}`);
-    else if (tile && map.entranceX === tile[0] && map.entranceY === tile[1]) deps.gameUi.openWindow('park');
+    else if (tile && map.entranceX === tile[0] && map.entranceY === tile[1])
+      deps.gameUi.openWindow('park');
     deps.gameUi.setToolStatus(selectionStatus);
     deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
   }
@@ -261,9 +276,21 @@ export function createToolController(deps: ToolControllerDependencies) {
     const map = deps.sim.map;
     if (!map) return false;
     if (movingPerson) return true;
-    const guest = findGuestAt(clientX - rect.left, clientY - rect.top, rect.width, rect.height, map, deps.camera, deps.sim);
+    const guest = findGuestAt(
+      clientX - rect.left,
+      clientY - rect.top,
+      rect.width,
+      rect.height,
+      map,
+      deps.camera,
+      deps.sim,
+    );
     if (guest) {
-      if (guest.state === 'queueing' || guest.state === 'waiting to board' || guest.state === 'riding') {
+      if (
+        guest.state === 'queueing' ||
+        guest.state === 'waiting to board' ||
+        guest.state === 'riding'
+      ) {
         deps.gameUi.setToolStatus('Pick up refused: guests on rides or in queues cannot be moved.');
         return true;
       }
@@ -276,11 +303,24 @@ export function createToolController(deps: ToolControllerDependencies) {
     let distance = 18 * 18;
     for (let slot = 0; slot < snapshot.staff.count; slot++) {
       const offset = slot * 4;
-      project(snapshot.staff.data[offset]!, snapshot.staff.data[offset + 1]!, snapshot.staff.data[offset + 2]!, map.width, map.height, deps.camera.rotation, point);
-      const dx = rect.width / 2 + (point[0] - deps.camera.x) * deps.camera.zoom - (clientX - rect.left);
-      const dy = rect.height / 2 + (point[1] - deps.camera.y) * deps.camera.zoom - (clientY - rect.top);
+      project(
+        snapshot.staff.data[offset]!,
+        snapshot.staff.data[offset + 1]!,
+        snapshot.staff.data[offset + 2]!,
+        map.width,
+        map.height,
+        deps.camera.rotation,
+        point,
+      );
+      const dx =
+        rect.width / 2 + (point[0] - deps.camera.x) * deps.camera.zoom - (clientX - rect.left);
+      const dy =
+        rect.height / 2 + (point[1] - deps.camera.y) * deps.camera.zoom - (clientY - rect.top);
       const next = dx * dx + dy * dy;
-      if (next < distance) { distance = next; best = slot; }
+      if (next < distance) {
+        distance = next;
+        best = slot;
+      }
     }
     if (best < 0) return false;
     movingPerson = { person: 'staff', id: snapshot.staffIds[best]! };
@@ -289,7 +329,9 @@ export function createToolController(deps: ToolControllerDependencies) {
 
   function personDragMove(): void {
     if (!movingPerson) return;
-    deps.gameUi.setToolStatus(`Moving ${movingPerson.person} ${movingPerson.id} · release to drop.`);
+    deps.gameUi.setToolStatus(
+      `Moving ${movingPerson.person} ${movingPerson.id} · release to drop.`,
+    );
   }
 
   function personDragEnd(clientX: number, clientY: number): void {
@@ -302,7 +344,7 @@ export function createToolController(deps: ToolControllerDependencies) {
   }
 
   function beginPersonMove(person: 'guest' | 'staff', id: number): void {
-    const guest = person === 'guest' ? deps.sim.latest?.guestIds.indexOf(id) ?? -1 : -1;
+    const guest = person === 'guest' ? (deps.sim.latest?.guestIds.indexOf(id) ?? -1) : -1;
     if (guest >= 0 && deps.sim.latest) {
       const state = guestRowState(deps.sim.latest.guests.data[guest * 4 + 3]!);
       if (state === 1 || state === 2 || state === 5) {
@@ -313,6 +355,15 @@ export function createToolController(deps: ToolControllerDependencies) {
     movingPerson = { person, id };
   }
 
-  return { removePathAt, removeSceneryAt, handleCanvasClick, pathDrag,
-    beginPersonMove, personDragStart, personDragMove, personDragEnd, personDragCancel };
+  return {
+    removePathAt,
+    removeSceneryAt,
+    handleCanvasClick,
+    pathDrag,
+    beginPersonMove,
+    personDragStart,
+    personDragMove,
+    personDragEnd,
+    personDragCancel,
+  };
 }

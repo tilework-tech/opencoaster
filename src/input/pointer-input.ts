@@ -84,7 +84,8 @@ export class PointerInput {
     if (this.pointers.size === 1 && sample.pointerType === 'touch') {
       active.timer = setTimeout(() => {
         if (!active.moved && this.pointers.get(sample.pointerId) === active) {
-          active.personDrag = this.actions.tool() === 'select' &&
+          active.personDrag =
+            this.actions.tool() === 'select' &&
             (this.actions.personDragStart?.(active.sample.x, active.sample.y) ?? false);
           active.held = true;
           if (!active.personDrag) this.actions.hold(active.sample.x, active.sample.y);
