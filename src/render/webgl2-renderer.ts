@@ -16,6 +16,7 @@ import {
   tileBankDepth,
   tileWaterDepth,
   terrainEdgeFace,
+  terrainContourViewEdges,
   terrainLightFactor,
   terrainShorelineSegments,
   terrainTileCorners,
@@ -320,6 +321,18 @@ void main() {
     float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * 1.2;
     float line = 1.0 - smoothstep(width, width * 1.8, min(edge.x, edge.y));
     outColor.rgb = mix(outColor.rgb, outColor.rgb * 0.9, line * 0.1);
+    int contourEdges = int(vGridlines + 0.5) - 1;
+    float contour = 0.0;
+    float contourWidth = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * 1.1;
+    if ((contourEdges & 1) != 0)
+      contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, vTileUv.y));
+    if ((contourEdges & 2) != 0)
+      contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, 1.0 - vTileUv.x));
+    if ((contourEdges & 4) != 0)
+      contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, 1.0 - vTileUv.y));
+    if ((contourEdges & 8) != 0)
+      contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, vTileUv.x));
+    outColor.rgb = mix(outColor.rgb, vec3(0.07, 0.1, 0.05), contour * 0.6);
   }
 }`;
 
@@ -1444,6 +1457,7 @@ export class WebGL2Renderer implements Renderer {
       1,
       corners,
       terrainLightFactor(corners),
+      this.gridlinesActive ? terrainContourViewEdges(map, x, y, rotation) : 0,
     );
     const tileCorners = terrainTileCorners(x, y, height, mask);
     for (let direction = 0; direction < 4; direction++) {
@@ -2251,6 +2265,7 @@ export class WebGL2Renderer implements Renderer {
     meshMode = 0,
     cornerHeights: readonly number[] = [z, z, z, z],
     terrainShade = 1,
+    contourEdges = 0,
   ): void {
     if (this.count === this.depths.length) this.grow();
     const offset = this.count * INSTANCE_FLOATS;
@@ -2346,7 +2361,7 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 11] = cornerHeights[1] ?? z;
     this.instanceData[offset + 12] = cornerHeights[2] ?? z;
     this.instanceData[offset + 13] = cornerHeights[3] ?? z;
-    this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 : 0;
+    this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 + contourEdges : 0;
     this.instanceData[offset + 15] = terrainShade;
     this.instanceData[offset + 16] = anchorShift;
     this.instanceData[offset + GHOST_FLOAT] = this.ghostMode;

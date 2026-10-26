@@ -74,7 +74,9 @@ import {
 } from './ground-anchor';
 import {
   clipTerrainTileTrianglesBelowHeight,
+  terrainContourViewEdges,
   terrainEdgeFace,
+  terrainLightFactor,
   terrainShorelineSegments,
   terrainTileCorners,
 } from './terrain-geometry';
@@ -433,6 +435,27 @@ export class Canvas2DRenderer implements Renderer {
             ctx.restore();
           }
         }
+        if (mask !== 0) {
+          const light = terrainLightFactor([
+            ((mask >> top) & 1) * 64,
+            ((mask >> ((top + 1) & 3)) & 1) * 64,
+            ((mask >> ((top + 2) & 3)) & 1) * 64,
+            ((mask >> ((top + 3) & 3)) & 1) * 64,
+          ]);
+          if (light !== 1) {
+            ctx.fillStyle =
+              light > 1
+                ? `rgba(255, 255, 255, ${(light - 1) * 1.3})`
+                : `rgba(0, 0, 0, ${1 - light})`;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - liftTop);
+            ctx.lineTo(sx + TILE_W / 2, sy + TILE_H / 2 - liftRight);
+            ctx.lineTo(sx, sy + TILE_H - liftBottom);
+            ctx.lineTo(sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
         const blocksWide = Math.ceil(map.width / 4);
         const block = (y >>> 2) * blocksWide + (x >>> 2);
         const patrolOffset = patrolArea > 0 ? (patrolArea - 1) * snapshot!.patrolWordsPerArea : 0;
@@ -467,6 +490,26 @@ export class Canvas2DRenderer implements Renderer {
           ctx.strokeStyle = 'rgba(28, 34, 26, 0.18)';
           ctx.lineWidth = 0.7;
           ctx.stroke();
+          const contours = terrainContourViewEdges(map, x, y, cam.rotation);
+          if (contours !== 0) {
+            const vertices = [
+              [sx, sy - liftTop],
+              [sx + TILE_W / 2, sy + TILE_H / 2 - liftRight],
+              [sx, sy + TILE_H - liftBottom],
+              [sx - TILE_W / 2, sy + TILE_H / 2 - liftLeft],
+            ] as const;
+            ctx.strokeStyle = 'rgba(18, 26, 12, 0.6)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            for (let edge = 0; edge < 4; edge++) {
+              if (!(contours & (1 << edge))) continue;
+              const from = vertices[edge]!;
+              const to = vertices[(edge + 1) & 3]!;
+              ctx.moveTo(from[0], from[1]);
+              ctx.lineTo(to[0], to[1]);
+            }
+            ctx.stroke();
+          }
         }
         if (waterLevel > 0) {
           const waterLift = waterLevel * Z_PIXELS - WATER_BANK.surfaceInset / (Z_STEP / Z_PIXELS);
