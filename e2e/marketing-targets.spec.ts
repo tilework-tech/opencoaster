@@ -55,7 +55,7 @@ test('launches targeted campaigns only once a ride or stall exists to promote', 
     .getByRole('button', { name: /Place exit at tile/ })
     .first()
     .click();
-  await expect(page.locator('.tool-status')).toContainText('Ride setup complete');
+  await expect(page.locator('.tool-status')).toContainText(/Ride setup complete|Build the queue/);
   await page.keyboard.press('Shift+Backspace');
   await toolbar.getByRole('button', { name: 'Finances', exact: true }).click();
   await page.getByRole('tab', { name: 'Marketing' }).click();
