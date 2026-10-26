@@ -56,13 +56,10 @@ async function pointOnPart(
         if (part === 'bench' || part === 'bin')
           return t.kind === 'path-addition' && t.name.toLowerCase().startsWith(part);
         if (t.kind !== 'ride') return false;
-        if (part === 'entrance' || part === 'exit')
-          return t.name === 'Merry-Go-Round' && sprite.includes(part);
-        if (t.name === 'Merry-Go-Round') return false;
-        const train = /car|train|vehicle/.test(sprite);
-        if (part === 'train') return train;
-        if (part === 'station') return !train && sprite.includes('station');
-        return !train && !sprite.includes('station');
+        if (part === 'entrance' || part === 'exit') return sprite.includes(`/stations/${part}/`);
+        if (part === 'train') return sprite.includes('/vehicles/');
+        if (part === 'station') return sprite.includes('/track/station/');
+        return sprite.includes('/track/') && !sprite.includes('/track/station/');
       };
       const visiblePixel = (
         targets: ReturnType<typeof buildObjectPickTargets>,
@@ -93,8 +90,33 @@ async function pointOnPart(
       }
       return null;
     }, part);
-  await expect.poll(find, { timeout: 30_000 }).not.toBeNull();
-  const point = await find();
+  const point = await expect
+    .poll(find, { timeout: 30_000 })
+    .not.toBeNull()
+    .then(find)
+    .catch(async (error) => {
+      const keys = await page.locator('#game').evaluate(async () => {
+        const [{ buildObjectPickTargets }, { spritePages }] = await Promise.all([
+          import('/src/input/object-picking.ts'),
+          import('/src/render/sprite-pages.ts'),
+        ]);
+        const w = window as unknown as {
+          __camera: Parameters<typeof buildObjectPickTargets>[2];
+          __map: Parameters<typeof buildObjectPickTargets>[1];
+          __snapshot: Parameters<typeof buildObjectPickTargets>[0];
+        };
+        return buildObjectPickTargets(
+          w.__snapshot,
+          w.__map,
+          w.__camera,
+          { width: 1280, height: 800 },
+          spritePages,
+        ).map((t) => `${t.kind}:${t.name}:${t.sprite}`);
+      });
+      throw new Error(`No visible ${part} sprite. Targets: ${[...new Set(keys)].join(' | ')}`, {
+        cause: error,
+      });
+    });
   if (!point) throw new Error(`No visible ${part} sprite`);
   return point;
 }

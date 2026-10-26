@@ -15,7 +15,7 @@ import { serialize } from '../../src/save/save';
 export const BENCH_TILE = { x: 31, y: 40 };
 export const BIN_TILE = { x: 32, y: 40 };
 
-/** A park with a running coaster, a merry-go-round with entrance and exit, and a bench and bin. */
+/** A park with a running coaster (track, station, train, entrance and exit) and a bench and bin. */
 export function inspectionShowcase(): Uint8Array {
   const sim = flatOwnedSim(1);
   const coaster = createCoaster(sim, RideType.WoodenCoaster);
@@ -33,16 +33,6 @@ export function inspectionShowcase(): Uint8Array {
     if (riding > 0) break;
     sim.step();
   }
-
-  sim.world.research.unlocked.add(RideType.MerryGoRound);
-  sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 34, y: 34 });
-  sim.step();
-  const flat = sim.world.rides.slotToId[sim.world.rides.count - 1];
-  sim.enqueue({ type: 'placePath', x: 34, y: 32 });
-  sim.enqueue({ type: 'placeRideEntrance', rideId: flat, x: 34, y: 33 });
-  sim.enqueue({ type: 'placeRideExit', rideId: flat, x: 34, y: 35 });
-  sim.step();
-  sim.enqueue({ type: 'setRideStatus', rideId: flat, status: 'open' });
 
   for (let x = 30; x <= 33; x++) sim.enqueue({ type: 'placePath', x, y: BENCH_TILE.y });
   sim.step();
