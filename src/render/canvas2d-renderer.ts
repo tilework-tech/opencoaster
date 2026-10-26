@@ -1,5 +1,5 @@
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
-import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewDepth, viewSize } from './projection';
+import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import { SNAPSHOT_STRIDE, guestRowHeading, isRidingGuestRow } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';

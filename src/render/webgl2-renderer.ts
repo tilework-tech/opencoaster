@@ -39,7 +39,6 @@ import {
   rotateDirection,
   rotateTile,
   unrotateTile,
-  viewDepth,
 } from './projection';
 import { spritePages } from './sprite-pages';
 import { peopleSpriteKey, walkingFrame } from './people-art';
