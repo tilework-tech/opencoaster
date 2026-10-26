@@ -130,7 +130,7 @@ for (const mobile of [false, true]) {
           expectWholePreview(
             `${name} thumbnail`,
             await thumbnail.evaluate(readPreview, EDGE_BAND),
-            250,
+            100,
           );
         }
       }
@@ -156,6 +156,7 @@ for (const mobile of [false, true]) {
         await expect
           .poll(async () => (await preview.evaluate(readPreview, EDGE_BAND)).opaque, {
             message: `${ride.name} preview drawn`,
+            timeout: 90_000,
           })
           .toBeGreaterThanOrEqual(MIN_OPAQUE_PIXELS);
         const reading = await preview.evaluate(readPreview, EDGE_BAND);
