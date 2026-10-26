@@ -90,7 +90,56 @@ async function startSandbox(page: Page, mobile = false): Promise<void> {
   await page.getByRole('button', { name: 'Sandbox' }).click();
   await expect(page.locator('.game-toolbar')).toBeVisible();
   await expect(page.locator('.hud')).toContainText(/rot [0-3]/);
-  await page.waitForTimeout(500);
+  await centerOnFlatGround(page);
+}
+
+/**
+ * Rotation pivots on the surface under the viewport centre, which is ambiguous where tiles of
+ * different height meet. Park the camera on the middle of a flat 3x3 block so the focus is stable.
+ */
+async function centerOnFlatGround(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const state = window as unknown as {
+      __camera: { x: number; y: number; rotation: number };
+      __map: { width: number; height: number; heights: Uint8Array; slope?: Uint8Array };
+    };
+    const { project } = await import('/src/render/projection.ts');
+    const { width, height, heights, slope } = state.__map;
+    const flat = (x: number, y: number) => {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const i = (y + dy) * width + x + dx;
+          if (heights[i] !== heights[y * width + x] || (slope?.[i] ?? 0) !== 0) return false;
+        }
+      }
+      return true;
+    };
+    for (let r = 0; r < width / 2 - 2; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = width / 2 + dx;
+          const y = height / 2 + dy;
+          if (!flat(x, y)) continue;
+          const out = new Float64Array(2);
+          project(
+            (x + 0.5) * 256,
+            (y + 0.5) * 256,
+            heights[y * width + x]! * 64,
+            width,
+            height,
+            state.__camera.rotation as 0 | 1 | 2 | 3,
+            out,
+          );
+          state.__camera.x = out[0]!;
+          state.__camera.y = out[1]!;
+          return;
+        }
+      }
+    }
+    throw new Error('No flat 3x3 block found near the map centre');
+  });
+  await expect.poll(() => centerTile(page)).toMatch(/^\d+,\d+$/);
 }
 
 async function centerTile(page: Page): Promise<string> {
