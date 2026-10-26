@@ -1,6 +1,6 @@
 # PR #116 visual proof
 
-Saved-park scenes (one imported save) captured in WebGL2 (SwiftShader) and Canvas2D, on desktop (1280x800) and Pixel 8, in all four rotations, on `main` (f71db24, before) and the PR branch (after).
+Saved-park scenes (one imported save) captured in WebGL2 (SwiftShader) and Canvas2D, on desktop (1280x800) and Pixel 8, in all four rotations, on `main` (ddef352, before) and the PR branch (after, merged with ddef352).
 
 - `contact-sheets/<backend>-<device>-<shot>.png`: top row main, bottom row PR, columns rotation 0-3.
 - `before-main/` and `after/`: full-resolution captures, `<backend>-<device>/<shot>-r<rotation>.png` (palette-quantised to keep the repo small).
