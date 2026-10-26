@@ -250,7 +250,7 @@ for (const mobile of [false, true]) {
         }, guest.id);
       await guestsPanel.locator(`[data-guest-id="${guest.id}"]`).first().click();
       await expect(guestWindow).toBeVisible();
-      await guestsPanel.getByRole('button', { name: /Close/ }).click();
+      await guestWindow.getByRole('tab', { name: 'View' }).click();
       const pickUpGuest = guestWindow.getByRole('button', { name: 'Pick up' });
       await pickUpGuest.scrollIntoViewIfNeeded();
       await pickUpGuest.click();
@@ -323,6 +323,7 @@ for (const mobile of [false, true]) {
       await toolbarAction(page, 'Guests');
       await guestsPanel.locator(`[data-guest-id="${guest.id}"]`).first().click();
       await expect(guestWindow).toBeVisible();
+      await guestWindow.getByRole('tab', { name: 'View' }).click();
       const pickUpGuestAgain = guestWindow.getByRole('button', { name: 'Pick up' });
       await pickUpGuestAgain.scrollIntoViewIfNeeded();
       await pickUpGuestAgain.click();
