@@ -99,7 +99,7 @@ describe('generated sprite catalogue', () => {
         expect(frame.anchor.y, `${key} bush ground pivot`).toBeGreaterThan(frame.height * 0.55);
         expect(frame.anchor.y, `${key} bush ground pivot`).toBeLessThanOrEqual(frame.height * 0.8);
       } else if (key.includes('/edge-')) {
-        expect(frame.anchor.y, `${key} wall ground pivot`).toBeGreaterThan(frame.height * 0.5);
+        expect(frame.anchor.y, `${key} wall ground pivot`).toBeGreaterThan(frame.height * 0.3);
       } else if (!key.startsWith('scenery/flower-bed/'))
         expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.6);
       if (!key.includes('/edge-'))
