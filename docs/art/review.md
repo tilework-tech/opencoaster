@@ -18,14 +18,8 @@ The previous track-ride and isolated lazy-category observations are withdrawn as
 
 ### Medium
 
-- **Benches:** at default zoom the Bench and Vandalised Bench collapse into a few brown pixels and read as tangled sticks; at maximum zoom the wooden form is clearer. Improve the small-scale silhouette.
-- **Lamps:** the coordinator reports that two rotations show the lamp lying sideways. In the current audit sheets, the post reads upright at maximum zoom in both renderers, but the vandalised variant has a detached red piece at its foot. Recheck the two reported rotations in the live build and correct the directional variants if the issue remains.
-- **Source-sheet residue:** a trunk-like fragment reported above a flowerbed comes from prepared prop-sheet slicing and is separate from the generated flowerbed model and tile surface. Other isolated pixels at atlas sprite edges are reviewed with the relevant source or packer path.
-- **Shrub:** the sprite is a very small green tuft even at maximum zoom, with a detached pixel above it. Increase its readable foliage footprint and remove stray edge pixels as part of the atlas cleanup.
+- **Lamps:** the coordinator reports that two rotations show the lamp lying sideways. In the current audit sheets, the post reads upright at maximum zoom in both renderers. Recheck the two reported rotations in the live build and correct the directional variants if the issue remains.
+- **Atlas bleed:** isolated neighboring-cell pixels appear above the topiary and stone fence, and at sprite edges elsewhere (including the flowerbed trunk-like speck reported during review). These are packer/renderer artifacts; the separate atlas-bleed work is addressing them.
 - **Queue path:** dark, noisy pixels cover the queue surface instead of a clean, readable path texture. Review the queue-path art with the queue rendering work.
 
-### Low
-
-- **Vandalised lamp:** a detached red piece at the base is visually disconnected from the post and reads like a stray pixel. Confirm whether this is intended broken-lamp art when the orientation variants are checked.
-
-Flowerbed frames contain a soil surface fitted to the tile's terrain triangles, thin low edging, and compact flowers in four color variants. Slope-specific art follows the tile's four corner heights. Placed beds and previews use the tile-centre ground pivot and native frame size; bed depth remains attached to the source tile so neighboring paths and people sort around it. The garden fixture checks the path beside a bed row in both renderers and all rotations, while the generated-art anchor test checks the opaque frame pixels against the projected tile surface.
+Flowerbed frames contain a soil surface fitted to the tile's terrain triangles, thin low edging, and compact flowers in four color variants. Slope-specific art follows the tile's four corner heights. Placed beds and previews use the tile-centre ground pivot and native frame size; bed depth remains attached to the source tile so neighboring paths and people sort around it. The garden fixture compares adjacent path pixels with and without a bed row in both renderers and all rotations; the generated-art anchor test checks opaque frame pixels against the projected tile surface. The trunk-like fragment above the flowerbed is tracked with atlas artifacts, not as part of the bed model.
