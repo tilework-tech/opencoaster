@@ -154,8 +154,12 @@ async function inspect(
   testInfo: TestInfo,
 ): Promise<{ name: string; x: number; y: number }> {
   const point = await pointOnPart(page, part);
-  if (mobile) await touch(page, point, 950);
-  else {
+  if (mobile) {
+    await page.mouse.move(point.x, point.y);
+    await expect(page.locator('.object-hover-outline')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`${part}-hover.png`), timeout: 60_000 });
+    await touch(page, point, 950);
+  } else {
     await page.mouse.move(point.x, point.y);
     await expect(page.locator('.tool-status')).toContainText(point.name);
     await expect(page.locator('.object-hover-outline')).toBeVisible();

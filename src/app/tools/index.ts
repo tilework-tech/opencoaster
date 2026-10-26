@@ -156,10 +156,10 @@ export function createToolController(deps: ToolControllerDependencies) {
         display: 'block',
       });
       Object.assign(dropShadow.style, {
-        left: `${clientX - 10 * zoom}px`,
-        top: `${clientY - 4 * zoom}px`,
-        width: `${20 * zoom}px`,
-        height: `${8 * zoom}px`,
+        left: `${clientX - 14 * zoom}px`,
+        top: `${clientY - 6 * zoom}px`,
+        width: `${28 * zoom}px`,
+        height: `${12 * zoom}px`,
         display: 'block',
       });
     } else {

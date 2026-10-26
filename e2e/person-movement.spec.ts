@@ -393,6 +393,30 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
             y: Math.floor(state.__snapshot.guests.data[slot * 4 + 1]! / 256),
           };
         });
+        const walkingGuestHeight = await page.evaluate(async (guestId) => {
+          const [{ buildObjectPickTargets }, { spritePages }] = await Promise.all([
+            import('/src/input/object-picking.ts'),
+            import('/src/render/sprite-pages.ts'),
+          ]);
+          const state = window as unknown as {
+            __camera: Parameters<typeof buildObjectPickTargets>[2];
+            __map: Parameters<typeof buildObjectPickTargets>[1];
+            __snapshot: Parameters<typeof buildObjectPickTargets>[0];
+          };
+          const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
+          const targets = buildObjectPickTargets(
+            state.__snapshot,
+            state.__map,
+            state.__camera,
+            { width: canvas.clientWidth, height: canvas.clientHeight },
+            spritePages,
+          );
+          const target = targets.find(
+            (candidate) => candidate.kind === 'guest' && candidate.personId === guestId,
+          );
+          if (!target) throw new Error('Picked guest does not have a walking sprite target');
+          return target.height;
+        }, guest.id);
         const guestWindow = page.locator(`[data-panel="guest-${guest.id}"]`);
         const readGuestPosition = () =>
           page.evaluate((id) => {
@@ -480,6 +504,22 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
           }
           throw new Error('The scenario has no second visible owned drop tile');
         }, guest);
+        await page.mouse.move(nextDrop.point.x, nextDrop.point.y);
+        await expect(page.locator('.person-pickup-ghost')).toBeVisible();
+        await expect(page.locator('.person-drop-shadow')).toBeVisible();
+        const heldGuestHeight = await page
+          .locator('.person-pickup-ghost')
+          .evaluate((canvas) => canvas.getBoundingClientRect().height);
+        expect(Math.abs(heldGuestHeight / walkingGuestHeight - 1)).toBeLessThanOrEqual(0.1);
+        const shadowSize = await page.locator('.person-drop-shadow').evaluate((shadow) => {
+          const bounds = shadow.getBoundingClientRect();
+          return { width: bounds.width, height: bounds.height };
+        });
+        const zoom = await page.evaluate(
+          () => (window as unknown as { __camera: { zoom: number } }).__camera.zoom,
+        );
+        expect(shadowSize.width).toBeCloseTo(28 * zoom, 0);
+        expect(shadowSize.height).toBeCloseTo(12 * zoom, 0);
         await tapCanvasAt(page, nextDrop.point, mobile);
         await expect(page.locator('.tool-status')).toContainText(/Guest moved|Drop refused/i);
         await expect.poll(readGuestPosition).toEqual({ x: nextDrop.x, y: nextDrop.y });
