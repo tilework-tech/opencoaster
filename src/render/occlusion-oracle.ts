@@ -68,7 +68,15 @@ export interface OracleResult {
   heights: Float32Array;
   /** Union of `kindBit` over every surface covering the pixel, hidden or not. */
   kindMasks: Uint32Array;
+  /**
+   * 1 where some sprite's coverage of the pixel is decided within `SAMPLE_TOLERANCE` of a texel or
+   * sprite edge, so GPU interpolation precision may legitimately decide it either way.
+   */
+  ambiguous: Uint8Array;
 }
+
+/** Texels (or pixels, at a sprite's edge) within which a sample counts as on a boundary. */
+export const SAMPLE_TOLERANCE = 0.01;
 
 /** Minimum atlas alpha that counts as covered, matching the renderers' alpha cut-off. */
 export const COVERAGE_ALPHA = 128;
@@ -108,6 +116,44 @@ export function spriteHeightAt(
   return (
     sprite.anchorHeight + decodeHeight(page.heights[at], page.heights[at + 1]) * sprite.heightScale
   );
+}
+
+function texelCovered(page: OraclePage, frame: OracleSprite['frame'], tx: number, ty: number) {
+  if (tx < 0 || ty < 0 || tx >= frame.width || ty >= frame.height) return false;
+  const at = ((frame.y + ty) * page.width + frame.x + tx) * 4;
+  return page.colour[at + 3] >= COVERAGE_ALPHA && page.heights[at + 3] !== 0;
+}
+
+/**
+ * Whether the sprite's coverage at the pixel centre (sx, sy) changes within SAMPLE_TOLERANCE of
+ * the sample: the sample sits on a boundary between a covered and a clear texel, or on the
+ * sprite's edge next to a covered texel.
+ */
+function sampleIsAmbiguous(sprite: OracleSprite, page: OraclePage, sx: number, sy: number) {
+  const { frame } = sprite;
+  const u = 0.5 + ((sx - sprite.left) / sprite.width) * (frame.width - 1);
+  const v = 0.5 + ((sy - sprite.top) / sprite.height) * (frame.height - 1);
+  const tx = Math.min(frame.width - 1, Math.max(0, Math.floor(u)));
+  const ty = Math.min(frame.height - 1, Math.max(0, Math.floor(v)));
+  const covered = (x: number, y: number): boolean => texelCovered(page, frame, x, y);
+  const boundaryU = Math.round(u);
+  const boundaryV = Math.round(v);
+  if (
+    Math.abs(u - boundaryU) < SAMPLE_TOLERANCE &&
+    covered(boundaryU - 1, ty) !== covered(boundaryU, ty)
+  )
+    return true;
+  if (
+    Math.abs(v - boundaryV) < SAMPLE_TOLERANCE &&
+    covered(tx, boundaryV - 1) !== covered(tx, boundaryV)
+  )
+    return true;
+  const onEdge =
+    Math.abs(sx - sprite.left) < SAMPLE_TOLERANCE ||
+    Math.abs(sx - sprite.left - sprite.width) < SAMPLE_TOLERANCE ||
+    Math.abs(sy - sprite.top) < SAMPLE_TOLERANCE ||
+    Math.abs(sy - sprite.top - sprite.height) < SAMPLE_TOLERANCE;
+  return onEdge && covered(tx, ty);
 }
 
 /** Height of a triangle's surface at (sx, sy), or NaN outside it. */
@@ -151,6 +197,7 @@ export function compositeScene(scene: OracleScene): OracleResult {
         if (!Number.isNaN(h)) write(px, py, h, t.id);
       }
   }
+  const ambiguous = new Uint8Array(width * height);
   for (const sprite of scene.sprites) {
     const page = scene.pages[sprite.page];
     if (!page) continue;
@@ -162,7 +209,8 @@ export function compositeScene(scene: OracleScene): OracleResult {
       for (let px = x0; px <= x1; px++) {
         const h = spriteHeightAt(sprite, page, px + 0.5, py + 0.5);
         if (!Number.isNaN(h)) write(px, py, h, sprite.id);
+        if (sampleIsAmbiguous(sprite, page, px + 0.5, py + 0.5)) ambiguous[py * width + px] = 1;
       }
   }
-  return { ids, heights, kindMasks };
+  return { ids, heights, kindMasks, ambiguous };
 }

@@ -500,7 +500,7 @@ void main() {
     outColor.rgb = mix(outColor.rgb, vec3(0.07, 0.1, 0.05), contour * 0.45);
   }
   if (uIdMode > 0.5) {
-    if (vGhost > 0.5 || (vMeshMode > 1.4 && vMeshMode < 2.5) || outColor.a < 0.5) discard;
+    if (vGhost > 0.5 || (vMeshMode > 1.4 && vMeshMode < 2.5)) discard;
     outColor = encodeObjectId(vObjectId);
   }
 }`;

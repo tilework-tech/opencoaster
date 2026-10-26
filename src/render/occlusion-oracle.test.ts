@@ -175,3 +175,35 @@ describe('sprite coverage at pixel centres', () => {
     expect([...ids]).toEqual([NO_OBJECT, 1, 1]);
   });
 });
+
+describe('ambiguous samples', () => {
+  it('marks pixels whose sample sits on a texel boundary between covered and clear texels', () => {
+    // Two texels: clear then covered, drawn 4 px wide from x = 0.5. Pixel centres sample texel
+    // coordinates 0.5, 0.75, 1.0 and 1.25 (half-texel inset), so pixel 2 sits on the boundary.
+    const page: OraclePage = {
+      width: 2,
+      height: 1,
+      colour: new Uint8ClampedArray([0, 0, 0, 0, 9, 9, 9, 255]),
+      heights: new Uint8ClampedArray([0, 0, 0, 0, 128, 0, 0, 255]),
+    };
+    const sprite: OracleSprite = {
+      id: 1,
+      page: 0,
+      frame: { x: 0, y: 0, width: 2, height: 1 },
+      left: 0.5,
+      top: 0,
+      width: 4,
+      height: 1,
+      anchorHeight: 0,
+      heightScale: 1,
+    };
+    const { ambiguous } = compositeScene({
+      width: 4,
+      height: 1,
+      pages: [page],
+      sprites: [sprite],
+      triangles: [],
+    });
+    expect([...ambiguous]).toEqual([0, 0, 1, 0]);
+  });
+});

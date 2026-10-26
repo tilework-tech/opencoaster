@@ -17,6 +17,7 @@ interface PairScore {
 
 interface Score {
   objectPixels: number;
+  ambiguous: number;
   mismatched: number;
   coverage: number;
   pairs: Record<string, PairScore>;
@@ -43,7 +44,7 @@ test('renderer object ownership matches the occlusion oracle on fuzzed parks', a
   browser,
 }) => {
   await mkdir(OUT, { recursive: true });
-  const totals = { objectPixels: 0, mismatched: 0, coverage: 0 };
+  const totals = { objectPixels: 0, ambiguous: 0, mismatched: 0, coverage: 0 };
   const pairs: Record<string, PairScore> = {};
   const cases: Record<string, Omit<Score, 'rendered' | 'oracle' | 'heat'>> = {};
   const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
@@ -77,6 +78,7 @@ test('renderer object ownership matches the occlusion oracle on fuzzed parks', a
           };
           cases[name] = numbers;
           totals.objectPixels += score.objectPixels;
+          totals.ambiguous += score.ambiguous;
           totals.mismatched += score.mismatched;
           totals.coverage += score.coverage;
           for (const [key, pair] of Object.entries(score.pairs)) {
@@ -99,7 +101,7 @@ test('renderer object ownership matches the occlusion oracle on fuzzed parks', a
   );
   console.log(
     `occlusion: ${(rate * 100).toFixed(3)}% of ${totals.objectPixels} object pixels mismatched; ` +
-      `${totals.coverage} coverage-only`,
+      `${totals.coverage} coverage-only; ${totals.ambiguous} ambiguous edge samples left out`,
   );
   for (const [key, p] of Object.entries(pairRates).slice(0, 15))
     console.log(`  ${key}: ${p.mismatched}/${p.contested} (${(p.rate * 100).toFixed(2)}%)`);

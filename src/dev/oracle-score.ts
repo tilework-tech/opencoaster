@@ -90,9 +90,12 @@ export function scoreFrame(capture: ObjectIdCapture, view: FixtureView, images =
     kindMasks: oracle.kindMasks,
     kinds: capture.kinds,
     kindBit: objectKindBit,
+    ignore: oracle.ambiguous,
   });
   return {
     objectPixels: result.objectPixels,
+    /** Pixels left out because their sample sits on a texel or sprite edge. */
+    ambiguous: oracle.ambiguous.reduce((sum, flag) => sum + flag, 0),
     mismatched: result.mismatched,
     coverage: result.coverage,
     pairs: result.pairs,
@@ -113,7 +116,8 @@ export function pairPixels(capture: ObjectIdCapture, view: FixtureView, want: st
   for (let i = 0; i < oracle.ids.length; i++) {
     const o = oracle.ids[i];
     const r = capture.ids[i];
-    if (o === r || capture.kinds.get(o) !== want || capture.kinds.get(r) !== got) continue;
+    if (o === r || oracle.ambiguous[i] || capture.kinds.get(o) !== want) continue;
+    if (capture.kinds.get(r) !== got) continue;
     pixels.push({
       x: i % capture.width,
       y: Math.floor(i / capture.width),

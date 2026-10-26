@@ -27,11 +27,13 @@ export interface OcclusionScoreInput {
   kindMasks: Uint32Array;
   kinds: ReadonlyMap<number, string>;
   kindBit: (kind: string) => number;
+  /** Pixels left out of the score, such as the oracle's ambiguous samples. */
+  ignore?: Uint8Array;
 }
 
 /** Compares a renderer's object-ID image against the oracle's (see occlusion-oracle.ts). */
 export function scoreOcclusion(input: OcclusionScoreInput): OcclusionScore {
-  const { oracle, rendered, kindMasks, kinds, kindBit } = input;
+  const { oracle, rendered, kindMasks, kinds, kindBit, ignore } = input;
   const pairs: Record<string, PairScore> = {};
   const heat = new Uint8Array(oracle.length);
   let objectPixels = 0;
@@ -43,6 +45,7 @@ export function scoreOcclusion(input: OcclusionScoreInput): OcclusionScore {
     const want = oracle[i];
     const got = rendered[i];
     if (want < FIRST_INSTANCE_OBJECT_ID && got < FIRST_INSTANCE_OBJECT_ID) continue;
+    if (ignore?.[i]) continue;
     objectPixels++;
     if (want === got) continue;
     const gotKind = kindOf(got);
