@@ -119,15 +119,12 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       }
       await press(win, 'Raise');
       await page.keyboard.press('Escape');
-      const rotate = page
-        .locator('.game-toolbar')
-        .getByRole('button', { name: 'Rotate clockwise', exact: true });
       for (let r = 1; r <= 3; r++) {
-        await rotate.click();
+        await page.keyboard.press('z');
         await page.waitForTimeout(800);
         await page.screenshot({ path: join(dir, `${scene.name}-rot${r}.png`) });
       }
-      await rotate.click();
+      await page.keyboard.press('z');
       await page.waitForTimeout(500);
       await toolbarAction(page, 'Water');
       await page.keyboard.press('Escape');
