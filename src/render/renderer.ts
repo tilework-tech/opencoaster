@@ -40,12 +40,15 @@ export interface PathPieceGhost {
 export interface SpriteGhost {
   x: number;
   y: number;
-  /** Base level of the tile the piece stands on, in the same units as `MapData.heights`. */
+  /** Height in levels at the rendered ground pivot; edge props may be between tile levels. */
   level: number;
   /** Atlas key (optionally with a `#frame` suffix) already in the camera's rotation. */
   sprite: string;
   /** Which built kind the piece sorts as: rides and scenery use different depth offsets. */
-  kind: 'ride' | 'scenery';
+  kind: 'ride' | 'scenery' | 'path-addition';
+  /** Optional rendered box for path additions. */
+  width?: number;
+  height?: number;
   tone: 'ok' | 'refused';
 }
 

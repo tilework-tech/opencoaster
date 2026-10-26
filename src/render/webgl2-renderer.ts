@@ -22,7 +22,12 @@ import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sp
 import {
   adjustDepthForGroundZ,
   pathAdditionBox,
+  pathAdditionEdgeGroundZ,
+  pathAdditionEdgeOffset,
+  pathAdditionEdges,
   pathAdditionGroundZ,
+  pathAdditionView,
+  pathConnectionEdges,
   sceneryBox,
   sceneryGroundZ,
 } from './ground-anchor';
@@ -64,7 +69,7 @@ import {
 const CELL = 64;
 /** Present in the atlas only once the generated coaster art has been packed. */
 const ATLAS_COLUMNS = 8;
-const ATLAS_ROWS = 5;
+const ATLAS_ROWS = 7;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
 const INSTANCE_FLOATS = 19;
@@ -1458,7 +1463,10 @@ export class WebGL2Renderer implements Renderer {
         map,
         camera.rotation,
       );
-      const depth = ghost.kind === 'ride' ? 2 * rotated - ghost.level + 1 : 2 * rotated + 2;
+      const depth =
+        ghost.kind === 'ride' || ghost.kind === 'path-addition'
+          ? 2 * rotated - ghost.level + 1
+          : 2 * rotated + 2;
       const [spriteName, frameSuffix] = ghost.sprite.split('#');
       const entry = spritePages.resolve(spriteName!);
       const frame = entry?.frames[Number(frameSuffix ?? 0)] ?? entry?.frames[0];
@@ -1470,13 +1478,21 @@ export class WebGL2Renderer implements Renderer {
           camera,
           viewportWidth,
           viewportHeight,
-          frame?.width ?? 12,
-          frame?.height ?? 14,
+          ghost.width ?? frame?.width ?? 12,
+          ghost.height ?? frame?.height ?? 14,
         )
       )
         continue;
       this.ghostMode = ghost.tone === 'refused' ? 2 : 1;
-      this.append(worldX, worldY, z, frame?.width ?? 12, frame?.height ?? 14, ghost.sprite, depth);
+      this.append(
+        worldX,
+        worldY,
+        z,
+        ghost.width ?? frame?.width ?? 12,
+        ghost.height ?? frame?.height ?? 14,
+        ghost.sprite,
+        depth,
+      );
       this.ghostMode = 0;
     }
   }
@@ -1496,7 +1512,6 @@ export class WebGL2Renderer implements Renderer {
       const y = paths[o + 1];
       const baseHeight = paths[o + 2]!;
       const z = baseHeight * Z_STEP;
-      const additionZ = pathAdditionGroundZ(baseHeight, paths[o + 3]);
       const flags = paths[o + 3];
       const isQueue = (flags & PathFlag.Queue) !== 0;
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
@@ -1517,17 +1532,34 @@ export class WebGL2Renderer implements Renderer {
       )
         this.append(worldX, worldY, z, 40, 26, sprite, depth + 1);
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
-        const sprite = pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]);
-        const box = pathAdditionBox(flags);
-        this.append(
-          worldX,
-          worldY,
-          additionZ,
-          box.width,
-          box.height,
-          sprite,
-          adjustDepthForGroundZ(depth + 2, baseHeight, additionZ),
-        );
+        if (flags & PathFlag.Shelter) {
+          const shelterZ = pathAdditionGroundZ(baseHeight, flags);
+          const box = pathAdditionBox(flags);
+          this.append(
+            worldX,
+            worldY,
+            shelterZ,
+            box.width,
+            box.height,
+            pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]),
+            adjustDepthForGroundZ(depth + 2, baseHeight, shelterZ),
+          );
+        } else
+          for (const edge of pathAdditionEdges(pathConnectionEdges(flags))) {
+            const view = pathAdditionView(edge, camera.rotation);
+            const offset = pathAdditionEdgeOffset(edge);
+            const edgeZ = pathAdditionEdgeGroundZ(baseHeight, flags, edge);
+            const box = pathAdditionBox(flags, view);
+            this.append(
+              worldX + offset.x,
+              worldY + offset.y,
+              edgeZ,
+              box.width,
+              box.height,
+              pathAdditionSpriteName(flags, view, paths[o + 4]),
+              adjustDepthForGroundZ(depth + 2, baseHeight, edgeZ),
+            );
+          }
       }
       if (isQueue)
         this.append(
@@ -1988,9 +2020,18 @@ export class WebGL2Renderer implements Renderer {
         if (typeof sprite === 'string') {
           if (sprite.startsWith('paths/')) fallbackIndex = sprite.includes('/queue/') ? 10 : 9;
           else if (sprite.startsWith('water/')) fallbackIndex = 8;
-          else if (sprite.includes('/bench')) fallbackIndex = 29;
-          else if (sprite.includes('/bin')) fallbackIndex = 28;
-          else if (sprite.includes('/lamp')) fallbackIndex = 30;
+          else if (sprite.includes('/bench'))
+            fallbackIndex = sprite.includes('/view-')
+              ? 40 + Number(sprite.match(/view-(\d)/)?.[1] ?? 0)
+              : 29;
+          else if (sprite.includes('/bin'))
+            fallbackIndex = sprite.includes('/view-')
+              ? 44 + Number(sprite.match(/view-(\d)/)?.[1] ?? 0)
+              : 28;
+          else if (sprite.includes('/lamp'))
+            fallbackIndex = sprite.includes('/view-')
+              ? 48 + Number(sprite.match(/view-(\d)/)?.[1] ?? 0)
+              : 30;
           else if (sprite.includes('/park-entrance')) fallbackIndex = 31;
           else if (sprite.includes('/flower-bed')) fallbackIndex = 0;
           else if (sprite.startsWith('people/guest-walk'))
@@ -2093,6 +2134,9 @@ function drawAtlas(ctx: CanvasRenderingContext2D): void {
     else if (i === 32) drawMarker(ctx, 'out');
     else if (i >= 33 && i <= 36) drawRamp(ctx, i - 33);
     else if (i === 37) drawPathAddition(ctx, 'shelter');
+    else if (i >= 40 && i <= 43) drawPathAddition(ctx, 'bench', i - 40);
+    else if (i >= 44 && i <= 47) drawPathAddition(ctx, 'bin', i - 44);
+    else if (i >= 48 && i <= 51) drawPathAddition(ctx, 'lamp', i - 48);
     ctx.restore();
   }
 }
@@ -2240,7 +2284,13 @@ function drawTrack(ctx: CanvasRenderingContext2D): void {
 function drawPathAddition(
   ctx: CanvasRenderingContext2D,
   kind: 'bin' | 'bench' | 'lamp' | 'shelter',
+  view = 0,
 ): void {
+  if (view !== 0) {
+    ctx.translate(32, 32);
+    ctx.rotate((view * Math.PI) / 2);
+    ctx.translate(-32, -32);
+  }
   if (kind === 'bin') {
     ctx.fillStyle = '#547d58';
     ctx.fillRect(23, 23, 18, 27);

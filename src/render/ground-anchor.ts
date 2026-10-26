@@ -1,4 +1,4 @@
-import { PathFlag } from '../sim/map/tile-map';
+import { DIR_DX, DIR_DY, PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { SceneryDefinition } from '../sim/map/scenery';
 import { Z_STEP } from '../sim/core/constants';
 import { terrainMeshTriangles } from './terrain-geometry';
@@ -9,12 +9,51 @@ export interface GroundBox {
   height: number;
 }
 
-export function pathAdditionBox(flags: number): GroundBox {
-  if (flags & PathFlag.Shelter) return { width: 54, height: 52 };
-  if (flags & PathFlag.Bench) return { width: 30, height: 18 };
-  if (flags & PathFlag.Bin) return { width: 18, height: 26 };
-  if (flags & PathFlag.Lamp) return { width: 16, height: 32 };
-  return { width: 0, height: 0 };
+export interface PathAdditionOffset {
+  x: number;
+  y: number;
+}
+
+const PATH_ADDITION_EDGE_OFFSET = 64;
+
+export function pathAdditionEdges(edges: number): number[] {
+  return [0, 1, 2, 3].filter((edge) => (edges & (1 << edge)) === 0);
+}
+
+export function pathAdditionEdgeOffset(edge: number): PathAdditionOffset {
+  const direction = ((edge % 4) + 4) % 4;
+  return {
+    x: DIR_DX[direction]! * PATH_ADDITION_EDGE_OFFSET,
+    y: DIR_DY[direction]! * PATH_ADDITION_EDGE_OFFSET,
+  };
+}
+
+export function pathAdditionView(edge: number, rotation: number): number {
+  return (((edge + rotation) % 4) + 4) % 4;
+}
+
+export function pathAdditionEdgeGroundZ(baseHeight: number, flags: number, edge: number): number {
+  const baseZ = baseHeight * Z_STEP;
+  if ((flags & PathFlag.Sloped) === 0) return baseZ + 1;
+  const slopeDirection = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
+  const direction = ((edge % 4) + 4) % 4;
+  if (direction === slopeDirection) return baseZ + Z_STEP + 1;
+  if (direction === ((slopeDirection + 2) & 3)) return baseZ + 1;
+  return baseZ + Z_STEP / 2 + 1;
+}
+
+export function pathAdditionBox(flags: number, view = 0): GroundBox {
+  let box: GroundBox;
+  if (flags & PathFlag.Shelter) box = { width: 54, height: 52 };
+  else if (flags & PathFlag.Bench) box = { width: 30, height: 18 };
+  else if (flags & PathFlag.Bin) box = { width: 18, height: 26 };
+  else if (flags & PathFlag.Lamp) box = { width: 16, height: 32 };
+  else return { width: 0, height: 0 };
+  return view & 1 ? { width: box.height, height: box.width } : box;
+}
+
+export function pathConnectionEdges(flags: number): number {
+  return (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
 }
 
 export function pathAdditionGroundZ(baseHeight: number, flags: number): number {

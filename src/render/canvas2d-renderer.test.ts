@@ -158,7 +158,7 @@ describe('Canvas2D fallback map art', () => {
       'scenery/shelter/view-0',
     ]);
 
-    expect(context.spriteSources).toEqual(expect.arrayContaining([1, 2]));
+    expect(context.spriteSources).toEqual(expect.arrayContaining([1]));
   });
 
   it('draws intact and vandalised path additions in the shared box on flat and sloped paths', async () => {
@@ -171,7 +171,7 @@ describe('Canvas2D fallback map art', () => {
       {
         flag: PathFlag.Bench,
         data: PATH_ADDITION_BROKEN,
-        sprite: 'scenery/bench-broken/view-0',
+        sprite: 'scenery/bench-broken',
         width: 30,
         height: 18,
       },
@@ -179,7 +179,7 @@ describe('Canvas2D fallback map art', () => {
       {
         flag: PathFlag.Bin,
         data: PATH_ADDITION_BROKEN,
-        sprite: 'scenery/bin-broken/view-0',
+        sprite: 'scenery/bin-broken',
         width: 18,
         height: 26,
       },
@@ -187,44 +187,46 @@ describe('Canvas2D fallback map art', () => {
       {
         flag: PathFlag.Lamp,
         data: PATH_ADDITION_BROKEN,
-        sprite: 'scenery/lamp-broken/view-0',
+        sprite: 'scenery/lamp-broken',
         width: 16,
         height: 32,
-      },
-      {
-        flag: PathFlag.Shelter,
-        data: 0,
-        sprite: 'scenery/shelter/view-0',
-        width: 54,
-        height: 52,
       },
     ];
 
     for (const item of cases) {
       for (let rotation = 0; rotation < 4; rotation++) {
-        const sprite = item.sprite.replace('/view-0', `/view-${rotation}`);
         const pivotRows: number[] = [];
         for (const sloped of [false, true]) {
+          const edgeCenters: number[] = [];
           const map = flatMap();
-          const flags = item.flag | (sloped ? PathFlag.Sloped : 0);
+          const flags = item.flag | 0b0101 | (sloped ? PathFlag.Sloped : 0);
           map.pathElements = Int32Array.of(2, 2, 0, flags, item.data, PathStyle.Tarmac);
           map.pathCount = 1;
-          const context = await renderWithAtlas(map, [...rampSprites, sprite], null, {
+          const names = Array.from({ length: 4 }, (_, view) => `${item.sprite}/view-${view}`);
+          const context = await renderWithAtlas(map, [...rampSprites, ...names], null, {
             x: 0,
             y: 0,
             zoom: 1,
             rotation: rotation as 0 | 1 | 2 | 3,
           });
-          const addition = context.images.find((args) => args[1] === rampSprites.length + 1);
-
-          expect(addition?.slice(-2), `${sprite} sloped=${sloped}`).toEqual([
-            item.width,
-            item.height,
-          ]);
-          expect(addition?.[5], `${sprite} horizontal centering`).toBe(-item.width / 2);
-          pivotRows.push((addition?.[6] as number) + item.height);
+          const additions = context.images.filter(
+            (args) =>
+              Number(args[1]) > rampSprites.length && Number(args[1]) <= rampSprites.length + 4,
+          );
+          expect(additions, `${item.sprite} sloped=${sloped}`).toHaveLength(2);
+          for (const addition of additions) {
+            const view = Number(addition[1]) - rampSprites.length - 1;
+            const width = view & 1 ? item.height : item.width;
+            const height = view & 1 ? item.width : item.height;
+            expect(addition.slice(-2), `${item.sprite} view=${view}`).toEqual([width, height]);
+            edgeCenters.push((addition[5] as number) + width / 2);
+            pivotRows.push((addition[6] as number) + height);
+          }
+          expect(new Set(edgeCenters).size, `${item.sprite} edge placement`).toBe(2);
         }
-        expect(pivotRows[0]! - pivotRows[1]!, `${sprite} ramp centre elevation`).toBe(7.75);
+        const flatPivots = pivotRows.slice(0, 2).sort((a, b) => a - b);
+        const slopedPivots = pivotRows.slice(2, 4).sort((a, b) => a - b);
+        expect(flatPivots.map((pivot, index) => pivot - slopedPivots[index]!)).toEqual([8, 8]);
       }
     }
   });

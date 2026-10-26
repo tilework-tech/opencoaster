@@ -41,7 +41,17 @@ import { guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
-import { pathAdditionBox, pathAdditionGroundZ, sceneryBox, sceneryGroundZ } from './ground-anchor';
+import {
+  pathAdditionBox,
+  pathAdditionEdgeGroundZ,
+  pathAdditionEdgeOffset,
+  pathAdditionEdges,
+  pathAdditionGroundZ,
+  pathAdditionView,
+  pathConnectionEdges,
+  sceneryBox,
+  sceneryGroundZ,
+} from './ground-anchor';
 import {
   clipTerrainTileTrianglesBelowHeight,
   terrainEdgeFace,
@@ -481,6 +491,16 @@ export class Canvas2DRenderer implements Renderer {
             this.enqueue(map, cam, centerX, centerY, ghost.level * Z_STEP, 2, () =>
               this.drawSpriteGhost(ctx, map, cam, ghost),
             );
+          else if (ghost.kind === 'path-addition')
+            this.enqueue(
+              map,
+              cam,
+              ghost.x * TILE_UNITS + TILE_UNITS / 2,
+              ghost.y * TILE_UNITS + TILE_UNITS / 2,
+              ghost.level * Z_STEP,
+              -1,
+              () => this.drawSpriteGhost(ctx, map, cam, ghost),
+            );
         }
         this.visibleCount++;
       }
@@ -702,35 +722,86 @@ export class Canvas2DRenderer implements Renderer {
     ctx: CanvasRenderingContext2D,
     flags: number,
     data: number,
-    rotation: number,
+    view: number,
   ): void {
-    const sprite = pathAdditionSpriteName(flags, rotation, data);
-    const box = pathAdditionBox(flags);
+    const sprite = pathAdditionSpriteName(flags, view, data);
+    const box = pathAdditionBox(flags, view);
     if (
       this.atlas &&
       sprite &&
       drawBoxedSprite(ctx, this.atlas, sprite, this.tmp[0], this.tmp[1], box.width, box.height)
     )
       return;
+    const x = this.tmp[0];
+    const y = this.tmp[1];
     if (flags & PathFlag.Bin) {
       ctx.fillStyle = '#547d58';
-      ctx.fillRect(this.tmp[0] - 3, this.tmp[1] - 13, 6, 9);
+      ctx.fillRect(
+        x - (view & 1 ? 13 : 3),
+        y - (view & 1 ? 3 : 13),
+        view & 1 ? 9 : 6,
+        view & 1 ? 6 : 9,
+      );
     } else if (flags & PathFlag.Bench) {
       ctx.fillStyle = '#805535';
-      ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 11, 18, 3);
+      if (view & 1) {
+        ctx.fillRect(x - 2, y - 9, 4, 18);
+        ctx.fillRect(x - 5, y - 9, 3, 18);
+      } else {
+        ctx.fillRect(x - 9, y - 11, 18, 3);
+      }
     } else if (flags & PathFlag.Shelter) {
       ctx.fillStyle = '#5c6fa1';
       ctx.beginPath();
-      ctx.moveTo(this.tmp[0] - 7, this.tmp[1] - 9);
-      ctx.quadraticCurveTo(this.tmp[0], this.tmp[1] - 19, this.tmp[0] + 7, this.tmp[1] - 9);
+      ctx.moveTo(x - 7, y - 9);
+      ctx.quadraticCurveTo(x, y - 19, x + 7, y - 9);
       ctx.closePath();
       ctx.fill();
-      ctx.fillRect(this.tmp[0] - 1, this.tmp[1] - 9, 2, 9);
+      ctx.fillRect(x - 1, y - 9, 2, 9);
     } else if (flags & PathFlag.Lamp) {
       ctx.fillStyle = '#e9d784';
       ctx.beginPath();
-      ctx.arc(this.tmp[0], this.tmp[1] - 13, 3, 0, Math.PI * 2);
+      ctx.arc(x, y - 13, 3, 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  private drawPathAdditions(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    flags: number,
+    data: number,
+    baseHeight: number,
+    centerX: number,
+    centerY: number,
+  ): void {
+    if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) === 0) return;
+    if (flags & PathFlag.Shelter) {
+      project(
+        centerX,
+        centerY,
+        pathAdditionGroundZ(baseHeight, flags),
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      this.drawPathAddition(ctx, flags, data, cam.rotation);
+      return;
+    }
+    for (const edge of pathAdditionEdges(pathConnectionEdges(flags))) {
+      const offset = pathAdditionEdgeOffset(edge);
+      project(
+        centerX + offset.x,
+        centerY + offset.y,
+        pathAdditionEdgeGroundZ(baseHeight, flags, edge),
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      this.drawPathAddition(ctx, flags, data, pathAdditionView(edge, cam.rotation));
     }
   }
 
@@ -773,7 +844,7 @@ export class Canvas2DRenderer implements Renderer {
           this.pathLow[1],
         )
       ) {
-        this.drawPathAddition(ctx, flags, paths[o + 4], cam.rotation);
+        this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
         this.visibleCount++;
         continue;
       }
@@ -818,7 +889,7 @@ export class Canvas2DRenderer implements Renderer {
       } else {
         ctx.fillRect(this.tmp[0] - 9, this.tmp[1] - 4, 18, 8);
       }
-      this.drawPathAddition(ctx, flags, paths[o + 4], cam.rotation);
+      this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
       if (flags & PathFlag.Queue) {
         ctx.fillStyle = '#d7bb65';
         ctx.fillRect(this.tmp[0] - 7, this.tmp[1] - 5, 14, 1.5);
@@ -874,7 +945,16 @@ export class Canvas2DRenderer implements Renderer {
       this.pathLow,
     );
     if (!this.isVisible(this.pathLow[0]!, this.pathLow[1]!, cam, 40)) return;
-    drawGhostSprite(ctx, this.atlas, ghost.sprite, this.pathLow[0]!, this.pathLow[1]!, ghost.tone);
+    drawGhostSprite(
+      ctx,
+      this.atlas,
+      ghost.sprite,
+      this.pathLow[0]!,
+      this.pathLow[1]!,
+      ghost.tone,
+      ghost.width,
+      ghost.height,
+    );
   }
 
   private drawPathGhost(

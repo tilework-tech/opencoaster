@@ -59,10 +59,14 @@ export function drawGhostSprite(
   x: number,
   y: number,
   tone: 'ok' | 'refused',
+  width?: number,
+  height?: number,
 ): boolean {
   const found = resolveFrame(atlas, key);
   if (!found) return false;
   const { entry, frame, image } = found;
+  const renderedWidth = width ?? frame.width;
+  const renderedHeight = height ?? frame.height;
   tintCanvas ??= document.createElement('canvas');
   tintCanvas.width = frame.width;
   tintCanvas.height = frame.height;
@@ -92,10 +96,12 @@ export function drawGhostSprite(
     0,
     frame.width,
     frame.height,
-    Math.round(x - entry.anchor.x),
-    Math.round(y - entry.anchor.y),
-    frame.width,
-    frame.height,
+    Math.round(
+      x - renderedWidth / 2 + spriteAnchorScreenShift(frame.width, entry.anchor.x, renderedWidth),
+    ),
+    Math.round(y - (entry.anchor.y / frame.height) * renderedHeight),
+    renderedWidth,
+    renderedHeight,
   );
   ctx.restore();
   return true;

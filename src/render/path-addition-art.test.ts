@@ -17,9 +17,15 @@ describe('path addition art', () => {
 
   it('uses authored world props for benches, bins, lamps, and roofed shelters', () => {
     for (let rotation = 0; rotation < 4; rotation++) {
-      expect(pathAdditionSpriteName(PathFlag.Bench, rotation, 0)).toBe('scenery/bench');
-      expect(pathAdditionSpriteName(PathFlag.Bin, rotation, 0)).toBe('scenery/bin');
-      expect(pathAdditionSpriteName(PathFlag.Lamp, rotation, 0)).toBe('scenery/lamp');
+      expect(pathAdditionSpriteName(PathFlag.Bench, rotation, 0)).toBe(
+        `scenery/bench/view-${rotation}`,
+      );
+      expect(pathAdditionSpriteName(PathFlag.Bin, rotation, 0)).toBe(
+        `scenery/bin/view-${rotation}`,
+      );
+      expect(pathAdditionSpriteName(PathFlag.Lamp, rotation, 0)).toBe(
+        `scenery/lamp/view-${rotation}`,
+      );
       expect(pathAdditionSpriteName(PathFlag.Shelter, rotation, 0)).toBe(
         `scenery/shelter/view-${rotation}`,
       );

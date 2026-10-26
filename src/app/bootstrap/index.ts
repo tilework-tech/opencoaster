@@ -20,6 +20,7 @@ import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprite, TrackPreviewOverlay } from '../../ui/track-preview';
 import type { SpriteGhost } from '../../render/renderer';
 import { ScenerySpotPreview } from '../tools/scenery-preview';
+import { pathAdditionPreviewGhosts } from '../tools/path-addition-preview';
 import type { PlacementHover } from '../input';
 import { SCENARIOS } from '../../sim/scenario/catalog';
 import { ScenarioStatus } from '../../sim/scenario/scenario';
@@ -598,6 +599,23 @@ export async function bootstrap(): Promise<void> {
     } else {
       scenerySpot.hide();
     }
+    if (
+      placementHover &&
+      sim.map &&
+      (selectedTool === 'bench' ||
+        selectedTool === 'bin' ||
+        selectedTool === 'lamp' ||
+        selectedTool === 'shelter')
+    )
+      spriteGhosts.push(
+        ...pathAdditionPreviewGhosts(
+          sim.map,
+          placementHover.tile[0],
+          placementHover.tile[1],
+          selectedTool,
+          camera.rotation,
+        ),
+      );
     renderer.setSpriteGhosts(spriteGhosts);
     const pathGhost =
       latest && sim.map ? pathFeedback.update(latest.feedback, sim.map.width, now) : null;
