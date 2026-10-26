@@ -914,7 +914,7 @@ function nearestSprite(source: Sprite, size: number): Sprite {
   return { width: size, height: size, anchor: { x: size / 2, y: size / 2 }, pixels };
 }
 
-function iconSprite(name: string, size: number): Sprite {
+export function renderUiIconSprite(name: string, size: 16 | 24): Sprite {
   const mesh = objectMesh(name);
   if (!mesh) return nearestSprite(iconShapes(name), size);
   const rendered = renderMesh(mesh);
@@ -939,7 +939,7 @@ export async function renderUiIcons(outputDirectory: string): Promise<void> {
     const target = join(outputDirectory, 'ui-icons', String(size));
     await mkdir(target, { recursive: true });
     for (const name of ICON_NAMES) {
-      const sprite = iconSprite(name, size);
+      const sprite = renderUiIconSprite(name, size);
       await sharp(rgba(sprite), { raw: { width: size, height: size, channels: 4 } })
         .png({
           palette: true,

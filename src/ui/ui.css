@@ -118,6 +118,14 @@
   border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   background: #d8d3a4;
 }
+.toolbar-button:disabled,
+.ui-titlebtn:disabled,
+.icon-button:disabled,
+.glyph-button:disabled {
+  filter: grayscale(1);
+  opacity: 0.55;
+  cursor: default;
+}
 .toolbar-button:hover,
 .ui-tab:hover,
 .glyph-button:hover,
