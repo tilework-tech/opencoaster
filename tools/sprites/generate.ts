@@ -25,7 +25,7 @@ import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
 import { cactusTreeMesh, palmTreeMesh } from './models/trees';
 import { LOG_FLUME_MODEL } from './models/log-flume';
 import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
-import { personMesh } from './models/people';
+import { personMesh, seatedRiderMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
 import {
@@ -304,6 +304,13 @@ function peopleSprites(): SpriteDef[] {
         const frame = index % 4;
         return renderMesh(personMesh(tint, direction, frame));
       }),
+      footprint: ONE_TILE,
+    },
+    {
+      key: 'people/rider-seated',
+      frames: Array.from({ length: 8 * 4 }, (_, index) =>
+        renderMesh(seatedRiderMesh(Math.floor(index / 4), index % 4)),
+      ),
       footprint: ONE_TILE,
     },
   ];

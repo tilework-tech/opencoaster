@@ -2,7 +2,7 @@ import type { Camera, MapData } from '../../render/renderer';
 import { project } from '../../render/projection';
 import type { GuestSelection } from '../../ui/game-ui';
 import type { SimClient } from '../../worker/sim-client';
-import { GUEST_DETAIL_STRIDE } from '../../worker/snapshot';
+import { GUEST_DETAIL_STRIDE, guestRowState } from '../../worker/snapshot';
 import { TILE_UNITS } from '../../sim/core/constants';
 
 export function findGuestAt(
@@ -43,7 +43,7 @@ export function findGuestAt(
   const offset = nearest * 4;
   const x = layer.data[offset];
   const y = layer.data[offset + 1];
-  const state = layer.data[offset + 3] >>> 8;
+  const state = guestRowState(layer.data[offset + 3]);
   const tileX = Math.floor(x / TILE_UNITS);
   const tileY = Math.floor(y / TILE_UNITS);
   const detailOffset = nearest * GUEST_DETAIL_STRIDE;

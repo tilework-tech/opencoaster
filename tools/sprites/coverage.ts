@@ -77,6 +77,7 @@ export function availableSpriteKeys(): ReadonlySet<string> {
   const keys = new Set([...buildSprites().map((sprite) => sprite.key), ...preparedSpriteKeys()]);
   keys.add('people/guest-walk');
   keys.add('people/staff-costumes');
+  keys.add('people/rider-seated');
   cachedAvailable = keys;
   return cachedAvailable;
 }
@@ -308,6 +309,12 @@ export function buildArtCoverage(): ArtCoverageRow[] {
     'walking sheet and palette variants',
     ['people/guest-walk'],
     'Prepared original character sheet.',
+  );
+  add(
+    'Guests',
+    'seated rider figures',
+    ['people/rider-seated'],
+    'Generated four-direction seated figure drawn in coaster and transport cars.',
   );
   for (const role of STAFF_ROLES)
     add(
