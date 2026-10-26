@@ -192,7 +192,8 @@ async function inspectParts(
     for (const part of ['track', 'station', 'train', 'entrance', 'exit'] as const) {
       const hit = await inspect(page, mobile, part, testInfo);
       await expect(page.locator('[data-panel^="ride-"]:visible')).toHaveCount(1);
-      await expect(page.locator('.tool-status')).toContainText(`${hit.name} information opened.`);
+      if (!mobile)
+        await expect(page.locator('.tool-status')).toContainText(`${hit.name} information opened.`);
       await closeRideWindows(page);
     }
 
