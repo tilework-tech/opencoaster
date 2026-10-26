@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { chromium, expect as baseExpect, test as baseTest } from '@playwright/test';
@@ -210,7 +210,7 @@ async function initialise(page: Page): Promise<void> {
     const originalShrub = originalManifest.sprites['scenery/shrub'];
     const originalShrubWidth = SCENERY_CATALOG[3]!.width;
 
-    const makeMap = (item: ReviewItem) => {
+    const makeMap = (item: ReviewItem, rotation: number) => {
       const width = 8;
       const height = 8;
       const tile = 4 * width + 4;
@@ -296,9 +296,9 @@ async function initialise(page: Page): Promise<void> {
         SCENERY_CATALOG[3]!.width = enabled ? 30 : originalShrubWidth;
       },
       render: (item, backend, zoom, rotation) => {
-        const { map, tile } = makeMap(item);
+        const { map, tile } = makeMap(item, rotation);
         const snapshot = createSnapshot({
-          guests: 0,
+          guests: item.kind === 'garden-fixture' ? 1 : 0,
           staff: 0,
           vehicles: 0,
           litter: 0,
@@ -309,16 +309,14 @@ async function initialise(page: Page): Promise<void> {
         if (item.kind === 'ground-bed') snapshot.grounds[tile] = 0x10;
         if (item.kind === 'garden-fixture') {
           if (item.withBeds) {
-            for (let y = 2; y <= 5; y++)
-              for (let x = 2; x <= 5; x++) {
-                if (y === 4) continue;
-                snapshot.grounds[y * 8 + x] = 0x10;
-              }
-            snapshot.grounds[2 * 8 + 6] = 0x10;
-            snapshot.grounds[3 * 8 + 6] = 0x10;
+            const bedRow = rotation === 1 || rotation === 2 ? 5 : 3;
+            for (let x = 2; x <= 5; x++) snapshot.grounds[bedRow * 8 + x] = 0x10;
+            const clusterSecondRow = bedRow === 3 ? 2 : 6;
+            for (const y of [bedRow, clusterSecondRow])
+              for (const x of [6, 7]) snapshot.grounds[y * 8 + x] = 0x10;
           }
           snapshot.guests.count = 1;
-          snapshot.guests.data.set([3 * TILE_UNITS + TILE_UNITS / 2, 4 * TILE_UNITS + TILE_UNITS / 2, 0, 0]);
+          snapshot.guests.data.set([3 * 256 + 128, 4 * 256 + 128, 0, 0]);
         }
         if (item.kind === 'ride') {
           snapshot.rides.count = 1;
@@ -494,12 +492,31 @@ test('keeps path pixels visible beside a garden row, guests, and a bin in every 
         1,
         rotation,
       );
+      await writeFile(join(OUTPUT_DIR, `garden-row-${backend}-rotation-${rotation}.png`), withBeds);
       const baselinePixels = await sharp(baseline).raw().toBuffer({ resolveWithObject: true });
       const bedPixels = await sharp(withBeds).raw().toBuffer({ resolveWithObject: true });
       const rotationCenter = new Float64Array(2);
       const rotationSample = new Float64Array(2);
-      project(4.5 * TILE_UNITS, 4.5 * TILE_UNITS, 0, 8, 8, rotation as 0 | 1 | 2 | 3, rotationCenter);
-      project(4.5 * TILE_UNITS, 4.05 * TILE_UNITS, 0, 8, 8, rotation as 0 | 1 | 2 | 3, rotationSample);
+      project(
+        4.5 * TILE_UNITS,
+        4.5 * TILE_UNITS,
+        0,
+        8,
+        8,
+        rotation as 0 | 1 | 2 | 3,
+        rotationCenter,
+      );
+      const bedRow = rotation === 1 || rotation === 2 ? 5 : 3;
+      const pathSampleY = bedRow === 3 ? 4.05 : 4.95;
+      project(
+        4.5 * TILE_UNITS,
+        pathSampleY * TILE_UNITS,
+        0,
+        8,
+        8,
+        rotation as 0 | 1 | 2 | 3,
+        rotationSample,
+      );
       const x = Math.round(rotationSample[0]! - rotationCenter[0]! + 320);
       const y = Math.round(rotationSample[1]! - rotationCenter[1]! + 320);
       const offset = (y * baselinePixels.info.width + x) * baselinePixels.info.channels;
@@ -507,6 +524,26 @@ test('keeps path pixels visible beside a garden row, guests, and a bin in every 
         bedPixels.data.subarray(offset, offset + 3),
         `${backend} path pixel beside beds, rotation ${rotation}`,
       ).toEqual(baselinePixels.data.subarray(offset, offset + 3));
+
+      const guest = new Float64Array(2);
+      project(3.5 * TILE_UNITS, 4.5 * TILE_UNITS, 0, 8, 8, rotation as 0 | 1 | 2 | 3, guest);
+      const guestX = Math.round(guest[0]! - rotationCenter[0]! + 320);
+      const guestY = Math.round(guest[1]! - rotationCenter[1]! + 320);
+      let unchangedGuestArea = 0;
+      for (let py = guestY - 22; py <= guestY + 4; py++)
+        for (let px = guestX - 10; px <= guestX + 10; px++) {
+          const pixel = (py * baselinePixels.info.width + px) * baselinePixels.info.channels;
+          if (
+            baselinePixels.data
+              .subarray(pixel, pixel + 3)
+              .equals(bedPixels.data.subarray(pixel, pixel + 3))
+          )
+            unchangedGuestArea++;
+        }
+      expect(
+        unchangedGuestArea,
+        `${backend} guest pixels beside beds, rotation ${rotation}`,
+      ).toBeGreaterThan(350);
     }
   }
 });

@@ -530,7 +530,7 @@ export class Canvas2DRenderer implements Renderer {
             groundFlowerBed || sceneryFlowerBed
               ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
               : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
+            groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
             () => this.drawGroundProps(ctx, map, cam, snapshot, i, x, y),
           );
         for (
@@ -566,7 +566,7 @@ groundFlowerBed || sceneryFlowerBed ? SOLID_BIAS : 2,
           sceneryFlowerBed
             ? flowerBedGroundZ(map.heights[i]!, mask, cam.rotation)
             : sceneryGroundZ(map.heights[i]!, mask, cam.rotation),
-sceneryFlowerBed ? SOLID_BIAS : 2,
+          sceneryFlowerBed ? SOLID_BIAS : 2,
           () => this.drawSceneryElements(ctx, map, cam, i),
         );
         for (const ghost of this.spriteGhostsAt(map, i)) {
@@ -1081,16 +1081,26 @@ sceneryFlowerBed ? SOLID_BIAS : 2,
       this.pathLow,
     );
     if (!this.isVisible(this.pathLow[0]!, this.pathLow[1]!, cam, 40)) return;
-    drawGhostSprite(
-      ctx,
-      this.atlas,
-      ghost.sprite,
-      this.pathLow[0]!,
-      this.pathLow[1]!,
-      ghost.tone,
-      ghost.width,
-      ghost.height,
-    );
+    if (ghost.sprite.startsWith('scenery/flower-bed/'))
+      drawGhostSprite(
+        ctx,
+        this.atlas,
+        ghost.sprite,
+        Math.round(this.pathLow[0]!),
+        Math.round(this.pathLow[1]!),
+        ghost.tone,
+      );
+    else
+      drawGhostSprite(
+        ctx,
+        this.atlas,
+        ghost.sprite,
+        this.pathLow[0]!,
+        this.pathLow[1]!,
+        ghost.tone,
+        ghost.width,
+        ghost.height,
+      );
   }
 
   private drawPathGhost(
@@ -1151,20 +1161,24 @@ sceneryFlowerBed ? SOLID_BIAS : 2,
         this.tmp,
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, Math.max(box.width, box.height))) continue;
-      if (
+      const sprite =
+        definition.sprite === 'flower-bed'
+          ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
+          : scenerySpriteName(definition.sprite);
+      const drewSprite =
         this.atlas &&
-        drawBoxedSprite(
-          ctx,
-          this.atlas,
-          definition.sprite === 'flower-bed'
-            ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
-            : scenerySpriteName(definition.sprite),
-          this.tmp[0],
-          this.tmp[1],
-          box.width,
-          box.height,
-        )
-      ) {
+        (definition.sprite === 'flower-bed'
+          ? drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0]!, this.tmp[1]!)
+          : drawBoxedSprite(
+              ctx,
+              this.atlas,
+              sprite,
+              this.tmp[0]!,
+              this.tmp[1]!,
+              box.width,
+              box.height,
+            ));
+      if (drewSprite) {
         this.visibleCount++;
         continue;
       }
@@ -1518,8 +1532,10 @@ sceneryFlowerBed ? SOLID_BIAS : 2,
     const place = (name: string, offsetZ: number, width: number, height: number): void => {
       project(worldX, worldY, z + offsetZ, map.width, map.height, cam.rotation, this.tmp);
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, Math.max(width, height))) return;
-      if (drawBoxedSprite(ctx, atlas, name, this.tmp[0], this.tmp[1], width, height))
-        this.visibleCount++;
+      const drawn = name.includes('/flower-bed/')
+        ? drawAnchoredSprite(ctx, atlas, name, this.tmp[0], this.tmp[1])
+        : drawBoxedSprite(ctx, atlas, name, this.tmp[0], this.tmp[1], width, height);
+      if (drawn) this.visibleCount++;
     };
     const tree = ambientTreeName(map.surface[tile]!, x, y);
     if (tree) place(scenerySpriteName(tree), 0, AMBIENT_TREE_BOX.width, AMBIENT_TREE_BOX.height);
