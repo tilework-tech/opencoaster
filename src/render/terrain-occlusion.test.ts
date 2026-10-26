@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { MapData } from './renderer';
 import { SOLID_BIAS, rotatedPositionSum } from './depth-key';
 import type { Rotation } from './projection';
-import {
-  occluderDepth,
-  sceneryDepth,
-  tileRisesOverBehind,
-} from './terrain-occlusion';
+import { occluderDepth, sceneryDepth, tileRisesOverBehind } from './terrain-occlusion';
 
 const ROTATIONS: Rotation[] = [0, 1, 2, 3];
 
