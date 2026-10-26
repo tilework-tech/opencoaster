@@ -71,6 +71,7 @@ STRATEGIES['copper-ridge'] = growthStrategy({
 
 STRATEGIES['tidewater-docks'] = growthStrategy({
   ...BASE,
+  itemsPerHandyman: 1.5,
   reserveCents: 600_000,
   prices: RIDE_PRICES,
   jitter: { skipPercent: 15, startDelayMonths: 2 },
@@ -84,6 +85,7 @@ STRATEGIES['tidewater-docks'] = growthStrategy({
 
 STRATEGIES['thunderhead-mesa'] = growthStrategy({
   ...BASE,
+  itemsPerHandyman: 1.5,
   prices: RIDE_PRICES,
   jitter: { skipPercent: 25, startDelayMonths: 3 },
   opening: OPENING,
