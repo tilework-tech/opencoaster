@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import { RENDERERS, ROTATIONS, lateral, ownership, viewSum } from './depth-ownership';
-import type { Rotation } from './depth-ownership';
 
 /** A guest standing on a path surface is never hidden by that surface or by terrain. */
 const SURFACE_CASES: Array<{

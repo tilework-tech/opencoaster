@@ -406,7 +406,7 @@ const PROBES = {
 };
 
 function viewIndex(key: string): number | null {
-  const match = /(?:view|direction)-(\d)(?:#\d+)?$/.exec(key.split('#')[0]!);
+  const match = /(?:view|direction)-(\d)(?:\/slice-\d)?$/.exec(key.split('#')[0]!);
   return match ? Number(match[1]) : null;
 }
 
