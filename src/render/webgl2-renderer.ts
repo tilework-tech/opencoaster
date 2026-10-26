@@ -22,13 +22,10 @@ import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sp
 import {
   adjustDepthForGroundZ,
   pathAdditionBox,
-  pathAdditionEdgeGroundZ,
-  pathAdditionEdgeOffset,
-  pathAdditionEdges,
+  pathAdditionPlacements,
   pathAdditionGroundZ,
   pathAdditionView,
   flowerBedGroundZ,
-  pathConnectionEdges,
   sceneryBox,
   sceneryFrameDrop,
   sceneryGroundZ,
@@ -1648,19 +1645,30 @@ export class WebGL2Renderer implements Renderer {
             adjustDepthForGroundZ(depth + 2, baseHeight, shelterZ),
           );
         } else
-          for (const edge of pathAdditionEdges(pathConnectionEdges(flags))) {
-            const view = pathAdditionView(edge, camera.rotation);
-            const offset = pathAdditionEdgeOffset(edge);
-            const edgeZ = pathAdditionEdgeGroundZ(baseHeight, flags, edge);
+          for (const placement of pathAdditionPlacements(flags, baseHeight)) {
+            const view = pathAdditionView(placement.edge, camera.rotation);
             const box = pathAdditionBox(flags, view);
             this.append(
-              worldX + offset.x,
-              worldY + offset.y,
-              edgeZ,
+              worldX + placement.x,
+              worldY + placement.y,
+              placement.groundZ,
               box.width,
               box.height,
               pathAdditionSpriteName(flags, view, paths[o + 4]),
-              adjustDepthForGroundZ(depth + 2, baseHeight, edgeZ),
+              adjustDepthForGroundZ(
+                2 *
+                  rotatedPositionSum(
+                    worldX + placement.x,
+                    worldY + placement.y,
+                    map,
+                    camera.rotation,
+                  ) -
+                  baseHeight -
+                  1 +
+                  2,
+                baseHeight,
+                placement.groundZ,
+              ),
             );
           }
       }

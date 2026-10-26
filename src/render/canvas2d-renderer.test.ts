@@ -247,7 +247,7 @@ describe('Canvas2D fallback map art', () => {
             (args) =>
               Number(args[1]) > rampSprites.length && Number(args[1]) <= rampSprites.length + 4,
           );
-          expect(additions, `${item.sprite} sloped=${sloped}`).toHaveLength(1);
+          expect(additions, `${item.sprite} sloped=${sloped}`).toHaveLength(2);
           for (const addition of additions) {
             const view = Number(addition[1]) - rampSprites.length - 1;
             const width = STUB_FRAME.width;
@@ -256,12 +256,53 @@ describe('Canvas2D fallback map art', () => {
             edgeCenters.push((addition[5] as number) + width / 2);
             pivotRows.push((addition[6] as number) + height);
           }
-          expect(edgeCenters, `${item.sprite} edge placement`).toHaveLength(1);
+          expect(edgeCenters, `${item.sprite} edge placement`).toHaveLength(2);
         }
-        const flatPivots = pivotRows.slice(0, 1).sort((a, b) => a - b);
-        const slopedPivots = pivotRows.slice(1, 2).sort((a, b) => a - b);
-        expect(flatPivots.map((pivot, index) => pivot - slopedPivots[index]!)).toEqual([8]);
+        const flatPivots = pivotRows.slice(0, 2).sort((a, b) => a - b);
+        const slopedPivots = pivotRows.slice(2, 4).sort((a, b) => a - b);
+        expect(flatPivots.map((pivot, index) => pivot - slopedPivots[index]!)).toEqual([8, 8]);
       }
+    }
+  });
+
+  it.each([
+    ['straight', 0b0101, 2],
+    ['corner', 0b0011, 2],
+    ['T-junction', 0b0111, 1],
+    ['crossroads', 0b1111, 0],
+    ['dead-end', 0b0001, 3],
+  ])('draws %s benches on every open edge in all rotations', async (_shape, edges, count) => {
+    for (let rotation = 0; rotation < 4; rotation++) {
+      const map = flatMap();
+      map.pathElements = Int32Array.of(2, 2, 0, PathFlag.Bench | edges, 0, PathStyle.Tarmac);
+      map.pathCount = 1;
+      const names = Array.from({ length: 4 }, (_, view) => `scenery/bench/view-${view}`);
+      const context = await renderWithAtlas(map, ['paths/tarmac/connection-00', ...names], null, {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        rotation: rotation as 0 | 1 | 2 | 3,
+      });
+      const benches = context.images.filter((args) => Number(args[1]) > 1);
+      expect(benches, `rotation ${rotation}`).toHaveLength(count);
+      const spots = new Set(benches.map((args) => `${args[5]},${args[6]}`));
+      expect(spots.size).toBe(count);
+    }
+  });
+
+  it('draws four lamp posts on a crossroads in all rotations', async () => {
+    for (let rotation = 0; rotation < 4; rotation++) {
+      const map = flatMap();
+      map.pathElements = Int32Array.of(2, 2, 0, PathFlag.Lamp | 0b1111, 0, PathStyle.Tarmac);
+      map.pathCount = 1;
+      const names = Array.from({ length: 4 }, (_, view) => `scenery/lamp/view-${view}`);
+      const context = await renderWithAtlas(map, ['paths/tarmac/connection-00', ...names], null, {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        rotation: rotation as 0 | 1 | 2 | 3,
+      });
+      expect(context.images.filter((args) => Number(args[1]) > 1)).toHaveLength(4);
     }
   });
 
@@ -425,7 +466,7 @@ describe('Canvas2D fallback map art', () => {
     const previewImages = context.images.filter(
       (args) => args.length === 9 && args[7] === STUB_FRAME.width && args[8] === STUB_FRAME.height,
     );
-    expect(previewImages).toHaveLength(1);
+    expect(previewImages).toHaveLength(2);
   });
 
   it('renders flowerbed previews at the placed flowerbed rect on sloped tiles in every view', async () => {
