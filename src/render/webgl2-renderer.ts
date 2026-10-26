@@ -36,6 +36,7 @@ import {
   TILE_W,
   Z_PIXELS,
   project,
+  rotateDirection,
   rotateTile,
   unrotateTile,
   viewDepth,
@@ -147,9 +148,18 @@ export function staffSpriteName(kind: number): string {
   return `people/staff-costumes#${(kind >= 0 && kind <= 3 ? kind : 0) * 4}`;
 }
 
-export function guestSpriteIndex(tint: number, heading: number, frame: number): number {
+/** Sprite index of a guest: `heading` is the world walking direction, shown as seen at `rotation`. */
+export function guestSpriteIndex(
+  tint: number,
+  heading: number,
+  frame: number,
+  rotation: Rotation = 0,
+): number {
   const palette = ((tint % 8) + 8) % 8;
-  const direction = Number.isInteger(heading) && heading >= 0 && heading < 4 ? heading : 0;
+  const direction =
+    Number.isInteger(heading) && heading >= 0 && heading < 4
+      ? rotateDirection(heading, rotation)
+      : 0;
   const animationFrame = ((frame % 4) + 4) % 4;
   return 40 + palette * 16 + direction * 4 + animationFrame;
 }
@@ -1848,7 +1858,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendLayerSprite(
         layer,
         offset,
-        `people/guest-walk#${guestSpriteIndex(tint, heading, tick >>> 2) - 40}`,
+        `people/guest-walk#${guestSpriteIndex(tint, heading, tick >>> 2, camera.rotation) - 40}`,
         map,
         camera,
         viewportWidth,
