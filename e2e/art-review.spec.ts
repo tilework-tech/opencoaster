@@ -1,15 +1,18 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { chromium, expect as baseExpect, test as baseTest } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import { SCENERY_CATALOG } from '../src/sim/map/scenery';
+import { project } from '../src/render/projection';
+import { TILE_UNITS } from '../src/sim/core/constants';
+import { pathAdditionPlacements } from '../src/render/ground-anchor';
 
 interface ReviewItem {
   key: string;
   label: string;
-  kind: 'scenery' | 'ground-bed' | 'path' | 'addition' | 'ride';
+  kind: 'scenery' | 'ground-bed' | 'path' | 'addition' | 'ride' | 'garden-fixture';
   index?: number;
   type?: number;
   surface?: number;
@@ -17,6 +20,7 @@ interface ReviewItem {
   broken?: boolean;
   slope?: boolean;
   legacy?: boolean;
+  withBeds?: boolean;
 }
 
 declare global {
@@ -266,7 +270,10 @@ async function initialise(page: Page): Promise<void> {
           item.broken ? 0x40000000 : 0,
           item.surface ?? 0,
         ]);
-      else if (item.kind === 'ground-bed' || item.legacy) {
+      else if (item.kind === 'garden-fixture') {
+        for (let x = 2; x <= 5; x++)
+          pathRows.push([x, 4, 0, x === 2 ? 0x1000 | 0b1110 : 0x0f, 0, 0]);
+      } else if (item.kind === 'ground-bed' || item.legacy) {
         const pathTile = 3 * width + 4;
         pathRows.push([4, 3, heights[pathTile]!, 0x0f, 0, 0]);
       }
@@ -292,7 +299,7 @@ async function initialise(page: Page): Promise<void> {
       render: (item, backend, zoom, rotation) => {
         const { map, tile } = makeMap(item);
         const snapshot = createSnapshot({
-          guests: 0,
+          guests: item.kind === 'garden-fixture' ? 1 : 0,
           staff: 0,
           vehicles: 0,
           litter: 0,
@@ -301,6 +308,17 @@ async function initialise(page: Page): Promise<void> {
           mapTiles: 64,
         });
         if (item.kind === 'ground-bed') snapshot.grounds[tile] = 0x10;
+        if (item.kind === 'garden-fixture') {
+          if (item.withBeds) {
+            const bedRow = rotation === 1 || rotation === 2 ? 5 : 3;
+            for (let x = 2; x <= 5; x++) snapshot.grounds[bedRow * 8 + x] = 0x10;
+            const clusterSecondRow = bedRow === 3 ? 2 : 6;
+            for (const y of [bedRow, clusterSecondRow])
+              for (const x of [6, 7]) snapshot.grounds[y * 8 + x] = 0x10;
+          }
+          snapshot.guests.count = 1;
+          snapshot.guests.data.set([3 * 256 + 128, 4 * 256 + 128, 0, 0]);
+        }
         if (item.kind === 'ride') {
           snapshot.rides.count = 1;
           snapshot.rideInfo[0] = 1;
@@ -351,14 +369,7 @@ async function makeCell(
   zoom: number,
   rotation: number,
 ): Promise<Buffer> {
-  await page.evaluate(
-    ({ item, backend, zoom, rotation }) => {
-      window.__artReview!.aliasLegacyFlowerbed(item.legacy === true);
-      window.__artReview!.render(item, backend, zoom, rotation);
-    },
-    { item, backend, zoom, rotation },
-  );
-  const screenshot = await page.locator(`#art-review-${backend}`).screenshot({ type: 'png' });
+  const screenshot = await renderItem(page, item, backend, zoom, rotation);
   const label = Buffer.from(
     `<svg width="${CELL_WIDTH}" height="${CELL_HEIGHT}"><rect width="100%" height="100%" fill="#f1ecd9"/><text x="8" y="16" font-family="sans-serif" font-size="12" fill="#25261f">${item.label.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</text></svg>`,
   );
@@ -377,6 +388,23 @@ async function makeCell(
     .composite([{ input: label }, { input: crop, left: 0, top: 20 }])
     .png()
     .toBuffer();
+}
+
+async function renderItem(
+  page: Page,
+  item: ReviewItem,
+  backend: 'webgl2' | 'canvas2d',
+  zoom: number,
+  rotation: number,
+): Promise<Buffer> {
+  await page.evaluate(
+    ({ item, backend, zoom, rotation }) => {
+      window.__artReview!.aliasLegacyFlowerbed(item.legacy === true);
+      window.__artReview!.render(item, backend, zoom, rotation);
+    },
+    { item, backend, zoom, rotation },
+  );
+  return page.locator(`#art-review-${backend}`).screenshot({ type: 'png' });
 }
 
 async function writeSheet(name: string, cells: readonly Buffer[]): Promise<void> {
@@ -442,4 +470,120 @@ test('captures flowerbeds across renderers, zooms, and rotations @art-review', a
       }
   expect(await page.locator('#art-review-webgl2').count()).toBe(1);
   expect(await page.locator('#art-review-canvas2d').count()).toBe(1);
+});
+
+test('keeps path pixels visible beside a garden row, guests, and a bin in every renderer and rotation', async ({
+  page,
+}) => {
+  test.setTimeout(1_200_000);
+  await setupReviewPage(page);
+  for (const backend of backends) {
+    for (let rotation = 0; rotation < 4; rotation++) {
+      const baseline = await renderItem(
+        page,
+        { key: 'garden-path-only', label: 'Path only', kind: 'garden-fixture', withBeds: false },
+        backend,
+        1,
+        rotation,
+      );
+      const withBeds = await renderItem(
+        page,
+        { key: 'garden-row', label: 'Garden row', kind: 'garden-fixture', withBeds: true },
+        backend,
+        1,
+        rotation,
+      );
+      await writeFile(join(OUTPUT_DIR, `garden-row-${backend}-rotation-${rotation}.png`), withBeds);
+      const baselinePixels = await sharp(baseline).raw().toBuffer({ resolveWithObject: true });
+      const bedPixels = await sharp(withBeds).raw().toBuffer({ resolveWithObject: true });
+      const rotationCenter = new Float64Array(2);
+      const rotationSample = new Float64Array(2);
+      project(
+        4.5 * TILE_UNITS,
+        4.5 * TILE_UNITS,
+        0,
+        8,
+        8,
+        rotation as 0 | 1 | 2 | 3,
+        rotationCenter,
+      );
+      const bedRow = rotation === 1 || rotation === 2 ? 5 : 3;
+      const pathSampleY = bedRow === 3 ? 4.05 : 4.95;
+      project(
+        4.5 * TILE_UNITS,
+        pathSampleY * TILE_UNITS,
+        0,
+        8,
+        8,
+        rotation as 0 | 1 | 2 | 3,
+        rotationSample,
+      );
+      const x = Math.round(rotationSample[0]! - rotationCenter[0]! + 320);
+      const y = Math.round(rotationSample[1]! - rotationCenter[1]! + 320);
+      let unchangedPathArea = 0;
+      for (let py = y - 2; py <= y + 2; py++)
+        for (let px = x - 2; px <= x + 2; px++) {
+          const pixel = (py * baselinePixels.info.width + px) * baselinePixels.info.channels;
+          if (
+            baselinePixels.data
+              .subarray(pixel, pixel + 3)
+              .equals(bedPixels.data.subarray(pixel, pixel + 3))
+          )
+            unchangedPathArea++;
+        }
+      expect(
+        unchangedPathArea,
+        `${backend} path pixels beside beds, rotation ${rotation}`,
+      ).toBeGreaterThan(22);
+
+      const guest = new Float64Array(2);
+      project(3.5 * TILE_UNITS, 4.5 * TILE_UNITS, 0, 8, 8, rotation as 0 | 1 | 2 | 3, guest);
+      const guestX = Math.round(guest[0]! - rotationCenter[0]! + 320);
+      const guestY = Math.round(guest[1]! - rotationCenter[1]! + 320);
+      let unchangedGuestArea = 0;
+      for (let py = guestY - 22; py <= guestY + 4; py++)
+        for (let px = guestX - 10; px <= guestX + 10; px++) {
+          const pixel = (py * baselinePixels.info.width + px) * baselinePixels.info.channels;
+          if (
+            baselinePixels.data
+              .subarray(pixel, pixel + 3)
+              .equals(bedPixels.data.subarray(pixel, pixel + 3))
+          )
+            unchangedGuestArea++;
+        }
+      expect(
+        unchangedGuestArea,
+        `${backend} guest pixels beside beds, rotation ${rotation}`,
+      ).toBeGreaterThan(450);
+
+      const binPlacement = pathAdditionPlacements(0x1000 | 0b1110, 0)[0]!;
+      const bin = new Float64Array(2);
+      project(
+        2.5 * TILE_UNITS + binPlacement.x,
+        4.5 * TILE_UNITS + binPlacement.y,
+        binPlacement.groundZ,
+        8,
+        8,
+        rotation as 0 | 1 | 2 | 3,
+        bin,
+      );
+      const binX = Math.round(bin[0]! - rotationCenter[0]! + 320);
+      const binY = Math.round(bin[1]! - rotationCenter[1]! + 320);
+      let unchangedBinArea = 0;
+      for (let py = binY - 26; py <= binY + 2; py++)
+        for (let px = binX - 10; px <= binX + 10; px++) {
+          const pixel = (py * baselinePixels.info.width + px) * baselinePixels.info.channels;
+          if (
+            baselinePixels.data
+              .subarray(pixel, pixel + 3)
+              .equals(bedPixels.data.subarray(pixel, pixel + 3))
+          )
+            unchangedBinArea++;
+        }
+      expect(
+        unchangedBinArea,
+        `${backend} bin pixels beside beds, rotation ${rotation}`,
+      ).toBeGreaterThan(420);
+    }
+  }
 });

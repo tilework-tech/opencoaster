@@ -250,10 +250,6 @@ export function flowerBedSpriteName(x: number, y: number, rotation: number, slop
     : `scenery/flower-bed/slope-${slopeMask & 0x0f}/variant-${variant}/view-${view}`;
 }
 
-export function flowerBedDepth(depth: number): number {
-  return depth + 8;
-}
-
 export function pathAdditionSpriteName(flags: number, rotation: number, data: number): string {
   const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
   if (flags & PathFlag.Shelter) return `scenery/shelter/view-${view}`;

@@ -3,7 +3,6 @@ import { PATH_ADDITION_BROKEN, PathFlag, PathStyle } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
 import { SCENERY_CATALOG } from '../sim/map/scenery';
 import { SceneryResult } from '../sim/map/scenery';
-import { FLOWER_BED_BOX } from './sprite-layout';
 import { sceneryBox } from './ground-anchor';
 import { Canvas2DRenderer } from './canvas2d-renderer';
 import type { CanvasAtlas } from './canvas-atlas';
@@ -434,7 +433,8 @@ describe('Canvas2D fallback map art', () => {
             { x: 0, y: 0, zoom, rotation: rotation as 0 | 1 | 2 | 3 },
             [ghost],
           );
-          const { width: boxWidth, height: boxHeight } = sceneryBox(definition);
+          const { width: boxWidth, height: boxHeight } =
+            definition.sprite === 'flower-bed' ? STUB_FRAME : sceneryBox(definition);
           const placedRect = screenRect(placed, boxWidth, boxHeight);
           const ghostRect = screenRect(previewDraw, boxWidth, boxHeight);
           expect(placedRect, `placed ${key} rotation=${rotation} zoom=${zoom}`).toBeDefined();
@@ -514,8 +514,8 @@ describe('Canvas2D fallback map art', () => {
           { x: 0, y: 0, zoom, rotation: rotation as 0 | 1 | 2 | 3 },
           [ghost],
         );
-        const placedRect = screenRect(placed, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
-        const previewRect = screenRect(preview, FLOWER_BED_BOX.width, FLOWER_BED_BOX.height);
+        const placedRect = screenRect(placed, STUB_FRAME.width, STUB_FRAME.height);
+        const previewRect = screenRect(preview, STUB_FRAME.width, STUB_FRAME.height);
         expect(placedRect, `placed rotation=${rotation} zoom=${zoom}`).toBeDefined();
         expect(previewRect, `preview rotation=${rotation} zoom=${zoom}`).toBeDefined();
         expect(previewRect, `rotation=${rotation} zoom=${zoom}`).toEqual(placedRect);
