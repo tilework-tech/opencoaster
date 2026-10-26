@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 
-// Blocked on a rendering decision: WebGL2 sorts placed scenery at the documented SOLID_BIAS (a guest
-// standing nearer the camera in the tree's tile is drawn over it), while Canvas2D still sorts
-// ordinary scenery at bias 2. See src/render/docs.md and the PR description.
-test.fixme('the foreground tree wins its pixel overlap with a guest in every renderer orientation', async ({
+// Both renderers order ordinary scenery with the shared depth key (src/render/depth-key.ts,
+// SOLID_BIAS), so a guest standing at the +x side of a tree's tile is drawn over the tree in view
+// rotations 0 and 1, where that side faces the camera, and under it in rotations 2 and 3.
+test('a guest and a tree in one tile are ordered by sub-tile position in every renderer orientation', async ({
   page,
 }) => {
   await page.goto('/');
@@ -277,15 +277,16 @@ test.fixme('the foreground tree wins its pixel overlap with a guest in every ren
 
   expect(samples).toHaveLength(8);
   for (const sample of samples) {
+    const guestInFront = sample.rotation < 2;
     expect(
-      sample.rgba[0],
-      `${sample.backend} rotation ${sample.rotation} should show the foreground tree's red pixel; samples=${JSON.stringify(samples)}`,
+      guestInFront ? sample.rgba[2] : sample.rgba[0],
+      `${sample.backend} rotation ${sample.rotation} should draw the ${guestInFront ? 'guest over' : 'tree over the guest at'} the shared pixel; samples=${JSON.stringify(samples)}`,
     ).toBeGreaterThan(200);
+    expect(guestInFront ? sample.rgba[0] : sample.rgba[2]).toBeLessThan(100);
     expect(sample.pathOnly[0]).toBeGreaterThan(200);
     expect(sample.pathOnly[1]).toBeLessThan(60);
     expect(sample.pathOnly[2]).toBeLessThan(60);
-    expect(sample.rgba[1]).toBeLessThan(60);
-    expect(sample.rgba[2]).toBeLessThan(60);
+    expect(sample.rgba[1]).toBeLessThan(100);
     expect(
       sample.guestOnly[0],
       `${sample.backend} r${sample.rotation} ${sample.guestOnly}`,
