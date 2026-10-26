@@ -104,9 +104,8 @@ test('desktop construction controls fit above the fold', async ({ page }, testIn
   await panel.getByRole('button', { name: 'Build piece' }).click();
   await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
 
-  await page.getByRole('button', { name: 'Game options', exact: true }).click();
-  await page.getByRole('button', { name: '4×', exact: true }).click();
-  await expect(page.getByRole('button', { name: '2×', exact: true })).toHaveAttribute(
+  await page.getByRole('button', { name: 'Game speed 4×', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Game speed 2×', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
