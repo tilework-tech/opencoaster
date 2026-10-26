@@ -6,9 +6,18 @@ Generated contact sheets live in `docs/art/review/` while the audit runs locally
 
 `pnpm art:review` places every catalog scenery item, path addition, path type, ride, stall, and facility on a test map. It captures the default and maximum zoom in four rotations for Canvas2D and WebGL2. Track rides are built through the simulation's normal ride creation and `placeTrack` command path, then marked complete before capture. Their checks count opaque pixels for each track-piece sprite and reject the red procedural fallback marker. Flowerbed sheets also capture zoom 0.5 and 2 on flat and sloped ground beside grass and a path, plus a legacy comparison. A separate garden fixture places a continuous bed row and 2×2 cluster beside a path with a guest and bin in all four rotations; its pixel check compares the adjacent path with and without beds.
 
+Every stall and facility is also compared against the same scene without it at default zoom, with a minimum visible-pixel threshold. A populated context scene (stalls, shrub clusters, benches, bins and lamps beside a path, guests, and a flowerbed on sloped ground) is captured in all four rotations at default zoom for neighbouring-tile overlap checks.
+
 Set `ART_REVIEW_ITEMS` to a comma-separated list of label fragments (for example `shrub,bench,food stall`) to restrict the inventory sheets to matching items.
 
 Severity: **high** means the art is broken or hard to identify during ordinary play; **medium** means a visible scale, alignment, or readability issue; **low** means a minor polish issue.
+
+## Resolved in the placeable-art readability change
+
+- **Benches:** the seat palette contrasts with the supports and backrest, keeping a readable silhouette at default zoom.
+- **Facilities:** stall and facility sprites were redrawn for readable silhouettes. The Information Kiosk uses a consistent four-sided roof in every view.
+- **Shrub:** generated art is a broader bush with four deterministic tile variants, each with camera views.
+- **Vandalised lamp:** the detached ground shard was removed.
 
 ## Verified track-rendering findings
 
