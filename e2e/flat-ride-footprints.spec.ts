@@ -273,7 +273,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
   await page.getByRole('button', { name: 'Close Ride #0' }).click();
   await toolbarAction(page, 'Game options');
-  await page.getByRole('button', { name: '4×' }).click();
+  await page.getByRole('button', { name: 'Game speed 4×', exact: true }).click();
   await page.getByRole('button', { name: 'Guests +1,000' }).click();
   await page.getByRole('button', { name: 'Close Options' }).click();
   await clearTransientUi(page);
