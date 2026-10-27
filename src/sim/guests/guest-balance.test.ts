@@ -16,7 +16,7 @@ function addNearbyRubbish(world: World, x: number, y: number): void {
   }
 }
 
-const admission = () => ({ parkRating: 0, entranceFee: 0 });
+const admission = () => ({ generationProbability: 0, entranceFee: 0 });
 
 function stepSystem(world: World, system: ReturnType<typeof createGuestSystem>, ticks: number) {
   for (let i = 0; i < ticks; i++) {
@@ -162,7 +162,7 @@ describe('park capacity', () => {
       );
       world.rides.cols.excitement[ride] = 500;
     }
-    const system = createGuestSystem(() => ({ parkRating: 900, entranceFee: 0 }));
+    const system = createGuestSystem(() => ({ generationProbability: 65_536, entranceFee: 0 }));
     world.park.entranceX = 2;
     world.park.entranceY = 12;
     layPath(world, [[2, 12]]);

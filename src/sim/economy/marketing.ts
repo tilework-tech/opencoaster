@@ -1,4 +1,4 @@
-import { BASIS_POINTS, LedgerCategory, NO_CAMPAIGN, NO_TARGET, post } from './ledger';
+import { LedgerCategory, NO_CAMPAIGN, NO_TARGET, post } from './ledger';
 import type { Ledger } from './ledger';
 import { VoucherKind } from './vouchers';
 
@@ -9,59 +9,60 @@ export interface CampaignDef {
   name: string;
   target: CampaignTarget;
   weeklyCostCents: number;
-  /** Guest attraction multiplier while the campaign runs, in basis points. */
-  attractionBps: number;
+  /** Chance per tick, out of 65536, that the running campaign draws an extra guest. */
+  guestsPerTick: number;
   /** What each guest the campaign attracts carries. */
   voucher: VoucherKind;
 }
 
 /**
  * The six RCT2 campaign families, in manual order; the index is the campaign id. Weekly prices
- * and attraction multipliers are tunable: the manual transcriptions disagree on prices and no
- * controlled RCT2 comparison exists yet (economy.md, Marketing; DECISIONS.md). The two
- * advertising ids keep their original values so existing saves and callers stay valid.
+ * are tunable: the manual transcriptions disagree on prices and no controlled RCT2 comparison
+ * exists yet (economy.md, Marketing; DECISIONS.md). Each campaign draws extra guests at its own
+ * per-tick chance, in the original game's proportions (free entry 400, free rides 300, park
+ * advertising 250, half-price entry, free food and ride advertising 200).
  */
 export const CAMPAIGNS: readonly CampaignDef[] = [
   {
     name: 'free park-entry vouchers',
     target: 'none',
     weeklyCostCents: 5_000,
-    attractionBps: 12_000,
+    guestsPerTick: 400,
     voucher: VoucherKind.FreeEntry,
   },
   {
     name: 'park advertising',
     target: 'none',
     weeklyCostCents: 15_000,
-    attractionBps: 13_500,
+    guestsPerTick: 250,
     voucher: VoucherKind.None,
   },
   {
     name: 'free ride vouchers',
     target: 'ride',
     weeklyCostCents: 7_500,
-    attractionBps: 11_500,
+    guestsPerTick: 300,
     voucher: VoucherKind.FreeRide,
   },
   {
     name: 'half-price park-entry vouchers',
     target: 'none',
     weeklyCostCents: 6_000,
-    attractionBps: 12_000,
+    guestsPerTick: 200,
     voucher: VoucherKind.HalfPriceEntry,
   },
   {
     name: 'free food or drink vouchers',
     target: 'item',
     weeklyCostCents: 4_000,
-    attractionBps: 11_000,
+    guestsPerTick: 200,
     voucher: VoucherKind.FreeFoodOrDrink,
   },
   {
     name: 'selected-ride advertising',
     target: 'ride',
     weeklyCostCents: 8_000,
-    attractionBps: 11_000,
+    guestsPerTick: 200,
     voucher: VoucherKind.None,
   },
 ];
@@ -96,11 +97,6 @@ export function startCampaign(
   l.campaignId = campaignId;
   l.campaignWeeksLeft = weeks;
   return true;
-}
-
-export function marketingAttractionBps(l: Ledger): number {
-  if (l.campaignWeeksLeft <= 0 || l.campaignId === NO_CAMPAIGN) return BASIS_POINTS;
-  return CAMPAIGNS[l.campaignId].attractionBps;
 }
 
 /** The voucher a guest arriving now receives, and the ride or stall it names (NO_TARGET if none). */
