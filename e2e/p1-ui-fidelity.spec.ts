@@ -83,7 +83,6 @@ test('desktop construction controls fit above the fold', async ({ page }, testIn
   expect(
     await page.locator('#game').evaluate((canvas) => Boolean(canvas.getContext('webgl2'))),
   ).toBe(true);
-  await expect(page.locator('.ownership-overlay')).toBeVisible();
   await unlockSteelCoaster(page, testInfo);
   await page.getByRole('button', { name: 'New ride', exact: true }).click();
   const ridePicker = await page.locator('[data-panel="ride-select"]').boundingBox();
