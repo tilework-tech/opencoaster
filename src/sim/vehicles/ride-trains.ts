@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { RideState } from '../rides/ride-store';
 import { spawnTrain, VehicleState } from './vehicle-store';
 import { maxTrainsOnTrack, syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
 import type { VehicleTrack } from './vehicle-track';
@@ -37,6 +38,25 @@ export function rideTrainSlots(world: World, rideId: number): number[] {
   return out;
 }
 
+function positionTrainAtStation(
+  world: World,
+  track: VehicleTrack,
+  slot: number,
+  state: VehicleState.Waiting | VehicleState.Testing,
+): void {
+  const waiting = state === VehicleState.Waiting && track.stationEndSegment >= 0;
+  const wrapsToStart = waiting && track.stationEndSegment >= track.segmentLengths.length;
+  const atEnd = waiting && !wrapsToStart;
+  const segment = atEnd ? track.stationEndSegment : wrapsToStart ? 0 : track.stationSegment;
+  const point = segment * 3;
+  const cols = world.vehicles.cols;
+  cols.trackPos[slot] = track.cumulativeLengthsQ8[segment];
+  cols.x[slot] = track.points[point];
+  cols.y[slot] = track.points[point + 1];
+  cols.z[slot] = track.points[point + 2];
+  cols.lastSegment[slot] = atEnd ? segment - 1 : wrapsToStart ? 0xffff : segment;
+}
+
 export function removeRideTrains(world: World, rideId: number): void {
   for (let slot = world.vehicles.count - 1; slot >= 0; slot--) {
     if (world.vehicles.cols.rideId[slot] === rideId) world.vehicles.despawnSlot(slot);
@@ -68,18 +88,7 @@ export function spawnRideTrain(
     carCount,
   });
   if (slot < 0) return -1;
-  const cols = world.vehicles.cols;
-  const waiting = state === VehicleState.Waiting && track.stationEndSegment >= 0;
-  // A platform that ends where the circuit ends has its front at the start of the loop. */
-  const wrapsToStart = waiting && track.stationEndSegment >= track.segmentLengths.length;
-  const atEnd = waiting && !wrapsToStart;
-  const segment = atEnd ? track.stationEndSegment : wrapsToStart ? 0 : track.stationSegment;
-  const point = segment * 3;
-  cols.trackPos[slot] = track.cumulativeLengthsQ8[segment];
-  cols.x[slot] = track.points[point];
-  cols.y[slot] = track.points[point + 1];
-  cols.z[slot] = track.points[point + 2];
-  cols.lastSegment[slot] = atEnd ? segment - 1 : wrapsToStart ? 0xffff : segment;
+  positionTrainAtStation(world, track, slot, state);
   return slot;
 }
 
@@ -87,6 +96,39 @@ function currentTrack(world: World, rideId: number): VehicleTrack | undefined {
   const tracks = (world.vehicleTracks ??= new VehicleTrackRegistry());
   syncVehicleTracks(world, tracks);
   return tracks.get(rideId);
+}
+
+/** Restores parked and testing trains to the station positions implied by their ride state. */
+export function repairSavedRideTrains(world: World): void {
+  const vehicles = world.vehicles.cols;
+  const rides = world.rides.cols;
+  const parked: number[] = [];
+  for (let slot = 0; slot < world.vehicles.count; slot++) {
+    const rideSlot = world.rides.idToSlot[vehicles.rideId[slot]];
+    if (rideSlot < 0) continue;
+    const rideState = rides.state[rideSlot];
+    if (
+      (rideState === RideState.Closed ||
+        rideState === RideState.Testing ||
+        rideState === RideState.Open) &&
+      (vehicles.state[slot] === VehicleState.Waiting ||
+        vehicles.state[slot] === VehicleState.Testing)
+    )
+      parked.push(slot);
+  }
+  if (parked.length === 0) return;
+
+  const tracks = (world.vehicleTracks ??= new VehicleTrackRegistry());
+  syncVehicleTracks(world, tracks);
+  for (const slot of parked) {
+    const rideId = vehicles.rideId[slot];
+    const state = vehicles.state[slot];
+    const track = tracks.get(rideId);
+    if (!track || track.stationSegment < 0) continue;
+
+    positionTrainAtStation(world, track, slot, state);
+    vehicles.speed[slot] = 0;
+  }
 }
 
 /** Longest train the ride's station platform holds: the cars must all stand inside it. */

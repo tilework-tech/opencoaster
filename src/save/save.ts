@@ -29,6 +29,7 @@ import { migrateTrackHeights } from '../sim/track/track-height-migration';
 import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
 import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
+import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 
 export const SAVE_VERSION = 26;
 /** Track heights count half-level track steps from this version; earlier saves store whole levels. */
@@ -654,6 +655,7 @@ export function deserialize(bytes: Uint8Array): World {
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
   closeInvalidOpenRides(world);
+  repairSavedRideTrains(world);
   return world;
 }
 
