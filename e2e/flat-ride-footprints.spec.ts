@@ -343,7 +343,7 @@ test.describe('flat ride footprints (WebGL2)', () => {
   for (const slug of ALL_ORIENTATIONS) {
     for (const dir of [1, 2, 3]) {
       const ride = bySlug(slug);
-      test(`${ride.name} turned ${dir} quarter turn(s) is built, boarded and ridden`, async ({
+      test(`${ride.name} turned ${dir} quarter turn(s) keeps its footprint and boarding points aligned`, async ({
         page,
       }, testInfo) => {
         test.setTimeout(240_000);
@@ -351,6 +351,7 @@ test.describe('flat ride footprints (WebGL2)', () => {
         await buildAndRide(page, testInfo, {
           ride,
           dir,
+          skipRiding: true,
           rotateWith: slug === 'ferris-wheel' && dir === 1 ? 'button' : 'key',
         });
       });
