@@ -1,3 +1,4 @@
+import { TRACK_STEPS_PER_LEVEL } from '../core/constants';
 import { describe, expect, it } from 'vitest';
 import { hashWorld } from '../core/hash';
 import { FeedbackDomain } from '../core/feedback';
@@ -411,7 +412,7 @@ describe('track commands', () => {
       pieceType: PieceId.Station,
       x,
       y,
-      z: GROUND,
+      z: GROUND * TRACK_STEPS_PER_LEVEL,
       dir: 0,
       mode: PieceMode.Normal,
     });
@@ -459,7 +460,7 @@ describe('track commands', () => {
         pieceType: pieceByName('verticalLoopRight')!.id,
         x: STATION_X,
         y: STATION_Y,
-        z: GROUND,
+        z: GROUND * TRACK_STEPS_PER_LEVEL,
         dir: 0,
         mode: PieceMode.Normal,
       });
@@ -480,7 +481,7 @@ describe('track commands', () => {
         pieceType: PieceId.Flat,
         x: STATION_X,
         y: STATION_Y,
-        z: GROUND,
+        z: GROUND * TRACK_STEPS_PER_LEVEL,
         dir: 0,
         mode: PieceMode.Launch,
       });
@@ -568,7 +569,7 @@ describe('family-specific coaster track sets', () => {
       pieceType,
       x: STATION_X,
       y: STATION_Y,
-      z: GROUND,
+      z: GROUND * TRACK_STEPS_PER_LEVEL,
       dir: 0,
       mode: PieceMode.Normal,
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TILE_UNITS, Z_STEP } from '../../src/sim/core/constants';
+import { TILE_UNITS, TRACK_STEPS_PER_LEVEL, Z_STEP } from '../../src/sim/core/constants';
 import {
   PIECES,
   TRANSPORT_PIECES as CATALOG_TRANSPORT_PIECES,
@@ -173,7 +173,7 @@ describe('track piece models', () => {
     ) => {
       const local = offsetPoint(frame, side, up);
       const turned = rotatePoint([local[0], local[1], 0], dir);
-      return [x + turned[0], y + turned[1], z / LEVELS_PER_TILE + local[2]];
+      return [x + turned[0], y + turned[1], z / TRACK_STEPS_PER_LEVEL / LEVELS_PER_TILE + local[2]];
     };
     const mapSize = 64;
     let pairs = 0;

@@ -225,7 +225,7 @@ describe('render snapshot', () => {
     const slot = world.track.pieces.spawn();
     world.track.pieces.cols.x[slot] = 3;
     world.track.pieces.cols.y[slot] = 5;
-    world.track.pieces.cols.z[slot] = 2;
+    world.track.pieces.cols.z[slot] = 3;
     world.track.pieces.cols.pieceType[slot] = 42;
     world.track.pieces.cols.dir[slot] = 1;
     world.track.pieces.cols.rideId[slot] = world.rides.slotToId[secondRide];
@@ -239,7 +239,7 @@ describe('render snapshot', () => {
     expect(Array.from(snapshot.tracks.data.slice(0, 4))).toEqual([
       896,
       1408,
-      128,
+      96,
       (world.rides.slotToId[secondRide] << 16) | 298,
     ]);
   });

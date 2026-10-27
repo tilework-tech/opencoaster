@@ -7,7 +7,10 @@ import { getConstructionCursor } from '../track/construction';
 import { PieceMode } from '../track/track-types';
 import { RideType } from './ride-types';
 
-/** Station followed by a lifted climb, four right-hand turns and a drop; closes after 14 pieces. */
+/**
+ * Station followed by a lifted two-level climb, four right-hand turns and a two-level drop; closes
+ * after 14 pieces.
+ */
 export const SMALL_CIRCUIT: ReadonlyArray<readonly [string, PieceMode]> = [
   ['station', PieceMode.Normal],
   ['flatToUp25', PieceMode.ChainLift],

@@ -220,7 +220,12 @@ export function composeCells(
       if (!def) continue;
       const tileX = placement.x + cell.dx;
       const tileY = placement.y + cell.dy;
-      const [x, y] = screenOf(tileX + 0.5, tileY + 0.5, placement.z / TRACK_STEPS_PER_LEVEL, rotation);
+      const [x, y] = screenOf(
+        tileX + 0.5,
+        tileY + 0.5,
+        placement.z / TRACK_STEPS_PER_LEVEL,
+        rotation,
+      );
       drawn.push({ sprite: frameOf(def), x, y, depth: tileDepth(tileX, tileY, rotation) });
     }
   }
@@ -272,7 +277,14 @@ export function composeModels(
   for (const placement of placements) {
     const view = rotateDirection(placement.dir, rotation);
     const [vx, vy] = viewTile(placement.x + 0.5, placement.y + 0.5, rotation);
-    mesh.push(...translateMesh(rotateMesh(kind.mesh(placement.piece), view), vx, vy, placement.z / TRACK_STEPS_PER_LEVEL));
+    mesh.push(
+      ...translateMesh(
+        rotateMesh(kind.mesh(placement.piece), view),
+        vx,
+        vy,
+        placement.z / TRACK_STEPS_PER_LEVEL,
+      ),
+    );
   }
   const sprite = renderMesh(mesh);
   const canvas = newCanvas(like.left, like.top, like.width, like.height);
