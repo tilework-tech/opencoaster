@@ -383,6 +383,7 @@ export class CoasterPanel {
       snap.park.cash,
       level,
       snap.occupancies,
+      ride.type,
     );
     return { rideType: ride.type, piece, placement, level, status };
   }

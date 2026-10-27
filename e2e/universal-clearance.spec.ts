@@ -6,7 +6,10 @@ import { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { RideType } from '../src/sim/rides/ride-types';
 import { createRide } from '../src/sim/rides/ride-operations';
-import { PIECES } from '../src/sim/track/catalog';
+import { PIECES, PieceId } from '../src/sim/track/catalog';
+import { placeTrack } from '../src/sim/track/construction';
+import { PieceMode, TrackResult } from '../src/sim/track/track-types';
+import { OWNED } from '../src/sim/map/tile-map';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { readFileSync } from 'node:fs';
@@ -19,6 +22,7 @@ const scenario = parseScenarioFile(
   ),
 );
 const RIDE_TILE = { x: 27, y: 42 };
+const UNDERPASS_TILE = { x: 30, y: 42 };
 
 async function loadOverlapPark(
   page: Page,
@@ -32,8 +36,30 @@ async function loadOverlapPark(
   prepareScenario(world, scenario);
   world.research.unlocked.add(RideType.MerryGoRound);
   world.research.unlocked.add(RideType.WoodenCoaster);
+  world.research.unlocked.add(RideType.SteelLoopingCoaster);
   createRide(world, RideType.MerryGoRound, 26, 41);
   const coasterId = createRide(world, RideType.WoodenCoaster, 5, 5);
+  const steelRides = Array.from({ length: 13 }, (_, index) =>
+    createRide(world, RideType.SteelLoopingCoaster, 2 + index, 24),
+  );
+  const elevatedRideId = steelRides[9]!;
+  const underpassRideId = steelRides[11]!;
+  const underpassIndex = world.map.index(UNDERPASS_TILE.x, UNDERPASS_TILE.y);
+  world.map.ownership[underpassIndex] = OWNED;
+  world.economy.cash = 100_000_000;
+  const groundLevel = world.map.heights[underpassIndex]!;
+  const elevatedResult = placeTrack(world, {
+    rideId: elevatedRideId,
+    pieceType: PieceId.Flat,
+    ...UNDERPASS_TILE,
+    z: groundLevel + 2,
+    dir: 0,
+    mode: PieceMode.Normal,
+  });
+  if (elevatedResult !== TrackResult.Ok)
+    throw new Error(
+      `Could not prepare the elevated Steel Looping Coaster track: ${elevatedResult}`,
+    );
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, serialize(world));
   await startStarterPark(page);
@@ -54,7 +80,7 @@ async function loadOverlapPark(
     .locator(`[data-panel="ride-${coasterId}"]`)
     .getByRole('button', { name: 'Edit track' })
     .click();
-  return { world, coasterId };
+  return { world, coasterId, underpassRideId, groundLevel };
 }
 
 async function captureAllViews(page: Page, prefix: string): Promise<void> {
@@ -72,7 +98,7 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
   test(`universal ride clearance preview and overpass proof (${renderer})`, async ({
     page,
   }, testInfo) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     if (renderer === 'canvas2d') {
       await page.addInitScript(() => {
         const getContext = HTMLCanvasElement.prototype.getContext;
@@ -86,7 +112,10 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
         };
       });
     }
-    const { world, coasterId } = await loadOverlapPark(page, testInfo.outputPath('overlap.park'));
+    const { world, coasterId, underpassRideId, groundLevel } = await loadOverlapPark(
+      page,
+      testInfo.outputPath('overlap.park'),
+    );
     await expect(page.locator('.hud')).toContainText(renderer === 'webgl2' ? 'WebGL2' : 'Canvas2D');
     await page
       .locator('[data-panel="construction"] [aria-label="Special elements"]')
@@ -173,6 +202,51 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
     );
     await testInfo.attach(`${renderer}-overpass`, {
       path: `.local/pr-proof/${renderer}-overpass.png`,
+      contentType: 'image/png',
+    });
+
+    await page.evaluate(
+      ({ rideId, pieceType, x, y, z }) => {
+        (window as unknown as { __sim: { command: (command: unknown) => void } }).__sim.command({
+          type: 'placeTrack',
+          rideId,
+          pieceType,
+          x,
+          y,
+          z,
+          dir: 0,
+          mode: 0,
+        });
+      },
+      {
+        rideId: underpassRideId,
+        pieceType: PieceId.Flat,
+        ...UNDERPASS_TILE,
+        z: groundLevel,
+      },
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as unknown as { __snapshot?: { tracks: { count: number } } }).__snapshot?.tracks
+              .count,
+        ),
+      )
+      .toBe(3);
+    await centreOnTile(page, UNDERPASS_TILE.x, UNDERPASS_TILE.y);
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await page.screenshot({ path: `.local/pr-proof/${renderer}-underpass.png`, fullPage: true });
+    const underpassCanvasData = await page
+      .locator('#game')
+      .evaluate((canvas) => canvas.toDataURL('image/png'));
+    await writeFile(
+      `.local/pr-proof/${renderer}-underpass-canvas.png`,
+      Buffer.from(underpassCanvasData.split(',')[1]!, 'base64'),
+    );
+    await testInfo.attach(`${renderer}-underpass`, {
+      path: `.local/pr-proof/${renderer}-underpass.png`,
       contentType: 'image/png',
     });
   });

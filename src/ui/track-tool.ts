@@ -157,12 +157,16 @@ export function previewStatus(
   cash: number,
   level = 0,
   occupancies: readonly OccupancyVolume[] = [],
+  rideType?: RideType,
 ): TrackResult {
   for (const [x, y] of footprintTiles(piece, placement.x, placement.y, placement.dir)) {
     if (x < 0 || y < 0 || x >= map.width || y >= map.height) return TrackResult.OutOfBounds;
     if (!buildable?.[y * map.width + x]) return TrackResult.NotOwned;
   }
   if (cash < piece.cost) return TrackResult.InsufficientFunds;
+  const trackClearance =
+    (rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackClearanceWorld) ??
+    TRACK_CLEARANCE_WORLD;
   for (const item of occupancies) {
     for (const cell of piece.footprint) {
       const [dx, dy] = rotateTile(cell.i, cell.j, placement.dir);
@@ -172,7 +176,7 @@ export function previewStatus(
             tileX: placement.x + dx,
             tileY: placement.y + dy,
             base: level * Z_STEP + cell.zMin,
-            clearance: level * Z_STEP + cell.zMax + TRACK_CLEARANCE_WORLD,
+            clearance: level * Z_STEP + cell.zMax + trackClearance,
             kind: piece.shape === 'station' ? 'station' : 'track',
             name: 'Track',
             levelCrossing: piece.shape === 'straight' && cell.zMin === 0,

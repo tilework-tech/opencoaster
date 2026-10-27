@@ -89,6 +89,13 @@ function rideName(world: World, id: number): string {
   return `${RIDE_CATALOG[type as RideType]?.name ?? 'Ride'} ${id + 1}`;
 }
 
+/** Returns the placed ride's track clearance, falling back for non-RCT2 ride definitions. */
+export function trackClearanceForRide(world: World, id: number): number {
+  const slot = world.rides.idToSlot[id];
+  const type = slot >= 0 ? world.rides.cols.typeId[slot] : -1;
+  return RIDE_CATALOG[type as RideType]?.trackClearanceWorld ?? TRACK_CLEARANCE_WORLD;
+}
+
 /** Builds the live placed-element index from authoritative sim state. */
 export function worldOccupancies(world: World): OccupancyVolume[] {
   const out: OccupancyVolume[] = [];
@@ -142,13 +149,14 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
   const tc = track.cols;
   for (let slot = 0; slot < track.count; slot++) {
     const def = PIECES[tc.pieceType[slot]];
+    const trackClearance = trackClearanceForRide(world, tc.rideId[slot]);
     for (const cell of def.footprint) {
       const [dx, dy] = rotate(cell.i, cell.j, tc.dir[slot]);
       out.push({
         tileX: tc.x[slot] + dx,
         tileY: tc.y[slot] + dy,
         base: tc.z[slot] * TRACK_Z_STEP + cell.zMin,
-        clearance: tc.z[slot] * TRACK_Z_STEP + cell.zMax + TRACK_CLEARANCE_WORLD,
+        clearance: tc.z[slot] * TRACK_Z_STEP + cell.zMax + trackClearance,
         kind: def.shape === 'station' ? 'station' : 'track',
         name: rideName(world, tc.rideId[slot]),
         levelCrossing: def.shape === 'straight' && cell.zMin === 0 && cell.zMax === 0,

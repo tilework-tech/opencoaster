@@ -15,6 +15,8 @@ import {
 import type { PieceChoice } from './track-tool';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RideResult } from '../sim/rides/ride-results';
+import type { OccupancyVolume } from '../sim/map/occupancy';
+import { Z_STEP } from '../sim/core/constants';
 
 const flatCursor = { hasTrack: true, slope: Slope.Flat, bank: Bank.None };
 const choice = (over: Partial<PieceChoice>): PieceChoice => ({
@@ -148,6 +150,30 @@ describe('previewStatus', () => {
       TrackResult.InsufficientFunds,
     );
   });
+
+  it('uses the selected ride type clearance when previewing track under an overpass', () => {
+    const piece = PIECES[PieceId.Flat];
+    const elevatedTrack: OccupancyVolume = {
+      tileX: 4,
+      tileY: 4,
+      base: 4 * Z_STEP,
+      clearance: 4 * Z_STEP + RIDE_CATALOG[RideType.SteelLoopingCoaster]!.trackClearanceWorld!,
+      kind: 'track',
+      name: 'Steel Looping Coaster 12',
+    };
+    expect(
+      previewStatus(
+        map,
+        new Uint8Array(buildable.length).fill(1),
+        piece,
+        { x: 4, y: 4, dir: 0 },
+        1_000_000,
+        2,
+        [elevatedTrack],
+        RideType.SteelLoopingCoaster,
+      ),
+    ).toBe(TrackResult.Ok);
+  });
 });
 
 describe('feedbackMessage', () => {
@@ -168,6 +194,16 @@ describe('feedbackMessage', () => {
     expect(feedbackMessage(FeedbackDomain.Track, TrackResult.Ok).ok).toBe(true);
     expect(feedbackMessage(FeedbackDomain.Ride, RideResult.TestPassed).ok).toBe(true);
     expect(feedbackMessage(FeedbackDomain.Ride, RideResult.TestFailed).ok).toBe(false);
+  });
+
+  it('includes the blocker and clearance location in track refusal feedback', () => {
+    expect(
+      feedbackMessage(
+        FeedbackDomain.Track,
+        TrackResult.Blocked,
+        'Steel Looping Coaster 12 track above at (3, 8); needs 2 more levels',
+      ).text,
+    ).toBe('Blocked by Steel Looping Coaster 12 track above at (3, 8); needs 2 more levels.');
   });
 });
 
