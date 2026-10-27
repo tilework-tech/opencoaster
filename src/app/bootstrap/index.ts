@@ -497,7 +497,7 @@ export async function bootstrap(): Promise<void> {
       camera.zoom,
       displayOptionEnabled('reduce-resolution-when-slow'),
     );
-    resolution.record(dt);
+    resolution.record(dt, renderMs);
     if (resolution.scale !== appliedScale) {
       appliedScale = resolution.scale;
       resizeCanvas();

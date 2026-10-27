@@ -6,11 +6,12 @@ function run(
   controller: AdaptiveResolution,
   frameMsAt: (scale: number) => number,
   seconds: number,
+  renderMsAt: (scale: number) => number = frameMsAt,
 ): void {
   let elapsed = 0;
   while (elapsed < seconds * 1000) {
     const frameMs = frameMsAt(controller.scale);
-    controller.record(frameMs);
+    controller.record(frameMs, renderMsAt(controller.scale));
     elapsed += frameMs;
   }
 }
@@ -94,18 +95,50 @@ describe('AdaptiveResolution', () => {
     for (const refreshInterval of [33.3, 25, 20, 16.7]) {
       const controller = new AdaptiveResolution();
       for (let i = 0; i < 1200; i++) {
-        controller.record(refreshInterval);
+        controller.record(refreshInterval, 2);
         expect(controller.scale).toBe(1);
       }
     }
   });
 
+  it('does not mistake missed 60 Hz frames for a 30 Hz display when rendering is slow', () => {
+    const controller = new AdaptiveResolution();
+    run(
+      controller,
+      () => 33.3,
+      6,
+      (scale) => 25 * scale * scale,
+    );
+    expect(controller.scale).toBeLessThan(1);
+  });
+
+  it('keeps using the learned refresh budget when GPU work delays later callbacks', () => {
+    const controller = new AdaptiveResolution();
+    run(
+      controller,
+      () => 16.7,
+      3,
+      () => 2,
+    );
+    let lowestScale = controller.scale;
+    for (let i = 0; i < 180; i++) {
+      controller.record(33.3, 2);
+      lowestScale = Math.min(lowestScale, controller.scale);
+    }
+    expect(lowestScale).toBeLessThan(1);
+  });
+
   it('detects overload above the observed refresh budget', () => {
     const controller = new AdaptiveResolution();
-    run(controller, () => 33.3, 3);
+    run(
+      controller,
+      () => 33.3,
+      3,
+      () => 2,
+    );
     let lowestScale = controller.scale;
     for (let i = 0; i < 100; i++) {
-      controller.record(50);
+      controller.record(50, 50);
       lowestScale = Math.min(lowestScale, controller.scale);
     }
     expect(lowestScale).toBeLessThan(1);

@@ -39,7 +39,9 @@ export class AdaptiveResolution {
   private readonly recoverMs: number;
   private elapsed = 0;
   private frames = 0;
-  private squares = 0;
+  private renderElapsed = 0;
+  private intervalSquares = 0;
+  private renderSquares = 0;
   private fastElapsed = 0;
   private backoff = 1;
   private probing = false;
@@ -59,15 +61,25 @@ export class AdaptiveResolution {
     this.recoverMs = options.recoverMs ?? 30_000;
   }
 
-  record(frameMs: number): void {
-    const clamped = Math.min(frameMs, MAX_FRAME_MS);
-    this.elapsed += clamped;
-    this.squares += clamped * clamped;
+  record(frameIntervalMs: number, renderMs = frameIntervalMs): void {
+    const interval = Math.min(frameIntervalMs, MAX_FRAME_MS);
+    const render = Math.min(renderMs, MAX_FRAME_MS);
+    this.elapsed += interval;
+    this.renderElapsed += render;
+    this.intervalSquares += interval * interval;
+    this.renderSquares += render * render;
     this.frames++;
     // A freshly restored scale is judged on a shorter window so a bad guess is undone quickly.
     if (this.elapsed < (this.probing ? this.windowMs / 2 : this.windowMs)) return;
-    const average = this.elapsed / this.frames;
-    const spread = Math.sqrt(Math.max(0, this.squares / this.frames - average * average)) / average;
+    const renderAverage = this.renderElapsed / this.frames;
+    const intervalAverage = this.elapsed / this.frames;
+    const average = Math.max(renderAverage, intervalAverage);
+    const renderSpread =
+      Math.sqrt(Math.max(0, this.renderSquares / this.frames - average * average)) / average;
+    const intervalSpread =
+      Math.sqrt(
+        Math.max(0, this.intervalSquares / this.frames - intervalAverage * intervalAverage),
+      ) / intervalAverage;
     let slowThreshold = Math.max(
       this.slowMs,
       Number.isFinite(this.refreshIntervalMs)
@@ -75,25 +87,28 @@ export class AdaptiveResolution {
         : this.slowMs,
     );
     if (
-      spread < STEADY_SPREAD &&
-      average >= 4 &&
-      average < 50 &&
-      (!Number.isFinite(this.refreshIntervalMs) || average <= slowThreshold)
+      intervalSpread < STEADY_SPREAD &&
+      renderAverage <= this.slowMs &&
+      intervalAverage >= 4 &&
+      intervalAverage < 50 &&
+      (!Number.isFinite(this.refreshIntervalMs) || intervalAverage <= slowThreshold)
     ) {
-      this.refreshIntervalMs = average;
-      slowThreshold = Math.max(this.slowMs, average * REFRESH_BUDGET_FACTOR);
+      this.refreshIntervalMs = Math.min(this.refreshIntervalMs, intervalAverage);
+      slowThreshold = Math.max(this.slowMs, this.refreshIntervalMs * REFRESH_BUDGET_FACTOR);
     }
     const windowMs = this.elapsed;
     this.elapsed = 0;
     this.frames = 0;
-    this.squares = 0;
+    this.renderElapsed = 0;
+    this.intervalSquares = 0;
+    this.renderSquares = 0;
     this.holdMs = Math.max(0, this.holdMs - windowMs);
     const drop = this.drop;
     this.drop = null;
     if (
       average > slowThreshold &&
       drop &&
-      spread < STEADY_SPREAD &&
+      Math.max(renderSpread, intervalSpread) < STEADY_SPREAD &&
       average > drop.average * (1 - MIN_IMPROVEMENT)
     ) {
       // Fewer pixels did not speed up a steady cadence (for example a display capped below 60 Hz).
