@@ -99,10 +99,11 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
       snapshot.rideInfo[o + RideInfo.RideX] = x;
       snapshot.rideInfo[o + RideInfo.RideY] = y;
       if (hut) {
+        // Just outside the 3x3 footprint around (x, y), where the sim places them.
         snapshot.rideInfo[o + RideInfo.Flags] = RideFlag.EntrancePlaced | RideFlag.ExitPlaced;
         snapshot.rideInfo[o + RideInfo.EntranceX] = x;
-        snapshot.rideInfo[o + RideInfo.EntranceY] = y - 1;
-        snapshot.rideInfo[o + RideInfo.ExitX] = x + 1;
+        snapshot.rideInfo[o + RideInfo.EntranceY] = y - 2;
+        snapshot.rideInfo[o + RideInfo.ExitX] = x + 2;
         snapshot.rideInfo[o + RideInfo.ExitY] = y;
       }
       snapshot.rides.data.set([x * 256, y * 256, 0, i], i * 4);
@@ -132,12 +133,20 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
         prefix: 'rides/flat/stations/',
         colour: [120, 60, 250],
         x: 9.5,
-        y: 7.5,
+        y: 6.5,
       },
       { name: 'gate', prefix: 'scenery/park-entrance', colour: [250, 120, 160], x: 12.5, y: 6.5 },
       { name: 'guest', prefix: 'people/guest-walk', colour: [255, 255, 255], x: 10.5, y: 5.5 },
       { name: 'staff', prefix: 'people/staff/', colour: [0, 0, 0], x: 5.5, y: 10.5 },
-      { name: 'litter', prefix: 'litter/', colour: [140, 90, 20], x: 8.5, y: 10.5 },
+      // Litter is only a few pixels tall: sample just above its pivot.
+      {
+        name: 'litter',
+        prefix: 'litter/',
+        colour: [140, 90, 20],
+        x: 8.5,
+        y: 10.5,
+        search: [-2, -1],
+      },
       {
         name: 'flower bed',
         prefix: 'scenery/flower-bed',
@@ -184,6 +193,17 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
     page.width = SIZE * unique.length;
     page.height = SIZE;
     const g = page.getContext('2d')!;
+    // Height page (src/render/height-encoding.ts): flat sprites lie at their anchor height,
+    // standing ones are upright cards rising 1/16 level per row above the anchor.
+    const heightPage = document.createElement('canvas');
+    heightPage.width = page.width;
+    heightPage.height = SIZE;
+    const heightContext = heightPage.getContext('2d')!;
+    const heightTexels = heightContext.createImageData(page.width, SIZE);
+    const flat = (name: string) =>
+      ['terrain/', 'water/', 'paths/', 'litter/', 'scenery/flower-bed'].some((p) =>
+        name.startsWith(p),
+      );
     const sprites: Record<string, unknown> = {};
     unique.forEach((name, i) => {
       const c = colourOf(name);
@@ -191,6 +211,16 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
       const fill = c ?? (isGround ? [60, 110, 60] : [90, 90, 90]);
       g.fillStyle = `rgb(${fill.join(',')})`;
       g.fillRect(i * SIZE, 0, SIZE, SIZE);
+      for (let row = 0; row < SIZE; row++) {
+        const levels = flat(name) ? 0 : (SIZE - row - 0.5) / 16;
+        const value = Math.round(levels * 256) + 32768;
+        for (let column = 0; column < SIZE; column++) {
+          const at = (row * page.width + i * SIZE + column) * 4;
+          heightTexels.data[at] = value >> 8;
+          heightTexels.data[at + 1] = value & 255;
+          heightTexels.data[at + 3] = 255;
+        }
+      }
       sprites[name] = {
         category: 'world',
         frames: Array.from({ length: 160 }, () => ({
@@ -205,13 +235,23 @@ test('every fixture object owns the pixels at its projected anchor in all rotati
         native: true,
       };
     });
+    heightContext.putImageData(heightTexels, 0, 0);
     spritePages.install(
       {
-        pages: [{ file: 'own.png', width: page.width, height: page.height, category: 'world' }],
+        pages: [
+          {
+            file: 'own.png',
+            depthFile: 'own.depth.png',
+            width: page.width,
+            height: page.height,
+            category: 'world',
+          },
+        ],
         categories: { world: { lazy: false, pages: [0] } },
         sprites: sprites as never,
       },
       new Map([[0, page as unknown as ImageBitmap]]),
+      new Map([[0, heightPage as unknown as ImageBitmap]]),
     );
 
     // Pass 2: draw and sample.
