@@ -10,6 +10,7 @@ import { setParkEntrance } from './park';
 import { rideQueueSystem } from '../rides/queue-system';
 import { rideSystem } from '../rides/ride-system';
 import { rideQueueCapacity } from '../rides/ride-operations';
+import { ticketPriceCents } from '../rides/queue-system';
 import { RideType } from '../rides/ride-types';
 import { isReachable } from '../pathfinding';
 
@@ -67,11 +68,11 @@ function nearbyPathGuests(world: World, joinTile: number): number {
   const gy = Math.floor(joinTile / world.map.width);
   let count = 0;
   for (let slot = 0; slot < world.guests.count; slot++) {
-    if (world.guests.cols.state[slot] !== GuestState.Wandering) continue;
     const x = world.guests.cols.x[slot]! >> 8;
     const y = world.guests.cols.y[slot]! >> 8;
     if (Math.max(Math.abs(x - gx), Math.abs(y - gy)) > 1) continue;
-    if (world.map.surface[world.map.index(x, y)] === Surface.Path) count++;
+    const tile = world.map.index(x, y);
+    if (world.map.surface[tile] === Surface.Path && !world.map.isQueue(tile)) count++;
   }
   return count;
 }
@@ -80,38 +81,42 @@ describe('guest ride demand under crowd pressure', () => {
   it('fills a popular gentle ride queue without leaving a crowd parked beside its entrance', () => {
     const { world, ride, joinTile } = crowdedPark();
     const capacity = rideQueueCapacity(world, ride);
-    console.info(JSON.stringify({
-      ride,
-      rideState: world.rides.cols.state[ride],
-      rideRatings: [world.rides.cols.excitement[ride], world.rides.cols.intensity[ride], world.rides.cols.nausea[ride]],
-      joinTile,
-      joinSurface: world.map.surface[joinTile],
-      fromEntrance: isReachable(world, world.map.index(2, 2), joinTile),
-      queueTiles: world.queues.tiles[ride],
-      targetable: Array.from(world.guests.cols.targetRide).filter((id) => id >= 0).length,
-      firstNeeds: [world.guests.cols.hunger[0], world.guests.cols.thirst[0], world.guests.cols.toilet[0], world.guests.cols.activityTicks[0]],
-    }));
+    expect(world.rides.cols.state[ride]).toBe(1);
+    expect(joinTile).toBeGreaterThanOrEqual(0);
+    expect(isReachable(world, world.map.index(2, 2), joinTile)).toBe(true);
+    expect(ticketPriceCents(world, ride)).toBe(0);
+    expect(capacity).toBe(56);
     const previous = new Map<number, { position: number; stillSamples: number }>();
-    const samples: Array<{ tick: number; queued: number; approaching: number; nearby: number }> = [];
+    const samples: Array<{ tick: number; queued: number; approaching: number; nearby: number }> =
+      [];
     let maxStationary = 0;
     tick(world, 8000, (at) => {
       if (at % 100 !== 0) return;
       let stationary = 0;
+      const seen = new Set<number>();
       for (let slot = 0; slot < world.guests.count; slot++) {
-        if (world.guests.cols.state[slot] !== GuestState.Wandering) continue;
         const x = world.guests.cols.x[slot]!;
         const y = world.guests.cols.y[slot]!;
         const tileX = x >> 8;
         const tileY = y >> 8;
-        if (Math.max(Math.abs(tileX - (joinTile % world.map.width)), Math.abs(tileY - Math.floor(joinTile / world.map.width))) > 1) continue;
-        if (world.map.surface[world.map.index(tileX, tileY)] !== Surface.Path) continue;
+        if (
+          Math.max(
+            Math.abs(tileX - (joinTile % world.map.width)),
+            Math.abs(tileY - Math.floor(joinTile / world.map.width)),
+          ) > 1
+        )
+          continue;
+        const tile = world.map.index(tileX, tileY);
+        if (world.map.surface[tile] !== Surface.Path || world.map.isQueue(tile)) continue;
         const id = world.guests.slotToId[slot]!;
+        seen.add(id);
         const position = (x << 16) ^ y;
         const last = previous.get(id);
         const stillSamples = last?.position === position ? last.stillSamples + 1 : 0;
         previous.set(id, { position, stillSamples });
         if (stillSamples >= 3) stationary++;
       }
+      for (const id of previous.keys()) if (!seen.has(id)) previous.delete(id);
       maxStationary = Math.max(maxStationary, stationary);
       if (at % 500 !== 0) return;
       samples.push({
@@ -121,7 +126,6 @@ describe('guest ride demand under crowd pressure', () => {
         nearby: nearbyPathGuests(world, joinTile),
       });
     });
-    console.info(JSON.stringify({ capacity, samples, maxStationary }));
     expect(samples.at(-1)!.queued).toBeGreaterThanOrEqual(40);
     expect(maxStationary).toBeLessThanOrEqual(12);
   });
