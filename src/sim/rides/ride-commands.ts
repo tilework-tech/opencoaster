@@ -345,9 +345,7 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
       result = setRideQueueLimit(world, c.rideId, c.limit) ? RideResult.Ok : RideResult.Blocked;
       break;
     case 'setRideTrains':
-      result = setTrainLayout(world, c.rideId, c.trains, c.cars)
-        ? RideResult.Ok
-        : RideResult.Blocked;
+      result = setTrainLayout(world, c.rideId, c.trains, c.cars);
       break;
     case 'setRideMode':
       result = !world.rides.isAlive(c.rideId)

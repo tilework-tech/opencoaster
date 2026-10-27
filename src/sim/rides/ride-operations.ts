@@ -1,6 +1,6 @@
 import type { World } from '../core/world';
 import { Surface } from '../map/tile-map';
-import { MAX_CARS, MAX_TRAINS_PER_RIDE, RIDERS_PER_CAR } from '../vehicles/ride-trains';
+import { maxCarsForRide, maxTrainsForRide, RIDERS_PER_CAR } from '../vehicles/ride-trains';
 import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
 import type { RideMode } from './ride-modes';
 import { RELIABILITY_MAX } from './ride-maintenance';
@@ -12,6 +12,7 @@ import {
   type RideType,
 } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
+import { RideResult } from './ride-results';
 import {
   SAME_TYPE_VALUE_PERCENT,
   rideAgeAdjustedValue,
@@ -323,23 +324,29 @@ export function leaveRideQueue(world: World, rideId: number, guests: number): bo
 /**
  * Sets how many trains a coaster runs and how many cars each has (0 for either means automatic).
  * Riders per train follow from the cars, so the ride's capacity per dispatch is set with them.
- * Trains already on the track keep their length until they are next spawned.
+ * Only a closed ride can change; cars must fit the station platform and trains the block sections.
+ * A closed, tested ride re-parks its train with the new car count on the next tick.
  */
 export function setTrainLayout(
   world: World,
   rideId: number,
   trains: number,
   cars: number,
-): boolean {
+): RideResult {
   const slot = slotForRide(world, rideId);
-  if (slot < 0 || !inRangeInteger(trains, 0, MAX_TRAINS_PER_RIDE)) return false;
-  if (!inRangeInteger(cars, 0, MAX_CARS)) return false;
-  const definition = RIDE_CATALOG[world.rides.cols.typeId[slot] as RideType];
+  if (slot < 0) return RideResult.NoSuchRide;
   const cols = world.rides.cols;
+  const definition = RIDE_CATALOG[cols.typeId[slot] as RideType];
+  if (!definition.usesTrack) return RideResult.NotTrackRide;
+  if (cols.state[slot] !== RideState.Closed || isRideInActiveCycle(cols.phase[slot])) {
+    return RideResult.Busy;
+  }
+  if (!inRangeInteger(trains, 0, maxTrainsForRide(world, rideId))) return RideResult.Blocked;
+  if (!inRangeInteger(cars, 0, maxCarsForRide(world, rideId))) return RideResult.Blocked;
   cols.trainCount[slot] = trains;
   cols.carsPerTrain[slot] = cars;
   cols.capacity[slot] = cars === 0 ? definition.capacity : cars * RIDERS_PER_CAR;
-  return true;
+  return RideResult.Ok;
 }
 
 export function setRidePrice(world: World, rideId: number, priceCents: number): boolean {

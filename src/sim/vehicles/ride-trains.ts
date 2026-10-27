@@ -1,13 +1,15 @@
 import type { World } from '../core/world';
 import { spawnTrain, VehicleState } from './vehicle-store';
-import { syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
+import { maxTrainsOnTrack, syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
+import type { VehicleTrack } from './vehicle-track';
+import { CAR_LENGTH_Q8 } from './vehicle-system';
 
 /** Dispatch is driven by the ride's own operating rules, so the train never self-dispatches. */
 const RIDE_MANAGED_MIN_WAIT = 0xffff;
 /** Empty mass of one car; riders add `PASSENGER_MASS` each, so loaded trains run more freely. */
 export const CAR_MASS = 1800;
 export const RIDERS_PER_CAR = 4;
-/** A train must fit inside the station piece. */
+/** Most cars a train can have, before the station length limits it further. */
 export const MAX_CARS = 5;
 /** Most trains a coaster runs at once, however many block sections it has. */
 export const MAX_TRAINS_PER_RIDE = 4;
@@ -67,16 +69,36 @@ export function spawnRideTrain(
   });
   if (slot < 0) return -1;
   const cols = world.vehicles.cols;
-  const atEnd =
-    state === VehicleState.Waiting &&
-    track.stationEndSegment >= 0 &&
-    track.stationEndSegment < track.segmentLengths.length;
-  const segment = atEnd ? track.stationEndSegment : track.stationSegment;
+  const waiting = state === VehicleState.Waiting && track.stationEndSegment >= 0;
+  // A platform that ends where the circuit ends has its front at the start of the loop. */
+  const wrapsToStart = waiting && track.stationEndSegment >= track.segmentLengths.length;
+  const atEnd = waiting && !wrapsToStart;
+  const segment = atEnd ? track.stationEndSegment : wrapsToStart ? 0 : track.stationSegment;
   const point = segment * 3;
   cols.trackPos[slot] = track.cumulativeLengthsQ8[segment];
   cols.x[slot] = track.points[point];
   cols.y[slot] = track.points[point + 1];
   cols.z[slot] = track.points[point + 2];
-  cols.lastSegment[slot] = atEnd ? segment - 1 : segment;
+  cols.lastSegment[slot] = atEnd ? segment - 1 : wrapsToStart ? 0xffff : segment;
   return slot;
+}
+
+function currentTrack(world: World, rideId: number): VehicleTrack | undefined {
+  const tracks = (world.vehicleTracks ??= new VehicleTrackRegistry());
+  syncVehicleTracks(world, tracks);
+  return tracks.get(rideId);
+}
+
+/** Longest train the ride's station platform holds: the cars must all stand inside it. */
+export function maxCarsForRide(world: World, rideId: number): number {
+  const track = currentTrack(world, rideId);
+  if (!track || track.stationSegment < 0 || track.stationEndQ8 < 0) return MAX_CARS;
+  const platform = track.stationEndQ8 - track.cumulativeLengthsQ8[track.stationSegment];
+  return Math.max(1, Math.min(MAX_CARS, Math.floor(platform / CAR_LENGTH_Q8)));
+}
+
+/** Most trains the ride runs at once: one per block section, at most `MAX_TRAINS_PER_RIDE`. */
+export function maxTrainsForRide(world: World, rideId: number): number {
+  const track = currentTrack(world, rideId);
+  return track ? Math.min(MAX_TRAINS_PER_RIDE, maxTrainsOnTrack(track)) : 1;
 }

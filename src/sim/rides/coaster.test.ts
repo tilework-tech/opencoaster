@@ -353,7 +353,9 @@ describe('coaster failure handling', () => {
     expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
     expect(sim.world.rides.cols.phase[slot]).toBe(RidePhase.Closed);
     expect(sim.world.rides.cols.guestsServed[slot]).toBe(12);
-    expect(sim.world.vehicles.count).toBe(0);
+    expect(sim.world.vehicles.count).toBe(1);
+    expect(sim.world.vehicles.cols.state[0]).toBe(VehicleState.Waiting);
+    expect(sim.world.vehicles.cols.passengers[0]).toBe(0);
     sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
     sim.step();
     expect(sim.world.feedback.code).toBe(RideResult.Ok);
