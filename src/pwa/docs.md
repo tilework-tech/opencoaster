@@ -20,14 +20,14 @@ Path: @/src/pwa
 ### Core Implementation
 
 - [register.ts](register.ts) calls `navigator.serviceWorker.register` when the API exists and reports registration errors through the browser console.
-- [service-worker.js](service-worker.js) installs a versioned cache from the build-generated URL list, removes older OpenCoaster static caches on activation, and claims controlled clients.
-- Fetch handling serves a cached response first, otherwise fetches and stores successful basic same-origin responses. Failed navigation requests fall back to the cached shell at the worker's scope.
+- [service-worker.js](service-worker.js) installs a cache named for the build (`opencoaster-static-<build stamp>`, filled in by [vite.config.ts](../../vite.config.ts)) from the build-generated URL list, removes older OpenCoaster static caches on activation, and claims controlled clients.
+- Page navigations go to the network first (`cache: 'no-cache'`, so the browser HTTP cache cannot supply an old shell naming old assets) and update the cache; offline they fall back to the cached page or the shell at the worker's scope. Every other same-origin GET is served from the cache first, otherwise fetched and stored. Install precaches with `cache: 'reload'` for the same reason.
 - [manifest.webmanifest](../../public/manifest.webmanifest) describes standalone launch, orientation, theme colors, and scalable/raster app icons.
 
 ### Things to Know
 
 - Offline startup requires one successful online load so the worker can install and cache the shell and requested assets.
-- Static cache version changes are the invalidation boundary: activation removes older caches with the OpenCoaster static-cache prefix.
+- Each build has its own cache, and activation removes the caches of earlier builds. A page that is already open keeps running the build it loaded until it is reloaded; the next navigation gets the new build. A browser still running the previous cache-first worker serves its old shell once more before the new worker takes over.
 - The PWA layer does not cache or migrate game saves; save slots remain in the save subsystem's IndexedDB or its in-memory fallback.
 
 Created and maintained by Nori.
