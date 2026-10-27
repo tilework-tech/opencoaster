@@ -21,7 +21,7 @@ Scope: compare the current OpenCoaster simulation with RollerCoaster Tycoon 2 (R
 | 13 | Add litter/vomit complaints and vandalism feedback | Medium | S | Litter, vomit, and vandalism exist, but litter does not lower guest happiness or produce negative thoughts; several vandalism cues are absent. |
 | 14 | Validate weather states and consequences | Low | M | Four-state weather, temperature, rain pricing/umbrella behavior, and some ride effects exist; RCT2's broader transitions and consequences are not reproduced. |
 | 15 | Bring land pricing and rights rules into scenario data | Low | S | Ownership and construction rights work, but fixed project prices replace scenario-configured prices. |
-| 16 | Add music assignment and effects | Low | S | RCT2 ride music has guest and ride-rating effects; OpenCoaster has no music simulation or assignment behavior. |
+| 16 | Add music assignment and effects | Low | S | OpenCoaster has synthesized ride audio but lacks per-ride selection and music-driven guest/rating effects. |
 | 17 | Connect crashes to guest casualties and park safety consequences | Low | M | Crash thresholds and ride closure exist, but crash events do not currently call the economy's casualty-recording helpers. |
 
 ## Evidence and mechanics by area
