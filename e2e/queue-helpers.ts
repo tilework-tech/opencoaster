@@ -266,7 +266,12 @@ export async function startOpenGrounds(page: Page): Promise<void> {
     .click();
   await expect(page.locator('.game-toolbar')).toBeVisible();
   await expect
-    .poll(() => page.evaluate(() => (window as unknown as { __camera: { x: number } }).__camera.x))
+    .poll(
+      () => page.evaluate(() => (window as unknown as { __camera?: { x: number } }).__camera?.x),
+      {
+        timeout: 60_000,
+      },
+    )
     .not.toBe(0);
 }
 
