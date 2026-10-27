@@ -127,8 +127,9 @@ test.describe('map right-click', () => {
     for (const ride of rides) {
       const at = await aimAt(page, world, ride.x, ride.y);
       expect(await rightClick(page, at)).toBe(true);
-      await expect(page.locator(`.ui-window[data-panel="ride-${ride.id}"]`)).toBeVisible();
-      await expect(page.locator('.tool-status')).toContainText(`${ride.name} information opened`);
+      const rideWindow = page.locator(`.ui-window[data-panel="ride-${ride.id}"]`);
+      await expect(rideWindow).toBeVisible();
+      await expect(rideWindow.locator('.ui-title')).toContainText(ride.name);
       await closeWindows(page);
     }
   });
