@@ -13,6 +13,27 @@
       canvas {
         display: block;
       }
+      .rain-active::after {
+        position: fixed;
+        z-index: 2;
+        inset: 0;
+        pointer-events: none;
+        content: '';
+        background-color: rgba(22, 34, 50, 0.21);
+        background-image: repeating-linear-gradient(
+          108deg,
+          transparent 0 19px,
+          #d7e7ff55 20px 21px,
+          transparent 22px 38px
+        );
+        background-size: 38px 54px;
+        animation: rain-drift 0.65s linear infinite;
+      }
+      @keyframes rain-drift {
+        to {
+          background-position: -24px 54px;
+        }
+      }
     </style>
   </head>
   <body>

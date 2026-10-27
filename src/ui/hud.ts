@@ -20,6 +20,7 @@ export class Hud {
     renderMs = 0,
     visibleSprites = 0,
     backend = 'Renderer',
+    renderScale = 1,
   ): void {
     if (!stats) {
       this.el.textContent = 'starting…';
@@ -30,7 +31,7 @@ export class Hud {
       `tick ${stats.tick}  guests ${stats.guests}\n` +
       `sim ${stats.msPerTick.toFixed(2)}ms/tick (max ${stats.maxMsPerTick.toFixed(2)})${over}\n` +
       `dropped ticks ${stats.droppedTicks}  fps ${fps.toFixed(0)}  rot ${rotation}\n` +
-      `${backend}  frame ${renderMs.toFixed(2)}ms  sprites ${visibleSprites}`;
+      `${backend}  frame ${renderMs.toFixed(2)}ms  scale ${renderScale.toFixed(2)}×  sprites ${visibleSprites}`;
   }
 }
 

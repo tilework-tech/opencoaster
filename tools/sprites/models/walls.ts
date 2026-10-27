@@ -16,7 +16,7 @@ export const STONE_WALL_HEIGHT = 0.17;
 export const STONE_PILLAR_HEIGHT = 0.28;
 export const WOODEN_FENCE_HEIGHT = 0.23;
 /** The park boundary: a low rail-and-post fence along the edge of owned land. */
-export const PARK_FENCE_HEIGHT = 0.2;
+export const PARK_FENCE_HEIGHT = 0.3;
 
 const HEDGE_SEGMENTS = 16;
 const STONE_SEGMENTS = 8;
