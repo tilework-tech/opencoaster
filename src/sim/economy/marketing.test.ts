@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BASIS_POINTS, NO_TARGET, createLedger } from './ledger';
-import {
-  CAMPAIGNS,
-  MAX_CAMPAIGN_WEEKS,
-  chargeCampaignWeek,
-  marketingAttractionBps,
-  startCampaign,
-} from './marketing';
+import { NO_TARGET, createLedger } from './ledger';
+import { CAMPAIGNS, MAX_CAMPAIGN_WEEKS, chargeCampaignWeek, startCampaign } from './marketing';
 
 const FREE_RIDE = 2;
 const FOOD_OFFER = 4;
@@ -73,14 +67,5 @@ describe('campaign costs and attraction', () => {
     chargeCampaignWeek(l);
     expect(l.cash).toBe(cash - 2 * CAMPAIGNS[FREE_ENTRY].weeklyCostCents);
     expect(l.campaignWeeksLeft).toBe(0);
-  });
-
-  it('boosts attraction only while the campaign has weeks left', () => {
-    const l = createLedger();
-    expect(marketingAttractionBps(l)).toBe(BASIS_POINTS);
-    startCampaign(l, FREE_ENTRY, 1);
-    expect(marketingAttractionBps(l)).toBe(CAMPAIGNS[FREE_ENTRY].attractionBps);
-    chargeCampaignWeek(l);
-    expect(marketingAttractionBps(l)).toBe(BASIS_POINTS);
   });
 });

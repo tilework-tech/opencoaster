@@ -16,7 +16,7 @@ function addNearbyRubbish(world: World, x: number, y: number): void {
   }
 }
 
-const admission = () => ({ parkRating: 0, entranceFee: 0 });
+const admission = () => ({ generationProbability: 0, entranceFee: 0 });
 
 function stepSystem(world: World, system: ReturnType<typeof createGuestSystem>, ticks: number) {
   for (let i = 0; i < ticks; i++) {
@@ -143,36 +143,6 @@ describe('stall service', () => {
     const states = guests.map((g) => world.guests.cols.state[g]);
     expect(states.filter((s) => s === GuestState.Shopping)).toHaveLength(1);
     expect(states.filter((s) => s === GuestState.Waiting)).toHaveLength(2);
-  });
-});
-
-describe('park capacity', () => {
-  function arrivals(openRides: number): number {
-    const world = flatWorld(24, 11);
-    layPath(world, row(12, 3, 21));
-    for (let i = 0; i < openRides; i++) {
-      const x = 4 + i * 3;
-      const ride = openRide(
-        world,
-        RideType.MerryGoRound,
-        [x, 11],
-        [x, 12],
-        [x + 1, 11],
-        [[x - 1, 12]],
-      );
-      world.rides.cols.excitement[ride] = 500;
-    }
-    const system = createGuestSystem(() => ({ parkRating: 900, entranceFee: 0 }));
-    world.park.entranceX = 2;
-    world.park.entranceY = 12;
-    layPath(world, [[2, 12]]);
-    stepSystem(world, system, 3000);
-    return world.guests.count;
-  }
-
-  it('lets a park with more attractions hold more guests', () => {
-    expect(arrivals(0)).toBeLessThanOrEqual(30);
-    expect(arrivals(5)).toBeGreaterThan(30);
   });
 });
 

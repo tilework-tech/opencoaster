@@ -1,14 +1,9 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
-import {
-  arrivalVoucher,
-  charge,
-  earn,
-  gateAdmissionCents,
-  marketingAttraction,
-} from '../economy/api';
-import { BASIS_POINTS, LedgerCategory } from '../economy/ledger';
+import { arrivalVoucher, charge, earn, gateAdmissionCents } from '../economy/api';
+import { LedgerCategory } from '../economy/ledger';
+import { GENERATION_ROLL_RANGE, campaignGenerationProbability } from '../economy/guest-generation';
 import { gateFeeAfterVoucher, isEntryVoucher, VoucherKind } from '../economy/vouchers';
 import {
   DEFAULT_GUEST_OPTS,
@@ -50,7 +45,6 @@ import { hasParkEntrance, parkEntranceTile } from './park';
 import { exceedsNauseaLimit, intensityCeilingOf, preferredIntensityOf } from './preferences';
 import { recountRideLines } from './ride-lines';
 import { WeatherKind } from '../weather/weather';
-import { awardAttractionBps } from '../economy/awards';
 import { updateGuestSurroundings } from './surroundings';
 
 const UPDATE_STRIDE = 4;
@@ -82,11 +76,6 @@ const MEAL_RELIEF = 176;
 const MEAL_THIRST = 32;
 const SHOP_HAPPINESS = 8;
 const STOCK_COST_PERCENT = 40;
-const ARRIVAL_INTERVAL = 40;
-/** Guests the park comfortably holds before arrivals taper off: a base plus what its rides add. */
-const COMFORTABLE_BASE = 30;
-const COMFORTABLE_PER_ATTRACTION = 40;
-const COMFORTABLE_PER_STALL = 8;
 /** Longest line, in guests, a stall or facility tolerates before newcomers look elsewhere. */
 const STALL_LINE_LIMIT = 8;
 /** Score cost of each guest already in a ride's line, in the same units as excitement x 4. */
@@ -98,14 +87,11 @@ const TASTE_RANGE = 400;
 const TASTE_EPOCH_SHIFT = 11;
 
 export interface GuestAdmission {
-  parkRating: number;
+  /** Chance per tick, out of 65536, that a guest arrives on their own. */
+  generationProbability: number;
   entranceFee: number;
-  /** Arrival multiplier in basis points; 10000 (the default) means no campaign. */
-  attractionBps?: number;
-  /** Natural guest-generation multiplier from active park awards. */
-  awardBps?: number;
-  /** Voucher each arriving guest receives, and the ride or stall it names. */
-  voucher?: { kind: VoucherKind; target: number };
+  /** Extra guests drawn by the running marketing campaign, each carrying its voucher. */
+  campaign?: { probability: number; voucher: { kind: VoucherKind; target: number } };
 }
 
 const NO_VOUCHER = { kind: VoucherKind.None, target: -1 };
@@ -121,14 +107,25 @@ function tripFinished(completed: number, tag: number): boolean {
   return passed >= 1 && passed < 0x8000;
 }
 
+const economyVoucher = { kind: VoucherKind.None, target: -1 };
+const economyCampaign = { probability: 0, voucher: economyVoucher };
+const economyAdmission: GuestAdmission = {
+  generationProbability: 0,
+  entranceFee: 0,
+  campaign: economyCampaign,
+};
+
+/** Reads the arrival odds from the ledger into one reused record, so a tick allocates nothing. */
 function admissionFromEconomy(world: World): GuestAdmission {
-  return {
-    parkRating: world.economy.parkRating,
-    entranceFee: gateAdmissionCents(world),
-    attractionBps: marketingAttraction(world),
-    awardBps: awardAttractionBps(world.economy.activeAwards, world.tick),
-    voucher: arrivalVoucher(world),
-  };
+  economyAdmission.generationProbability = world.economy.guestGeneration.probability;
+  economyAdmission.entranceFee = gateAdmissionCents(world);
+  economyCampaign.probability = campaignGenerationProbability(world);
+  if (economyCampaign.probability > 0) {
+    const voucher = arrivalVoucher(world);
+    economyVoucher.kind = voucher.kind;
+    economyVoucher.target = voucher.target;
+  }
+  return economyAdmission;
 }
 
 function rideCategory(world: World, ride: number): string {
@@ -1042,38 +1039,17 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   return false;
 }
 
-/** Guests the park holds comfortably: what its open rides, stalls and facilities can serve. */
-function comfortableGuests(world: World): number {
-  const r = world.rides.cols;
-  let total = COMFORTABLE_BASE;
-  for (let ride = 0; ride < world.rides.count; ride++) {
-    if (r.state[ride] !== RideState.Open) continue;
-    total += isThrillCategory(rideCategory(world, ride))
-      ? COMFORTABLE_PER_ATTRACTION
-      : COMFORTABLE_PER_STALL;
-  }
-  return total;
-}
-
-function spawnArrival(world: World, admission: GuestAdmission): void {
-  const feePenalty = Math.max(0, admission.entranceFee - Math.max(100, admission.parkRating * 2));
-  const base = Math.max(0, Math.min(1000, admission.parkRating - feePenalty));
-  const campaignBps = admission.attractionBps ?? BASIS_POINTS;
-  const campaign = Math.floor((base * campaignBps) / BASIS_POINTS);
-  const attraction =
-    campaignBps === BASIS_POINTS
-      ? Math.floor((campaign * (admission.awardBps ?? BASIS_POINTS)) / BASIS_POINTS)
-      : campaign;
-  const comfortable = comfortableGuests(world);
-  const guests = world.guests.count;
-  if (guests >= world.guests.capacity || guests >= comfortable) return;
-  const chance = Math.floor((attraction * (comfortable - guests)) / comfortable);
-  if (world.rng.int(1000) >= chance) return;
+/** Admits one guest through the gate, charging the entrance fee less any voucher. */
+function spawnArrival(
+  world: World,
+  entranceFee: number,
+  voucher: { kind: VoucherKind; target: number },
+): void {
+  if (world.guests.count >= world.guests.capacity) return;
   if (!spawnGuest(world)) return;
   const slot = world.guests.count - 1;
   const guest = world.guests.cols;
-  const voucher = admission.voucher ?? NO_VOUCHER;
-  const fee = Math.min(gateFeeAfterVoucher(voucher.kind, admission.entranceFee), guest.cash[slot]);
+  const fee = Math.min(gateFeeAfterVoucher(voucher.kind, entranceFee), guest.cash[slot]);
   if (fee > 0) {
     guest.cash[slot] -= fee;
     earn(world, LedgerCategory.Admission, fee);
@@ -1094,8 +1070,17 @@ export function createGuestSystem(
       refreshQueueIndex(world);
       recountRideLines(world);
       updateQueueLines(world);
-      if (world.tick % ARRIVAL_INTERVAL === 0 && hasParkEntrance(world)) {
-        spawnArrival(world, admissionProvider(world));
+      if (hasParkEntrance(world)) {
+        const admission = admissionProvider(world);
+        if (world.rng.int(GENERATION_ROLL_RANGE) < admission.generationProbability) {
+          spawnArrival(world, admission.entranceFee, NO_VOUCHER);
+        }
+        const campaign = admission.campaign;
+        if (campaign && campaign.probability > 0) {
+          if (world.rng.int(GENERATION_ROLL_RANGE) < campaign.probability) {
+            spawnArrival(world, admission.entranceFee, campaign.voucher);
+          }
+        }
       }
       for (let slot = 0; slot < world.guests.count;) {
         if ((world.tick + world.guests.slotToId[slot]) % UPDATE_STRIDE === 0) {

@@ -8,7 +8,7 @@ import {
   TICKS_PER_WEEK,
 } from './calendar';
 import { DIFFICULT_RATING_BASE, RATING_BASE } from './park-rating';
-import { BASIS_POINTS, LedgerCategory } from './ledger';
+import { LedgerCategory } from './ledger';
 import { setEconomyInputs } from './api';
 import { RIDE_UPKEEP_DIVISOR } from './park-inputs';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
@@ -19,7 +19,8 @@ import { applyEconomyAction } from './actions';
 import { PriceMode } from './ledger';
 import { CAMPAIGNS } from './marketing';
 import { economySystem } from './economy-system';
-import { marketingAttraction, recordDrowningCasualty, recordFatalRideCrash } from './api';
+import { campaignGenerationProbability } from './guest-generation';
+import { recordDrowningCasualty, recordFatalRideCrash } from './api';
 
 function sim(): Simulation {
   return new Simulation({ seed: 9, width: 16, height: 16 });
@@ -136,11 +137,11 @@ describe('marketing campaigns', () => {
     const start = s.world.economy.cash;
     runUntil(s, TICKS_PER_WEEK * 4);
     expect(s.world.economy.campaignWeeksLeft).toBe(1);
-    expect(marketingAttraction(s.world)).toBe(campaign.attractionBps);
+    expect(campaignGenerationProbability(s.world)).toBe(campaign.guestsPerTick / 8);
     runUntil(s, TICKS_PER_WEEK * 6);
     expect(s.world.economy.cash).toBe(start - campaign.weeklyCostCents * 5);
     expect(s.world.economy.campaignWeeksLeft).toBe(0);
-    expect(marketingAttraction(s.world)).toBe(BASIS_POINTS);
+    expect(campaignGenerationProbability(s.world)).toBe(0);
   });
 });
 

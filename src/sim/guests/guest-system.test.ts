@@ -467,11 +467,11 @@ describe('arrivals', () => {
   function arrivals(
     w: World,
     provider: Parameters<typeof createGuestSystem>[0],
-    intervals = 200,
+    ticks = 2000,
   ): number {
     const system = createGuestSystem(provider);
-    for (let i = 0; i < intervals; i++) {
-      w.tick = i * 80;
+    for (let i = 0; i < ticks; i++) {
+      w.tick = i;
       system.update(w);
     }
     return w.guests.count;
@@ -485,67 +485,54 @@ describe('arrivals', () => {
 
   it('does not admit guests to a park without a gate', () => {
     const w = flatWorld();
-    expect(arrivals(w, () => ({ parkRating: 1000, entranceFee: 0 }), 20)).toBe(0);
+    expect(arrivals(w, () => ({ generationProbability: 65_536, entranceFee: 0 }), 20)).toBe(0);
   });
 
-  it('brings in more guests at a higher rating, and none at an excessive fee', () => {
-    const good = arrivals(gated(), () => ({ parkRating: 900, entranceFee: 0 }));
-    const poor = arrivals(gated(), () => ({ parkRating: 100, entranceFee: 0 }));
-    const dear = arrivals(gated(), () => ({ parkRating: 900, entranceFee: 50_000 }));
-    expect(good).toBeGreaterThan(poor);
-    expect(poor).toBeGreaterThan(0);
-    expect(dear).toBe(0);
+  it('rolls once a tick against a probability out of 65536', () => {
+    expect(arrivals(gated(), () => ({ generationProbability: 65_536, entranceFee: 0 }), 40)).toBe(
+      40,
+    );
+    expect(arrivals(gated(), () => ({ generationProbability: 0, entranceFee: 0 }))).toBe(0);
+    // 655/65536 is about one tick in a hundred: roughly 20 guests in 2000 ticks.
+    const some = arrivals(gated(), () => ({ generationProbability: 655, entranceFee: 0 }));
+    expect(some).toBeGreaterThan(8);
+    expect(some).toBeLessThan(40);
   });
 
-  it('charges the gate fee and a campaign draws a bigger crowd', () => {
+  it('charges the entrance fee for each arrival', () => {
     const w = gated();
-    w.economy.priceMode = PriceMode.Admission;
-    w.economy.admissionPrice = 300;
-    w.economy.parkRating = 400;
-    const quiet = gated();
-    quiet.economy.parkRating = 400;
-    const guests = arrivals(w, undefined, 100);
+    const guests = arrivals(w, () => ({ generationProbability: 655, entranceFee: 300 }));
     expect(guests).toBeGreaterThan(0);
     expect(w.economy.monthlyTotals[LedgerCategory.Admission]).toBe(300 * guests);
+  });
 
+  it('takes its probability from the economy and draws extra guests from a campaign', () => {
+    const quiet = gated();
+    quiet.economy.guestGeneration.probability = 300;
     const advertised = gated();
-    advertised.economy.parkRating = 400;
+    advertised.economy.guestGeneration.probability = 300;
     advertised.economy.campaignId = 1;
     advertised.economy.campaignWeeksLeft = 4;
-    expect(arrivals(advertised, undefined, 100)).toBeGreaterThan(arrivals(quiet, undefined, 100));
+    expect(arrivals(advertised, undefined, 4000)).toBeGreaterThan(arrivals(quiet, undefined, 4000));
   });
 
-  it('uses positive and negative awards to scale natural park arrivals', () => {
-    const make = (awardId: number, seed = 5): World => {
-      const w = gated(seed);
-      w.economy.parkRating = 600;
-      w.economy.activeAwards.push({ awardId, expiresTick: 100_000 });
-      return w;
-    };
-    let positive = 0;
-    let neutral = 0;
-    let negative = 0;
-    for (let seed = 1; seed <= 20; seed++) {
-      positive += arrivals(make(0, seed), undefined, 20);
-      const neutralWorld = gated(seed);
-      neutralWorld.economy.parkRating = 600;
-      neutral += arrivals(neutralWorld, undefined, 20);
-      negative += arrivals(make(12, seed), undefined, 20);
+  it('gives only campaign guests the campaign voucher', () => {
+    const w = gated();
+    w.economy.guestGeneration.probability = 0;
+    w.economy.campaignId = 2;
+    w.economy.campaignWeeksLeft = 4;
+    w.economy.campaignTarget = 7;
+    const guests = arrivals(w, undefined, 4000);
+    expect(guests).toBeGreaterThan(0);
+    for (let slot = 0; slot < guests; slot++) {
+      expect(w.guests.cols.voucherKind[slot]).toBe(VoucherKind.FreeRide);
     }
-    expect(positive).toBeGreaterThan(neutral);
-    expect(negative).toBeLessThan(neutral);
-  });
-
-  it('leaves active advertising arrivals unchanged by awards', () => {
-    const make = (awardId?: number): World => {
-      const w = gated();
-      w.economy.parkRating = 600;
-      w.economy.campaignId = 1;
-      w.economy.campaignWeeksLeft = 2;
-      if (awardId !== undefined) w.economy.activeAwards.push({ awardId, expiresTick: 100_000 });
-      return w;
-    };
-    expect(arrivals(make(12), undefined, 200)).toBe(arrivals(make(), undefined, 200));
+    const natural = gated();
+    natural.economy.guestGeneration.probability = 655;
+    arrivals(natural, undefined, 2000);
+    for (let slot = 0; slot < natural.guests.count; slot++) {
+      expect(natural.guests.cols.voucherKind[slot]).toBe(VoucherKind.None);
+    }
   });
 });
 
@@ -572,7 +559,11 @@ describe('campaign vouchers', () => {
     const w = flatWorld(16);
     layPath(w, row(5, 2, 9));
     expect(setParkEntrance(w, 2, 5)).toBe(true);
-    const admission = () => ({ parkRating: 1000, entranceFee: fee, voucher: { kind, target } });
+    const admission = () => ({
+      generationProbability: 0,
+      entranceFee: fee,
+      campaign: { probability: 65_536, voucher: { kind, target } },
+    });
     createGuestSystem(admission).update(w);
     expect(w.guests.count).toBe(1);
     return w;
