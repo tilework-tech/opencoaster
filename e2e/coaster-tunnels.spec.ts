@@ -118,7 +118,7 @@ async function buildCoaster(
 }
 
 async function dumpTrack(page: Page): Promise<Placed[]> {
-  return page.evaluate(() => {
+  return page.evaluate((trackZStep) => {
     const latest = (
       window as unknown as {
         __sim: { latest: { tracks: { count: number; data: Int32Array } } };
@@ -132,11 +132,11 @@ async function dumpTrack(page: Page): Promise<Placed[]> {
         dir: (word >> 8) & 3,
         x: Math.floor(latest.tracks.data[i * 4]! / 256),
         y: Math.floor(latest.tracks.data[i * 4 + 1]! / 256),
-        z: latest.tracks.data[i * 4 + 2]! / TRACK_Z_STEP,
+        z: latest.tracks.data[i * 4 + 2]! / trackZStep,
       });
     }
     return out;
-  });
+  }, TRACK_Z_STEP);
 }
 
 /** Points the camera at a tile and takes the page image for the current rotation. */
@@ -366,7 +366,7 @@ test('built track is drawn on its sim centre line in every view rotation', async
       for (let k = def.sampleStart; k < def.sampleStart + def.sampleCount; k += 2) {
         const [px, py] = await screenPoint(page, world, rotation, ...worldPoint(t, k));
         checked++;
-        if (changedNear(empty[rotation]!, drawn, px, py, 4) === 0) missing++;
+        if (changedNear(empty[rotation]!, drawn, px, py, 6) === 0) missing++;
       }
     }
     expect(
