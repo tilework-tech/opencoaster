@@ -39,7 +39,7 @@ export function groundHeightAt(terrain: TerrainTiles, xu: number, yu: number): n
 }
 
 /** World position, in fixed-point units, of a centre line sample of a placed piece. */
-function samplePoint(
+export function samplePoint(
   sample: number,
   x: number,
   y: number,
@@ -277,6 +277,37 @@ function buildPortal(
   return portal;
 }
 
+/** Depth at which a trench ends in a headwall and the track goes under cover. */
+export const ROOF_DEPTH = Z_STEP - CLEARANCE_SLACK;
+
+export function isStraight(pieceType: number): boolean {
+  const piece = PIECES[pieceType]!;
+  return piece.shape === 'straight' && piece.dx * piece.dx + piece.dy * piece.dy === 1;
+}
+
+/** Depth of the centre line below the ground at a fixed-point point (negative above ground). */
+export function depthAt(terrain: TerrainTiles, point: readonly [number, number, number]): number {
+  return groundHeightAt(terrain, point[0], point[1]) - point[2];
+}
+
+/**
+ * True when a piece that is not straight lies partly below the ground without being roofed over
+ * along its whole length: a trench is cut straight, so a turn or hill may not sit in one.
+ */
+export function unsoundTrenchPiece(
+  terrain: TerrainTiles,
+  piece: { pieceType: number; x: number; y: number; z: number; dir: number },
+): boolean {
+  if (isStraight(piece.pieceType)) return false;
+  const def = PIECES[piece.pieceType]!;
+  let shallow = false;
+  for (let k = def.sampleStart; k < def.sampleStart + def.sampleCount; k++) {
+    const depth = depthAt(terrain, samplePoint(k, piece.x, piece.y, piece.z, piece.dir));
+    if (depth > CLEARANCE_SLACK && depth < ROOF_DEPTH) shallow = true;
+  }
+  return shallow;
+}
+
 /** True when any tunnel mouth of the piece is not on a tile edge of suitable ground. */
 export function badTunnelEntry(
   terrain: TerrainTiles,
@@ -286,7 +317,10 @@ export function badTunnelEntry(
   z: number,
   dir: number,
 ): boolean {
-  return pieceTunnelPortals(terrain, pieceType, x, y, z, dir).some((p) => !p.valid);
+  return (
+    pieceTunnelPortals(terrain, pieceType, x, y, z, dir).some((p) => !p.valid) ||
+    unsoundTrenchPiece(terrain, { pieceType, x, y, z, dir })
+  );
 }
 
 /** First tile index of `undergroundTiles`, or -1 when the whole piece is above ground. */
