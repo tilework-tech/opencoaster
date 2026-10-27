@@ -24,11 +24,15 @@ import {
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 import { migrateQueueLinks } from '../sim/map/queue-link-migration';
+import { migrateTrackHeights } from '../sim/track/track-height-migration';
 import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
 import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
+/** Track heights count half-level track steps from this version; earlier saves store whole levels. */
+const TRACK_STEP_SAVE_VERSION = 26;
+const PRE_TRACK_STEP_SAVE_VERSION = 25;
 const WALL_EDGE_SAVE_VERSION = 24;
 const PRE_WALL_EDGE_SAVE_VERSION = 23;
 /** Queue pieces carry explicit links to the neighbours that follow them from this version. */
@@ -491,6 +495,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_QUEUE_ORDER_SAVE_VERSION,
     PRE_WALL_EDGE_SAVE_VERSION,
     PRE_QUEUE_LINKS_SAVE_VERSION,
+    PRE_TRACK_STEP_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -638,6 +643,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version < FOOTPRINT_SAVE_VERSION) migrateSingleTileRides(world);
   if (header.version < WALL_EDGE_SAVE_VERSION) migrateWallEdges(world);
   if (header.version < QUEUE_LINKS_SAVE_VERSION) migrateQueueLinks(world);
+  if (header.version < TRACK_STEP_SAVE_VERSION) migrateTrackHeights(world);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION

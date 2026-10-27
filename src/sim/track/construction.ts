@@ -226,7 +226,8 @@ export function validatePlacement(world: World, req: PlaceRequest): TrackResult 
 }
 
 /** Recomputes arclength offsets, length and closure for a ride after an edit. */
-function relink(world: World, rideId: number): void {
+/** Recomputes a ride's piece count, start arclengths and length, and invalidates its path. */
+export function relinkRide(world: World, rideId: number): void {
   const t = world.track;
   const c = t.pieces.cols;
   t.version[rideId]++;
@@ -310,7 +311,7 @@ export function placeTrack(world: World, req: PlaceRequest): TrackResult {
     c.prev[t.pieces.idToSlot[t.head[r]]] = t.tail[r];
     t.closed[r] = 1;
   }
-  relink(world, r);
+  relinkRide(world, r);
   t.lastPiece = id;
   return TrackResult.Ok;
 }
@@ -345,7 +346,7 @@ function removeInner(world: World, rideId: number, pieceId: number): TrackResult
     t.pieces.despawnSlot(slot);
     t.head[rideId] = -1;
     t.tail[rideId] = -1;
-    relink(world, rideId);
+    relinkRide(world, rideId);
     return TrackResult.Ok;
   }
   const prevId = c.prev[slot];
@@ -364,7 +365,7 @@ function removeInner(world: World, rideId: number, pieceId: number): TrackResult
     c.prev[t.pieces.idToSlot[nextId]] = -1;
   }
   t.pieces.despawnSlot(slot);
-  relink(world, rideId);
+  relinkRide(world, rideId);
   return TrackResult.Ok;
 }
 
@@ -388,7 +389,7 @@ export function removeRideTrack(world: World, rideId: number): void {
       t.tail[rideId] = -1;
     }
   }
-  relink(world, rideId);
+  relinkRide(world, rideId);
 }
 
 export function circuitStatus(world: World, rideId: number): CircuitStatus {
