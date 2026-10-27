@@ -59,7 +59,7 @@ export async function hudCashCents(page: Page): Promise<number> {
   return Math.round(Number((await hudCash(page)).replace(/[$,]/g, '')) * 100);
 }
 
-/** Screen position of a tile's ground centre, in page pixels. */
+/** Screen position of a tile's surface centre (sloped tiles sit above their base height), in page pixels. */
 export async function tileScreenPoint(
   page: Page,
   world: World,
@@ -77,11 +77,13 @@ export async function tileScreenPoint(
   });
   const map = world.map;
   const index = map.index(tile.x, tile.y);
+  const slope = map.slope[index]!;
+  const raisedCorners = (slope & 1) + ((slope >> 1) & 1) + ((slope >> 2) & 1) + ((slope >> 3) & 1);
   const projected = new Float64Array(2);
   project(
     (tile.x + 0.5) * TILE_UNITS,
     (tile.y + 0.5) * TILE_UNITS,
-    map.heights[index]! * Z_STEP,
+    map.heights[index]! * Z_STEP + (raisedCorners * Z_STEP) / 4,
     map.width,
     map.height,
     camera.rotation,

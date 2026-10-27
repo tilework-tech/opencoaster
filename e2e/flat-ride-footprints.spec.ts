@@ -111,8 +111,20 @@ async function viewBoxAround(page: Page, tiles: readonly Tile[]): Promise<Box> {
 /** Minimum on-screen area, in CSS px², that a ride on `tiles` must change in a screenshot. */
 const minimumRideArea = (tiles: readonly Tile[]): number => tiles.length * TILE_AREA;
 
-/** SwiftShader draws a frame every few hundred ms; wait long enough for state changes to show. */
-const settleFrames = (page: Page): Promise<void> => page.waitForTimeout(450);
+const hudTick = async (page: Page): Promise<number> =>
+  Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
+
+/** Waits until the sim has advanced two ticks, so state changes made before the call have been drawn. */
+async function settleFrames(page: Page): Promise<void> {
+  const start = await hudTick(page);
+  await expect.poll(() => hudTick(page)).toBeGreaterThanOrEqual(start + 2);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
 
 /** Drops the active tool, closes every window and parks the pointer off the map. */
 async function clearTransientUi(page: Page): Promise<void> {
@@ -300,11 +312,11 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
 
   await toolbarAction(page, 'Rides');
   await page.locator('[data-panel="ride-list"] .list-row').filter({ hasText: ride.name }).click();
-  const tickAtStart = Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
+  const tickAtStart = await hudTick(page);
   await expect
     .poll(
       async () => {
-        const tick = Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
+        const tick = await hudTick(page);
         if (tick > tickAtStart + 32_768)
           throw new Error(`No guests rode ${ride.name} within two in-game months`);
         return readServed(page, 0);

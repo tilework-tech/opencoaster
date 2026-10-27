@@ -67,13 +67,14 @@ async function savedGuestPoint(page: Page): Promise<{ x: number; y: number }> {
       const saveBytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
       const saveModulePath = '/src/save/save.ts';
       const projectionModulePath = '/src/render/projection.ts';
-      const [{ deserialize }, { project, TILE_H }] = await Promise.all([
+      const [{ deserialize }, { project }] = await Promise.all([
         import(saveModulePath),
         import(projectionModulePath),
       ]);
       const world = deserialize(saveBytes);
       const position = new Float64Array(2);
-      const cameraY = (world.map.height * TILE_H) / 2;
+      const camera = (window as unknown as { __camera: { x: number; y: number; zoom: number } })
+        .__camera;
       for (let guest = 0; guest < world.guests.count; guest++) {
         project(
           world.guests.cols.x[guest],
@@ -84,8 +85,8 @@ async function savedGuestPoint(page: Page): Promise<{ x: number; y: number }> {
           0,
           position,
         );
-        const x = width / 2 + position[0];
-        const y = height / 2 + position[1] - cameraY;
+        const x = width / 2 + (position[0] - camera.x) * camera.zoom;
+        const y = height / 2 + (position[1] - camera.y) * camera.zoom - 6 * camera.zoom;
         if (x >= 0 && x < width && y >= 0 && y < height) return { x, y };
       }
       throw new Error('No guest is visible in the initial mobile viewport');
@@ -143,18 +144,9 @@ for (const { name, device } of mobileProfiles) {
       if (!(await paths.evaluate((window) => window.classList.contains('collapsed'))))
         await paths.locator('.ui-titlebar').click();
     };
-    await selectPathTool();
     const holdTarget = await savedGuestPoint(page);
     await dispatchTouches(cdp, 'touchStart', [{ id: 6, ...holdTarget }]);
-    await page.waitForTimeout(1_000);
     await dispatchTouches(cdp, 'touchEnd', []);
-    await page
-      .locator('#game')
-      .evaluate((canvas) =>
-        canvas.dispatchEvent(
-          new PointerEvent('pointercancel', { pointerId: 6, pointerType: 'touch', bubbles: true }),
-        ),
-      );
     await expect(page.locator('.ui-window.kind-guest')).toContainText(/tile \d+, \d+/);
     const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
     while (await closeButtons.count()) await closeButtons.first().click();
@@ -201,7 +193,7 @@ for (const { name, device } of mobileProfiles) {
     await dispatchTouches(cdp, 'touchEnd', []);
     // A drag lays the run under the finger; its tiles are already paved here, so it reports that.
     await expect(page.locator('.tool-status')).toHaveText(
-      /^(Laid \d+ footpath tiles? for |Laid footpath at |This run is already a footpath)/,
+      /^(Laid \d+ footpath tiles? for |Laid footpath at |A footpath is already at |This run is already a footpath)/,
     );
     expect(beforePaint).toBeTruthy();
 
@@ -216,7 +208,7 @@ for (const { name, device } of mobileProfiles) {
     const initialRotation = Number(rotationMatch?.[1]);
     expect(initialRotation).toBeGreaterThanOrEqual(0);
     expect(initialRotation).toBeLessThanOrEqual(3);
-    await toolbarAction(page, 'Rotate clockwise');
+    await toolbarAction(page, 'Rotate right');
     await expect
       .poll(async () => {
         const text = await page.locator('.hud').innerText();

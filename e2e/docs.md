@@ -10,7 +10,8 @@ Path: @/e2e
 
 ### How it fits into the larger codebase
 
-- The root `pnpm e2e` command uses [playwright.e2e.config.ts](../playwright.e2e.config.ts) and the shared [playwright.config.ts](../playwright.config.ts); it complements the shorter smoke suite.
+- The root `pnpm e2e` command uses [playwright.e2e.config.ts](../playwright.e2e.config.ts) and the shared [playwright.config.ts](../playwright.config.ts); it complements the shorter smoke suite. It runs one worker: the specs render in software (SwiftShader), and a second worker takes the CPU the first needs, so both time out without finishing sooner. The `@art-review` and `@art-context-review` inventory captures are excluded from it; run them with `pnpm e2e:art-review` ([playwright.art-review.config.ts](../playwright.art-review.config.ts)).
+- `pnpm e2e:quick` runs desktop specs for each major tool (area, camera rotation, context menu, toolbar, footpath, land, speed controls, messages) and finishes in under five minutes; run it before marking a UI PR ready.
 - Browser tests send actions through the same UI and simulation worker path as a player. Scenario setup centers the camera on the park gate and its contiguous inward entrance path.
 - Mobile profiles use Chromium device emulation and touch injection. They exercise pointer handling and viewport behavior, not Safari or physical-device performance.
 - Playwright stores screenshots and traces as test artifacts; ride-access tests attach visual checkpoints to the report.
