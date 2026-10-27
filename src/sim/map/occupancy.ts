@@ -1,6 +1,7 @@
 import type { World } from '../core/world';
 import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
-import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { RIDE_CATALOG } from '../rides/ride-types';
+import type { RideType } from '../rides/ride-types';
 import { PIECES } from '../track/catalog';
 import { ElementType, PathFlag } from './tile-map';
 import { PATH_ENTRANCE_MARK, PATH_EXIT_MARK } from './tile-map';
