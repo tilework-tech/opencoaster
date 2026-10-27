@@ -6,7 +6,7 @@ import type { Mesh } from '../../mesh';
 import type { SpriteDef } from '../../output';
 import { CAR_BANK_NAMES, CAR_HEADINGS, CAR_PITCH_NAMES, carMesh } from './cars';
 import { COASTER_FAMILIES, TRACK_ARTS } from './families';
-import { tunnelPortalMesh } from './tunnel';
+import { TUNNEL_VARIANTS, tunnelPortalMesh } from './tunnel';
 import { supportBaseMesh, supportSegmentMesh } from './supports';
 import { CHAIN_FRAMES, trackPieceMesh, variantsOf } from './track';
 
@@ -50,12 +50,14 @@ export function coasterSprites(): SpriteDef[] {
     }
   }
   for (const art of TRACK_ARTS) {
-    for (let view = 0; view < 4; view++)
-      out.push({
-        key: `rides/coaster/${art}/tunnel/view-${view}`,
-        frames: [renderMesh(rotateMesh(tunnelPortalMesh(art), view))],
-        footprint: ONE_TILE,
-      });
+    for (const variant of TUNNEL_VARIANTS) {
+      for (let view = 0; view < 4; view++)
+        out.push({
+          key: `rides/coaster/${art}/tunnel/${variant}/view-${view}`,
+          frames: [renderMesh(rotateMesh(tunnelPortalMesh(art, variant), view))],
+          footprint: ONE_TILE,
+        });
+    }
   }
   for (const family of COASTER_FAMILIES) {
     for (let view = 0; view < 4; view++) {

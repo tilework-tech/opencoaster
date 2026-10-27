@@ -79,7 +79,8 @@ describe('tunnel portals in the coaster scene', () => {
       // Entry faces back toward the approach (-x), exit faces onward (+x).
       expect(views).toEqual([(2 + rotation) & 3, rotation & 3]);
       expect(portals[0]!.x).toBeLessThan(portals[1]!.x);
-      for (const p of portals) expect(p.key).toMatch(/^rides\/coaster\/wood\/tunnel\/view-[0-3]$/);
+      for (const p of portals)
+        expect(p.key).toMatch(/^rides\/coaster\/wood\/tunnel\/slope\/view-[0-3]$/);
     },
   );
 

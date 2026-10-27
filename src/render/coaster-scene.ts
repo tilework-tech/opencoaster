@@ -184,9 +184,10 @@ export class CoasterScene {
       z / TRACK_Z_STEP,
       dir,
     )) {
+      if (!portal.valid) continue;
       const view = rotateDirection(portal.facing, rotation);
       this.push(
-        `rides/coaster/${art}/tunnel/view-${view}`,
+        `rides/coaster/${art}/tunnel/${portal.variant}/view-${view}`,
         rideId,
         portal.x,
         portal.y,
