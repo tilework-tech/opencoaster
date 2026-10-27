@@ -47,6 +47,9 @@ function completeTest(world: World, slot: number, rideId: number, train: number)
   const recorded = recordRideTestMeasurements(world, rideId, {
     durationTicks: Math.max(1, v.elapsedTicks[train]),
     maxSpeed: v.maxSpeed[train],
+    averageSpeed: v.averageSpeed[train],
+    rideLength: v.rideLength[train],
+    airtimeTicks: v.airtimeTicks[train],
     maxPositiveG: Math.max(0, v.maxVerticalGQ8[train]),
     maxNegativeG: Math.min(0, v.minVerticalGQ8[train]),
     maxLateralG: v.maxLateralGQ8[train],

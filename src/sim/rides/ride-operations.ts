@@ -37,6 +37,11 @@ export interface RideRatings {
 export interface RideTestMeasurements {
   durationTicks: number;
   maxSpeed: number;
+  /** Q8 world units per tick. */
+  averageSpeed: number;
+  /** Q8 world units travelled. */
+  rideLength: number;
+  airtimeTicks: number;
   /** G values are signed Q8 integers, with 256 representing one G. */
   maxPositiveG: number;
   maxNegativeG: number;
@@ -475,6 +480,9 @@ export function recordRideTestMeasurements(
   if (
     !inRangeInteger(measurements.durationTicks, 1, 0xffffffff) ||
     !inRangeInteger(measurements.maxSpeed, 0, 0x7fffffff) ||
+    !inRangeInteger(measurements.averageSpeed, 0, 0x7fffffff) ||
+    !inRangeInteger(measurements.rideLength, 0, 0xffffffff) ||
+    !inRangeInteger(measurements.airtimeTicks, 0, 0xffffffff) ||
     !inRangeInteger(measurements.maxPositiveG, 0, 0x7fffffff) ||
     !inRangeInteger(measurements.maxNegativeG, -0x80000000, 0) ||
     !inRangeInteger(measurements.maxLateralG, 0, 0x7fffffff) ||
@@ -487,6 +495,9 @@ export function recordRideTestMeasurements(
   const ride = world.rides.cols;
   ride.testDurationTicks[slot] = measurements.durationTicks;
   ride.testMaxSpeed[slot] = measurements.maxSpeed;
+  ride.testAverageSpeed[slot] = measurements.averageSpeed;
+  ride.testRideLength[slot] = measurements.rideLength;
+  ride.testAirtimeTicks[slot] = measurements.airtimeTicks;
   ride.testMaxPositiveG[slot] = measurements.maxPositiveG;
   ride.testMaxNegativeG[slot] = measurements.maxNegativeG;
   ride.testMaxLateralG[slot] = measurements.maxLateralG;
@@ -504,6 +515,9 @@ export function getRideTestMeasurements(world: World, rideId: number): RideTestM
   return {
     durationTicks: ride.testDurationTicks[slot],
     maxSpeed: ride.testMaxSpeed[slot],
+    averageSpeed: ride.testAverageSpeed[slot],
+    rideLength: ride.testRideLength[slot],
+    airtimeTicks: ride.testAirtimeTicks[slot],
     maxPositiveG: ride.testMaxPositiveG[slot],
     maxNegativeG: ride.testMaxNegativeG[slot],
     maxLateralG: ride.testMaxLateralG[slot],

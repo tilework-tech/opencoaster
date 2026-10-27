@@ -102,6 +102,9 @@ export const RIDE_SCHEMA = {
   queueSerial: Uint32Array,
   /** Longest line (in guests) the operator allows; 0 means as long as the queue can hold. */
   queueLimit: Uint16Array,
+  testAverageSpeed: Int32Array,
+  testRideLength: Uint32Array,
+  testAirtimeTicks: Uint32Array,
 } as const;
 
 /** Columns appended to the schema after each released save version, newest last. */

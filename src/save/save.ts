@@ -31,7 +31,7 @@ import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 /** Track heights count half-level track steps from this version; earlier saves store whole levels. */
 const TRACK_STEP_SAVE_VERSION = 26;
 const PRE_TRACK_STEP_SAVE_VERSION = 25;
@@ -243,6 +243,9 @@ function migrateFlatWaterRides(world: World): void {
     rides.testHighestDrop[slot] = 0;
     rides.testInversionCount[slot] = 0;
     rides.testDurationTicks[slot] = 0;
+    rides.testAverageSpeed[slot] = 0;
+    rides.testRideLength[slot] = 0;
+    rides.testAirtimeTicks[slot] = 0;
   }
   const guests = world.guests.cols;
   for (let slot = 0; slot < world.guests.count; slot++) {
@@ -465,6 +468,7 @@ function rideColumnsAbsent(version: number): number {
   if (version < RIDER_HISTORY_SAVE_VERSION) absent += RIDER_HISTORY_WINDOWS;
   if (version < FOOTPRINT_SAVE_VERSION) absent += 1;
   if (version <= PRE_QUEUE_ORDER_SAVE_VERSION) absent += 2;
+  if (version < SAVE_VERSION) absent += 3;
   return absent;
 }
 

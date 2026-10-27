@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NO_TRACK_ELEMENTS } from './track-elements';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import {
   MAX_RATING,
   NEUTRAL_PROFILE,
@@ -223,5 +224,38 @@ describe('clamp', () => {
   it('limits ratings to 32767', () => {
     const huge = rate({ inversionCount: 50_000, maxLateralGQ8: 40_000 });
     expect(huge.intensity).toBe(MAX_RATING);
+  });
+});
+
+describe('ride-type rating profiles', () => {
+  const metrics: RideTestMetrics = {
+    ...QUIET,
+    maxSpeed: 3000,
+    averageSpeed: 1200,
+    dropCount: 5,
+    highestDrop: 640,
+    inversionCount: 2,
+    maxVerticalGQ8: 650,
+    minVerticalGQ8: -128,
+    maxLateralGQ8: 400,
+    rideLength: 200_000,
+    airtimeTicks: 32,
+  };
+
+  it.each([
+    [RideType.WoodenCoaster, [271, 364, 140]],
+    [RideType.SteelLoopingCoaster, [319, 397, 148]],
+    [RideType.LogFlume, [779, 1088, 569]],
+    [RideType.RiverRapids, [619, 1168, 729]],
+    [RideType.MiniatureRailway, [868, 848, 329]],
+    [RideType.Monorail, [938, 888, 349]],
+    [RideType.Chairlift, [918, 788, 299]],
+    [RideType.JuniorRollerCoaster, [538, 728, 279]],
+    [RideType.WildMouseCoaster, [568, 748, 309]],
+  ] as const)('%s applies its own catalog rating profile', (rideType, expected) => {
+    const profile = RIDE_CATALOG[rideType].ratingProfile;
+    expect(profile).toBeDefined();
+    const ratings = calculateTrackedRideRatings(metrics, profile);
+    expect([ratings.excitement, ratings.intensity, ratings.nausea]).toEqual(expected);
   });
 });

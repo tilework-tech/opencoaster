@@ -100,7 +100,7 @@ describe('guest ride demand under crowd pressure', () => {
     for (let slot = 0; slot < world.guests.count; slot++) {
       const preference = start.preferredIntensity[slot]!;
       if (start.cash[slot]! >= ticketPriceCents(world, ride)) initiallyAffordable++;
-      const ceiling = intensityCeilingOf(preference);
+      const ceiling = intensityCeilingOf(preference, start.happiness[slot]!);
       minIntensityCeiling = Math.min(minIntensityCeiling, ceiling);
       if (world.rides.cols.intensity[ride]! <= ceiling) initiallyIntensityEligible++;
       if (
@@ -221,7 +221,10 @@ describe('guest ride demand under crowd pressure', () => {
       if (preference < 85) preferenceLow++;
       else if (preference < 170) preferenceMid++;
       else preferenceHigh++;
-      if (world.rides.cols.intensity[ride]! <= intensityCeilingOf(preference)) intensityEligible++;
+      if (
+        world.rides.cols.intensity[ride]! <= intensityCeilingOf(preference, guests.happiness[slot]!)
+      )
+        intensityEligible++;
       if (guests.nauseaTolerance[slot]! < 1) nauseaToleranceLow++;
       else if (guests.nauseaTolerance[slot]! < 3) nauseaToleranceMid++;
       else nauseaToleranceHigh++;

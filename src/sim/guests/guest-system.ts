@@ -205,7 +205,8 @@ function scoreRide(world: World, slot: number, ride: number): number {
   if (!isThrillCategory(category)) return NOT_OFFERED;
   if (g.lastRide[slot] === world.rides.slotToId[ride] && !allowsRepeatRide(world, slot, ride))
     return NOT_OFFERED;
-  if (r.intensity[ride] > intensityCeilingOf(g.preferredIntensity[slot])) return TOO_INTENSE;
+  if (r.intensity[ride] > intensityCeilingOf(g.preferredIntensity[slot], g.happiness[slot]))
+    return TOO_INTENSE;
   if (exceedsNauseaLimit(r.nausea[ride], g.nausea[slot], g.nauseaTolerance[slot])) {
     return TOO_NAUSEOUS;
   }
