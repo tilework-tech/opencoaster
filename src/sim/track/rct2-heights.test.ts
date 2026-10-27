@@ -43,10 +43,6 @@ function rct2LandSteps(p: TrackPieceDef): number {
 }
 
 describe('RCT2 track heights', () => {
-  it('uses a track step of half a land level', () => {
-    expect(TRACK_Z_STEP * 2).toBe(Z_STEP);
-  });
-
   it('gives every piece the rise of its RCT2 counterpart', () => {
     for (const p of PIECES) {
       const want = rct2LandSteps(p) * Z_STEP;

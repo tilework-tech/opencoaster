@@ -57,7 +57,11 @@ function samplePoint(
         : (dir & 3) === 2
           ? [-lx, -ly]
           : [ly, -lx];
-  return [x * TILE_UNITS + half + rx, y * TILE_UNITS + half + ry, z * TRACK_Z_STEP + SAMPLES.z[sample]!];
+  return [
+    x * TILE_UNITS + half + rx,
+    y * TILE_UNITS + half + ry,
+    z * TRACK_Z_STEP + SAMPLES.z[sample]!,
+  ];
 }
 
 function tileOf(terrain: TerrainTiles, xu: number, yu: number): number {
