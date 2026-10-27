@@ -12,6 +12,7 @@ import { extractMapData } from './map-data';
 import { previewPathRun, previewScenery } from '../sim/map/map-commands';
 import type { ScenerySpot } from '../sim/map/map-commands';
 import { SceneryResult } from '../sim/map/scenery';
+import { overlappingRideNames } from '../sim/map/occupancy';
 import type { PathPlacement } from '../sim/map/paths';
 import type { Snapshot } from './snapshot';
 import type { Command } from '../sim/core/commands';
@@ -189,8 +190,12 @@ export class SimRunner {
       this.fail('load', err instanceof Error ? err.message : String(err));
       return;
     }
+    const rides = overlappingRideNames(world);
     this.start(new Simulation(world));
-    this.port.post({ type: 'loaded' });
+    this.port.post({
+      type: 'loaded',
+      warnings: rides.length > 0 ? [`Existing construction overlaps: ${rides.join(', ')}.`] : [],
+    });
   }
 
   private fail(request: 'save' | 'load', message: string): void {

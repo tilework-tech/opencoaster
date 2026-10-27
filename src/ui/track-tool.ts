@@ -13,6 +13,10 @@ import {
   TrackWarning,
 } from '../sim/track/track-types';
 import type { PieceShape, TrackPieceDef } from '../sim/track/track-types';
+import { occupancyConflict } from '../sim/map/occupancy';
+import type { OccupancyVolume } from '../sim/map/occupancy';
+import { Z_STEP } from '../sim/core/constants';
+import { TRACK_CLEARANCE_WORLD } from '../sim/map/occupancy-constants';
 
 export type TurnKind = PieceShape;
 
@@ -151,12 +155,38 @@ export function previewStatus(
   piece: TrackPieceDef,
   placement: Placement,
   cash: number,
+  level = 0,
+  occupancies: readonly OccupancyVolume[] = [],
+  rideType?: RideType,
 ): TrackResult {
   for (const [x, y] of footprintTiles(piece, placement.x, placement.y, placement.dir)) {
     if (x < 0 || y < 0 || x >= map.width || y >= map.height) return TrackResult.OutOfBounds;
     if (!buildable?.[y * map.width + x]) return TrackResult.NotOwned;
   }
   if (cash < piece.cost) return TrackResult.InsufficientFunds;
+  const trackClearance =
+    (rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackClearanceWorld) ??
+    TRACK_CLEARANCE_WORLD;
+  for (const item of occupancies) {
+    for (const cell of piece.footprint) {
+      const [dx, dy] = rotateTile(cell.i, cell.j, placement.dir);
+      if (
+        occupancyConflict(
+          {
+            tileX: placement.x + dx,
+            tileY: placement.y + dy,
+            base: level * Z_STEP + cell.zMin,
+            clearance: level * Z_STEP + cell.zMax + trackClearance,
+            kind: piece.shape === 'station' ? 'station' : 'track',
+            name: 'Track',
+            levelCrossing: piece.shape === 'straight' && cell.zMin === 0,
+          },
+          item,
+        )
+      )
+        return TrackResult.Blocked;
+    }
+  }
   return TrackResult.Ok;
 }
 
@@ -218,9 +248,10 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
 };
 
 /** Player-facing text for a command outcome from the simulation. */
-export function feedbackMessage(domain: FeedbackDomain, code: number): FeedbackLine {
+export function feedbackMessage(domain: FeedbackDomain, code: number, detail = ''): FeedbackLine {
   const ok = code === 0 || code === RideResult.TestPassed;
   if (domain === FeedbackDomain.Track) {
+    if (code === TrackResult.Blocked && detail) return { text: `Blocked by ${detail}.`, ok: false };
     if (code === TrackWarning.LiftIntoInversion) {
       return { text: TRACK_WARNING_MESSAGES[code], ok: false };
     }

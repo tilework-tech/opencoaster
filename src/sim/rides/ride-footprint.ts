@@ -1,11 +1,16 @@
 import type { World } from '../core/world';
+import { Z_STEP } from '../core/constants';
 import type { TileMap } from '../map/tile-map';
 import { Surface } from '../map/tile-map';
-import { PIECES } from '../track/catalog';
 import { rotateTile } from '../track/construction';
 import { RideResult } from './ride-results';
 import { DEFAULT_SUPPORT_LEVELS, RIDE_CATALOG } from './ride-types';
 import type { RideType, RideTypeDef } from './ride-types';
+import {
+  firstOccupancyBlocker,
+  ridePlacementOccupancies,
+  worldOccupancies,
+} from '../map/occupancy';
 
 /** Tiles a ride of this type covers when anchored at (`x`, `y`) and turned `dir` quarter turns. */
 export function rideFootprintTiles(
@@ -94,8 +99,8 @@ export function validateRidePlacement(
     if (!map.canBuild(tile)) return RideResult.NotOwned;
     const surface = map.surface[tile];
     if (surface === Surface.Water) return RideResult.Underwater;
-    if (surface === Surface.Path || surface === Surface.Queue) return RideResult.Blocked;
-    if (map.firstElement(tile) >= 0) return RideResult.Blocked;
+    if ((surface === Surface.Path || surface === Surface.Queue) && map.pathElement(tile, -1) < 0)
+      return RideResult.Blocked;
     for (let corner = 0; corner < 4; corner++) {
       const h = map.cornerHeight(tx, ty, corner);
       if (h < low) low = h;
@@ -104,37 +109,8 @@ export function validateRidePlacement(
   }
   if (high - low > (def.supportLevels ?? DEFAULT_SUPPORT_LEVELS)) return RideResult.TooSteep;
 
-  const rides = world.rides;
-  for (let other = 0; other < rides.count; other++) {
-    const otherDef = RIDE_CATALOG[rides.cols.typeId[other] as RideType];
-    if (!otherDef) continue;
-    for (const [dx, dy] of def.footprint) {
-      const [rx, ry] = rotateTile(dx, dy, dir);
-      if (
-        rideFootprintContains(
-          otherDef,
-          rides.cols.rideX[other],
-          rides.cols.rideY[other],
-          rides.cols.dir[other],
-          x + rx,
-          y + ry,
-        )
-      )
-        return RideResult.Blocked;
-    }
-  }
-
-  const pieces = world.track.pieces;
-  for (let piece = 0; piece < pieces.count; piece++) {
-    const pieceDef = PIECES[pieces.cols.pieceType[piece]];
-    for (const cell of pieceDef.footprint) {
-      const [px, py] = rotateTile(cell.i, cell.j, pieces.cols.dir[piece]);
-      for (const [dx, dy] of def.footprint) {
-        const [rx, ry] = rotateTile(dx, dy, dir);
-        if (x + rx === pieces.cols.x[piece] + px && y + ry === pieces.cols.y[piece] + py)
-          return RideResult.Blocked;
-      }
-    }
-  }
-  return RideResult.Ok;
+  const candidates = ridePlacementOccupancies(type, x, y, dir, high * Z_STEP);
+  return firstOccupancyBlocker(candidates, worldOccupancies(world))
+    ? RideResult.Blocked
+    : RideResult.Ok;
 }

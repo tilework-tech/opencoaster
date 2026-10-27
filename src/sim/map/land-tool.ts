@@ -12,6 +12,7 @@ import type { TerrainEdit, VertexMover } from './land';
 import { recomputePathEdges, PATH_CLEARANCE } from './paths';
 import { SCENERY_CATALOG } from './scenery';
 import type { SceneryItem } from './scenery';
+import { firstOccupancyBlocker, worldOccupancies } from './occupancy';
 
 export const enum LandAction {
   Raise = 0,
@@ -365,6 +366,41 @@ function evaluate(w: World, e: LandEdit, commit: boolean): LandPlan {
   }
   const blocked = structureConflict(w, tiles, oldTop);
   if (blocked) return fail(blocked);
+  const occupants = worldOccupancies(w);
+  for (const tile of tiles) {
+    const old = oldTop.get(tile) ?? m.heights[tile];
+    const raisedTo = m.heights[tile] + (m.slope[tile] !== 0 ? 1 : 0);
+    if (raisedTo <= old) continue;
+    const blocker = firstOccupancyBlocker(
+      [
+        {
+          tileX: tile % m.width,
+          tileY: (tile / m.width) | 0,
+          base: old * Z_STEP,
+          clearance: raisedTo * Z_STEP,
+          kind: 'terrain',
+          name: 'Raised terrain',
+        },
+      ],
+      occupants,
+    );
+    if (blocker) {
+      const result =
+        blocker.kind === 'path' || blocker.kind === 'queue'
+          ? LandResult.PathInTheWay
+          : blocker.kind === 'rideEntrance' ||
+              blocker.kind === 'rideExit' ||
+              blocker.kind === 'parkEntrance'
+            ? LandResult.EntranceInTheWay
+            : blocker.kind === 'track' ||
+                blocker.kind === 'station' ||
+                blocker.kind === 'flatRide' ||
+                blocker.kind === 'facility'
+              ? LandResult.RideInTheWay
+              : LandResult.ObjectInTheWay;
+      return fail(refuse(result, tile));
+    }
+  }
   const effects = elementEffects(m, tiles, oldBase);
   if (effects.block) return fail(effects.block);
   let units = 0;

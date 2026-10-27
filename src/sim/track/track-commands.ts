@@ -152,6 +152,6 @@ export function applyTrackCommand(world: World, c: TrackCommand): TrackResult {
     if (result === TrackResult.Ok) invalidateRideTest(world, c.rideId);
     code = result;
   }
-  reportFeedback(world.feedback, FeedbackDomain.Track, code, c.rideId);
+  reportFeedback(world.feedback, FeedbackDomain.Track, code, c.rideId, world.track.lastBlockerName);
   return result;
 }

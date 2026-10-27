@@ -14,8 +14,9 @@ const REJECTION_TEXT: Record<Exclude<PathResult, PathResult.Ok>, string> = {
 };
 
 /** Player-facing reason a footpath placement is refused. */
-export function pathRefusalText(code: PathResult): string {
+export function pathRefusalText(code: PathResult, detail = ''): string {
   if (code === PathResult.Ok) return '';
+  if (code === PathResult.Blocked && detail) return `Blocked by ${detail}.`;
   return (
     REJECTION_TEXT[code as Exclude<PathResult, PathResult.Ok>] ?? 'A footpath cannot be built here.'
   );
@@ -42,7 +43,7 @@ export function pathRejectionFrom(
 ): PathRejection | null {
   if (feedback.domain !== FeedbackDomain.Path || feedback.code === PathResult.Ok) return null;
   if (feedback.subject < 0) return null;
-  const text = pathRefusalText(feedback.code);
+  const text = pathRefusalText(feedback.code, feedback.detail);
   return {
     x: feedback.subject % mapWidth,
     y: Math.floor(feedback.subject / mapWidth),

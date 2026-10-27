@@ -18,6 +18,8 @@ import { objectiveMetric } from '../sim/scenario/scenario-system';
 import { TILE_UNITS, TRACK_Z_STEP } from '../sim/core/constants';
 import { demolitionRefund } from '../sim/rides/ride-refund';
 import { estimatedWaitTicks, rideQueueCapacity } from '../sim/rides/ride-operations';
+import { worldOccupancies } from '../sim/map/occupancy';
+import type { OccupancyVolume } from '../sim/map/occupancy';
 
 /** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
@@ -159,6 +161,8 @@ export interface Snapshot {
   litter: SnapshotLayer;
   rides: SnapshotLayer;
   tracks: SnapshotLayer;
+  /** Derived occupied intervals for track preview. */
+  occupancies: OccupancyVolume[];
   /** `RIDE_INFO_STRIDE` ints per ride, in the same order as `rides`. */
   rideInfo: Int32Array;
   /** Guest needs and thought history, aligned with the guest render layer. */
@@ -261,11 +265,12 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     litter: layer(caps.litter),
     rides: layer(caps.rides ?? SNAPSHOT_RIDE_CAPACITY),
     tracks: layer(caps.tracks ?? SNAPSHOT_TRACK_CAPACITY),
+    occupancies: [],
     rideInfo: new Int32Array((caps.rides ?? SNAPSHOT_RIDE_CAPACITY) * RIDE_INFO_STRIDE),
     guestDetails: new Int32Array(caps.guests * GUEST_DETAIL_STRIDE),
     guestIds: new Int32Array(caps.guests),
     weather: { kind: 0, temperature: 20 },
-    feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
+    feedback: { seq: 0, domain: 0, code: 0, subject: -1, detail: '' },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
     grounds: new Uint8Array(caps.mapTiles ?? 0),
     patrolAreas: new Uint32Array(caps.patrolAreas ?? 0),
@@ -413,6 +418,7 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
 
 export function writeSnapshot(world: World, out: Snapshot): void {
   out.tick = world.tick;
+  out.occupancies = worldOccupancies(world);
   out.audioEvents = world.audioEvents.map((event) => ({ ...event }));
   world.audioEvents.length = 0;
   out.activeAwards = world.economy.activeAwards
@@ -527,6 +533,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.feedback.domain = feedback.domain;
   out.feedback.code = feedback.code;
   out.feedback.subject = feedback.subject;
+  out.feedback.detail = feedback.detail;
   out.park.cash = world.economy.cash;
   out.park.loan = world.economy.loan;
   out.park.rides = rides.count;

@@ -1,7 +1,7 @@
 import { refreshQueueIndex } from './queue-lines';
 import { popcount4 } from '../pathfinding/directions';
 import type { World } from '../core/world';
-import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../core/constants';
+import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { charge, earn } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
@@ -27,6 +27,7 @@ import { rideCoversTile, rideFootprintTiles } from './ride-footprint';
 import type { RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
 import { RideResult } from './ride-results';
+import { firstOccupancyBlocker, worldOccupancies } from '../map/occupancy';
 import { demolitionRefund } from './ride-refund';
 
 export type RideCommand =
@@ -60,21 +61,6 @@ function boardingTiles(world: World, rideId: number, slot: number): Array<[numbe
     }
   }
   return out;
-}
-
-/** True when any track piece passes through the tile close to the ground. */
-function trackAtGround(world: World, x: number, y: number): boolean {
-  const pieces = world.track.pieces;
-  const groundZ = world.map.heights[world.map.index(x, y)] * Z_STEP;
-  for (let s = 0; s < pieces.count; s++) {
-    const piece = PIECES[pieces.cols.pieceType[s]];
-    for (const cell of piece.footprint) {
-      const [rx, ry] = rotateTile(cell.i, cell.j, pieces.cols.dir[s]);
-      if (pieces.cols.x[s] + rx !== x || pieces.cols.y[s] + ry !== y) continue;
-      if (pieces.cols.z[s] * TRACK_Z_STEP + cell.zMin <= groundZ + 2 * Z_STEP) return true;
-    }
-  }
-  return false;
 }
 
 function rideFootprintAt(world: World, x: number, y: number): boolean {
@@ -197,12 +183,28 @@ function placeBoardingTile(
   const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
   const directAccess = def.category === 'stall' || def.category === 'facility';
   const tile = world.map.index(x, y);
+  const name = `${def.name} ${rideId + 1}`;
+  const base = world.map.heights[tile] * Z_STEP;
+  const obstruction = firstOccupancyBlocker(
+    [
+      {
+        tileX: x,
+        tileY: y,
+        base,
+        clearance: base + Z_STEP,
+        kind: kind === 'entrance' ? 'rideEntrance' : 'rideExit',
+        name,
+      },
+    ],
+    worldOccupancies(world),
+    name,
+  );
+  if (obstruction) return RideResult.Blocked;
   if (directAccess) {
     if (
       kind !== 'entrance' ||
       world.map.surface[tile] !== Surface.Path ||
-      !world.map.canBuild(tile) ||
-      trackAtGround(world, x, y)
+      !world.map.canBuild(tile)
     )
       return RideResult.Blocked;
     ride.entranceX[slot] = x;
@@ -215,7 +217,7 @@ function placeBoardingTile(
   const otherY = kind === 'entrance' ? ride.exitY[slot] : ride.entranceY[slot];
   if (otherPlaced && otherX === x && otherY === y) return RideResult.Blocked;
   if (!world.map.canBuild(tile)) return RideResult.NotOwned;
-  if (trackAtGround(world, x, y) || rideFootprintAt(world, x, y)) return RideResult.Blocked;
+  if (rideFootprintAt(world, x, y)) return RideResult.Blocked;
 
   const wanted = kind === 'entrance' ? Surface.Queue : Surface.Path;
   const surface = world.map.surface[tile];

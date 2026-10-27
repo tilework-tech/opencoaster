@@ -375,7 +375,16 @@ export class CoasterPanel {
     } else {
       return null;
     }
-    const status = previewStatus(map, snap.buildable, piece, placement, snap.park.cash);
+    const status = previewStatus(
+      map,
+      snap.buildable,
+      piece,
+      placement,
+      snap.park.cash,
+      level,
+      snap.occupancies,
+      ride.type,
+    );
     return { rideType: ride.type, piece, placement, level, status };
   }
 
@@ -487,7 +496,7 @@ export class CoasterPanel {
     if (feedback.seq === this.lastFeedbackSeq) return;
     this.lastFeedbackSeq = feedback.seq;
     if (feedback.domain !== FeedbackDomain.Track && feedback.domain !== FeedbackDomain.Ride) return;
-    const line = feedbackMessage(feedback.domain, feedback.code);
+    const line = feedbackMessage(feedback.domain, feedback.code, feedback.detail);
     this.feedbackLine.textContent = line.text;
     this.feedbackLine.dataset.ok = String(line.ok);
     this.actions.status(line.text);

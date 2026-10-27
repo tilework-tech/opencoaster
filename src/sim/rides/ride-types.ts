@@ -5,6 +5,7 @@ import type { RideModeDef } from './ride-modes';
 import { kmhToSpeedQ8 } from '../vehicles/speed-units';
 import type { RatingProfile } from '../vehicles/vehicle-ratings';
 import { TRANSPORT_PIECES } from '../track/catalog';
+import { RCT2_COORDINATE_WORLD, RIDE_CLEARANCE_WORLD } from '../map/occupancy-constants';
 
 export enum RideType {
   MerryGoRound = 1,
@@ -63,6 +64,10 @@ export interface RideTypeDef {
    * rotates the offsets about the anchor (see `rideFootprintTiles`).
    */
   footprint: ReadonlyArray<readonly [dx: number, dy: number]>;
+  /** World-space vertical occupancy above the ride floor; object definitions may override it. */
+  clearanceWorld?: number;
+  /** Track clearance from the ride type descriptor, expressed in world units. */
+  trackClearanceWorld?: number;
   /** Track may be placed over open water for this ride type. */
   allowsWater?: boolean;
   /**
@@ -183,6 +188,7 @@ function addedRide(
     maxLevel?: number;
     steep?: boolean;
     inversions?: boolean;
+    trackClearanceWorld?: number;
   } = {},
 ): RideTypeDef {
   const usesTrack = opts.usesTrack ?? false;
@@ -194,6 +200,7 @@ function addedRide(
     footprint: usesTrack ? [] : [[0, 0]],
     allowsWater: category === 'water',
     usesTrack,
+    trackClearanceWorld: opts.trackClearanceWorld,
     capacity,
     loadTicks: usesTrack ? 120 : 80,
     runTicks: usesTrack ? 1 : 400,
@@ -473,6 +480,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     cost: 300_000,
     footprint: [],
     usesTrack: true,
+    trackClearanceWorld: 24 * RCT2_COORDINATE_WORLD,
     capacity: 12,
     loadTicks: 120,
     runTicks: 1,
@@ -512,6 +520,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     cost: 450_000,
     footprint: [],
     usesTrack: true,
+    trackClearanceWorld: 24 * RCT2_COORDINATE_WORLD,
     capacity: 16,
     loadTicks: 120,
     runTicks: 1,
@@ -629,6 +638,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     8,
     {
       usesTrack: true,
+      trackClearanceWorld: 24 * RCT2_COORDINATE_WORLD,
       allowedPieces: [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 66],
       maxLevel: 24,
     },
@@ -647,6 +657,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     10,
     {
       usesTrack: true,
+      trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       allowedPieces: [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 66],
       maxLevel: 16,
     },
@@ -665,6 +676,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     5,
     {
       usesTrack: true,
+      trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       maxLevel: 30,
       allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
     },
@@ -686,6 +698,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     7,
     {
       usesTrack: true,
+      trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       maxLevel: 50,
       allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
     },
@@ -704,6 +717,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     6,
     {
       usesTrack: true,
+      trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       maxLevel: 40,
       allowedPieces: TRANSPORT_PIECES.map(({ id }) => id),
     },
@@ -720,7 +734,12 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     2,
     21,
     8,
-    { usesTrack: true, maxLevel: 65, allowedPieces: JUNIOR_PIECES },
+    {
+      usesTrack: true,
+      maxLevel: 65,
+      allowedPieces: JUNIOR_PIECES,
+      trackClearanceWorld: 24 * RCT2_COORDINATE_WORLD,
+    },
   ),
   [RideType.WildMouseCoaster]: addedRide(
     RideType.WildMouseCoaster,
@@ -734,7 +753,13 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     2,
     22,
     12,
-    { usesTrack: true, maxLevel: 68, steep: true, allowedPieces: WILD_MOUSE_PIECES },
+    {
+      usesTrack: true,
+      maxLevel: 68,
+      steep: true,
+      allowedPieces: WILD_MOUSE_PIECES,
+      trackClearanceWorld: 24 * RCT2_COORDINATE_WORLD,
+    },
   ),
   [RideType.ObservationTower]: addedRide(
     RideType.ObservationTower,
@@ -800,6 +825,7 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = Object.from
     def.id,
     {
       ...def,
+      clearanceWorld: def.clearanceWorld ?? RIDE_CLEARANCE_WORLD,
       ...(FLAT_RIDE_SIZES[def.id]
         ? {
             footprint: rectFootprint(

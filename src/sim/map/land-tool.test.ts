@@ -14,7 +14,7 @@ import {
 import { LandAction, LandResult, planLand } from './land-tool';
 import { LAND_HEIGHT_STEP_COST_CENTS } from './land';
 import { OWNED } from './tile-map';
-import { SceneryItem, SCENERY_CATALOG } from './scenery';
+import { SceneryItem } from './scenery';
 import { placePath } from './paths';
 
 function sim(): Simulation {
@@ -124,21 +124,19 @@ describe('land tool planning', () => {
     expect(s.world.feedback.code).toBe(LandResult.InsufficientFunds);
   });
 
-  it('removes scenery on changed tiles and charges its removal price', () => {
+  it('refuses to raise terrain into scenery', () => {
     const s = sim();
     s.enqueue({ type: 'placeScenery', x: 8, y: 8, item: SceneryItem.OakTree });
     s.step();
     const cash = s.world.economy.cash;
     s.enqueue({ type: 'raiseLand', x: 8, y: 8, width: 1, height: 1 });
     s.step();
-    expect(s.world.map.heights[s.world.map.index(8, 8)]).toBe(5);
-    expect(cash - s.world.economy.cash).toBeGreaterThanOrEqual(
-      SCENERY_CATALOG[SceneryItem.OakTree].removalPriceCents + 4 * LAND_HEIGHT_STEP_COST_CENTS,
-    );
+    expect(s.world.map.heights[s.world.map.index(8, 8)]).toBe(4);
+    expect(s.world.economy.cash).toBe(cash);
     let scenery = 0;
     const m = s.world.map;
     for (let e = m.firstElement(m.index(8, 8)); e >= 0; e = m.nextElement(e)) scenery++;
-    expect(scenery).toBe(0);
+    expect(scenery).toBe(1);
   });
 });
 
@@ -197,16 +195,16 @@ describe('land tool and structures', () => {
     );
   });
 
-  it('adjusts a footpath on the changed tile to the new ground when it stays a ramp or flat', () => {
+  it('refuses to raise terrain into a footpath', () => {
     const s = sim();
     expect(placePath(s.world.map, { x: 8, y: 8 })).toBe(true);
-    s.enqueue({ type: 'raiseLand', x: 8, y: 8, width: 1, height: 1 });
-    s.step();
+    expect(edit(s, { action: LandAction.Raise, x: 8, y: 8, width: 1, height: 1 }).result).toBe(
+      LandResult.PathInTheWay,
+    );
     const m = s.world.map;
     const i = m.index(8, 8);
-    expect(m.heights[i]).toBe(5);
-    expect(m.pathElement(i, 5)).toBeGreaterThanOrEqual(0);
-    expect(m.pathElement(i, 4)).toBe(-1);
+    expect(m.heights[i]).toBe(4);
+    expect(m.pathElement(i, 4)).toBeGreaterThanOrEqual(0);
   });
 
   it('blocks a change that would make the ground under a footpath neither flat nor a ramp', () => {
@@ -220,15 +218,7 @@ describe('land tool and structures', () => {
       height: 1,
       corners: 0b0011,
     });
-    expect(ramp.result).toBe(LandResult.Ok);
-    const lump = edit(s, {
-      action: LandAction.Raise,
-      x: 8,
-      y: 8,
-      width: 1,
-      height: 1,
-      corners: 0b0001,
-    });
-    expect(lump.result).toBe(LandResult.PathInTheWay);
+    expect(ramp.result).toBe(LandResult.PathInTheWay);
+    expect(s.world.map.heights[s.world.map.index(8, 8)]).toBe(4);
   });
 });
