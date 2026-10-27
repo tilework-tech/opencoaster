@@ -108,6 +108,9 @@ export function occlusionOracleTest(defaults: { seeds: string; zooms: string }):
       console.log(`  ${key}: ${p.mismatched}/${p.contested} (${(p.rate * 100).toFixed(2)}%)`);
     if (process.env.OCCLUSION_REPORT_ONLY === '1') return;
     expect(rate).toBeLessThanOrEqual(MAX_MISMATCH);
+    expect(totals.coverage / Math.max(1, totals.objectPixels), 'coverage-only').toBeLessThanOrEqual(
+      MAX_MISMATCH,
+    );
     for (const [key, p] of Object.entries(pairRates))
       if (p.contested >= MIN_CONTESTED) expect(p.rate, key).toBeLessThanOrEqual(MAX_PAIR);
   });

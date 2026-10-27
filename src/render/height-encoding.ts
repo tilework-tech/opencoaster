@@ -2,6 +2,9 @@
  * Baked sprite heights travel in RGBA8 depth pages: red and green hold a 16-bit height relative to
  * the sprite anchor, in steps of 1 / `HEIGHT_RESOLUTION` level, offset so negative heights fit;
  * alpha marks coverage. See src/render/docs.md ("Occlusion model").
+ *
+ * Alpha is always exactly 0 or 255. The renderers read the pages back through a 2D canvas, which
+ * stores premultiplied colour; with binary alpha the red and green bytes survive unchanged.
  */
 export const HEIGHT_RESOLUTION = 256;
 export const HEIGHT_OFFSET = 32768;

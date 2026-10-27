@@ -9,7 +9,6 @@ import type { Rotation } from './projection';
 import { rideCellSpriteKey } from './world-art';
 
 /** Tiles beyond its footprint that a flat ride's art can reach (see `OVERHANG` in tools/sprites/ride-cells.ts). */
-const SLICE_OVERHANG = 3;
 
 /** One tile-sized slice of a flat ride: the atlas key anchored at world (x, y, z). */
 export interface RideCellDraw {
@@ -36,17 +35,12 @@ export function isSlicedRide(type: RideType): boolean {
 }
 
 /**
- * Draw list of every flat ride's footprint slices for one snapshot. Each slice sorts with the
- * painter depth of its own tile (the convention guests, scenery and paths already use), so
- * things standing in front of or behind part of a large ride are layered correctly.
+ * Draw list of every flat ride's footprint slices for one snapshot. Each slice is drawn at its own
+ * tile's centre and draw key; per-pixel height (docs.md, "Occlusion model") layers things standing
+ * in front of or behind part of a large ride.
  */
 export class RideCellScene {
   readonly items: RideCellDraw[] = [];
-  /**
-   * Per map tile, the floor level plus one of a flat ride whose footprint stands on or lies within
-   * three tiles of the tile, else 0; valid after `build`. Terrain at or below that floor never hides the ride.
-   */
-  floor: Uint8Array = new Uint8Array(0);
   private count = 0;
 
   get length(): number {
@@ -55,14 +49,10 @@ export class RideCellScene {
 
   reset(): void {
     this.count = 0;
-    this.floor.fill(0);
   }
 
   build(snapshot: Snapshot, map: MapData, rotation: Rotation): void {
     this.count = 0;
-    if (this.floor.length !== map.width * map.height)
-      this.floor = new Uint8Array(map.width * map.height);
-    else this.floor.fill(0);
     for (let i = 0; i < snapshot.rides.count; i++) {
       const o = i * RIDE_INFO_STRIDE;
       const type = snapshot.rideInfo[o + RideInfo.Type] as RideType;
@@ -81,7 +71,6 @@ export class RideCellScene {
       for (let cell = 0; cell < tiles.length; cell++) {
         const [tx, ty] = tiles[cell];
         if (tx < 0 || ty < 0 || tx >= map.width || ty >= map.height) continue;
-        this.raiseFloor(map, tx, ty, base);
         const x = tx * TILE_UNITS + TILE_UNITS / 2;
         const y = ty * TILE_UNITS + TILE_UNITS / 2;
         const [rx, ry] = view[cell];
@@ -97,17 +86,6 @@ export class RideCellScene {
         );
       }
     }
-  }
-
-  private raiseFloor(map: MapData, tx: number, ty: number, base: number): void {
-    for (let dy = -SLICE_OVERHANG; dy <= SLICE_OVERHANG; dy++)
-      for (let dx = -SLICE_OVERHANG; dx <= SLICE_OVERHANG; dx++) {
-        const x = tx + dx;
-        const y = ty + dy;
-        if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
-        const i = y * map.width + x;
-        this.floor[i] = Math.max(this.floor[i], base + 1);
-      }
   }
 
   private push(

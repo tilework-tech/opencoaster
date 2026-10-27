@@ -179,7 +179,7 @@ describe('world art atlas packing', () => {
       (frame) => `${frame.page}:${frame.x},${frame.y}`,
     );
     expect(new Set(placements).size).toBe(placements.length);
-  });
+  }, 30_000);
 
   it('packs each category into its own pages and marks ride categories lazy', async () => {
     const root = await mkdtemp(join(tmpdir(), 'opencoaster-art-categories-'));

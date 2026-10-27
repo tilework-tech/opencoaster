@@ -11,6 +11,12 @@ import {
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
 import { WATER_BANK } from './world-art';
+import { MAX_HEIGHT } from '../sim/map/tile-map';
+
+/** Screen extent (world pixels) of a tile's ground around the projection of its sea-level centre. */
+const TILE_REACH_X = 64;
+const TILE_REACH_UP = (MAX_HEIGHT + 2) * 16 + 32;
+const TILE_REACH_DOWN = 32;
 
 /**
  * The ground, cliff faces and water surface of `map` as oracle triangles in backing-buffer
@@ -33,9 +39,19 @@ export function terrainTriangles(
   };
   const out: OracleTriangle[] = [];
   const split = terrainMeshTriangles(camera.rotation);
+  const right = viewportWidth * devicePixelRatio;
+  const bottom = viewportHeight * devicePixelRatio;
+  // A tile's ground, cliffs and water lie within a tile width of its base point horizontally, and
+  // between its base and the highest terrain level vertically.
+  const reachX = TILE_REACH_X * camera.zoom * devicePixelRatio;
+  const reachUp = TILE_REACH_UP * camera.zoom * devicePixelRatio;
+  const reachDown = TILE_REACH_DOWN * camera.zoom * devicePixelRatio;
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       const index = y * map.width + x;
+      const centre = vertex(x + 0.5, y + 0.5, 0);
+      if (centre.x < -reachX || centre.x > right + reachX) continue;
+      if (centre.y < -reachDown || centre.y > bottom + reachUp) continue;
       const base = map.heights[index];
       const mask = map.slope[index];
       const corners = terrainTileCorners(x, y, base, mask);

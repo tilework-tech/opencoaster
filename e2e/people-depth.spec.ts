@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
+import { OBJECT_KINDS } from '../src/render/object-kinds';
 
 /**
  * People against footpaths, ramps, queues, raised ground, benches, trees and stalls, scored against the
@@ -19,6 +20,8 @@ const SIZE = { width: 320, height: 240 };
 const ROTATIONS: Rotation[] = [0, 1, 2, 3];
 /** Share of object pixels allowed to differ from the oracle (sampling at sprite edges). */
 const MAX_MISMATCH = 0.005;
+/** Pixels of a guest that may disagree with the oracle (beyond the ambiguous edge samples). */
+const MAX_GUEST_MISMATCH = 8;
 /** Share of pixels showing objects in both renderers whose kinds may differ between them. */
 const MAX_KIND_DISAGREEMENT = 0.01;
 
@@ -70,7 +73,7 @@ class Fixture {
 }
 
 /** Code of the ground kind in the fixture's kind strings (`A` + its index in OBJECT_KINDS). */
-const GROUND_CODE = 'A'.charCodeAt(0) + 19;
+const GROUND_CODE = 'A'.charCodeAt(0) + OBJECT_KINDS.indexOf('ground');
 const NOTHING_CODE = '@'.charCodeAt(0);
 
 /**
@@ -103,11 +106,13 @@ const CASES: Array<{ name: string; scene: string; at: At[] }> = [
     ],
   },
   {
-    name: 'raised path',
+    name: 'raised path, on the deck and under it',
     scene: 'path-raised',
     at: [
       [6.1, 8.2, 4],
       [8.8, 8.8, 4],
+      [8.5, 8.5, 2],
+      [7.3, 8.6, 2],
     ],
   },
   {
@@ -184,6 +189,13 @@ for (const rotation of ROTATIONS) {
               score.mismatched / Math.max(1, score.objectPixels),
               `${renderer} guest at ${guest}: ${JSON.stringify(score.pairs)}`,
             ).toBeLessThanOrEqual(MAX_MISMATCH);
+            const guestMismatch = Object.entries(score.pairs)
+              .filter(([pair]) => pair.split('>').includes('guest'))
+              .reduce((sum, [, pair]) => sum + pair.mismatched, 0);
+            expect(
+              guestMismatch,
+              `${renderer} guest at ${guest} pixels: ${JSON.stringify(score.pairs)}`,
+            ).toBeLessThanOrEqual(MAX_GUEST_MISMATCH);
           }
           const parity = kindDisagreement(gl.kinds, c2d.kinds);
           expect(

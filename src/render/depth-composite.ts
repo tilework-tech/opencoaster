@@ -50,6 +50,24 @@ export type CompositePlacement = Pick<
   'id' | 'left' | 'top' | 'width' | 'height' | 'anchorHeight' | 'heightScale'
 >;
 
+/** Widens `span` to where the row through `sy` crosses the edge p-q, if it does. */
+function crossRow(
+  p: OracleTriangle['a'],
+  q: OracleTriangle['a'],
+  sy: number,
+  span: Float64Array,
+): void {
+  if ((sy < p.y && sy < q.y) || (sy > p.y && sy > q.y)) return;
+  if (p.y === q.y) {
+    span[0] = Math.min(span[0], p.x, q.x);
+    span[1] = Math.max(span[1], p.x, q.x);
+    return;
+  }
+  const x = p.x + ((sy - p.y) * (q.x - p.x)) / (q.y - p.y);
+  span[0] = Math.min(span[0], x);
+  span[1] = Math.max(span[1], x);
+}
+
 export class DepthComposite {
   width = 0;
   height = 0;
@@ -60,6 +78,8 @@ export class DepthComposite {
   private colour: Uint32Array<ArrayBufferLike> = new Uint32Array(0);
   private bytes: Uint8ClampedArray<ArrayBufferLike> = new Uint8ClampedArray(0);
   private columns = new Int32Array(0);
+  /** Left and right ends of the row span being rasterised. */
+  private readonly span = new Float64Array(2);
 
   /**
    * Starts a frame over `pixels` (RGBA, row-major, `width` x `height`), which already holds the
@@ -95,26 +115,16 @@ export class DepthComposite {
       const gx = ((b.height - a.height) * (c.y - a.y) - (c.height - a.height) * (b.y - a.y)) / area;
       const gy = ((c.height - a.height) * (b.x - a.x) - (b.height - a.height) * (c.x - a.x)) / area;
       const h0 = a.height - gx * a.x - gy * a.y;
+      const span = this.span;
       for (let py = y0; py <= y1; py++) {
         const sy = py + 0.5;
-        let left = Infinity;
-        let right = -Infinity;
-        const edge = (p: OracleTriangle['a'], q: OracleTriangle['a']): void => {
-          if ((sy < p.y && sy < q.y) || (sy > p.y && sy > q.y)) return;
-          if (p.y === q.y) {
-            left = Math.min(left, p.x, q.x);
-            right = Math.max(right, p.x, q.x);
-            return;
-          }
-          const x = p.x + ((sy - p.y) * (q.x - p.x)) / (q.y - p.y);
-          left = Math.min(left, x);
-          right = Math.max(right, x);
-        };
-        edge(a, b);
-        edge(b, c);
-        edge(c, a);
-        const x0 = Math.max(0, Math.ceil(left - 0.5));
-        const x1 = Math.min(width - 1, Math.floor(right - 0.5));
+        span[0] = Infinity;
+        span[1] = -Infinity;
+        crossRow(a, b, sy, span);
+        crossRow(b, c, sy, span);
+        crossRow(c, a, sy, span);
+        const x0 = Math.max(0, Math.ceil(span[0] - 0.5));
+        const x1 = Math.min(width - 1, Math.floor(span[1] - 0.5));
         let h = gx * (x0 + 0.5) + gy * sy + h0;
         const line = py * width;
         for (let px = x0; px <= x1; px++, h += gx) {

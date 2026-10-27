@@ -212,7 +212,7 @@ export interface ObjectIdCapture {
 }
 
 /** A sprite quad as the instance buffer holds it: world anchor after the quad-centre offset. */
-export interface SpriteQuad {
+interface SpriteQuad {
   x: number;
   y: number;
   /** Height of the quad centre (fixed point, Z_STEP per level). */
@@ -227,7 +227,7 @@ export interface SpriteQuad {
  * Screen rectangle of a sprite quad exactly as the WebGL2 vertex shader places it, in backing
  * pixels (CSS pixels times `devicePixelRatio`).
  */
-export function spriteScreenRect(
+function spriteScreenRect(
   quad: SpriteQuad,
   map: MapExtent,
   camera: Pick<Camera, 'x' | 'y' | 'zoom' | 'rotation'>,
@@ -1642,12 +1642,22 @@ export class WebGL2Renderer implements Renderer {
           this.appendGroundTile(map, tile, camera.rotation, true);
         }
       }
-    this.uploadInPainterOrder();
     const uniforms = this.depthUniforms;
-    if (!this.depthProgram || !uniforms || !this.vao) return;
+    if (!this.depthProgram || !uniforms || !this.vao || !this.instanceBuffer) return;
+    // Depth does not depend on draw order, so the instances go up as appended.
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+    if (this.depths.length > this.bufferCapacity) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
+      this.bufferCapacity = this.depths.length;
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.instanceData, 0, this.count * INSTANCE_FLOATS);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.colorMask(false, false, false, false);
+    // Ground loses an exact tie with whatever rests on it, as in the oracle and Canvas2D, where
+    // ground is composited first and a later surface wins an equal height.
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(1, 1);
     gl.useProgram(this.depthProgram);
     gl.bindVertexArray(this.vao);
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
@@ -1657,6 +1667,7 @@ export class WebGL2Renderer implements Renderer {
     gl.uniform1f(uniforms.rotation, camera.rotation);
     if (this.attributeBase !== 0) this.pointInstanceAttributes(0);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.colorMask(true, true, true, true);
     this.count = 0;
   }
@@ -1850,7 +1861,7 @@ export class WebGL2Renderer implements Renderer {
       TILE_W,
       TILE_H,
       0,
-      2 * (rx + ry) - height + 0.25,
+      2 * (rx + ry) - height,
       meshMode,
       corners,
     );
@@ -1912,6 +1923,7 @@ export class WebGL2Renderer implements Renderer {
         (face.end.x - face.start.x) * TILE_UNITS,
         (face.end.y - face.start.y) * TILE_UNITS,
         terrainCliffSpriteName(terrainSurface, (direction + rotation) & 3),
+        // Cliff faces paint over the tile tops behind them in the ground cache.
         2 * (rx + ry) - height - bottom + 0.25,
         4,
         [face.start.height * 64, face.end.height * 64, bottom * 64, bottom * 64],

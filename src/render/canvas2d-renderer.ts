@@ -115,7 +115,6 @@ const SHRUB_COLOR = '#397b35';
 const FLOWER_COLORS = ['#f4c542', '#e85b86', '#f2eeee'];
 
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
-/** Litter sorts just behind a person standing on the same spot. */
 
 export class Canvas2DRenderer implements Renderer {
   private ownershipOverlay: OwnershipOverlay | null = null;
@@ -686,9 +685,7 @@ export class Canvas2DRenderer implements Renderer {
           const behindIndex = behindWorldY * map.width + behindWorldX;
           return terrainPeak > map.heights[behindIndex]! + (map.slope[behindIndex] !== 0 ? 1 : 0);
         };
-        const rideFloor = this.rideCells.floor[i]!;
-        const belowRide = rideFloor > 0 && terrainPeak <= rideFloor - 1;
-        if (!belowRide && (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1))) {
+        if (raisedOver(rx - 1, ry) || raisedOver(rx, ry - 1)) {
           // Redrawn from its rearmost corner, after the cliff faces of the tiles behind it.
           this.enqueueGround(
             map,
