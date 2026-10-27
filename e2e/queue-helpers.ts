@@ -109,7 +109,7 @@ export const SHORT_QUEUE: Layout = {
 
 export interface SimProbe {
   tick: number;
-  guests: Array<{ id: number; state: number; x: number; y: number }>;
+  guests: Array<{ id: number; state: number; x: number; y: number; px: number; py: number }>;
   /** Guests whose recent thoughts include "queue is too long". */
   turnedAway: number;
   /** `WeatherKind` currently over the park. */
@@ -156,6 +156,8 @@ export async function probe(page: Page): Promise<SimProbe> {
         state: snap.guests.data[o + 3]! >>> 24,
         x: snap.guests.data[o]! >> 8,
         y: snap.guests.data[o + 1]! >> 8,
+        px: snap.guests.data[o]!,
+        py: snap.guests.data[o + 1]!,
       });
     }
     for (let i = 0; i < snap.guests.count; i++) {
