@@ -265,7 +265,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     guestDetails: new Int32Array(caps.guests * GUEST_DETAIL_STRIDE),
     guestIds: new Int32Array(caps.guests),
     weather: { kind: 0, temperature: 20 },
-    feedback: { seq: 0, domain: 0, code: 0, subject: -1 },
+    feedback: { seq: 0, domain: 0, code: 0, subject: -1, detail: '' },
     buildable: new Uint8Array(caps.mapTiles ?? 0),
     grounds: new Uint8Array(caps.mapTiles ?? 0),
     patrolAreas: new Uint32Array(caps.patrolAreas ?? 0),
@@ -527,6 +527,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.feedback.domain = feedback.domain;
   out.feedback.code = feedback.code;
   out.feedback.subject = feedback.subject;
+  out.feedback.detail = feedback.detail;
   out.park.cash = world.economy.cash;
   out.park.loan = world.economy.loan;
   out.park.rides = rides.count;

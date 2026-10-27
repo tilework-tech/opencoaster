@@ -19,13 +19,34 @@ describe('track placement against rides', () => {
     const result = validatePlaceCommand(world, {
       rideId: coaster,
       pieceType: PieceId.Station,
-      x: 14,
-      y: 14,
+      x: 13,
+      y: 13,
       z: 2,
       dir: 0,
       mode: PieceMode.Normal,
     });
 
     expect(result).toBe(TrackResult.Blocked);
+  });
+
+  it('allows an overpass when the track clearance starts above the ride', () => {
+    const world = new World({ seed: 2, width: 32, height: 32 });
+    world.map.fillFlat(2);
+    world.map.ownership.fill(OWNED);
+    world.economy.cash = 100_000_000;
+    createRide(world, RideType.MerryGoRound, 12, 12);
+    const coaster = createRide(world, RideType.WoodenCoaster, 20, 20);
+
+    const result = validatePlaceCommand(world, {
+      rideId: coaster,
+      pieceType: PieceId.Station,
+      x: 13,
+      y: 13,
+      z: 8,
+      dir: 0,
+      mode: PieceMode.Normal,
+    });
+
+    expect(result).toBe(TrackResult.Ok);
   });
 });

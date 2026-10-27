@@ -218,9 +218,10 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
 };
 
 /** Player-facing text for a command outcome from the simulation. */
-export function feedbackMessage(domain: FeedbackDomain, code: number): FeedbackLine {
+export function feedbackMessage(domain: FeedbackDomain, code: number, detail = ''): FeedbackLine {
   const ok = code === 0 || code === RideResult.TestPassed;
   if (domain === FeedbackDomain.Track) {
+    if (code === TrackResult.Blocked && detail) return { text: `Blocked by ${detail}.`, ok: false };
     if (code === TrackWarning.LiftIntoInversion) {
       return { text: TRACK_WARNING_MESSAGES[code], ok: false };
     }

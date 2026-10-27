@@ -5,6 +5,7 @@ import type { RideModeDef } from './ride-modes';
 import { kmhToSpeedQ8 } from '../vehicles/speed-units';
 import type { RatingProfile } from '../vehicles/vehicle-ratings';
 import { TRANSPORT_PIECES } from '../track/catalog';
+import { Z_STEP } from '../core/constants';
 
 export enum RideType {
   MerryGoRound = 1,
@@ -63,6 +64,8 @@ export interface RideTypeDef {
    * rotates the offsets about the anchor (see `rideFootprintTiles`).
    */
   footprint: ReadonlyArray<readonly [dx: number, dy: number]>;
+  /** World-space vertical occupancy above the ride floor; object definitions may override it. */
+  clearanceWorld?: number;
   /** Track may be placed over open water for this ride type. */
   allowsWater?: boolean;
   /**
@@ -800,6 +803,7 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = Object.from
     def.id,
     {
       ...def,
+      clearanceWorld: def.clearanceWorld ?? 3 * Z_STEP,
       ...(FLAT_RIDE_SIZES[def.id]
         ? {
             footprint: rectFootprint(

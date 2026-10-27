@@ -40,6 +40,8 @@ export class TrackState {
   /** Result and piece id of the most recently applied command. */
   lastResult: TrackResult = 0;
   lastPiece = -1;
+  /** Display name of the occupancy that blocked the latest attempted placement. */
+  lastBlockerName = '';
   /** Derived polylines, rebuilt on demand from the pieces; not part of the hashed state. */
   readonly paths: (TrackPath | null)[] = new Array<TrackPath | null>(MAX_TRACK_RIDES).fill(null);
 

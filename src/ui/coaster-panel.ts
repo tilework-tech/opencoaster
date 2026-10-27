@@ -487,7 +487,7 @@ export class CoasterPanel {
     if (feedback.seq === this.lastFeedbackSeq) return;
     this.lastFeedbackSeq = feedback.seq;
     if (feedback.domain !== FeedbackDomain.Track && feedback.domain !== FeedbackDomain.Ride) return;
-    const line = feedbackMessage(feedback.domain, feedback.code);
+    const line = feedbackMessage(feedback.domain, feedback.code, feedback.detail);
     this.feedbackLine.textContent = line.text;
     this.feedbackLine.dataset.ok = String(line.ok);
     this.actions.status(line.text);

@@ -28,10 +28,12 @@ export interface CommandFeedback {
   code: number;
   /** Ride id the outcome concerns, tile index for path results, or -1. */
   subject: number;
+  /** Optional obstruction label for construction feedback. */
+  detail?: string;
 }
 
 export function createFeedback(): CommandFeedback {
-  return { seq: 0, domain: FeedbackDomain.None, code: 0, subject: -1 };
+  return { seq: 0, domain: FeedbackDomain.None, code: 0, subject: -1, detail: '' };
 }
 
 export function reportFeedback(
@@ -39,9 +41,11 @@ export function reportFeedback(
   domain: FeedbackDomain,
   code: number,
   subject = -1,
+  detail = '',
 ): void {
   feedback.seq++;
   feedback.domain = domain;
   feedback.code = code;
   feedback.subject = subject;
+  feedback.detail = detail;
 }

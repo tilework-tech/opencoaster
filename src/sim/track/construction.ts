@@ -4,6 +4,8 @@ import { CLEARANCE_UNITS, PIECES } from './catalog';
 import { MAX_PIECES_PER_RIDE, MAX_TRACK_LEVEL, MAX_TRACK_RIDES } from './track-store';
 import { PieceFlag, PieceMode, TrackResult } from './track-types';
 import type { Bank, Direction, Slope } from './track-types';
+import { firstOccupancyBlocker, worldOccupancies } from '../map/occupancy';
+import type { OccupancyVolume } from '../map/occupancy';
 
 export interface PlaceRequest {
   rideId: number;
@@ -182,27 +184,21 @@ function checkSpace(world: World, req: PlaceRequest): TrackResult {
     if (baseZ + cell.zMax > MAX_TRACK_LEVEL * Z_STEP) return TrackResult.TooHigh;
   }
 
-  const c = world.track.pieces.cols;
-  const n = world.track.pieces.count;
-  for (let s = 0; s < n; s++) {
-    const odef = PIECES[c.pieceType[s]];
-    if (Math.abs(c.x[s] - req.x) > 6 || Math.abs(c.y[s] - req.y) > 6) continue;
-    const obase = c.z[s] * TRACK_Z_STEP;
-    for (const oc of odef.footprint) {
-      const [ox, oy] = rotateTile(oc.i, oc.j, c.dir[s]);
-      const otx = c.x[s] + ox;
-      const oty = c.y[s] + oy;
-      for (const cell of def.footprint) {
-        const [rx, ry] = rotateTile(cell.i, cell.j, req.dir);
-        if (req.x + rx !== otx || req.y + ry !== oty) continue;
-        const lo = baseZ + cell.zMin;
-        const hi = baseZ + cell.zMax + CLEARANCE_UNITS;
-        const olo = obase + oc.zMin;
-        const ohi = obase + oc.zMax + CLEARANCE_UNITS;
-        if (lo <= ohi && olo <= hi) return TrackResult.Blocked;
-      }
-    }
-  }
+  const candidates: OccupancyVolume[] = def.footprint.map((cell) => {
+    const [rx, ry] = rotateTile(cell.i, cell.j, req.dir);
+    return {
+      tileX: req.x + rx,
+      tileY: req.y + ry,
+      base: baseZ + cell.zMin,
+      clearance: baseZ + cell.zMax + CLEARANCE_UNITS,
+      kind: def.shape === 'station' ? 'station' : 'track',
+      name: 'Track',
+      levelCrossing: def.shape === 'straight' && cell.zMin === 0,
+    };
+  });
+  const blocker = firstOccupancyBlocker(candidates, worldOccupancies(world));
+  world.track.lastBlockerName = blocker?.name ?? '';
+  if (blocker) return TrackResult.Blocked;
   return TrackResult.Ok;
 }
 
