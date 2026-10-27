@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from './support/test';
 import { openPage, toolbarAction } from './support/park';
 import { inspectionShowcase } from './support/inspection-showcase';
+import { takeShot } from './support/shots';
 
 type Part = 'track' | 'station' | 'train' | 'entrance' | 'exit' | 'bench' | 'bin';
 
@@ -163,7 +164,11 @@ async function inspect(
     await page.mouse.move(point.x, point.y);
     await expect(page.locator('.tool-status')).toContainText(point.name);
     await expect(page.locator('.object-hover-outline')).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath(`${part}-hover.png`), timeout: 60_000 });
+    const viewport = page.viewportSize()!;
+    const left = Math.max(0, Math.min(viewport.width - 400, point.x - 200));
+    const top = Math.max(0, Math.min(viewport.height - 300, point.y - 150));
+    const shot = await takeShot(page, { x: left, y: top, width: 400, height: 300 });
+    await writeFile(testInfo.outputPath(`${part}-hover.png`), shot.png);
     await page.mouse.click(point.x, point.y);
   }
   return point;

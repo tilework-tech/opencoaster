@@ -8,6 +8,7 @@ import {
   merryGoRound,
   observationTower,
   spiralSlide,
+  SHIP_SWING_DEGREES,
   swingingShip,
   topSpin,
   twist,
@@ -246,7 +247,7 @@ const TOILETS: StallStyle = {
 
 export const RIDE_MODELS: readonly RideModel[] = [
   { key: 'rides/merry-go-round', frames: 9, build: merryGoRound },
-  { key: 'rides/swinging-ship', frames: 9, build: swingingShip },
+  { key: 'rides/swinging-ship', frames: SHIP_SWING_DEGREES.length + 1, build: swingingShip },
   { key: 'rides/ferris-wheel', frames: 9, build: ferrisWheel },
   { key: 'rides/twist', frames: 9, build: twist },
   { key: 'rides/food-stall', frames: 4, build: (f) => stall(FOOD, f, 'food') },

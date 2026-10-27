@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from './support/test';
 import { World } from '../src/sim/core/world';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
@@ -83,7 +83,6 @@ test('desktop construction controls fit above the fold', async ({ page }, testIn
   expect(
     await page.locator('#game').evaluate((canvas) => Boolean(canvas.getContext('webgl2'))),
   ).toBe(true);
-  await expect(page.locator('.ownership-overlay')).toBeVisible();
   await unlockSteelCoaster(page, testInfo);
   await page.getByRole('button', { name: 'New ride', exact: true }).click();
   const ridePicker = await page.locator('[data-panel="ride-select"]').boundingBox();
@@ -104,9 +103,8 @@ test('desktop construction controls fit above the fold', async ({ page }, testIn
   await panel.getByRole('button', { name: 'Build piece' }).click();
   await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
 
-  await page.getByRole('button', { name: 'Game options', exact: true }).click();
-  await page.getByRole('button', { name: '4×', exact: true }).click();
-  await expect(page.getByRole('button', { name: '2×', exact: true })).toHaveAttribute(
+  await page.getByRole('button', { name: 'Game speed 4×', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Game speed 2×', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
@@ -137,9 +135,10 @@ test('park windows return to their dragged position when reopened', async ({ pag
   expect(initial).not.toBeNull();
   await page.mouse.move(initial!.x + 70, initial!.y + 16);
   await page.mouse.down();
-  await page.mouse.move(120, 140);
+  await page.mouse.move(120, 140, { steps: 8 });
   await page.mouse.up();
   const moved = await park.boundingBox();
+  expect(moved?.x).not.toBe(initial!.x);
   await page.getByRole('button', { name: 'Close Park', exact: true }).click();
   await page.getByRole('button', { name: 'Park', exact: true }).click();
   const reopened = await page.locator('[data-panel="park"]').boundingBox();

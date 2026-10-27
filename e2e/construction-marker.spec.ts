@@ -1,12 +1,12 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { RideType } from '../src/sim/rides/ride-types';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
-import type { Page } from '@playwright/test';
+import type { Page } from './support/test';
 import {
   createStarterWorld,
   findBuildableRun,

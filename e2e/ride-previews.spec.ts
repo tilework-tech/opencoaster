@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page } from './support/test';
 import { serialize } from '../src/save/save';
 import { createRide } from '../src/sim/rides/ride-operations';
 import { RIDE_CATALOG } from '../src/sim/rides/ride-types';

@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { devices, expect } from '@playwright/test';
 import type { Browser, Page, TestInfo } from '@playwright/test';
+import { createTestContext } from './support/test-contexts';
 import { project } from '../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { createScenarioWorld, dragThrough, tileScreenPoint, toolbarTool } from './footpath-helpers';
@@ -237,7 +238,7 @@ export async function openPage(
 ): Promise<Page> {
   const { defaultBrowserType: _browserType, ...device } = mobile ? devices['Pixel 8'] : {};
   void _browserType;
-  const context = await browser.newContext({
+  const context = await createTestContext(browser, {
     ...device,
     baseURL: options.baseURL ?? 'http://127.0.0.1:4173',
     ...(options.scale ? { deviceScaleFactor: options.scale } : {}),
@@ -340,18 +341,22 @@ export async function buildQueuedRide(
 
   await toolbarTool(page, 'New ride');
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
-  await page.locator('.ride-card[data-ride-type="1"]').click();
+  const rideCard = page.locator('.ride-card[data-ride-type="1"]');
+  await rideCard.focus();
+  await rideCard.press('Enter');
   await focus(page, layout.ride, lift);
   const [rx, ry] = await tileScreenPoint(page, world, layout.ride);
   if (mobile) await page.touchscreen.tap(rx, ry);
   else await page.mouse.click(rx, ry);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   const { entrance, exit } = layout;
-  await page
-    .getByRole('button', { name: `Place entrance at tile ${entrance.x}, ${entrance.y}` })
-    .click();
+  const [entranceX, entranceY] = await tileScreenPoint(page, world, entrance);
+  if (mobile) await page.touchscreen.tap(entranceX, entranceY);
+  else await page.mouse.click(entranceX, entranceY);
   await expect(page.locator('.tool-status')).toContainText('Place exit');
-  await page.getByRole('button', { name: `Place exit at tile ${exit.x}, ${exit.y}` }).click();
+  const [exitX, exitY] = await tileScreenPoint(page, world, exit);
+  if (mobile) await page.touchscreen.tap(exitX, exitY);
+  else await page.mouse.click(exitX, exitY);
 
   const rideWindow = page.locator('[data-panel="ride-0"]');
   const legacy = options.legacy === true;

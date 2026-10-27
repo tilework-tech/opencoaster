@@ -1,7 +1,7 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { MAP_CENTER, centerMapOnTile, tileScreenPoint } from './support/footprints';
 import type { Tile } from './support/footprints';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
@@ -137,6 +137,8 @@ test('plays the starter park shell and exercises save file round trips', async (
   await expect(page.locator('.tool-status')).toContainText('Build the queue');
   await screenshot('05-flat-ride-built');
 
+  await page.keyboard.press('Shift+Backspace');
+  await expect(page.locator('.ui-window')).toHaveCount(0);
   await toolbarButton('Finances').click();
   await expect(page.locator('[data-panel="finance"]')).toContainText('Cash');
   await screenshot('08-finances');

@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
-import { test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { test } from './support/test';
+import type { Page } from './support/test';
 import {
   LONG_QUEUE,
   buildQueuedRide,

@@ -50,6 +50,7 @@ export interface RidePreviewRequest {
   rotation: number;
   /** Ride phase; selects the animation frame of animated art. */
   phase: number;
+  phaseProgress?: number;
   tick: number;
 }
 
@@ -215,7 +216,7 @@ export function drawRidePreview(
   const width = Math.round(cssWidth * pixelRatio);
   const height = Math.round(cssHeight * pixelRatio);
   const items = ridePreviewItems(req);
-  const frame = rideSpriteFrame(req.phase, req.tick, frameCount(atlas, items));
+  const frame = rideSpriteFrame(req.phase, req.tick, frameCount(atlas, items), req.phaseProgress);
   const resolved = resolveItems(atlas, items, frame);
   if (!resolved || resolved.length === 0) return 'pending';
   if (canvas.width !== width) canvas.width = width;

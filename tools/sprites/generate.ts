@@ -58,9 +58,6 @@ import type { TrackPieceDef } from '../../src/sim/track/track-types';
 
 const ONE_TILE = { width: 1, height: 1 };
 
-/** Idle pose plus eight operating poses of every animated flat ride. */
-const FLAT_RIDE_FRAMES = 9;
-
 /** Distance from a tile centre to its edge, in tile units. */
 const TILE_HALF_EXTENT = 0.5;
 /** Flat rides are enlarged at most this much to reach the tile edge. */
@@ -186,7 +183,7 @@ function sameFrames(frames: readonly Sprite[]): boolean {
  */
 export function flatRideCellSprites(ride: RideTypeDef, model: RideModel): SpriteDef[] {
   const out: SpriteDef[] = [];
-  const poses = Array.from({ length: FLAT_RIDE_FRAMES }, (_, frame) =>
+  const poses = Array.from({ length: model.frames }, (_, frame) =>
     placeOnFootprint(rideMesh(model, frame), ride.footprint),
   );
   const name = rideSpriteName(ride.id);
@@ -210,7 +207,7 @@ export function flatRideCellSprites(ride: RideTypeDef, model: RideModel): Sprite
 
 /** Complete, animated flat-ride views for the ride window preview. */
 export function flatRidePreviewSprites(ride: RideTypeDef, model: RideModel): SpriteDef[] {
-  const poses = Array.from({ length: FLAT_RIDE_FRAMES }, (_, frame) =>
+  const poses = Array.from({ length: model.frames }, (_, frame) =>
     placeOnFootprint(rideMesh(model, frame), ride.footprint),
   );
   const name = rideSpriteName(ride.id);

@@ -23,7 +23,7 @@ export function withRiders(name: string, seatsAt: (frame: number) => readonly Se
   if (!base) throw new Error(`Missing base ride model for ${name}`);
   return {
     key: base.key,
-    frames: 9,
+    frames: base.frames,
     build(frame) {
       if (frame === 0) return base.build(-1);
       const operationFrame = frame - 1;

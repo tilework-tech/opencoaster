@@ -423,10 +423,11 @@ test('built track is drawn on its sim centre line in every view rotation', async
         if (changedNear(empty[rotation]!, drawn, px, py, 4) === 0) missing++;
       }
     }
+    const maxMissing = Math.round(checked * 0.03);
     expect(
-      missing / checked,
-      `centre line points with no drawn track in view ${rotation}`,
-    ).toBeLessThan(0.05);
+      missing,
+      `centre line points with no drawn track in view ${rotation} (${missing}/${checked})`,
+    ).toBeLessThanOrEqual(maxMissing);
     await rotateView(page);
   }
 });

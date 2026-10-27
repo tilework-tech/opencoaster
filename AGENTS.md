@@ -17,6 +17,13 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
 | `pnpm balance`                 | balance harness; `-- --scenario all` for win rates     |
 | `pnpm check`                   | everything CI runs                                     |
 | `pnpm smoke` / `smoke:subpath` | Playwright smoke (dev / prod build at `/opencoaster/`) |
+| `pnpm e2e:quick`               | desktop e2e subset, one spec per major tool (<5 min)   |
+| `pnpm e2e`                     | full Playwright e2e, desktop + Pixel 8 (one worker)    |
+| `pnpm e2e:art-review`          | art inventory captures (excluded from `pnpm e2e`)      |
+
+## UI PR checklist
+
+`pnpm e2e:quick` must pass before marking any UI PR ready. Run the full `pnpm e2e` when a PR renames, moves or removes controls. Update specs in the same PR and select by role or label, not CSS or icon ids.
 
 ## Layout
 

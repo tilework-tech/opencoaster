@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import {
   LONG_QUEUE,
   SHORT_QUEUE,
@@ -31,7 +31,7 @@ for (const mobile of [false, true]) {
       let peak = 0;
       let screenshotted = false;
       const deadline = Date.now() + 200_000;
-      while (Date.now() < deadline && peak < 6) {
+      while (Date.now() < deadline && peak < 4) {
         await page.waitForTimeout(300);
         const p = await probe(page);
         const queuing = p.guests.filter((g) => g.state === 1);

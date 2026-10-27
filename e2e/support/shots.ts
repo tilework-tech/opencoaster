@@ -224,11 +224,17 @@ export async function tilePickPoint(page: Page, tile: Tile): Promise<{ x: number
 
 /**
  * The ring tiles the boarding candidates may be offered on in the Starter Park's own terrain:
- * buildable, dry, flat and clear of scenery. Footpath tiles count as clear.
+ * buildable, dry, flat and clear of scenery. Footpath tiles count as clear, except a footpath tile
+ * with two or more footpath neighbours, which an entrance would cut in two. `paved` lists footpaths
+ * the test has laid on top of the scenario's own.
  */
-export async function flatRingTiles(page: Page, ring: readonly Tile[]): Promise<Tile[]> {
+export async function flatRingTiles(
+  page: Page,
+  ring: readonly Tile[],
+  paved: readonly Tile[] = [],
+): Promise<Tile[]> {
   return page.evaluate(
-    async (tiles) => {
+    async ({ tiles, paved }) => {
       const load = (path: string) => import(/* @vite-ignore */ path);
       const [{ findScenario }, { World }, { prepareScenario }, { Surface }] = await Promise.all([
         load('/src/sim/scenario/catalog.ts'),
@@ -240,9 +246,22 @@ export async function flatRingTiles(page: Page, ring: readonly Tile[]): Promise<
       const world = new World({ seed: def.seed, width: def.mapWidth, height: def.mapHeight });
       prepareScenario(world, def);
       const map = world.map;
+      const laid = new Set(paved.map(([x, y]) => `${x},${y}`));
+      const isPath = (x: number, y: number): boolean =>
+        laid.has(`${x},${y}`) ||
+        (map.inBounds(x, y) &&
+          (map.surface[map.index(x, y)] === Surface.Path ||
+            map.surface[map.index(x, y)] === Surface.Queue));
       return tiles.filter(([x, y]) => {
         if (!map.inBounds(x, y)) return false;
         const i = map.index(x, y);
+        const neighbours = [
+          [1, 0],
+          [0, 1],
+          [-1, 0],
+          [0, -1],
+        ].filter(([dx, dy]) => isPath(x + dx!, y + dy!)).length;
+        if (isPath(x, y) && neighbours >= 2) return false;
         return (
           map.canBuild(i) &&
           map.surface[i] !== Surface.Water &&
@@ -252,7 +271,10 @@ export async function flatRingTiles(page: Page, ring: readonly Tile[]): Promise<
         );
       });
     },
-    ring.map(([x, y]) => [x, y] as [number, number]),
+    {
+      tiles: ring.map(([x, y]) => [x, y] as [number, number]),
+      paved: paved.map(([x, y]) => [x, y] as [number, number]),
+    },
   );
 }
 
@@ -264,6 +286,7 @@ export async function expectRingCandidates(
   page: Page,
   candidates: Locator,
   ring: readonly Tile[],
+  paved: readonly Tile[] = [],
 ): Promise<void> {
   const offered = (
     await candidates.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')))
@@ -275,6 +298,6 @@ export async function expectRingCandidates(
         .join(', '),
     )
     .sort();
-  const allowed = (await flatRingTiles(page, ring)).map((tile) => tile.join(', ')).sort();
+  const allowed = (await flatRingTiles(page, ring, paved)).map((tile) => tile.join(', ')).sort();
   expect(offered, `entrance candidates around a ${ring.length}-tile ring`).toEqual(allowed);
 }

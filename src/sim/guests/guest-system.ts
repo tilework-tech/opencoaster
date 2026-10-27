@@ -90,7 +90,6 @@ const COMFORTABLE_PER_STALL = 8;
 /** Longest line, in guests, a stall or facility tolerates before newcomers look elsewhere. */
 const STALL_LINE_LIMIT = 8;
 /** Score cost of each guest already in a ride's line, in the same units as excitement x 4. */
-const LINE_COST = 100;
 /** Score cost of walking to a thrill ride in the rain without an umbrella. */
 const RAIN_PENALTY = 1200;
 /** Largest deterministic per-guest, per-ride preference swing, in score units. */
@@ -228,7 +227,7 @@ function scoreRide(world: World, slot: number, ride: number): number {
     intensityGap * 2 -
     nauseaCost * 3 -
     price -
-    line * LINE_COST -
+    (line * 100) / rideQueueCapacity(world, ride) -
     rainPenalty +
     taste(world, slot, ride);
   return score > 0 ? score : NOT_OFFERED;

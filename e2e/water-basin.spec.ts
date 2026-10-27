@@ -1,5 +1,5 @@
-import { test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import { test } from './support/test';
+import type { Locator, Page } from './support/test';
 import type { TileMap } from '../src/sim/map/tile-map';
 import { serialize } from '../src/save/save';
 import {

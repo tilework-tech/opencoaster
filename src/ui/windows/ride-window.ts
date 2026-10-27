@@ -252,7 +252,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
           type: type as RideType,
           dir: info[o + RideInfo.Dir],
           rotation: ctx.actions.camera().rotation,
-          phase: state,
+          phase: info[o + RideInfo.Phase],
+          phaseProgress: info[o + RideInfo.PhaseProgress],
           tick: snapshot.tick,
         });
       }

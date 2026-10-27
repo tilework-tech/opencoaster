@@ -1681,6 +1681,7 @@ export class Canvas2DRenderer implements Renderer {
           snapshot.rideInfo[offset + RideInfo.Phase]!,
           snapshot.tick,
           entry?.frames.length ?? 1,
+          snapshot.rideInfo[offset + RideInfo.PhaseProgress]!,
         );
         const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
         if (frame && this.atlas) {
@@ -1717,7 +1718,12 @@ export class Canvas2DRenderer implements Renderer {
     const entry = atlas?.resolve(item.key);
     if (!atlas || !entry) return;
     this.anchor(item.x, item.y, item.z, map.width, map.height, cam.rotation, this.tmp);
-    const frameIndex = rideSpriteFrame(item.phase, snapshot.tick, entry.frames.length);
+    const frameIndex = rideSpriteFrame(
+      item.phase,
+      snapshot.tick,
+      entry.frames.length,
+      item.phaseProgress,
+    );
     const frame = entry.frames[frameIndex] ?? entry.frames[0]!;
     const margin = Math.max(frame.width - entry.anchor.x, entry.anchor.x, frame.height);
     if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, margin)) return;

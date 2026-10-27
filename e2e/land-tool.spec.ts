@@ -1,5 +1,5 @@
-import { test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import { test } from './support/test';
+import type { Locator, Page } from './support/test';
 import {
   calibrate,
   centreOnTile,

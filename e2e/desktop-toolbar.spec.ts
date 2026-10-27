@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 
 test('keeps toolbar controls clickable above open information windows', async ({ page }) => {
   await page.goto('/');

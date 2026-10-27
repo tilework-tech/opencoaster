@@ -1,13 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { RideType } from '../src/sim/rides/ride-types';
-import type { Page, TestInfo } from '@playwright/test';
+import type { Locator, Page, TestInfo } from './support/test';
 import { adjacentPathTiles, clickGameTile, createScenarioWorld } from './footpath-helpers';
 
 const starterScenario = parseScenarioFile(
@@ -112,6 +112,19 @@ async function screenshot(page: Page, testInfo: TestInfo, name: string): Promise
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 
+/** Index of the first placement target that is not overlapped by a neighbouring target on uneven ground. */
+async function firstUncoveredIndex(targets: Locator): Promise<number> {
+  const index = await targets.evaluateAll((nodes) =>
+    nodes.findIndex((node) => {
+      const box = node.getBoundingClientRect();
+      const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return top === node;
+    }),
+  );
+  if (index < 0) throw new Error('Every placement target is covered by another target');
+  return index;
+}
+
 test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async ({
   page,
 }, testInfo) => {
@@ -139,7 +152,8 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
   const entrances = page.getByRole('button', { name: /Place entrance at tile/ });
   const entranceCount = await entrances.count();
   expect(entranceCount).toBeGreaterThan(0);
-  const entranceLabel = await entrances.first().getAttribute('aria-label');
+  const entrance = entrances.nth(await firstUncoveredIndex(entrances));
+  const entranceLabel = await entrance.getAttribute('aria-label');
   const entranceCoordinates = entranceLabel?.match(/tile (\d+), (\d+)/);
   if (!entranceCoordinates) throw new Error('Ferris Wheel entrance candidate is missing its tile');
   const entranceTile = {
@@ -147,7 +161,7 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
     y: Number(entranceCoordinates[2]),
   };
   const world = createScenarioWorld('starter');
-  await entrances.first().click();
+  await entrance.click();
   await expect(page.locator('.tool-status')).toContainText('Place exit');
   await screenshot(page, testInfo, 'p0-3-ferris-before-exit');
   const invalidExit = page.getByRole('button', { name: /Exit unavailable at tile/ }).first();
@@ -162,7 +176,7 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
 
   const exits = page.getByRole('button', { name: /Place exit at tile/ });
   await expect(exits.first()).toBeVisible();
-  await exits.first().click();
+  await exits.nth(await firstUncoveredIndex(exits)).click();
   await expect(page.locator('.tool-status')).toContainText('Build the queue');
 
   await toolbarAction(page, 'Footpaths');
@@ -288,7 +302,8 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   if ((await closeConstruction.count()) > 0) await closeConstruction.click();
   await connectEntranceWithPath(page, world, entranceTile);
   await toolbarAction(page, 'Rides');
-  await coasterRow.click();
+  await coasterRow.focus();
+  await coasterRow.press('Enter');
   await expect(coasterWindow.locator('.ride-checklist')).not.toContainText(
     'Entrance has no queue or path',
   );

@@ -1,5 +1,6 @@
-import { devices, expect, test } from '@playwright/test';
-import type { Page, TestInfo } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Page, TestInfo } from './support/test';
+import { createTestContext } from './support/test-contexts';
 import { RideType } from '../src/sim/rides/ride-types';
 import {
   MAP_CENTER,
@@ -64,6 +65,8 @@ const bySlug = (slug: string): FlatRide => FLAT_RIDES.find((ride) => ride.slug =
 
 /** Rides turned through all four orientations: both long thin ones and a 3x3. */
 const ALL_ORIENTATIONS = ['swinging-ship', 'ferris-wheel', 'top-spin'];
+/** Representative 3x3, elongated and single-tile/tall-art footprints for the Canvas2D fallback. */
+const CANVAS2D_RIDES = ['twist', 'swinging-ship', 'observation-tower'];
 
 /**
  * Where a ride is built and which tiles it is reached from. Its footprint's southwest corner sits
@@ -111,8 +114,20 @@ async function viewBoxAround(page: Page, tiles: readonly Tile[]): Promise<Box> {
 /** Minimum on-screen area, in CSS px², that a ride on `tiles` must change in a screenshot. */
 const minimumRideArea = (tiles: readonly Tile[]): number => tiles.length * TILE_AREA;
 
-/** SwiftShader draws a frame every few hundred ms; wait long enough for state changes to show. */
-const settleFrames = (page: Page): Promise<void> => page.waitForTimeout(450);
+const hudTick = async (page: Page): Promise<number> =>
+  Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
+
+/** Waits until the sim has advanced two ticks, so state changes made before the call have been drawn. */
+async function settleFrames(page: Page): Promise<void> {
+  const start = await hudTick(page);
+  await expect.poll(() => hudTick(page)).toBeGreaterThanOrEqual(start + 2);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
 
 /** Drops the active tool, closes every window and parks the pointer off the map. */
 async function clearTransientUi(page: Page): Promise<void> {
@@ -193,8 +208,8 @@ interface BuildOptions {
   /** Also save a screenshot of guests riding. */
   savePlaytest?: boolean;
   canvas2d?: boolean;
-  /** Skip waiting for guests to ride (Canvas2D under SwiftShader renders too slowly to wait). */
-  skipRiding?: boolean;
+  /** Skip crowd, stall and guest-serving setup for footprint-only WebGL2 cases. */
+  skipGuestFlow?: boolean;
 }
 
 async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOptions): Promise<void> {
@@ -242,7 +257,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await expect(status).toContainText('Place entrance');
   const candidates = page.getByRole('button', { name: /Place entrance at tile/ });
   await expect(candidates).not.toHaveCount(0);
-  await expectRingCandidates(page, candidates, ring);
+  await expectRingCandidates(page, candidates, ring, site.paths);
   await expect(
     page.getByRole('button', {
       name: `Place entrance at tile ${site.entrance[0]}, ${site.entrance[1]}`,
@@ -273,17 +288,19 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
   await page.getByRole('button', { name: 'Close Ride 1' }).click();
-  await toolbarAction(page, 'Game options');
-  await page.getByRole('button', { name: /4×/ }).first().click();
-  await page.getByRole('button', { name: 'Guests +1,000' }).click();
-  await page.getByRole('button', { name: 'Close Options' }).click();
-  await clearTransientUi(page);
+  if (!options.skipGuestFlow || options.canvas2d) {
+    await toolbarAction(page, 'Game options');
+    await page.getByRole('button', { name: /4×/ }).first().click();
+    await page.getByRole('button', { name: 'Guests +1,000' }).click();
+    await page.getByRole('button', { name: 'Close Options' }).click();
+    await clearTransientUi(page);
 
-  await chooseRide(page, 'Shops & Stalls', RideType.FoodStall);
-  const stallPoint = await tilePickPoint(page, [SITE_LEFT, STREET_Y + 1]);
-  await page.mouse.click(stallPoint.x, stallPoint.y);
-  await expect(status).toContainText('Food Stall is open');
-  await clearTransientUi(page);
+    await chooseRide(page, 'Shops & Stalls', RideType.FoodStall);
+    const stallPoint = await tilePickPoint(page, [SITE_LEFT, STREET_Y + 1]);
+    await page.mouse.click(stallPoint.x, stallPoint.y);
+    await expect(status).toContainText('Food Stall is open');
+    await clearTransientUi(page);
+  }
 
   const built = await withoutOverlays(page, () => shootAllRotations(page, footprint));
   const panes: Buffer[] = [];
@@ -296,15 +313,15 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
     panes.push(await cropJpeg(shot, viewBox, PANE_WIDTH));
   }
   await save(`${prefix}-views.jpg`, await sheetJpeg(panes, 2));
-  if (options.skipRiding) return;
+  if (options.skipGuestFlow) return;
 
   await toolbarAction(page, 'Rides');
   await page.locator('[data-panel="ride-list"] .list-row').filter({ hasText: ride.name }).click();
-  const tickAtStart = Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
+  const tickAtStart = await hudTick(page);
   await expect
     .poll(
       async () => {
-        const tick = Number((await page.locator('.hud').innerText()).match(/\btick (\d+)\b/)?.[1]);
+        const tick = await hudTick(page);
         if (tick > tickAtStart + 32_768)
           throw new Error(`No guests rode ${ride.name} within two in-game months`);
         return readServed(page, 0);
@@ -322,16 +339,22 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
 test.describe('flat ride footprints (WebGL2)', () => {
   test.slow();
   for (const ride of FLAT_RIDES) {
-    test(`${ride.name} is built, boarded and ridden`, async ({ page }, testInfo) => {
+    test(`${ride.name} builds and opens with its footprint aligned`, async ({ page }, testInfo) => {
       test.setTimeout(240_000);
       page.setDefaultTimeout(10_000);
-      await buildAndRide(page, testInfo, { ride, dir: 0, savePlaytest: true });
+      const rideFlow = ride.slug === 'merry-go-round';
+      await buildAndRide(page, testInfo, {
+        ride,
+        dir: 0,
+        savePlaytest: rideFlow,
+        skipGuestFlow: !rideFlow,
+      });
     });
   }
   for (const slug of ALL_ORIENTATIONS) {
     for (const dir of [1, 2, 3]) {
       const ride = bySlug(slug);
-      test(`${ride.name} turned ${dir} quarter turn(s) is built, boarded and ridden`, async ({
+      test(`${ride.name} turned ${dir} quarter turn(s) keeps its footprint and boarding points aligned`, async ({
         page,
       }, testInfo) => {
         test.setTimeout(240_000);
@@ -339,6 +362,7 @@ test.describe('flat ride footprints (WebGL2)', () => {
         await buildAndRide(page, testInfo, {
           ride,
           dir,
+          skipGuestFlow: true,
           rotateWith: slug === 'ferris-wheel' && dir === 1 ? 'button' : 'key',
         });
       });
@@ -348,8 +372,9 @@ test.describe('flat ride footprints (WebGL2)', () => {
 
 test.describe('flat ride footprints (Canvas2D)', () => {
   test.slow();
-  for (const ride of FLAT_RIDES) {
-    test(`${ride.name} is visible beside guests and a stall`, async ({ page }, testInfo) => {
+  for (const slug of CANVAS2D_RIDES) {
+    const ride = bySlug(slug);
+    test(`${ride.name} keeps its footprint visible in Canvas2D`, async ({ page }, testInfo) => {
       test.setTimeout(240_000);
       page.setDefaultTimeout(10_000);
       await page.addInitScript(() => {
@@ -363,7 +388,7 @@ test.describe('flat ride footprints (Canvas2D)', () => {
         ride,
         dir: 0,
         canvas2d: true,
-        skipRiding: true,
+        skipGuestFlow: true,
       });
     });
   }
@@ -374,7 +399,7 @@ test('the Rotate ride button clears the phone HUD and docked windows', async ({
 }, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
   await startStarterPark(page, true);

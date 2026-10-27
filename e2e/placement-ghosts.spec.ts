@@ -1,5 +1,5 @@
-import { devices, expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Page } from './support/test';
 import { OWNED } from '../src/sim/map/tile-map';
 import type { World } from '../src/sim/core/world';
 import {

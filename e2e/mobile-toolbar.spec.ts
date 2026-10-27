@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 
 test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
 

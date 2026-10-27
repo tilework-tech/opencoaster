@@ -123,7 +123,10 @@ export async function unlockRides(
   await toolbarAction(page, 'Save / Load', mobile);
   await page.getByRole('button', { name: 'Import save file' }).click();
   await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
-  await expect(page.locator('.hud')).toContainText('tick');
+  await expect(page.locator('.save-menu .save-message')).toHaveText('Imported save file.', {
+    timeout: 30_000,
+  });
+  await expect(page.locator('.hud')).toContainText('tick', { timeout: 30_000 });
 }
 
 export async function startStarterPark(page: Page, mobile = false): Promise<void> {
@@ -134,7 +137,7 @@ export async function startStarterPark(page: Page, mobile = false): Promise<void
     .filter({ hasText: 'Starter Park' })
     .getByRole('button', { name: 'Start', exact: true })
     .click();
-  await expect(page.locator('.hud')).toContainText('tick');
+  await expect(page.locator('.hud')).toContainText('tick', { timeout: 30_000 });
   if (mobile) {
     const toolbar = page.locator('.game-toolbar');
     await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();

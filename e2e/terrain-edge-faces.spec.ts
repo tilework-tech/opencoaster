@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { chromium, test, expect } from '@playwright/test';
+import { chromium, test, expect } from './support/test';
 import { backgroundPixels, loadTerrainFixture } from './support/terrain-fixture';
 import type { TerrainFixtureName } from './support/terrain-fixture';
 

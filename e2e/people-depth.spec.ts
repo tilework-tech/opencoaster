@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import type { BrowserContext, Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { BrowserContext, Page } from './support/test';
 import { OBJECT_KINDS } from '../src/render/object-kinds';
 
 /**
