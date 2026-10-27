@@ -186,6 +186,14 @@ describe('map commands', () => {
     expect(s.world.feedback.domain).toBe(FeedbackDomain.Land);
   });
 
+  it('reports the ride that blocks a path placement', () => {
+    const s = sim();
+    createRide(s.world, RideType.MerryGoRound, 12, 12);
+    s.enqueue({ type: 'placePath', x: 13, y: 13 });
+    s.step();
+    expect(s.world.feedback.detail).toBe('Merry-Go-Round 1');
+  });
+
   it('buys land and construction rights atomically against available cash', () => {
     const s = sim();
     const m = s.world.map;

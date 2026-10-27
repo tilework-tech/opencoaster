@@ -94,11 +94,12 @@ export type MapCommand =
 function applyPathPlacement(w: World, c: PathPlacement): void {
   const m = w.map;
   const plan = planPathPlacement(m, c);
+  const blocker = plan.result === PathResult.Ok ? pathOccupancyBlocker(w, m, c, plan) : undefined;
   const result = !canAfford(w, PATH_COST_CENTS)
     ? PathResult.InsufficientFunds
     : plan.result !== PathResult.Ok
       ? plan.result
-      : pathOccupancyBlocker(w, m, c, plan)
+      : blocker
         ? PathResult.Blocked
         : placePathOutcome(m, c);
   if (result === PathResult.Ok) charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
@@ -108,6 +109,7 @@ function applyPathPlacement(w: World, c: PathPlacement): void {
       FeedbackDomain.Path,
       result,
       m.inBounds(c.x, c.y) ? m.index(c.x, c.y) : -1,
+      blocker?.name,
     );
 }
 

@@ -23,6 +23,12 @@ describe('pathRejectionFrom', () => {
     });
   });
 
+  it('names a construction blocker when a footpath is refused', () => {
+    const feedback = createFeedback();
+    reportFeedback(feedback, FeedbackDomain.Path, PathResult.Blocked, 3, 'Merry-Go-Round 1');
+    expect(pathRejectionFrom(feedback, 16)?.text).toBe('Blocked by Merry-Go-Round 1.');
+  });
+
   it('shows nothing for accepted placements or other feedback domains', () => {
     const accepted = createFeedback();
     reportFeedback(accepted, FeedbackDomain.Path, PathResult.Ok, 0);
