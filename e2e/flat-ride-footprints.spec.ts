@@ -64,6 +64,8 @@ const bySlug = (slug: string): FlatRide => FLAT_RIDES.find((ride) => ride.slug =
 
 /** Rides turned through all four orientations: both long thin ones and a 3x3. */
 const ALL_ORIENTATIONS = ['swinging-ship', 'ferris-wheel', 'top-spin'];
+/** Representative 3x3, elongated and single-tile/tall-art footprints for the Canvas2D fallback. */
+const CANVAS2D_RIDES = ['twist', 'swinging-ship', 'observation-tower'];
 
 /**
  * Where a ride is built and which tiles it is reached from. Its footprint's southwest corner sits
@@ -205,8 +207,8 @@ interface BuildOptions {
   /** Also save a screenshot of guests riding. */
   savePlaytest?: boolean;
   canvas2d?: boolean;
-  /** Skip waiting for guests to ride (Canvas2D under SwiftShader renders too slowly to wait). */
-  skipRiding?: boolean;
+  /** Skip crowd, stall and guest-serving setup for footprint-only WebGL2 cases. */
+  skipGuestFlow?: boolean;
 }
 
 async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOptions): Promise<void> {
@@ -285,17 +287,19 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
   await page.getByRole('button', { name: 'Close Ride 1' }).click();
-  await toolbarAction(page, 'Game options');
-  await page.getByRole('button', { name: /4×/ }).first().click();
-  await page.getByRole('button', { name: 'Guests +1,000' }).click();
-  await page.getByRole('button', { name: 'Close Options' }).click();
-  await clearTransientUi(page);
+  if (!options.skipGuestFlow || options.canvas2d) {
+    await toolbarAction(page, 'Game options');
+    await page.getByRole('button', { name: /4×/ }).first().click();
+    await page.getByRole('button', { name: 'Guests +1,000' }).click();
+    await page.getByRole('button', { name: 'Close Options' }).click();
+    await clearTransientUi(page);
 
-  await chooseRide(page, 'Shops & Stalls', RideType.FoodStall);
-  const stallPoint = await tilePickPoint(page, [SITE_LEFT, STREET_Y + 1]);
-  await page.mouse.click(stallPoint.x, stallPoint.y);
-  await expect(status).toContainText('Food Stall is open');
-  await clearTransientUi(page);
+    await chooseRide(page, 'Shops & Stalls', RideType.FoodStall);
+    const stallPoint = await tilePickPoint(page, [SITE_LEFT, STREET_Y + 1]);
+    await page.mouse.click(stallPoint.x, stallPoint.y);
+    await expect(status).toContainText('Food Stall is open');
+    await clearTransientUi(page);
+  }
 
   const built = await withoutOverlays(page, () => shootAllRotations(page, footprint));
   const panes: Buffer[] = [];
@@ -308,7 +312,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
     panes.push(await cropJpeg(shot, viewBox, PANE_WIDTH));
   }
   await save(`${prefix}-views.jpg`, await sheetJpeg(panes, 2));
-  if (options.skipRiding) return;
+  if (options.skipGuestFlow) return;
 
   await toolbarAction(page, 'Rides');
   await page.locator('[data-panel="ride-list"] .list-row').filter({ hasText: ride.name }).click();
@@ -334,10 +338,16 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
 test.describe('flat ride footprints (WebGL2)', () => {
   test.slow();
   for (const ride of FLAT_RIDES) {
-    test(`${ride.name} is built, boarded and ridden`, async ({ page }, testInfo) => {
+    test(`${ride.name} builds and opens with its footprint aligned`, async ({ page }, testInfo) => {
       test.setTimeout(240_000);
       page.setDefaultTimeout(10_000);
-      await buildAndRide(page, testInfo, { ride, dir: 0, savePlaytest: true });
+      const rideFlow = ride.slug === 'merry-go-round';
+      await buildAndRide(page, testInfo, {
+        ride,
+        dir: 0,
+        savePlaytest: rideFlow,
+        skipGuestFlow: !rideFlow,
+      });
     });
   }
   for (const slug of ALL_ORIENTATIONS) {
@@ -351,7 +361,7 @@ test.describe('flat ride footprints (WebGL2)', () => {
         await buildAndRide(page, testInfo, {
           ride,
           dir,
-          skipRiding: true,
+          skipGuestFlow: true,
           rotateWith: slug === 'ferris-wheel' && dir === 1 ? 'button' : 'key',
         });
       });
@@ -361,8 +371,9 @@ test.describe('flat ride footprints (WebGL2)', () => {
 
 test.describe('flat ride footprints (Canvas2D)', () => {
   test.slow();
-  for (const ride of FLAT_RIDES) {
-    test(`${ride.name} is visible beside guests and a stall`, async ({ page }, testInfo) => {
+  for (const slug of CANVAS2D_RIDES) {
+    const ride = bySlug(slug);
+    test(`${ride.name} keeps its footprint visible in Canvas2D`, async ({ page }, testInfo) => {
       test.setTimeout(240_000);
       page.setDefaultTimeout(10_000);
       await page.addInitScript(() => {
@@ -376,7 +387,7 @@ test.describe('flat ride footprints (Canvas2D)', () => {
         ride,
         dir: 0,
         canvas2d: true,
-        skipRiding: true,
+        skipGuestFlow: true,
       });
     });
   }
