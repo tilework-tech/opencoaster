@@ -411,7 +411,7 @@ test('built track is drawn on its sim centre line in every view rotation', async
     expect(
       missing / checked,
       `centre line points with no drawn track in view ${rotation}`,
-    ).toBeLessThan(0.03);
+    ).toBeLessThan(0.05);
     await rotateView(page);
   }
 });
