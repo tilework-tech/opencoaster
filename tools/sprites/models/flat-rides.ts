@@ -783,8 +783,8 @@ export function spiralSlideSeats(frame: number): Vec3[] {
 // ---------------------------------------------------------------------------------------------
 // Enterprise, 4 x 4
 
-export const ENTERPRISE_HUB_Z = 1.3;
-const ENTERPRISE_RADIUS = 1.62;
+export const ENTERPRISE_HUB_Z = 1.4;
+const ENTERPRISE_RADIUS = 1.45;
 const ENTERPRISE_TILT = (40 * Math.PI) / 180;
 const ENTERPRISE_CARS = 12;
 
