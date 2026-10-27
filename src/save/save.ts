@@ -23,6 +23,7 @@ import {
 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
+import { closeInvalidOpenRides } from '../sim/rides/ride-commands';
 import { migrateQueueLinks } from '../sim/map/queue-link-migration';
 import { migrateTrackHeights } from '../sim/track/track-height-migration';
 import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
@@ -652,6 +653,7 @@ export function deserialize(bytes: Uint8Array): World {
   restoreResearch(world.research, research);
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
+  closeInvalidOpenRides(world);
   return world;
 }
 

@@ -8,9 +8,9 @@ import { LedgerCategory } from '../economy/ledger';
 import { PATH_COST_CENTS, Surface } from '../map/tile-map';
 import { placePath } from '../map/paths';
 import { PIECES } from '../track/catalog';
-import { rotateTile } from '../track/construction';
+import { circuitStatus, rotateTile } from '../track/construction';
 import { PieceFlag } from '../track/track-types';
-import { abortRideTest, isTrackRide, startRideTest } from './coaster';
+import { abortCycle, abortRideTest, isTrackRide, startRideTest } from './coaster';
 import { GuestState, HEADING_NONE } from '../guests/guest-store';
 import { removeRideTrains } from '../vehicles/ride-trains';
 import {
@@ -254,6 +254,7 @@ function openRide(world: World, rideId: number): RideResult {
   if (ride.state[slot] === RideState.Broken) return RideResult.Broken;
   if (isBusy(world, slot)) return RideResult.Busy;
   const tracked = isTrackRide(world, rideId);
+  if (tracked && !circuitStatus(world, rideId).complete) return RideResult.TrackIncomplete;
   if (tracked && !ride.tested[slot]) return RideResult.NotTested;
   if (!ride.entrancePlaced[slot]) return RideResult.NoEntrance;
   if (def.category !== 'stall' && def.category !== 'facility' && !ride.exitPlaced[slot])
@@ -263,6 +264,30 @@ function openRide(world: World, rideId: number): RideResult {
     if (!ride.queueConnected[slot]) return RideResult.NoQueue;
   }
   return setRideOpen(world, rideId, true) ? RideResult.Ok : RideResult.Busy;
+}
+
+/**
+ * Closes every ride that is marked open but could not be opened now: a tracked ride that has not
+ * passed a test or has no complete circuit, or any ride with no entrance. The latest closure is
+ * reported with its reason.
+ */
+export function closeInvalidOpenRides(world: World): void {
+  const ride = world.rides.cols;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    if (ride.state[slot] !== RideState.Open) continue;
+    const rideId = world.rides.slotToId[slot];
+    let reason = RideResult.Ok;
+    if (isTrackRide(world, rideId)) {
+      if (!circuitStatus(world, rideId).complete) reason = RideResult.TrackIncomplete;
+      else if (!ride.tested[slot]) reason = RideResult.NotTested;
+    }
+    if (reason === RideResult.Ok && !ride.entrancePlaced[slot]) reason = RideResult.NoEntrance;
+    if (reason === RideResult.Ok) continue;
+    ride.state[slot] = RideState.Closed;
+    abortCycle(world, slot);
+    removeRideTrains(world, rideId);
+    reportFeedback(world.feedback, FeedbackDomain.Ride, reason, rideId);
+  }
 }
 
 function closeRide(world: World, rideId: number): RideResult {

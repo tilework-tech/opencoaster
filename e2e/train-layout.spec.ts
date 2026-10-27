@@ -56,42 +56,6 @@ async function mapTileClick(
   expect([Number(actual![1]), Number(actual![2])]).toEqual([x, y]);
 }
 
-async function contextClickAtTile(page: Page, x: number, y: number): Promise<void> {
-  await centerMapOnTile(page, x, y, false);
-  const bounds = await page.locator('#game').boundingBox();
-  if (!bounds) throw new Error('Game viewport is missing');
-  const screenX = bounds.width / 2 - 32;
-  const screenY = bounds.height / 2 - 3 * 16;
-  await page.mouse.click(bounds.x + screenX, bounds.y + screenY, { button: 'right' });
-}
-
-async function longPressAtTile(
-  page: Page,
-  x: number,
-  y: number,
-  center: readonly [number, number],
-  mobile: boolean,
-): Promise<void> {
-  await centerMapOnTile(page, ...center, mobile);
-  const bounds = await page.locator('#game').boundingBox();
-  if (!bounds) throw new Error('Game viewport is missing');
-  const dx = x - 1 - center[0];
-  const dy = y - center[1];
-  const touchPoint = {
-    x: bounds.x + bounds.width / 2 + (dx - dy) * 32,
-    y: bounds.y + bounds.height / 2 + (dx + dy) * 16 - 2 * 16,
-    radiusX: 4,
-    radiusY: 4,
-    force: 1,
-    id: 1,
-  };
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touchPoint] });
-  await page.waitForTimeout(1_000);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await cdp.detach();
-}
-
 async function centerMapOnTile(page: Page, x: number, y: number, mobile: boolean): Promise<void> {
   await toolbarAction(page, 'Map', mobile);
   const minimap = page.locator('.minimap');
