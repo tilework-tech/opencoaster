@@ -14,13 +14,12 @@ import type { MapData } from './renderer';
 const LEVEL = 5;
 
 /** A wooden coaster whose straight track runs through a ridge three levels high. */
-function tunnelWorld(): { sim: Simulation; map: MapData } {
+function tunnelWorld(ridge = [0, 1, 2, 3, 3, 3, 3, 3, 2, 1, 0]): { sim: Simulation; map: MapData } {
   const sim = new Simulation({ seed: 9, width: 40, height: 40, maxGuests: 0 });
   const m = sim.world.map;
   m.waterLevel.fill(0);
   m.fillFlat(LEVEL);
   m.ownership.fill(OWNED);
-  const ridge = [0, 1, 2, 3, 3, 3, 3, 3, 2, 1, 0];
   for (let vy = 0; vy <= m.height; vy++)
     for (let vx = 0; vx <= m.width; vx++)
       m.vertexHeights[m.vertexIndex(vx, vy)] = LEVEL + (ridge[vx - 19] ?? 0);
@@ -89,5 +88,31 @@ describe('tunnel portals in the coaster scene', () => {
     const xray = scene(sim, map, 0, true).filter((item) => item.xray);
     expect(xray.length).toBeGreaterThan(4);
     expect(xray.every((item) => item.key.includes('/track/'))).toBe(true);
+  });
+});
+
+describe('portal art follows the land shape', () => {
+  const portalKeys = (ridge: number[]): string[] => {
+    const { sim, map } = tunnelWorld(ridge);
+    return scene(sim, map, 0)
+      .filter((item) => item.key.includes('/tunnel/'))
+      .map((item) => item.key);
+  };
+
+  it('uses the face variant for a steep hillside', () => {
+    expect(portalKeys([0, 1, 2, 3, 3, 3, 3, 3, 2, 1, 0]).every((k) => k.includes('/face/'))).toBe(
+      true,
+    );
+  });
+
+  it('uses the slope variant for the side of a gentle hill', () => {
+    const keys = portalKeys([0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
+    expect(keys).toHaveLength(2);
+    expect(keys.every((k) => k.includes('/slope/'))).toBe(true);
+  });
+
+  it('draws no portal where a corner entry would have been', () => {
+    const { sim, map } = tunnelWorld([0, 0, 0]);
+    expect(scene(sim, map, 0).some((item) => item.key.includes('/tunnel/'))).toBe(false);
   });
 });
