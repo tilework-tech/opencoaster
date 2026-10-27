@@ -194,6 +194,26 @@ describe('render snapshot', () => {
     expect(snapshot.research.funding).toBe(Funding.Normal);
   });
 
+  it('publishes the rating factors that sum to the unclamped rating, and the arrival figures', () => {
+    const world = new World({ seed: 9, width: 8, height: 8 });
+    world.economy.inputs.litter = 10;
+    world.economy.inputs.rideCount = 2;
+    world.economy.guestGeneration = {
+      probability: 450,
+      suggestedGuestMax: 100,
+      rideValueForMoney: 900,
+    };
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    // Base, guests, happiness, lost, uptime, mix, variety, litter (10 pieces x -4), casualties.
+    expect(snapshot.economy.ratingFactors).toEqual([1150, -150, -500, 0, 0, -100, -200, -40, 0]);
+    expect(snapshot.economy.guestProbability).toBe(450);
+    expect(snapshot.economy.suggestedGuestMax).toBe(100);
+    expect(snapshot.economy.rideValueForMoney).toBe(900);
+  });
+
   it('publishes whether each tile allows construction', () => {
     const world = new World({ seed: 9, width: 8, height: 8 });
     const owned = world.map.index(2, 2);

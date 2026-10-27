@@ -13,6 +13,13 @@ import { circuitStatus, getConstructionCursor } from '../sim/track/construction'
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
 import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/ledger';
+import {
+  DIFFICULT_RATING_BASE,
+  RATING_BASE,
+  RATING_FACTOR_LABELS,
+  parkRatingBreakdown,
+  ratingFactorValues,
+} from '../sim/economy/park-rating';
 import type { ActiveAward, ParkNewsItem } from '../sim/economy/ledger';
 import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
@@ -226,6 +233,13 @@ export interface SnapshotEconomy {
   monthsCompleted: number;
   /** Guests the park rating counts as lost: lost, stranded, or off the footpaths. */
   lostGuests: number;
+  /** Park rating factors, in `RATING_FACTOR_LABELS` order; they sum to the unclamped rating. */
+  ratingFactors: number[];
+  /** Chance per tick, out of 65536, that a guest arrives unprompted. */
+  guestProbability: number;
+  suggestedGuestMax: number;
+  /** Twice the value of open rides beyond what they charge, in cents. */
+  rideValueForMoney: number;
 }
 
 export interface SnapshotResearch {
@@ -309,6 +323,10 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
       lastMonth: new Array<number>(LedgerCategory.COUNT).fill(0),
       monthsCompleted: 0,
       lostGuests: 0,
+      ratingFactors: new Array<number>(RATING_FACTOR_LABELS.length).fill(0),
+      guestProbability: 0,
+      suggestedGuestMax: 0,
+      rideValueForMoney: 0,
     },
     research: {
       funding: 0,
@@ -587,6 +605,17 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   economy.campaignWeeksLeft = ledger.campaignWeeksLeft;
   economy.wageBillPerWeek = ledger.inputs.wageBillPerWeek;
   economy.monthsCompleted = ledger.monthsCompleted;
+  const factors = ratingFactorValues(
+    parkRatingBreakdown(
+      world.guests.count,
+      ledger.inputs,
+      ledger.difficultRating ? DIFFICULT_RATING_BASE : RATING_BASE,
+    ),
+  );
+  for (let i = 0; i < factors.length; i++) economy.ratingFactors[i] = factors[i];
+  economy.guestProbability = ledger.guestGeneration.probability;
+  economy.suggestedGuestMax = ledger.guestGeneration.suggestedGuestMax;
+  economy.rideValueForMoney = ledger.guestGeneration.rideValueForMoney;
   for (let c = 0; c < LedgerCategory.COUNT; c++) {
     economy.thisMonth[c] = ledger.monthlyTotals[c];
     economy.lastMonth[c] = completedMonthTotal(ledger, c);

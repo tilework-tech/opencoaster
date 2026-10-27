@@ -99,8 +99,6 @@ export function refreshGuestGeneration(world: World): void {
   const suggested = suggestedGuestMaximum(world);
   const rideValueForMoney = totalRideValueForMoney(world);
   const generation: GuestGeneration = {
-    suggestedGuestMax: suggested,
-    rideValueForMoney,
     probability: guestGenerationProbability({
       parkRating: l.parkRating,
       guests: world.guests.count,
@@ -110,6 +108,8 @@ export function refreshGuestGeneration(world: World): void {
       awards: l.activeAwards,
       tick: world.tick,
     }),
+    suggestedGuestMax: suggested,
+    rideValueForMoney,
   };
   l.guestGeneration = generation;
 }

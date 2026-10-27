@@ -73,6 +73,33 @@ export interface ParkRatingBreakdown {
   total: number;
 }
 
+/** The named factors of a rating, in display order; `ratingFactorValues` lists them the same way. */
+export const RATING_FACTOR_LABELS = [
+  'Base',
+  'Guest numbers',
+  'Guest happiness',
+  'Lost guests',
+  'Ride uptime',
+  'Ride excitement and intensity',
+  'Ride variety',
+  'Litter',
+  'Casualties',
+] as const;
+
+export function ratingFactorValues(b: ParkRatingBreakdown): number[] {
+  return [
+    b.base,
+    b.guests,
+    b.happiness,
+    b.lostGuests,
+    b.rideUptime,
+    b.rideMix,
+    b.rideVariety,
+    b.litter,
+    b.casualties,
+  ];
+}
+
 function rideMixFactor(inputs: EconomyInputs): number {
   const rated = inputs.ratedRideCount;
   if (rated <= 0) return -PROXIMITY_PENALTY_START;
