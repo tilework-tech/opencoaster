@@ -8,14 +8,13 @@ import {
   trackedRideFamily,
   supportOffset,
   supportStack,
-  trackArt,
   trackCellSprites,
   transportCarSpriteKey,
   transportFamily,
   transportTrackCells,
 } from './coaster-art';
 import type { CoasterFamily, TrackRideFamily, TransportFamily } from './coaster-art';
-import { pieceTunnelPortals, undergroundTiles } from '../sim/track/clearance';
+import { undergroundTiles } from '../sim/track/clearance';
 import type { MapData } from './renderer';
 import type { Rotation } from './projection';
 import { rotateDirection, viewDepth } from './projection';
@@ -39,7 +38,6 @@ function tileDepth(x: number, y: number, map: MapData, rotation: Rotation): numb
 
 const TRACK_OFFSET = 1;
 const SUPPORT_OFFSET = 0.5;
-const PORTAL_OFFSET = 0.25;
 const CAR_OFFSET = 1.5;
 const RIDER_OFFSET = 0.1;
 /** Riders shown per car; cars carry at most this many seated figures. */
@@ -133,8 +131,6 @@ export class CoasterScene {
       const hidden = undergroundView
         ? undergroundTiles(map, pieceType, originX, originY, z / TRACK_Z_STEP, dir)
         : null;
-      if (family)
-        this.addPortals(pieceType, family, rideId, originX, originY, z, dir, map, rotation);
       for (let c = 0; c < cells.length; c++) {
         const tileX = originX + cells[c].dx;
         const tileY = originY + cells[c].dy;
@@ -160,40 +156,6 @@ export class CoasterScene {
             depth,
           );
       }
-    }
-  }
-
-  /** Stone portals where the piece's centre line enters or leaves the hillside. */
-  private addPortals(
-    pieceType: number,
-    family: TrackRideFamily,
-    rideId: number,
-    originX: number,
-    originY: number,
-    z: number,
-    dir: number,
-    map: MapData,
-    rotation: Rotation,
-  ): void {
-    const art = family === 'log-flume' || family === 'river-rapids' ? 'wood' : trackArt(family);
-    for (const portal of pieceTunnelPortals(
-      map,
-      pieceType,
-      originX,
-      originY,
-      z / TRACK_Z_STEP,
-      dir,
-    )) {
-      if (!portal.valid) continue;
-      const view = rotateDirection(portal.facing, rotation);
-      this.push(
-        `rides/coaster/${art}/tunnel/${portal.variant}/view-${view}`,
-        rideId,
-        portal.x,
-        portal.y,
-        portal.z,
-        tileDepth(portal.x, portal.y, map, rotation) + TRACK_OFFSET + PORTAL_OFFSET,
-      );
     }
   }
 

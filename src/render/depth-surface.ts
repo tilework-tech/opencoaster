@@ -1,5 +1,6 @@
 import { DepthComposite, compositeFrame } from './depth-composite';
-import type { CompositeFrame } from './depth-composite';
+import type { CompositeFrame, PaintTexture } from './depth-composite';
+import type { PaintTriangle } from './trench-paint';
 import { FIRST_INSTANCE_OBJECT_ID, objectKind } from './object-kinds';
 import type { OracleSprite, OracleTriangle } from './occlusion-oracle';
 import type { PageImage, SpritePages } from './sprite-pages';
@@ -83,6 +84,7 @@ export class DepthSurface {
     groundKey: string,
     ground: () => readonly OracleTriangle[],
     recordIds = false,
+    paint?: () => readonly PaintTriangle[],
   ): void {
     const image = this.real.getImageData(0, 0, width, height);
     this.image = image;
@@ -94,6 +96,15 @@ export class DepthSurface {
       this.target.ground(ground());
       this.savedGround = this.target.saveGround();
       this.savedGroundKey = key;
+    }
+    if (paint) {
+      const triangles = paint();
+      if (triangles.length > 0)
+        this.target.paint(triangles, {
+          floor: this.texture('terrain/trench/floor'),
+          wall: this.texture('terrain/trench/wall'),
+          arch: this.texture('terrain/trench/arch'),
+        });
     }
     this.transform = transform;
     this.alpha = 1;
@@ -209,6 +220,30 @@ export class DepthSurface {
     }
     return this.pageOf.get(image) ?? -1;
   }
+
+  /** The colour texels of the first frame of a sprite, or null until its page has loaded. */
+  private texture(name: string): PaintTexture | null {
+    if (this.texturesVersion !== this.pages.version) {
+      this.textures.clear();
+      this.texturesVersion = this.pages.version;
+    }
+    const cached = this.textures.get(name);
+    if (cached !== undefined) return cached;
+    const frame = this.pages.resolve(name)?.frames[0];
+    const image = frame && this.pages.pageImage(frame.page);
+    if (!frame || !image || !this.scratch) return null;
+    const texels = this.readRegion(image, frame.x, frame.y, frame.width, frame.height);
+    const texture = {
+      width: frame.width,
+      height: frame.height,
+      colour: new Uint32Array(texels.buffer, texels.byteOffset, frame.width * frame.height),
+    };
+    this.textures.set(name, texture);
+    return texture;
+  }
+
+  private readonly textures = new Map<string, PaintTexture | null>();
+  private texturesVersion = -1;
 
   /** The decoded texels of one atlas frame, read once from its colour and height pages. */
   private frame(page: number, x: number, y: number, width: number, height: number) {

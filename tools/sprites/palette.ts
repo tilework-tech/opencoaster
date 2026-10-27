@@ -24,6 +24,7 @@ const RAMPS: Record<string, readonly string[]> = {
   glass: ['#1b2230', '#26344a', '#33496a', '#4a6a94', '#7ea2c8'],
   foam: ['#6f98a8', '#92b8c4', '#b4d6de', '#d6eef2', '#f2fbff'],
   skin: ['#8a5a3c', '#b07650', '#d49a72', '#efbf9a', '#ffdcc0'],
+  gloom: ['#0c0908', '#14100e', '#1d1713', '#2a1f19'],
   turf: ['#2e4f14', '#38621a', '#446e1e', '#51801f', '#5f9226'],
   grass: ['#2f5a24', '#3d7030', '#4f8a3c', '#64a24a', '#7fbd5e'],
 };

@@ -146,8 +146,8 @@ for (const name of ['face', 'slope', 'cut'] as SceneName[]) {
     page.setDefaultTimeout(15_000);
     const scene = buildScene(name);
     await loadScene(page, testInfo, scene);
-    const entry = scene.portals.find((p) => p.entering)!;
-    const entryPoint = [entry.x, entry.y, entry.z] as const;
+    const mouth = scene.mouths[0]!;
+    const entryPoint = [mouth.x, mouth.y, mouth.z] as const;
     const focus = [
       (scene.focus.x + 0.5) * 256,
       (scene.focus.y + 0.5) * 256,
