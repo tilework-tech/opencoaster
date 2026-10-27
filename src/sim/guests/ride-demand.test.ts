@@ -5,7 +5,7 @@ import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
 import { prepareFlat, openRide } from '../integration/fixtures';
 import { guestSystem } from './guest-system';
-import { GuestState, spawnGuest } from './guest-store';
+import { spawnGuest } from './guest-store';
 import { setParkEntrance } from './park';
 import { rideQueueSystem } from '../rides/queue-system';
 import { rideSystem } from '../rides/ride-system';
@@ -13,6 +13,7 @@ import { rideQueueCapacity } from '../rides/ride-operations';
 import { ticketPriceCents } from '../rides/queue-system';
 import { RideType } from '../rides/ride-types';
 import { isReachable } from '../pathfinding';
+import { intensityCeilingOf } from './preferences';
 
 function crowdedPark() {
   const world = new World({ seed: 417, width: 32, height: 32, maxGuests: 1000 });
@@ -87,8 +88,13 @@ describe('guest ride demand under crowd pressure', () => {
     expect(ticketPriceCents(world, ride)).toBe(0);
     expect(capacity).toBe(56);
     const previous = new Map<number, { position: number; stillSamples: number }>();
-    const samples: Array<{ tick: number; queued: number; approaching: number; nearby: number }> =
-      [];
+    const samples: Array<{
+      tick: number;
+      queued: number;
+      approaching: number;
+      nearbyPath: number;
+      lineCommitted: number;
+    }> = [];
     let maxStationary = 0;
     tick(world, 8000, (at) => {
       if (at % 100 !== 0) return;
@@ -123,10 +129,64 @@ describe('guest ride demand under crowd pressure', () => {
         tick: at,
         queued: world.rideLines.queued[ride]!,
         approaching: world.rideLines.approaching[ride]!,
-        nearby: nearbyPathGuests(world, joinTile),
+        nearbyPath: nearbyPathGuests(world, joinTile),
+        lineCommitted: world.rideLines.queued[ride]! + world.rideLines.approaching[ride]!,
       });
     });
-    expect(samples.at(-1)!.queued).toBeGreaterThanOrEqual(40);
-    expect(maxStationary).toBeLessThanOrEqual(12);
+    const guests = world.guests.cols;
+    let headingForRide = 0;
+    let canPay = 0;
+    let alreadyRode = 0;
+    let preferenceLow = 0;
+    let preferenceMid = 0;
+    let preferenceHigh = 0;
+    let intensityEligible = 0;
+    let nauseaToleranceLow = 0;
+    let nauseaToleranceMid = 0;
+    let nauseaToleranceHigh = 0;
+    let minHappiness = 255;
+    let minEnergy = 255;
+    let maxNausea = 0;
+    for (let slot = 0; slot < world.guests.count; slot++) {
+      if (guests.targetRide[slot] === world.rides.slotToId[ride]) headingForRide++;
+      if (guests.cash[slot]! >= ticketPriceCents(world, ride)) canPay++;
+      if (guests.lastRide[slot] === world.rides.slotToId[ride]) alreadyRode++;
+      const preference = guests.preferredIntensity[slot]!;
+      if (preference < 85) preferenceLow++;
+      else if (preference < 170) preferenceMid++;
+      else preferenceHigh++;
+      if (world.rides.cols.intensity[ride]! <= intensityCeilingOf(preference)) intensityEligible++;
+      if (guests.nauseaTolerance[slot]! < 1) nauseaToleranceLow++;
+      else if (guests.nauseaTolerance[slot]! < 3) nauseaToleranceMid++;
+      else nauseaToleranceHigh++;
+      minHappiness = Math.min(minHappiness, guests.happiness[slot]!);
+      minEnergy = Math.min(minEnergy, guests.energy[slot]!);
+      maxNausea = Math.max(maxNausea, guests.nausea[slot]!);
+    }
+    const openTile = world.queues.openTile[ride]!;
+    const diagnostics = {
+      headingForRide,
+      canPay,
+      alreadyRode,
+      preferenceBuckets: { low: preferenceLow, mid: preferenceMid, high: preferenceHigh },
+      intensityEligible,
+      nauseaToleranceBuckets: {
+        low: nauseaToleranceLow,
+        mid: nauseaToleranceMid,
+        high: nauseaToleranceHigh,
+      },
+      minHappiness,
+      minEnergy,
+      maxNausea,
+      entranceReachable: isReachable(world, world.map.index(2, 2), joinTile),
+      queueOpenEndReachable: isReachable(world, world.map.index(2, 2), openTile),
+      maxStationaryOnAdjacentPaths: maxStationary,
+      capacity,
+      samples,
+    };
+    console.info('ride-demand diagnostics', JSON.stringify(diagnostics));
+    expect(maxStationary, JSON.stringify(samples)).toBeLessThanOrEqual(12);
+    expect(Math.max(...samples.map((sample) => sample.queued))).toBeGreaterThanOrEqual(20);
+    expect(Math.max(...samples.map((sample) => sample.lineCommitted))).toBeGreaterThanOrEqual(40);
   });
 });
