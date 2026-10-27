@@ -102,7 +102,7 @@ describe('ratings written by a test run', () => {
     const plain = tested(SMALL_CIRCUIT);
     const scenic = tested(SMALL_CIRCUIT, RideType.WoodenCoaster, (sim) => {
       for (let i = 0; i < 10; i++) {
-        const tile = sim.world.map.index(STATION_X + (i % 5), STATION_Y + 3 + Math.trunc(i / 5));
+        const tile = sim.world.map.index(STATION_X + (i % 5), STATION_Y + 2 + Math.trunc(i / 5));
         sim.world.map.addElement(tile, ElementType.SmallScenery, 2, 3, 0, 0);
       }
       sim.world.map.ownership.fill(OWNED);

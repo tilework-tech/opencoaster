@@ -66,7 +66,10 @@ export function occupancyConflict(a: OccupancyVolume, b: OccupancyVolume): boole
     (bPath && (a.kind === 'rideEntrance' || a.kind === 'rideExit' || a.kind === 'parkEntrance')) ||
     (a.kind === 'wall' && bPath) ||
     (b.kind === 'wall' && aPath);
-  if (pathBoarding && a.base === b.base) return false;
+  const gateBoarding =
+    (a.kind === 'parkEntrance' && (b.kind === 'rideEntrance' || b.kind === 'rideExit')) ||
+    (b.kind === 'parkEntrance' && (a.kind === 'rideEntrance' || a.kind === 'rideExit'));
+  if ((pathBoarding || gateBoarding) && a.base === b.base) return false;
   return true;
 }
 

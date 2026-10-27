@@ -36,7 +36,12 @@ describe('shared occupancy intervals', () => {
         (pathKinds.includes(a) &&
           ['rideEntrance', 'rideExit', 'parkEntrance', 'wall'].includes(b)) ||
         (pathKinds.includes(b) && ['rideEntrance', 'rideExit', 'parkEntrance', 'wall'].includes(a));
-      expect(occupancyConflict(volume(a), volume(b))).toBe(!allowedPathBoarding);
+      const sharedGateAndBoardingTile =
+        (a === 'parkEntrance' && ['rideEntrance', 'rideExit'].includes(b)) ||
+        (b === 'parkEntrance' && ['rideEntrance', 'rideExit'].includes(a));
+      expect(occupancyConflict(volume(a), volume(b))).toBe(
+        !(allowedPathBoarding || sharedGateAndBoardingTile),
+      );
     },
   );
 
