@@ -181,7 +181,8 @@ export function compositeScene(scene: OracleScene): OracleResult {
   const write = (px: number, py: number, h: number, id: number): void => {
     const at = py * width + px;
     if (kindBit) kindMasks[at] |= kindBit(id);
-    if (h >= heights[at]) {
+    // Heights are stored as 32-bit floats: compare in that precision so exact ties stay ties.
+    if (Math.fround(h) >= heights[at]) {
       heights[at] = h;
       ids[at] = id;
     }

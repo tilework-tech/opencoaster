@@ -129,7 +129,8 @@ export class DepthComposite {
         const line = py * width;
         for (let px = x0; px <= x1; px++, h += gx) {
           const at = line + px;
-          if (h < heights[at]) continue;
+          // Stored heights are 32-bit floats: compare in that precision so ties stay ties.
+          if (Math.fround(h) < heights[at]) continue;
           heights[at] = h;
           if (ids) ids[at] = t.id;
         }
@@ -180,7 +181,7 @@ export class DepthComposite {
         if (baked !== baked) continue;
         const h = at.anchorHeight + baked * at.heightScale;
         const pixel = line + px;
-        if (h < heights[pixel]) continue;
+        if (Math.fround(h) < heights[pixel]) continue;
         const source = frame.colour[texel];
         const sourceAlpha = ((source >>> 24) / 255) * alpha;
         if (sourceAlpha >= 1) colour[pixel] = source;

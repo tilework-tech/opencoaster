@@ -207,3 +207,24 @@ describe('ambiguous samples', () => {
     expect([...ambiguous]).toEqual([0, 0, 1, 0]);
   });
 });
+
+describe('height ties', () => {
+  it('lets the later of two coplanar triangles win every pixel, whatever float rounding does', () => {
+    const corner = (x: number, y: number, height: number) => ({ x, y, height });
+    // Heights with no exact 32-bit representation across the triangle.
+    const a = corner(0, 0, 2.1);
+    const b = corner(40, 3, 2.7);
+    const c = corner(5, 40, 2.3);
+    const { ids } = compositeScene({
+      width: 40,
+      height: 40,
+      pages: [],
+      sprites: [],
+      triangles: [
+        { id: 1, a, b, c },
+        { id: 2, a, b, c },
+      ],
+    });
+    expect([...ids].filter((id) => id === 1)).toEqual([]);
+  });
+});
