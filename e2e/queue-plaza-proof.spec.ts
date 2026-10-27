@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
-import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page } from './support/test';
 import {
   BLOCK_QUEUE,
   SNAKE_QUEUE,
