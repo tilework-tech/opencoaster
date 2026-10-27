@@ -443,6 +443,9 @@ describe('ride ratings, value, and testing hooks', () => {
       recordRideTestMeasurements(w, id, {
         durationTicks: 480,
         maxSpeed: 820,
+        averageSpeed: 500,
+        rideLength: 240_000,
+        airtimeTicks: 90,
         maxPositiveG: 384,
         maxNegativeG: -64,
         maxLateralG: 192,
@@ -456,6 +459,9 @@ describe('ride ratings, value, and testing hooks', () => {
     expect(getRideTestMeasurements(w, id)).toEqual({
       durationTicks: 480,
       maxSpeed: 820,
+      averageSpeed: 500,
+      rideLength: 240_000,
+      airtimeTicks: 90,
       maxPositiveG: 384,
       maxNegativeG: -64,
       maxLateralG: 192,
@@ -468,6 +474,9 @@ describe('ride ratings, value, and testing hooks', () => {
       recordRideTestMeasurements(w, id, {
         durationTicks: -1,
         maxSpeed: 820,
+        averageSpeed: 500,
+        rideLength: 240_000,
+        airtimeTicks: 90,
         maxPositiveG: 384,
         maxNegativeG: -64,
         maxLateralG: 192,
