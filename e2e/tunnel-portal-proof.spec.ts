@@ -161,7 +161,7 @@ for (const name of ['face', 'slope', 'cut'] as SceneName[]) {
       for (const zoom of [1, 2]) {
         await aim(page, scene, entryPoint, zoom);
         const [sx, sy] = await screenPoint(page, scene, entryPoint);
-        closeups.push(await crop(page, await capture(page), sx, sy - 20 * zoom, 150, 120));
+        closeups.push(await crop(page, await capture(page), sx, sy - 12 * zoom, 160, 128));
       }
       await save(`${name}-closeup-zoom1-rot${turn}`, closeups[0]!);
       await save(`${name}-closeup-zoom2-rot${turn}`, closeups[1]!);

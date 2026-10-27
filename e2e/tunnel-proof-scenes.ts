@@ -88,7 +88,13 @@ export function buildScene(name: SceneName): ProofScene {
       throw new Error(
         `${name}: ${piece} at ${request.x},${request.y} z${request.z} gave ${result}`,
       );
-    placed.push({ pieceType: request.pieceType, x: request.x, y: request.y, z: request.z, dir: request.dir });
+    placed.push({
+      pieceType: request.pieceType,
+      x: request.x,
+      y: request.y,
+      z: request.z,
+      dir: request.dir,
+    });
   }
   const mouths: ProofScene['mouths'] = [];
   for (const tile of trenchTiles(world.map, placed).values()) {

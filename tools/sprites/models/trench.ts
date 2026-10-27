@@ -90,11 +90,11 @@ export function trenchArchTexture(): Sprite {
   const h = TRENCH_ARCH_HEIGHT;
   const pixels = new Uint8Array(w * h);
   const cx = w / 2;
-  const cy = 8;
+  const cy = 9;
   const inner = 5;
   const outer = 8;
   const bins = 5;
-  const tones = [3, 2, 4, 2, 3];
+  const tones = [4, 3, 4, 3, 4];
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const dx = x + 0.5 - cx;
@@ -102,7 +102,8 @@ export function trenchArchTexture(): Sprite {
       const above = dy < 0;
       const radius = above ? Math.hypot(dx, dy) : Math.abs(dx);
       let colour: number;
-      if (radius < inner) {
+      if (y === 0) colour = STONE[4]!;
+      else if (radius < inner) {
         const edge = inner - radius;
         const shade = edge < 1.1 ? 2 : edge < 2.4 ? 1 : 0;
         colour = GLOOM[Math.min(3, shade + (y > h - 3 ? 1 : 0))]!;
@@ -119,7 +120,7 @@ export function trenchArchTexture(): Sprite {
         }
       } else {
         const { tone, joint } = ashlar(x, y, w, 1);
-        colour = joint ? STONE[0]! : STONE[Math.max(1, Math.min(2, tone - 1))]!;
+        colour = joint ? STONE[0]! : STONE[tone >= 3 ? 1 : 2]!;
       }
       pixels[y * w + x] = colour;
     }
