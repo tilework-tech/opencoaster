@@ -85,7 +85,7 @@ export function noteNavigation(world: World, slot: number, tile: number, goal: n
 export function noteStranded(world: World, slot: number, tile: number): boolean {
   const g = world.guests.cols;
   const gate = parkEntranceTile(world);
-  if (gate < 0 || isReachable(world, tile, gate)) {
+  if (gate < 0 || isReachable(world, world.map.walkNode(tile, g.z[slot]), gate)) {
     g.navSteps[slot] = 0;
     return false;
   }

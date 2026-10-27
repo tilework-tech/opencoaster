@@ -248,6 +248,11 @@ function allowsRepeatRide(world: World, slot: number, ride: number): boolean {
   return roll < 4960 || (roll < 7500 && g.ridesTaken[slot] <= 7);
 }
 
+/** The walk node the guest stands on: its tile, on the layer whose path is nearest its height. */
+function guestNode(world: World, slot: number, tile: number): number {
+  return world.map.walkNode(tile, world.guests.cols.z[slot]);
+}
+
 function chooseRide(world: World, slot: number, tile: number): number {
   let selected = -1;
   let bestScore = 0;
@@ -261,7 +266,7 @@ function chooseRide(world: World, slot: number, tile: number): number {
     else if (score === LINE_FULL) full = true;
     if (score <= bestScore) continue;
     const approach = approachTile(world, ride);
-    if (approach < 0 || !isReachable(world, tile, approach)) continue;
+    if (approach < 0 || !isReachable(world, guestNode(world, slot, tile), approach)) continue;
     bestScore = score;
     selected = ride;
   }
@@ -305,7 +310,7 @@ function nearestStall(
     }
     const entrance = entranceTile(world, ride);
     const distance = tileDistance(world, tile, entrance);
-    if (distance >= best || !isReachable(world, tile, entrance)) continue;
+    if (distance >= best || !isReachable(world, guestNode(world, slot, tile), entrance)) continue;
     best = distance;
     selected = ride;
   }
@@ -441,7 +446,7 @@ function moveAlongHeading(world: World, slot: number): void {
     remaining > GUEST_SPEED ? GUEST_SPEED : remaining < -GUEST_SPEED ? -GUEST_SPEED : remaining;
   if (horizontal) g.x[slot] += reach;
   else g.y[slot] += reach;
-  g.z[slot] = world.map.heightAt(g.x[slot], g.y[slot]);
+  g.z[slot] = world.map.heightNear(g.x[slot], g.y[slot], g.z[slot]);
 }
 
 /** A guest with no heading that is not on a tile centre (e.g. from an old save) re-centres. */
@@ -815,7 +820,7 @@ function stepToward(
   const g = world.guests.cols;
   nav.fromDir = g.heading[slot] > 3 ? DIR_NONE : g.heading[slot];
   applyGuestBudget(world, slot, nav);
-  const dir = nextDirection(world, tile, target, world.rng, nav);
+  const dir = nextDirection(world, guestNode(world, slot, tile), target, world.rng, nav);
   if (dir === DIR_NONE) return false;
   if (target >= 0 && !isLost(world, slot) && noteNavigation(world, slot, tile, target))
     return false;
@@ -938,7 +943,12 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     }
     const gate = parkEntranceTile(world);
     if (gate < 0 || tile === gate) return true;
-    if (map.isQueue(tile) && stepOutOfQueue(world, slot, tile)) return false;
+    if (
+      map.isQueue(tile) &&
+      guestNode(world, slot, tile) === tile &&
+      stepOutOfQueue(world, slot, tile)
+    )
+      return false;
     if (isLost(world, slot) || !stepToward(world, slot, tile, gate, nav)) {
       stepToward(world, slot, tile, -1, nav);
       loseWayOut(world, slot);
@@ -1000,7 +1010,12 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     if (approach >= 0 && stepToward(world, slot, tile, approach, nav)) return false;
     clearDestination(world, slot);
   }
-  if (map.isQueue(tile) && stepOutOfQueue(world, slot, tile)) return false;
+  if (
+    map.isQueue(tile) &&
+    guestNode(world, slot, tile) === tile &&
+    stepOutOfQueue(world, slot, tile)
+  )
+    return false;
   if (noteStranded(world, slot, tile)) return true;
   stepToward(world, slot, tile, -1, nav);
   return false;

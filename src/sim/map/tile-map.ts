@@ -137,6 +137,9 @@ const META_COUNT = 2;
  * tile by `refreshTile`. Everything above the ground (paths, track, scenery, ...) is an element
  * in a pooled, per-tile linked list sorted by base height. Pool capacity is fixed.
  */
+/** Path elements stacked in one tile that the pathfinder tells apart: ground path, bridge, bridge over a bridge. */
+export const WALK_LAYERS = 3;
+
 export class TileMap {
   readonly vertexHeights: Uint8Array;
   readonly heights: Uint8Array;
@@ -171,6 +174,8 @@ export class TileMap {
   pathVersion = 0;
   /** Per-tile walkable exits: path edges minus anything touching a queue tile; rebuilt lazily. */
   private readonly walkEdges: Uint8Array;
+  /** Per walk node and direction, the node a step leads to (-1 where the node has no such exit). */
+  private readonly walkSteps: Int32Array;
   private walkEdgesVersion = -1;
 
   readonly elementCapacity: number;
@@ -198,7 +203,8 @@ export class TileMap {
     this.elData = new Int32Array(elementCapacity);
     this.elNext = new Int32Array(elementCapacity);
     this.pathStyle = new Uint8Array(elementCapacity);
-    this.walkEdges = new Uint8Array(tiles);
+    this.walkEdges = new Uint8Array(tiles * WALK_LAYERS);
+    this.walkSteps = new Int32Array(tiles * WALK_LAYERS * 4).fill(-1);
     this.meta = Int32Array.of(-1, 0, 0);
   }
 
@@ -395,31 +401,126 @@ export class TileMap {
     return e < 0 ? 0 : this.pathEdgesOf(e);
   }
 
+  /** Walk nodes the pathfinder sees: every tile on each of its `WALK_LAYERS` layers. */
+  get nodeCount(): number {
+    return this.width * this.height * WALK_LAYERS;
+  }
+
   /**
-   * `PathGraph` view for the pathfinder: the tile's walkable exits. Queue tiles are not part of the
-   * general walking network, so they expose no exits and no ordinary tile exposes one toward them.
+   * `PathGraph` view for the pathfinder: the node's walkable exits. A node is a path element,
+   * numbered `layer * tiles + tile` where `layer` is the element's rank among the tile's paths from
+   * the lowest, so a bridge is a separate node from the path under it. Queue tiles are not part of
+   * the general walking network, so they expose no exits and no ordinary tile exposes one toward them.
    */
-  edgeMask(i: number): number {
+  edgeMask(node: number): number {
     if (this.walkEdgesVersion !== this.pathVersion) this.rebuildWalkEdges();
-    return this.walkEdges[i];
+    return this.walkEdges[node];
+  }
+
+  /** The node one step from `node` in direction `dir`; only meaningful where `edgeMask` has that exit. */
+  step(node: number, dir: number): number {
+    if (this.walkEdgesVersion !== this.pathVersion) this.rebuildWalkEdges();
+    return this.walkSteps[node * 4 + dir];
+  }
+
+  /** The walk node of the path element in `tile` whose surface is nearest `z` (Z units); the tile itself when it has none. */
+  walkNode(tile: number, z: number): number {
+    let best = tile;
+    let bestGap = Infinity;
+    let rank = 0;
+    const xu = ((tile % this.width) << 8) + 128;
+    const yu = (((tile / this.width) | 0) << 8) + 128;
+    for (let e = this.tileHead[tile]; e >= 0 && rank < WALK_LAYERS; e = this.elNext[e]) {
+      if (this.elType[e] !== ElementType.Path) continue;
+      const gap = Math.abs(this.pathHeightAt(e, xu, yu) - z);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = rank * this.width * this.height + tile;
+      }
+      rank++;
+    }
+    return best;
+  }
+
+  /** Walking-surface height at a position for a walker whose last height was `z`: the nearest path surface in the tile. */
+  heightNear(xu: number, yu: number, z: number): number {
+    const maxX = (this.width << 8) - 1;
+    const maxY = (this.height << 8) - 1;
+    const px = xu < 0 ? 0 : xu > maxX ? maxX : xu;
+    const py = yu < 0 ? 0 : yu > maxY ? maxY : yu;
+    const tile = (py >> 8) * this.width + (px >> 8);
+    let best = -1;
+    let bestGap = Infinity;
+    for (let e = this.tileHead[tile]; e >= 0; e = this.elNext[e]) {
+      if (this.elType[e] !== ElementType.Path) continue;
+      const h = this.pathHeightAt(e, px, py);
+      const gap = Math.abs(h - z);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = h;
+      }
+    }
+    return best < 0 ? this.terrainHeightAt(px, py) : best;
+  }
+
+  /** Height level of path element `e` along edge `dir`, or -1 when that side cannot connect. */
+  pathEdgeHeight(e: number, dir: number): number {
+    const s = this.pathSlopeDir(e);
+    const base = this.elBase[e];
+    if (s < 0) return base;
+    if (dir === s) return base + 1;
+    if (dir === ((s + 2) & 3)) return base;
+    return -1;
+  }
+
+  /** Path element of the neighbour of tile `i` toward `dir` whose height meets element `e`'s edge there, or -1. */
+  adjoiningPath(i: number, e: number, dir: number): number {
+    const h = this.pathEdgeHeight(e, dir);
+    const n = h < 0 ? -1 : this.neighbor(i, dir);
+    if (n < 0) return -1;
+    const back = (dir + 2) & 3;
+    for (let f = this.tileHead[n]; f >= 0; f = this.elNext[f]) {
+      if (this.elType[f] === ElementType.Path && this.pathEdgeHeight(f, back) === h) return f;
+    }
+    return -1;
+  }
+
+  private rankOf(tile: number, element: number): number {
+    let rank = 0;
+    for (let e = this.tileHead[tile]; e >= 0 && e !== element; e = this.elNext[e])
+      if (this.elType[e] === ElementType.Path) rank++;
+    return rank;
   }
 
   private rebuildWalkEdges(): void {
+    const tiles = this.width * this.height;
     const walk = this.walkEdges;
-    for (let i = 0; i < walk.length; i++) {
-      const e = this.pathElement(i, -1);
-      if (e < 0 || this.elFlags[e] & PathFlag.Queue) {
-        walk[i] = 0;
-        continue;
+    const steps = this.walkSteps;
+    walk.fill(0);
+    steps.fill(-1);
+    for (let i = 0; i < tiles; i++) {
+      let rank = 0;
+      for (let e = this.tileHead[i]; e >= 0 && rank < WALK_LAYERS; e = this.elNext[e]) {
+        if (this.elType[e] !== ElementType.Path) continue;
+        const node = rank * tiles + i;
+        rank++;
+        if (this.elFlags[e] & PathFlag.Queue) continue;
+        let mask = this.pathEdgesOf(e);
+        for (let d = 0; d < 4; d++) {
+          if (!(mask & (1 << d))) continue;
+          const n = this.neighbor(i, d);
+          const joined = n < 0 ? -1 : this.adjoiningPath(i, e, d);
+          const toQueue =
+            joined >= 0 ? (this.elFlags[joined] & PathFlag.Queue) !== 0 : n >= 0 && this.isQueue(n);
+          if (n < 0 || toQueue || this.wallOnEdge(i, d) || this.wallOnEdge(n, (d + 2) & 3)) {
+            mask &= ~(1 << d);
+            continue;
+          }
+          const layer = joined >= 0 ? this.rankOf(n, joined) : 0;
+          steps[node * 4 + d] = layer < WALK_LAYERS ? layer * tiles + n : n;
+        }
+        walk[node] = mask;
       }
-      let mask = this.pathEdgesOf(e);
-      for (let d = 0; d < 4; d++) {
-        if (!(mask & (1 << d))) continue;
-        const n = this.neighbor(i, d);
-        if (n < 0 || this.isQueue(n) || this.wallOnEdge(i, d) || this.wallOnEdge(n, (d + 2) & 3))
-          mask &= ~(1 << d);
-      }
-      walk[i] = mask;
     }
     this.walkEdgesVersion = this.pathVersion;
   }
