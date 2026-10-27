@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Simulation } from '../core/simulation';
-import { PieceMode } from '../track/track-types';
+import type { PieceMode } from '../track/track-types';
 import { circuitStatus } from '../track/construction';
 import { rideTrainSlots } from '../vehicles/ride-trains';
 import { VehicleState } from '../vehicles/vehicle-store';
