@@ -5,15 +5,16 @@ import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
 import { prepareFlat, openRide } from '../integration/fixtures';
 import { guestSystem } from './guest-system';
-import { spawnGuest } from './guest-store';
+import { GuestState, spawnGuest } from './guest-store';
 import { setParkEntrance } from './park';
 import { rideQueueSystem } from '../rides/queue-system';
 import { rideSystem } from '../rides/ride-system';
 import { rideQueueCapacity } from '../rides/ride-operations';
 import { ticketPriceCents } from '../rides/queue-system';
+import { refreshQueueIndex } from '../rides/queue-lines';
 import { RideType } from '../rides/ride-types';
 import { isReachable } from '../pathfinding';
-import { intensityCeilingOf } from './preferences';
+import { exceedsNauseaLimit, intensityCeilingOf } from './preferences';
 
 function crowdedPark() {
   const world = new World({ seed: 417, width: 32, height: 32, maxGuests: 1000 });
@@ -49,8 +50,7 @@ function crowdedPark() {
     g.nausea[i] = 0;
     g.cash[i] = 9000;
   }
-  guestSystem.update(world);
-  world.tick++;
+  refreshQueueIndex(world);
   return { world, ride, joinTile: world.queues.joinTile[ride] };
 }
 
@@ -87,6 +87,46 @@ describe('guest ride demand under crowd pressure', () => {
     expect(isReachable(world, world.map.index(2, 2), joinTile)).toBe(true);
     expect(ticketPriceCents(world, ride)).toBe(0);
     expect(capacity).toBe(56);
+    const rideId = world.rides.slotToId[ride]!;
+    const start = world.guests.cols;
+    const initialGuestCount = world.guests.count;
+    let initiallyAffordable = 0;
+    let initiallyIntensityEligible = 0;
+    let initiallyNauseaEligible = 0;
+    let initiallyQueueEligible = 0;
+    let initialLastRideMemory = 0;
+    let initialRecentRideMemory = 0;
+    let minIntensityCeiling = Infinity;
+    for (let slot = 0; slot < world.guests.count; slot++) {
+      const preference = start.preferredIntensity[slot]!;
+      if (start.cash[slot]! >= ticketPriceCents(world, ride)) initiallyAffordable++;
+      const ceiling = intensityCeilingOf(preference);
+      minIntensityCeiling = Math.min(minIntensityCeiling, ceiling);
+      if (world.rides.cols.intensity[ride]! <= ceiling) initiallyIntensityEligible++;
+      if (
+        !exceedsNauseaLimit(
+          world.rides.cols.nausea[ride]!,
+          start.nausea[slot]!,
+          start.nauseaTolerance[slot]!,
+        )
+      )
+        initiallyNauseaEligible++;
+      if (world.rideLines.queued[ride]! + world.rideLines.approaching[ride]! < capacity)
+        initiallyQueueEligible++;
+      if (start.lastRide[slot] === rideId) initialLastRideMemory++;
+      const validHistory = Math.min(4, start.ridesTaken[slot]!);
+      if (
+        [
+          start.rideHistory0[slot],
+          start.rideHistory1[slot],
+          start.rideHistory2[slot],
+          start.rideHistory3[slot],
+        ]
+          .slice(0, validHistory)
+          .includes(rideId)
+      )
+        initialRecentRideMemory++;
+    }
     const previous = new Map<number, { position: number; stillSamples: number }>();
     const samples: Array<{
       tick: number;
@@ -94,6 +134,8 @@ describe('guest ride demand under crowd pressure', () => {
       approaching: number;
       nearbyPath: number;
       lineCommitted: number;
+      targetRide: number;
+      riding: number;
     }> = [];
     let maxStationary = 0;
     tick(world, 8000, (at) => {
@@ -125,18 +167,27 @@ describe('guest ride demand under crowd pressure', () => {
       for (const id of previous.keys()) if (!seen.has(id)) previous.delete(id);
       maxStationary = Math.max(maxStationary, stationary);
       if (at % 500 !== 0) return;
+      let targetRide = 0;
+      let riding = 0;
+      for (let slot = 0; slot < world.guests.count; slot++) {
+        if (world.guests.cols.targetRide[slot] === rideId) targetRide++;
+        if (world.guests.cols.state[slot] === GuestState.Riding) riding++;
+      }
       samples.push({
         tick: at,
         queued: world.rideLines.queued[ride]!,
         approaching: world.rideLines.approaching[ride]!,
         nearbyPath: nearbyPathGuests(world, joinTile),
         lineCommitted: world.rideLines.queued[ride]! + world.rideLines.approaching[ride]!,
+        targetRide,
+        riding,
       });
     });
     const guests = world.guests.cols;
     let headingForRide = 0;
     let canPay = 0;
     let alreadyRode = 0;
+    let recentRideMemory = 0;
     let preferenceLow = 0;
     let preferenceMid = 0;
     let preferenceHigh = 0;
@@ -151,6 +202,21 @@ describe('guest ride demand under crowd pressure', () => {
       if (guests.targetRide[slot] === world.rides.slotToId[ride]) headingForRide++;
       if (guests.cash[slot]! >= ticketPriceCents(world, ride)) canPay++;
       if (guests.lastRide[slot] === world.rides.slotToId[ride]) alreadyRode++;
+      const validHistory = Math.min(
+        4,
+        guests.ridesTaken[slot]! + (guests.state[slot] === GuestState.Riding ? 1 : 0),
+      );
+      if (
+        [
+          guests.rideHistory0[slot],
+          guests.rideHistory1[slot],
+          guests.rideHistory2[slot],
+          guests.rideHistory3[slot],
+        ]
+          .slice(0, validHistory)
+          .includes(rideId)
+      )
+        recentRideMemory++;
       const preference = guests.preferredIntensity[slot]!;
       if (preference < 85) preferenceLow++;
       else if (preference < 170) preferenceMid++;
@@ -166,9 +232,22 @@ describe('guest ride demand under crowd pressure', () => {
     const openTile = world.queues.openTile[ride]!;
     expect(world.map.isQueue(openTile)).toBe(true);
     const diagnostics = {
+      initialCandidateGates: {
+        guests: initialGuestCount,
+        affordable: initiallyAffordable,
+        intensityEligible: initiallyIntensityEligible,
+        nauseaEligible: initiallyNauseaEligible,
+        queueHasRoom: initiallyQueueEligible,
+        minIntensityCeiling,
+        lastRideMemory: initialLastRideMemory,
+        recentRideMemory: initialRecentRideMemory,
+        entrancePathReachable: isReachable(world, world.map.index(2, 2), joinTile),
+        queueOpenEndIsQueueTile: world.map.isQueue(openTile),
+      },
       headingForRide,
       canPay,
       alreadyRode,
+      recentRideMemory,
       preferenceBuckets: { low: preferenceLow, mid: preferenceMid, high: preferenceHigh },
       intensityEligible,
       nauseaToleranceBuckets: {

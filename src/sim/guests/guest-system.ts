@@ -227,6 +227,7 @@ function scoreRide(world: World, slot: number, ride: number): number {
     intensityGap * 2 -
     nauseaCost * 3 -
     price -
+    (line * 100) / rideQueueCapacity(world, ride) -
     rainPenalty +
     taste(world, slot, ride);
   return score > 0 ? score : NOT_OFFERED;
