@@ -41,6 +41,16 @@ describe('trench textures', () => {
     for (let x = 0; x < arch.width; x++) expect(stone.has(at(x, 0))).toBe(true);
   });
 
+  it('open a mouth wide enough for the track, most of the headwall across', () => {
+    const arch = trenchArchTexture();
+    const gloom = new Set(ramp('gloom'));
+    const bottom = arch.height - 1;
+    let mouth = 0;
+    for (let x = 0; x < arch.width; x++)
+      if (gloom.has(arch.pixels[bottom * arch.width + x]!)) mouth++;
+    expect(mouth / arch.width).toBeGreaterThanOrEqual(0.62);
+  });
+
   it('keep the wall, floor and arch to their ramps and the wall to its coping course', () => {
     const wall = trenchWallTexture();
     const stone = ramp('stone');
