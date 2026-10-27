@@ -152,4 +152,65 @@ describe('DepthComposite', () => {
       expect([...target.ids!]).toEqual([...truth.ids]);
     }
   });
+
+  describe('painted trench triangles', () => {
+    const texture = {
+      width: 2,
+      height: 1,
+      colour: new Uint32Array([0xff0000ff, 0xff00ff00]),
+    };
+    const textures = { floor: texture, wall: null, arch: null };
+    const vertex = (x: number, y: number, h: number, u: number) => ({
+      x,
+      y,
+      height: h,
+      u,
+      v: 0,
+    });
+    const quad = (h: number) =>
+      [
+        { a: vertex(0, 0, h, 0), b: vertex(8, 0, h, 2), c: vertex(8, 8, h, 2) },
+        { a: vertex(0, 0, h, 0), b: vertex(8, 8, h, 2), c: vertex(0, 8, h, 0) },
+      ].map((t) => ({ ...t, texture: 'floor' as const, shade: 1 }));
+
+    it('paints the texels where the triangle is the nearest ground', () => {
+      const flat = (h: number, id: number) => [
+        {
+          id,
+          a: { x: 0, y: 0, height: h },
+          b: { x: 8, y: 0, height: h },
+          c: { x: 8, y: 8, height: h },
+        },
+        {
+          id,
+          a: { x: 0, y: 0, height: h },
+          b: { x: 8, y: 8, height: h },
+          c: { x: 0, y: 8, height: h },
+        },
+      ];
+      const target = new DepthComposite();
+      const pixels = new Uint8ClampedArray(8 * 8 * 4);
+      target.begin(8, 8, pixels, false);
+      target.ground([...flat(1, 1), ...flat(2, 2)]);
+      target.paint(quad(1), textures);
+      expect([...pixels.slice(0, 4)]).toEqual([0, 0, 0, 0]);
+      target.begin(8, 8, pixels, false);
+      target.ground(flat(1, 1));
+      target.paint(quad(1), textures);
+      expect([...pixels.slice(0, 4)]).toEqual([255, 0, 0, 255]);
+      expect([...pixels.slice(7 * 4, 7 * 4 + 4)]).toEqual([0, 255, 0, 255]);
+    });
+
+    it('darkens the texels by the face shade', () => {
+      const target = new DepthComposite();
+      const pixels = new Uint8ClampedArray(8 * 8 * 4);
+      target.begin(8, 8, pixels, false);
+      target.ground(quad(1).map((t) => ({ id: 1, a: t.a, b: t.b, c: t.c })));
+      target.paint(
+        quad(1).map((t) => ({ ...t, shade: 0.5 })),
+        textures,
+      );
+      expect([...pixels.slice(0, 4)]).toEqual([128, 0, 0, 255]);
+    });
+  });
 });

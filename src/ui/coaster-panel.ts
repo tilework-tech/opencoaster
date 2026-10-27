@@ -7,7 +7,8 @@ import type { RideTypeDef } from '../sim/rides/ride-types';
 import type { RideState } from '../sim/rides/ride-store';
 import { RidePhase } from '../sim/rides/ride-store';
 import { Bank, PieceMode, Slope } from '../sim/track/track-types';
-import type { TrackPieceDef, TrackResult } from '../sim/track/track-types';
+import { TrackResult } from '../sim/track/track-types';
+import type { TrackPieceDef } from '../sim/track/track-types';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE, decodeCursor } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import type { ToolMode } from './ui-types';
@@ -396,7 +397,16 @@ export class CoasterPanel {
     if (!this.window) return;
     const ride = this.activeRide();
     this.refreshControls(ride, snapshot);
+    this.showPreviewRefusal();
     this.rideInfo.textContent = ride ? this.describeRide(ride) : 'No coaster selected.';
+  }
+
+  /** Explains a tunnel refusal the build preview shows, before the player tries to build. */
+  private showPreviewRefusal(): void {
+    const ghost = this.ghost();
+    if (ghost?.status !== TrackResult.TunnelEntry) return;
+    this.feedbackLine.textContent = feedbackMessage(FeedbackDomain.Track, ghost.status).text;
+    this.feedbackLine.dataset.ok = 'false';
   }
 
   dispose(): void {

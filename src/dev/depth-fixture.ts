@@ -1,4 +1,6 @@
-import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../sim/core/constants';
+import { pieceByName } from '../sim/track/catalog';
+import { TrenchIndex } from '../render/trench-index';
 import { RideType } from '../sim/rides/ride-types';
 import { PathFlag } from '../sim/map/tile-map';
 import { SceneryItem } from '../sim/map/scenery';
@@ -34,6 +36,8 @@ interface Scene {
   stall?: { x: number; y: number };
   /** Tiles raised above the ground level, in levels. */
   raised?: Array<{ x: number; y: number; height: number }>;
+  /** A wooden coaster's track: piece names in order from tile (x, y) heading +x at ground level. */
+  track?: { x: number; y: number; pieces: string[] };
 }
 
 function row(y: number, from: number, to: number, base = GROUND): PathPiece[] {
@@ -101,6 +105,26 @@ const SCENES: Record<string, Scene> = {
     ],
   },
   stall: { paths: row(8, 3, 12), scenery: [], stall: { x: 8, y: 7 } },
+  /** A coaster dipping into flat ground: open cut, headwall, tunnel, and the way out again. */
+  trench: {
+    paths: [],
+    scenery: [],
+    track: {
+      x: 3,
+      y: 8,
+      pieces: [
+        'flat',
+        'flat',
+        'flatToDown25',
+        'down25ToFlat',
+        'flat',
+        'flat',
+        'flatToUp25',
+        'up25ToFlat',
+        'flat',
+      ],
+    },
+  },
   /** A block of raised ground around the middle of the map, two levels up. */
   hill: {
     paths: [],
@@ -181,6 +205,7 @@ function buildSnapshot(scene: Scene): Snapshot {
     vehicles: 1,
     litter: 1,
     mapTiles: SIZE * SIZE,
+    tracks: 16,
     patrolAreas: 1,
     patrolWordsPerArea: 1,
   });
@@ -199,6 +224,22 @@ function buildSnapshot(scene: Scene): Snapshot {
     snapshot.rideInfo[o + RideInfo.RideX] = scene.stall.x;
     snapshot.rideInfo[o + RideInfo.RideY] = scene.stall.y;
     void RIDE_INFO_STRIDE;
+  }
+  if (scene.track) {
+    snapshot.rides.count = 1;
+    snapshot.rideInfo[RideInfo.Type] = RideType.WoodenCoaster;
+    snapshot.rideInfo[RideInfo.Id] = 1;
+    let steps = GROUND * (Z_STEP / TRACK_Z_STEP);
+    scene.track.pieces.forEach((name, index) => {
+      const piece = pieceByName(name)!;
+      const o = index * 4;
+      snapshot.tracks.data[o] = (scene.track!.x + index) * TILE_UNITS + TILE_UNITS / 2;
+      snapshot.tracks.data[o + 1] = scene.track!.y * TILE_UNITS + TILE_UNITS / 2;
+      snapshot.tracks.data[o + 2] = steps * TRACK_Z_STEP;
+      snapshot.tracks.data[o + 3] = (1 << 16) | piece.id;
+      steps += piece.dz;
+    });
+    snapshot.tracks.count = scene.track.pieces.length;
   }
   snapshot.park.entranceX = -1;
   snapshot.park.entranceY = -1;
@@ -268,7 +309,9 @@ async function main(): Promise<void> {
   }
   frame();
   frame();
-  const view = { map, camera, width: viewWidth, height: viewHeight, dpr };
+  const trenches = new TrenchIndex();
+  trenches.update(snapshot, map);
+  const view = { map, camera, width: viewWidth, height: viewHeight, dpr, trenches: trenches.tiles };
   Object.assign(window, {
     __score: (images = false) =>
       scoreFrame(renderer.captureObjectIds(snapshot, camera), view, images),

@@ -6,6 +6,7 @@ import type { Sprite } from './raster';
 import { placeOnFootprint, rideCellContext, rideCellMesh } from './ride-cells';
 import { coasterSprites } from './models/coaster/sprites';
 import { PATH_STYLES, pathMesh, queueRailMesh } from './models/paths';
+import { trenchArchTexture, trenchFloorTexture, trenchWallTexture } from './models/trench';
 import { WATER_FRAMES, waterTexture } from './models/water';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import type { RideCategory, RideTypeDef } from '../../src/sim/rides/ride-types';
@@ -107,6 +108,14 @@ function rockSprites(): SpriteDef[] {
       footprint: ONE_TILE,
       raw: true,
     })),
+  ];
+}
+
+function trenchSprites(): SpriteDef[] {
+  return [
+    { key: 'terrain/trench/wall', frames: [trenchWallTexture()], footprint: ONE_TILE, raw: true },
+    { key: 'terrain/trench/arch', frames: [trenchArchTexture()], footprint: ONE_TILE, raw: true },
+    { key: 'terrain/trench/floor', frames: [trenchFloorTexture()], footprint: ONE_TILE, raw: true },
   ];
 }
 
@@ -538,6 +547,7 @@ export function waterTrackSprites(): SpriteDef[] {
 export function buildSprites(): SpriteDef[] {
   return [
     ...rockSprites(),
+    ...trenchSprites(),
     ...pathSprites(),
     ...waterSprites(),
     ...rideSprites(),

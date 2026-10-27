@@ -61,6 +61,8 @@ export const enum TrackResult {
   OverWater = 16,
   /** A tunnel section would pass under a ride, a footpath or water. */
   TunnelBlocked = 17,
+  /** A tunnel would enter or leave the ground through a corner, a diagonal slope or mid-tile. */
+  TunnelEntry = 18,
 }
 
 /**

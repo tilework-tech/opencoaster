@@ -239,3 +239,35 @@ describe('family-specific piece selection', () => {
     }
   });
 });
+
+describe('previewStatus tunnel entries', () => {
+  const W = 16;
+  const buildable = new Uint8Array(W * W).fill(1);
+  const hill = (vertex: (vx: number, vy: number) => number) => {
+    const heights = new Uint8Array(W * W);
+    const slope = new Uint8Array(W * W);
+    for (let y = 0; y < W; y++)
+      for (let x = 0; x < W; x++) {
+        const c = [vertex(x, y), vertex(x + 1, y), vertex(x + 1, y + 1), vertex(x, y + 1)];
+        const base = Math.min(...c);
+        heights[y * W + x] = base;
+        slope[y * W + x] = c.reduce((m, h, k) => m | (h > base ? 1 << k : 0), 0);
+      }
+    return { width: W, height: W, heights, slope };
+  };
+  const piece = PIECES[PieceId.Flat];
+
+  it('refuses a piece that would enter the ground through a raised corner', () => {
+    const corner = hill((vx, vy) => 5 + (vx === 7 && vy === 4 ? 1 : 0));
+    expect(previewStatus(corner, buildable, piece, { x: 6, y: 4, dir: 0 }, 1_000_000, 5)).toBe(
+      TrackResult.TunnelEntry,
+    );
+  });
+
+  it('accepts a piece that enters the side of a hill', () => {
+    const side = hill((vx) => 5 + Math.min(3, Math.max(0, vx - 6)));
+    expect(previewStatus(side, buildable, piece, { x: 6, y: 4, dir: 0 }, 1_000_000, 5)).toBe(
+      TrackResult.Ok,
+    );
+  });
+});

@@ -10,7 +10,7 @@ import type { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { RideType } from '../src/sim/rides/ride-types';
 import { PIECES, SAMPLES } from '../src/sim/track/catalog';
-import { pieceTunnelPortals } from '../src/sim/track/clearance';
+import { trenchTiles } from '../src/sim/track/trench';
 import { clickGameTile, createScenarioWorld, hoverGameTile, toolbarTool } from './footpath-helpers';
 import type { Tile } from './footpath-helpers';
 import { startOpenGrounds } from './queue-helpers';
@@ -90,6 +90,7 @@ async function buildCoaster(
   world: World,
   station: Tile,
   steps: Step[],
+  closePanel = true,
 ): Promise<Placed[]> {
   await toolbarTool(page, 'New ride');
   await page.getByRole('tab', { name: 'Roller Coasters' }).click();
@@ -113,7 +114,7 @@ async function buildCoaster(
     await panel.getByRole('button', { name: 'Build piece' }).click();
     await expect(page.locator('.coaster-info')).not.toHaveText(before);
   }
-  await page.keyboard.press('Escape');
+  if (closePanel) await page.keyboard.press('Escape');
   return dumpTrack(page);
 }
 
@@ -276,7 +277,7 @@ const TUNNEL_STEPS: Step[] = [
   ...Array.from({ length: 20 }, (): Step => ['Straight', 'Level']),
 ];
 
-test('track built through a hill gets tunnel portals and an underground view', async ({
+test('track built through a hill is cut into it with headwalls and has an underground view', async ({
   page,
 }, testInfo) => {
   test.setTimeout(600_000);
@@ -287,10 +288,25 @@ test('track built through a hill gets tunnel portals and an underground view', a
   const pieces = await buildCoaster(page, world, { x: 40, y: 52 }, TUNNEL_STEPS);
   expect(pieces).toHaveLength(TUNNEL_STEPS.length);
 
-  const portals = pieces.flatMap((t) =>
-    pieceTunnelPortals(world.map, t.piece, t.x, t.y, t.z, t.dir),
+  const trench = trenchTiles(
+    world.map,
+    pieces.map((t) => ({ pieceType: t.piece, x: t.x, y: t.y, z: t.z, dir: t.dir })),
   );
-  expect(portals.map((p) => p.entering)).toEqual([true, false]);
+  const portals = [...trench.values()].flatMap((tile) => {
+    const x = tile.index % world.map.width;
+    const y = (tile.index - x) / world.map.width;
+    return [0, 1]
+      .filter((end) => (end === 0 ? tile.lowHead : tile.highHead))
+      .map((end) => ({
+        x: tile.axis === 0 ? (x + end) * TILE_UNITS : x * TILE_UNITS + TILE_UNITS / 2,
+        y: tile.axis === 0 ? y * TILE_UNITS + TILE_UNITS / 2 : (y + end) * TILE_UNITS,
+        z: end === 0 ? tile.lowZ : tile.highZ,
+        /** The headwall faces back along the open trench. */
+        facing: (tile.axis + (end === 0 ? 0 : 2)) & 3,
+        entering: end === 0 ? tile.highZ < tile.lowZ : tile.highZ > tile.lowZ,
+      }));
+  });
+  expect(portals).toHaveLength(2);
 
   for (let turn = 0; turn < 4; turn++) {
     const { rotation, image } = await view(page, world, { x: 49, y: 52 });
@@ -298,10 +314,13 @@ test('track built through a hill gets tunnel portals and an underground view', a
     await save(`tunnel-rot${rotation}`, image, testInfo);
     for (const portal of portals) {
       const [px, py] = await screenPoint(page, world, rotation, portal.x, portal.y, portal.z);
-      expect(
-        darkNear(plain, px, py - 6, 9),
-        `portal at ${portal.entering ? 'entry' : 'exit'} in view ${rotation}`,
-      ).toBeGreaterThan(12);
+      // The dark mouth shows from the side the portal opens toward; from behind, its stone back.
+      const facesViewer = ((portal.facing + rotation) & 3) < 2;
+      if (facesViewer)
+        expect(
+          darkNear(plain, px, py - 6, 9),
+          `portal at ${portal.entering ? 'entry' : 'exit'} in view ${rotation}`,
+        ).toBeGreaterThan(12);
     }
 
     await page.keyboard.press('u');
@@ -322,6 +341,41 @@ test('track built through a hill gets tunnel portals and an underground view', a
     await page.keyboard.press('u');
     await rotateView(page);
   }
+});
+
+/** Open Grounds with one corner of the ground raised a level on the track's line. */
+function cornerWorld(): World {
+  const world = createScenarioWorld('open-grounds');
+  const map = world.map;
+  map.vertexHeights[map.vertexIndex(48, 52)] = map.vertexHeights[map.vertexIndex(48, 52)]! + 1;
+  for (let i = 0; i < map.width * map.height; i++) map.refreshTile(i);
+  world.research.unlocked.add(RideType.WoodenCoaster);
+  return world;
+}
+
+test('track that would enter the ground through a corner is refused with a reason', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(300_000);
+  page.setDefaultTimeout(15_000);
+  const world = cornerWorld();
+  await startPark(page, testInfo, world);
+  await centerMapOnTile(page, 46, 52);
+  const approach: Step[] = [
+    ['Station', 'Level'],
+    ...Array.from({ length: 6 }, (): Step => ['Straight', 'Level']),
+  ];
+  const pieces = await buildCoaster(page, world, { x: 40, y: 52 }, approach, false);
+  expect(pieces).toHaveLength(approach.length);
+
+  const panel = page.locator('[data-panel="construction"]');
+  await panel.getByRole('button', { name: 'Straight', exact: true }).click();
+  await panel.getByRole('button', { name: 'Level', exact: true }).click();
+  await panel.getByRole('button', { name: 'Build piece' }).click();
+  await expect(page.locator('.coaster-feedback')).toContainText(
+    'Tunnels must enter through the side of the land, not a corner',
+  );
+  expect(await dumpTrack(page)).toHaveLength(approach.length);
 });
 
 const OWNER_STEPS: Step[] = [

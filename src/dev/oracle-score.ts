@@ -6,6 +6,7 @@ import { terrainTriangles } from '../render/oracle-terrain';
 import type { Camera, MapData } from '../render/renderer';
 import { spritePages } from '../render/sprite-pages';
 import type { ObjectIdCapture } from '../render/webgl2-renderer';
+import type { TrenchTile } from '../sim/track/trench';
 
 /**
  * Scores one renderer frame against the occlusion oracle (src/render/occlusion-oracle.ts) for the
@@ -21,6 +22,8 @@ export interface FixtureView {
   dpr: number;
   /** Whether the renderer draws the land overlay, which the oracle then lays on the terrain. */
   landOverlay?: boolean;
+  /** Trench tiles cut into the ground, which the oracle takes as ground triangles. */
+  trenches?: ReadonlyMap<number, TrenchTile>;
 }
 
 const pageCache = new Map<number, OraclePage>();
@@ -63,6 +66,7 @@ function oracleFor(capture: ObjectIdCapture, view: FixtureView) {
       view.height,
       view.dpr,
       view.landOverlay ?? false,
+      view.trenches,
     ),
     kindBit: (id) => objectKindBit(capture.kinds.get(id) ?? 'other'),
   });

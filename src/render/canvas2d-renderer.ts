@@ -22,6 +22,8 @@ import {
 import { spritePages } from './sprite-pages';
 import type { PageImage, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
+import { TrenchIndex } from './trench-index';
+import { trenchPaintTriangles } from './trench-paint';
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import type { RideCellDraw } from './ride-scene';
 import type { CanvasAtlas } from './canvas-atlas';
@@ -142,6 +144,7 @@ export class Canvas2DRenderer implements Renderer {
   private spriteGhostsByTile: Map<number, SpriteGhost[]> | null = null;
   private atlas: CanvasAtlas | null = null;
   private readonly coasterScene = new CoasterScene();
+  private readonly trenches = new TrenchIndex();
   private readonly rideCells = new RideCellScene();
   private tick = 0;
   private patrolStaffId: number | null = null;
@@ -317,6 +320,8 @@ export class Canvas2DRenderer implements Renderer {
     ctx.setTransform(scale, 0, 0, scale, this.cw / 2 - cam.x * scale, this.ch / 2 - cam.y * scale);
     if (snapshot) this.rideCells.build(snapshot, map, cam.rotation);
     else this.rideCells.reset();
+    if (snapshot) this.trenches.update(snapshot, map);
+    else this.trenches.clear();
     this.drawTiles(ctx, map, cam, snapshot);
     this.drawParkFence(ctx, map, cam);
     if (snapshot) {
@@ -354,7 +359,7 @@ export class Canvas2DRenderer implements Renderer {
         real.canvas.width,
         real.canvas.height,
         { scale, x: this.cw / 2 - cam.x * scale, y: this.ch / 2 - cam.y * scale },
-        `${this.groundRevision}:${cam.x}:${cam.y}:${cam.zoom}:${cam.rotation}:${this.dpr}:${this.landOverlay}`,
+        `${this.groundRevision}:${cam.x}:${cam.y}:${cam.zoom}:${cam.rotation}:${this.dpr}:${this.landOverlay}:${this.trenches.signature}`,
         () =>
           terrainTriangles(
             map,
@@ -363,8 +368,18 @@ export class Canvas2DRenderer implements Renderer {
             this.ch / this.dpr,
             this.dpr,
             this.landOverlay,
+            this.trenches.tiles,
           ),
         this.recordIds,
+        () =>
+          trenchPaintTriangles(
+            this.trenches.tiles,
+            map,
+            cam,
+            this.cw / this.dpr,
+            this.ch / this.dpr,
+            this.dpr,
+          ),
       );
     for (const item of this.drawOrder) if (!item.ground) item.draw();
     surface?.finish();
@@ -1726,7 +1741,7 @@ export class Canvas2DRenderer implements Renderer {
     const atlas = this.atlas;
     if (!atlas) return false;
     const scene = this.coasterScene;
-    scene.build(snapshot, map, cam.rotation, this.undergroundView);
+    scene.build(snapshot, map, cam.rotation, this.undergroundView, this.trenches.tiles);
     const hasSprite = scene.items
       .slice(0, scene.length)
       .some((item) => atlas.resolve(item.key.split('#')[0]));

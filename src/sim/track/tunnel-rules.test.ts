@@ -1,5 +1,5 @@
-import { TRACK_STEPS_PER_LEVEL } from '../core/constants';
 import { describe, expect, it } from 'vitest';
+import { TRACK_STEPS_PER_LEVEL } from '../core/constants';
 import { Simulation } from '../core/simulation';
 import { LandAction, LandResult, planLand } from '../map/land-tool';
 import { placePath } from '../map/paths';
@@ -84,6 +84,33 @@ describe('tunnels through terrain', () => {
     for (const action of [LandAction.Raise, LandAction.Lower]) {
       const plan = planLand(sim.world, { action, x: 23, y: 20, width: 1, height: 1 });
       expect(plan.result).toBe(LandResult.RideInTheWay);
+    }
+  });
+
+  it('refuses a tunnel that would enter through a raised corner, and accepts it through a side', () => {
+    const { sim, rideId } = hillPark();
+    const map = sim.world.map;
+    map.fillFlat(LEVEL);
+    for (const [vx, vy] of [[21, 20]] as const)
+      map.vertexHeights[map.vertexIndex(vx, vy)] = LEVEL + 1;
+    for (let i = 0; i < map.width * map.height; i++) map.refreshTile(i);
+    expect(place(sim, rideId, 14, PieceId.Station)).toBe(TrackResult.Ok);
+    for (let x = 15; x <= 19; x++) expect(place(sim, rideId, x)).toBe(TrackResult.Ok);
+    expect(place(sim, rideId, 20)).toBe(TrackResult.TunnelEntry);
+  });
+
+  it('keeps tunnel entries through the side of a hill buildable', () => {
+    const { sim, rideId } = hillPark();
+    buildUpTo(sim, rideId, 20);
+    expect(sim.world.track.count[rideId]).toBeGreaterThan(5);
+  });
+
+  it('refuses land edits at a tunnel mouth, so an entry cannot become a corner entry', () => {
+    const { sim, rideId } = hillPark();
+    buildUpTo(sim, rideId, 31);
+    for (const x of [18, 19, 20, 29, 30]) {
+      const plan = planLand(sim.world, { action: LandAction.Raise, x, y: 20, width: 1, height: 1 });
+      expect(plan.result, `raise at x=${x}`).not.toBe(LandResult.Ok);
     }
   });
 });

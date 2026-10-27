@@ -11,13 +11,36 @@ import {
   terrainTileCorners,
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
+import { trenchFaces, trenchSurfaceTriangles } from './trench-geometry';
+import type { TrenchPoint } from './trench-geometry';
+import type { TrenchTile } from '../sim/track/trench';
 import { WATER_BANK } from './world-art';
 import { MAX_HEIGHT } from '../sim/map/tile-map';
+
+const NO_TRENCHES: ReadonlyMap<number, TrenchTile> = new Map();
 
 /** Screen extent (world pixels) of a tile's ground around the projection of its sea-level centre. */
 const TILE_REACH_X = 64;
 const TILE_REACH_UP = (MAX_HEIGHT + 2) * 16 + 32;
-const TILE_REACH_DOWN = 32;
+const TILE_REACH_DOWN = 96;
+
+/** Projects a world point (tiles, tiles, levels) to a backing-buffer oracle vertex. */
+export function terrainVertex(
+  map: MapData,
+  camera: Pick<Camera, 'x' | 'y' | 'zoom' | 'rotation'>,
+  viewportWidth: number,
+  viewportHeight: number,
+  devicePixelRatio: number,
+): (x: number, y: number, height: number) => OracleVertex {
+  return (x, y, height) => {
+    const [sx, sy] = worldToScreen(x, y, height, camera.rotation, map);
+    return {
+      x: ((sx - camera.x) * camera.zoom + viewportWidth / 2) * devicePixelRatio,
+      y: ((sy - camera.y) * camera.zoom + viewportHeight / 2) * devicePixelRatio,
+      height,
+    };
+  };
+}
 
 /**
  * The ground, cliff faces and water surface of `map` as oracle triangles in backing-buffer
@@ -31,15 +54,9 @@ export function terrainTriangles(
   viewportHeight: number,
   devicePixelRatio: number,
   landOverlay = false,
+  trenches: ReadonlyMap<number, TrenchTile> = NO_TRENCHES,
 ): OracleTriangle[] {
-  const vertex = (x: number, y: number, height: number): OracleVertex => {
-    const [sx, sy] = worldToScreen(x, y, height, camera.rotation, map);
-    return {
-      x: ((sx - camera.x) * camera.zoom + viewportWidth / 2) * devicePixelRatio,
-      y: ((sy - camera.y) * camera.zoom + viewportHeight / 2) * devicePixelRatio,
-      height,
-    };
-  };
+  const vertex = terrainVertex(map, camera, viewportWidth, viewportHeight, devicePixelRatio);
   const out: OracleTriangle[] = [];
   const split = terrainMeshTriangles(camera.rotation);
   const right = viewportWidth * devicePixelRatio;
@@ -59,8 +76,20 @@ export function terrainTriangles(
       const mask = map.slope[index];
       const corners = terrainTileCorners(x, y, base, mask);
       const points = corners.map((c) => vertex(c.x, c.y, c.height));
-      for (const [a, b, c] of split)
-        out.push({ id: GROUND_OBJECT_ID, a: points[a], b: points[b], c: points[c] });
+      const trench = trenches.get(index);
+      if (trench) {
+        const project = (p: TrenchPoint): OracleVertex => vertex(p.x, p.y, p.height);
+        for (const [a, b, c] of trenchSurfaceTriangles(trench, x, y, base, mask, camera.rotation))
+          out.push({ id: GROUND_OBJECT_ID, a: project(a), b: project(b), c: project(c) });
+        for (const face of trenchFaces(trench, x, y, base, mask, camera.rotation)) {
+          const [a, b] = face.top.map(project) as [OracleVertex, OracleVertex];
+          const [d, c] = face.bottom.map(project) as [OracleVertex, OracleVertex];
+          out.push({ id: GROUND_OBJECT_ID, a, b, c });
+          out.push({ id: GROUND_OBJECT_ID, a, b: c, c: d });
+        }
+      } else
+        for (const [a, b, c] of split)
+          out.push({ id: GROUND_OBJECT_ID, a: points[a], b: points[b], c: points[c] });
       for (let direction = 0; direction < 4; direction++) {
         if (!terrainEdgeFacesViewer(direction, camera.rotation)) continue;
         const face = terrainEdgeFace(

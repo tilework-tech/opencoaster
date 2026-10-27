@@ -2,6 +2,7 @@ import { decodeHeight } from './height-encoding';
 import { COVERAGE_ALPHA } from './occlusion-oracle';
 import type { OraclePage, OracleSprite, OracleTriangle } from './occlusion-oracle';
 import type { PageFrame } from './sprite-pages';
+import type { PaintTriangle, TrenchTexture } from './trench-paint';
 
 /**
  * Software per-pixel depth for the Canvas2D renderer (src/render/docs.md, "Occlusion model").
@@ -66,6 +67,16 @@ function crossRow(
   const x = p.x + ((sy - p.y) * (q.x - p.x)) / (q.y - p.y);
   span[0] = Math.min(span[0], x);
   span[1] = Math.max(span[1], x);
+}
+
+/** Height slack, in levels, within which a painted triangle counts as the surface at a pixel. */
+const PAINT_TOLERANCE = 1e-3;
+
+/** Texels of a texture painted onto trench triangles: packed RGBA in canvas byte order. */
+export interface PaintTexture {
+  width: number;
+  height: number;
+  colour: Uint32Array;
 }
 
 export class DepthComposite {
@@ -133,6 +144,66 @@ export class DepthComposite {
           if (Math.fround(h) < heights[at]) continue;
           heights[at] = h;
           if (ids) ids[at] = t.id;
+        }
+      }
+    }
+  }
+
+  /**
+   * Paints textured triangles wherever they are the nearest surface already rasterised by
+   * `ground`: a pixel takes the triangle's texel when its height matches the stored one. The
+   * triangles must have been part of that ground, so they win exactly where nothing is above them.
+   */
+  paint(
+    triangles: readonly PaintTriangle[],
+    textures: Readonly<Record<TrenchTexture, PaintTexture | null>>,
+  ): void {
+    const { width, height, heights, colour } = this;
+    for (const t of triangles) {
+      const texture = textures[t.texture];
+      if (!texture) continue;
+      const { a, b, c } = t;
+      const area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+      if (Math.abs(area) < 1e-9) continue;
+      const y0 = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y)));
+      const y1 = Math.min(height - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
+      const minX = Math.min(a.x, b.x, c.x);
+      const maxX = Math.max(a.x, b.x, c.x);
+      if (y1 < y0 || maxX < 0 || minX > width) continue;
+      const plane = (fa: number, fb: number, fc: number): [number, number, number] => {
+        const gx = ((fb - fa) * (c.y - a.y) - (fc - fa) * (b.y - a.y)) / area;
+        const gy = ((fc - fa) * (b.x - a.x) - (fb - fa) * (c.x - a.x)) / area;
+        return [gx, gy, fa - gx * a.x - gy * a.y];
+      };
+      const [hx, hy, h0] = plane(a.height, b.height, c.height);
+      const [ux, uy, u0] = plane(a.u, b.u, c.u);
+      const [vx, vy, v0] = plane(a.v, b.v, c.v);
+      const shade = t.shade;
+      const span = this.span;
+      for (let py = y0; py <= y1; py++) {
+        const sy = py + 0.5;
+        span[0] = Infinity;
+        span[1] = -Infinity;
+        crossRow(a, b, sy, span);
+        crossRow(b, c, sy, span);
+        crossRow(c, a, sy, span);
+        const x0 = Math.max(0, Math.ceil(span[0] - 0.5));
+        const x1 = Math.min(width - 1, Math.floor(span[1] - 0.5));
+        for (let px = x0; px <= x1; px++) {
+          const sx = px + 0.5;
+          const at = py * width + px;
+          if (hx * sx + hy * sy + h0 < heights[at]! - PAINT_TOLERANCE) continue;
+          const tx = Math.min(texture.width - 1, Math.max(0, Math.floor(ux * sx + uy * sy + u0)));
+          const ty = Math.min(texture.height - 1, Math.max(0, Math.floor(vx * sx + vy * sy + v0)));
+          const texel = texture.colour[ty * texture.width + tx]!;
+          colour[at] =
+            shade === 1
+              ? texel
+              : ((255 << 24) |
+                  (Math.min(255, Math.round(((texel >>> 16) & 255) * shade)) << 16) |
+                  (Math.min(255, Math.round(((texel >>> 8) & 255) * shade)) << 8) |
+                  Math.min(255, Math.round((texel & 255) * shade))) >>>
+                0;
         }
       }
     }

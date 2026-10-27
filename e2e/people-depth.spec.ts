@@ -96,6 +96,17 @@ function kindDisagreement(a: string, b: string): { objects: number; differing: n
 
 const CASES: Array<{ name: string; scene: string; at: At[] }> = [
   {
+    name: 'trench: in the open cut, at the headwall, beside it, and inside the tunnel',
+    scene: 'trench',
+    at: [
+      [5.5, 8.5, 1.8],
+      [6.8, 8.5, 1.1],
+      [6.5, 9.4, 2],
+      [5.5, 7.6, 2],
+      [7.5, 8.5, 1],
+    ],
+  },
+  {
     name: 'flat path, back half and front half of a tile',
     scene: 'path-flat',
     at: [

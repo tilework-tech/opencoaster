@@ -32,7 +32,7 @@ Public sources give no complete rule list [S: only that "clearance checks" can b
 2. Piece must be allowed by ride type, and within ride-type max height / min height above ground.
 3. Clearance: occupied voxel columns of the piece must not intersect terrain or other objects, with per-piece clearance heights; a debug flag disables this.
 4. Supports: auto-generated from track down to ground per tile; they are cosmetic + cost, but must not collide (reject piece if support column blocked, unless the piece is "no support needed").
-5. Tunnels: where track dips below terrain, a tunnel portal is created at entry/exit; only allowed for pieces flagged tunnel-able, entry height within terrain limits. Tunnels count as "sheltered" for scenery/underground-bonus purposes.
+5. Tunnels: where track dips below terrain, a tunnel portal is created at entry/exit; only allowed for pieces flagged tunnel-able, entry height within terrain limits. Our rule, stricter than the games: portals sit on a tile edge only (see below), never on a corner, a diagonal slope or mid-tile. Tunnels count as "sheltered" for scenery/underground-bonus purposes.
 6. Station: exactly one entrance and one exit are required for opening; track circuit must be complete for circuit modes.
 7. Track length/piece count cap per ride (performance guard).
 
@@ -262,3 +262,9 @@ Sources:
 - https://rctv1.rctspace.com/test/info/tips2.html
 - https://tid.rctspace.com/TD4viewer.html
 - https://rct.fandom.com/wiki/Inverted_Hairpin_Coaster
+
+### Tunnel portals: what the original game does and what we do
+
+- OpenRCT2 has no placement rule for tunnel entries. Its track painter queues a tunnel on a tile edge, and the surface painter draws a portal only where the neighbouring land at that edge is higher than the queued tunnel height. Portals therefore exist only on tile edges; a corner or diagonal slope has no portal handling. [S: reading OpenRCT2's public source, `Paint.Tunnel.cpp` and `Paint.Surface.cpp`, https://github.com/OpenRCT2/OpenRCT2/tree/develop/src/openrct2/paint/tile_element; nothing was copied] The tunnel type (flat, sloped, square) follows the track piece, and the portal artwork belongs to the terrain edge style (brick or stone). [S: same files]
+- Refusing corner entries is a project rule on top of that: our terrain is one continuous heightfield with one-level slopes, so a track always meets the ground at ground height, and a mouth on a tilted edge would clip through the raised corner. We allow a mouth only on a level tile edge of flat ground, of a one-level slope rising straight away from it, or of a hillside that keeps rising. **Confidence: project design [I].**
+- OpenRCT2 draws no trench or retaining walls for track sinking into flat ground. Ours is original: track below the ground but under less than one level of cover runs in an open cut (floor, two retaining walls) and ends in a stone headwall with the tunnel mouth where it is a level deep; hillside entries are the same cut with walls growing to the headwall height. Only straight pieces may sit in a cut. **Confidence: project design [I].**

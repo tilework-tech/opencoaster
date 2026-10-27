@@ -60,6 +60,22 @@ import { PARK_FENCE, landOverlayTiles, parkBoundaryEdges } from './park-boundary
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
+import { TrenchIndex } from './trench-index';
+import {
+  TRENCH_ARCH_LEVELS,
+  TRENCH_EDGE_OVERLAP,
+  TRENCH_HALF_WIDTH,
+  TRENCH_HEAD_DARK,
+  TRENCH_HEAD_LIT,
+  TRENCH_WALL_DARK,
+  TRENCH_WALL_LIT,
+  TRENCH_WALL_TEXTURE_HEIGHT,
+  trenchFaceFacing,
+  trenchFaces,
+  wallStrips,
+} from './trench-geometry';
+import type { TrenchTile } from '../sim/track/trench';
+import type { TrenchFace } from './trench-geometry';
 import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
@@ -103,7 +119,7 @@ const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 7;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
-const INSTANCE_FLOATS = 22;
+const INSTANCE_FLOATS = 23;
 /** Instance float holding the atlas page slot, then the ghost mode (0 none, 1 accepted, 2 refused). */
 const SLOT_FLOAT = 17;
 /** Instance float holding the horizontal anchor shift of a sprite quad, in sprite pixels. */
@@ -115,6 +131,8 @@ const OBJECT_ID_FLOAT = 19;
 const ANCHOR_Z_FLOAT = 20;
 /** Instance float scaling a sprite's baked heights: drawn height over atlas frame height. */
 const HEIGHT_SCALE_FLOAT = 21;
+/** Instance float selecting which strip of a terrain tile mesh is cut away or kept (see `holeDiscard`). */
+const HOLE_FLOAT = 22;
 /**
  * Window depth per level of world height. Every point on one pixel's view ray has a distinct
  * height, so higher is nearer: depth = 0.5 - height * DEPTH_PER_LEVEL (see docs.md, "Occlusion
@@ -291,6 +309,15 @@ export function instanceOracleSprite(
   };
 }
 
+/** Extra per-instance mesh parameters: the tile strip a trench cuts, or the part of a texture shown. */
+interface MeshExtras {
+  /** See `holeDiscard`. */
+  hole?: number;
+  /** Fractions of the sprite frame shown: left, right, top, bottom. */
+  crop?: readonly [number, number, number, number];
+}
+const NO_MESH_EXTRAS: MeshExtras = {};
+
 /** What `captureObjectIds` needs to know about an instance beyond the instance buffer. */
 interface CaptureRecord {
   id: number;
@@ -315,6 +342,19 @@ const heightCodecSource = `highp float decodeHeight(highp vec4 texel) {
 }
 `;
 
+/**
+ * GLSL for the cut a trench makes in a terrain tile mesh. Tile-space `uv` runs across the tile in
+ * view space; `hole` 1/2 discards the strip along u/v (the ground above the cut), 3/4 keeps only
+ * that strip, slightly wider (the floor, which hides under the walls and the ground).
+ */
+const holeSource = `bool holeDiscard(float hole, vec2 uv) {
+  if (hole < 0.5) return false;
+  bool alongU = hole < 1.5 || (hole > 2.5 && hole < 3.5);
+  float across = abs((alongU ? uv.y : uv.x) - 0.5);
+  if (hole < 2.5) return across < ${glslFloat(TRENCH_HALF_WIDTH)};
+  return across >= ${glslFloat(TRENCH_HALF_WIDTH + 2 * TRENCH_EDGE_OVERLAP)};
+}`;
+
 const vertexSource = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 aCorner;
@@ -331,6 +371,7 @@ layout(location=10) in float aGhost;
 layout(location=11) in float aObjectId;
 layout(location=12) in float aAnchorZ;
 layout(location=13) in float aHeightScale;
+layout(location=14) in float aHole;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -347,6 +388,7 @@ flat out float vGhost;
 flat out float vObjectId;
 flat out float vAnchorZ;
 flat out float vHeightScale;
+flat out float vHole;
 out float vHeight;
 void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
@@ -407,6 +449,7 @@ void main() {
   vObjectId = aObjectId;
   vAnchorZ = aAnchorZ / ${glslFloat(Z_STEP)};
   vHeightScale = aHeightScale;
+  vHole = aHole;
   // Meshes carry their true height per vertex; a sprite without a baked height map stands as an
   // upright card whose height rises with its rows.
   if (aMeshMode > 2.5 && aMeshMode < 3.5) vHeight = aWorld.z / ${glslFloat(Z_STEP)};
@@ -432,6 +475,7 @@ flat in float vGhost;
 flat in highp float vObjectId;
 flat in highp float vAnchorZ;
 flat in float vHeightScale;
+flat in float vHole;
 in float vHeight;
 uniform float uIdMode;
 ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uAtlas${slot};`).join('\n')}
@@ -439,6 +483,7 @@ ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uHeights
 out vec4 outColor;
 ${encodeObjectIdSource}
 ${heightCodecSource}
+${holeSource}
 vec4 sampleHeights(vec2 uv) {
   int slot = int(vSlot + 0.5);
 ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uHeights${slot}, uv);`).join('\n')}
@@ -470,6 +515,7 @@ vec4 landOverlay() {
   return colour;
 }
 void main() {
+  if (holeDiscard(vHole, vTileUv)) discard;
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
   float height = vHeight;
@@ -506,7 +552,8 @@ void main() {
     outColor.rgb = mix(outColor.rgb, vec3(0.63, 0.75, 0.75), foam * 0.2);
     outColor.a = 0.88;
   }
-  if (vMeshMode > 0.5 && vMeshMode < 1.5) outColor.rgb *= vTerrainShade;
+  if ((vMeshMode > 0.5 && vMeshMode < 1.5) || (vMeshMode > 3.5 && vMeshMode < 4.5))
+    outColor.rgb *= vTerrainShade;
   if (vGhost > 0.5) {
     outColor.a *= ${glslFloat(GHOST_ALPHA)};
     if (vGhost > 1.5 && vGhost < 2.5) outColor.rgb = mix(outColor.rgb, vec3(0.9, 0.16, 0.14), 0.6);
@@ -537,9 +584,13 @@ void main() {
 
 /** Depth-only pass over terrain meshes: depth comes from the vertex shader. */
 const depthFragmentSource = `#version 300 es
-precision mediump float;
+precision highp float;
+in vec2 vTileUv;
+flat in float vHole;
 out vec4 outColor;
+${holeSource}
 void main() {
+  if (holeDiscard(vHole, vTileUv)) discard;
   outColor = vec4(0.0);
 }`;
 
@@ -624,6 +675,7 @@ export class WebGL2Renderer implements Renderer {
   private syncedPageVersion = -1;
   private attributeBase = 0;
   private readonly coasterScene = new CoasterScene();
+  private readonly trenches = new TrenchIndex();
   private readonly rideCells = new RideCellScene();
   private uniforms: {
     atlas: (WebGLUniformLocation | null)[];
@@ -901,6 +953,8 @@ export class WebGL2Renderer implements Renderer {
     this.syncPageTextures();
     const viewportWidth = canvas.width / this.dpr;
     const viewportHeight = canvas.height / this.dpr;
+    if (snapshot) this.trenches.update(snapshot, map);
+    else this.trenches.clear();
     this.prepareGroundCache(map, camera);
     this.ensureGroundChunks(map, camera, viewportWidth, viewportHeight);
     gl.bindFramebuffer(gl.FRAMEBUFFER, target);
@@ -926,6 +980,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendPathGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
       this.appendParkFence(map, camera, viewportWidth, viewportHeight);
+      this.appendTrenches(map, camera, viewportWidth, viewportHeight);
       this.appendLandOverlay(map, camera, viewportWidth, viewportHeight);
       this.appendSpriteGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
@@ -1160,6 +1215,7 @@ export class WebGL2Renderer implements Renderer {
       [11, 1, OBJECT_ID_FLOAT],
       [12, 1, ANCHOR_Z_FLOAT],
       [13, 1, HEIGHT_SCALE_FLOAT],
+      [14, 1, HOLE_FLOAT],
     ] as const;
     for (const [location, size, floatOffset] of layout) {
       gl.enableVertexAttribArray(location);
@@ -1962,7 +2018,8 @@ export class WebGL2Renderer implements Renderer {
       (height + ((mask >> 3) & 1)) * 64,
     ] as const;
     const corners = viewTerrainCornerHeights(worldCorners, rotation);
-    if (meshesOnly)
+    if (meshesOnly) {
+      const trench = this.trenches.tiles.get(index);
       this.appendDepthInstance(
         rx * TILE_UNITS,
         ry * TILE_UNITS,
@@ -1971,8 +2028,9 @@ export class WebGL2Renderer implements Renderer {
         TILE_H,
         corners,
         1,
+        trench ? 1 + ((trench.axis + rotation) & 1) : 0,
       );
-    else
+    } else
       this.append(
         rx * TILE_UNITS,
         ry * TILE_UNITS,
@@ -2035,6 +2093,158 @@ export class WebGL2Renderer implements Renderer {
         pathSpriteName(surface === 6 ? 'queue' : 'tarmac', 0),
         2 * (rx + ry) - height + 1,
       );
+  }
+
+  /** Adds the floor, retaining walls and headwalls of every trench tile in view. */
+  private appendTrenches(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const rotation = camera.rotation;
+    for (const trench of this.trenches.tiles.values()) {
+      const x = trench.index % map.width;
+      const y = (trench.index - x) / map.width;
+      const base = map.heights[trench.index]!;
+      project(
+        (x + 0.5) * TILE_UNITS,
+        (y + 0.5) * TILE_UNITS,
+        base * 64,
+        map.width,
+        map.height,
+        rotation,
+        this.projected,
+      );
+      if (
+        Math.abs(this.projected[0]! - camera.x) > viewportWidth / camera.zoom / 2 + TILE_W ||
+        Math.abs(this.projected[1]! - camera.y) >
+          viewportHeight / camera.zoom / 2 + TILE_H + 32 * Z_PIXELS
+      )
+        continue;
+      rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
+      const key = 2 * (this.tileCoordinates[0] + this.tileCoordinates[1]) - base;
+      for (const face of trenchFaces(trench, x, y, base, map.slope[trench.index]!, rotation)) {
+        if (face.kind === 'floor') this.appendTrenchFloor(trench, face, map, rotation, base, key);
+        else if (face.kind === 'wall') this.appendTrenchWall(trench, face, rotation, key);
+        else this.appendTrenchHead(trench, face, rotation, key);
+      }
+    }
+  }
+
+  private appendTrenchFloor(
+    trench: TrenchTile,
+    face: TrenchFace,
+    map: MapData,
+    rotation: Rotation,
+    base: number,
+    key: number,
+  ): void {
+    const low = face.top[0].height * 64;
+    const high = face.bottom[0].height * 64;
+    const lowCorner = trench.axis === 0 ? [true, false, false, true] : [true, true, false, false];
+    const corners = viewTerrainCornerHeights(
+      lowCorner.map((isLow) => (isLow ? low : high)) as [number, number, number, number],
+      rotation,
+    );
+    const x = trench.index % map.width;
+    const y = (trench.index - x) / map.width;
+    rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
+    this.append(
+      this.tileCoordinates[0] * TILE_UNITS,
+      this.tileCoordinates[1] * TILE_UNITS,
+      base * 64,
+      TILE_W,
+      TILE_H,
+      'terrain/trench/floor',
+      key,
+      1,
+      corners,
+      terrainLightFactor(corners),
+      0,
+      { hole: 3 + ((trench.axis + rotation) & 1) },
+    );
+  }
+
+  private appendTrenchWall(
+    trench: TrenchTile,
+    wall: TrenchFace,
+    rotation: Rotation,
+    key: number,
+  ): void {
+    const facing = (trenchFaceFacing(trench, wall) + rotation) & 3;
+    if (facing >= 2) return;
+    const shade = facing === 0 ? TRENCH_WALL_LIT : TRENCH_WALL_DARK;
+    const out = wall.side * TRENCH_EDGE_OVERLAP;
+    const strips = wallStrips(wall);
+    for (let i = 0; i < strips.length; i++) {
+      const strip = strips[i]!;
+      const [start, end] = strip.top;
+      const bottom = strip.bottom[0].height;
+      const top = (start.height + end.height) / 2;
+      const shown = Math.min(1, ((top - bottom) * Z_PIXELS) / TRENCH_WALL_TEXTURE_HEIGHT);
+      this.append(
+        (start.x + (trench.axis === 1 ? out : 0)) * TILE_UNITS,
+        (start.y + (trench.axis === 0 ? out : 0)) * TILE_UNITS,
+        bottom * 64,
+        (end.x - start.x) * TILE_UNITS,
+        (end.y - start.y) * TILE_UNITS,
+        'terrain/trench/wall',
+        key,
+        4,
+        [start.height * 64, end.height * 64, bottom * 64, bottom * 64],
+        shade,
+        0,
+        { crop: [i / strips.length, (i + 1) / strips.length, 0, shown] },
+      );
+    }
+  }
+
+  private appendTrenchHead(
+    trench: TrenchTile,
+    face: TrenchFace,
+    rotation: Rotation,
+    key: number,
+  ): void {
+    const facing = (trenchFaceFacing(trench, face) + rotation) & 3;
+    if (facing >= 2) return;
+    const shade = facing === 0 ? TRENCH_HEAD_LIT : TRENCH_HEAD_DARK;
+    const [start, end] = face.top;
+    const floor = face.bottom[0].height;
+    const archLevels = TRENCH_ARCH_LEVELS;
+    const archStart = Math.min(start.height, floor + archLevels);
+    const archEnd = Math.min(end.height, floor + archLevels);
+    const shown = Math.min(1, (archStart + archEnd) / 2 - floor);
+    this.append(
+      start.x * TILE_UNITS,
+      start.y * TILE_UNITS,
+      floor * 64,
+      (end.x - start.x) * TILE_UNITS,
+      (end.y - start.y) * TILE_UNITS,
+      'terrain/trench/arch',
+      key,
+      4,
+      [archStart * 64, archEnd * 64, floor * 64, floor * 64],
+      shade,
+      0,
+      { crop: [0, 1, 1 - shown / archLevels, 1] },
+    );
+    const above = (start.height + end.height) / 2 - (floor + archLevels);
+    if (above <= 0.02) return;
+    this.append(
+      start.x * TILE_UNITS,
+      start.y * TILE_UNITS,
+      (floor + archLevels) * 64,
+      (end.x - start.x) * TILE_UNITS,
+      (end.y - start.y) * TILE_UNITS,
+      'terrain/trench/wall',
+      key,
+      4,
+      [start.height * 64, end.height * 64, (floor + archLevels) * 64, (floor + archLevels) * 64],
+      shade,
+      0,
+      { crop: [0, 1, 0, Math.min(1, (above * Z_PIXELS) / TRENCH_WALL_TEXTURE_HEIGHT)] },
+    );
   }
 
   private appendAmbientTrees(
@@ -2520,7 +2730,7 @@ export class WebGL2Renderer implements Renderer {
     viewportHeight: number,
   ): boolean {
     const scene = this.coasterScene;
-    scene.build(snapshot, map, camera.rotation, this.undergroundView);
+    scene.build(snapshot, map, camera.rotation, this.undergroundView, this.trenches.tiles);
     const hasSprite = scene.items
       .slice(0, scene.length)
       .some((item) => spritePages.resolve(item.key.split('#')[0]));
@@ -2819,6 +3029,7 @@ export class WebGL2Renderer implements Renderer {
     cornerHeights: readonly number[] = [z, z, z, z],
     terrainShade = 1,
     contourEdges = 0,
+    mesh: MeshExtras = NO_MESH_EXTRAS,
   ): void {
     if (this.count === this.depths.length) this.grow();
     const anchorZ = z;
@@ -2858,6 +3069,17 @@ export class WebGL2Renderer implements Renderer {
       } else if (!meshMode && entry) {
         z += spriteAnchorWorldOffset(frame.height, entry.anchor.y, height);
         anchorShift = spriteAnchorScreenShift(frame.width, entry.anchor.x, width);
+      }
+      if (mesh.crop) {
+        const [left, right, top, bottom] = mesh.crop;
+        const cropU0 = u0 + (u1 - u0) * left;
+        const cropU1 = u0 + (u1 - u0) * right;
+        const cropV1 = v1 - (v1 - v0) * top;
+        const cropV0 = v1 - (v1 - v0) * bottom;
+        u0 = cropU0;
+        u1 = cropU1;
+        v0 = cropV0;
+        v1 = cropV1;
       }
       if (meshMode === 2) {
         const insetX = 0.28;
@@ -2928,6 +3150,7 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + OBJECT_ID_FLOAT] = objectId;
     this.instanceData[offset + ANCHOR_Z_FLOAT] = anchorZ;
     this.instanceData[offset + HEIGHT_SCALE_FLOAT] = frame && !meshMode ? height / frame.height : 1;
+    this.instanceData[offset + HOLE_FLOAT] = mesh.hole ?? 0;
     this.translucent[this.count] =
       this.ghostMode !== 0 || meshMode === 3 || (meshMode > 1.4 && meshMode < 2.5) ? 1 : 0;
     if (this.captureRecords)
@@ -2953,6 +3176,7 @@ export class WebGL2Renderer implements Renderer {
     height: number,
     corners: readonly number[],
     meshMode: number,
+    hole = 0,
   ): void {
     if (this.count === this.depths.length) this.grow();
     const offset = this.count * INSTANCE_FLOATS;
@@ -2978,6 +3202,7 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 19] = 0;
     this.instanceData[offset + 20] = z;
     this.instanceData[offset + 21] = 1;
+    this.instanceData[offset + HOLE_FLOAT] = hole;
     this.count++;
   }
 

@@ -1,8 +1,11 @@
+import { TRACK_STEPS_PER_LEVEL } from '../sim/core/constants';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RideResult } from '../sim/rides/ride-results';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import { RideType } from '../sim/rides/ride-types';
 import { PIECES } from '../sim/track/catalog';
+import { badTunnelEntry } from '../sim/track/clearance';
+import type { TerrainTiles } from '../sim/track/clearance';
 import { rotateTile } from '../sim/track/construction';
 import {
   Bank,
@@ -187,6 +190,18 @@ export function previewStatus(
         return TrackResult.Blocked;
     }
   }
+  if (
+    'heights' in map &&
+    badTunnelEntry(
+      map as TerrainTiles,
+      piece.id,
+      placement.x,
+      placement.y,
+      Math.round(level * TRACK_STEPS_PER_LEVEL),
+      placement.dir,
+    )
+  )
+    return TrackResult.TunnelEntry;
   return TrackResult.Ok;
 }
 
@@ -213,6 +228,8 @@ const TRACK_MESSAGES: Record<TrackResult, string> = {
   [TrackResult.InsufficientFunds]: 'Not enough cash for that piece.',
   [TrackResult.PieceNotAllowed]: 'This ride type cannot use that piece or mode.',
   [TrackResult.TunnelBlocked]: 'Tunnels cannot run under rides, footpaths or water.',
+  [TrackResult.TunnelEntry]:
+    'Tunnels must enter through the side of the land, not a corner, and run straight until they are under cover.',
   [TrackResult.OverWater]: 'Track cannot be built over open water for this ride type.',
 };
 
