@@ -128,9 +128,7 @@ test.describe('map right-click', () => {
       const at = await aimAt(page, world, ride.x, ride.y);
       expect(await rightClick(page, at)).toBe(true);
       await expect(page.locator(`.ui-window[data-panel="ride-${ride.id}"]`)).toBeVisible();
-      await expect(page.locator('.tool-status')).toContainText(
-        `Ride ${ride.id + 1} information opened`,
-      );
+      await expect(page.locator('.tool-status')).toContainText(`${ride.name} information opened`);
       await closeWindows(page);
     }
   });

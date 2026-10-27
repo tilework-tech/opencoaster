@@ -331,7 +331,7 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
       await setSimulationPaused(page, mobile, false);
       if (mobile) await control.tap({ timeout: 5_000 });
       else await control.click({ timeout: 5_000 });
-      await expect(page.locator('.tool-status')).toContainText(/Queue line (on|off)\./);
+      await expect(page.locator('.tool-status')).toContainText(/Queue line (on|off)\b/);
       await setSimulationPaused(page, mobile, true);
     } else if (item.ariaPressed !== null) {
       await setSimulationPaused(page, mobile, false);

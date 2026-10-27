@@ -254,7 +254,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await expect(status).toContainText('Place entrance');
   const candidates = page.getByRole('button', { name: /Place entrance at tile/ });
   await expect(candidates).not.toHaveCount(0);
-  await expectRingCandidates(page, candidates, ring);
+  await expectRingCandidates(page, candidates, ring, site.paths);
   await expect(
     page.getByRole('button', {
       name: `Place entrance at tile ${site.entrance[0]}, ${site.entrance[1]}`,
