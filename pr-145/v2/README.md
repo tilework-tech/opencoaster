@@ -4,7 +4,7 @@ New = `fix/train-car-settings` at a696413, rebased on main 0c6708d (#151). Old =
 
 Both coasters (Wooden Coaster, Steel Looping Coaster) were built through the UI on Open Grounds with the circuit **closed at the station**: the first piece is a flat straight, the Station is placed last. The chain lift (flat, up, flat) sits right after the platform; the rest is the usual 14-piece oval. Then entrance, exit, test lap, a path to the park entrance, Open, and the dev-build "Guests +1,000" button so guests queue. Game speed 1x, camera follows the train at zoom 2.
 
-- WebGL2 frames are page screenshots of the game canvas. Canvas2D frames are read with `canvas.toDataURL`. the Canvas2D canvas is half resolution in the follow frames, so those crops are 280x170 and are upscaled here with nearest-neighbour.
+- WebGL2 frames are page screenshots of the game canvas. Canvas2D frames are read with `canvas.toDataURL`. The Canvas2D canvas is half resolution in the follow frames, so those crops are 280x170 and are upscaled here with nearest-neighbour.
 - Every capture waits until all sprite atlas requests have finished (`coaster-steel` or `coaster-wood`, `people`, `world`) plus 4 s. UI windows, tile overlays and the tool status are hidden with CSS for the frames.
 - Rain in some frames is the game's weather, not part of the change.
 
