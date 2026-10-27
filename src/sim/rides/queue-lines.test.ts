@@ -5,6 +5,7 @@ import {
   createRide,
   estimatedWaitTicks,
   placeRideEntranceExit,
+  QUEUE_GUESTS_PER_TILE,
   rideQueueCapacity,
   setRideQueueLimit,
 } from './ride-operations';
@@ -100,10 +101,10 @@ describe('queue lines', () => {
     expect(w.queues.tiles[slot]).toBe(3);
   });
 
-  it('holds one guest per queue tile plus the loading area, and obeys the queue limit', () => {
+  it('holds four guests per queue tile, entrance tile included, and obeys the queue limit', () => {
     const { w, slot } = parkWithQueue();
     const natural = rideQueueCapacity(w, slot);
-    expect(natural).toBe(2 + w.rides.cols.capacity[slot]);
+    expect(natural).toBe((2 + 1) * QUEUE_GUESTS_PER_TILE);
     expect(setRideQueueLimit(w, w.rides.slotToId[slot], 3)).toBe(true);
     expect(rideQueueCapacity(w, slot)).toBe(3);
     expect(setRideQueueLimit(w, w.rides.slotToId[slot], natural + 10)).toBe(true);

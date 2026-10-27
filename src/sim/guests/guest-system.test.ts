@@ -225,7 +225,7 @@ describe('guest needs', () => {
     const early = make(40);
     const happy = make(200);
 
-    runGuestOnly(early, 4200);
+    runGuestOnly(early, 2600);
     runGuestOnly(happy, 6000);
 
     expect(early.guests.cols.state[0]).toBe(GuestState.Waiting);
