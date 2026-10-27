@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PR #150 queue demand proof</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.45 system-ui, sans-serif; background: #101820; color: #e5edf2; }
+    body { max-width: 1040px; margin: 32px auto; padding: 0 20px; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    p { color: #afc0cb; }
+    .controls { display: flex; flex-wrap: wrap; gap: 18px; margin: 20px 0 8px; }
+    label { cursor: pointer; }
+    svg { width: 100%; height: auto; background: #18242e; border-radius: 8px; }
+    .axis { stroke: #6d7e8a; stroke-width: 1; }
+    .grid { stroke: #30404c; stroke-width: 1; }
+    .queued { stroke: #64d8a1; }
+    .approaching { stroke: #74b8ff; stroke-dasharray: 7 5; }
+    .committed { stroke: #f6bd60; stroke-dasharray: 2 5; }
+    .nearby { stroke: #dd91e6; stroke-dasharray: 8 4 2 4; }
+    .series { fill: none; stroke-width: 3; vector-effect: non-scaling-stroke; }
+    .point { cursor: crosshair; }
+    #tip { min-height: 1.5em; color: #e5edf2; font-variant-numeric: tabular-nums; }
+    .legend { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { display: inline-block; width: 16px; border-top: 3px solid currentColor; }
+    .note { font-size: .9rem; }
+  </style>
+  <h1>Queue occupancy and ride demand</h1>
+  <p>1,000 guests · one free gentle ride · queue capacity 56 · 8,000 simulation ticks</p>
+  <div class="controls">
+    <label><input type="checkbox" checked data-series="queued" /> <span class="legend" style="color:#64d8a1"><i class="swatch"></i> Physically queued</span></label>
+    <label><input type="checkbox" checked data-series="approaching" /> <span class="legend" style="color:#74b8ff"><i class="swatch"></i> Approaching ride</span></label>
+    <label><input type="checkbox" checked data-series="committed" /> <span class="legend" style="color:#f6bd60"><i class="swatch"></i> Queued + approaching</span></label>
+    <label><input type="checkbox" checked data-series="nearby" /> <span class="legend" style="color:#dd91e6"><i class="swatch"></i> Guests on nearby public paths</span></label>
+  </div>
+  <svg id="chart" viewBox="0 0 960 510" role="img" aria-label="Queue length and approaching guests over simulation ticks"></svg>
+  <p id="tip" aria-live="polite">Hover a point to read its sample.</p>
+  <p class="note">The queue repeatedly reaches 56 combined guests; physical queue occupancy peaks at 24 while the ride is cycling. Stationarity sampling found 0 guests in the adjacent public-path area at the same exact position for 300 ticks (test bound: 12).</p>
+  <script>
+    const rows = [
+      [500,8,44,52,64],[1000,15,41,56,48],[1500,25,31,56,69],[2000,33,23,56,57],
+      [2500,38,18,56,51],[3000,32,24,56,44],[3500,25,31,56,48],[4000,20,36,56,48],
+      [4500,24,32,56,49],[5000,23,33,56,49],[5500,18,24,42,45],[6000,31,25,56,52],
+      [6500,33,23,56,50],[7000,28,24,52,53],[7500,27,29,56,59],[8000,28,28,56,44]
+    ];
+    const series = { queued: [1,'queued'], approaching: [2,'approaching'], committed: [3,'committed'], nearby: [4,'nearby'] };
+    const svg = document.querySelector('#chart');
+    const tip = document.querySelector('#tip');
+    const ns = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent=svg) => { const n=document.createElementNS(ns,tag); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); parent.append(n); return n; };
+    const left=72, top=32, width=850, height=410, maxY=80;
+    for (let y=0; y<=80; y+=20) {
+      const py=top+height-y/maxY*height;
+      el('line',{x1:left,y1:py,x2:left+width,y2:py,class:'grid'});
+      const label=el('text',{x:left-12,y:py+5,'text-anchor':'end',fill:'#afc0cb','font-size':'13'}); label.textContent=String(y);
+    }
+    for (let x=0; x<rows.length; x+=3) {
+      const px=left+x/(rows.length-1)*width;
+      const label=el('text',{x:px,y:top+height+28,'text-anchor':'middle',fill:'#afc0cb','font-size':'13'}); label.textContent=String(rows[x][0]);
+    }
+    el('line',{x1:left,y1:top,x2:left,y2:top+height,class:'axis'});
+    el('line',{x1:left,y1:top+height,x2:left+width,y2:top+height,class:'axis'});
+    const capY=top+height-56/maxY*height;
+    el('line',{x1:left,y1:capY,x2:left+width,y2:capY,stroke:'#f6bd60','stroke-dasharray':'5 5',opacity:'.45'});
+    const cap=el('text',{x:left+width-4,y:capY-6,'text-anchor':'end',fill:'#f6bd60','font-size':'12'}); cap.textContent='56 capacity';
+    const lineGroups={};
+    for (const [name,[idx,cls]] of Object.entries(series)) {
+      const g=el('g',{'data-series':name});
+      lineGroups[name]=g;
+      const points=rows.map((r,i)=>`${left+i/(rows.length-1)*width},${top+height-r[idx]/maxY*height}`).join(' ');
+      el('polyline',{points,class:`series ${cls}`,strokeWidth:cls==='nearby'?2:3},g);
+      rows.forEach((r,i)=>{
+        const x=left+i/(rows.length-1)*width, y=top+height-r[idx]/maxY*height;
+        const c=el('circle',{cx:x,cy:y,r:5,fill:`var(--${name})`,class:'point'},g);
+        c.style.setProperty('--queued','#64d8a1'); c.style.setProperty('--approaching','#74b8ff'); c.style.setProperty('--committed','#f6bd60'); c.style.setProperty('--nearby','#dd91e6');
+        c.addEventListener('mouseenter',()=>tip.textContent=`Tick ${r[0]} · queued ${r[1]} · approaching ${r[2]} · combined ${r[3]} · nearby paths ${r[4]}`);
+      });
+    }
+    document.querySelectorAll('[data-series]').forEach(box=>box.addEventListener('change',()=>lineGroups[box.dataset.series].style.display=box.checked?'':'none'));
+  </script>
+</html>
