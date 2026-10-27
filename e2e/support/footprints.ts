@@ -123,6 +123,9 @@ export async function unlockRides(
   await toolbarAction(page, 'Save / Load', mobile);
   await page.getByRole('button', { name: 'Import save file' }).click();
   await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
+  await expect(page.locator('.save-menu .save-message')).toHaveText('Imported save file.', {
+    timeout: 30_000,
+  });
   await expect(page.locator('.hud')).toContainText('tick', { timeout: 30_000 });
 }
 
