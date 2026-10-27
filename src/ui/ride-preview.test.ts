@@ -27,6 +27,13 @@ describe('ride preview items', () => {
     }
   });
 
+  it('keeps the shopfront toward the viewer at every camera rotation', () => {
+    for (let rotation = 0; rotation < 4; rotation++) {
+      const [item] = ridePreviewItems(request(5, rotation));
+      expect(item.key).toMatch(new RegExp(`/facing-${(1 - rotation + 4) & 3}/view-${rotation}$`));
+    }
+  });
+
   it('shows every track ride as a loop of its own track with a car, not just the station hut', () => {
     for (const def of Object.values(RIDE_CATALOG).filter((d) => d.usesTrack)) {
       const keys = ridePreviewItems(request(def.id)).map((i) => i.key);
@@ -42,15 +49,26 @@ describe('ride preview items', () => {
     }
   });
 
-  it('draws the car last so it stands on the track', () => {
+  it('draws the cars last so they stand on the track', () => {
     const items = ridePreviewItems(request(9));
     expect(items[items.length - 1].key).toContain('vehicles/car');
+  });
+
+  it('shows a coaster as a train of several cars, with some on the slope of the hill', () => {
+    const cars = ridePreviewItems(request(9)).filter((i) => i.key.includes('vehicles/car'));
+    expect(cars.length).toBeGreaterThanOrEqual(3);
+    expect(cars.some((c) => !c.key.includes('/flat/'))).toBe(true);
+  });
+
+  it('places the cars of a train on distinct spots along the track', () => {
+    const cars = ridePreviewItems(request(9)).filter((i) => i.key.includes('vehicles/car'));
+    expect(new Set(cars.map((c) => `${c.x},${c.y}`)).size).toBe(cars.length);
   });
 });
 
 describe('preview loop', () => {
   it('closes back on its starting piece', () => {
-    const loop = previewLoop();
+    const loop = previewLoop(9);
     const last = loop[loop.length - 1];
     const end = pieceExit(last.pieceType, last.x, last.y, 0, last.dir);
     expect({ x: end.x, y: end.y, dir: end.dir }).toEqual({
@@ -59,6 +77,21 @@ describe('preview loop', () => {
       dir: loop[0].dir,
     });
     expect(PIECES[loop[0].pieceType].name).toBe('station');
+  });
+
+  it('rises over a hill and comes back down to the station height', () => {
+    const loop = previewLoop(9);
+    expect(Math.max(...loop.map((p) => p.z))).toBeGreaterThan(0);
+    const last = loop[loop.length - 1];
+    expect(pieceExit(last.pieceType, last.x, last.y, last.z, last.dir).z).toBe(0);
+  });
+
+  it('only uses pieces the ride can build', () => {
+    for (const def of Object.values(RIDE_CATALOG).filter((d) => d.usesTrack)) {
+      const allowed = def.trackRules?.allowedPieces;
+      for (const piece of previewLoop(def.id))
+        if (allowed) expect(allowed, def.name).toContain(piece.pieceType);
+    }
   });
 });
 

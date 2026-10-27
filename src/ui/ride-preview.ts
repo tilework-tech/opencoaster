@@ -1,9 +1,11 @@
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
-import { pieceByName } from '../sim/track/catalog';
+import { PIECES, SAMPLES, pieceByName } from '../sim/track/catalog';
+import { TILE_UNITS, TRACK_STEPS_PER_LEVEL, TRACK_Z_STEP, Z_STEP } from '../sim/core/constants';
+import { CAR_LENGTH_Q8 } from '../sim/vehicles/vehicle-system';
 import { pieceExit } from '../sim/track/construction';
 import type { TrackPoint } from '../sim/track/construction';
-import { worldToScreen } from '../render/projection';
+import { viewDepth, worldToScreen } from '../render/projection';
 import type { Rotation } from '../render/projection';
 import {
   carSpriteKey,
@@ -26,21 +28,40 @@ import {
 export const PREVIEW_MAX_SCALE = 3;
 /** Margin kept clear around the artwork, in CSS pixels. */
 const PREVIEW_MARGIN = 4;
+/** Facing whose shopfront the stall sprites show at camera rotation 0. */
+const SHOPFRONT_FACING = 1;
 
 /** Tiles of the virtual map the track loop is projected on; only offsets between tiles matter. */
 const LOOP_MAP = { width: 16, height: 16 } as const;
 const LOOP_ORIGIN = { x: 4, y: 4 } as const;
 /** A station, then four right-hand turns joined by straights: a closed oval a car can circle. */
-const LOOP_PIECES = [
-  'station',
-  'smallRight',
-  'flat',
-  'smallRight',
-  'flat',
-  'smallRight',
-  'flat',
-  'smallRight',
+const FLAT_LEG = ['flat', 'flat', 'flat', 'flat', 'flat', 'flat'] as const;
+/** The same leg with a hill: up, over a rounded crest, and back down to the entry height. */
+const HILL_LEG = [
+  'flatToUp25',
+  'up25',
+  'up25ToFlat',
+  'flatToDown25',
+  'down25',
+  'down25ToFlat',
 ] as const;
+/** Cars in the preview train. */
+const TRAIN_CARS = 6;
+/** Arclength of the track the train's head has covered when drawn, in tiles from the station. */
+const TRAIN_HEAD_TILES = 5.2;
+
+function loopNames(hill: boolean): string[] {
+  return [
+    'station',
+    'smallRight',
+    ...(hill ? HILL_LEG : FLAT_LEG),
+    'smallRight',
+    'flat',
+    'smallRight',
+    ...FLAT_LEG,
+    'smallRight',
+  ];
+}
 
 export interface RidePreviewRequest {
   type: RideType;
@@ -61,53 +82,173 @@ export interface PreviewItem {
   y: number;
   /** Painter order, later items draw over earlier ones. */
   order: number;
+  /** Distance from the camera plane; nearer sprites draw later within an order. */
+  depth?: number;
 }
 
 interface LoopPiece {
   pieceType: number;
   x: number;
   y: number;
+  /** Entry height in track steps. */
+  z: number;
   dir: number;
 }
 
-/** Pieces of the preview loop, each starting where the previous one ends. */
-export function previewLoop(): LoopPiece[] {
+function canBuild(type: RideType, names: readonly string[]): boolean {
+  const allowed = RIDE_CATALOG[type]?.trackRules?.allowedPieces;
+  return !allowed || names.every((name) => allowed.includes(pieceByName(name)!.id));
+}
+
+/**
+ * Pieces of the preview loop, each starting where the previous one ends. Rides whose track
+ * vocabulary has the slopes get a hill on one side of the oval; the rest keep it level.
+ */
+export function previewLoop(type: RideType): LoopPiece[] {
   const pieces: LoopPiece[] = [];
   let cursor: TrackPoint = { x: LOOP_ORIGIN.x, y: LOOP_ORIGIN.y, z: 0, dir: 0 };
-  for (const name of LOOP_PIECES) {
+  for (const name of loopNames(canBuild(type, HILL_LEG))) {
     const piece = pieceByName(name)!;
-    pieces.push({ pieceType: piece.id, x: cursor.x, y: cursor.y, dir: cursor.dir });
+    pieces.push({ pieceType: piece.id, x: cursor.x, y: cursor.y, z: cursor.z, dir: cursor.dir });
     cursor = pieceExit(piece.id, cursor.x, cursor.y, cursor.z, cursor.dir);
   }
   return pieces;
 }
 
-function projectTile(tileX: number, tileY: number, rotation: number): [number, number] {
-  return worldToScreen(tileX + 0.5, tileY + 0.5, 0, rotation as Rotation, LOOP_MAP);
+/** A point of a piece's centre line in tile units (height in land levels), with its slope. */
+interface TrackSample {
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+  pitch: number;
 }
 
-/** A track ride drawn as its station and a short closed loop of its own track with one car. */
+/** Centre-line samples of one placed piece, rotated into the world like the vehicle track is. */
+function pieceSamples(piece: LoopPiece): TrackSample[] {
+  const def = PIECES[piece.pieceType];
+  const half = TILE_UNITS / 2;
+  const out: TrackSample[] = [];
+  for (let k = def.sampleStart; k < def.sampleStart + def.sampleCount; k++) {
+    const lx = SAMPLES.x[k] - half;
+    const ly = SAMPLES.y[k] - half;
+    const tx = SAMPLES.tx[k];
+    const ty = SAMPLES.ty[k];
+    const turns = piece.dir & 3;
+    const [px, py] = rotateQuarter(lx, ly, turns);
+    const [qx, qy] = rotateQuarter(tx, ty, turns);
+    const horizontal = Math.hypot(qx, qy);
+    const angle = (Math.atan2(Math.abs(SAMPLES.tz[k]), horizontal) * 180) / Math.PI;
+    const magnitude = angle < 13 ? 0 : angle < 45 ? 1 : 2;
+    out.push({
+      x: (piece.x * TILE_UNITS + half + px) / TILE_UNITS,
+      y: (piece.y * TILE_UNITS + half + py) / TILE_UNITS,
+      z: (piece.z * TRACK_Z_STEP + SAMPLES.z[k]) / Z_STEP,
+      heading: (((Math.round((Math.atan2(qy, qx) / (Math.PI * 2)) * 8) % 8) + 8) % 8) as number,
+      pitch: SAMPLES.tz[k] < 0 ? -magnitude : magnitude,
+    });
+  }
+  return out;
+}
+
+function rotateQuarter(x: number, y: number, turns: number): [number, number] {
+  switch (turns) {
+    case 1:
+      return [-y, x];
+    case 2:
+      return [-x, -y];
+    case 3:
+      return [y, -x];
+    default:
+      return [x, y];
+  }
+}
+
+/** The loop as a polyline of samples with the arclength at each, in tiles. */
+function loopTrack(pieces: LoopPiece[]): { samples: TrackSample[]; arc: number[] } {
+  const samples: TrackSample[] = [];
+  for (const piece of pieces) {
+    const next = pieceSamples(piece);
+    samples.push(...(samples.length ? next.slice(1) : next));
+  }
+  const arc = [0];
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1];
+    const b = samples[i];
+    arc.push(arc[i - 1] + Math.hypot(b.x - a.x, b.y - a.y, (b.z - a.z) * (Z_STEP / TILE_UNITS)));
+  }
+  return { samples, arc };
+}
+
+/** The sample at arclength `s` tiles along the loop, interpolated between its neighbours. */
+function sampleAt(track: { samples: TrackSample[]; arc: number[] }, s: number): TrackSample {
+  const { samples, arc } = track;
+  const wrapped = ((s % arc[arc.length - 1]) + arc[arc.length - 1]) % arc[arc.length - 1];
+  let i = 1;
+  while (i < arc.length - 1 && arc[i] < wrapped) i++;
+  const a = samples[i - 1];
+  const b = samples[i];
+  const t = arc[i] > arc[i - 1] ? (wrapped - arc[i - 1]) / (arc[i] - arc[i - 1]) : 0;
+  const near = t < 0.5 ? a : b;
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+    z: a.z + (b.z - a.z) * t,
+    heading: near.heading,
+    pitch: near.pitch,
+  };
+}
+
+function projectPoint(
+  tileX: number,
+  tileY: number,
+  level: number,
+  rotation: number,
+): [number, number] {
+  return worldToScreen(tileX, tileY, level, rotation as Rotation, LOOP_MAP);
+}
+
+function depthOf(tileX: number, tileY: number, rotation: number): number {
+  return viewDepth(tileX, tileY, rotation as Rotation, LOOP_MAP);
+}
+
+/** A track ride drawn as a short closed loop of its own track with a hill and a train. */
 function trackLoopItems(req: RidePreviewRequest): PreviewItem[] {
   const family = trackedRideFamily(req.type);
   const transport = transportFamily(req.type);
   const items: PreviewItem[] = [];
-  const push = (key: string, tileX: number, tileY: number, order: number): void => {
-    const [x, y] = projectTile(tileX, tileY, req.rotation);
-    items.push({ key, x, y, order });
-  };
-  const loop = previewLoop();
-  for (const { pieceType, x, y, dir } of loop) {
+  const loop = previewLoop(req.type);
+  for (const piece of loop) {
     const cells = family
-      ? trackCellSprites(pieceType, dir, req.rotation, family, 0, req.tick)
-      : transportTrackCells(pieceType, dir, req.rotation, transport!);
-    for (const cell of cells) push(cell.key, x + cell.dx, y + cell.dy, 0);
+      ? trackCellSprites(piece.pieceType, piece.dir, req.rotation, family, 0, req.tick)
+      : transportTrackCells(piece.pieceType, piece.dir, req.rotation, transport!);
+    for (const cell of cells) {
+      const tileX = piece.x + cell.dx;
+      const tileY = piece.y + cell.dy;
+      const [x, y] = projectPoint(
+        tileX + 0.5,
+        tileY + 0.5,
+        piece.z / TRACK_STEPS_PER_LEVEL,
+        req.rotation,
+      );
+      items.push({
+        key: cell.key,
+        x,
+        y,
+        order: 0,
+        depth: depthOf(tileX + 0.5, tileY + 0.5, req.rotation),
+      });
+    }
   }
-  const station = loop[0];
-  const heading = (station.dir & 3) * 2;
-  const car = family
-    ? carSpriteKey(family, heading, 0, 0, req.rotation)
-    : transportCarSpriteKey(transport!, heading, 0, req.rotation);
-  push(car, station.x, station.y, 1);
+  const track = loopTrack(loop);
+  for (let car = 0; car < TRAIN_CARS; car++) {
+    const at = sampleAt(track, TRAIN_HEAD_TILES - (car * CAR_LENGTH_Q8) / 256 / TILE_UNITS);
+    const key = family
+      ? carSpriteKey(family, at.heading, at.pitch, 0, req.rotation)
+      : transportCarSpriteKey(transport!, at.heading, at.pitch, req.rotation);
+    const [x, y] = projectPoint(at.x, at.y, at.z, req.rotation);
+    items.push({ key, x, y, order: 1, depth: depthOf(at.x, at.y, req.rotation) });
+  }
   return items;
 }
 
@@ -119,12 +260,17 @@ export function ridePreviewItems(req: RidePreviewRequest): PreviewItem[] {
   const def = RIDE_CATALOG[req.type];
   if (!def) return [];
   if (trackedRideFamily(req.type) || transportFamily(req.type)) {
-    return trackLoopItems(req).sort((a, b) => a.order - b.order || a.y - b.y || a.x - b.x);
+    return trackLoopItems(req).sort(
+      (a, b) => a.order - b.order || (a.depth ?? 0) - (b.depth ?? 0) || a.y - b.y || a.x - b.x,
+    );
   }
   if (isSlicedRide(req.type))
     return [{ key: ridePreviewSpriteKey(req.type, req.dir, req.rotation), x: 0, y: 0, order: 0 }];
-  if (def.category === 'stall' || def.category === 'shop' || def.category === 'facility')
-    return [{ key: facilitySpriteKey(req.type, 1, req.rotation), x: 0, y: 0, order: 0 }];
+  if (def.category === 'stall' || def.category === 'shop' || def.category === 'facility') {
+    // The sprite turns with the camera, so counter-rotating the facing keeps the shopfront in view.
+    const facing = (SHOPFRONT_FACING - req.rotation + 4) & 3;
+    return [{ key: facilitySpriteKey(req.type, facing, req.rotation), x: 0, y: 0, order: 0 }];
+  }
   return [{ key: rideSpriteKey(req.type, req.rotation), x: 0, y: 0, order: 0 }];
 }
 
