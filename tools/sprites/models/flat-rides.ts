@@ -236,12 +236,22 @@ export const SHIP_AXLE_Z = 3.4;
 const SHIP_ARM = 1.9;
 export const SHIP_MAX_SWING_DEGREES = 60;
 
+/** Frames in a swing between two extremes and in the start-up and wind-down swings. */
+const SHIP_SWING_FRAMES = 12;
+const SHIP_ENDPOINT_SWING_FRAMES = 6;
+
+/**
+ * Pendulum angle per pose: the ship leaves rest, swings between successive extremes (each
+ * a half-cosine, so it is momentarily still at an extreme and fastest through level), builds to
+ * the maximum angle, then loses amplitude until it stops level.
+ */
 function swingingShipProfile(): number[] {
-  const passes = [
+  const extremes = [
+    0,
     20,
-    32,
+    -32,
     44,
-    54,
+    -54,
     SHIP_MAX_SWING_DEGREES,
     -SHIP_MAX_SWING_DEGREES,
     SHIP_MAX_SWING_DEGREES,
@@ -252,9 +262,13 @@ function swingingShipProfile(): number[] {
     0,
   ];
   const angles = [0];
-  for (const amplitude of passes) {
-    for (let step = 1; step <= 12; step++) {
-      angles.push(amplitude * Math.sin((step / 12) * Math.PI));
+  for (let i = 1; i < extremes.length; i++) {
+    const from = extremes[i - 1]!;
+    const to = extremes[i]!;
+    const frames =
+      i === 1 || i === extremes.length - 1 ? SHIP_ENDPOINT_SWING_FRAMES : SHIP_SWING_FRAMES;
+    for (let step = 1; step <= frames; step++) {
+      angles.push(from + ((to - from) * (1 - Math.cos((step / frames) * Math.PI))) / 2);
     }
   }
   return angles;

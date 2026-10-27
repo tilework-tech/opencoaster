@@ -2613,7 +2613,7 @@ export class WebGL2Renderer implements Renderer {
         item.phase,
         snapshot.tick,
         entry.frames.length,
-        item.phaseTicks,
+        item.phaseProgress,
       );
       const frame = entry.frames[frameIndex] ?? entry.frames[0];
       project(item.x, item.y, item.z, map.width, map.height, camera.rotation, this.projected);
@@ -2678,7 +2678,7 @@ export class WebGL2Renderer implements Renderer {
         snapshot.rideInfo[offset + RideInfo.Phase],
         snapshot.tick,
         entry?.frames.length ?? 1,
-        snapshot.rideInfo[offset + RideInfo.PhaseTicks],
+        snapshot.rideInfo[offset + RideInfo.PhaseProgress],
       );
       const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
       const width = frame?.width ?? 12;

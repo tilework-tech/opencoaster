@@ -201,7 +201,8 @@ describe('world art sprite selection', () => {
     expect(rideSpriteFrame(2, 8, 9)).toBe(2);
     expect(rideSpriteFrame(RidePhase.Loading, 80, 73, 0)).toBe(0);
     expect(rideSpriteFrame(RidePhase.Running, 0, 73, 0)).toBe(1);
-    expect(rideSpriteFrame(RidePhase.Running, 80, 73, 8)).toBe(2);
+    expect(rideSpriteFrame(RidePhase.Running, 80, 73, 500)).toBe(37);
+    expect(rideSpriteFrame(RidePhase.Running, 80, 73, 1000)).toBe(72);
     expect(rideSpriteFrame(RidePhase.Unloading, 400, 73, 200)).toBe(0);
   });
 
