@@ -396,7 +396,7 @@ describe('park guests on a coaster', () => {
     sim.enqueue({ type: 'setParkEntrance', x: STATION_X, y: 10 });
     connectStation(sim, rideId);
     sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
-    run(sim, 24000);
+    run(sim, 10000);
     const slot = sim.world.rides.idToSlot[rideId];
     expect(sim.world.rides.cols.state[slot]).toBe(RideState.Open);
     expect(sim.world.rides.cols.guestsServed[slot]).toBeGreaterThan(0);
