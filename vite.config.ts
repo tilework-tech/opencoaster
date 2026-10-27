@@ -23,6 +23,13 @@ function publicFiles(directory: string, prefix = ''): string[] {
   });
 }
 
+/** Fills in the worker's precache list and the cache name that ties its caches to one build. */
+function buildWorker(urls: string[], version: string): string {
+  return workerSource
+    .replace('self.__PRECACHE_URLS__', JSON.stringify(urls))
+    .replace('self.__CACHE_VERSION__', JSON.stringify(version));
+}
+
 function pwaPlugin(): Plugin {
   return {
     name: 'opencoaster-pwa',
@@ -30,7 +37,7 @@ function pwaPlugin(): Plugin {
       server.middlewares.use('/service-worker.js', (_request, response) => {
         response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
         response.setHeader('Service-Worker-Allowed', '/');
-        response.end(workerSource.replace('self.__PRECACHE_URLS__', JSON.stringify(['/'])));
+        response.end(buildWorker(['/'], 'dev'));
       });
     },
     generateBundle(_options, bundle) {
@@ -40,7 +47,7 @@ function pwaPlugin(): Plugin {
       this.emitFile({
         type: 'asset',
         fileName: 'service-worker.js',
-        source: workerSource.replace('self.__PRECACHE_URLS__', JSON.stringify(urls)),
+        source: buildWorker(urls, Date.now().toString(36)),
       });
     },
   };
