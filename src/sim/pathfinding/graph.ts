@@ -1,5 +1,6 @@
 import type { TileMap } from '../map/tile-map';
 import { ElementType, Surface } from '../map/tile-map';
+import { DIR_DX, DIR_DY } from './directions';
 import { isWallScenery, type SceneryItem } from '../map/scenery';
 
 /**
@@ -13,6 +14,28 @@ export interface PathGraph {
   readonly pathVersion: number;
   /** Bits 0..3 = open exits E, S, W, N (see directions.ts). 0 for non-path tiles. */
   edgeMask(tile: number): number;
+  /**
+   * Number of nodes. A graph with stacked layers (bridges) numbers a node `layer * tiles + tile`;
+   * without it every tile is one node.
+   */
+  readonly nodeCount?: number;
+  /** The node an exit of `node` leads to; without it a step moves to the adjacent tile. */
+  step?(node: number, dir: number): number;
+}
+
+/** Nodes in `graph`: one per tile unless it stacks layers. */
+export function nodeCount(graph: PathGraph): number {
+  return graph.nodeCount ?? graph.width * graph.height;
+}
+
+/** The node reached by leaving `node` through exit `dir`. */
+export function stepNode(graph: PathGraph, node: number, dir: number): number {
+  return graph.step ? graph.step(node, dir) : node + DIR_DX[dir] + DIR_DY[dir] * graph.width;
+}
+
+/** Tile index of a node. */
+export function nodeTile(graph: PathGraph, node: number): number {
+  return node % (graph.width * graph.height);
 }
 
 const versions = new WeakMap<object, number>();

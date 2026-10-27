@@ -13,6 +13,18 @@ function ownedMap(): TileMap {
 }
 const I = (m: TileMap, x: number, y: number): number => m.index(x, y);
 
+describe('floating path over uneven ground', () => {
+  it('stays flat when an explicit level clears the slope beneath it', () => {
+    const m = ownedMap();
+    raiseLand(m, 5, 5, 1, 1, 0);
+    const i = I(m, 5, 5);
+    expect(m.slope[i]).not.toBe(0);
+    expect(placePathOutcome(m, { x: 5, y: 5, z: 6 })).toBe(PathResult.Ok);
+    const e = m.pathElement(i, 6);
+    expect(m.elFlags[e] & PathFlag.Sloped).toBe(0);
+  });
+});
+
 describe('placePath', () => {
   it('places a ground path and marks the tile walkable', () => {
     const m = ownedMap();

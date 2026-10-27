@@ -87,6 +87,8 @@ import type { ObjectPickTarget } from '../input/object-picking';
 import type { Rotation } from './projection';
 import {
   pathElementSprite,
+  lowestPathBases,
+  pathSupports,
   queueRailSprites,
   flowerBedSpriteName,
   pathSpriteName,
@@ -2464,12 +2466,55 @@ export class WebGL2Renderer implements Renderer {
     const paths = map.pathElements;
     const count = Math.min(map.pathCount ?? 0, paths ? paths.length / 6 : 0);
     if (!paths) return;
+    const lowest = lowestPathBases(map);
     for (let i = 0; i < count; i++) {
       const o = i * 6;
       const x = paths[o];
       const y = paths[o + 1];
       const baseHeight = paths[o + 2]!;
       const z = baseHeight * Z_STEP;
+      for (const support of pathSupports(
+        map.heights[y * map.width + x]!,
+        baseHeight,
+        lowest[y * map.width + x]!,
+      )) {
+        const entry = spritePages.resolve(support.sprite);
+        const frame = entry?.frames[0];
+        if (!frame) continue;
+        const supportZ = support.level * Z_STEP;
+        const supportX = x * TILE_UNITS + 128;
+        const supportY = y * TILE_UNITS + 128;
+        project(
+          supportX,
+          supportY,
+          supportZ,
+          map.width,
+          map.height,
+          camera.rotation,
+          this.projected,
+        );
+        if (
+          !inViewport(
+            this.projected[0],
+            this.projected[1],
+            camera,
+            viewportWidth,
+            viewportHeight,
+            frame.width,
+            frame.height,
+          )
+        )
+          continue;
+        this.append(
+          supportX,
+          supportY,
+          supportZ,
+          frame.width,
+          frame.height,
+          support.sprite,
+          anchorKey(map, camera.rotation, supportX, supportY, supportZ) - 0.01,
+        );
+      }
       const flags = paths[o + 3];
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
       const worldX = x * TILE_UNITS + 128;

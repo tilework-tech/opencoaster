@@ -375,3 +375,42 @@ export function nativeSpriteWorldOffset(frameHeight: number, anchorY: number): n
 export function nativeSpriteAnchorShift(frameWidth: number, anchorX: number): number {
   return frameWidth / 2 - anchorX;
 }
+
+const PATH_SUPPORT_COLUMN = 'rides/coaster/steel/support-column/view-0';
+const PATH_SUPPORT_FOOTING = 'rides/coaster/steel/support-base/view-0';
+const NO_PATH = 255;
+const lowestBases = new WeakMap<Int32Array, Uint8Array>();
+
+/** Per tile, the base level of its lowest footpath element (255 where the tile has none). */
+export function lowestPathBases(map: MapData): Uint8Array {
+  const paths = map.pathElements;
+  const cached = paths ? lowestBases.get(paths) : undefined;
+  if (cached) return cached;
+  const lowest = new Uint8Array(map.width * map.height).fill(NO_PATH);
+  const count = Math.min(map.pathCount ?? 0, paths ? paths.length / 6 : 0);
+  for (let e = 0; e < count; e++) {
+    const tile = paths![e * 6 + 1]! * map.width + paths![e * 6]!;
+    if (paths![e * 6 + 2]! < lowest[tile]!) lowest[tile] = paths![e * 6 + 2]!;
+  }
+  if (paths) lowestBases.set(paths, lowest);
+  return lowest;
+}
+
+/** One support sprite of a raised footpath and the height level it stands on. */
+export interface PathSupport {
+  sprite: string;
+  level: number;
+}
+
+/**
+ * Posts that hold a footpath piece at `base` up from the ground at `ground`: a footing and one
+ * column per level. A tile whose footpath rests on the ground, or that has a lower footpath beneath
+ * it, gets none, so guests walk through the space under a bridge.
+ */
+export function pathSupports(ground: number, base: number, lowest: number): PathSupport[] {
+  if (base <= ground || lowest < base) return [];
+  const supports: PathSupport[] = [{ sprite: PATH_SUPPORT_FOOTING, level: ground }];
+  for (let level = ground; level < base; level++)
+    supports.push({ sprite: PATH_SUPPORT_COLUMN, level });
+  return supports;
+}

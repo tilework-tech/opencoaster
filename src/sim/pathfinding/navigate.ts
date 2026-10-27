@@ -1,7 +1,8 @@
 import type { Prng } from '../core/prng';
-import { DIR_DX, DIR_DY, DIR_NONE, oppositeDir, popcount4 } from './directions';
+import { DIR_NONE, oppositeDir, popcount4 } from './directions';
 import type { PathWorld } from './graph';
-import { resolveGraph } from './graph';
+import { nodeTile, resolveGraph, stepNode } from './graph';
+import type { PathGraph } from './graph';
 import type { PathNetwork } from './network';
 import { networkFor, QUEUE_CAP } from './network';
 
@@ -142,9 +143,12 @@ const SECONDARY_RANGE = 4096;
  * ranked first. The larger gap breaks ties between nodes level with the target on one axis,
  * which the original's rule alone cannot tell apart.
  */
-function distanceScore(a: number, b: number, w: number): number {
-  const dx = (a % w) - (b % w);
-  const dy = ((a / w) | 0) - ((b / w) | 0);
+function distanceScore(a: number, b: number, g: PathGraph): number {
+  const w = g.width;
+  const ta = nodeTile(g, a);
+  const tb = nodeTile(g, b);
+  const dx = (ta % w) - (tb % w);
+  const dy = ((ta / w) | 0) - ((tb / w) | 0);
   const ax = dx < 0 ? -dx : dx;
   const ay = dy < 0 ? -dy : dy;
   return (ax < ay ? ax : ay) * SCORE_PER_TILE * SECONDARY_RANGE + (ax < ay ? ay : ax);
@@ -155,9 +159,12 @@ function junctionCost(len: number): number {
   return len > 1 ? 2 : 1;
 }
 
-function chebyshev(a: number, b: number, w: number): number {
-  const dx = (a % w) - (b % w);
-  const dy = ((a / w) | 0) - ((b / w) | 0);
+function chebyshev(a: number, b: number, g: PathGraph): number {
+  const w = g.width;
+  const ta = nodeTile(g, a);
+  const tb = nodeTile(g, b);
+  const dx = (ta % w) - (tb % w);
+  const dy = ((ta / w) | 0) - ((tb / w) | 0);
   return Math.max(dx < 0 ? -dx : dx, dy < 0 ? -dy : dy);
 }
 
@@ -182,7 +189,6 @@ function searchDirection(
   opts: Readonly<NavOptions>,
 ): number {
   const g = net.graph;
-  const w = g.width;
   bestScore.fill(INF);
   bestSteps.fill(INF);
 
@@ -227,7 +233,7 @@ function searchDirection(
     }
     const e = net.walkEnd;
     if (e < 0 || net.walkLen > opts.maxTiles) continue;
-    offer(d, e === target ? 0 : distanceScore(e, target, w), net.walkLen);
+    offer(d, e === target ? 0 : distanceScore(e, target, g), net.walkLen);
     if (e !== target && stamp[e] !== visit && tail < QUEUE_CAP) {
       stamp[e] = visit;
       qNode[tail] = e;
@@ -258,8 +264,8 @@ function searchDirection(
       const e = net.link(node, d);
       if (e < 0) continue;
       const total = steps + net.linkLen[node * 4 + d];
-      if (total > opts.maxTiles || chebyshev(e, start, w) > opts.maxDistance) continue;
-      offer(first, e === target ? 0 : distanceScore(e, target, w), total);
+      if (total > opts.maxTiles || chebyshev(e, start, g) > opts.maxDistance) continue;
+      offer(first, e === target ? 0 : distanceScore(e, target, g), total);
       if (e !== target && stamp[e] !== visit && tail < QUEUE_CAP) {
         stamp[e] = visit;
         qNode[tail] = e;
@@ -303,7 +309,6 @@ function patrolDirection(
   patrol: PatrolMask,
 ): number {
   const g = net.graph;
-  const w = g.width;
   const mask = g.edgeMask(tile);
   if (!patrolContains(patrol, tile))
     return bfsFirstDir(net, tile, -1, patrol, false, opts.maxTiles);
@@ -317,7 +322,7 @@ function patrolDirection(
   let insideNoBack = 0;
   for (let d = 0; d < 4; d++) {
     if ((mask & (1 << d)) === 0) continue;
-    if (!patrolContains(patrol, tile + DIR_DX[d] + DIR_DY[d] * w)) continue;
+    if (!patrolContains(patrol, nodeTile(g, stepNode(g, tile, d)))) continue;
     inside |= 1 << d;
     if (d !== oppositeDir(opts.fromDir)) insideNoBack |= 1 << d;
   }
@@ -337,7 +342,6 @@ function bfsFirstDir(
   budget: number,
 ): number {
   const g = net.graph;
-  const w = g.width;
   const visit = net.newVisitSet();
   const { tileQueue: q, tileFirst: first, stamp } = net;
   let head = 0;
@@ -350,11 +354,11 @@ function bfsFirstDir(
     const m = g.edgeMask(t);
     for (let d = 0; d < 4; d++) {
       if ((m & (1 << d)) === 0) continue;
-      const nb = t + DIR_DX[d] + DIR_DY[d] * w;
+      const nb = stepNode(g, t, d);
       if (stamp[nb] === visit) continue;
-      if (restrict && !patrolContains(patrol, nb)) continue;
+      if (restrict && !patrolContains(patrol, nodeTile(g, nb))) continue;
       const f = t === start ? d : first[t];
-      if (target >= 0 ? nb === target : patrolContains(patrol, nb)) return f;
+      if (target >= 0 ? nb === target : patrolContains(patrol, nodeTile(g, nb))) return f;
       stamp[nb] = visit;
       first[nb] = f;
       q[tail++] = nb;

@@ -88,26 +88,9 @@ export function setPathAddition(m: TileMap, x: number, y: number, addition: Path
   return true;
 }
 
-/** Height level of path element `e` along edge `dir`, or -1 when that side cannot connect. */
-function edgeHeight(m: TileMap, e: number, dir: number): number {
-  const s = m.pathSlopeDir(e);
-  const base = m.elBase[e];
-  if (s < 0) return base;
-  if (dir === s) return base + 1;
-  if (dir === ((s + 2) & 3)) return base;
-  return -1;
-}
-
 /** Path element of tile `n` whose height meets element `e`'s edge `dir` of tile `i`, or -1. */
 export function adjoiningElement(m: TileMap, i: number, e: number, dir: number): number {
-  const h = edgeHeight(m, e, dir);
-  const n = h < 0 ? -1 : m.neighbor(i, dir);
-  if (n < 0) return -1;
-  const back = (dir + 2) & 3;
-  for (let f = m.firstElement(n); f >= 0; f = m.nextElement(f)) {
-    if (m.elType[f] === ElementType.Path && edgeHeight(m, f, back) === h) return f;
-  }
-  return -1;
+  return m.adjoiningPath(i, e, dir);
 }
 
 function isQueueElement(m: TileMap, e: number): boolean {
@@ -390,9 +373,10 @@ export function planPathPlacement(m: TileMap, p: PathPlacement): PathPlan {
   const style = p.style ?? PathStyle.Tarmac;
   if (!Number.isInteger(style) || style < PathStyle.Tarmac || style > PathStyle.Dirt)
     return refusedPlan(PathResult.InvalidPiece, i);
-  const dir = requested >= 0 ? requested : terrainPathDirection(m, i);
-  if (dir === null) return refusedPlan(PathResult.UnevenGround, i);
   const z = p.z ?? m.heights[i];
+  const floating = p.z !== undefined && z >= m.heights[i] + (m.slope[i] !== 0 ? 1 : 0);
+  const dir = requested >= 0 ? requested : floating ? -1 : terrainPathDirection(m, i);
+  if (dir === null) return refusedPlan(PathResult.UnevenGround, i);
   if (!Number.isInteger(z) || z > MAX_ELEMENT_BASE) return refusedPlan(PathResult.InvalidPiece, i);
   if (z < m.heights[i]) return refusedPlan(PathResult.BelowGround, i);
 

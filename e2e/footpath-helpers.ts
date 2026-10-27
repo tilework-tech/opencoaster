@@ -164,3 +164,36 @@ export function findBuildableRun(world: World, length: number, near: Tile): Tile
   }
   throw new Error(`No buildable run of ${length} tiles near ${near.x}, ${near.y}`);
 }
+
+/** Centres the view on a tile's ground at the given zoom, for the camera's current rotation. */
+export async function centerCameraOn(
+  page: Page,
+  world: World,
+  tile: Tile,
+  zoom: number,
+): Promise<void> {
+  const map = world.map;
+  const rotation = await page.evaluate(
+    () => (window as unknown as { __camera: { rotation: number } }).__camera.rotation,
+  );
+  const projected = new Float64Array(2);
+  project(
+    (tile.x + 0.5) * TILE_UNITS,
+    (tile.y + 0.5) * TILE_UNITS,
+    map.heights[map.index(tile.x, tile.y)]! * Z_STEP,
+    map.width,
+    map.height,
+    rotation as 0 | 1 | 2 | 3,
+    projected,
+  );
+  await page.evaluate(
+    ([x, y, z]) => {
+      const camera = (window as unknown as { __camera: { x: number; y: number; zoom: number } })
+        .__camera;
+      camera.x = x!;
+      camera.y = y!;
+      camera.zoom = z!;
+    },
+    [projected[0]!, projected[1]!, zoom],
+  );
+}

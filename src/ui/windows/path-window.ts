@@ -173,6 +173,7 @@ export function openPathWindow(ctx: UiContext): WindowController {
   actions.append(
     button('Build', () => void footpath.build(), 'ui-button'),
     button('Remove', () => footpath.remove(), 'ui-button'),
+    button('Demolish last', () => footpath.demolishLast(), 'ui-button'),
   );
   piecePane.append(actions);
 

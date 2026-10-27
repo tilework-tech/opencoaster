@@ -532,6 +532,7 @@ export async function bootstrap(): Promise<void> {
       hoverViewKey = viewKey;
       hoverMap = sim.map;
       refreshHover();
+      if (selectedTool === 'path') pathTool.refreshPiece();
     }
     camera.showGridlines = localStorage.getItem('opencoaster-option-gridlines') === 'true';
     const renderStart = performance.now();

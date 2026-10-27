@@ -1,5 +1,6 @@
 import type { PathGraph } from './graph';
-import { DIR_DX, DIR_DY, oppositeDir, popcount4 } from './directions';
+import { nodeCount, stepNode } from './graph';
+import { oppositeDir, popcount4 } from './directions';
 
 const UNCOMPUTED = -2;
 const NO_END = -1;
@@ -44,7 +45,7 @@ export class PathNetwork {
   walkHit = -1;
 
   constructor(readonly graph: PathGraph) {
-    const n = graph.width * graph.height;
+    const n = nodeCount(graph);
     this.size = n;
     this.linkEnd = new Int32Array(n * 4).fill(UNCOMPUTED);
     this.linkLen = new Int32Array(n * 4);
@@ -80,13 +81,12 @@ export class PathNetwork {
    */
   walk(start: number, dir: number, target: number): void {
     const g = this.graph;
-    const w = g.width;
     let t = start;
     let d = dir;
     let len = 0;
     this.walkHit = -1;
     for (;;) {
-      t += DIR_DX[d] + DIR_DY[d] * w;
+      t = stepNode(g, t, d);
       len++;
       if (t === target) this.walkHit = len;
       const m = g.edgeMask(t);
@@ -141,7 +141,7 @@ export class PathNetwork {
         const m = g.edgeMask(t);
         for (let d = 0; d < 4; d++) {
           if ((m & (1 << d)) === 0) continue;
-          const nb = t + DIR_DX[d] + DIR_DY[d] * g.width;
+          const nb = stepNode(g, t, d);
           if (comp[nb] === 0) {
             comp[nb] = id;
             q[tail++] = nb;
