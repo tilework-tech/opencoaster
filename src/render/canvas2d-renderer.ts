@@ -29,6 +29,8 @@ import {
   WATER_BANK,
   flowerBedSpriteName,
   pathElementSprite,
+  lowestPathBases,
+  pathSupports,
   queueRailSprites,
   pathAdditionSpriteName,
   litterSpriteName,
@@ -1172,6 +1174,33 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
+  /** Posts under a raised footpath piece, from the ground up to the piece. */
+  private drawPathSupports(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    base: number,
+    centerX: number,
+    centerY: number,
+  ): void {
+    const tile = y * map.width + x;
+    for (const support of pathSupports(map.heights[tile]!, base, lowestPathBases(map)[tile]!)) {
+      this.anchor(
+        centerX,
+        centerY,
+        support.level * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        this.pathHigh,
+      );
+      if (drawAnchoredSprite(ctx, this.atlas!, support.sprite, this.pathHigh[0], this.pathHigh[1]))
+        this.visibleCount++;
+    }
+  }
+
   private drawPathAdditions(
     ctx: CanvasRenderingContext2D,
     map: MapData,
@@ -1244,6 +1273,7 @@ export class Canvas2DRenderer implements Renderer {
         this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
         continue;
       }
+      if (this.atlas) this.drawPathSupports(ctx, map, cam, x, y, paths[o + 2]!, centerX, centerY);
       if (
         this.atlas &&
         drawAnchoredSprite(
