@@ -2730,7 +2730,7 @@ export class WebGL2Renderer implements Renderer {
     viewportHeight: number,
   ): boolean {
     const scene = this.coasterScene;
-    scene.build(snapshot, map, camera.rotation, this.undergroundView);
+    scene.build(snapshot, map, camera.rotation, this.undergroundView, this.trenches.tiles);
     const hasSprite = scene.items
       .slice(0, scene.length)
       .some((item) => spritePages.resolve(item.key.split('#')[0]));

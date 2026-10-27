@@ -95,15 +95,6 @@ export function undergroundTiles(
   return out;
 }
 
-/**
- * How a tunnel mouth meets the land:
- * - `slope`: the side of a gentle hill that rises one level straight away from the mouth;
- * - `face`: a steep hillside that keeps rising beyond the first tile, or ground whose edge stands
- *   well above the track, so the mouth is set into a high wall;
- * - `cut`: track sloping down into flat ground, held back by retaining walls and an embankment.
- */
-export type TunnelVariant = 'face' | 'slope' | 'cut';
-
 /** A place where track passes through the terrain surface, with the portal that marks it. */
 export interface TunnelPortal {
   /** Fixed-point world position of the mouth, and the track height there in z units. */
@@ -114,8 +105,6 @@ export interface TunnelPortal {
   facing: number;
   /** True where track enters the ground, false where it comes out. */
   entering: boolean;
-  /** How the mouth meets the land, from the shape of the tile behind it. */
-  variant: TunnelVariant;
   /**
    * False when the mouth is not on a tile edge of level ground that is flat or rises straight
    * away from it: a tunnel may not enter or leave through a corner, a diagonal or sideways slope,
@@ -161,25 +150,16 @@ function cornerLevels(terrain: TerrainTiles, tx: number, ty: number): number[] {
 /**
  * The shape rule for a mouth at tile edge `facing` of the tile (`tx`, `ty`) behind it: the edge
  * and the opposite edge are level and the ground there is no lower than at the edge, at most one
- * level higher. Returns the variant when the shape allows a mouth, otherwise null.
+ * level higher.
  */
-function mouthVariant(
-  terrain: TerrainTiles,
-  tx: number,
-  ty: number,
-  facing: number,
-  edgeGap: number,
-  keepsRising: boolean,
-): TunnelVariant | null {
-  if (tx < 0 || ty < 0 || tx >= terrain.width || ty >= terrain.height) return null;
+function mouthAllowed(terrain: TerrainTiles, tx: number, ty: number, facing: number): boolean {
+  if (tx < 0 || ty < 0 || tx >= terrain.width || ty >= terrain.height) return false;
   const levels = cornerLevels(terrain, tx, ty);
   const [n1, n2] = EDGE_CORNERS[facing]!;
   const [f1, f2] = EDGE_CORNERS[(facing + 2) & 3]!;
-  if (levels[n1] !== levels[n2] || levels[f1] !== levels[f2]) return null;
+  if (levels[n1] !== levels[n2] || levels[f1] !== levels[f2]) return false;
   const rise = levels[f1]! - levels[n1]!;
-  if (rise !== 0 && rise !== 1) return null;
-  if (edgeGap < -Z_STEP / 2 || (rise === 1 && keepsRising)) return 'face';
-  return rise === 1 ? 'slope' : 'cut';
+  return rise === 0 || rise === 1;
 }
 
 /**
@@ -241,7 +221,6 @@ function buildPortal(
     z: Math.round(crossing[2]!),
     facing,
     entering,
-    variant: 'cut',
     valid: false,
   };
   if (!onEdge) return portal;
@@ -256,24 +235,7 @@ function buildPortal(
   const [sx, sy] = FACING_STEP[facing]!;
   const behindX = Math.floor((portal.x - sx) / TILE_UNITS);
   const behindY = Math.floor((portal.y - sy) / TILE_UNITS);
-  const [n1] = EDGE_CORNERS[facing]!;
-  if (behindX < 0 || behindY < 0 || behindX >= terrain.width || behindY >= terrain.height)
-    return portal;
-  const edgeGround = cornerLevels(terrain, behindX, behindY)[n1]! * Z_STEP;
-  const innerX = behindX - sx;
-  const innerY = behindY - sy;
-  const [f1] = EDGE_CORNERS[(facing + 2) & 3]!;
-  const keepsRising =
-    innerX >= 0 &&
-    innerY >= 0 &&
-    innerX < terrain.width &&
-    innerY < terrain.height &&
-    cornerLevels(terrain, innerX, innerY)[f1]! > cornerLevels(terrain, behindX, behindY)[f1]!;
-  const variant = mouthVariant(terrain, behindX, behindY, facing, zEdge - edgeGround, keepsRising);
-  if (variant) {
-    portal.variant = variant;
-    portal.valid = true;
-  }
+  portal.valid = mouthAllowed(terrain, behindX, behindY, facing);
   return portal;
 }
 

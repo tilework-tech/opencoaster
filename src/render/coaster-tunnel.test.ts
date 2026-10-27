@@ -9,6 +9,7 @@ import { applyTrackCommand } from '../sim/track/track-commands';
 import { PieceMode, TrackResult } from '../sim/track/track-types';
 import { createSnapshot, writeSnapshot } from '../worker/snapshot';
 import { CoasterScene } from './coaster-scene';
+import { TrenchIndex } from './trench-index';
 import type { MapData } from './renderer';
 
 const LEVEL = 5;
@@ -66,22 +67,29 @@ function scene(sim: Simulation, map: MapData, rotation: 0 | 1 | 2 | 3, undergrou
   return out.items.slice(0, out.length);
 }
 
-describe('tunnel portals in the coaster scene', () => {
+function trenchesOf(sim: Simulation, map: MapData) {
+  const w = sim.world;
+  const snapshot = createSnapshot({
+    guests: 0,
+    staff: 0,
+    vehicles: 0,
+    litter: 0,
+    rides: w.rides.count,
+    tracks: w.track.pieces.count,
+    mapTiles: w.map.width * w.map.height,
+  });
+  writeSnapshot(w, snapshot);
+  const index = new TrenchIndex();
+  index.update(snapshot, map);
+  return index.tiles;
+}
+
+describe('tunnels in the coaster scene', () => {
   const { sim, map } = tunnelWorld();
 
-  it.each([0, 1, 2, 3] as const)(
-    'draws a portal at the entry and the exit facing the right view in rotation %i',
-    (rotation) => {
-      const portals = scene(sim, map, rotation).filter((item) => item.key.includes('/tunnel/'));
-      expect(portals).toHaveLength(2);
-      const views = portals.map((p) => Number(p.key.at(-1)));
-      // Entry faces back toward the approach (-x), exit faces onward (+x).
-      expect(views).toEqual([(2 + rotation) & 3, rotation & 3]);
-      expect(portals[0]!.x).toBeLessThan(portals[1]!.x);
-      for (const p of portals)
-        expect(p.key).toMatch(/^rides\/coaster\/wood\/tunnel\/face\/view-[0-3]$/);
-    },
-  );
+  it.each([0, 1, 2, 3] as const)('draws no portal sprite in rotation %i', (rotation) => {
+    expect(scene(sim, map, rotation).some((item) => item.key.includes('/tunnel/'))).toBe(false);
+  });
 
   it('shows hidden track as x-ray copies only in the underground view', () => {
     expect(scene(sim, map, 0).some((item) => item.xray)).toBe(false);
@@ -89,30 +97,47 @@ describe('tunnel portals in the coaster scene', () => {
     expect(xray.length).toBeGreaterThan(4);
     expect(xray.every((item) => item.key.includes('/track/'))).toBe(true);
   });
+
+  it('leaves track in an open trench out of the x-ray copies', () => {
+    const trenches = trenchesOf(sim, map);
+    expect(trenches.size).toBe(2);
+    const w = sim.world;
+    const snapshot = createSnapshot({
+      guests: 0,
+      staff: 0,
+      vehicles: 0,
+      litter: 0,
+      rides: w.rides.count,
+      tracks: w.track.pieces.count,
+      mapTiles: w.map.width * w.map.height,
+    });
+    writeSnapshot(w, snapshot);
+    const all = new CoasterScene();
+    all.build(snapshot, map, 0, true);
+    const cut = new CoasterScene();
+    cut.build(snapshot, map, 0, true, trenches);
+    const xrays = (s: CoasterScene) => s.items.slice(0, s.length).filter((i) => i.xray).length;
+    expect(xrays(cut)).toBe(xrays(all) - trenches.size);
+  });
 });
 
-describe('portal art follows the land shape', () => {
-  const portalKeys = (ridge: number[]): string[] => {
-    const { sim, map } = tunnelWorld(ridge);
-    return scene(sim, map, 0)
-      .filter((item) => item.key.includes('/tunnel/'))
-      .map((item) => item.key);
-  };
-
-  it('uses the face variant for a steep hillside', () => {
-    expect(portalKeys([0, 1, 2, 3, 3, 3, 3, 3, 2, 1, 0]).every((k) => k.includes('/face/'))).toBe(
-      true,
-    );
+describe('trenches follow the land shape', () => {
+  it('cuts a headwall at each end of a tunnel through a steep hillside', () => {
+    const { sim, map } = tunnelWorld();
+    const heads = [...trenchesOf(sim, map).values()].map((t) => [t.lowHead, t.highHead]);
+    expect(heads).toEqual([
+      [false, true],
+      [true, false],
+    ]);
   });
 
-  it('uses the slope variant for the side of a gentle hill', () => {
-    const keys = portalKeys([0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
-    expect(keys).toHaveLength(2);
-    expect(keys.every((k) => k.includes('/slope/'))).toBe(true);
+  it('cuts into the side of a gentle hill too', () => {
+    const { sim, map } = tunnelWorld([0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
+    expect(trenchesOf(sim, map).size).toBe(2);
   });
 
-  it('draws no portal where a corner entry would have been', () => {
+  it('cuts nothing where a corner entry would have been', () => {
     const { sim, map } = tunnelWorld([0, 0, 0]);
-    expect(scene(sim, map, 0).some((item) => item.key.includes('/tunnel/'))).toBe(false);
+    expect(trenchesOf(sim, map).size).toBe(0);
   });
 });

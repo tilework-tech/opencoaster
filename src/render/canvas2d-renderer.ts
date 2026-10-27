@@ -1735,7 +1735,7 @@ export class Canvas2DRenderer implements Renderer {
     const atlas = this.atlas;
     if (!atlas) return false;
     const scene = this.coasterScene;
-    scene.build(snapshot, map, cam.rotation, this.undergroundView);
+    scene.build(snapshot, map, cam.rotation, this.undergroundView, this.trenches.tiles);
     const hasSprite = scene.items
       .slice(0, scene.length)
       .some((item) => atlas.resolve(item.key.split('#')[0]));

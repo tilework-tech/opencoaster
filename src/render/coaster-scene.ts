@@ -15,7 +15,10 @@ import {
 } from './coaster-art';
 import type { CoasterFamily, TrackRideFamily, TransportFamily } from './coaster-art';
 import { undergroundTiles } from '../sim/track/clearance';
+import type { TrenchTile } from '../sim/track/trench';
 import type { MapData } from './renderer';
+
+const NO_TRENCHES: ReadonlyMap<number, TrenchTile> = new Map();
 import type { Rotation } from './projection';
 import { rotateDirection, viewDepth } from './projection';
 
@@ -88,7 +91,17 @@ export class CoasterScene {
     return this.families.has(rideId) || this.transports.has(rideId);
   }
 
-  build(snapshot: Snapshot, map: MapData, rotation: Rotation, undergroundView = false): void {
+  /**
+   * Builds the draw list. In the underground view, track buried below the ground gets x-ray
+   * copies, except in trench tiles, where the cut leaves it in plain view.
+   */
+  build(
+    snapshot: Snapshot,
+    map: MapData,
+    rotation: Rotation,
+    undergroundView = false,
+    trenches: ReadonlyMap<number, TrenchTile> = NO_TRENCHES,
+  ): void {
     this.count = 0;
     this.families.clear();
     this.transports.clear();
@@ -102,7 +115,7 @@ export class CoasterScene {
       else if (transport) this.transports.set(id, transport);
     }
     if (this.families.size === 0 && this.transports.size === 0) return;
-    this.addTrack(snapshot, map, rotation, undergroundView);
+    this.addTrack(snapshot, map, rotation, undergroundView, trenches);
     this.addCars(snapshot, map, rotation);
   }
 
@@ -111,6 +124,7 @@ export class CoasterScene {
     map: MapData,
     rotation: Rotation,
     undergroundView: boolean,
+    trenches: ReadonlyMap<number, TrenchTile>,
   ): void {
     const tracks = snapshot.tracks;
     for (let i = 0, o = 0; i < tracks.count; i++, o += SNAPSHOT_STRIDE) {
@@ -139,7 +153,11 @@ export class CoasterScene {
         const y = tileY * TILE_UNITS + TILE_UNITS / 2;
         const depth = tileDepth(x, y, map, rotation);
         this.push(cells[c].key, rideId, x, y, z, depth + TRACK_OFFSET);
-        if (hidden && hidden.includes(tileY * map.width + tileX))
+        if (
+          hidden &&
+          hidden.includes(tileY * map.width + tileX) &&
+          !trenches.has(tileY * map.width + tileX)
+        )
           this.push(cells[c].key, rideId, x, y, z, depth + TRACK_OFFSET, true);
         if (family && family !== 'log-flume' && family !== 'river-rapids')
           this.addSupports(

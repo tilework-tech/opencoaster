@@ -10,7 +10,7 @@ import type { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { RideType } from '../src/sim/rides/ride-types';
 import { PIECES, SAMPLES } from '../src/sim/track/catalog';
-import { pieceTunnelPortals } from '../src/sim/track/clearance';
+import { trenchTiles } from '../src/sim/track/trench';
 import { clickGameTile, createScenarioWorld, hoverGameTile, toolbarTool } from './footpath-helpers';
 import type { Tile } from './footpath-helpers';
 import { startOpenGrounds } from './queue-helpers';
@@ -277,7 +277,7 @@ const TUNNEL_STEPS: Step[] = [
   ...Array.from({ length: 20 }, (): Step => ['Straight', 'Level']),
 ];
 
-test('track built through a hill gets tunnel portals and an underground view', async ({
+test('track built through a hill is cut into it with headwalls and has an underground view', async ({
   page,
 }, testInfo) => {
   test.setTimeout(600_000);
@@ -288,10 +288,25 @@ test('track built through a hill gets tunnel portals and an underground view', a
   const pieces = await buildCoaster(page, world, { x: 40, y: 52 }, TUNNEL_STEPS);
   expect(pieces).toHaveLength(TUNNEL_STEPS.length);
 
-  const portals = pieces.flatMap((t) =>
-    pieceTunnelPortals(world.map, t.piece, t.x, t.y, t.z, t.dir),
+  const trench = trenchTiles(
+    world.map,
+    pieces.map((t) => ({ pieceType: t.piece, x: t.x, y: t.y, z: t.z, dir: t.dir })),
   );
-  expect(portals.map((p) => p.entering)).toEqual([true, false]);
+  const portals = [...trench.values()].flatMap((tile) => {
+    const x = tile.index % world.map.width;
+    const y = (tile.index - x) / world.map.width;
+    return [0, 1]
+      .filter((end) => (end === 0 ? tile.lowHead : tile.highHead))
+      .map((end) => ({
+        x: tile.axis === 0 ? (x + end) * TILE_UNITS : x * TILE_UNITS + TILE_UNITS / 2,
+        y: tile.axis === 0 ? y * TILE_UNITS + TILE_UNITS / 2 : (y + end) * TILE_UNITS,
+        z: end === 0 ? tile.lowZ : tile.highZ,
+        /** The headwall faces back along the open trench. */
+        facing: (tile.axis + (end === 0 ? 0 : 2)) & 3,
+        entering: end === 0 ? tile.highZ < tile.lowZ : tile.highZ > tile.lowZ,
+      }));
+  });
+  expect(portals).toHaveLength(2);
 
   for (let turn = 0; turn < 4; turn++) {
     const { rotation, image } = await view(page, world, { x: 49, y: 52 });

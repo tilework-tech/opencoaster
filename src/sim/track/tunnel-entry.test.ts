@@ -28,19 +28,19 @@ const Z = LEVEL * TRACK_STEPS_PER_LEVEL;
 const ENTRY = { x: 6, y: 4 };
 
 describe('which land shapes allow a tunnel entry', () => {
-  it('allows the side of a gentle hill, rising one level straight away from the edge, as a slope', () => {
+  it('allows the side of a gentle hill, rising one level straight away from the edge, ', () => {
     const hill = fromVertices((vx) => LEVEL + Math.min(1, Math.max(0, vx - 6)));
     const portals = pieceTunnelPortals(hill, id('flat'), ENTRY.x, ENTRY.y, Z, 0);
     expect(portals).toHaveLength(1);
-    expect(portals[0]).toMatchObject({ valid: true, variant: 'slope', entering: true, facing: 2 });
+    expect(portals[0]).toMatchObject({ valid: true, entering: true, facing: 2 });
     expect(badTunnelEntry(hill, id('flat'), ENTRY.x, ENTRY.y, Z, 0)).toBe(false);
   });
 
-  it('allows a steep hillside that keeps rising as a face', () => {
+  it('allows a steep hillside that keeps rising ', () => {
     const hill = fromVertices((vx) => LEVEL + Math.min(3, Math.max(0, vx - 6)));
     const portals = pieceTunnelPortals(hill, id('flat'), ENTRY.x, ENTRY.y, Z, 0);
     expect(portals).toHaveLength(1);
-    expect(portals[0]).toMatchObject({ valid: true, variant: 'face', entering: true });
+    expect(portals[0]).toMatchObject({ valid: true, entering: true });
   });
 
   it('allows an exit through the far side of a hill', () => {
@@ -50,11 +50,11 @@ describe('which land shapes allow a tunnel entry', () => {
     expect(portals[0]).toMatchObject({ valid: true, entering: false, facing: 0 });
   });
 
-  it('allows track sloping down into flat ground, as a cut', () => {
+  it('allows track sloping down into flat ground, ', () => {
     const plain = fromVertices(() => LEVEL);
     const portals = pieceTunnelPortals(plain, id('flatToDown25'), 6, 4, Z, 0);
     expect(portals).toHaveLength(1);
-    expect(portals[0]).toMatchObject({ valid: true, variant: 'cut', entering: true });
+    expect(portals[0]).toMatchObject({ valid: true, entering: true });
   });
 
   it.each([

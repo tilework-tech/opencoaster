@@ -1,5 +1,6 @@
 import { TRACK_STEPS_PER_LEVEL } from '../src/sim/core/constants';
 import type { World } from '../src/sim/core/world';
+import { spawnGuest } from '../src/sim/guests/guest-store';
 import { createRide } from '../src/sim/rides/ride-operations';
 import { RideType } from '../src/sim/rides/ride-types';
 import { pieceByName } from '../src/sim/track/catalog';
@@ -15,7 +16,7 @@ export type SceneName = 'face' | 'slope' | 'cut';
 export interface ProofScene {
   world: World;
   /** Fixed-point point at the foot of each headwall, in the order along the track. */
-  mouths: { x: number; y: number; z: number }[];
+  mouths: { x: number; y: number; z: number; facing: number }[];
   /** Tile the camera is centred on. */
   focus: { x: number; y: number };
 }
@@ -107,8 +108,34 @@ export function buildScene(name: SceneName): ProofScene {
         x: tile.axis === 0 ? along : x * 256 + 128,
         y: tile.axis === 0 ? y * 256 + 128 : along,
         z: end === 0 ? tile.lowZ : tile.highZ,
+        facing: (tile.axis + (end === 0 ? 0 : 2)) & 3,
       });
     }
   }
+  const first = mouths[0];
+  if (first) placeReferenceGuest(world, first);
   return { world, mouths, focus: { x: layout.focus[0], y: layout.focus[1] } };
+}
+
+const STEP: readonly (readonly [number, number])[] = [
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+  [0, -1],
+];
+
+/** Stands a guest on the grass beside the first mouth, for scale; the proof pauses the game. */
+function placeReferenceGuest(world: World, mouth: ProofScene['mouths'][number]): void {
+  spawnGuest(world);
+  const slot = world.guests.count - 1;
+  const [fx, fy] = STEP[mouth.facing]!;
+  const [lx, ly] = STEP[(mouth.facing + 1) & 3]!;
+  const x = Math.round(mouth.x + fx * 90 + lx * 170);
+  const y = Math.round(mouth.y + fy * 90 + ly * 170);
+  const g = world.guests.cols;
+  g.x[slot] = x;
+  g.y[slot] = y;
+  g.z[slot] = world.map.heightAt(x, y);
+  g.targetX[slot] = Math.floor(x / 256);
+  g.targetY[slot] = Math.floor(y / 256);
 }

@@ -5,6 +5,7 @@ import { worldToScreen } from './projection';
 import type { Rotation } from './projection';
 import type { Camera, MapData } from './renderer';
 import { terrainTriangles } from './oracle-terrain';
+import type { TrenchTile } from '../sim/track/trench';
 
 function flatMap(size: number, height: number): MapData {
   const count = size * size;
@@ -25,13 +26,31 @@ function flatMap(size: number, height: number): MapData {
 
 const VIEW = 400;
 
-function sample(map: MapData, camera: Camera, x: number, y: number, z: number) {
+const TRENCH: TrenchTile = {
+  index: 2 * 6 + 2,
+  axis: 0,
+  lowZ: 2 * 64 - 16,
+  highZ: 2 * 64 - 16,
+  lowDepth: 16,
+  highDepth: 16,
+  lowHead: false,
+  highHead: false,
+};
+
+function sample(
+  map: MapData,
+  camera: Camera,
+  x: number,
+  y: number,
+  z: number,
+  trenches?: ReadonlyMap<number, TrenchTile>,
+) {
   const result = compositeScene({
     width: VIEW,
     height: VIEW,
     pages: [],
     sprites: [],
-    triangles: terrainTriangles(map, camera, VIEW, VIEW, 1),
+    triangles: terrainTriangles(map, camera, VIEW, VIEW, 1, false, trenches),
   });
   const [sx, sy] = worldToScreen(x, y, z, camera.rotation, map);
   const px = Math.floor((sx - camera.x) * camera.zoom + VIEW / 2);
@@ -67,5 +86,26 @@ describe('oracle terrain', () => {
     map.waterLevel![2 * 6 + 2] = 3;
     const water = sample(map, { x: 0, y: 100, zoom: 1, rotation: 0 }, 2.5, 2.5, 3);
     expect(water.id).toBe(WATER_OBJECT_ID);
+  });
+
+  describe('with a trench', () => {
+    const trenches = new Map([[TRENCH.index, TRENCH]]);
+    const camera: Camera = { x: 0, y: 100, zoom: 1, rotation: 0 };
+
+    it('drops the ground along the cut to the floor and leaves the rest of the tile', () => {
+      const map = flatMap(6, 2);
+      const cut = sample(map, camera, 2.5, 2.5, 1.6875, trenches);
+      expect(cut.id).toBe(GROUND_OBJECT_ID);
+      expect(cut.height).toBeCloseTo(1.6875, 2);
+      const beside = sample(map, camera, 2.5, 2.05, 2, trenches);
+      expect(beside.height).toBeCloseTo(2, 1);
+      expect(sample(map, camera, 2.5, 2.5, 2).height).toBeCloseTo(2, 1);
+    });
+
+    it.each([1, 2, 3] as Rotation[])('stays a cut in rotation %i', (rotation) => {
+      const map = flatMap(6, 2);
+      const cut = sample(map, { ...camera, rotation }, 2.5, 2.5, 1.6875, trenches);
+      expect(cut.height).toBeCloseTo(1.6875, 2);
+    });
   });
 });

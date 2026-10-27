@@ -41,6 +41,7 @@ async function loadScene(page: Page, testInfo: TestInfo, scene: ProofScene): Pro
   await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
   await expect(page.locator('.hud')).toContainText('tick');
   await expect(page.locator('.hud')).toContainText(useCanvas2d ? 'Canvas2D' : 'WebGL2');
+  await page.locator('.game-toolbar').getByRole('button', { name: 'Pause', exact: true }).click();
 }
 
 async function aim(
