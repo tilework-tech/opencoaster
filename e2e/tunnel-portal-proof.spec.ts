@@ -155,6 +155,7 @@ for (const name of ['face', 'slope', 'cut'] as SceneName[]) {
     ] as const;
     for (let turn = 0; turn < 4; turn++) {
       await aim(page, scene, focus, 1);
+      await aim(page, scene, focus, 1);
       await save(`${name}-whole-rot${turn}`, await capture(page));
       const closeups: Buffer[] = [];
       for (const zoom of [1, 2]) {
