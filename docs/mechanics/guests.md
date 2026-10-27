@@ -69,7 +69,8 @@ Hunger-driven pathing conflict: one blog says guests do not seek food on purpose
 
 ### 2.4 Queue joining and patience
 
-- Q-1 No verified rule was found for queue joining or leaving. [I] Design default: guests join the shortest queue they consider reasonable and leave after a patience timer expires. Mark as design choice, not a mechanic from the original.
+- Q-1 OpenRCT2's current ride chooser does not apply a queue-length score penalty: it ranks eligible rides by excitement and skips rides marked `queueFull`. That flag is set after an actual failed attempt to enter a full queue, rather than from an estimated wait-time tolerance. Queue capacity and guest pathfinding are separate gates in the implementation. [S] [Guest ride selection](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Guest.cpp#L1761-L1880), [full-queue handling](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Guest.cpp#L2334-L2379).
+- OpenCoaster's current design uses the same broad separation without copying that state model: it scores eligible rides without a line-length term, filters a ride when queued plus approaching guests reaches its queue capacity, and turns away later arrivals at a blocked queue join. `queued` means guests already in the queue or waiting at its entrance; `approaching` means guests still walking on public paths. The 1,000-guest regression scenario records a 24-guest physical queue peak in a 56-person line, reaches full committed demand (queued plus approaching), and observed no guest stationary on adjacent public paths for the test's three-sample threshold; see the [guest simulation Noridoc](../../src/sim/guests/docs.md).
 
 ### 2.5 Getting lost and pathfinding
 

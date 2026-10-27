@@ -164,6 +164,7 @@ describe('guest ride demand under crowd pressure', () => {
       maxNausea = Math.max(maxNausea, guests.nausea[slot]!);
     }
     const openTile = world.queues.openTile[ride]!;
+    expect(world.map.isQueue(openTile)).toBe(true);
     const diagnostics = {
       headingForRide,
       canPay,
@@ -179,7 +180,7 @@ describe('guest ride demand under crowd pressure', () => {
       minEnergy,
       maxNausea,
       entranceReachable: isReachable(world, world.map.index(2, 2), joinTile),
-      queueOpenEndReachable: isReachable(world, world.map.index(2, 2), openTile),
+      queueOpenEndIsQueueTile: world.map.isQueue(openTile),
       maxStationaryOnAdjacentPaths: maxStationary,
       capacity,
       samples,
