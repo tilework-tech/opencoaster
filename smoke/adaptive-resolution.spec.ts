@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test';
 
 test('Display keeps pixel scale by default and reports effective render scale', async ({
-  page,
+  browser,
 }) => {
+  const context = await browser.newContext({
+    deviceScaleFactor: 2,
+    viewport: { width: 1280, height: 800 },
+  });
+  const page = await context.newPage();
   await page.goto('./');
   await page.getByRole('button', { name: 'Sandbox' }).click();
 
@@ -43,4 +48,5 @@ test('Display keeps pixel scale by default and reports effective render scale', 
     return element.width / element.clientWidth;
   });
   await expect(hud).toContainText(`scale ${effectiveScale.toFixed(2)}×`);
+  await context.close();
 });
