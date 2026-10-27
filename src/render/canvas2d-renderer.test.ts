@@ -134,7 +134,15 @@ function installStubAtlas(names: string[], atlas: SpritePages): void {
     };
   atlas.install(
     {
-      pages: [{ file: 'atlas/world-0.png', width: 64, height: 64, category: 'world' }],
+      pages: [
+        {
+          file: 'atlas/world-0.png',
+          depthFile: 'atlas/world-0.depth.png',
+          width: 64,
+          height: 64,
+          category: 'world',
+        },
+      ],
       categories: { world: { lazy: false, pages: [0] } },
       sprites,
     },
@@ -369,7 +377,15 @@ describe('Canvas2D fallback map art', () => {
     const atlas: CanvasAtlas = new SpritePages();
     atlas.install(
       {
-        pages: [{ file: 'atlas/world-0.png', width: 256, height: 128, category: 'world' }],
+        pages: [
+          {
+            file: 'atlas/world-0.png',
+            depthFile: 'atlas/world-0.depth.png',
+            width: 256,
+            height: 128,
+            category: 'world',
+          },
+        ],
         categories: { world: { lazy: false, pages: [0] } },
         sprites: {
           'trees/tree-oak': {
@@ -614,7 +630,15 @@ describe('Canvas2D fallback map art', () => {
     const atlas: CanvasAtlas = new SpritePages();
     atlas.install(
       {
-        pages: [{ file: 'atlas/world-0.png', width: 128, height: 64, category: 'world' }],
+        pages: [
+          {
+            file: 'atlas/world-0.png',
+            depthFile: 'atlas/world-0.depth.png',
+            width: 128,
+            height: 64,
+            category: 'world',
+          },
+        ],
         categories: { world: { lazy: false, pages: [0] } },
         sprites: {
           'terrain/grass/surface': {

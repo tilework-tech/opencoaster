@@ -1,3 +1,4 @@
+import { FLOWER_BED_LIFT_PX } from './models/flower-bed';
 import { describe, expect, it } from 'vitest';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import { facilitySpriteKey, rideSpriteName } from '../../src/render/world-art';
@@ -162,7 +163,7 @@ describe('generated sprite catalogue', () => {
               const px = x + 0.5 - frame.anchor.x;
               const py = y + 0.5 - frame.anchor.y;
               const belongsToTile = Array.from(
-                { length: flowerHeightAllowance + 1 },
+                { length: flowerHeightAllowance + FLOWER_BED_LIFT_PX + 1 },
                 (_, lift) => py + lift,
               ).some((groundY) =>
                 triangles.some((triangle) =>

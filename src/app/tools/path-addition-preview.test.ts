@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { Z_STEP } from '../../sim/core/constants';
 import { PathFlag } from '../../sim/map/tile-map';
+import { PATH_SURFACE_Z } from '../../render/ground-anchor';
 import { pathAdditionPreviewGhosts } from './path-addition-preview';
 
 function mapWithPath(flags: number) {
@@ -45,7 +47,8 @@ describe('path addition placement preview', () => {
       ['scenery/bench/view-0', 'scenery/bench/view-2'],
     ]);
     const sloped = pathAdditionPreviewGhosts(mapWithPath(flags), 1, 1, 'bench', 0);
-    for (const { level } of sloped) expect(level).toBeCloseTo(2 + 33 / 64);
+    for (const { level } of sloped)
+      expect(level).toBeCloseTo(2 + (Z_STEP / 2 + PATH_SURFACE_Z) / Z_STEP);
   });
 
   it('previews four lamp posts on a crossroads', () => {

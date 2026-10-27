@@ -1,3 +1,4 @@
+import { encodeHeight } from '../../src/render/height-encoding';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
@@ -25,12 +26,21 @@ export function alignFrames(frames: readonly Sprite[]): Sprite[] {
   const height = up + down + ((up + down) % 2);
   return frames.map((f) => {
     const pixels = new Uint8Array(half * 2 * height).fill(TRANSPARENT);
+    const heights = f.heights ? new Float32Array(half * 2 * height).fill(NaN) : undefined;
     const ox = half - f.anchor.x;
     const oy = height - down - f.anchor.y;
     for (let y = 0; y < f.height; y++)
-      for (let x = 0; x < f.width; x++)
+      for (let x = 0; x < f.width; x++) {
         pixels[(y + oy) * half * 2 + x + ox] = f.pixels[y * f.width + x];
-    return { width: half * 2, height, anchor: { x: half, y: height - down }, pixels };
+        if (heights) heights[(y + oy) * half * 2 + x + ox] = f.heights![y * f.width + x];
+      }
+    return {
+      width: half * 2,
+      height,
+      anchor: { x: half, y: height - down },
+      pixels,
+      ...(heights ? { heights } : {}),
+    };
   });
 }
 
@@ -47,6 +57,25 @@ export function toRgba(sprite: Sprite): Buffer {
   return out;
 }
 
+/** Height map of a frame as RGBA8 (`encodeHeight` in red/green, coverage in alpha). */
+export function toDepthRgba(sprite: Sprite): Buffer {
+  const out = Buffer.alloc(sprite.width * sprite.height * 4);
+  sprite.heights?.forEach((h, i) => {
+    if (sprite.pixels[i] === TRANSPARENT || Number.isNaN(h)) return;
+    const [hi, lo] = encodeHeight(h);
+    out[i * 4] = hi;
+    out[i * 4 + 1] = lo;
+    out[i * 4 + 3] = 255;
+  });
+  return out;
+}
+
+/** The height-map PNG that accompanies a sprite PNG. */
+export function depthFileFor(pngPath: string): string {
+  return pngPath.replace(/\.png$/, DEPTH_SUFFIX);
+}
+export const DEPTH_SUFFIX = '.depth.png';
+
 /** Writes a PNG strip (frames stacked vertically) plus its JSON metadata, as `tools/art` does. */
 export async function writeSpriteDef(outputDir: string, def: SpriteDef): Promise<void> {
   const frames = def.raw ? def.frames : alignFrames(def.frames);
@@ -58,6 +87,13 @@ export async function writeSpriteDef(outputDir: string, def: SpriteDef): Promise
   await sharp(strip, { raw: { width, height: height * frames.length, channels: 4 } })
     .png({ compressionLevel: 9, adaptiveFiltering: false })
     .toFile(target);
+  if (frames.every((f) => f.heights)) {
+    const depth = Buffer.alloc(width * height * frames.length * 4);
+    frames.forEach((f, i) => toDepthRgba(f).copy(depth, i * width * height * 4));
+    await sharp(depth, { raw: { width, height: height * frames.length, channels: 4 } })
+      .png({ compressionLevel: 9, adaptiveFiltering: false })
+      .toFile(depthFileFor(target));
+  }
   const metadata = {
     frames: frames.map((_, i) => ({ x: 0, y: i * height, width, height })),
     anchor,

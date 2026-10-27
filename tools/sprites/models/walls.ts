@@ -15,6 +15,8 @@ export const HEDGE_HEIGHT = 0.24;
 export const STONE_WALL_HEIGHT = 0.17;
 export const STONE_PILLAR_HEIGHT = 0.28;
 export const WOODEN_FENCE_HEIGHT = 0.23;
+/** The park boundary: a low rail-and-post fence along the edge of owned land. */
+export const PARK_FENCE_HEIGHT = 0.2;
 
 const HEDGE_SEGMENTS = 16;
 const STONE_SEGMENTS = 8;
@@ -199,13 +201,30 @@ function woodenMesh(a: Point, b: Point): Mesh {
   ];
 }
 
-export function wallMesh(
-  style: 'hedge' | 'wooden-fence' | 'stone-fence',
-  edge: number,
-  slopeMask: number,
-): Mesh {
+function parkFenceMesh(a: Point, b: Point): Mesh {
+  const [ax, ay, az] = a;
+  const [bx, by, bz] = b;
+  const post = (x: number, y: number, z: number): Mesh =>
+    box([x - 0.025, y - 0.025, z], [x + 0.025, y + 0.025, z + PARK_FENCE_HEIGHT], TIMBER);
+  return [
+    ...post(ax, ay, az),
+    ...post(bx, by, bz),
+    ...beam([ax, ay, az + 0.07], [bx, by, bz + 0.07], 0.02, TIMBER),
+    ...beam(
+      [ax, ay, az + PARK_FENCE_HEIGHT - 0.02],
+      [bx, by, bz + PARK_FENCE_HEIGHT - 0.02],
+      0.025,
+      WOOD,
+    ),
+  ];
+}
+
+export type WallStyle = 'hedge' | 'wooden-fence' | 'stone-fence' | 'park-fence';
+
+export function wallMesh(style: WallStyle, edge: number, slopeMask: number): Mesh {
   const [a, b] = edgeEnds(edge, slopeMask);
   if (style === 'hedge') return hedgeMesh(edge, a, b);
   if (style === 'stone-fence') return stoneMesh(edge, a, b);
+  if (style === 'park-fence') return parkFenceMesh(a, b);
   return woodenMesh(a, b);
 }

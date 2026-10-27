@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { TILE_UNITS } from '../sim/core/constants';
+import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { PathFlag } from '../sim/map/tile-map';
-import { WebGL2Renderer, rotatedPositionSum } from './webgl2-renderer';
+import { PATH_SURFACE_Z, sceneryGroundZ } from './ground-anchor';
+import { worldToScreen } from './projection';
+import type { Rotation } from './projection';
+import { spritePages } from './sprite-pages';
+import type { PageFrame, SpritePageManifest } from './sprite-pages';
+import { WebGL2Renderer, instanceOracleSprite, rotatedPositionSum } from './webgl2-renderer';
 import type { MapData, SpriteGhost } from './renderer';
 
 const map: MapData = {
@@ -43,7 +48,7 @@ describe('WebGL2 sprite preview ordering', () => {
     const pivotX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
     const pivotY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
     expect(appended).toHaveLength(1);
-    expect(appended[0]![6]).toBe(2 * rotatedPositionSum(pivotX, pivotY, map, 0) - ghost.level + 2);
+    expect(appended[0]![6]).toBe(2 * rotatedPositionSum(pivotX, pivotY, map, 0) - ghost.level);
   });
 });
 
@@ -95,7 +100,7 @@ describe('WebGL2 path additions on open edges', () => {
     for (const rotation of [0, 1, 2, 3] as const) {
       const items = appendedPathAdditions(PathFlag.Bench | PathFlag.Sloped | 0b0101, rotation);
       expect(items).toHaveLength(2);
-      for (const args of items) expect(args[2]).toBe(2 * 64 + 32 + 1);
+      for (const args of items) expect(args[2]).toBe(2 * 64 + 32 + PATH_SURFACE_Z);
     }
   });
 
@@ -109,35 +114,90 @@ describe('WebGL2 path additions on open edges', () => {
   });
 });
 
-describe('WebGL2 scenery on raised tiles', () => {
-  it('sorts a tree after the redraw of the sloped tile it stands on in every rotation', () => {
+describe('WebGL2 raised terrain', () => {
+  it('leaves occlusion by raised tiles to the depth test instead of redrawing terrain', () => {
     for (const rotation of [0, 1, 2, 3] as const) {
       const sloped: MapData = {
         ...map,
         heights: new Uint8Array(25).fill(2),
         slope: new Uint8Array(25),
-        sceneryElements: Int32Array.of(2, 2, 0, 0, 0),
-        sceneryCount: 1,
       };
-      sloped.slope[2 * 5 + 2] = 0b0110;
-      const camera = { x: 0, y: 0, zoom: 1, rotation };
+      sloped.heights[2 * 5 + 2] = 6;
       const renderer = new WebGL2Renderer();
       const appended: unknown[][] = [];
       const testRenderer = renderer as unknown as {
-        appendWaterAndOccluders(m: MapData, c: object, w: number, h: number, tick: number): void;
-        appendSceneryElements(m: MapData, c: object, w: number, h: number): void;
+        appendWater(m: MapData, c: object, w: number, h: number, tick: number): void;
         append: (...args: unknown[]) => void;
       };
       testRenderer.append = (...args) => appended.push(args);
+      testRenderer.appendWater(sloped, { x: 0, y: 0, zoom: 1, rotation }, 800, 600, 0);
+      expect(appended.filter((args) => String(args[5]).startsWith('terrain/'))).toEqual([]);
+    }
+  });
+});
 
-      testRenderer.appendWaterAndOccluders(sloped, camera, 800, 600, 0);
-      const occluders = appended.filter((args) => String(args[5]).startsWith('terrain/'));
-      appended.length = 0;
-      testRenderer.appendSceneryElements(sloped, camera, 800, 600);
+describe('WebGL2 object-ID sprites', () => {
+  const frame: PageFrame = { page: 0, x: 10, y: 20, width: 30, height: 50 };
+  const anchor = { x: 14, y: 44 };
+  const manifest: SpritePageManifest = {
+    pages: [{ file: 'p.png', depthFile: 'p-h.png', width: 256, height: 256, category: 'world' }],
+    categories: { world: { lazy: false, pages: [0] } },
+    sprites: {
+      'trees/tree-oak': {
+        category: 'world',
+        frames: [frame],
+        anchor,
+        footprint: { width: 1, height: 1 },
+        native: true,
+      },
+    },
+  };
 
-      expect(occluders, `occluder at rotation ${rotation}`).toHaveLength(1);
-      expect(appended, `tree at rotation ${rotation}`).toHaveLength(1);
-      expect(appended[0]![6] as number).toBeGreaterThan(occluders[0]![6] as number);
+  it('records a native sprite at its ground height with its anchor pixel on that point', () => {
+    spritePages.install(manifest, new Map([[0, {} as ImageBitmap]]));
+    const tree: MapData = {
+      ...map,
+      heights: new Uint8Array(25).fill(3),
+      sceneryElements: Int32Array.of(2, 1, 0, 0, 0),
+      sceneryCount: 1,
+    };
+    const viewport = { width: 800, height: 600 };
+    const dpr = 2;
+    for (const rotation of [0, 1, 2, 3] as Rotation[]) {
+      const camera = { x: 10, y: 90, zoom: 1.5, rotation };
+      const renderer = new WebGL2Renderer();
+      const internals = renderer as unknown as {
+        pageTextures: Map<number, unknown>;
+        instanceData: Float32Array;
+        count: number;
+        appendSceneryElements(m: MapData, c: object, w: number, h: number): void;
+      };
+      internals.pageTextures.set(0, {});
+      internals.appendSceneryElements(tree, camera, viewport.width, viewport.height);
+      expect(internals.count).toBe(1);
+
+      const sprite = instanceOracleSprite(
+        internals.instanceData,
+        0,
+        7,
+        frame,
+        tree,
+        camera,
+        viewport.width,
+        viewport.height,
+        dpr,
+      );
+      const groundZ = sceneryGroundZ(3, 0, rotation);
+      expect(sprite.anchorHeight).toBe(groundZ / Z_STEP);
+      expect(sprite.heightScale).toBe(1);
+      expect(sprite.width).toBeCloseTo(frame.width * camera.zoom * dpr, 4);
+      expect(sprite.height).toBeCloseTo(frame.height * camera.zoom * dpr, 4);
+
+      const [sx, sy] = worldToScreen(2.5, 1.5, groundZ / Z_STEP, rotation, tree);
+      const anchorX = ((sx - camera.x) * camera.zoom + viewport.width / 2) * dpr;
+      const anchorY = ((sy - camera.y) * camera.zoom + viewport.height / 2) * dpr;
+      expect(sprite.left + anchor.x * camera.zoom * dpr).toBeCloseTo(anchorX, 3);
+      expect(sprite.top + anchor.y * camera.zoom * dpr).toBeCloseTo(anchorY, 3);
     }
   });
 });

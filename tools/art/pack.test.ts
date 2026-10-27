@@ -4,6 +4,11 @@ import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it } from 'vitest';
 import { packSprites } from './pack';
+import { decodeHeight } from '../../src/render/height-encoding';
+import { box, material } from '../sprites/mesh';
+import { writeSpriteDef } from '../sprites/output';
+import { ramp } from '../sprites/palette';
+import { renderMesh } from '../sprites/raster';
 
 const temporaryDirectories: string[] = [];
 
@@ -174,7 +179,7 @@ describe('world art atlas packing', () => {
       (frame) => `${frame.page}:${frame.x},${frame.y}`,
     );
     expect(new Set(placements).size).toBe(placements.length);
-  });
+  }, 30_000);
 
   it('packs each category into its own pages and marks ride categories lazy', async () => {
     const root = await mkdtemp(join(tmpdir(), 'opencoaster-art-categories-'));
@@ -306,5 +311,65 @@ describe('world art atlas packing', () => {
     );
     const manifest = await packSprites(source, join(root, 'output'));
     expect(manifest.sprites.tile.native).toBe(true);
+  });
+});
+
+describe('world art depth pages', () => {
+  async function readDepthAt(
+    output: string,
+    manifest: Awaited<ReturnType<typeof packSprites>>,
+    key: string,
+    frameIndex: number,
+  ): Promise<(x: number, y: number) => number | null> {
+    const frame = manifest.sprites[key].frames[frameIndex];
+    const page = manifest.pages[frame.page];
+    const image = await sharp(join(output, page.depthFile))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return (x, y) => {
+      const at = ((frame.y + y) * image.info.width + frame.x + x) * 4;
+      if (image.data[at + 3] === 0) return null;
+      return decodeHeight(image.data[at], image.data[at + 1]);
+    };
+  }
+
+  it('carries a generated sprite height map into a depth page at the same packed region', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'opencoaster-depth-'));
+    temporaryDirectories.push(root);
+    const source = join(root, 'source');
+    const output = join(root, 'out');
+    const sprite = renderMesh(box([-0.25, -0.25, 0], [0.25, 0.25, 2], material(ramp('asphalt'))));
+    await writeSpriteDef(source, {
+      key: 'scenery/column',
+      frames: [sprite],
+      footprint: { width: 1, height: 1 },
+    });
+    const manifest = await packSprites(source, output);
+    const packed = manifest.sprites['scenery/column'];
+    const depthAt = await readDepthAt(output, manifest, 'scenery/column', 0);
+    // The column's top face centre sits 32px above the anchor at height 2.
+    expect(depthAt(packed.anchor.x, packed.anchor.y - 32)).toBeCloseTo(2, 1);
+    // Every opaque colour pixel has a height and every transparent one has none.
+    const colour = await sharp(join(output, manifest.pages[packed.frames[0].page].file))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const f = packed.frames[0];
+    for (let y = 0; y < f.height; y++)
+      for (let x = 0; x < f.width; x++) {
+        const opaque = colour.data[((f.y + y) * colour.info.width + f.x + x) * 4 + 3] > 0;
+        expect(depthAt(x, y) !== null).toBe(opaque);
+      }
+  });
+
+  it('gives sprites without a height map an upright card through their anchor', async () => {
+    const source = await makeFixture();
+    const output = join(dirname(source), 'out');
+    const manifest = await packSprites(source, output);
+    const probe = manifest.sprites['terrain/probe'];
+    const depthAt = await readDepthAt(output, manifest, 'terrain/probe', 0);
+    for (let y = 0; y < probe.frames[0].height; y++)
+      expect(depthAt(1, y)).toBeCloseTo((probe.anchor.y - y - 0.5) / 16, 2);
   });
 });

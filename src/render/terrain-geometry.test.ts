@@ -4,8 +4,6 @@ import {
   terrainNeighborEdgeBase,
   clipTerrainTileBelowHeight,
   clipTerrainTileTrianglesBelowHeight,
-  tileBankDepth,
-  tileWaterDepth,
   terrainEdgeFace,
   terrainContourEdges,
   terrainContourViewEdges,
@@ -115,12 +113,6 @@ describe('terrain tile geometry', () => {
     expect(wetArea(1)).toBeCloseTo(0.25);
     expect(wetArea(2)).toBeCloseTo(0.75);
     expect(wetArea(3)).toBeCloseTo(0.25);
-  });
-
-  it("draws a tile's bank faces after that tile's water surface", () => {
-    for (let waterLevel = 1; waterLevel <= 4; waterLevel++) {
-      expect(tileBankDepth(5, 7, waterLevel)).toBeGreaterThan(tileWaterDepth(5, 7, waterLevel));
-    }
   });
 
   it('gives adjacent shoreline tiles identical intersections on their shared edge', () => {

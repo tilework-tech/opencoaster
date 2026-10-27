@@ -7,14 +7,12 @@ import {
 } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
-import { PathFlag } from '../sim/map/tile-map';
+import { PathFlag, SALE_LAND, SALE_RIGHTS } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG, isWallScenery } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
 import type { RideType } from '../sim/rides/ride-types';
 import {
-  tileBankDepth,
-  tileWaterDepth,
   terrainEdgeFace,
   terrainEdgeFacesViewer,
   terrainNeighborEdgeBase,
@@ -28,7 +26,7 @@ import {
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
 import {
-  adjustDepthForGroundZ,
+  PATH_SURFACE_Z,
   pathAdditionBox,
   pathAdditionPlacements,
   pathAdditionGroundZ,
@@ -45,9 +43,20 @@ import {
   project,
   rotateDirection,
   rotateTile,
-  unrotateTile,
+  worldToScreen,
 } from './projection';
+import type { Direction, MapExtent } from './projection';
+import {
+  FIRST_INSTANCE_OBJECT_ID,
+  GROUND_OBJECT_ID,
+  LAND_OVERLAY_OBJECT_ID,
+  WATER_OBJECT_ID,
+  objectKind,
+} from './object-kinds';
+import type { OracleSprite } from './occlusion-oracle';
+import { HEIGHT_OFFSET, HEIGHT_RESOLUTION } from './height-encoding';
 import { spritePages } from './sprite-pages';
+import { PARK_FENCE, landOverlayTiles, parkBoundaryEdges } from './park-boundary';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
@@ -55,21 +64,8 @@ import { buildTextureRuns } from './texture-runs';
 import { chunkRange, LruCache, tileChunkRange } from './ground-chunks';
 import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
-import {
-  TERRAIN_OCCLUDER_DEPTH_OFFSET,
-  pathDepthOverTerrain,
-  sceneryDepth,
-} from './terrain-occlusion';
 import { RideCellScene, isSlicedRide } from './ride-scene';
-import {
-  SOLID_BIAS,
-  SurfaceDepths,
-  pathSlabDepth,
-  personDepth,
-  queueRailDepth,
-  rotatedPositionSum,
-} from './depth-key';
-import { OwnershipOverlay } from './ownership-overlay';
+import { anchorKey, rotatedPositionSum } from './depth-key';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
 import type { ObjectPickTarget } from '../input/object-picking';
 import type { Rotation } from './projection';
@@ -107,10 +103,28 @@ const ATLAS_COLUMNS = 8;
 const ATLAS_ROWS = 7;
 const FALLBACK_WIDTH = CELL * ATLAS_COLUMNS;
 const FALLBACK_HEIGHT = CELL * ATLAS_ROWS;
-const INSTANCE_FLOATS = 19;
+const INSTANCE_FLOATS = 22;
 /** Instance float holding the atlas page slot, then the ghost mode (0 none, 1 accepted, 2 refused). */
 const SLOT_FLOAT = 17;
+/** Instance float holding the horizontal anchor shift of a sprite quad, in sprite pixels. */
+const ANCHOR_SHIFT_FLOAT = 16;
 const GHOST_FLOAT = 18;
+/** Instance float holding the object id written in ID mode (see object-kinds.ts). */
+const OBJECT_ID_FLOAT = 19;
+/** Instance float holding the world height of the sprite's ground anchor, before quad offsets. */
+const ANCHOR_Z_FLOAT = 20;
+/** Instance float scaling a sprite's baked heights: drawn height over atlas frame height. */
+const HEIGHT_SCALE_FLOAT = 21;
+/**
+ * Window depth per level of world height. Every point on one pixel's view ray has a distinct
+ * height, so higher is nearer: depth = 0.5 - height * DEPTH_PER_LEVEL (see docs.md, "Occlusion
+ * model").
+ */
+export const DEPTH_PER_LEVEL = 1 / 1024;
+/** Mesh mode of a land-overlay tile, drawn in the translucent pass on the terrain surface. */
+const LAND_OVERLAY_MODE = 2.3;
+/** Screen length, in world pixels, of a tile edge: the period base of sale-border dashes. */
+const TILE_EDGE_PIXELS = Math.hypot(TILE_W / 2, TILE_H / 2);
 /** Opacity of footpath placement previews drawn in the world. */
 const GHOST_ALPHA = 0.55;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
@@ -187,6 +201,120 @@ export function guestSpriteIndex(
   return 40 + palette * 16 + direction * 4 + animationFrame;
 }
 
+/** Object-ID image of one frame, drawn with the same instances and order as `draw`. */
+export interface ObjectIdCapture {
+  /** Backing-buffer pixels. */
+  width: number;
+  height: number;
+  /** Object id per pixel, row-major with the top row first; 0 where nothing is drawn. */
+  ids: Int32Array;
+  /** Every atlas sprite instance drawn this frame, in painter order, in backing-buffer pixels. */
+  sprites: OracleSprite[];
+  /** Object kind of every id in the frame, ground and water included. */
+  kinds: Map<number, string>;
+  /** Atlas pages referenced by `sprites`. */
+  pages: number[];
+}
+
+/** A sprite quad as the instance buffer holds it: world anchor after the quad-centre offset. */
+interface SpriteQuad {
+  x: number;
+  y: number;
+  /** Height of the quad centre (fixed point, Z_STEP per level). */
+  z: number;
+  width: number;
+  height: number;
+  /** Horizontal screen shift in sprite pixels. */
+  anchorShift: number;
+}
+
+/**
+ * Screen rectangle of a sprite quad exactly as the WebGL2 vertex shader places it, in backing
+ * pixels (CSS pixels times `devicePixelRatio`).
+ */
+function spriteScreenRect(
+  quad: SpriteQuad,
+  map: MapExtent,
+  camera: Pick<Camera, 'x' | 'y' | 'zoom' | 'rotation'>,
+  viewportWidth: number,
+  viewportHeight: number,
+  devicePixelRatio: number,
+): { left: number; top: number; width: number; height: number } {
+  const [sx, sy] = worldToScreen(
+    quad.x / TILE_UNITS,
+    quad.y / TILE_UNITS,
+    quad.z / Z_STEP,
+    camera.rotation,
+    map,
+  );
+  const centreX = (sx - camera.x) * camera.zoom + viewportWidth / 2;
+  const centreY = (sy - camera.y) * camera.zoom + viewportHeight / 2;
+  return {
+    left: (centreX + (quad.anchorShift - quad.width / 2) * camera.zoom) * devicePixelRatio,
+    top: (centreY - (quad.height / 2) * camera.zoom) * devicePixelRatio,
+    width: quad.width * camera.zoom * devicePixelRatio,
+    height: quad.height * camera.zoom * devicePixelRatio,
+  };
+}
+
+/**
+ * The oracle sprite of instance `index` of a WebGL2 instance buffer drawn with atlas `frame`:
+ * its on-screen rectangle in backing pixels and the world height of its ground anchor.
+ */
+export function instanceOracleSprite(
+  instanceData: Float32Array,
+  index: number,
+  id: number,
+  frame: PageFrame,
+  map: MapExtent,
+  camera: Pick<Camera, 'x' | 'y' | 'zoom' | 'rotation'>,
+  viewportWidth: number,
+  viewportHeight: number,
+  devicePixelRatio: number,
+): OracleSprite {
+  const at = index * INSTANCE_FLOATS;
+  const quad: SpriteQuad = {
+    x: instanceData[at],
+    y: instanceData[at + 1],
+    z: instanceData[at + 2],
+    width: instanceData[at + 3],
+    height: instanceData[at + 4],
+    anchorShift: instanceData[at + ANCHOR_SHIFT_FLOAT],
+  };
+  return {
+    id,
+    page: frame.page,
+    frame: { x: frame.x, y: frame.y, width: frame.width, height: frame.height },
+    ...spriteScreenRect(quad, map, camera, viewportWidth, viewportHeight, devicePixelRatio),
+    anchorHeight: instanceData[at + ANCHOR_Z_FLOAT] / Z_STEP,
+    heightScale: quad.height / frame.height,
+  };
+}
+
+/** What `captureObjectIds` needs to know about an instance beyond the instance buffer. */
+interface CaptureRecord {
+  id: number;
+  kind: string;
+  /** Atlas frame of a sprite instance; absent for meshes and fallback-atlas instances. */
+  frame?: PageFrame;
+}
+
+/** GLSL helper writing an object id as RGB bytes (low byte in red) with alpha 1. */
+const encodeObjectIdSource = `highp vec4 encodeObjectId(highp float id) {
+  highp float value = floor(id + 0.5);
+  highp float low = mod(value, 256.0);
+  highp float mid = mod(floor(value / 256.0), 256.0);
+  highp float high = floor(value / 65536.0);
+  return vec4(low, mid, high, 255.0) / 255.0;
+}`;
+
+/** GLSL decoder for the RGBA8 height encoding of height-encoding.ts. */
+const heightCodecSource = `highp float decodeHeight(highp vec4 texel) {
+  highp float value = floor(texel.r * 255.0 + 0.5) * 256.0 + floor(texel.g * 255.0 + 0.5);
+  return (value - ${glslFloat(HEIGHT_OFFSET)}) / ${glslFloat(HEIGHT_RESOLUTION)};
+}
+`;
+
 const vertexSource = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 aCorner;
@@ -200,6 +328,9 @@ layout(location=7) in float aTerrainShade;
 layout(location=8) in float aSlot;
 layout(location=9) in float aAnchorShift;
 layout(location=10) in float aGhost;
+layout(location=11) in float aObjectId;
+layout(location=12) in float aAnchorZ;
+layout(location=13) in float aHeightScale;
 uniform vec2 uViewport;
 uniform vec2 uMapSize;
 uniform vec2 uCamera;
@@ -213,6 +344,10 @@ out float vTerrainShade;
 out float vWaterDepth;
 flat out float vSlot;
 flat out float vGhost;
+flat out float vObjectId;
+flat out float vAnchorZ;
+flat out float vHeightScale;
+out float vHeight;
 void main() {
   bool tileMesh = aMeshMode > 0.5 && aMeshMode < 3.5;
   bool faceMesh = aMeshMode > 3.5;
@@ -260,8 +395,6 @@ void main() {
     screen += (aCorner - 0.5) * aSize * uZoom;
     screen.x += aAnchorShift * uZoom;
   }
-  gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
-                     1.0 - screen.y / uViewport.y * 2.0, 0.0, 1.0);
   vec2 spriteUv = vec2(aCorner.x, 1.0 - aCorner.y);
   vUv = mix(aUvRect.xy, aUvRect.zw, spriteUv);
   vTileUv = aCorner;
@@ -271,10 +404,23 @@ void main() {
   vWaterDepth = aWorld.z - cornerHeight;
   vSlot = aSlot;
   vGhost = aGhost;
+  vObjectId = aObjectId;
+  vAnchorZ = aAnchorZ / ${glslFloat(Z_STEP)};
+  vHeightScale = aHeightScale;
+  // Meshes carry their true height per vertex; a sprite without a baked height map stands as an
+  // upright card whose height rises with its rows.
+  if (aMeshMode > 2.5 && aMeshMode < 3.5) vHeight = aWorld.z / ${glslFloat(Z_STEP)};
+  else if (aMeshMode > 0.5) vHeight = cornerHeight / ${glslFloat(Z_STEP)};
+  else vHeight = vAnchorZ + (1.0 - aCorner.y) * aSize.y / ${glslFloat(Z_PIXELS)};
+  // Meshes are planar per triangle, so their depth interpolates exactly from the vertices; sprite
+  // fragments replace it with their baked per-pixel height.
+  float depth = clamp(0.5 - vHeight * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0);
+  gl_Position = vec4(screen.x / uViewport.x * 2.0 - 1.0,
+                     1.0 - screen.y / uViewport.y * 2.0, depth * 2.0 - 1.0, 1.0);
 }`;
 
 const fragmentSource = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 vUv;
 in vec2 vTileUv;
 in float vMeshMode;
@@ -283,19 +429,60 @@ in float vTerrainShade;
 in float vWaterDepth;
 flat in float vSlot;
 flat in float vGhost;
+flat in highp float vObjectId;
+flat in highp float vAnchorZ;
+flat in float vHeightScale;
+in float vHeight;
+uniform float uIdMode;
 ${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uAtlas${slot};`).join('\n')}
+${Array.from({ length: TEXTURE_SLOTS }, (_, slot) => `uniform sampler2D uHeights${slot};`).join('\n')}
 out vec4 outColor;
+${encodeObjectIdSource}
+${heightCodecSource}
+vec4 sampleHeights(vec2 uv) {
+  int slot = int(vSlot + 0.5);
+${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uHeights${slot}, uv);`).join('\n')}
+  return texture(uHeights${TEXTURE_SLOTS - 1}, uv);
+}
 vec4 sampleAtlas(vec2 uv) {
   int slot = int(vSlot + 0.5);
 ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uAtlas${slot}, uv);`).join('\n')}
   return texture(uAtlas${TEXTURE_SLOTS - 1}, uv);
 }
+/**
+ * The land overlay on one tile: a dark wash over land the park does not own, with dashed sale
+ * borders. vGridlines holds the bordered view edges (bit 0 v = 0, 1 u = 1, 2 v = 1, 3 u = 0) plus
+ * 16 * the offer (1 land, 2 construction rights, 3 both).
+ */
+vec4 landOverlay() {
+  int code = int(vGridlines + 0.5);
+  int sale = code / 16;
+  vec4 colour = vec4(0.04, 0.055, 0.04, 0.58);
+  float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * 2.5;
+  vec2 dash = sale == 1 ? vec2(8.0, 5.0) : sale == 2 ? vec2(4.0, 2.0) : vec2(5.0, 1.0);
+  vec3 ink = sale == 2 ? vec3(0.39, 0.76, 0.91) : vec3(0.95, 0.81, 0.34);
+  float edges[4] = float[4](vTileUv.y, 1.0 - vTileUv.x, 1.0 - vTileUv.y, vTileUv.x);
+  float along[4] = float[4](vTileUv.x, vTileUv.y, vTileUv.x, vTileUv.y);
+  for (int edge = 0; edge < 4; edge++) {
+    if ((code & (1 << edge)) == 0 || edges[edge] > width) continue;
+    if (mod(along[edge] * ${glslFloat(TILE_EDGE_PIXELS)}, dash.x) < dash.y) colour = vec4(ink, 1.0);
+  }
+  return colour;
+}
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
+  float height = vHeight;
+  if (vMeshMode < 0.5) {
+    if (outColor.a < 0.5) discard;
+    vec4 baked = sampleHeights(vUv);
+    if (baked.a > 0.5) height = vAnchorZ + decodeHeight(baked) * vHeightScale;
+  }
+  gl_FragDepth = clamp(0.5 - height * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0);
   if (vMeshMode > 1.4 && vMeshMode < 2.0) outColor = vec4(0.26, 0.53, 1.0, 0.32);
-  if (vMeshMode > 1.9 && vMeshMode < 2.5) outColor = vec4(0.96, 0.2, 0.16, 0.38);
-  if (vMeshMode > 1.4 && vMeshMode < 2.5) {
+  if (vMeshMode > 1.9 && vMeshMode < 2.2) outColor = vec4(0.96, 0.2, 0.16, 0.38);
+  if (vMeshMode > 2.2 && vMeshMode < 2.5) outColor = landOverlay();
+  if (vMeshMode > 1.4 && vMeshMode < 2.2) {
     vec2 edge = min(vTileUv, 1.0 - vTileUv);
     float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * (vMeshMode < 1.6 ? 0.55 : 1.3);
     float line = 1.0 - smoothstep(width, width * 1.8, min(edge.x, edge.y));
@@ -341,6 +528,18 @@ void main() {
       contour = max(contour, 1.0 - smoothstep(contourWidth, contourWidth * 1.8, vTileUv.x));
     outColor.rgb = mix(outColor.rgb, vec3(0.07, 0.1, 0.05), contour * 0.45);
   }
+  if (uIdMode > 0.5) {
+    if (vGhost > 0.5 || (vMeshMode > 1.4 && vMeshMode < 2.2)) discard;
+    outColor = encodeObjectId(vObjectId);
+  }
+}`;
+
+/** Depth-only pass over terrain meshes: depth comes from the vertex shader. */
+const depthFragmentSource = `#version 300 es
+precision mediump float;
+out vec4 outColor;
+void main() {
+  outColor = vec4(0.0);
 }`;
 
 const groundVertexSource = `#version 300 es
@@ -360,12 +559,19 @@ void main() {
 }`;
 
 const groundFragmentSource = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 vUv;
 uniform sampler2D uGround;
+uniform float uIdMode;
 out vec4 outColor;
+${encodeObjectIdSource}
 void main() {
   outColor = texture(uGround, vUv);
+  if (uIdMode > 0.5) {
+    vec3 background = vec3(${BACKGROUND.slice(0, 3).map(glslFloat).join(', ')});
+    if (all(lessThan(abs(outColor.rgb - background), vec3(0.5 / 255.0)))) discard;
+    outColor = encodeObjectId(${glslFloat(GROUND_OBJECT_ID)});
+  }
 }`;
 
 interface TileLists {
@@ -373,12 +579,8 @@ interface TileLists {
   rotation: Rotation;
   /** Tile indices whose water plane intersects their terrain. */
   water: Int32Array;
-  /** Tile indices whose terrain rises above the tiles behind them and so must overdraw sprites. */
-  occluders: Int32Array;
   waterX: Float32Array;
   waterY: Float32Array;
-  occluderX: Float32Array;
-  occluderY: Float32Array;
 }
 
 interface GroundIndex {
@@ -395,7 +597,6 @@ interface GroundIndex {
 
 /** WebGL2 renderer drawing atlas pages through an instanced quad batch in painter order. */
 export class WebGL2Renderer implements Renderer {
-  private ownershipOverlay: OwnershipOverlay | null = null;
   readonly backend = 'WebGL2';
   private canvas: HTMLCanvasElement | null = null;
   private gl: WebGL2RenderingContext | null = null;
@@ -404,31 +605,52 @@ export class WebGL2Renderer implements Renderer {
   private pickCacheSnapshot: Snapshot | null = null;
   private pickTargets: ObjectPickTarget[] = [];
   private program: WebGLProgram | null = null;
-  private vao: WebGLVertexArrayObject | null = null;
-  private instanceBuffer: WebGLBuffer | null = null;
-  private fallbackTexture: WebGLTexture | null = null;
-  private readonly pageTextures = new Map<number, WebGLTexture>();
-  private syncedPageVersion = -1;
-  private attributeBase = 0;
-  private readonly coasterScene = new CoasterScene();
-  private readonly rideCells = new RideCellScene();
-  private uniforms: {
-    atlas: (WebGLUniformLocation | null)[];
+  private depthProgram: WebGLProgram | null = null;
+  private depthUniforms: {
     viewport: WebGLUniformLocation | null;
     mapSize: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
     zoom: WebGLUniformLocation | null;
     rotation: WebGLUniformLocation | null;
   } | null = null;
+  private vao: WebGLVertexArrayObject | null = null;
+  private instanceBuffer: WebGLBuffer | null = null;
+  private fallbackTexture: WebGLTexture | null = null;
+  private readonly pageTextures = new Map<number, WebGLTexture>();
+  private readonly pageHeightTextures = new Map<number, WebGLTexture>();
+  /** Bound for pages without heights: alpha 0, so sprites fall back to an upright card. */
+  private fallbackHeightTexture: WebGLTexture | null = null;
+  private syncedPageVersion = -1;
+  private attributeBase = 0;
+  private readonly coasterScene = new CoasterScene();
+  private readonly rideCells = new RideCellScene();
+  private uniforms: {
+    atlas: (WebGLUniformLocation | null)[];
+    heights: (WebGLUniformLocation | null)[];
+    viewport: WebGLUniformLocation | null;
+    mapSize: WebGLUniformLocation | null;
+    camera: WebGLUniformLocation | null;
+    zoom: WebGLUniformLocation | null;
+    rotation: WebGLUniformLocation | null;
+    idMode: WebGLUniformLocation | null;
+  } | null = null;
+  private idMode = false;
+  private nextObjectId = FIRST_INSTANCE_OBJECT_ID;
+  /** Per-instance capture data, indexed like `instanceData`, while `captureObjectIds` runs. */
+  private captureRecords: (CaptureRecord | undefined)[] | null = null;
   private instanceData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private depths = new Int32Array(INITIAL_INSTANCE_CAPACITY);
-  private readonly surfaceDepths = new SurfaceDepths();
   private pageIds = new Int16Array(INITIAL_INSTANCE_CAPACITY);
+  /** 1 for instances drawn in the translucent pass: water, patrol overlays and previews. */
+  private translucent = new Uint8Array(INITIAL_INSTANCE_CAPACITY);
+  /** Index in `runs` of the first translucent run. */
+  private translucentRun = 0;
   private readonly runs: { start: number; count: number; pages: number[] }[] = [];
   private orderedData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private readonly projected = new Float64Array(2);
   private readonly tileCoordinates = new Int32Array(2);
   private order = new Int32Array(INITIAL_INSTANCE_CAPACITY);
+  private partition = new Int32Array(INITIAL_INSTANCE_CAPACITY);
   private orderedPages = new Int16Array(INITIAL_INSTANCE_CAPACITY);
   private bufferCapacity = 0;
   private groundProgram: WebGLProgram | null = null;
@@ -438,11 +660,15 @@ export class WebGL2Renderer implements Renderer {
     viewport: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
     zoom: WebGLUniformLocation | null;
+    idMode: WebGLUniformLocation | null;
   } | null = null;
   private groundFramebuffer: WebGLFramebuffer | null = null;
   private readonly groundChunks = new LruCache<WebGLTexture>(GROUND_CHUNK_CAPACITY, (texture) =>
     this.gl?.deleteTexture(texture),
   );
+  /** Frame stamp per tile, so the terrain depth pass draws each visible tile once. */
+  private groundStamps = new Uint32Array(0);
+  private groundStamp = 0;
   private groundIndex: GroundIndex | null = null;
   private groundRotation: Rotation = 0;
   private groundArtReady = false;
@@ -454,6 +680,7 @@ export class WebGL2Renderer implements Renderer {
   private patrolPreview: readonly [number, number] | null = null;
   private patrolPreviewRemove = false;
   private ghostMode = 0;
+  private landOverlay = false;
   private visibleCount = 0;
   private gridlinesActive = false;
   private dpr = 1;
@@ -497,11 +724,10 @@ export class WebGL2Renderer implements Renderer {
   }
 
   attach(canvas: HTMLCanvasElement): void {
-    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false });
+    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: true });
     if (!gl) throw new Error('WebGL2 unavailable');
     this.canvas = canvas;
     this.gl = gl;
-    if (canvas.parentElement) this.ownershipOverlay = new OwnershipOverlay(canvas.parentElement);
     canvas.addEventListener('webglcontextlost', this.onLost);
     canvas.addEventListener('webglcontextrestored', this.onRestored);
     this.initializeResources();
@@ -513,7 +739,6 @@ export class WebGL2Renderer implements Renderer {
     this.canvas.width = Math.max(1, Math.round(width * devicePixelRatio));
     this.canvas.height = Math.max(1, Math.round(height * devicePixelRatio));
     this.gl?.viewport(0, 0, this.canvas.width, this.canvas.height);
-    this.ownershipOverlay?.resize(width, height, devicePixelRatio);
   }
 
   setMap(map: MapData): void {
@@ -521,6 +746,10 @@ export class WebGL2Renderer implements Renderer {
     this.map = map;
     this.pickCacheKey = '';
     this.pickCacheSnapshot = null;
+  }
+
+  setLandOverlay(visible: boolean): void {
+    this.landOverlay = visible;
   }
 
   setGhosts(ghosts: readonly PathPieceGhost[]): void {
@@ -557,33 +786,141 @@ export class WebGL2Renderer implements Renderer {
   }
 
   draw(snapshot: Snapshot | null, camera: Camera): void {
+    if (!this.renderFrame(snapshot, camera, null)) return;
+    this.visibleCount = this.count;
+  }
+
+  /**
+   * Draws one frame exactly like `draw` in ID mode: every pixel holds the id of the object drawn
+   * last over it (see object-kinds.ts), read back top row first.
+   */
+  captureObjectIds(snapshot: Snapshot | null, camera: Camera): ObjectIdCapture {
+    const gl = this.gl;
+    const canvas = this.canvas;
+    const map = this.map;
+    if (!gl || !canvas || !map) throw new Error('WebGL2 renderer has no canvas or map');
+    const { width, height } = canvas;
+    const framebuffer = gl.createFramebuffer();
+    const renderbuffer = gl.createRenderbuffer();
+    if (!framebuffer || !renderbuffer) throw new Error('Could not allocate object-ID target');
+    gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, renderbuffer);
+    const depthbuffer = gl.createRenderbuffer();
+    if (!depthbuffer) throw new Error('Could not allocate object-ID depth target');
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthbuffer);
+    const records: (CaptureRecord | undefined)[] = [];
+    this.captureRecords = records;
+    const pixels = new Uint8Array(width * height * 4);
+    let drawn: boolean;
+    try {
+      drawn = this.renderFrame(snapshot, camera, framebuffer);
+      if (drawn) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      }
+    } finally {
+      this.captureRecords = null;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      gl.deleteFramebuffer(framebuffer);
+      gl.deleteRenderbuffer(renderbuffer);
+      gl.deleteRenderbuffer(depthbuffer);
+    }
+    if (!drawn) throw new Error('WebGL2 renderer could not draw the object-ID frame');
+
+    const ids = new Int32Array(width * height);
+    for (let row = 0; row < height; row++) {
+      const source = (height - 1 - row) * width * 4;
+      const target = row * width;
+      for (let column = 0; column < width; column++) {
+        const at = source + column * 4;
+        ids[target + column] = pixels[at] | (pixels[at + 1] << 8) | (pixels[at + 2] << 16);
+      }
+    }
+    const kinds = new Map<number, string>([
+      [GROUND_OBJECT_ID, 'ground'],
+      [WATER_OBJECT_ID, 'water'],
+      [LAND_OVERLAY_OBJECT_ID, 'land-overlay'],
+    ]);
+    const sprites: OracleSprite[] = [];
+    const pages = new Set<number>();
+    const viewportWidth = width / this.dpr;
+    const viewportHeight = height / this.dpr;
+    for (let i = 0; i < this.count; i++) {
+      const source = this.order[i];
+      const record = records[source];
+      if (!record) continue;
+      kinds.set(record.id, record.kind);
+      const frame = record.frame;
+      if (!frame) continue;
+      sprites.push(
+        instanceOracleSprite(
+          this.instanceData,
+          source,
+          record.id,
+          frame,
+          map,
+          camera,
+          viewportWidth,
+          viewportHeight,
+          this.dpr,
+        ),
+      );
+      pages.add(frame.page);
+    }
+    return { width, height, ids, sprites, kinds, pages: [...pages].sort((a, b) => a - b) };
+  }
+
+  /**
+   * Draws one frame into `target` (the canvas when null). A non-null target draws in ID mode.
+   * Returns false when the renderer is not ready to draw.
+   */
+  private renderFrame(
+    snapshot: Snapshot | null,
+    camera: Camera,
+    target: WebGLFramebuffer | null,
+  ): boolean {
     this.resolveHeldSlots(snapshot);
     const gl = this.gl;
     const canvas = this.canvas;
     const map = this.map;
     if (!gl || !canvas || !map || this.lost || !this.program || !this.vao || !this.fallbackTexture)
-      return;
+      return false;
+    const idMode = target !== null;
 
     this.syncPageTextures();
     const viewportWidth = canvas.width / this.dpr;
     const viewportHeight = canvas.height / this.dpr;
     this.prepareGroundCache(map, camera);
     this.ensureGroundChunks(map, camera, viewportWidth, viewportHeight);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target);
     gl.viewport(0, 0, canvas.width, canvas.height);
-    this.drawGroundChunks(camera, viewportWidth, viewportHeight);
+    gl.clearDepth(1);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    this.drawGroundChunks(camera, viewportWidth, viewportHeight, idMode);
+    this.drawGroundDepth(map, camera, viewportWidth, viewportHeight);
 
     this.count = 0;
+    this.nextObjectId = FIRST_INSTANCE_OBJECT_ID;
+    if (this.captureRecords) this.captureRecords.length = 0;
     if (snapshot) this.rideCells.build(snapshot, map, camera.rotation);
     else this.rideCells.reset();
     if (snapshot) this.appendPatrolAreas(snapshot, map, camera, viewportWidth, viewportHeight);
-    this.appendWaterAndOccluders(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
+    this.appendWater(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
       this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
       this.appendGrounds(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendPathElements(map, camera, viewportWidth, viewportHeight);
       this.appendPathGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
+      this.appendParkFence(map, camera, viewportWidth, viewportHeight);
+      this.appendLandOverlay(map, camera, viewportWidth, viewportHeight);
       this.appendSpriteGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
@@ -629,13 +966,14 @@ export class WebGL2Renderer implements Renderer {
         0,
         coasterSprites ? (word) => this.coasterScene.drawsRide(word >>> 16) : undefined,
       );
-      this.surfaceDepths.prepare(map, camera.rotation);
       this.appendStaff(snapshot.staff, snapshot.tick, map, camera, viewportWidth, viewportHeight);
       this.appendGuests(snapshot.guests, snapshot.tick, map, camera, viewportWidth, viewportHeight);
     }
     this.uploadInPainterOrder();
 
-    enableSpriteAlphaBlending(gl);
+    if (idMode) gl.disable(gl.BLEND);
+    else enableSpriteAlphaBlending(gl);
+    this.idMode = idMode;
     this.drawRuns(
       viewportWidth,
       viewportHeight,
@@ -645,8 +983,9 @@ export class WebGL2Renderer implements Renderer {
       camera.zoom,
       camera.rotation,
     );
-    this.visibleCount = this.count;
-    this.ownershipOverlay?.draw(map, camera);
+    this.idMode = false;
+    gl.disable(gl.DEPTH_TEST);
+    return true;
   }
 
   /** Draws the uploaded instance runs, binding each run's atlas pages to the texture slots. */
@@ -664,13 +1003,21 @@ export class WebGL2Renderer implements Renderer {
     if (!gl || !uniforms || !this.program || !this.vao || !this.fallbackTexture) return;
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
-    for (let slot = 0; slot < TEXTURE_SLOTS; slot++) gl.uniform1i(uniforms.atlas[slot], slot);
+    for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
+      gl.uniform1i(uniforms.atlas[slot], slot);
+      gl.uniform1i(uniforms.heights[slot], TEXTURE_SLOTS + slot);
+    }
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
     gl.uniform2f(uniforms.mapSize, map.width, map.height);
     gl.uniform2f(uniforms.camera, cameraX, cameraY);
     gl.uniform1f(uniforms.zoom, zoom);
     gl.uniform1f(uniforms.rotation, rotation);
-    for (const run of this.runs) {
+    gl.uniform1f(uniforms.idMode, this.idMode ? 1 : 0);
+    for (let index = 0; index < this.runs.length; index++) {
+      const run = this.runs[index];
+      // Translucent surfaces are depth tested but never hide what is drawn after them.
+      // In ID mode they are scored as surfaces, so they keep writing depth.
+      if (index === this.translucentRun && !this.idMode) gl.depthMask(false);
       for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
         const page = run.pages[slot];
         gl.activeTexture(gl.TEXTURE0 + slot);
@@ -678,16 +1025,21 @@ export class WebGL2Renderer implements Renderer {
           gl.TEXTURE_2D,
           (page === undefined ? null : this.pageTextures.get(page)) ?? this.fallbackTexture,
         );
+        gl.activeTexture(gl.TEXTURE0 + TEXTURE_SLOTS + slot);
+        gl.bindTexture(
+          gl.TEXTURE_2D,
+          (page === undefined ? null : this.pageHeightTextures.get(page)) ??
+            this.fallbackHeightTexture,
+        );
       }
       if (run.start !== this.attributeBase) this.pointInstanceAttributes(run.start);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, run.count);
     }
+    gl.depthMask(true);
     if (this.attributeBase !== 0) this.pointInstanceAttributes(0);
   }
 
   dispose(): void {
-    this.ownershipOverlay?.dispose();
-    this.ownershipOverlay = null;
     this.canvas?.removeEventListener('webglcontextlost', this.onLost);
     this.canvas?.removeEventListener('webglcontextrestored', this.onRestored);
     const gl = this.gl;
@@ -699,6 +1051,7 @@ export class WebGL2Renderer implements Renderer {
       if (this.instanceBuffer) gl.deleteBuffer(this.instanceBuffer);
       if (this.vao) gl.deleteVertexArray(this.vao);
       if (this.program) gl.deleteProgram(this.program);
+      if (this.depthProgram) gl.deleteProgram(this.depthProgram);
     }
     this.canvas = null;
     this.gl = null;
@@ -724,15 +1077,28 @@ export class WebGL2Renderer implements Renderer {
       throw new Error(reason);
     }
     this.program = shaderProgram;
+    const depthProgram = this.linkProgram(vertexSource, depthFragmentSource);
+    this.depthProgram = depthProgram;
+    this.depthUniforms = {
+      viewport: gl.getUniformLocation(depthProgram, 'uViewport'),
+      mapSize: gl.getUniformLocation(depthProgram, 'uMapSize'),
+      camera: gl.getUniformLocation(depthProgram, 'uCamera'),
+      zoom: gl.getUniformLocation(depthProgram, 'uZoom'),
+      rotation: gl.getUniformLocation(depthProgram, 'uRotation'),
+    };
     this.uniforms = {
       atlas: Array.from({ length: TEXTURE_SLOTS }, (_, slot) =>
         gl.getUniformLocation(shaderProgram, `uAtlas${slot}`),
+      ),
+      heights: Array.from({ length: TEXTURE_SLOTS }, (_, slot) =>
+        gl.getUniformLocation(shaderProgram, `uHeights${slot}`),
       ),
       viewport: gl.getUniformLocation(shaderProgram, 'uViewport'),
       mapSize: gl.getUniformLocation(shaderProgram, 'uMapSize'),
       camera: gl.getUniformLocation(shaderProgram, 'uCamera'),
       zoom: gl.getUniformLocation(shaderProgram, 'uZoom'),
       rotation: gl.getUniformLocation(shaderProgram, 'uRotation'),
+      idMode: gl.getUniformLocation(shaderProgram, 'uIdMode'),
     };
 
     this.groundChunks.clear();
@@ -763,6 +1129,7 @@ export class WebGL2Renderer implements Renderer {
     drawAtlas(fallbackContext);
     this.deleteTextures();
     this.fallbackTexture = this.createAtlasTexture(fallbackAtlas);
+    this.fallbackHeightTexture = this.createHeightTexture(null);
     this.syncedPageVersion = -1;
     spritePages.start();
     gl.bindVertexArray(null);
@@ -782,8 +1149,11 @@ export class WebGL2Renderer implements Renderer {
       [6, 1, 14],
       [7, 1, 15],
       [8, 1, 17],
-      [9, 1, 16],
+      [9, 1, ANCHOR_SHIFT_FLOAT],
       [10, 1, GHOST_FLOAT],
+      [11, 1, OBJECT_ID_FLOAT],
+      [12, 1, ANCHOR_Z_FLOAT],
+      [13, 1, HEIGHT_SCALE_FLOAT],
     ] as const;
     for (const [location, size, floatOffset] of layout) {
       gl.enableVertexAttribArray(location);
@@ -805,9 +1175,13 @@ export class WebGL2Renderer implements Renderer {
     if (gl) {
       if (this.fallbackTexture) gl.deleteTexture(this.fallbackTexture);
       for (const texture of this.pageTextures.values()) gl.deleteTexture(texture);
+      for (const texture of this.pageHeightTextures.values()) gl.deleteTexture(texture);
+      if (this.fallbackHeightTexture) gl.deleteTexture(this.fallbackHeightTexture);
     }
     this.fallbackTexture = null;
+    this.fallbackHeightTexture = null;
     this.pageTextures.clear();
+    this.pageHeightTextures.clear();
   }
 
   /** Uploads atlas pages that have arrived since the last frame. */
@@ -824,6 +1198,15 @@ export class WebGL2Renderer implements Renderer {
       context.drawImage(image, 0, 0);
       this.pageTextures.set(page, this.createAtlasTexture(canvas));
       canvas.width = 0;
+      const heights = spritePages.pageHeights(page);
+      if (heights) {
+        // Through a canvas like the colour page: WebGL ignores UNPACK_FLIP_Y for ImageBitmaps.
+        canvas.width = heights.width;
+        canvas.height = heights.height;
+        context.drawImage(heights, 0, 0);
+        this.pageHeightTextures.set(page, this.createHeightTexture(canvas));
+        canvas.width = 0;
+      }
     }
     this.syncedPageVersion = spritePages.version;
     const ready = spritePages.isLoaded('world');
@@ -831,6 +1214,26 @@ export class WebGL2Renderer implements Renderer {
       this.groundArtReady = ready;
       this.groundChunks.clear();
     }
+  }
+
+  private linkProgram(vertex: string, fragment: string): WebGLProgram {
+    const gl = this.gl;
+    if (!gl) throw new Error('WebGL2 unavailable');
+    const program = gl.createProgram();
+    if (!program) throw new Error('Could not create WebGL program');
+    const vertexShader = this.compileShader(gl.VERTEX_SHADER, vertex);
+    const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, fragment);
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      const reason = gl.getProgramInfoLog(program) ?? 'unknown program link error';
+      gl.deleteProgram(program);
+      throw new Error(reason);
+    }
+    return program;
   }
 
   private compileShader(kind: number, source: string): WebGLShader {
@@ -846,6 +1249,37 @@ export class WebGL2Renderer implements Renderer {
       throw new Error(reason);
     }
     return shader;
+  }
+
+  /** Uploads a height page byte-exact: no colour conversion or alpha premultiplication. */
+  private createHeightTexture(image: TexImageSource | null, width = 1, height = 1): WebGLTexture {
+    const gl = this.gl;
+    if (!gl) throw new Error('WebGL2 unavailable');
+    const texture = gl.createTexture();
+    if (!texture) throw new Error('Could not allocate sprite height texture');
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    if (image) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    else
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA8,
+        width,
+        height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        new Uint8Array(width * height * 4),
+      );
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
   }
 
   private createAtlasTexture(atlas: HTMLCanvasElement): WebGLTexture {
@@ -893,6 +1327,7 @@ export class WebGL2Renderer implements Renderer {
       viewport: gl.getUniformLocation(program, 'uViewport'),
       camera: gl.getUniformLocation(program, 'uCamera'),
       zoom: gl.getUniformLocation(program, 'uZoom'),
+      idMode: gl.getUniformLocation(program, 'uIdMode'),
     };
   }
 
@@ -1089,6 +1524,43 @@ export class WebGL2Renderer implements Renderer {
     const gl = this.gl;
     const framebuffer = this.groundFramebuffer;
     if (!gl || !framebuffer) return;
+    const texture = this.createChunkTexture();
+
+    this.count = 0;
+    const column = cx - index.minCx;
+    const row = cy - index.minCy;
+    if (column >= 0 && column < index.columns && row >= 0 && row < index.rows) {
+      const cell = row * index.columns + column;
+      for (let i = index.starts[cell]; i < index.starts[cell + 1]; i++)
+        this.appendGroundTile(map, index.tiles[i], rotation);
+    }
+    this.uploadInPainterOrder();
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.viewport(0, 0, GROUND_CHUNK_SIZE, GROUND_CHUNK_SIZE);
+    gl.clearColor(...BACKGROUND);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    // Ground tiles within a chunk are painted back to front; the chunk has no depth buffer.
+    gl.disable(gl.DEPTH_TEST);
+    enableSpriteAlphaBlending(gl);
+    this.drawRuns(
+      GROUND_CHUNK_SIZE,
+      GROUND_CHUNK_SIZE,
+      map,
+      cx * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
+      cy * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
+      1,
+      rotation,
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.count = 0;
+    this.groundChunks.set(chunkKey(cx, cy), texture);
+  }
+
+  private createChunkTexture(): WebGLTexture {
+    const gl = this.gl;
+    if (!gl) throw new Error('WebGL2 unavailable');
     const texture = gl.createTexture();
     if (!texture) throw new Error('Could not allocate ground chunk texture');
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -1107,39 +1579,16 @@ export class WebGL2Renderer implements Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-    this.count = 0;
-    const column = cx - index.minCx;
-    const row = cy - index.minCy;
-    if (column >= 0 && column < index.columns && row >= 0 && row < index.rows) {
-      const cell = row * index.columns + column;
-      for (let i = index.starts[cell]; i < index.starts[cell + 1]; i++)
-        this.appendGroundTile(map, index.tiles[i], rotation);
-    }
-    this.uploadInPainterOrder();
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    gl.viewport(0, 0, GROUND_CHUNK_SIZE, GROUND_CHUNK_SIZE);
-    gl.clearColor(...BACKGROUND);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    enableSpriteAlphaBlending(gl);
-    this.drawRuns(
-      GROUND_CHUNK_SIZE,
-      GROUND_CHUNK_SIZE,
-      map,
-      cx * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
-      cy * GROUND_CHUNK_SIZE + GROUND_CHUNK_SIZE / 2,
-      1,
-      rotation,
-    );
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    this.count = 0;
-    this.groundChunks.set(chunkKey(cx, cy), texture);
+    return texture;
   }
 
   /** Draws the visible cached chunks, clearing first only when one is still missing. */
-  private drawGroundChunks(camera: Camera, viewportWidth: number, viewportHeight: number): void {
+  private drawGroundChunks(
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+    idMode = false,
+  ): void {
     const gl = this.gl;
     const program = this.groundProgram;
     const uniforms = this.groundUniforms;
@@ -1152,14 +1601,19 @@ export class WebGL2Renderer implements Renderer {
           covered = false;
           break;
         }
-    if (!covered) {
+    if (idMode) {
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    } else if (!covered) {
       gl.clearColor(...BACKGROUND);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     gl.disable(gl.BLEND);
+    // The cached chunks only paint colour; drawGroundDepth lays the ground's depth exactly.
+    gl.disable(gl.DEPTH_TEST);
     gl.useProgram(program);
+    gl.uniform1f(uniforms.idMode, idMode ? 1 : 0);
     gl.bindVertexArray(this.vao);
-    gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uniforms.ground, 0);
     gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
     gl.uniform2f(uniforms.camera, camera.x, camera.y);
@@ -1168,6 +1622,7 @@ export class WebGL2Renderer implements Renderer {
       for (let cx = range.x0; cx <= range.x1; cx++) {
         const texture = this.groundChunks.get(chunkKey(cx, cy));
         if (!texture) continue;
+        gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.uniform4f(
           uniforms.rect,
@@ -1181,15 +1636,75 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  /**
+   * Lays the depth of every visible tile's terrain and cliff faces, with colour writes off. The
+   * meshes carry their true height per vertex, so ground depth is exact at every zoom, unlike the
+   * zoom-1 colour cache drawn under it. All ground is needed, not only raised tiles: track,
+   * supports and other objects may reach below the surface of flat ground.
+   */
+  private drawGroundDepth(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const gl = this.gl;
+    if (!gl) return;
+    const index = (this.groundIndex ??= this.buildGroundIndex(map, camera.rotation));
+    if (this.groundStamps.length !== map.width * map.height) {
+      this.groundStamps = new Uint32Array(map.width * map.height);
+      this.groundStamp = 0;
+    }
+    const stamp = ++this.groundStamp;
+    const range = this.visibleChunkRange(camera, viewportWidth, viewportHeight);
+    this.count = 0;
+    for (let cy = range.y0; cy <= range.y1; cy++)
+      for (let cx = range.x0; cx <= range.x1; cx++) {
+        const column = cx - index.minCx;
+        const row = cy - index.minCy;
+        if (column < 0 || column >= index.columns || row < 0 || row >= index.rows) continue;
+        const cell = row * index.columns + column;
+        for (let i = index.starts[cell]; i < index.starts[cell + 1]; i++) {
+          const tile = index.tiles[i];
+          if (this.groundStamps[tile] === stamp) continue;
+          this.groundStamps[tile] = stamp;
+          this.appendGroundTile(map, tile, camera.rotation, true);
+        }
+      }
+    const uniforms = this.depthUniforms;
+    if (!this.depthProgram || !uniforms || !this.vao || !this.instanceBuffer) return;
+    // Depth does not depend on draw order, so the instances go up as appended.
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+    if (this.depths.length > this.bufferCapacity) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
+      this.bufferCapacity = this.depths.length;
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.instanceData, 0, this.count * INSTANCE_FLOATS);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.colorMask(false, false, false, false);
+    // Ground loses an exact tie with whatever rests on it, as in the oracle and Canvas2D, where
+    // ground is composited first and a later surface wins an equal height.
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(1, 1);
+    gl.useProgram(this.depthProgram);
+    gl.bindVertexArray(this.vao);
+    gl.uniform2f(uniforms.viewport, viewportWidth, viewportHeight);
+    gl.uniform2f(uniforms.mapSize, map.width, map.height);
+    gl.uniform2f(uniforms.camera, camera.x, camera.y);
+    gl.uniform1f(uniforms.zoom, camera.zoom);
+    gl.uniform1f(uniforms.rotation, camera.rotation);
+    if (this.attributeBase !== 0) this.pointInstanceAttributes(0);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.colorMask(true, true, true, true);
+    this.count = 0;
+  }
+
   private buildTileLists(map: MapData, rotation: Rotation): TileLists {
     const water: number[] = [];
-    const occluders: number[] = [];
     const waterX: number[] = [];
     const waterY: number[] = [];
-    const occluderX: number[] = [];
-    const occluderY: number[] = [];
-    const behind = new Int32Array(2);
-    const peak = (index: number): number => map.heights[index] + (map.slope[index] !== 0 ? 1 : 0);
     for (let index = 0; index < map.width * map.height; index++) {
       const x = index % map.width;
       const y = (index - x) / map.width;
@@ -1208,55 +1723,18 @@ export class WebGL2Renderer implements Renderer {
         waterX.push(this.projected[0]);
         waterY.push(this.projected[1]);
       }
-      rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
-      const viewX = this.tileCoordinates[0];
-      const viewY = this.tileCoordinates[1];
-      let rises = false;
-      for (const [dx, dy] of [
-        [-1, 0],
-        [0, -1],
-      ] as const) {
-        const nx = viewX + dx;
-        const ny = viewY + dy;
-        const [vw, vh] = rotation % 2 === 0 ? [map.width, map.height] : [map.height, map.width];
-        if (nx < 0 || ny < 0 || nx >= vw || ny >= vh) continue;
-        unrotateForDraw(nx, ny, map.width, map.height, rotation, behind);
-        if (peak(index) > peak(behind[1] * map.width + behind[0])) rises = true;
-      }
-      if (!rises) continue;
-      project(
-        x * TILE_UNITS,
-        y * TILE_UNITS,
-        map.heights[index] * 64,
-        map.width,
-        map.height,
-        rotation,
-        this.projected,
-      );
-      occluders.push(index);
-      occluderX.push(this.projected[0]);
-      occluderY.push(this.projected[1]);
     }
     return {
       map,
       rotation,
       water: Int32Array.from(water),
-      occluders: Int32Array.from(occluders),
       waterX: Float32Array.from(waterX),
       waterY: Float32Array.from(waterY),
-      occluderX: Float32Array.from(occluderX),
-      occluderY: Float32Array.from(occluderY),
     };
   }
 
-  /** Adds the on-screen water planes and the raised terrain that must hide sprites behind it. */
-  /** Terrain no higher than a flat ride's floor must not be redrawn over the ride. */
-  private hiddenByRide(map: MapData, tile: number): boolean {
-    const floor = this.rideCells.floor[tile];
-    return floor > 0 && map.heights[tile] + (map.slope[tile] !== 0 ? 1 : 0) <= floor - 1;
-  }
-
-  private appendWaterAndOccluders(
+  /** Adds the on-screen water planes and their bank faces. */
+  private appendWater(
     map: MapData,
     camera: Camera,
     viewportWidth: number,
@@ -1267,18 +1745,6 @@ export class WebGL2Renderer implements Renderer {
     const halfWidth = viewportWidth / camera.zoom / 2 + TILE_W;
     const bottom = viewportHeight / camera.zoom / 2 + TILE_H + Z_PIXELS;
     const top = bottom + 31 * Z_PIXELS;
-    for (let i = 0; i < lists.occluders.length; i++) {
-      if (Math.abs(lists.occluderX[i] - camera.x) > halfWidth) continue;
-      const dy = lists.occluderY[i] - camera.y;
-      if (dy < -top || dy > bottom) continue;
-      if (this.hiddenByRide(map, lists.occluders[i])) continue;
-      this.appendGroundTile(
-        map,
-        lists.occluders[i],
-        camera.rotation,
-        TERRAIN_OCCLUDER_DEPTH_OFFSET,
-      );
-    }
     const frame = waterSpriteName(waterFrameIndex(tick));
     for (let i = 0; i < lists.water.length; i++) {
       if (Math.abs(lists.waterX[i] - camera.x) > halfWidth) continue;
@@ -1307,7 +1773,13 @@ export class WebGL2Renderer implements Renderer {
         TILE_W,
         TILE_H,
         frame,
-        tileWaterDepth(this.tileCoordinates[0], this.tileCoordinates[1], level),
+        anchorKey(
+          map,
+          camera.rotation,
+          (x + 0.5) * TILE_UNITS,
+          (y + 0.5) * TILE_UNITS,
+          level * Z_STEP,
+        ),
         3,
         corners,
       );
@@ -1328,7 +1800,13 @@ export class WebGL2Renderer implements Renderer {
           (end.x - start.x) * TILE_UNITS,
           (end.y - start.y) * TILE_UNITS,
           terrainCliffSpriteName(terrainSurface, 0),
-          tileBankDepth(this.tileCoordinates[0], this.tileCoordinates[1], level),
+          anchorKey(
+            map,
+            camera.rotation,
+            (x + 0.5) * TILE_UNITS,
+            (y + 0.5) * TILE_UNITS,
+            level * Z_STEP,
+          ),
           5,
           [level * 64, level * 64, level * 64, level * 64],
         );
@@ -1363,12 +1841,42 @@ export class WebGL2Renderer implements Renderer {
         const meshMode = marked ? (previewed && this.patrolPreviewRemove ? 2.1 : 1.5) : 1.6;
         for (let y = by * 4; y < Math.min(map.height, by * 4 + 4); y++)
           for (let x = bx * 4; x < Math.min(map.width, bx * 4 + 4); x++) {
-            this.appendPatrolTile(map, camera, viewportWidth, viewportHeight, x, y, meshMode);
+            this.appendSurfaceTile(map, camera, viewportWidth, viewportHeight, x, y, meshMode);
           }
       }
   }
 
-  private appendPatrolTile(
+  /**
+   * The land overlay on every tile the park does not own, while land tools are open: a translucent
+   * surface on the terrain, so anything in front of it hides it.
+   */
+  private appendLandOverlay(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    if (!this.landOverlay) return;
+    for (const tile of landOverlayTiles(map)) {
+      let viewBorders = 0;
+      for (let edge = 0; edge < 4; edge++)
+        if (tile.borders & (1 << edge))
+          viewBorders |= 1 << ((rotateDirection(edge as Direction, camera.rotation) + 1) & 3);
+      const offer = tile.sale === SALE_LAND ? 1 : tile.sale === SALE_RIGHTS ? 2 : tile.sale ? 3 : 0;
+      this.appendSurfaceTile(
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        tile.x,
+        tile.y,
+        LAND_OVERLAY_MODE,
+        viewBorders + offer * 16,
+      );
+    }
+  }
+
+  private appendSurfaceTile(
     map: MapData,
     camera: Camera,
     viewportWidth: number,
@@ -1376,6 +1884,7 @@ export class WebGL2Renderer implements Renderer {
     x: number,
     y: number,
     meshMode: number,
+    data = 0,
   ): void {
     const index = y * map.width + x;
     rotateForDraw(x, y, map.width, map.height, camera.rotation, this.tileCoordinates);
@@ -1412,17 +1921,24 @@ export class WebGL2Renderer implements Renderer {
       TILE_W,
       TILE_H,
       0,
-      2 * (rx + ry) - height + 0.25,
+      2 * (rx + ry) - height,
       meshMode,
       corners,
+      1,
+      data,
     );
   }
 
   /**
-   * Appends one tile's terrain, edge cliff faces and flat path fill. A redraw over scenery
-   * (`depthOffset` set) lays only the surface again.
+   * Appends one tile's terrain, edge cliff faces and flat path fill; `meshesOnly` leaves out the
+   * path fill sprite, for the terrain depth pass.
    */
-  private appendGroundTile(map: MapData, index: number, rotation: Rotation, depthOffset = 0): void {
+  private appendGroundTile(
+    map: MapData,
+    index: number,
+    rotation: Rotation,
+    meshesOnly = false,
+  ): void {
     const x = index % map.width;
     const y = (index - x) / map.width;
     rotateForDraw(x, y, map.width, map.height, rotation, this.tileCoordinates);
@@ -1447,7 +1963,7 @@ export class WebGL2Renderer implements Renderer {
       TILE_W,
       TILE_H,
       terrainSurfaceSpriteName(terrainSurface),
-      2 * (rx + ry) - height + depthOffset,
+      2 * (rx + ry) - height,
       1,
       corners,
       terrainLightFactor(corners),
@@ -1455,7 +1971,7 @@ export class WebGL2Renderer implements Renderer {
     );
     const tileCorners = terrainTileCorners(x, y, height, mask);
     for (let direction = 0; direction < 4; direction++) {
-      if (depthOffset !== 0 || !terrainEdgeFacesViewer(direction, rotation)) continue;
+      if (!terrainEdgeFacesViewer(direction, rotation)) continue;
       const neighborBase = terrainNeighborEdgeBase(map, x, y, direction);
       const face = terrainEdgeFace(tileCorners, direction, neighborBase);
       if (!face) continue;
@@ -1469,13 +1985,18 @@ export class WebGL2Renderer implements Renderer {
         (face.end.x - face.start.x) * TILE_UNITS,
         (face.end.y - face.start.y) * TILE_UNITS,
         terrainCliffSpriteName(terrainSurface, (direction + rotation) & 3),
+        // Cliff faces paint over the tile tops behind them in the ground cache.
         2 * (rx + ry) - height - bottom + 0.25,
         4,
         [face.start.height * 64, face.end.height * 64, bottom * 64, bottom * 64],
       );
     }
     const waterLevel = map.waterLevel?.[index] ?? 0;
-    if (!waterIntersectsTerrainTile(waterLevel, mask, height) && (surface === 3 || surface === 6))
+    if (
+      !meshesOnly &&
+      !waterIntersectsTerrainTile(waterLevel, mask, height) &&
+      (surface === 3 || surface === 6)
+    )
       this.append(
         (x + 0.5) * TILE_UNITS,
         (y + 0.5) * TILE_UNITS,
@@ -1502,7 +2023,7 @@ export class WebGL2Renderer implements Renderer {
         const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
         const worldX = x * TILE_UNITS + TILE_UNITS / 2;
         const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-        const depth = sceneryDepth(map, x, y, camera.rotation, z);
+        const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
         project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1544,8 +2065,7 @@ export class WebGL2Renderer implements Renderer {
       const z = flowerBedGroundZ(baseHeight, map.slope[index]!, camera.rotation);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth =
-        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1582,8 +2102,7 @@ export class WebGL2Renderer implements Renderer {
     const z = map.heights[entranceY * map.width + entranceX] * Z_STEP + 1;
     const worldX = entranceX * TILE_UNITS + TILE_UNITS / 2;
     const worldY = entranceY * TILE_UNITS + TILE_UNITS / 2;
-    const depth =
-      2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+    const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
     project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
     if (
       inViewport(
@@ -1617,9 +2136,7 @@ export class WebGL2Renderer implements Renderer {
       const z = ghost.level * Z_STEP;
       const worldX = ghost.x * TILE_UNITS + 128;
       const worldY = ghost.y * TILE_UNITS + 128;
-      const depth =
-        2 * rotatedPositionSum(ghost.x * TILE_UNITS, ghost.y * TILE_UNITS, map, camera.rotation) -
-        ghost.level;
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         !inViewport(
@@ -1641,7 +2158,7 @@ export class WebGL2Renderer implements Renderer {
         40,
         26,
         pathElementSprite(ghost.flags, ghost.surface, camera.rotation),
-        depth + 1,
+        depth,
       );
       for (const rail of queueRailSprites(ghost.flags, camera.rotation))
         this.append(
@@ -1651,7 +2168,7 @@ export class WebGL2Renderer implements Renderer {
           40,
           26,
           rail.sprite,
-          queueRailDepth(map, camera.rotation, ghost.x, ghost.y, rail.worldDir, ghost.level) + 0.1,
+          anchorKey(map, camera.rotation, worldX, worldY, z),
         );
       this.ghostMode = 0;
     }
@@ -1668,11 +2185,7 @@ export class WebGL2Renderer implements Renderer {
       const z = ghost.level * Z_STEP;
       const worldX = ghost.x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = ghost.y * TILE_UNITS + TILE_UNITS / 2;
-      const rotated = rotatedPositionSum(worldX, worldY, map, camera.rotation);
-      const depth =
-        ghost.kind === 'ride'
-          ? 2 * rotated - ghost.level + 1
-          : 2 * rotated - ghost.level + (ghost.kind === 'scenery' ? 2 : 1);
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       const [spriteName, frameSuffix] = ghost.sprite.split('#');
       const entry = spritePages.resolve(spriteName!);
       const frame = entry?.frames[Number(frameSuffix ?? 0)] ?? entry?.frames[0];
@@ -1722,22 +2235,7 @@ export class WebGL2Renderer implements Renderer {
       const sprite = pathElementSprite(flags, paths[o + 5]!, camera.rotation);
       const worldX = x * TILE_UNITS + 128;
       const worldY = y * TILE_UNITS + 128;
-      const depth = 2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP - 1;
-      const slabDepth = pathDepthOverTerrain(
-        map,
-        camera.rotation,
-        x,
-        y,
-        pathSlabDepth(
-          map,
-          camera.rotation,
-          x,
-          y,
-          baseHeight,
-          flags,
-          map.heights[y * map.width + x]!,
-        ),
-      );
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -1750,17 +2248,9 @@ export class WebGL2Renderer implements Renderer {
           26,
         )
       ) {
-        this.append(worldX, worldY, z, 40, 26, sprite, slabDepth);
+        this.append(worldX, worldY, z, 40, 26, sprite, depth);
         for (const rail of queueRailSprites(flags, camera.rotation))
-          this.append(
-            worldX,
-            worldY,
-            z,
-            40,
-            26,
-            rail.sprite,
-            queueRailDepth(map, camera.rotation, x, y, rail.worldDir, baseHeight),
-          );
+          this.append(worldX, worldY, z, 40, 26, rail.sprite, depth);
       }
       if ((flags & (PathFlag.Bin | PathFlag.Bench | PathFlag.Lamp | PathFlag.Shelter)) !== 0) {
         if (flags & PathFlag.Shelter) {
@@ -1773,7 +2263,7 @@ export class WebGL2Renderer implements Renderer {
             box.width,
             box.height,
             pathAdditionSpriteName(flags, camera.rotation, paths[o + 4]),
-            adjustDepthForGroundZ(depth + 2, baseHeight, shelterZ),
+            anchorKey(map, camera.rotation, worldX, worldY, shelterZ),
           );
         } else
           for (const placement of pathAdditionPlacements(flags, baseHeight)) {
@@ -1786,18 +2276,11 @@ export class WebGL2Renderer implements Renderer {
               box.width,
               box.height,
               pathAdditionSpriteName(flags, view, paths[o + 4]),
-              adjustDepthForGroundZ(
-                2 *
-                  rotatedPositionSum(
-                    worldX + placement.x,
-                    worldY + placement.y,
-                    map,
-                    camera.rotation,
-                  ) -
-                  baseHeight -
-                  1 +
-                  2,
-                baseHeight,
+              anchorKey(
+                map,
+                camera.rotation,
+                worldX + placement.x,
+                worldY + placement.y,
                 placement.groundZ,
               ),
             );
@@ -1830,7 +2313,7 @@ export class WebGL2Renderer implements Renderer {
       const box = sceneryBox(item);
       const worldX = x * TILE_UNITS + TILE_UNITS / 2;
       const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-      const depth = sceneryDepth(map, x, y, camera.rotation, z);
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       const spriteHeight = box.height;
       if (
@@ -1863,6 +2346,46 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
+  /** The park boundary fence: a wall-style sprite on every edge of owned land. */
+  private appendParkFence(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const edges = parkBoundaryEdges(map);
+    for (let i = 0; i < edges.length; i += 3) {
+      const x = edges[i]!;
+      const y = edges[i + 1]!;
+      const tile = y * map.width + x;
+      const z = map.heights[tile]! * Z_STEP;
+      const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+      project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          64,
+          48,
+        )
+      )
+        continue;
+      this.append(
+        worldX,
+        worldY,
+        z,
+        64,
+        48,
+        wallSpriteName(PARK_FENCE, edges[i + 2]!, map.slope[tile]!, camera.rotation),
+        anchorKey(map, camera.rotation, worldX, worldY, z),
+      );
+    }
+  }
+
   private appendRideMarkers(
     snapshot: Snapshot,
     map: MapData,
@@ -1887,8 +2410,7 @@ export class WebGL2Renderer implements Renderer {
         const z = map.heights[index] * Z_STEP + 1;
         const centerX = x * TILE_UNITS + 128;
         const centerY = y * TILE_UNITS + 128;
-        const depth =
-          2 * rotatedPositionSum(centerX, centerY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+        const depth = anchorKey(map, camera.rotation, centerX, centerY, z);
         project(centerX, centerY, z, map.width, map.height, camera.rotation, this.projected);
         if (
           inViewport(
@@ -1937,13 +2459,12 @@ export class WebGL2Renderer implements Renderer {
       if (isRidingGuestRow(metadata) || i === this.heldGuestSlot) continue;
       const tint = metadata & 0xff;
       const heading = guestRowHeading(metadata);
-      const depth = personDepth(
+      const depth = anchorKey(
         map,
         camera.rotation,
-        this.surfaceDepths,
         layer.data[offset],
         layer.data[offset + 1],
-        layer.data[offset + 2],
+        layer.data[offset + 2] + PATH_SURFACE_Z,
       );
       this.appendLayerSprite(
         layer,
@@ -1956,6 +2477,7 @@ export class WebGL2Renderer implements Renderer {
         GUEST_BOX.width,
         GUEST_BOX.height,
         depth,
+        PATH_SURFACE_Z,
       );
     }
   }
@@ -2123,8 +2645,7 @@ export class WebGL2Renderer implements Renderer {
       const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
       const width = frame?.width ?? 12;
       const height = frame?.height ?? 14;
-      const depth =
-        2 * rotatedPositionSum(worldX, worldY, map, camera.rotation) - z / Z_STEP + SOLID_BIAS;
+      const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
       project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
       if (
         !inViewport(
@@ -2155,9 +2676,13 @@ export class WebGL2Renderer implements Renderer {
     for (let i = 0; i < layer.count; i++) {
       const offset = i * SNAPSHOT_STRIDE;
       const dataOffset = offset + 3;
-      const depth =
-        2 * rotatedPositionSum(layer.data[offset], layer.data[offset + 1], map, camera.rotation) -
-        layer.data[offset + 2] / 64;
+      const depth = anchorKey(
+        map,
+        camera.rotation,
+        layer.data[offset],
+        layer.data[offset + 1],
+        layer.data[offset + 2] + PATH_SURFACE_Z,
+      );
       this.appendLayerSprite(
         layer,
         offset,
@@ -2169,6 +2694,7 @@ export class WebGL2Renderer implements Renderer {
         width,
         height,
         depth,
+        PATH_SURFACE_Z,
       );
     }
   }
@@ -2188,13 +2714,13 @@ export class WebGL2Renderer implements Renderer {
       const direction = (metadata >>> 8) & 3;
       const x = layer.data[offset];
       const y = layer.data[offset + 1];
-      const z = layer.data[offset + 2];
+      const z = layer.data[offset + 2] + PATH_SURFACE_Z;
       const key = `${peopleSpriteKey(kind, direction, camera.rotation)}#${walkingFrame(tick)}`;
       const entry = spritePages.resolve(key.split('#')[0]);
       const frame = entry?.frames[0];
       const width = frame?.width ?? 16;
       const height = frame?.height ?? 24;
-      const depth = personDepth(map, camera.rotation, this.surfaceDepths, x, y, z);
+      const depth = anchorKey(map, camera.rotation, x, y, z);
       project(x, y, z, map.width, map.height, camera.rotation, this.projected);
       if (
         inViewport(
@@ -2222,10 +2748,11 @@ export class WebGL2Renderer implements Renderer {
     width: number,
     height: number,
     depth: number,
+    lift = 0,
   ): void {
     const x = layer.data[offset];
     const y = layer.data[offset + 1];
-    const z = layer.data[offset + 2];
+    const z = layer.data[offset + 2] + lift;
     project(x, y, z, map.width, map.height, camera.rotation, this.projected);
     if (
       !inViewport(
@@ -2256,6 +2783,7 @@ export class WebGL2Renderer implements Renderer {
     contourEdges = 0,
   ): void {
     if (this.count === this.depths.length) this.grow();
+    const anchorZ = z;
     const offset = this.count * INSTANCE_FLOATS;
     let frame: PageFrame | undefined;
     let entry: SpriteEntry | undefined;
@@ -2349,13 +2877,45 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 11] = cornerHeights[1] ?? z;
     this.instanceData[offset + 12] = cornerHeights[2] ?? z;
     this.instanceData[offset + 13] = cornerHeights[3] ?? z;
-    this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 + contourEdges : 0;
+    this.instanceData[offset + 14] =
+      meshMode === LAND_OVERLAY_MODE
+        ? contourEdges
+        : meshMode === 1 && this.gridlinesActive
+          ? 1 + contourEdges
+          : 0;
     this.instanceData[offset + 15] = terrainShade;
-    this.instanceData[offset + 16] = anchorShift;
+    this.instanceData[offset + ANCHOR_SHIFT_FLOAT] = anchorShift;
     this.instanceData[offset + GHOST_FLOAT] = this.ghostMode;
+    const objectId = this.objectIdFor(meshMode);
+    this.instanceData[offset + OBJECT_ID_FLOAT] = objectId;
+    this.instanceData[offset + ANCHOR_Z_FLOAT] = anchorZ;
+    this.instanceData[offset + HEIGHT_SCALE_FLOAT] = frame && !meshMode ? height / frame.height : 1;
+    this.translucent[this.count] =
+      this.ghostMode !== 0 || meshMode === 3 || (meshMode > 1.4 && meshMode < 2.5) ? 1 : 0;
+    if (this.captureRecords)
+      this.captureRecords[this.count] =
+        objectId < FIRST_INSTANCE_OBJECT_ID
+          ? undefined
+          : {
+              id: objectId,
+              kind: frame && typeof sprite === 'string' ? objectKind(sprite) : 'other',
+              frame: frame && meshMode === 0 ? frame : undefined,
+            };
     this.depths[this.count] = Math.round(depth * 2);
     this.pageIds[this.count] = page;
     this.count++;
+  }
+
+  /**
+   * Ground meshes share one id, water another and the land overlay a third; patrol overlays and
+   * placement previews have none; every other instance gets its own.
+   */
+  private objectIdFor(meshMode: number): number {
+    if (meshMode === 1 || meshMode === 4 || meshMode === 5) return GROUND_OBJECT_ID;
+    if (meshMode === 3) return WATER_OBJECT_ID;
+    if (meshMode === LAND_OVERLAY_MODE) return LAND_OVERLAY_OBJECT_ID;
+    if (meshMode !== 0 || this.ghostMode !== 0) return 0;
+    return this.nextObjectId++;
   }
 
   private grow(): void {
@@ -2369,8 +2929,12 @@ export class WebGL2Renderer implements Renderer {
     const nextPages = new Int16Array(nextCapacity);
     nextPages.set(this.pageIds);
     this.pageIds = nextPages;
+    const nextTranslucent = new Uint8Array(nextCapacity);
+    nextTranslucent.set(this.translucent);
+    this.translucent = nextTranslucent;
     this.orderedData = new Float32Array(nextCapacity * INSTANCE_FLOATS);
     this.order = new Int32Array(nextCapacity);
+    this.partition = new Int32Array(nextCapacity);
     this.orderedPages = new Int16Array(nextCapacity);
   }
 
@@ -2379,6 +2943,16 @@ export class WebGL2Renderer implements Renderer {
     const buffer = this.instanceBuffer;
     if (!gl || !buffer) return;
     sortByDepth(this.depths, this.count, this.order);
+    // Opaque instances first, then the translucent pass, each keeping its back-to-front order.
+    const partition = this.partition;
+    let opaque = 0;
+    for (let i = 0; i < this.count; i++)
+      if (!this.translucent[this.order[i]]) partition[opaque++] = this.order[i];
+    let next = opaque;
+    for (let i = 0; i < this.count; i++)
+      if (this.translucent[this.order[i]]) partition[next++] = this.order[i];
+    this.partition = this.order;
+    this.order = partition;
     for (let i = 0; i < this.count; i++) {
       const source = this.order[i];
       const from = source * INSTANCE_FLOATS;
@@ -2387,11 +2961,16 @@ export class WebGL2Renderer implements Renderer {
         this.orderedData[to + j] = this.instanceData[from + j];
       this.orderedPages[i] = this.pageIds[source];
     }
-    const batches = buildTextureRuns(this.orderedPages.subarray(0, this.count), TEXTURE_SLOTS);
+    const solid = buildTextureRuns(this.orderedPages.subarray(0, opaque), TEXTURE_SLOTS);
+    const clear = buildTextureRuns(this.orderedPages.subarray(opaque, this.count), TEXTURE_SLOTS);
     this.runs.length = 0;
-    this.runs.push(...batches.runs);
-    for (let i = 0; i < this.count; i++)
-      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = batches.slots[i];
+    this.runs.push(...solid.runs);
+    this.translucentRun = this.runs.length;
+    for (const run of clear.runs) this.runs.push({ ...run, start: run.start + opaque });
+    for (let i = 0; i < opaque; i++)
+      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = solid.slots[i];
+    for (let i = opaque; i < this.count; i++)
+      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = clear.slots[i - opaque];
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     if (this.depths.length > this.bufferCapacity) {
       gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
@@ -2665,19 +3244,6 @@ function rotateForDraw(
 
 function chunkKey(cx: number, cy: number): number {
   return (cy + 4096) * 8192 + (cx + 4096);
-}
-
-function unrotateForDraw(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  rotation: Rotation,
-  out: Int32Array,
-): void {
-  const [ux, uy] = unrotateTile(x, y, width, height, rotation);
-  out[0] = ux;
-  out[1] = uy;
 }
 
 function inViewport(

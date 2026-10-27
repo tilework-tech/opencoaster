@@ -267,18 +267,6 @@ export function terrainEdgeFace(
   };
 }
 
-/**
- * Painter keys for one tile's shoreline. The water surface draws before the bank faces that rise
- * from its waterline, so a wall is never covered by water from the tile it belongs to.
- */
-export function tileWaterDepth(rx: number, ry: number, waterLevel: number): number {
-  return 2 * (rx + ry) - waterLevel + 2;
-}
-
-export function tileBankDepth(rx: number, ry: number, waterLevel: number): number {
-  return 2 * (rx + ry) - waterLevel + 3;
-}
-
 export function waterCoversTerrainTile(
   waterLevel: number,
   slopeMask: number,

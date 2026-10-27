@@ -98,8 +98,10 @@ test('UI icon controls keep their accessible names and use native pixel art', as
     'news',
   ];
   for (const action of windowActions) {
-    await toolbar.locator(`[data-action="${action}"]`).click();
-    await expect(page.locator(`.ui-window[data-panel="${action}"]`)).toBeVisible();
+    const window = page.locator(`.ui-window[data-panel="${action}"]`);
+    // Toolbar buttons toggle their window; the park window is already open at this point.
+    if (!(await window.isVisible())) await toolbar.locator(`[data-action="${action}"]`).click();
+    await expect(window).toBeVisible();
     const tabSets = await page.locator('.ui-window').evaluateAll((windows) =>
       windows
         .map((window) => ({
@@ -115,7 +117,7 @@ test('UI icon controls keep their accessible names and use native pixel art', as
   }
 
   await page.setViewportSize({ width: 412, height: 915 });
-  await page.getByRole('button', { name: 'Actions' }).click();
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
   await expect(page.locator('#toolbar-actions-menu')).toHaveClass(/open/);
   expect(await page.locator('#toolbar-actions-menu img.ui-icon').count()).toBeGreaterThan(0);
   await expect(page.getByRole('button', { name: 'Rotate right' })).toHaveAttribute(

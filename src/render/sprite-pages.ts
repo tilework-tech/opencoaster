@@ -17,6 +17,8 @@ export interface SpriteEntry {
 
 export interface SpritePageInfo {
   file: string;
+  /** Height page laid out like `file` (see height-encoding.ts and docs.md "Occlusion model"). */
+  depthFile: string;
   width: number;
   height: number;
   category: string;
@@ -44,7 +46,11 @@ const browserSource: SpritePageSource = {
   async image(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Sprite page request failed: ${response.status}`);
-    return createImageBitmap(await response.blob());
+    // Height pages hold packed integers: decode them byte-exact.
+    return createImageBitmap(await response.blob(), {
+      colorSpaceConversion: 'none',
+      premultiplyAlpha: 'none',
+    });
   },
 };
 
@@ -57,6 +63,7 @@ const browserSource: SpritePageSource = {
 export class SpritePages {
   private manifest: SpritePageManifest | null = null;
   private readonly images = new Map<number, PageImage>();
+  private readonly heights = new Map<number, PageImage>();
   private readonly loaded = new Set<string>();
   private readonly requested = new Set<string>();
   private readonly listeners = new Set<() => void>();
@@ -79,13 +86,18 @@ export class SpritePages {
   }
 
   /** Installs an already-fetched manifest and page images (used by the loader and tests). */
-  install(manifest: SpritePageManifest, images: ReadonlyMap<number, PageImage>): void {
+  install(
+    manifest: SpritePageManifest,
+    images: ReadonlyMap<number, PageImage>,
+    heights: ReadonlyMap<number, PageImage> = new Map(),
+  ): void {
     this.manifest = manifest;
     this.started = true;
     for (const [category, info] of Object.entries(manifest.categories)) {
       if (info.pages.every((page) => images.has(page))) this.loaded.add(category);
     }
     for (const [page, image] of images) this.images.set(page, image);
+    for (const [page, image] of heights) this.heights.set(page, image);
     this.version++;
   }
 
@@ -95,6 +107,16 @@ export class SpritePages {
 
   pageImage(page: number): PageImage | undefined {
     return this.images.get(page);
+  }
+
+  /** The height page of a loaded atlas page. */
+  pageHeights(page: number): PageImage | undefined {
+    return this.heights.get(page);
+  }
+
+  /** Every sprite in the manifest, loaded or not. */
+  get spriteEntries(): [string, SpriteEntry][] {
+    return Object.entries(this.manifest?.sprites ?? {});
   }
 
   get loadedPages(): ReadonlyMap<number, PageImage> {
@@ -141,12 +163,19 @@ export class SpritePages {
   private async loadCategory(category: string, pages: readonly number[]): Promise<void> {
     const manifest = this.manifest!;
     const images = await Promise.all(
-      pages.map(
-        async (page) =>
-          [page, await this.source.image(`${this.baseUrl}${manifest.pages[page].file}`)] as const,
-      ),
+      pages.map(async (page) => {
+        const info = manifest.pages[page];
+        const [colour, heights] = await Promise.all([
+          this.source.image(`${this.baseUrl}${info.file}`),
+          this.source.image(`${this.baseUrl}${info.depthFile}`),
+        ]);
+        return [page, colour, heights] as const;
+      }),
     );
-    for (const [page, image] of images) this.images.set(page, image);
+    for (const [page, image, heights] of images) {
+      this.images.set(page, image);
+      this.heights.set(page, heights);
+    }
     this.loaded.add(category);
     this.version++;
     for (const listener of this.listeners) listener();
