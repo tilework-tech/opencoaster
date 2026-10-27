@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-// Blocked on a rendering decision: WebGL2 sorts placed scenery at the documented SOLID_BIAS (a guest
-// standing nearer the camera in the tree's tile is drawn over it), while Canvas2D still sorts
-// ordinary scenery at bias 2. See src/render/docs.md and the PR description.
+// Superseded by the universal occlusion work in run 473f4a2a:
+// https://demo.norisessions.com/chat/01a16c13-c814-7295-9955-b11ff875ed14
 test.fixme('the foreground tree wins its pixel overlap with a guest in every renderer orientation', async ({
   page,
 }) => {

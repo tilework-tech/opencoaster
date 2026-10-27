@@ -785,7 +785,7 @@ test('captures flowerbeds across renderers, zooms, and rotations @art-review', a
   expect(await page.locator('#art-review-canvas2d').count()).toBe(1);
 });
 
-test('keeps path pixels visible beside a garden row, guests, and a bin in every renderer and rotation', async ({
+test('keeps path pixels visible beside a garden row, guests, and a bin in every renderer and rotation @art-review', async ({
   page,
 }) => {
   test.setTimeout(1_200_000);

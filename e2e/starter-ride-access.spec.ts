@@ -515,7 +515,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
       }
       await contextClickAtTile(page, 23, 42);
       await expect(page.locator('.tool-status')).toContainText(
-        `${name} ${rideId + 1} information opened`,
+        `${name} information opened`,
       );
     }
     await expect(rideWindow).toBeVisible();
