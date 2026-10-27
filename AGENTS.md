@@ -4,22 +4,22 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
 
 ## Commands (pnpm 10, Node >= 20)
 
-| Command                        | Purpose                                                      |
-| ------------------------------ | ------------------------------------------------------------ |
-| `pnpm install`                 | install                                                      |
-| `pnpm dev`                     | Vite dev server (COOP/COEP headers on)                       |
-| `pnpm lint`                    | ESLint                                                       |
-| `pnpm format` / `format:check` | Prettier                                                     |
-| `pnpm typecheck`               | `tsc --noEmit` (strict)                                      |
-| `pnpm test`                    | Vitest, single run                                           |
-| `pnpm build`                   | typecheck + Vite production build                            |
-| `pnpm bench`                   | sim benchmark (`-- --guests 5000 --strict`)                  |
-| `pnpm balance`                 | balance harness; `-- --scenario all` for win rates           |
-| `pnpm check`                   | everything CI runs                                           |
-| `pnpm smoke` / `smoke:subpath` | Playwright smoke (dev / prod build at `/opencoaster/`)       |
-| `pnpm e2e:quick`               | desktop e2e subset, one spec per major tool (<5 min)         |
-| `pnpm e2e`                     | full Playwright e2e, desktop + Pixel 8 (one worker)          |
-| `pnpm e2e:art-review`          | art inventory captures (excluded from `pnpm e2e`)            |
+| Command                        | Purpose                                                |
+| ------------------------------ | ------------------------------------------------------ |
+| `pnpm install`                 | install                                                |
+| `pnpm dev`                     | Vite dev server (COOP/COEP headers on)                 |
+| `pnpm lint`                    | ESLint                                                 |
+| `pnpm format` / `format:check` | Prettier                                               |
+| `pnpm typecheck`               | `tsc --noEmit` (strict)                                |
+| `pnpm test`                    | Vitest, single run                                     |
+| `pnpm build`                   | typecheck + Vite production build                      |
+| `pnpm bench`                   | sim benchmark (`-- --guests 5000 --strict`)            |
+| `pnpm balance`                 | balance harness; `-- --scenario all` for win rates     |
+| `pnpm check`                   | everything CI runs                                     |
+| `pnpm smoke` / `smoke:subpath` | Playwright smoke (dev / prod build at `/opencoaster/`) |
+| `pnpm e2e:quick`               | desktop e2e subset, one spec per major tool (<5 min)   |
+| `pnpm e2e`                     | full Playwright e2e, desktop + Pixel 8 (one worker)    |
+| `pnpm e2e:art-review`          | art inventory captures (excluded from `pnpm e2e`)      |
 
 ## UI PR checklist
 
