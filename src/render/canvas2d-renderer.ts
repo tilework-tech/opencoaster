@@ -1268,12 +1268,13 @@ export class Canvas2DRenderer implements Renderer {
         this.tmp,
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 22)) continue;
+      if (part === 'slab' && this.atlas)
+        this.drawPathSupports(ctx, map, cam, x, y, paths[o + 2]!, centerX, centerY);
       this.anchor(centerX, centerY, z, map.width, map.height, cam.rotation, this.pathLow);
       if (part === 'additions') {
         this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);
         continue;
       }
-      if (this.atlas) this.drawPathSupports(ctx, map, cam, x, y, paths[o + 2]!, centerX, centerY);
       if (
         this.atlas &&
         drawAnchoredSprite(
