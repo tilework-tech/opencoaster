@@ -11,6 +11,7 @@ import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { readFileSync } from 'node:fs';
 import { hoverGameTile, startStarterPark } from './footpath-helpers';
+import { centreOnTile } from './support/park';
 
 const scenario = parseScenarioFile(
   JSON.parse(
@@ -50,7 +51,7 @@ async function loadOverlapPark(
   await expect(coasterRow).toBeVisible();
   await coasterRow.click();
   await page
-    .locator(`[data-panel="ride-${coasterId + 1}"]`)
+    .locator(`[data-panel="ride-${coasterId}"]`)
     .getByRole('button', { name: 'Edit track' })
     .click();
   return { world, coasterId };
@@ -90,31 +91,57 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
     await page
       .locator('[data-panel="construction"] [aria-label="Special elements"]')
       .selectOption({ label: 'Station' });
+    const titlebar = await page.locator('[data-panel="construction"] .ui-titlebar').boundingBox();
+    if (!titlebar) throw new Error('Construction window is missing its title bar');
+    await page.mouse.move(titlebar.x + 40, titlebar.y + 12);
+    await page.mouse.down();
+    await page.mouse.move(30, 48, { steps: 5 });
+    await page.mouse.up();
+    await centreOnTile(page, RIDE_TILE.x, RIDE_TILE.y);
     await hoverGameTile(page, world, RIDE_TILE);
     await expect(page.locator('.track-preview')).toBeVisible();
-    await expect
-      .poll(() =>
-        page.locator('.track-preview').evaluate((canvas) => {
-          const c = canvas as HTMLCanvasElement;
-          const pixels = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-          for (let i = 0; i < pixels.length; i += 4)
-            if (pixels[i]! > 150 && pixels[i + 1]! < 150 && pixels[i + 3]! > 0) return true;
-          return false;
-        }),
-      )
-      .toBe(true);
-    await page.screenshot({ path: `.local/pr-proof/${renderer}-refused.png`, fullPage: true });
-    await captureAllViews(page, `${renderer}-refused`);
     await page
       .locator('[data-panel="construction"]')
       .getByRole('button', { name: 'Build piece' })
       .click();
     await expect(page.locator('.coaster-feedback')).toContainText('Blocked by Merry-Go-Round 1');
     await expect(page.locator('.coaster-info')).toContainText('Track 0 pieces');
+    await expect
+      .poll(
+        () =>
+          page.locator('.track-preview').evaluate((canvas) => {
+            const c = canvas as HTMLCanvasElement;
+            const pixels = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+            for (let i = 0; i < pixels.length; i += 4)
+              if (pixels[i]! > 150 && pixels[i + 1]! < 150 && pixels[i + 3]! > 0) return true;
+            return false;
+          }),
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+    const refusedPreview = await page
+      .locator('.track-preview')
+      .evaluate((canvas) => canvas.toDataURL('image/png'));
+    await writeFile(
+      `.local/pr-proof/${renderer}-refused-preview.png`,
+      Buffer.from(refusedPreview.split(',')[1]!, 'base64'),
+    );
+    await page.screenshot({ path: `.local/pr-proof/${renderer}-refused.png`, fullPage: true });
+    await captureAllViews(page, `${renderer}-refused`);
 
     const station = PIECES.find((piece) => piece.shape === 'station')!;
     await page.evaluate(
-      ({ pieceType, x, y }) => {
+      ({
+        pieceType,
+        x,
+        y,
+        coasterId,
+      }: {
+        pieceType: number;
+        x: number;
+        y: number;
+        coasterId: number;
+      }) => {
         (window as unknown as { __sim: { command: (command: unknown) => void } }).__sim.command({
           type: 'placeTrack',
           rideId: coasterId,
@@ -130,6 +157,20 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
     );
     await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
     await page.screenshot({ path: `.local/pr-proof/${renderer}-overpass.png`, fullPage: true });
+    const canvasData = await page
+      .locator('#game')
+      .evaluate((canvas) => canvas.toDataURL('image/png'));
+    await writeFile(
+      `.local/pr-proof/${renderer}-overpass-canvas.png`,
+      Buffer.from(canvasData.split(',')[1]!, 'base64'),
+    );
+    const previewData = await page
+      .locator('.track-preview')
+      .evaluate((canvas) => canvas.toDataURL('image/png'));
+    await writeFile(
+      `.local/pr-proof/${renderer}-track-preview-canvas.png`,
+      Buffer.from(previewData.split(',')[1]!, 'base64'),
+    );
     await testInfo.attach(`${renderer}-overpass`, {
       path: `.local/pr-proof/${renderer}-overpass.png`,
       contentType: 'image/png',
