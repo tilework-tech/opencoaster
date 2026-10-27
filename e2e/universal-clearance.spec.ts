@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { TRACK_STEPS_PER_LEVEL } from '../src/sim/core/constants';
 import { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { RideType } from '../src/sim/rides/ride-types';
@@ -52,7 +53,7 @@ async function loadOverlapPark(
     rideId: elevatedRideId,
     pieceType: PieceId.Flat,
     ...UNDERPASS_TILE,
-    z: groundLevel + 2,
+    z: (groundLevel + 2) * TRACK_STEPS_PER_LEVEL,
     dir: 0,
     mode: PieceMode.Normal,
   });
@@ -99,6 +100,7 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
     page,
   }, testInfo) => {
     test.setTimeout(240_000);
+    await mkdir('.local/pr-proof', { recursive: true });
     if (renderer === 'canvas2d') {
       await page.addInitScript(() => {
         const getContext = HTMLCanvasElement.prototype.getContext;
@@ -169,11 +171,13 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
         pieceType,
         x,
         y,
+        z,
         coasterId,
       }: {
         pieceType: number;
         x: number;
         y: number;
+        z: number;
         coasterId: number;
       }) => {
         (window as unknown as { __sim: { command: (command: unknown) => void } }).__sim.command({
@@ -182,12 +186,12 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
           pieceType,
           x,
           y,
-          z: 8,
+          z,
           dir: 0,
           mode: 0,
         });
       },
-      { pieceType: station.id, ...RIDE_TILE, coasterId },
+      { pieceType: station.id, ...RIDE_TILE, z: 8 * TRACK_STEPS_PER_LEVEL, coasterId },
     );
     await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
     await page.screenshot({ path: `.local/pr-proof/${renderer}-overpass.png`, fullPage: true });
@@ -227,7 +231,7 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
         rideId: underpassRideId,
         pieceType: PieceId.Flat,
         ...UNDERPASS_TILE,
-        z: groundLevel,
+        z: groundLevel * TRACK_STEPS_PER_LEVEL,
       },
     );
     await expect
