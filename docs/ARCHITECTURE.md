@@ -26,7 +26,7 @@ The simulation owns all game state and runs in a Web Worker. The main thread ren
 Same seed + same ordered commands ⇒ bit-identical state, on every machine.
 
 - All randomness comes from `Prng` (sfc32, 32-bit integer ops via `Math.imul`).
-- Stored state is integers only (typed arrays, no Float32/64). Positions are fixed-point: `TILE_UNITS` = 256 per tile, `Z_STEP` = 64 per height level. Money is integer cents.
+- Stored state is integers only (typed arrays, no Float32/64). Positions are fixed-point: `TILE_UNITS` = 256 per tile, `Z_STEP` = 64 per land height level, and track heights count `TRACK_Z_STEP` = 32 track steps (half a level, as in RCT2's track grid). Money is integer cents.
 - No clock or `Math.random` in `src/sim` (ESLint `no-restricted-properties`).
 - Commands apply in arrival order. During active simulation they apply at tick boundaries; while paused the worker applies commands immediately without a tick. Replay ordering remains deterministic, with paused commands occurring between tick boundaries.
 - `hashWorld` hashes all live state; tests assert equal hashes for equal runs and for save→load→continue.
@@ -49,7 +49,7 @@ Chosen: **transferable snapshot buffers**, three pooled per run.
 
 ## Rendering
 
-`Renderer` interface (`src/render/renderer.ts`) with `WebGL2Renderer` as the primary backend and `Canvas2DRenderer` as a fallback. The WebGL2 path loads the generated world-art atlas pages (eager world/people pages at start, ride and track pages on first use) and draws instanced quads fed from snapshot layers; a small procedural atlas supplies missing-sprite fallback cells. Both renderers use the isometric 2:1 projection (64×32 px tiles), integer height levels, four view rotations via `rotateTile`/`unrotateTile`, and renderer-side viewport culling. The renderer reads only `Snapshot` and `MapData`; the DOM UI loads its separate generated icon sheet.
+`Renderer` interface (`src/render/renderer.ts`) with `WebGL2Renderer` as the primary backend and `Canvas2DRenderer` as a fallback. The WebGL2 path loads the generated world-art atlas pages (eager world/people pages at start, ride and track pages on first use) and draws instanced quads fed from snapshot layers; a small procedural atlas supplies missing-sprite fallback cells. Both renderers use the isometric 2:1 projection (64×32 px tiles), integer land height levels (track can sit on half levels), four view rotations via `rotateTile`/`unrotateTile`, and renderer-side viewport culling. The renderer reads only `Snapshot` and `MapData`; the DOM UI loads its separate generated icon sheet.
 
 The WebGL2 frame is built in layers so per-frame cost tracks what actually changes:
 

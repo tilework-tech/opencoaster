@@ -468,7 +468,10 @@ function buildCurve(spec: Spec): { curve: Curve; dz: number; headingDelta: numbe
   if (h.kind === 'arc') {
     const base = arcCurve(h.radiusTiles * TILE_UNITS, h.side, HALF);
     if (g0 !== 0 || g1 !== 0) {
-      const dz = Math.sign(g0 + g1) * SLOPED_TURN_RISE[h.radiusTiles];
+      const rise = SLOPED_TURN_RISE[h.radiusTiles];
+      if (rise === undefined || g0 !== g1)
+        throw new Error(`piece ${spec.name}: no RCT2 rise for this sloped turn`);
+      const dz = Math.sign(g0) * rise;
       return {
         curve: withProfile(base, dz * TRACK_Z_STEP, g0, g1),
         dz,

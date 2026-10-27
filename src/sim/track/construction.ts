@@ -225,7 +225,6 @@ export function validatePlacement(world: World, req: PlaceRequest): TrackResult 
   return checkSpace(world, req);
 }
 
-/** Recomputes arclength offsets, length and closure for a ride after an edit. */
 /** Recomputes a ride's piece count, start arclengths and length, and invalidates its path. */
 export function relinkRide(world: World, rideId: number): void {
   const t = world.track;

@@ -12,6 +12,7 @@ import { startStarterPark, tileScreenPoint, toolbarTool } from './footpath-helpe
 
 const proofDir = process.env.TRACK_HEIGHTS_PROOF_DIR;
 const GROUND = 4;
+const STATION = GROUND + 1;
 const START = { x: 20, y: 20 };
 
 function flatPark(): World {
@@ -56,7 +57,7 @@ async function build(construction: Locator, turn: string, slope: string): Promis
   await construction.getByRole('button', { name: 'Build piece' }).click();
 }
 
-test('the builder closes a circuit whose ends sit one land level apart', async ({
+test('the builder raises the start and closes a circuit whose ends sit one land level apart', async ({
   page,
 }, testInfo) => {
   test.setTimeout(180_000);
@@ -82,18 +83,24 @@ test('the builder closes a circuit whose ends sit one land level apart', async (
   await construction.getByLabel('Special elements').selectOption({ label: 'Station' });
   await page.mouse.move(sx, sy);
   await construction.getByRole('button', { name: 'Level', exact: true }).click();
+  await construction.getByRole('button', { name: 'Raise start' }).click();
+  await construction.getByRole('button', { name: 'Raise start' }).click();
+  await construction.getByRole('button', { name: 'Lower start' }).click();
+  await expect(construction.getByText('Start 1 above ground')).toBeVisible();
   await construction.getByRole('button', { name: 'Build piece' }).click();
   const info = page.locator('.coaster-info');
   await expect(info).toContainText('Track 1 pieces');
-  await expect(construction.locator('.coaster-height')).toHaveText(`Track end at height ${GROUND}`);
+  await expect(construction.locator('.coaster-height')).toHaveText(
+    `Track end at height ${STATION}`,
+  );
 
   await build(construction, 'Straight', 'Up');
   await expect(construction.locator('.coaster-height')).toHaveText(
-    `Track end at height ${GROUND + 0.5}`,
+    `Track end at height ${STATION + 0.5}`,
   );
   await build(construction, 'Straight', 'Level');
   await expect(construction.locator('.coaster-height')).toHaveText(
-    `Track end at height ${GROUND + 1}`,
+    `Track end at height ${STATION + 1}`,
   );
   await build(construction, 'Right small', 'Level');
   await build(construction, 'Right small', 'Level');
@@ -101,7 +108,9 @@ test('the builder closes a circuit whose ends sit one land level apart', async (
   await expect(info).toContainText('open');
   await build(construction, 'Straight', 'Down');
   await build(construction, 'Straight', 'Level');
-  await expect(construction.locator('.coaster-height')).toHaveText(`Track end at height ${GROUND}`);
+  await expect(construction.locator('.coaster-height')).toHaveText(
+    `Track end at height ${STATION}`,
+  );
   await build(construction, 'Right small', 'Level');
   await build(construction, 'Right small', 'Level');
   await expect(info).toContainText('Track 10 pieces, closed circuit');

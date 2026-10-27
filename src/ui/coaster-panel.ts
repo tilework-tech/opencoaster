@@ -1,5 +1,6 @@
 import type { Command } from '../sim/core/commands';
 import { TRACK_STEPS_PER_LEVEL } from '../sim/core/constants';
+import { MAX_TRACK_LEVEL } from '../sim/track/track-store';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import type { RideTypeDef } from '../sim/rides/ride-types';
@@ -61,9 +62,6 @@ interface RideSummary {
   def: RideTypeDef;
   index: number;
 }
-
-/** Highest the first piece can be raised above the ground, in land levels. */
-const MAX_START_RAISE = 30;
 
 const STATE_NAMES = ['Closed', 'Open', 'Testing', 'Broken'] as const;
 const PHASE_NAMES: Record<number, string> = {
@@ -141,8 +139,9 @@ export class CoasterPanel {
   private choice: PieceChoice = { turn: 'station', slope: Slope.Flat, bank: Bank.None };
   private mode: PieceMode = PieceMode.Normal;
   private startDir = 0;
-  /** Land levels the first piece sits above the ground under it. */
+  /** Land levels the first piece sits above the ground under it, for the ride it was set on. */
   private startRaise = 0;
+  private startRaiseRide = -1;
   private rides: RideSummary[] = [];
   private activeRideId = -1;
   private hover: [number, number] | null = null;
@@ -203,7 +202,7 @@ export class CoasterPanel {
       this.startHeightLabel,
       this.button(
         'Raise start',
-        () => (this.startRaise = Math.min(MAX_START_RAISE, this.startRaise + 1)),
+        () => (this.startRaise = Math.min(this.maxStartRaise(), this.startRaise + 1)),
       ),
     );
     this.heightLine = document.createElement('div');
@@ -437,6 +436,11 @@ export class CoasterPanel {
     if (ride) this.actions.command({ type: 'setRideStatus', rideId: ride.id, status });
   }
 
+  /** The ride type's height limit, in land levels, bounds how far the start can be raised. */
+  private maxStartRaise(): number {
+    return this.activeRide()?.def.trackRules?.maxLevel ?? MAX_TRACK_LEVEL;
+  }
+
   private activeRide(): RideSummary | undefined {
     return this.rides.find((ride) => ride.id === this.activeRideId);
   }
@@ -533,6 +537,10 @@ export class CoasterPanel {
     const cursor = decodeCursor(info[RideInfo.Cursor]);
     this.directionButton.hidden = cursor.hasTrack;
     this.startHeightRow.hidden = cursor.hasTrack;
+    if (this.startRaiseRide !== ride.id) {
+      this.startRaiseRide = ride.id;
+      this.startRaise = 0;
+    }
     this.startHeightLabel.textContent =
       this.startRaise === 0 ? 'Start on the ground' : `Start ${this.startRaise} above ground`;
     this.heightLine.textContent = cursor.hasTrack
