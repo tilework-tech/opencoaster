@@ -207,9 +207,10 @@ describe('construction', () => {
     };
     expect(validatePlacement(w, { ...req, z: BASE_Z })).toBe(TrackResult.Blocked);
     expect(validatePlacement(w, { ...req, z: BASE_Z + 1 })).toBe(TrackResult.Blocked);
-    expect(validatePlacement(w, { ...req, z: BASE_Z + 6 })).toBe(TrackResult.Blocked);
-    expect(validatePlacement(w, { ...req, z: BASE_Z + 7 })).toBe(TrackResult.Ok);
-    expect(validatePlacement(w, { ...req, z: BASE_Z - 7 })).toBe(TrackResult.Ok);
+    expect(validatePlacement(w, { ...req, z: BASE_Z + 5 })).toBe(TrackResult.Blocked);
+    expect(validatePlacement(w, { ...req, z: BASE_Z + 6 })).toBe(TrackResult.Ok);
+    expect(validatePlacement(w, { ...req, z: BASE_Z - 5 })).toBe(TrackResult.Blocked);
+    expect(validatePlacement(w, { ...req, z: BASE_Z - 6 })).toBe(TrackResult.Ok);
   });
 
   it('validates lift and brake modes against the piece type', () => {

@@ -22,7 +22,7 @@ describe('track placement against rides', () => {
       pieceType: PieceId.Station,
       x: 13,
       y: 13,
-      z: 2,
+      z: 4,
       dir: 0,
       mode: PieceMode.Normal,
     });
@@ -44,7 +44,7 @@ describe('track placement against rides', () => {
       pieceType: PieceId.Station,
       x: 13,
       y: 13,
-      z: 8,
+      z: 16,
       dir: 0,
       mode: PieceMode.Normal,
     });
@@ -67,7 +67,7 @@ describe('track placement against rides', () => {
       pieceType: PieceId.Flat,
       x: 12,
       y: 12,
-      z: 3,
+      z: 6,
       dir: 0,
       mode: PieceMode.Normal,
     });
@@ -78,7 +78,7 @@ describe('track placement against rides', () => {
         pieceType: PieceId.Flat,
         x: 12,
         y: 12,
-        z: 2,
+        z: 4,
         dir: 0 as const,
         mode: PieceMode.Normal,
       }),
@@ -102,7 +102,7 @@ describe('track placement against rides', () => {
       pieceType: PieceId.Flat,
       x: 12,
       y: 12,
-      z: 2,
+      z: 4,
       dir: 0 as const,
       mode: PieceMode.Normal,
     };
@@ -131,7 +131,7 @@ describe('track placement against rides', () => {
         pieceType: PieceId.Flat,
         x: 12,
         y: 12,
-        z: 4,
+        z: 8,
         dir: 0 as const,
         mode: PieceMode.Normal,
       }),
@@ -142,7 +142,7 @@ describe('track placement against rides', () => {
       pieceType: PieceId.Flat,
       x: 12,
       y: 12,
-      z: 2,
+      z: 4,
       dir: 0 as const,
       mode: PieceMode.Normal,
     };

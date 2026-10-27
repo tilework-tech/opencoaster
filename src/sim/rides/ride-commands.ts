@@ -1,7 +1,7 @@
 import { refreshQueueIndex } from './queue-lines';
 import { popcount4 } from '../pathfinding/directions';
 import type { World } from '../core/world';
-import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../core/constants';
+import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { charge, earn } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
