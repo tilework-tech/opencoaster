@@ -1015,10 +1015,8 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
       approach === world.queues.joinTile[ride] &&
       queueEntryBlocked(world, ride) &&
       joinTileHasEarlierGuest(world, slot, approach)
-    ) {
-      turnAwayFromBlockedQueue(world, slot, world.rides.slotToId[ride]!, approach);
+    )
       return false;
-    }
     if (approach >= 0 && stepToward(world, slot, tile, approach, nav)) return false;
     clearDestination(world, slot);
   }
