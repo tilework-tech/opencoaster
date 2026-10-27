@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import type { Browser, Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Browser, Page } from './support/test';
 import { openPage, startStarterPark, toolbarAction } from './support/park';
 
 async function startPark(browser: Browser, mobile: boolean): Promise<Page> {

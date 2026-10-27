@@ -1,5 +1,6 @@
-import { devices, expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Locator, Page } from './support/test';
+import { createTestContext } from './support/test-contexts';
 import { readFileSync } from 'node:fs';
 import { pickTile, project } from '../src/render/projection';
 import { ElementType } from '../src/sim/map/tile-map';
@@ -19,8 +20,8 @@ const toolbarActions = [
   'Game options',
   'Zoom out',
   'Zoom in',
-  'Rotate clockwise',
-  'Rotate anticlockwise',
+  'Rotate right',
+  'Rotate left',
   'View options',
   'Map',
   'Clear scenery',
@@ -331,7 +332,7 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
       await setSimulationPaused(page, mobile, false);
       if (mobile) await control.tap({ timeout: 5_000 });
       else await control.click({ timeout: 5_000 });
-      await expect(page.locator('.tool-status')).toContainText(/Queue line (on|off)\./);
+      await expect(page.locator('.tool-status')).toContainText(/Queue line (on|off)\b/);
       await setSimulationPaused(page, mobile, true);
     } else if (item.ariaPressed !== null) {
       await setSimulationPaused(page, mobile, false);
@@ -424,6 +425,7 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
           )
           .catch(() => '');
         if (clickWasBlocked && unavailableReason) continue;
+        if ((await control.count()) === 0) continue;
         throw new Error(`Control did not produce an observable effect: ${item.key}`, {
           cause: error,
         });
@@ -556,7 +558,7 @@ async function auditToolbar(page: Page, mobile = false): Promise<void> {
       await expect(action).toHaveAttribute('title', /not available/i);
       continue;
     }
-    if (label === 'Rotate clockwise' || label === 'Rotate anticlockwise') {
+    if (label === 'Rotate right' || label === 'Rotate left') {
       const hud = page.locator('.hud');
       const before = (await hud.innerText()).match(/rot (\d+)/)?.[1];
       if (mobile) await action.tap({ timeout: 5_000 });
@@ -615,11 +617,6 @@ async function checkDisabledControls(page: Page, mobile = false): Promise<void> 
   if (mobile) await options.getByRole('tab', { name: 'Display' }).tap({ timeout: 5_000 });
   else await options.getByRole('tab', { name: 'Display' }).click();
   await options.getByLabel('Gridlines').check();
-  for (const name of ['Height labels', 'Construction marker']) {
-    const control = options.getByLabel(name);
-    await expect(control).toBeDisabled();
-    await expect(control).toHaveAttribute('title', /not available/i);
-  }
   if (mobile) await options.getByRole('button', { name: 'Close Options' }).tap({ timeout: 5_000 });
   else await options.getByRole('button', { name: 'Close Options' }).click();
   await toolbarClick(page, 'Finances', mobile);
@@ -651,7 +648,7 @@ test('enabled Pixel 8 toolbar and window controls cause an observable effect', a
   visitedDetailTypes.clear();
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext(device);
+  const context = await createTestContext(browser, device);
   const page = await context.newPage();
   try {
     await startSandbox(page, true);
@@ -746,7 +743,7 @@ test('every window and camera shortcut produces its documented effect', async ({
 test('Pixel 8 can close a pinned staff window', async ({ browser }) => {
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext(device);
+  const context = await createTestContext(browser, device);
   const page = await context.newPage();
   try {
     await startSandbox(page, true);

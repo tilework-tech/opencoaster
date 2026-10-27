@@ -34,7 +34,9 @@
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "smoke": "playwright test --config=playwright.config.ts",
     "smoke:subpath": "pnpm build && playwright test --config=playwright.subpath.config.ts",
-    "e2e": "playwright test --config=playwright.e2e.config.ts"
+    "e2e": "playwright test --config=playwright.e2e.config.ts --grep-invert \"@art-review|@art-context-review\"",
+    "e2e:art-review": "playwright test --config=playwright.art-review.config.ts --grep \"@art-review|@art-context-review\"",
+    "e2e:quick": "playwright test --config=playwright.e2e.config.ts --grep-invert \"@art-review|pixel-8|Pixel 8|Pixel-class|dragging previews|run the player cannot|surface and queue|remove toggle|hint the first|piece mode|piece direction|refused tile|turning corner|lower and smooth|land outside|dragging up|flatten|phone speed|Options Game tab|step through the speeds\" e2e/area-tools e2e/camera-rotation e2e/context-menu e2e/desktop-toolbar e2e/footpath-tool e2e/game-speed-controls e2e/land-tool e2e/message-controls"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

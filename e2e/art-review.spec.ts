@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import sharp from 'sharp';
-import { chromium, expect as baseExpect, test as baseTest } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { chromium, expect as baseExpect, test as baseTest } from './support/test';
+import type { Page } from './support/test';
 import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import { SCENERY_CATALOG } from '../src/sim/map/scenery';
 import { project } from '../src/render/projection';
@@ -785,7 +785,7 @@ test('captures flowerbeds across renderers, zooms, and rotations @art-review', a
   expect(await page.locator('#art-review-canvas2d').count()).toBe(1);
 });
 
-test('keeps path pixels visible beside a garden row, guests, and a bin in every renderer and rotation', async ({
+test('keeps path pixels visible beside a garden row, guests, and a bin in every renderer and rotation @art-review', async ({
   page,
 }) => {
   test.setTimeout(1_200_000);

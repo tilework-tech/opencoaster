@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
-import { test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import { test } from './support/test';
+import type { Locator, Page } from './support/test';
 import { ElementType, PathFlag } from '../src/sim/map/tile-map';
 import type { TileMap } from '../src/sim/map/tile-map';
 import {

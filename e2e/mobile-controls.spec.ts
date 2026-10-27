@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 
 test.use({
   viewport: { width: 390, height: 844 },

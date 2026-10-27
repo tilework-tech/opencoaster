@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { test } from './support/test';
+import type { Page } from './support/test';
 import { World } from '../src/sim/core/world';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
@@ -127,10 +127,9 @@ test.describe('map right-click', () => {
     for (const ride of rides) {
       const at = await aimAt(page, world, ride.x, ride.y);
       expect(await rightClick(page, at)).toBe(true);
-      await expect(page.locator(`.ui-window[data-panel="ride-${ride.id}"]`)).toBeVisible();
-      await expect(page.locator('.tool-status')).toContainText(
-        `Ride ${ride.id + 1} information opened`,
-      );
+      const rideWindow = page.locator(`.ui-window[data-panel="ride-${ride.id}"]`);
+      await expect(rideWindow).toBeVisible();
+      await expect(rideWindow.locator('.ui-title')).toContainText(ride.name);
       await closeWindows(page);
     }
   });

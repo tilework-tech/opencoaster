@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page } from './support/test';
 import { project } from '../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { OWNED } from '../src/sim/map/tile-map';

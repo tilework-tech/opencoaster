@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page } from './support/test';
 
 test.use({ viewport: { width: 390, height: 780 }, hasTouch: true, isMobile: true });
 

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 
 test('new ride menu offers only the starting rides and filters them by tab', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });

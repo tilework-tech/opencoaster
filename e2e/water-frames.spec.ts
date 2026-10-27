@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { test } from '@playwright/test';
-import type { Locator } from '@playwright/test';
+import { test } from './support/test';
+import type { Locator } from './support/test';
 import { serialize } from '../src/save/save';
 import {
   calibrate,

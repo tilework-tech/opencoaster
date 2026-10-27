@@ -1,5 +1,6 @@
-import { expect, test, devices } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { expect, test, devices } from './support/test';
+import { createTestContext } from './support/test-contexts';
+import type { Page } from './support/test';
 import sharp from 'sharp';
 
 async function startSandbox(page: Page): Promise<void> {
@@ -43,7 +44,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
     test.setTimeout(120_000);
     const { defaultBrowserType: _browserType, ...options } = mobile ? devices['Pixel 8'] : {};
     void _browserType;
-    const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+    const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
     const page = await context.newPage();
     page.setDefaultTimeout(8_000);
     await startSandbox(page);
@@ -63,7 +64,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
     test.setTimeout(120_000);
     const { defaultBrowserType: _browserType, ...options } = mobile ? devices['Pixel 8'] : {};
     void _browserType;
-    const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+    const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
     const page = await context.newPage();
     page.setDefaultTimeout(8_000);
     await startSandbox(page);

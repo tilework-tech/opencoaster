@@ -1,11 +1,12 @@
-import { devices, expect, test } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import { createTestContext } from './support/test-contexts';
 
 test('the app shell reloads offline after the mobile service worker is installed', async ({
   browser,
 }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });

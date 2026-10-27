@@ -1,13 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { devices, expect, test } from '@playwright/test';
-import type { Browser, Page, TestInfo } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Browser, Page, TestInfo } from './support/test';
 import { World } from '../src/sim/core/world';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { serialize } from '../src/save/save';
 import sharp from 'sharp';
+import { createTestContext } from './support/test-contexts';
 import { footprintRing, footprintTiles } from './support/footprints';
 import { expectRingCandidates } from './support/shots';
 
@@ -55,7 +56,7 @@ function changed(a: Shot, b: Shot, x: number, y: number): boolean {
 async function openPage(browser: Browser, mobile: boolean): Promise<Page> {
   const { defaultBrowserType: _browserType, ...options } = mobile ? devices['Pixel 8'] : {};
   void _browserType;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
   return context.newPage();
 }
 

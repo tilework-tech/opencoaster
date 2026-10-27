@@ -1,5 +1,5 @@
-import { devices, expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Page } from './support/test';
 
 const pixel8 = devices['Pixel 8'];
 
