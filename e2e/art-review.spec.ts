@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import sharp from 'sharp';
-import { chromium, expect as baseExpect, test as baseTest } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { chromium, expect as baseExpect, test as baseTest } from './support/test';
+import type { Page } from './support/test';
 import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import { SCENERY_CATALOG } from '../src/sim/map/scenery';
 import { project } from '../src/render/projection';

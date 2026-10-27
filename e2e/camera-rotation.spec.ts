@@ -1,5 +1,6 @@
-import { devices, expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Page } from './support/test';
+import { createTestContext } from './support/test-contexts';
 
 type Rotation = 0 | 1 | 2 | 3;
 
@@ -244,7 +245,7 @@ test('Pixel 8 exposes both rotate controls and rotates both ways with a two-fing
 }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await startSandbox(page, true);

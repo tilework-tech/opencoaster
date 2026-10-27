@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from './support/test';
 import { openPage, toolbarAction } from './support/park';
 import { inspectionShowcase } from './support/inspection-showcase';
 import { takeShot } from './support/shots';

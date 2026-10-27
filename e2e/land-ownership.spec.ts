@@ -1,4 +1,5 @@
-import { devices, expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from './support/test';
+import { createTestContext } from './support/test-contexts';
 
 async function startStarterPark(page: Page): Promise<void> {
   await page.goto('/');
@@ -138,7 +139,10 @@ test('shows an explanatory red build preview while hovering over unowned land', 
 });
 
 test('land rights purchase controls fit the Pixel 8 bottom sheet', async ({ browser }) => {
-  const context = await browser.newContext({ ...devices['Pixel 8'], serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, {
+    ...devices['Pixel 8'],
+    serviceWorkers: 'allow',
+  });
   const page = await context.newPage();
   await startStarterPark(page);
   await page.locator('[data-panel="park"]').getByRole('button', { name: 'Land rights' }).tap();

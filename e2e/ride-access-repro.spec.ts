@@ -1,13 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
 import { RideType } from '../src/sim/rides/ride-types';
-import type { Locator, Page, TestInfo } from '@playwright/test';
+import type { Locator, Page, TestInfo } from './support/test';
 import { adjacentPathTiles, clickGameTile, createScenarioWorld } from './footpath-helpers';
 
 const starterScenario = parseScenarioFile(

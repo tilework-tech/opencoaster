@@ -1,7 +1,7 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { MAP_CENTER, centerMapOnTile, tileScreenPoint } from './support/footprints';
 import type { Tile } from './support/footprints';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';

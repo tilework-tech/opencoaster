@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { devices, expect } from '@playwright/test';
 import type { Browser, Page, TestInfo } from '@playwright/test';
+import { createTestContext } from './support/test-contexts';
 import { project } from '../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { createScenarioWorld, dragThrough, tileScreenPoint, toolbarTool } from './footpath-helpers';
@@ -237,7 +238,7 @@ export async function openPage(
 ): Promise<Page> {
   const { defaultBrowserType: _browserType, ...device } = mobile ? devices['Pixel 8'] : {};
   void _browserType;
-  const context = await browser.newContext({
+  const context = await createTestContext(browser, {
     ...device,
     baseURL: options.baseURL ?? 'http://127.0.0.1:4173',
     ...(options.scale ? { deviceScaleFactor: options.scale } : {}),

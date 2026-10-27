@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 
 /**
  * Renders a fixture park holding one of every placed object kind in all four rotations in both

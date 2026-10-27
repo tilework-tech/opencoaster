@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { mkdir } from 'node:fs/promises';
 
 test('management windows, desktop resizing, options and screenshot shortcut', async ({ page }) => {

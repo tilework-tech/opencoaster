@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { devices, expect as baseExpect } from '@playwright/test';
 import type { Browser, Locator, Page } from '@playwright/test';
+import { createTestContext } from './test-contexts';
 import { World } from '../../src/sim/core/world';
 import { deserialize } from '../../src/save/save';
 import { parseScenarioFile } from '../../src/sim/scenario/scenario-file';
@@ -40,7 +41,7 @@ export function starterWorld(): World {
 export async function openPage(browser: Browser, mobile: boolean): Promise<Page> {
   const { defaultBrowserType: _type, ...options } = mobile ? devices['Pixel 8'] : {};
   void _type;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'block' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'block' });
   const page = await context.newPage();
   page.setDefaultTimeout(15_000);
   return page;

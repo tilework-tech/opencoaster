@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { test } from './support/test';
+import type { Page } from './support/test';
 import { World } from '../src/sim/core/world';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';

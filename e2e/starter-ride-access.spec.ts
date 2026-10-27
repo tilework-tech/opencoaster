@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { devices, expect, test } from '@playwright/test';
-import type { Page, TestInfo } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Page, TestInfo } from './support/test';
+import { createTestContext } from './support/test-contexts';
 import { World } from '../src/sim/core/world';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
@@ -453,7 +454,7 @@ test('new Starter Park builds and opens rides and a stall before guests ride (Pi
 }, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
   await playStarterRideAccess(page, true, testInfo);
   await context.close();
@@ -480,7 +481,7 @@ test('Starter Park explains when coaster track crosses open water (Pixel 8)', as
 }, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
   await playStarterCoasterOverWater(page, true, testInfo);
   await context.close();
@@ -514,9 +515,7 @@ test('opens and demolishes a flat ride, stall, and coaster with the displayed re
         await expect(page.locator('.hud')).toContainText(`rot ${(rotation + turn) % 4}`);
       }
       await contextClickAtTile(page, 23, 42);
-      await expect(page.locator('.tool-status')).toContainText(
-        `${name} information opened`,
-      );
+      await expect(page.locator('.tool-status')).toContainText(`${name} information opened`);
     }
     await expect(rideWindow).toBeVisible();
     await expect(rideWindow.getByRole('tab', { name: 'View' })).toHaveAttribute(

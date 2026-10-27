@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from './support/test';
 import { World } from '../src/sim/core/world';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';

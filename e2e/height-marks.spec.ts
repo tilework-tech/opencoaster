@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test';
 import { openPage, startScenario } from './support/park';
 
 async function setDisplayOption(page: Page, name: string, on: boolean): Promise<void> {

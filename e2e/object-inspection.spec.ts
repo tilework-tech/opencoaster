@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Browser, type Page, type TestInfo } from './support/test';
 import { openPage, startScenario, toolbarAction } from './support/park';
 
 async function visibleSceneryPoint(page: Page): Promise<{ name: string; x: number; y: number }> {

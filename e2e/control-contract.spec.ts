@@ -1,5 +1,6 @@
-import { devices, expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Locator, Page } from './support/test';
+import { createTestContext } from './support/test-contexts';
 import { readFileSync } from 'node:fs';
 import { pickTile, project } from '../src/render/projection';
 import { ElementType } from '../src/sim/map/tile-map';
@@ -647,7 +648,7 @@ test('enabled Pixel 8 toolbar and window controls cause an observable effect', a
   visitedDetailTypes.clear();
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext(device);
+  const context = await createTestContext(browser, device);
   const page = await context.newPage();
   try {
     await startSandbox(page, true);
@@ -742,7 +743,7 @@ test('every window and camera shortcut produces its documented effect', async ({
 test('Pixel 8 can close a pinned staff window', async ({ browser }) => {
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext(device);
+  const context = await createTestContext(browser, device);
   const page = await context.newPage();
   try {
     await startSandbox(page, true);

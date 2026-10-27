@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { steelShowcaseSave } from './support/steel-showcase';
 
 test('a steel looping coaster draws connected track and supports in all four views', async ({

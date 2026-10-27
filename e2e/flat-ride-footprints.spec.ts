@@ -1,5 +1,6 @@
-import { devices, expect, test } from '@playwright/test';
-import type { Page, TestInfo } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Page, TestInfo } from './support/test';
+import { createTestContext } from './support/test-contexts';
 import { RideType } from '../src/sim/rides/ride-types';
 import {
   MAP_CENTER,
@@ -398,7 +399,7 @@ test('the Rotate ride button clears the phone HUD and docked windows', async ({
 }, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+  const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
   await startStarterPark(page, true);

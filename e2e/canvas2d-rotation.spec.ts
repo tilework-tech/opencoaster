@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 
 test('Canvas2D survives staff hires, two full view rotations and zoom changes without frame stalls', async ({
   page,

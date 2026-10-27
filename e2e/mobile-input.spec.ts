@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { devices, expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { devices, expect, test } from './support/test';
+import type { Page } from './support/test';
+import { createTestContext } from './support/test-contexts';
 
 interface CdpSession {
   send(method: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -124,7 +125,7 @@ for (const { name, device } of mobileProfiles) {
   }, testInfo) => {
     const { defaultBrowserType: _browserType, ...options } = device;
     void _browserType;
-    const context = await browser.newContext({ ...options, serviceWorkers: 'allow' });
+    const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });
     const page = await context.newPage();
     const cdp = await context.newCDPSession(page);
 
@@ -240,7 +241,7 @@ for (const { name, device } of mobileProfiles) {
 test('mobile viewport resizes, pauses while hidden, and resumes on return', async ({ browser }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options });
+  const context = await createTestContext(browser, { ...options });
   const page = await context.newPage();
   await page.goto('/');
   await page.getByRole('button', { name: 'Sandbox' }).click();
@@ -306,7 +307,7 @@ test('mobile viewport resizes, pauses while hidden, and resumes on return', asyn
 test('mobile-emulated rendering reports frame rate with 2,000 guests', async ({ browser }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
-  const context = await browser.newContext({ ...options });
+  const context = await createTestContext(browser, { ...options });
   const page = await context.newPage();
   await page.goto('/');
   await page.getByRole('button', { name: 'Sandbox' }).click();

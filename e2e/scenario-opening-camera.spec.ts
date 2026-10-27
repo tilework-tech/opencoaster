@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { World } from '../src/sim/core/world';
