@@ -39,6 +39,7 @@ export interface FootpathControls {
   setSlope(slope: PieceSlope): void;
   build(): Promise<void>;
   remove(): void;
+  demolishLast(): void;
   announce(text: string): void;
   leave(): void;
 }

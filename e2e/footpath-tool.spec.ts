@@ -202,7 +202,9 @@ test.describe('footpath tool (desktop)', () => {
 
     await page.getByRole('button', { name: 'Build', exact: true }).click();
     await expect(page.locator('.tool-status')).toHaveText(
-      `Built at ${tile!.x}, ${tile!.y}. Cursor moved to ${tile!.x + 1}, ${tile!.y}.`,
+      new RegExp(
+        `^Built at ${tile!.x}, ${tile!.y}. Cursor moved to ${tile!.x + 1}, ${tile!.y} at level \\d+\\.$`,
+      ),
     );
     await expect.poll(() => hudCashCents(page)).toBe(before - PATH_COST_CENTS);
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pathRunTiles, pieceSlope, stepCursor } from './run';
+import { exitLevel, pathRunTiles, pieceBase, pieceSlope, stepCursor } from './run';
 
 describe('pathRunTiles', () => {
   it('is the single anchor tile when the drag stays on it', () => {
@@ -64,5 +64,66 @@ describe('stepCursor', () => {
     expect(stepCursor({ x: 4, y: 4 }, 1)).toEqual({ x: 4, y: 5 });
     expect(stepCursor({ x: 4, y: 4 }, 2)).toEqual({ x: 3, y: 4 });
     expect(stepCursor({ x: 4, y: 4 }, 3)).toEqual({ x: 4, y: 3 });
+  });
+});
+
+describe('pieceBase', () => {
+  it('rests a level or up piece on the entry level', () => {
+    expect(pieceBase(5, 'level')).toBe(5);
+    expect(pieceBase(5, 'up')).toBe(5);
+  });
+
+  it('rests a down piece one level below the entry, so its high end meets the entry', () => {
+    expect(pieceBase(5, 'down')).toBe(4);
+  });
+
+  it('leaves the base to the ground when the cursor has no level', () => {
+    expect(pieceBase(null, 'level')).toBeUndefined();
+    expect(pieceBase(null, 'up')).toBeUndefined();
+    expect(pieceBase(null, 'down')).toBeUndefined();
+  });
+});
+
+describe('exitLevel', () => {
+  it('is the base for a flat piece', () => {
+    expect(exitLevel(3, -1, 0)).toBe(3);
+  });
+
+  it('is one above the base when the piece rises toward the way on', () => {
+    expect(exitLevel(3, 0, 0)).toBe(4);
+  });
+
+  it('is the base when the piece rises back toward where it came from', () => {
+    expect(exitLevel(3, 2, 0)).toBe(3);
+  });
+
+  it('has no exit when the piece rises sideways', () => {
+    expect(exitLevel(3, 1, 0)).toBeNull();
+  });
+});
+
+describe('chained pieces', () => {
+  /** Builds pieces facing +x from an entry level and returns every base and the final level. */
+  function chain(entry: number, slopes: Array<'level' | 'up' | 'down'>) {
+    let level = entry;
+    const bases: number[] = [];
+    for (const slope of slopes) {
+      const base = pieceBase(level, slope)!;
+      bases.push(base);
+      level = exitLevel(base, pieceSlope(0, slope), 0)!;
+    }
+    return { bases, level };
+  }
+
+  it('climbs four levels, runs level, then descends four', () => {
+    const up = chain(2, ['up', 'up', 'up', 'up']);
+    expect(up.bases).toEqual([2, 3, 4, 5]);
+    expect(up.level).toBe(6);
+    const level = chain(up.level, ['level', 'level']);
+    expect(level.bases).toEqual([6, 6]);
+    expect(level.level).toBe(6);
+    const down = chain(level.level, ['down', 'down', 'down', 'down']);
+    expect(down.bases).toEqual([5, 4, 3, 2]);
+    expect(down.level).toBe(2);
   });
 });

@@ -13,6 +13,11 @@ export interface PathToolState {
   slope: PieceSlope;
   /** Piece mode: the tile the next Build or Remove acts on. */
   cursor: Tile | null;
+  /**
+   * Piece mode: the height level of the cursor's entry edge, so the next piece joins the end of the
+   * last one. Null rests the next piece on the ground of the cursor tile.
+   */
+  cursorLevel: number | null;
 }
 
 export function createPathState(): PathToolState {
@@ -23,6 +28,7 @@ export function createPathState(): PathToolState {
     dir: 0,
     slope: 'level',
     cursor: null,
+    cursorLevel: null,
   };
 }
 

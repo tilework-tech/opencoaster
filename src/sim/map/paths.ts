@@ -390,9 +390,10 @@ export function planPathPlacement(m: TileMap, p: PathPlacement): PathPlan {
   const style = p.style ?? PathStyle.Tarmac;
   if (!Number.isInteger(style) || style < PathStyle.Tarmac || style > PathStyle.Dirt)
     return refusedPlan(PathResult.InvalidPiece, i);
-  const dir = requested >= 0 ? requested : terrainPathDirection(m, i);
-  if (dir === null) return refusedPlan(PathResult.UnevenGround, i);
   const z = p.z ?? m.heights[i];
+  const floating = p.z !== undefined && z >= m.heights[i] + (m.slope[i] !== 0 ? 1 : 0);
+  const dir = requested >= 0 ? requested : floating ? -1 : terrainPathDirection(m, i);
+  if (dir === null) return refusedPlan(PathResult.UnevenGround, i);
   if (!Number.isInteger(z) || z > MAX_ELEMENT_BASE) return refusedPlan(PathResult.InvalidPiece, i);
   if (z < m.heights[i]) return refusedPlan(PathResult.BelowGround, i);
 

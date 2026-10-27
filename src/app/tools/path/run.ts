@@ -46,3 +46,20 @@ export function stepCursor(tile: Tile, dir: number): Tile {
   const step = STEPS[dir & 3]!;
   return { x: tile.x + step.x, y: tile.y + step.y };
 }
+
+/** Base level for a piece entered at `entry` (the level of its entry edge), or undefined to rest on the ground. */
+export function pieceBase(entry: number | null, slope: PieceSlope): number | undefined {
+  if (entry === null) return undefined;
+  return slope === 'down' ? entry - 1 : entry;
+}
+
+/**
+ * Level of the edge a piece leaves by when travelling `travel`, given its base and the direction it
+ * rises toward (-1 when flat); null when it rises sideways and so has no exit that way.
+ */
+export function exitLevel(base: number, rises: number, travel: number): number | null {
+  if (rises < 0) return base;
+  if (rises === travel) return base + 1;
+  if (rises === ((travel + 2) & 3)) return base;
+  return null;
+}
