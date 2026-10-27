@@ -9,7 +9,7 @@ import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { GuestState } from '../sim/guests/guest-store';
 import { recountRideLines } from '../sim/guests/ride-lines';
-import { getConstructionCursor } from '../sim/track/construction';
+import { circuitStatus, getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
 import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/ledger';
@@ -123,6 +123,8 @@ export const enum RideFlag {
   CircuitClosed = 1 << 4,
   /** The entrance sits on a queue tile, so guests line up on a built queue. */
   HasQueue = 1 << 5,
+  /** The circuit is closed and includes a station: the minimum for testing the ride. */
+  CircuitComplete = 1 << 6,
 }
 
 export interface DecodedCursor {
@@ -401,7 +403,8 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
     (r.queueConnected[slot] ? RideFlag.QueueConnected : 0) |
     (r.tested[slot] ? RideFlag.Tested : 0) |
     (world.queues.hasQueue[slot] ? RideFlag.HasQueue : 0) |
-    (trackRide && world.track.closed[rideId] ? RideFlag.CircuitClosed : 0);
+    (trackRide && world.track.closed[rideId] ? RideFlag.CircuitClosed : 0) |
+    (trackRide && circuitStatus(world, rideId).complete ? RideFlag.CircuitComplete : 0);
   info[o + RideInfo.GuestsServed] = r.guestsServed[slot];
   info[o + RideInfo.Price] = r.price[slot];
   info[o + RideInfo.TrackPieces] = trackRide ? world.track.count[rideId] : 0;

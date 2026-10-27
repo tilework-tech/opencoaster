@@ -1,3 +1,4 @@
+import { circuitLabel } from '../coaster-panel';
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import type { RideType } from '../../sim/rides/ride-types';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
@@ -130,9 +131,15 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   carsInput.min = '0';
   carsInput.value = '0';
   carsInput.setAttribute('aria-label', 'Cars per train (0 for default)');
+  let layoutEdited = false;
+  for (const input of [trainsInput, carsInput])
+    input.addEventListener('input', () => (layoutEdited = true));
   const setTrains = button(
     'Set trains',
-    () => ctx.actions.setRideTrains(rideId, Number(trainsInput.value), Number(carsInput.value)),
+    () => {
+      layoutEdited = false;
+      ctx.actions.setRideTrains(rideId, Number(trainsInput.value), Number(carsInput.value));
+    },
     'ui-button',
   );
   const trainsRow = element('div', 'button-row');
@@ -367,10 +374,10 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         trainsValue > maxTrains ||
         carsValue > maxCars;
       setTrains.disabled = layoutLocked || outOfRange;
-      if (!layoutLocked && document.activeElement !== trainsInput)
+      if (!layoutEdited) {
         trainsInput.value = String(info[o + RideInfo.TrainsSet]);
-      if (!layoutLocked && document.activeElement !== carsInput)
         carsInput.value = String(info[o + RideInfo.CarsSet]);
+      }
       setText(
         trainsReason,
         layoutLocked
@@ -409,7 +416,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(
         measurements.pieces.value,
         def?.usesTrack
-          ? `${info[o + RideInfo.TrackPieces]} pieces${flags & RideFlag.CircuitClosed ? ', closed circuit' : ''}`
+          ? `${info[o + RideInfo.TrackPieces]} pieces · ${circuitLabel(flags)}`
           : 'not a track ride',
       );
 

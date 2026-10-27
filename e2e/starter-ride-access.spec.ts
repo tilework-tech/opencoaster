@@ -357,7 +357,7 @@ async function playStarterRideAccess(
   await placePiece('Right small', 'Level');
   await placePiece('Straight', 'Level');
   await placePiece('Right small', 'Level');
-  await expect(page.locator('.coaster-info')).toContainText('closed circuit');
+  await expect(page.locator('.coaster-info')).toContainText('Circuit complete');
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   await placeStationPart(page, 'Place exit', mobile, mapCenter, [28, 43]);
   await placeStationPart(page, 'Test ride', mobile, mapCenter, [29, 43]);
