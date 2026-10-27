@@ -19,7 +19,7 @@ The owner-reported pre-#139 WebGL2 range was 2.56–2.81 ms; #139 raised it to 3
 
 ## Canvas2D and weather
 
-The Canvas2D renderer itself was not changed by this optimization. Its measured depth-composite/writeback CPU medians in the paired capture were 24.99/0.56 ms at DPR1 before and 25.27/0.55 ms after; at DPR2 they were 28.08/1.21 ms before and 28.29/1.22 ms after. These CPU-only method timings varied across fresh browser processes, so they are not used as a Canvas2D performance claim. A later isolated capture measured 12.59/0.50 ms at DPR1 and 27.90/1.19 ms at DPR2.
+The Canvas2D renderer itself was not changed by this optimization. In the initial paired capture, completed-frame medians were 47.18 ms before / 47.89 ms after at DPR1, and 49.75 / 49.99 ms at DPR2. Depth-composite/writeback CPU medians were 24.99/0.56 ms before and 25.27/0.55 ms after at DPR1; at DPR2 they were 28.08/1.21 ms before and 28.29/1.22 ms after. Later fresh-process captures varied substantially (including 23.5 ms at DPR1 and 50.2 ms at DPR2 after), so treat the initial pair as one noisy run and make no Canvas2D performance claim. The screenshots document the renderer output before and after.
 
 The CSS rain overlay is outside `renderer.draw()`. Median RAF interval was 16.665 ms with rain and 16.665 ms after removing the overlay in the same page.
 
