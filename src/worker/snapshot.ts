@@ -25,7 +25,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 31;
+export const RIDE_INFO_STRIDE = 32;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -97,6 +97,8 @@ export const enum RideInfo {
   QueueCapacity = 29,
   /** The operator's queue length limit; 0 means none. */
   QueueLimit = 30,
+  /** Ticks spent in the current ride phase, used to synchronize animated ride sprites. */
+  PhaseTicks = 31,
 }
 
 export const enum RideFlag {
@@ -397,6 +399,7 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.WaitTicks] = estimatedWaitTicks(world, slot);
   info[o + RideInfo.QueueCapacity] = rideQueueCapacity(world, slot);
   info[o + RideInfo.QueueLimit] = r.queueLimit[slot];
+  info[o + RideInfo.PhaseTicks] = r.phaseTicks[slot];
   if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;

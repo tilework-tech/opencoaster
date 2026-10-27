@@ -232,9 +232,22 @@ export function merryGoRoundSeats(frame: number): Vec3[] {
 // ---------------------------------------------------------------------------------------------
 // Swinging ship, 1 x 5 (long axis y)
 
-export const SHIP_AXLE_Z = 2.3;
-const SHIP_ARM = 1.62;
-export const SHIP_SWING_DEGREES = [4, 14, 23, 28, 19, 8, -12, -24] as const;
+export const SHIP_AXLE_Z = 3.4;
+const SHIP_ARM = 1.9;
+const SHIP_MAX_SWING_DEGREES = 60;
+
+function swingingShipProfile(): number[] {
+  const passes = [20, 32, 44, 54, 60, -60, 60, -60, 52, -36, 18, 0];
+  const angles = [0];
+  for (const amplitude of passes) {
+    for (let step = 1; step <= 6; step++) {
+      angles.push(amplitude * Math.sin((step / 6) * Math.PI));
+    }
+  }
+  return angles;
+}
+
+export const SHIP_SWING_DEGREES = swingingShipProfile();
 
 function shipHull(): Mesh {
   const mesh: Mesh = [];
@@ -243,7 +256,7 @@ function shipHull(): Mesh {
   const section = (t: number): Vec3[] => {
     const y = t * length;
     const rise = Math.abs(t) ** 3 * 0.6;
-    const width = 0.45 * (1 - 0.5 * Math.abs(t) ** 3);
+    const width = 0.34 * (1 - 0.5 * Math.abs(t) ** 3);
     const sideTop = 0.4 + rise;
     return [
       [-width, y, sideTop],
@@ -258,43 +271,62 @@ function shipHull(): Mesh {
     mesh.push(...loft(a, b, i % 2 === 0 ? RED : mat('brick')));
   }
   // deck, rails and prow ornaments
-  mesh.push(...box([-0.34, -1.6, 0.1], [0.34, 1.6, 0.16], BLUE));
-  mesh.push(...box([-0.4, -1.62, 0.38], [-0.35, 1.62, 0.42], YELLOW));
-  mesh.push(...box([0.35, -1.62, 0.38], [0.4, 1.62, 0.42], YELLOW));
+  mesh.push(...box([-0.3, -1.6, 0.1], [0.3, 1.6, 0.16], BLUE));
+  mesh.push(...box([-0.34, -1.62, 0.38], [-0.3, 1.62, 0.42], YELLOW));
+  mesh.push(...box([0.3, -1.62, 0.38], [0.34, 1.62, 0.42], YELLOW));
   for (const s of [-1, 1]) {
     mesh.push(...beam([0, s * 1.6, 0.5], [0, s * 1.78, 1.0], 0.1, YELLOW));
     mesh.push(...box([-0.08, s * 1.76 - 0.06, 0.98], [0.08, s * 1.76 + 0.06, 1.12], WHITE));
   }
   for (let i = -4; i <= 4; i++)
-    mesh.push(...box([-0.34, i * 0.38 - 0.03, 0.16], [0.34, i * 0.38 + 0.03, 0.4], WHITE));
+    mesh.push(...box([-0.3, i * 0.38 - 0.03, 0.16], [0.3, i * 0.38 + 0.03, 0.4], WHITE));
   return mesh;
+}
+
+function rotateShipPoint(point: Vec3, swing: number): Vec3 {
+  const [x, y, z] = point;
+  const dy = y;
+  const dz = z - SHIP_AXLE_Z;
+  return [x, dy * Math.cos(swing) - dz * Math.sin(swing), SHIP_AXLE_Z + dy * Math.sin(swing) + dz * Math.cos(swing)];
+}
+
+/** Hull mesh after rotation around the crosswise axle. */
+export function swingingShipHull(frame: number): Mesh {
+  const swing = ((SHIP_SWING_DEGREES[frame] ?? 0) * Math.PI) / 180;
+  const hullTop = SHIP_AXLE_Z - SHIP_ARM;
+  return rotateX(translateMesh(shipHull(), 0, 0, hullTop - 0.04), swing, 0, SHIP_AXLE_Z);
+}
+
+/** Axle and hull attachment points for the two rigid pendulum arms. */
+export function swingingShipArmEndpoints(frame: number): Array<readonly [Vec3, Vec3]> {
+  const swing = ((SHIP_SWING_DEGREES[frame] ?? 0) * Math.PI) / 180;
+  const hullTop = SHIP_AXLE_Z - SHIP_ARM;
+  return [-0.25, 0.25].map((x) => [
+    rotateShipPoint([x, 0, SHIP_AXLE_Z], swing),
+    rotateShipPoint([x, 0, hullTop + 0.36], swing),
+  ] as const);
 }
 
 /** Swinging ship; `frame` 0..7 indexes `SHIP_SWING_DEGREES`, negative is the idle pose. */
 export function swingingShip(frame: number): Mesh {
   const mesh: Mesh = [];
-  const swing = ((SHIP_SWING_DEGREES[frame] ?? 0) * Math.PI) / 180;
   mesh.push(...box([-0.48, -2.4, 0], [0.48, 2.4, 0.07], STONE));
-  for (const y of [-1.45, 1.45]) {
-    mesh.push(...beam([-0.44, y, 0.07], [0, y, SHIP_AXLE_Z], 0.13, WHITE));
-    mesh.push(...beam([0.44, y, 0.07], [0, y, SHIP_AXLE_Z], 0.13, WHITE));
-    mesh.push(...beam([-0.4, y, 0.8], [0.4, y, 0.8], 0.07, STEEL));
-    mesh.push(...box([-0.52, y - 0.12, 0.07], [-0.34, y + 0.12, 0.2], STEEL));
-    mesh.push(...box([0.34, y - 0.12, 0.07], [0.52, y + 0.12, 0.2], STEEL));
+  for (const x of [-0.44, 0.44]) {
+    mesh.push(...beam([x, -1.45, 0.07], [x, 0, SHIP_AXLE_Z], 0.07, WHITE));
+    mesh.push(...beam([x, 1.45, 0.07], [x, 0, SHIP_AXLE_Z], 0.07, WHITE));
+    mesh.push(...box([x - 0.06, -1.58, 0.07], [x + 0.06, -1.32, 0.2], STEEL));
+    mesh.push(...box([x - 0.06, 1.32, 0.07], [x + 0.06, 1.58, 0.2], STEEL));
   }
-  mesh.push(...beam([0, -1.6, SHIP_AXLE_Z], [0, 1.6, SHIP_AXLE_Z], 0.1, STEEL));
-  mesh.push(...box([-0.09, -1.62, SHIP_AXLE_Z + 0.04], [0.09, 1.62, SHIP_AXLE_Z + 0.12], RED));
-  const hullTop = SHIP_AXLE_Z - SHIP_ARM;
-  const hanging: Mesh = [
-    ...beam([0, -0.85, SHIP_AXLE_Z], [0, -0.85, hullTop + 0.2], 0.07, STEEL),
-    ...beam([0, 0.85, SHIP_AXLE_Z], [0, 0.85, hullTop + 0.2], 0.07, STEEL),
-    ...translateMesh(shipHull(), 0, 0, hullTop - 0.04),
-  ];
-  mesh.push(...rotateX(hanging, swing, 0, SHIP_AXLE_Z));
+  mesh.push(...beam([-0.48, 0, SHIP_AXLE_Z], [0.48, 0, SHIP_AXLE_Z], 0.1, STEEL));
+  mesh.push(...beam([-0.44, -1.45, 0.8], [-0.44, 1.45, 0.8], 0.06, STEEL));
+  mesh.push(...beam([0.44, -1.45, 0.8], [0.44, 1.45, 0.8], 0.06, STEEL));
+  for (const [pivot, attachment] of swingingShipArmEndpoints(frame))
+    mesh.push(...beam(pivot, attachment, 0.07, STEEL));
+  mesh.push(...swingingShipHull(frame));
   return mesh;
 }
 
-/** Seats of the ship's riders in the swinging frame `frame` (0..7). */
+/** Seats of the ship's riders in operating frame `frame` (0..SHIP_SWING_DEGREES.length-1). */
 export function swingingShipSeats(frame: number): Vec3[] {
   const swing = (SHIP_SWING_DEGREES[frame] * Math.PI) / 180;
   const hullTop = SHIP_AXLE_Z - SHIP_ARM;
@@ -303,13 +335,7 @@ export function swingingShipSeats(frame: number): Vec3[] {
     for (const x of [-0.2, 0.2]) {
       const y = -0.95 + i * 0.38;
       const z = hullTop - 0.04 + 0.16;
-      const dy = y;
-      const dz = z - SHIP_AXLE_Z;
-      out.push([
-        x,
-        dy * Math.cos(swing) - dz * Math.sin(swing),
-        SHIP_AXLE_Z + dy * Math.sin(swing) + dz * Math.cos(swing),
-      ]);
+      out.push(rotateShipPoint([x, y, z], swing));
     }
   return out;
 }

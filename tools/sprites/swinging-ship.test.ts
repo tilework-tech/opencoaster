@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { rotatePoint } from './mesh';
 import type { Vec3 } from './mesh';
-import { ramp } from './palette';
-import { SHIP_AXLE_Z, SHIP_SWING_DEGREES, swingingShip, swingingShipSeats } from './models/flat-rides';
+import {
+  SHIP_AXLE_Z,
+  SHIP_SWING_DEGREES,
+  swingingShipArmEndpoints,
+  swingingShipHull,
+  swingingShipSeats,
+} from './models/flat-rides';
 
-const hullRamps = [ramp('red'), ramp('brick')];
 const PLATFORM_TOP = 0.07;
 const HULL_SIDE_CLEARANCE = 0.06;
 
 function hullVertices(frame: number): Vec3[] {
-  return swingingShip(frame)
-    .filter((triangle) => hullRamps.includes(triangle.material.ramp))
-    .flatMap((triangle) => triangle.v);
+  return swingingShipHull(frame).flatMap((triangle) => triangle.v);
 }
 
 describe('swinging ship pendulum', () => {
@@ -37,6 +39,20 @@ describe('swinging ship pendulum', () => {
         expect(Math.max(...across), `frame ${frame}, view ${view}`).toBeLessThanOrEqual(0.44 - HULL_SIDE_CLEARANCE);
         expect(bottom, `frame ${frame}, view ${view}`).toBeGreaterThan(PLATFORM_TOP);
       }
+    }
+  });
+
+  it('keeps both axle-to-hull arm lengths constant through every pose', () => {
+    const reference = swingingShipArmEndpoints(0).map(([pivot, attachment]) =>
+      Math.hypot(attachment[0] - pivot[0], attachment[1] - pivot[1], attachment[2] - pivot[2]),
+    );
+    for (let frame = 1; frame < SHIP_SWING_DEGREES.length; frame++) {
+      swingingShipArmEndpoints(frame).forEach(([pivot, attachment], arm) => {
+        expect(
+          Math.hypot(attachment[0] - pivot[0], attachment[1] - pivot[1], attachment[2] - pivot[2]),
+          `frame ${frame}, arm ${arm}`,
+        ).toBeCloseTo(reference[arm]!, 10);
+      });
     }
   });
 

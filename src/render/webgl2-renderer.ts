@@ -2609,7 +2609,7 @@ export class WebGL2Renderer implements Renderer {
       const item = scene.items[i];
       const entry = spritePages.resolve(item.key);
       if (!entry) continue;
-      const frameIndex = rideSpriteFrame(item.phase, snapshot.tick, entry.frames.length);
+      const frameIndex = rideSpriteFrame(item.phase, snapshot.tick, entry.frames.length, item.phaseTicks);
       const frame = entry.frames[frameIndex] ?? entry.frames[0];
       project(item.x, item.y, item.z, map.width, map.height, camera.rotation, this.projected);
       if (
@@ -2673,6 +2673,7 @@ export class WebGL2Renderer implements Renderer {
         snapshot.rideInfo[offset + RideInfo.Phase],
         snapshot.tick,
         entry?.frames.length ?? 1,
+        snapshot.rideInfo[offset + RideInfo.PhaseTicks],
       );
       const frame = entry?.frames[frameIndex] ?? entry?.frames[0];
       const width = frame?.width ?? 12;

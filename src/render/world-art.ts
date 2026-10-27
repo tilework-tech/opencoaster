@@ -167,7 +167,12 @@ export function rideSpriteFrame(
   phase: RidePhase | number,
   tick: number,
   frameCount: number,
+  phaseTicks?: number,
 ): number {
+  if (frameCount > 9) {
+    if (frameCount < 2 || phase !== RidePhase.Running) return 0;
+    return 1 + (Math.floor(Math.max(0, phaseTicks ?? tick) / TICKS_PER_ANIMATION_FRAME) % (frameCount - 1));
+  }
   if (
     frameCount < 2 ||
     (phase !== RidePhase.Loading && phase !== RidePhase.Running && phase !== RidePhase.Unloading)

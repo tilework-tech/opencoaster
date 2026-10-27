@@ -7,6 +7,7 @@ import {
 } from './world-art';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import { RideType } from '../sim/rides/ride-types';
+import { RidePhase } from '../sim/rides/ride-store';
 import {
   TERRAIN_SLOPE_NAMES,
   atlasFrameOrFallback,
@@ -198,6 +199,10 @@ describe('world art sprite selection', () => {
     expect(rideSpriteFrame(2, 0, 9)).toBe(1);
     expect(rideSpriteFrame(2, 64, 9)).toBe(1);
     expect(rideSpriteFrame(2, 8, 9)).toBe(2);
+    expect(rideSpriteFrame(RidePhase.Loading, 80, 73, 0)).toBe(0);
+    expect(rideSpriteFrame(RidePhase.Running, 0, 73, 0)).toBe(1);
+    expect(rideSpriteFrame(RidePhase.Running, 80, 73, 8)).toBe(2);
+    expect(rideSpriteFrame(RidePhase.Unloading, 400, 73, 200)).toBe(0);
   });
 
   it('aligns native sprites by moving the centred quad from the anchor to the projected point', () => {

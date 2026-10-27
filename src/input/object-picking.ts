@@ -196,7 +196,7 @@ export function buildObjectPickTargets(
           ? facilitySpriteKey(type, facilityFacingFromPaths(x, y, map), camera.rotation)
           : rideSpriteKey(type, camera.rotation);
         add(
-          `${key}#${rideSpriteFrame(snapshot.rideInfo[offset + RideInfo.Phase]!, snapshot.tick, atlas.resolve(key)?.frames.length ?? 1)}`,
+          `${key}#${rideSpriteFrame(snapshot.rideInfo[offset + RideInfo.Phase]!, snapshot.tick, atlas.resolve(key)?.frames.length ?? 1, snapshot.rideInfo[offset + RideInfo.PhaseTicks]!)}`,
           x * TILE_UNITS + 128,
           y * TILE_UNITS + 128,
           groundZ(x, y),
@@ -238,7 +238,7 @@ export function buildObjectPickTargets(
       const item = rideCellScene.items[i]!;
       const definition = RIDE_CATALOG[rideTypes.get(item.rideId)!];
       if (!definition) continue;
-      const key = `${item.key}#${rideSpriteFrame(item.phase, snapshot.tick, atlas.resolve(item.key)?.frames.length ?? 1)}`;
+      const key = `${item.key}#${rideSpriteFrame(item.phase, snapshot.tick, atlas.resolve(item.key)?.frames.length ?? 1, item.phaseTicks)}`;
       const x = Math.floor(item.x / TILE_UNITS);
       const y = Math.floor(item.y / TILE_UNITS);
       add(key, item.x, item.y, item.z, 'ride', definition.name, x, y, item.depth, {
