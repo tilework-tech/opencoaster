@@ -1,0 +1,8 @@
+on load: [{"state":0,"flags":119,"served":0}]
+tested: [{"state":0,"flags":127,"served":0}]
+wooden boarding: tiles=29.6,27.5,8.0 riders=0 served=0
+wooden leaving: tiles=33.4,27.5,9.9 riders=8 served=0
+wooden climbing: tiles=33.8,27.5,10.3 riders=8 served=0
+wooden lap-done: tiles=29.6,27.5,8.0 riders=0 served=8
+wooden: frames boarding, leaving, climbing, lap-done
+final: [{"state":1,"flags":127,"served":8}]
