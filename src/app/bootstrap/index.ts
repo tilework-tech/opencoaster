@@ -14,7 +14,7 @@ import { SaveMenu } from '../../ui/save-menu';
 import { ScenarioDialog } from '../../ui/scenario-dialog';
 import { loadSettings } from '../../ui/settings';
 import type { GameSpeed } from '../../ui/settings';
-import { DEFAULT_MAP_SIZE } from '../../sim/core/constants';
+import { DEFAULT_MAP_SIZE, TRACK_STEPS_PER_LEVEL } from '../../sim/core/constants';
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprites, TrackPreviewOverlay } from '../../ui/track-preview';
@@ -671,7 +671,7 @@ export async function bootstrap(): Promise<void> {
             trackGhost.piece.id,
             trackGhost.placement.x,
             trackGhost.placement.y,
-            trackGhost.level,
+            Math.round(trackGhost.level * TRACK_STEPS_PER_LEVEL),
             trackGhost.placement.dir,
           ) >= 0),
     );
