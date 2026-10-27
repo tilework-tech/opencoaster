@@ -159,6 +159,11 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
     await captureAllViews(page, `${renderer}-refused`);
 
     const station = PIECES.find((piece) => piece.shape === 'station')!;
+    const tracksBeforeUnderpass = await page.evaluate(
+      () =>
+        (window as unknown as { __snapshot?: { tracks: { count: number } } }).__snapshot?.tracks
+          .count ?? 0,
+    );
     await page.evaluate(
       ({
         pieceType,
@@ -233,7 +238,7 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
               .count,
         ),
       )
-      .toBe(3);
+      .toBe(tracksBeforeUnderpass + 1);
     await centreOnTile(page, UNDERPASS_TILE.x, UNDERPASS_TILE.y);
     await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
     await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
