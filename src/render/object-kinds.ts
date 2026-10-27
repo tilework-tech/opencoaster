@@ -1,12 +1,14 @@
 /**
  * Object kinds of world sprites, used to label the renderers' object-ID images (see
- * occlusion-oracle.ts). Ground and water are single shared objects; every other drawn instance
- * gets its own id.
+ * occlusion-oracle.ts). Ground, water and the land overlay are single shared objects; every other
+ * drawn instance gets its own id.
  */
 export const GROUND_OBJECT_ID = 1;
 export const WATER_OBJECT_ID = 2;
+/** The land overlay (unowned land and its sale borders), drawn on the terrain while land tools are open. */
+export const LAND_OVERLAY_OBJECT_ID = 3;
 /** First id handed to an individual (non-ground, non-water) instance. */
-export const FIRST_INSTANCE_OBJECT_ID = 3;
+export const FIRST_INSTANCE_OBJECT_ID = 4;
 
 export type ObjectKind =
   | 'guest'
@@ -28,6 +30,8 @@ export type ObjectKind =
   | 'support'
   | 'vehicle'
   | 'litter'
+  | 'park-fence'
+  | 'land-overlay'
   | 'ground'
   | 'water'
   | 'other';
@@ -52,6 +56,8 @@ export const OBJECT_KINDS: readonly ObjectKind[] = [
   'support',
   'vehicle',
   'litter',
+  'park-fence',
+  'land-overlay',
   'ground',
   'water',
   'other',
@@ -103,6 +109,7 @@ export function objectKind(spriteKey: string): ObjectKind {
     case 'scenery':
       if (second === undefined) return 'other';
       if (second === 'park-entrance') return 'park-gate';
+      if (second === 'park-fence') return 'park-fence';
       if (second === 'shelter') return 'shelter';
       if (second === 'flower-bed') return 'flowerbed';
       if (PATH_ADDITIONS.has(second)) return 'path-addition';

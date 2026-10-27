@@ -344,7 +344,7 @@ function shrubSprites(): SpriteDef[] {
 }
 
 function wallSprites(): SpriteDef[] {
-  return (['hedge', 'wooden-fence', 'stone-fence'] as const)
+  return (['hedge', 'wooden-fence', 'stone-fence', 'park-fence'] as const)
     .flatMap((wall) =>
       Array.from({ length: 4 }, (_, edge) =>
         Array.from({ length: 16 }, (_, slope) =>

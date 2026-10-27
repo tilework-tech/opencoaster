@@ -19,6 +19,8 @@ const zoom = Number(params.get('zoom') ?? 1);
 const viewWidth = Number(params.get('w') ?? 800);
 const viewHeight = Number(params.get('h') ?? 600);
 const backend = params.get('renderer') === 'canvas2d' ? 'canvas2d' : 'webgl2';
+/** The land overlay is on unless land=0, so the boundary and its overlay are scored. */
+const landOverlay = params.get('land') !== '0';
 
 async function main(): Promise<void> {
   const park = buildFuzzPark(seed);
@@ -31,6 +33,7 @@ async function main(): Promise<void> {
   canvas.style.width = `${viewWidth}px`;
   canvas.style.height = `${viewHeight}px`;
   renderer.setMap(park.map);
+  renderer.setLandOverlay(landOverlay);
   const centre = new Float64Array(2);
   // focus=gate or focus=boarding:<i> centres a ride entrance/exit or the park gate.
   const focus = params.get('focus') ?? '';
@@ -62,7 +65,7 @@ async function main(): Promise<void> {
   }
   renderer.draw(park.snapshot, camera);
 
-  const view = { map: park.map, camera, width: viewWidth, height: viewHeight, dpr: 1 };
+  const view = { map: park.map, camera, width: viewWidth, height: viewHeight, dpr: 1, landOverlay };
   const score = (images = false) =>
     scoreFrame(renderer.captureObjectIds(park.snapshot, camera), view, images);
   const pairs = (want: string, got: string) =>

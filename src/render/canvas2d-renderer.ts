@@ -8,7 +8,7 @@ import {
 } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
-import { PathFlag } from '../sim/map/tile-map';
+import { PathFlag, SALE_LAND, SALE_RIGHTS } from '../sim/map/tile-map';
 import { SCENERY_CATALOG, SceneryCategory, isWallScenery } from '../sim/map/scenery';
 import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -47,10 +47,10 @@ import {
   terrainCliffSpriteName,
   terrainSurfaceSpriteName,
 } from './world-art';
-import { OwnershipOverlay } from './ownership-overlay';
 import { DepthSurface } from './depth-surface';
+import { PARK_FENCE, landOverlayTiles, parkBoundaryEdges } from './park-boundary';
 import { terrainTriangles } from './oracle-terrain';
-import { GROUND_OBJECT_ID, WATER_OBJECT_ID } from './object-kinds';
+import { GROUND_OBJECT_ID, LAND_OVERLAY_OBJECT_ID, WATER_OBJECT_ID } from './object-kinds';
 import type { ObjectIdCapture } from './webgl2-renderer';
 import type { TerrainSurface } from './world-art';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
@@ -117,7 +117,6 @@ const FLOWER_COLORS = ['#f4c542', '#e85b86', '#f2eeee'];
 /** Flat-colour tiles + dots. Placeholder art only; exists to exercise the data path. */
 
 export class Canvas2DRenderer implements Renderer {
-  private ownershipOverlay: OwnershipOverlay | null = null;
   readonly backend = 'Canvas2D';
   private ctx: CanvasRenderingContext2D | null = null;
   private map: MapData | null = null;
@@ -148,6 +147,9 @@ export class Canvas2DRenderer implements Renderer {
   private drawOrder: { depth: number; order: number; draw: () => void; ground: boolean }[] = [];
   private surface: DepthSurface | null = null;
   private recordIds = false;
+  private landOverlay = false;
+  private landOverlayMap: MapData | null = null;
+  private landOverlayCodes = new Int16Array(0);
   /** Bumped with every new map, keying the composite's cached ground heights. */
   private groundRevision = 0;
   private nextDrawOrder = 0;
@@ -216,7 +218,6 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx = ctx;
     const surface = new DepthSurface(ctx, spritePages);
     this.surface = surface.available ? surface : null;
-    if (canvas.parentElement) this.ownershipOverlay = new OwnershipOverlay(canvas.parentElement);
     this.atlas = spritePages;
     spritePages.start();
   }
@@ -230,7 +231,6 @@ export class Canvas2DRenderer implements Renderer {
       c.width = this.cw;
       c.height = this.ch;
     }
-    this.ownershipOverlay?.resize(width, height, dpr);
   }
 
   setMap(map: MapData): void {
@@ -276,6 +276,10 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
+  setLandOverlay(visible: boolean): void {
+    this.landOverlay = visible;
+  }
+
   setGhosts(ghosts: readonly PathPieceGhost[]): void {
     this.ghosts = ghosts;
     this.ghostsByTile = null;
@@ -306,6 +310,7 @@ export class Canvas2DRenderer implements Renderer {
     if (snapshot) this.rideCells.build(snapshot, map, cam.rotation);
     else this.rideCells.reset();
     this.drawTiles(ctx, map, cam, snapshot);
+    this.drawParkFence(ctx, map, cam);
     if (snapshot) {
       this.drawParkGate(ctx, snapshot, map, cam);
       this.drawRideMarkers(ctx, snapshot, map, cam);
@@ -341,14 +346,21 @@ export class Canvas2DRenderer implements Renderer {
         real.canvas.width,
         real.canvas.height,
         { scale, x: this.cw / 2 - cam.x * scale, y: this.ch / 2 - cam.y * scale },
-        `${this.groundRevision}:${cam.x}:${cam.y}:${cam.zoom}:${cam.rotation}:${this.dpr}`,
-        () => terrainTriangles(map, cam, this.cw / this.dpr, this.ch / this.dpr, this.dpr),
+        `${this.groundRevision}:${cam.x}:${cam.y}:${cam.zoom}:${cam.rotation}:${this.dpr}:${this.landOverlay}`,
+        () =>
+          terrainTriangles(
+            map,
+            cam,
+            this.cw / this.dpr,
+            this.ch / this.dpr,
+            this.dpr,
+            this.landOverlay,
+          ),
         this.recordIds,
       );
     for (const item of this.drawOrder) if (!item.ground) item.draw();
     surface?.finish();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ownershipOverlay?.draw(map, cam);
   }
 
   /**
@@ -366,6 +378,7 @@ export class Canvas2DRenderer implements Renderer {
     const { ids, sprites, kinds } = this.surface.capture();
     kinds.set(GROUND_OBJECT_ID, 'ground');
     kinds.set(WATER_OBJECT_ID, 'water');
+    kinds.set(LAND_OVERLAY_OBJECT_ID, 'land-overlay');
     const pages = [...new Set(sprites.map((sprite) => sprite.page))].sort((a, b) => a - b);
     const { width, height } = this.ctx!.canvas;
     return { width, height, ids, sprites, kinds, pages };
@@ -557,6 +570,8 @@ export class Canvas2DRenderer implements Renderer {
             this.patrolPreviewRemove ? 'remove' : 'add',
           );
         }
+        const overlay = this.landOverlay ? this.landOverlayFor(map)[i]! : -1;
+        if (overlay >= 0) this.drawLandOverlayTile(ctx, map, cam, x, y, i, mask, overlay);
         this.enqueueGround(map, cam, x * TILE_UNITS, y * TILE_UNITS, terrainZ, 0.25, () =>
           this.drawCliffFaces(ctx, map, cam, x, y, i, mask, terrainSurface),
         );
@@ -782,6 +797,67 @@ export class Canvas2DRenderer implements Renderer {
         this.visibleCount++;
       }
     }
+  }
+
+  /** Per tile: -1 where the park owns the land, else sale borders (world edges) + 16 * offer. */
+  private landOverlayFor(map: MapData): Int16Array {
+    if (this.landOverlayMap === map) return this.landOverlayCodes;
+    const codes = new Int16Array(map.width * map.height).fill(-1);
+    for (const tile of landOverlayTiles(map))
+      codes[tile.y * map.width + tile.x] = tile.borders + tile.sale * 16;
+    this.landOverlayMap = map;
+    this.landOverlayCodes = codes;
+    return codes;
+  }
+
+  /**
+   * The land overlay on one tile, painted onto the ground during the terrain walk so terrain in
+   * front still covers it and world sprites composite over it: a dark wash and dashed sale borders.
+   */
+  private drawLandOverlayTile(
+    ctx: CanvasRenderingContext2D,
+    map: MapData,
+    cam: Camera,
+    x: number,
+    y: number,
+    index: number,
+    mask: number,
+    code: number,
+  ): void {
+    const corners = terrainTileCorners(x, y, map.heights[index]!, mask);
+    const points = corners.map((corner) => {
+      project(
+        corner.x * TILE_UNITS,
+        corner.y * TILE_UNITS,
+        corner.height * Z_STEP,
+        map.width,
+        map.height,
+        cam.rotation,
+        this.tmp,
+      );
+      return [this.tmp[0]!, this.tmp[1]!] as const;
+    });
+    ctx.beginPath();
+    points.forEach(([px, py], corner) => (corner === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(10, 14, 10, 0.58)';
+    ctx.fill();
+    const sale = code >> 4;
+    if (sale === 0) return;
+    // World edge e runs from corner (e + 1) & 3 to corner (e + 2) & 3.
+    ctx.lineWidth = 2.5 / (cam.zoom * this.dpr);
+    ctx.strokeStyle = sale === SALE_RIGHTS ? '#63c3e8' : '#f3ce57';
+    ctx.setLineDash(sale === SALE_LAND ? [5, 3] : sale === SALE_RIGHTS ? [2, 2] : [1, 4]);
+    for (let edge = 0; edge < 4; edge++) {
+      if (!(code & (1 << edge))) continue;
+      const [ax, ay] = points[(edge + 1) & 3]!;
+      const [bx, by] = points[(edge + 2) & 3]!;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
   }
 
   private drawPatrolTile(
@@ -1344,6 +1420,33 @@ export class Canvas2DRenderer implements Renderer {
     drawAnchoredSprite(ctx, this.atlas, sprite, this.pathLow[0], this.pathLow[1]);
   }
 
+  /** The park boundary fence: a wall-style sprite on every edge of owned land. */
+  private drawParkFence(ctx: CanvasRenderingContext2D, map: MapData, cam: Camera): void {
+    const atlas = this.atlas;
+    if (!atlas) return;
+    const edges = parkBoundaryEdges(map);
+    for (let i = 0; i < edges.length; i += 3) {
+      const x = edges[i]!;
+      const y = edges[i + 1]!;
+      const edge = edges[i + 2]!;
+      const tile = y * map.width + x;
+      const z = map.heights[tile]! * Z_STEP;
+      const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+      this.enqueue(map, cam, worldX, worldY, z, () => {
+        this.anchor(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
+        if (!this.isVisible(this.tmp[0]!, this.tmp[1]!, cam, 64)) return;
+        drawAnchoredSprite(
+          ctx,
+          atlas,
+          wallSpriteName(PARK_FENCE, edge, map.slope[tile]!, cam.rotation),
+          this.tmp[0]!,
+          this.tmp[1]!,
+        );
+      });
+    }
+  }
+
   private drawSceneryElements(
     ctx: CanvasRenderingContext2D,
     map: MapData,
@@ -1808,8 +1911,6 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   dispose(): void {
-    this.ownershipOverlay?.dispose();
-    this.ownershipOverlay = null;
     this.ctx = null;
     this.map = null;
   }

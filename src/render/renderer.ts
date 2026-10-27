@@ -82,6 +82,11 @@ export interface Renderer {
   setGhosts(ghosts: readonly PathPieceGhost[]): void;
   /** Ride and scenery previews drawn in the depth-sorted world pass until replaced. */
   setSpriteGhosts(ghosts: readonly SpriteGhost[]): void;
+  /**
+   * Shows the land overlay (unowned land and its sale borders) on the terrain; on while a land,
+   * land-rights or construction-rights tool is open, as in RCT2.
+   */
+  setLandOverlay(visible: boolean): void;
   /** Selects the individual worker whose patrol blocks are shown; null hides them. */
   setPatrolStaff(staffId: number | null): void;
   /** Hides one guest or staff member from the park while the player holds them. */

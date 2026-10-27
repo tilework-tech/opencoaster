@@ -19,6 +19,8 @@ export interface FixtureView {
   width: number;
   height: number;
   dpr: number;
+  /** Whether the renderer draws the land overlay, which the oracle then lays on the terrain. */
+  landOverlay?: boolean;
 }
 
 const pageCache = new Map<number, OraclePage>();
@@ -54,7 +56,14 @@ function oracleFor(capture: ObjectIdCapture, view: FixtureView) {
     height: capture.height,
     pages,
     sprites: capture.sprites,
-    triangles: terrainTriangles(view.map, view.camera, view.width, view.height, view.dpr),
+    triangles: terrainTriangles(
+      view.map,
+      view.camera,
+      view.width,
+      view.height,
+      view.dpr,
+      view.landOverlay ?? false,
+    ),
     kindBit: (id) => objectKindBit(capture.kinds.get(id) ?? 'other'),
   });
 }

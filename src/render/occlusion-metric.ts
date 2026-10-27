@@ -1,4 +1,4 @@
-import { FIRST_INSTANCE_OBJECT_ID } from './object-kinds';
+import { FIRST_INSTANCE_OBJECT_ID, LAND_OVERLAY_OBJECT_ID } from './object-kinds';
 
 export interface PairScore {
   /** Pixels where the oracle shows the first kind and the renderer the second. */
@@ -31,6 +31,11 @@ export interface OcclusionScoreInput {
   ignore?: Uint8Array;
 }
 
+/** Ground and water are the backdrop; everything drawn on or above them is scored. */
+function isScored(id: number): boolean {
+  return id === LAND_OVERLAY_OBJECT_ID || id >= FIRST_INSTANCE_OBJECT_ID;
+}
+
 /** Compares a renderer's object-ID image against the oracle's (see occlusion-oracle.ts). */
 export function scoreOcclusion(input: OcclusionScoreInput): OcclusionScore {
   const { oracle, rendered, kindMasks, kinds, kindBit, ignore } = input;
@@ -44,7 +49,7 @@ export function scoreOcclusion(input: OcclusionScoreInput): OcclusionScore {
   for (let i = 0; i < oracle.length; i++) {
     const want = oracle[i];
     const got = rendered[i];
-    if (want < FIRST_INSTANCE_OBJECT_ID && got < FIRST_INSTANCE_OBJECT_ID) continue;
+    if (!isScored(want) && !isScored(got)) continue;
     if (ignore?.[i]) continue;
     objectPixels++;
     if (want === got) continue;

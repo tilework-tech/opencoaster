@@ -1,4 +1,5 @@
-import { GROUND_OBJECT_ID, WATER_OBJECT_ID } from './object-kinds';
+import { GROUND_OBJECT_ID, LAND_OVERLAY_OBJECT_ID, WATER_OBJECT_ID } from './object-kinds';
+import { landOverlayTiles } from './park-boundary';
 import type { OracleTriangle, OracleVertex } from './occlusion-oracle';
 import { worldToScreen } from './projection';
 import type { Camera, MapData } from './renderer';
@@ -20,7 +21,8 @@ const TILE_REACH_DOWN = 32;
 
 /**
  * The ground, cliff faces and water surface of `map` as oracle triangles in backing-buffer
- * pixels: the terrain geometry both renderers draw, with its true height at every vertex.
+ * pixels: the terrain geometry both renderers draw, with its true height at every vertex. With
+ * `landOverlay`, the land overlay's tiles follow on the terrain surface.
  */
 export function terrainTriangles(
   map: MapData,
@@ -28,6 +30,7 @@ export function terrainTriangles(
   viewportWidth: number,
   viewportHeight: number,
   devicePixelRatio: number,
+  landOverlay = false,
 ): OracleTriangle[] {
   const vertex = (x: number, y: number, height: number): OracleVertex => {
     const [sx, sy] = worldToScreen(x, y, height, camera.rotation, map);
@@ -84,6 +87,15 @@ export function terrainTriangles(
       ];
       out.push({ id: WATER_OBJECT_ID, a: w[0], b: w[1], c: w[2] });
       out.push({ id: WATER_OBJECT_ID, a: w[0], b: w[2], c: w[3] });
+    }
+  // The land overlay lies on the terrain surface after it, so it wins its own tile's tie.
+  if (landOverlay)
+    for (const tile of landOverlayTiles(map)) {
+      const index = tile.y * map.width + tile.x;
+      const corners = terrainTileCorners(tile.x, tile.y, map.heights[index], map.slope[index]);
+      const points = corners.map((c) => vertex(c.x, c.y, c.height));
+      for (const [a, b, c] of split)
+        out.push({ id: LAND_OVERLAY_OBJECT_ID, a: points[a], b: points[b], c: points[c] });
     }
   return out;
 }

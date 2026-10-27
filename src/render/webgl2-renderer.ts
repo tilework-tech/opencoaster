@@ -7,7 +7,7 @@ import {
 } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
-import { PathFlag } from '../sim/map/tile-map';
+import { PathFlag, SALE_LAND, SALE_RIGHTS } from '../sim/map/tile-map';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { SCENERY_CATALOG, isWallScenery } from '../sim/map/scenery';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -45,16 +45,18 @@ import {
   rotateTile,
   worldToScreen,
 } from './projection';
-import type { MapExtent } from './projection';
+import type { Direction, MapExtent } from './projection';
 import {
   FIRST_INSTANCE_OBJECT_ID,
   GROUND_OBJECT_ID,
+  LAND_OVERLAY_OBJECT_ID,
   WATER_OBJECT_ID,
   objectKind,
 } from './object-kinds';
 import type { OracleSprite } from './occlusion-oracle';
 import { HEIGHT_OFFSET, HEIGHT_RESOLUTION } from './height-encoding';
 import { spritePages } from './sprite-pages';
+import { PARK_FENCE, landOverlayTiles, parkBoundaryEdges } from './park-boundary';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
@@ -64,7 +66,6 @@ import type { ChunkRange } from './ground-chunks';
 import { sortByDepth } from './painter-order';
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import { anchorKey, rotatedPositionSum } from './depth-key';
-import { OwnershipOverlay } from './ownership-overlay';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
 import type { ObjectPickTarget } from '../input/object-picking';
 import type { Rotation } from './projection';
@@ -120,6 +121,10 @@ const HEIGHT_SCALE_FLOAT = 21;
  * model").
  */
 export const DEPTH_PER_LEVEL = 1 / 1024;
+/** Mesh mode of a land-overlay tile, drawn in the translucent pass on the terrain surface. */
+const LAND_OVERLAY_MODE = 2.3;
+/** Screen length, in world pixels, of a tile edge: the period base of sale-border dashes. */
+const TILE_EDGE_PIXELS = Math.hypot(TILE_W / 2, TILE_H / 2);
 /** Opacity of footpath placement previews drawn in the world. */
 const GHOST_ALPHA = 0.55;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
@@ -444,6 +449,26 @@ vec4 sampleAtlas(vec2 uv) {
 ${Array.from({ length: TEXTURE_SLOTS - 1 }, (_, slot) => `  if (slot == ${slot}) return texture(uAtlas${slot}, uv);`).join('\n')}
   return texture(uAtlas${TEXTURE_SLOTS - 1}, uv);
 }
+/**
+ * The land overlay on one tile: a dark wash over land the park does not own, with dashed sale
+ * borders. vGridlines holds the bordered view edges (bit 0 v = 0, 1 u = 1, 2 v = 1, 3 u = 0) plus
+ * 16 * the offer (1 land, 2 construction rights, 3 both).
+ */
+vec4 landOverlay() {
+  int code = int(vGridlines + 0.5);
+  int sale = code / 16;
+  vec4 colour = vec4(0.04, 0.055, 0.04, 0.58);
+  float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * 2.5;
+  vec2 dash = sale == 1 ? vec2(8.0, 5.0) : sale == 2 ? vec2(4.0, 2.0) : vec2(5.0, 1.0);
+  vec3 ink = sale == 2 ? vec3(0.39, 0.76, 0.91) : vec3(0.95, 0.81, 0.34);
+  float edges[4] = float[4](vTileUv.y, 1.0 - vTileUv.x, 1.0 - vTileUv.y, vTileUv.x);
+  float along[4] = float[4](vTileUv.x, vTileUv.y, vTileUv.x, vTileUv.y);
+  for (int edge = 0; edge < 4; edge++) {
+    if ((code & (1 << edge)) == 0 || edges[edge] > width) continue;
+    if (mod(along[edge] * ${glslFloat(TILE_EDGE_PIXELS)}, dash.x) < dash.y) colour = vec4(ink, 1.0);
+  }
+  return colour;
+}
 void main() {
   if (vMeshMode > 2.5 && vMeshMode < 3.5 && vWaterDepth < 0.0) discard;
   outColor = sampleAtlas(vUv);
@@ -455,8 +480,9 @@ void main() {
   }
   gl_FragDepth = clamp(0.5 - height * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0);
   if (vMeshMode > 1.4 && vMeshMode < 2.0) outColor = vec4(0.26, 0.53, 1.0, 0.32);
-  if (vMeshMode > 1.9 && vMeshMode < 2.5) outColor = vec4(0.96, 0.2, 0.16, 0.38);
-  if (vMeshMode > 1.4 && vMeshMode < 2.5) {
+  if (vMeshMode > 1.9 && vMeshMode < 2.2) outColor = vec4(0.96, 0.2, 0.16, 0.38);
+  if (vMeshMode > 2.2 && vMeshMode < 2.5) outColor = landOverlay();
+  if (vMeshMode > 1.4 && vMeshMode < 2.2) {
     vec2 edge = min(vTileUv, 1.0 - vTileUv);
     float width = max(fwidth(vTileUv.x), fwidth(vTileUv.y)) * (vMeshMode < 1.6 ? 0.55 : 1.3);
     float line = 1.0 - smoothstep(width, width * 1.8, min(edge.x, edge.y));
@@ -503,7 +529,7 @@ void main() {
     outColor.rgb = mix(outColor.rgb, vec3(0.07, 0.1, 0.05), contour * 0.45);
   }
   if (uIdMode > 0.5) {
-    if (vGhost > 0.5 || (vMeshMode > 1.4 && vMeshMode < 2.5)) discard;
+    if (vGhost > 0.5 || (vMeshMode > 1.4 && vMeshMode < 2.2)) discard;
     outColor = encodeObjectId(vObjectId);
   }
 }`;
@@ -571,7 +597,6 @@ interface GroundIndex {
 
 /** WebGL2 renderer drawing atlas pages through an instanced quad batch in painter order. */
 export class WebGL2Renderer implements Renderer {
-  private ownershipOverlay: OwnershipOverlay | null = null;
   readonly backend = 'WebGL2';
   private canvas: HTMLCanvasElement | null = null;
   private gl: WebGL2RenderingContext | null = null;
@@ -655,6 +680,7 @@ export class WebGL2Renderer implements Renderer {
   private patrolPreview: readonly [number, number] | null = null;
   private patrolPreviewRemove = false;
   private ghostMode = 0;
+  private landOverlay = false;
   private visibleCount = 0;
   private gridlinesActive = false;
   private dpr = 1;
@@ -702,7 +728,6 @@ export class WebGL2Renderer implements Renderer {
     if (!gl) throw new Error('WebGL2 unavailable');
     this.canvas = canvas;
     this.gl = gl;
-    if (canvas.parentElement) this.ownershipOverlay = new OwnershipOverlay(canvas.parentElement);
     canvas.addEventListener('webglcontextlost', this.onLost);
     canvas.addEventListener('webglcontextrestored', this.onRestored);
     this.initializeResources();
@@ -714,7 +739,6 @@ export class WebGL2Renderer implements Renderer {
     this.canvas.width = Math.max(1, Math.round(width * devicePixelRatio));
     this.canvas.height = Math.max(1, Math.round(height * devicePixelRatio));
     this.gl?.viewport(0, 0, this.canvas.width, this.canvas.height);
-    this.ownershipOverlay?.resize(width, height, devicePixelRatio);
   }
 
   setMap(map: MapData): void {
@@ -722,6 +746,10 @@ export class WebGL2Renderer implements Renderer {
     this.map = map;
     this.pickCacheKey = '';
     this.pickCacheSnapshot = null;
+  }
+
+  setLandOverlay(visible: boolean): void {
+    this.landOverlay = visible;
   }
 
   setGhosts(ghosts: readonly PathPieceGhost[]): void {
@@ -760,7 +788,6 @@ export class WebGL2Renderer implements Renderer {
   draw(snapshot: Snapshot | null, camera: Camera): void {
     if (!this.renderFrame(snapshot, camera, null)) return;
     this.visibleCount = this.count;
-    if (this.map) this.ownershipOverlay?.draw(this.map, camera);
   }
 
   /**
@@ -817,6 +844,7 @@ export class WebGL2Renderer implements Renderer {
     const kinds = new Map<number, string>([
       [GROUND_OBJECT_ID, 'ground'],
       [WATER_OBJECT_ID, 'water'],
+      [LAND_OVERLAY_OBJECT_ID, 'land-overlay'],
     ]);
     const sprites: OracleSprite[] = [];
     const pages = new Set<number>();
@@ -891,6 +919,8 @@ export class WebGL2Renderer implements Renderer {
       this.appendPathElements(map, camera, viewportWidth, viewportHeight);
       this.appendPathGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendSceneryElements(map, camera, viewportWidth, viewportHeight);
+      this.appendParkFence(map, camera, viewportWidth, viewportHeight);
+      this.appendLandOverlay(map, camera, viewportWidth, viewportHeight);
       this.appendSpriteGhosts(map, camera, viewportWidth, viewportHeight);
       this.appendParkGate(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendRideMarkers(snapshot, map, camera, viewportWidth, viewportHeight);
@@ -986,7 +1016,8 @@ export class WebGL2Renderer implements Renderer {
     for (let index = 0; index < this.runs.length; index++) {
       const run = this.runs[index];
       // Translucent surfaces are depth tested but never hide what is drawn after them.
-      if (index === this.translucentRun) gl.depthMask(false);
+      // In ID mode they are scored as surfaces, so they keep writing depth.
+      if (index === this.translucentRun && !this.idMode) gl.depthMask(false);
       for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
         const page = run.pages[slot];
         gl.activeTexture(gl.TEXTURE0 + slot);
@@ -1009,8 +1040,6 @@ export class WebGL2Renderer implements Renderer {
   }
 
   dispose(): void {
-    this.ownershipOverlay?.dispose();
-    this.ownershipOverlay = null;
     this.canvas?.removeEventListener('webglcontextlost', this.onLost);
     this.canvas?.removeEventListener('webglcontextrestored', this.onRestored);
     const gl = this.gl;
@@ -1812,12 +1841,42 @@ export class WebGL2Renderer implements Renderer {
         const meshMode = marked ? (previewed && this.patrolPreviewRemove ? 2.1 : 1.5) : 1.6;
         for (let y = by * 4; y < Math.min(map.height, by * 4 + 4); y++)
           for (let x = bx * 4; x < Math.min(map.width, bx * 4 + 4); x++) {
-            this.appendPatrolTile(map, camera, viewportWidth, viewportHeight, x, y, meshMode);
+            this.appendSurfaceTile(map, camera, viewportWidth, viewportHeight, x, y, meshMode);
           }
       }
   }
 
-  private appendPatrolTile(
+  /**
+   * The land overlay on every tile the park does not own, while land tools are open: a translucent
+   * surface on the terrain, so anything in front of it hides it.
+   */
+  private appendLandOverlay(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    if (!this.landOverlay) return;
+    for (const tile of landOverlayTiles(map)) {
+      let viewBorders = 0;
+      for (let edge = 0; edge < 4; edge++)
+        if (tile.borders & (1 << edge))
+          viewBorders |= 1 << ((rotateDirection(edge as Direction, camera.rotation) + 1) & 3);
+      const offer = tile.sale === SALE_LAND ? 1 : tile.sale === SALE_RIGHTS ? 2 : tile.sale ? 3 : 0;
+      this.appendSurfaceTile(
+        map,
+        camera,
+        viewportWidth,
+        viewportHeight,
+        tile.x,
+        tile.y,
+        LAND_OVERLAY_MODE,
+        viewBorders + offer * 16,
+      );
+    }
+  }
+
+  private appendSurfaceTile(
     map: MapData,
     camera: Camera,
     viewportWidth: number,
@@ -1825,6 +1884,7 @@ export class WebGL2Renderer implements Renderer {
     x: number,
     y: number,
     meshMode: number,
+    data = 0,
   ): void {
     const index = y * map.width + x;
     rotateForDraw(x, y, map.width, map.height, camera.rotation, this.tileCoordinates);
@@ -1864,6 +1924,8 @@ export class WebGL2Renderer implements Renderer {
       2 * (rx + ry) - height,
       meshMode,
       corners,
+      1,
+      data,
     );
   }
 
@@ -2280,6 +2342,46 @@ export class WebGL2Renderer implements Renderer {
               ? shrubSpriteName(x, y, camera.rotation)
               : scenerySpriteName(item.sprite, camera.rotation),
         depth,
+      );
+    }
+  }
+
+  /** The park boundary fence: a wall-style sprite on every edge of owned land. */
+  private appendParkFence(
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    const edges = parkBoundaryEdges(map);
+    for (let i = 0; i < edges.length; i += 3) {
+      const x = edges[i]!;
+      const y = edges[i + 1]!;
+      const tile = y * map.width + x;
+      const z = map.heights[tile]! * Z_STEP;
+      const worldX = x * TILE_UNITS + TILE_UNITS / 2;
+      const worldY = y * TILE_UNITS + TILE_UNITS / 2;
+      project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
+      if (
+        !inViewport(
+          this.projected[0],
+          this.projected[1],
+          camera,
+          viewportWidth,
+          viewportHeight,
+          64,
+          48,
+        )
+      )
+        continue;
+      this.append(
+        worldX,
+        worldY,
+        z,
+        64,
+        48,
+        wallSpriteName(PARK_FENCE, edges[i + 2]!, map.slope[tile]!, camera.rotation),
+        anchorKey(map, camera.rotation, worldX, worldY, z),
       );
     }
   }
@@ -2775,7 +2877,12 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + 11] = cornerHeights[1] ?? z;
     this.instanceData[offset + 12] = cornerHeights[2] ?? z;
     this.instanceData[offset + 13] = cornerHeights[3] ?? z;
-    this.instanceData[offset + 14] = meshMode === 1 && this.gridlinesActive ? 1 + contourEdges : 0;
+    this.instanceData[offset + 14] =
+      meshMode === LAND_OVERLAY_MODE
+        ? contourEdges
+        : meshMode === 1 && this.gridlinesActive
+          ? 1 + contourEdges
+          : 0;
     this.instanceData[offset + 15] = terrainShade;
     this.instanceData[offset + ANCHOR_SHIFT_FLOAT] = anchorShift;
     this.instanceData[offset + GHOST_FLOAT] = this.ghostMode;
@@ -2800,12 +2907,13 @@ export class WebGL2Renderer implements Renderer {
   }
 
   /**
-   * Ground meshes share one id and water another; patrol overlays and placement previews have
-   * none; every other instance gets its own.
+   * Ground meshes share one id, water another and the land overlay a third; patrol overlays and
+   * placement previews have none; every other instance gets its own.
    */
   private objectIdFor(meshMode: number): number {
     if (meshMode === 1 || meshMode === 4 || meshMode === 5) return GROUND_OBJECT_ID;
     if (meshMode === 3) return WATER_OBJECT_ID;
+    if (meshMode === LAND_OVERLAY_MODE) return LAND_OVERLAY_OBJECT_ID;
     if (meshMode !== 0 || this.ghostMode !== 0) return 0;
     return this.nextObjectId++;
   }

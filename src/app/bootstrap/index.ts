@@ -1,4 +1,5 @@
 import { SimClient } from '../../worker/sim-client';
+import { showsLandOverlay } from '../tools/land-overlay';
 import { createRenderer } from '../../render/create-renderer';
 import type { Camera } from '../../render/renderer';
 import { Hud } from '../../ui/hud';
@@ -634,6 +635,7 @@ export async function bootstrap(): Promise<void> {
       );
     renderer.setSpriteGhosts(spriteGhosts);
     renderer.setPatrolStaff(selectedTool === 'patrol' ? patrolStaffId : null);
+    renderer.setLandOverlay(showsLandOverlay(selectedTool));
     renderer.setPatrolPreview(
       selectedTool === 'patrol' ? buildHoverTile : null,
       patrolPreviewRemove || alternate,

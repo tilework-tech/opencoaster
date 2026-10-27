@@ -6,7 +6,15 @@ import { GuestState, HEADING_NONE, spawnGuest } from '../sim/guests/guest-store'
 import { LitterKind, dropLitter } from '../sim/guests/litter-store';
 import { PathAddition } from '../sim/map/paths';
 import { SceneryItem } from '../sim/map/scenery';
-import { DIR_DX, DIR_DY, OWNED, PathFlag, Surface } from '../sim/map/tile-map';
+import {
+  DIR_DX,
+  DIR_DY,
+  OWNED,
+  PathFlag,
+  SALE_LAND,
+  SALE_RIGHTS,
+  Surface,
+} from '../sim/map/tile-map';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { SMALL_CIRCUIT } from '../sim/rides/coaster-fixtures';
@@ -73,6 +81,7 @@ class ParkBuilder {
   readonly boarding: Tile[] = [];
   readonly trees: Tile[] = [];
   readonly walls: Array<{ tile: Tile; edge: number }> = [];
+  readonly coasterCells: Tile[] = [];
 
   constructor(
     seed: number,
@@ -251,6 +260,7 @@ class ParkBuilder {
       for (const cell of PIECES[pieces.cols.pieceType[s]!]!.footprint) {
         const [rx, ry] = rotateTile(cell.i, cell.j, pieces.cols.dir[s]!);
         this.reserve(pieces.cols.x[s]! + rx, pieces.cols.y[s]! + ry);
+        this.coasterCells.push([pieces.cols.x[s]! + rx, pieces.cols.y[s]! + ry]);
       }
     }
     // Queue zig-zags from the main path down to the station entrance, beside the lift hill.
@@ -532,8 +542,28 @@ function placeStaffAndLitter(b: ParkBuilder): void {
   if (w.litter.count === 0) throw new Error('occlusion fuzz: no litter could be dropped');
 }
 
+/**
+ * Gives up the park's land beyond the middle of the coaster, so the boundary fence and the land
+ * overlay cross track, supports and paths: unowned tiles, some offered as land and some as
+ * construction rights.
+ */
+function cedeLand(b: ParkBuilder): void {
+  const w = b.sim.world;
+  const xs = b.coasterCells.map(([x]) => x);
+  const middle = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+  const { width, height } = w.map;
+  for (let y = 0; y < height; y++)
+    for (let x = middle + 1; x < width; x++) {
+      const at = y * width + x;
+      if (!(w.map.ownership[at]! & OWNED)) continue;
+      const offer = (x * 7 + y * 3) % 5;
+      w.map.ownership[at] = offer < 2 ? SALE_LAND : offer < 3 ? SALE_RIGHTS : 0;
+    }
+}
+
 function publish(b: ParkBuilder): FuzzPark {
   const w = b.sim.world;
+  cedeLand(b);
   const { width, height } = w.map;
   const words = Math.ceil((Math.ceil(width / 4) * Math.ceil(height / 4)) / 32);
   const staff = 64;
