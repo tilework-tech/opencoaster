@@ -92,6 +92,8 @@ describe('objectKind', () => {
     expect(objectKind('rides/coaster/steel/support-column/view-1')).toBe('support');
     expect(objectKind('rides/coaster/wood/support-cap2/view-0')).toBe('support');
     expect(objectKind('rides/coaster/junior/support-base/view-3')).toBe('support');
+    expect(objectKind('paths/support/dirt/cap')).toBe('support');
+    expect(objectKind('paths/support/base')).toBe('support');
   });
 
   it('falls back to other for unknown keys', () => {

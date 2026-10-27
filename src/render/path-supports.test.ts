@@ -9,10 +9,19 @@ describe('pathSupports', () => {
 
   it('stands a footing and one column per level under a raised footpath', () => {
     const supports = pathSupports(2, 5, 5);
-    expect(supports.filter((s) => s.sprite.includes('column')).map((s) => s.level)).toEqual([
-      2, 3, 4,
+    expect(supports.filter((s) => s.sprite.endsWith('/column')).map((s) => s.level)).toEqual([
+      2, 3,
     ]);
-    expect(supports.filter((s) => s.sprite.includes('base')).map((s) => s.level)).toEqual([2]);
+    expect(supports.filter((s) => s.sprite.endsWith('/cap')).map((s) => s.level)).toEqual([4]);
+    expect(supports.filter((s) => s.sprite.endsWith('/base')).map((s) => s.level)).toEqual([2]);
+  });
+
+  it('draws path-specific sprites in the colours of the surface, never coaster art', () => {
+    for (const surface of ['tarmac', 'crazy-paving', 'dirt', 'queue'] as const) {
+      const sprites = pathSupports(0, 3, 3, surface).map((s) => s.sprite);
+      expect(sprites.every((s) => s.startsWith('paths/support/'))).toBe(true);
+      expect(sprites).toContain(`paths/support/${surface}/cap`);
+    }
   });
 
   it('has none for the upper footpath of a bridge, whose tile has a path below it', () => {

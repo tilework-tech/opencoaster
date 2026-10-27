@@ -232,13 +232,22 @@ export function pathSpriteName(
 
 const PATH_SURFACES: readonly PathSurface[] = ['tarmac', 'crazy-paving', 'dirt'];
 
+/** Surface style of a footpath element, from its PathFlag bits and surface index. */
+export function pathElementSurface(flags: number, surface: number): PathSurface {
+  return flags & PathFlag.Queue ? 'queue' : (PATH_SURFACES[surface] ?? 'tarmac');
+}
+
 /** Atlas sprite for a footpath element at the camera rotation, from its PathFlag bits and surface index. */
 export function pathElementSprite(flags: number, surface: number, rotation: number): string {
   const sloped = (flags & PathFlag.Sloped) !== 0;
   const direction = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
   const edges = (flags & PathFlag.Edges) | ((flags & PathFlag.Forced) >> 4);
-  const style = flags & PathFlag.Queue ? 'queue' : (PATH_SURFACES[surface] ?? 'tarmac');
-  return pathSpriteName(style, edges, sloped ? direction : undefined, rotation);
+  return pathSpriteName(
+    pathElementSurface(flags, surface),
+    edges,
+    sloped ? direction : undefined,
+    rotation,
+  );
 }
 
 /**
@@ -376,8 +385,7 @@ export function nativeSpriteAnchorShift(frameWidth: number, anchorX: number): nu
   return frameWidth / 2 - anchorX;
 }
 
-const PATH_SUPPORT_COLUMN = 'rides/coaster/steel/support-column/view-0';
-const PATH_SUPPORT_FOOTING = 'rides/coaster/steel/support-base/view-0';
+const PATH_SUPPORT_FOOTING = 'paths/support/base';
 const NO_PATH = 255;
 const lowestBases = new WeakMap<Int32Array, Uint8Array>();
 
@@ -403,14 +411,23 @@ export interface PathSupport {
 }
 
 /**
- * Posts that hold a footpath piece at `base` up from the ground at `ground`: a footing and one
- * column per level. A tile whose footpath rests on the ground, or that has a lower footpath beneath
- * it, gets none, so guests walk through the space under a bridge.
+ * Posts that hold a footpath piece at `base` up from the ground at `ground`: a footing, one column
+ * per level and a framed cap under the slab, in the path's surface colours. A tile whose footpath
+ * rests on the ground, or that has a lower footpath beneath it, gets none, so guests walk through
+ * the space under a bridge.
  */
-export function pathSupports(ground: number, base: number, lowest: number): PathSupport[] {
+export function pathSupports(
+  ground: number,
+  base: number,
+  lowest: number,
+  surface: PathSurface = 'tarmac',
+): PathSupport[] {
   if (base <= ground || lowest < base) return [];
   const supports: PathSupport[] = [{ sprite: PATH_SUPPORT_FOOTING, level: ground }];
   for (let level = ground; level < base; level++)
-    supports.push({ sprite: PATH_SUPPORT_COLUMN, level });
+    supports.push({
+      sprite: `paths/support/${surface}/${level === base - 1 ? 'cap' : 'column'}`,
+      level,
+    });
   return supports;
 }

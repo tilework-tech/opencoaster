@@ -27,11 +27,13 @@ import { trenchPaintTriangles } from './trench-paint';
 import { RideCellScene, isSlicedRide } from './ride-scene';
 import type { RideCellDraw } from './ride-scene';
 import type { CanvasAtlas } from './canvas-atlas';
+import type { PathSurface } from './world-art';
 import {
   WATER_BANK,
   flowerBedSpriteName,
   pathElementSprite,
   lowestPathBases,
+  pathElementSurface,
   pathSupports,
   queueRailSprites,
   pathAdditionSpriteName,
@@ -1197,11 +1199,17 @@ export class Canvas2DRenderer implements Renderer {
     x: number,
     y: number,
     base: number,
+    surface: PathSurface,
     centerX: number,
     centerY: number,
   ): void {
     const tile = y * map.width + x;
-    for (const support of pathSupports(map.heights[tile]!, base, lowestPathBases(map)[tile]!)) {
+    for (const support of pathSupports(
+      map.heights[tile]!,
+      base,
+      lowestPathBases(map)[tile]!,
+      surface,
+    )) {
       this.anchor(
         centerX,
         centerY,
@@ -1284,7 +1292,17 @@ export class Canvas2DRenderer implements Renderer {
       );
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, 22)) continue;
       if (part === 'slab' && this.atlas)
-        this.drawPathSupports(ctx, map, cam, x, y, paths[o + 2]!, centerX, centerY);
+        this.drawPathSupports(
+          ctx,
+          map,
+          cam,
+          x,
+          y,
+          paths[o + 2]!,
+          pathElementSurface(flags, paths[o + 5]!),
+          centerX,
+          centerY,
+        );
       this.anchor(centerX, centerY, z, map.width, map.height, cam.rotation, this.pathLow);
       if (part === 'additions') {
         this.drawPathAdditions(ctx, map, cam, flags, paths[o + 4], paths[o + 2]!, centerX, centerY);

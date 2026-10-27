@@ -90,7 +90,7 @@ export function objectKind(spriteKey: string): ObjectKind {
     case 'water':
       return 'water';
     case 'paths':
-      return 'path';
+      return parts[1] === 'support' ? 'support' : 'path';
     case 'litter':
       return 'litter';
     case 'trees':
