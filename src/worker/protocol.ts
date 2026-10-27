@@ -77,7 +77,7 @@ export type FromWorker =
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'stats'; stats: Stats }
   | { type: 'saved'; bytes: Uint8Array }
-  | { type: 'loaded' }
+  | { type: 'loaded'; warnings?: string[] }
   | { type: 'error'; request: 'save' | 'load'; message: string }
   /** One preview per requested placement, in request order. */
   | { type: 'pathPreview'; id: number; pieces: PathPiecePreview[] }

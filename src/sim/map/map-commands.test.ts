@@ -16,6 +16,8 @@ import { PathResult, placePath, removePath } from './paths';
 import { FeedbackDomain } from '../core/feedback';
 import { SceneryItem, SCENERY_CATALOG, SceneryResult } from './scenery';
 import { previewScenery } from './map-commands';
+import { createRide } from '../rides/ride-operations';
+import { RideType } from '../rides/ride-types';
 
 function sim(): Simulation {
   const s = new Simulation({ seed: 9, width: 32, height: 32, maxGuests: 100 });
@@ -171,6 +173,17 @@ describe('map commands', () => {
     affordable.step();
     expect(affordable.world.map.heights[affordable.world.map.index(10, 10)]).toBe(5);
     expect(affordableCash - affordable.world.economy.cash).toBe(2_000);
+  });
+
+  it('does not raise absolute terrain into a ride footprint', () => {
+    const s = sim();
+    createRide(s.world, RideType.MerryGoRound, 12, 12);
+    const cash = s.world.economy.cash;
+    s.enqueue({ type: 'setTileHeight', x: 13, y: 13, height: 5 });
+    s.step();
+    expect(s.world.map.heights[s.world.map.index(13, 13)]).toBe(4);
+    expect(s.world.economy.cash).toBe(cash);
+    expect(s.world.feedback.domain).toBe(FeedbackDomain.Land);
   });
 
   it('buys land and construction rights atomically against available cash', () => {

@@ -1,8 +1,16 @@
 import type { World } from '../core/world';
-import { Z_STEP } from '../core/constants';
+import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
-import { CLEARANCE_UNITS, PIECES } from '../track/catalog';
+import { PIECES } from '../track/catalog';
 import { ElementType, PathFlag } from './tile-map';
+import { PATH_ENTRANCE_MARK, PATH_EXIT_MARK } from './tile-map';
+import { SCENERY_CATALOG, SceneryCategory } from './scenery';
+import {
+  BOARDING_CLEARANCE_WORLD,
+  PARK_ENTRANCE_CLEARANCE_WORLD,
+  RIDE_CLEARANCE_WORLD,
+  TRACK_CLEARANCE_WORLD,
+} from './occupancy-constants';
 
 /** Kinds used for obstruction messages and the small set of construction exceptions. */
 export type OccupancyKind =
@@ -16,7 +24,8 @@ export type OccupancyKind =
   | 'queue'
   | 'scenery'
   | 'wall'
-  | 'parkEntrance';
+  | 'parkEntrance'
+  | 'terrain';
 
 /** One tile or edge of an element's occupied volume. Heights are world units, top exclusive. */
 export interface OccupancyVolume {
@@ -49,6 +58,14 @@ export function occupancyConflict(a: OccupancyVolume, b: OccupancyVolume): boole
     b.kind !== 'queue'
   )
     return false;
+  const aPath = a.kind === 'path' || a.kind === 'queue';
+  const bPath = b.kind === 'path' || b.kind === 'queue';
+  const pathBoarding =
+    (aPath && (b.kind === 'rideEntrance' || b.kind === 'rideExit' || b.kind === 'parkEntrance')) ||
+    (bPath && (a.kind === 'rideEntrance' || a.kind === 'rideExit' || a.kind === 'parkEntrance')) ||
+    (a.kind === 'wall' && bPath) ||
+    (b.kind === 'wall' && aPath);
+  if (pathBoarding && a.base === b.base) return false;
   return true;
 }
 
@@ -81,23 +98,40 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
     for (let e = map.firstElement(tile); e >= 0; e = map.nextElement(e)) {
       const type = map.elType[e];
       const isPath = type === ElementType.Path;
+      const item = SCENERY_CATALOG[map.elData[e]];
+      const wallScenery =
+        type === ElementType.SmallScenery && item?.category === SceneryCategory.Fences;
+      const markedEntrance = isPath && (map.elData[e] & PATH_ENTRANCE_MARK) !== 0;
+      const markedExit = isPath && (map.elData[e] & PATH_EXIT_MARK) !== 0;
       out.push({
         tileX,
         tileY,
         base: map.elBase[e] * Z_STEP,
         clearance: map.elClear[e] * Z_STEP,
-        kind:
-          isPath && (map.elFlags[e] & PathFlag.Queue) !== 0
-            ? 'queue'
-            : type === ElementType.Path
-              ? 'path'
-              : type === ElementType.Wall
-                ? 'wall'
-                : type === ElementType.Entrance
-                  ? 'parkEntrance'
-                  : 'scenery',
-        name: type === ElementType.Path ? 'Path' : type === ElementType.Wall ? 'Wall' : 'Scenery',
-        edgeMask: type === ElementType.Wall ? map.elFlags[e] & 0xf || 0xf : undefined,
+        kind: markedEntrance
+          ? 'rideEntrance'
+          : markedExit
+            ? 'rideExit'
+            : isPath && (map.elFlags[e] & PathFlag.Queue) !== 0
+              ? 'queue'
+              : type === ElementType.Path
+                ? 'path'
+                : type === ElementType.Wall || wallScenery
+                  ? 'wall'
+                  : type === ElementType.Entrance
+                    ? 'parkEntrance'
+                    : 'scenery',
+        name:
+          markedEntrance || markedExit
+            ? `Ride ${map.elData[e] & PATH_ENTRANCE_MARK ? 'entrance' : 'exit'}`
+            : isPath
+              ? 'Path'
+              : wallScenery
+                ? item.name
+                : type === ElementType.Wall
+                  ? 'Wall'
+                  : 'Scenery',
+        edgeMask: type === ElementType.Wall || wallScenery ? 1 << (map.elFlags[e] & 3) : undefined,
         levelCrossing: isPath && (map.elFlags[e] & (PathFlag.Queue | PathFlag.Sloped)) === 0,
       });
     }
@@ -112,10 +146,11 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
       out.push({
         tileX: tc.x[slot] + dx,
         tileY: tc.y[slot] + dy,
-        base: tc.z[slot] * Z_STEP + cell.zMin,
-        clearance: tc.z[slot] * Z_STEP + cell.zMax + CLEARANCE_UNITS,
+        base: tc.z[slot] * TRACK_Z_STEP + cell.zMin,
+        clearance: tc.z[slot] * TRACK_Z_STEP + cell.zMax + TRACK_CLEARANCE_WORLD,
         kind: def.shape === 'station' ? 'station' : 'track',
         name: rideName(world, tc.rideId[slot]),
+        levelCrossing: def.shape === 'straight' && cell.zMin === 0 && cell.zMax === 0,
       });
     }
   }
@@ -131,7 +166,7 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
       const base = map.inBounds(rc.rideX[slot], rc.rideY[slot])
         ? map.heights[map.index(rc.rideX[slot], rc.rideY[slot])] * Z_STEP
         : 0;
-      const height = def.clearanceWorld ?? 3 * Z_STEP;
+      const height = def.clearanceWorld ?? RIDE_CLEARANCE_WORLD;
       for (const [dx, dy] of def.footprint) {
         const [rx, ry] = rotate(dx, dy, rc.dir[slot]);
         out.push({
@@ -139,7 +174,7 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
           tileY: rc.rideY[slot] + ry,
           base,
           clearance: base + height,
-          kind: def.category === 'shop' || def.category === 'facility' ? 'facility' : 'flatRide',
+          kind: def.category === 'stall' || def.category === 'facility' ? 'facility' : 'flatRide',
           name: rideName(world, id),
         });
       }
@@ -150,7 +185,14 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
     ] as const) {
       if (!placed || !map.inBounds(x, y)) continue;
       const base = map.heights[map.index(x, y)] * Z_STEP;
-      out.push({ tileX: x, tileY: y, base, clearance: base + Z_STEP, kind, name: rideName(world, id) });
+      out.push({
+        tileX: x,
+        tileY: y,
+        base,
+        clearance: base + BOARDING_CLEARANCE_WORLD,
+        kind,
+        name: rideName(world, id),
+      });
     }
   }
 
@@ -161,7 +203,7 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
       tileX: world.park.entranceX,
       tileY: world.park.entranceY,
       base,
-      clearance: base + 2 * Z_STEP,
+      clearance: base + PARK_ENTRANCE_CLEARANCE_WORLD,
       kind: 'parkEntrance',
       name: 'Park entrance',
     });
@@ -180,4 +222,54 @@ export function firstOccupancyBlocker(
     }
   }
   return undefined;
+}
+
+/** Occupancy produced by a not-yet-placed ride, using its full rotated footprint. */
+export function ridePlacementOccupancies(
+  type: number,
+  x: number,
+  y: number,
+  dir: number,
+  base: number,
+): OccupancyVolume[] {
+  const def = RIDE_CATALOG[type as RideType];
+  if (!def) return [];
+  const kind = def.category === 'stall' || def.category === 'facility' ? 'facility' : 'flatRide';
+  const clearance = base + (def.clearanceWorld ?? RIDE_CLEARANCE_WORLD);
+  return def.footprint.map(([dx, dy]) => {
+    const [rx, ry] = rotate(dx, dy, dir);
+    return {
+      tileX: x + rx,
+      tileY: y + ry,
+      base,
+      clearance,
+      kind,
+      name: `${def.name}`,
+    };
+  });
+}
+
+/** Ride names involved in legacy overlaps; this scan reports without changing the world. */
+export function overlappingRideNames(world: World): string[] {
+  const byTile = new Map<number, OccupancyVolume[]>();
+  const rides = new Set<string>();
+  for (const item of worldOccupancies(world)) {
+    const key = item.tileY * world.map.width + item.tileX;
+    const sameTile = byTile.get(key) ?? [];
+    for (const other of sameTile) {
+      if (item.name === other.name || !occupancyConflict(item, other)) continue;
+      for (const volume of [item, other]) {
+        if (
+          volume.kind === 'track' ||
+          volume.kind === 'station' ||
+          volume.kind === 'flatRide' ||
+          volume.kind === 'facility'
+        )
+          rides.add(volume.name);
+      }
+    }
+    sameTile.push(item);
+    byTile.set(key, sameTile);
+  }
+  return [...rides].sort();
 }

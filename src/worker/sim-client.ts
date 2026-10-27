@@ -36,6 +36,7 @@ export class SimClient {
   private readonly areaEdits = new Map<number, AreaEdit>();
   /** Called for every published map; `newGame` is true only for the map of a started or loaded game. */
   onMap: ((m: MapMessage, newGame: boolean) => void) | null = null;
+  loadWarnings: string[] = [];
 
   constructor() {
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
@@ -94,6 +95,7 @@ export class SimClient {
         break;
       case 'loaded':
         this.starting = false;
+        this.loadWarnings = msg.warnings ?? [];
         this.settle('load')?.resolve(undefined);
         break;
       case 'error':

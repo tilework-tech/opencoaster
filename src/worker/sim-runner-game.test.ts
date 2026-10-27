@@ -5,6 +5,10 @@ import { parseScenarioFile } from '../sim/scenario/scenario-file';
 import { findScenario } from '../sim/scenario/catalog';
 import { ScenarioStatus } from '../sim/scenario/scenario';
 import { deserialize } from '../save/save';
+import { serialize } from '../save/save';
+import { World } from '../sim/core/world';
+import { createRide } from '../sim/rides/ride-operations';
+import { RideType } from '../sim/rides/ride-types';
 
 function harness() {
   const out: FromWorker[] = [];
@@ -124,6 +128,21 @@ describe('SimRunner game lifecycle', () => {
     expect(fresh.take('loaded')).toHaveLength(1);
     fresh.pumpTicks();
     expect(latestSnapshot(fresh.out).park.cash).toBe(def.startingCash);
+  });
+
+  it('warns about overlapping rides in an existing save and preserves them', () => {
+    const world = new World({ seed: 7, width: 32, height: 32 });
+    world.map.fillFlat(2);
+    createRide(world, RideType.MerryGoRound, 12, 12);
+    createRide(world, RideType.MerryGoRound, 12, 12);
+    const { runner, take } = harness();
+    runner.handle({ type: 'load', bytes: serialize(world) });
+    expect(take('loaded')[0]).toMatchObject({
+      warnings: ['Existing construction overlaps: Merry-Go-Round 1, Merry-Go-Round 2.'],
+    });
+    runner.handle({ type: 'save' });
+    const savedWorld = deserialize(take('saved')[0].bytes);
+    expect(savedWorld.rides.count).toBe(2);
   });
 });
 

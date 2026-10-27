@@ -1,10 +1,11 @@
 import type { World } from '../core/world';
 import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
-import { CLEARANCE_UNITS, PIECES } from './catalog';
+import { PIECES } from './catalog';
 import { MAX_PIECES_PER_RIDE, MAX_TRACK_LEVEL, MAX_TRACK_RIDES } from './track-store';
 import { PieceFlag, PieceMode, TrackResult } from './track-types';
 import type { Bank, Direction, Slope } from './track-types';
 import { firstOccupancyBlocker, worldOccupancies } from '../map/occupancy';
+import { TRACK_CLEARANCE_WORLD } from '../map/occupancy-constants';
 import type { OccupancyVolume } from '../map/occupancy';
 
 export interface PlaceRequest {
@@ -190,7 +191,7 @@ function checkSpace(world: World, req: PlaceRequest): TrackResult {
       tileX: req.x + rx,
       tileY: req.y + ry,
       base: baseZ + cell.zMin,
-      clearance: baseZ + cell.zMax + CLEARANCE_UNITS,
+      clearance: baseZ + cell.zMax + TRACK_CLEARANCE_WORLD,
       kind: def.shape === 'station' ? 'station' : 'track',
       name: 'Track',
       levelCrossing: def.shape === 'straight' && cell.zMin === 0,

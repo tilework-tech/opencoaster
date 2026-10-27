@@ -38,7 +38,9 @@ import {
 } from './tile-map';
 import { PathFlag, PathStyle } from './tile-map';
 import type { TileMap } from './tile-map';
-import { TILE_UNITS } from '../core/constants';
+import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { firstOccupancyBlocker, worldOccupancies } from './occupancy';
+import type { OccupancyVolume } from './occupancy';
 
 /** Map-owned player commands; the core `Command` union includes this type. */
 export type MapCommand =
@@ -91,9 +93,14 @@ export type MapCommand =
 /** Places one footpath piece, charging for it and reporting a refusal to the UI. */
 function applyPathPlacement(w: World, c: PathPlacement): void {
   const m = w.map;
-  const result = canAfford(w, PATH_COST_CENTS)
-    ? placePathOutcome(m, c)
-    : PathResult.InsufficientFunds;
+  const plan = planPathPlacement(m, c);
+  const result = !canAfford(w, PATH_COST_CENTS)
+    ? PathResult.InsufficientFunds
+    : plan.result !== PathResult.Ok
+      ? plan.result
+      : pathOccupancyBlocker(w, m, c, plan)
+        ? PathResult.Blocked
+        : placePathOutcome(m, c);
   if (result === PathResult.Ok) charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
   else
     reportFeedback(
@@ -102,6 +109,38 @@ function applyPathPlacement(w: World, c: PathPlacement): void {
       result,
       m.inBounds(c.x, c.y) ? m.index(c.x, c.y) : -1,
     );
+}
+
+function pathOccupancyBlocker(
+  w: World,
+  map: TileMap,
+  placement: PathPlacement,
+  plan: ReturnType<typeof planPathPlacement>,
+): OccupancyVolume | undefined {
+  if (plan.result !== PathResult.Ok) return undefined;
+  const candidate: OccupancyVolume = {
+    tileX: placement.x,
+    tileY: placement.y,
+    base: plan.z * Z_STEP,
+    clearance: plan.clear * Z_STEP,
+    kind: placement.queue ? 'queue' : 'path',
+    name: placement.queue ? 'Queue path' : 'Path',
+    levelCrossing: !placement.queue && plan.dir < 0,
+  };
+  const occupants = worldOccupancies({ ...w, map } as World);
+  return firstOccupancyBlocker(
+    [candidate],
+    occupants.filter(
+      (item) =>
+        !(
+          plan.existing >= 0 &&
+          item.tileX === placement.x &&
+          item.tileY === placement.y &&
+          (item.kind === 'path' || item.kind === 'queue') &&
+          item.base === candidate.base
+        ),
+    ),
+  );
 }
 
 function canAfford(w: World, cents: number): boolean {
@@ -157,6 +196,16 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       const height = c.height | 0;
       const plan = planSetTileHeight(m, x, y, height);
       if (!plan.succeeds || !canAfford(w, plan.costCents)) break;
+      const raised = raisedTerrainBlocker(w, x, y, height);
+      if (raised) {
+        reportFeedback(
+          w.feedback,
+          FeedbackDomain.Land,
+          LandResult.ObjectInTheWay,
+          raised.tileY * m.width + raised.tileX,
+        );
+        break;
+      }
       if (setTileHeight(m, x, y, height)) {
         charge(w, LedgerCategory.Landscaping, plan.costCents);
         removeLitterOnTerrainTiles(w, plan.affectedTiles);
@@ -270,7 +319,13 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     case 'placeScenery': {
       const item = SCENERY_CATALOG[c.item];
-      if (item && canAfford(w, item.priceCents) && placeScenery(m, c.x, c.y, c.item, c.rotation)) {
+      if (
+        item &&
+        canAfford(w, item.priceCents) &&
+        previewScenery(w, { x: c.x, y: c.y, item: c.item, rotation: c.rotation ?? 0 }) ===
+          SceneryResult.Ok &&
+        placeScenery(m, c.x, c.y, c.item, c.rotation)
+      ) {
         charge(w, LedgerCategory.Landscaping, item.priceCents);
       }
       break;
@@ -296,6 +351,35 @@ export function applyMapCommand(w: World, c: MapCommand): void {
   }
 }
 
+function raisedTerrainBlocker(
+  world: World,
+  x: number,
+  y: number,
+  height: number,
+): OccupancyVolume | undefined {
+  const map = world.map;
+  if (!map.inBounds(x, y)) return undefined;
+  const simulated = map.clone();
+  if (!setTileHeight(simulated, x, y, height)) return undefined;
+  const existing = worldOccupancies(world);
+  for (let tile = 0; tile < map.width * map.height; tile++) {
+    const oldTop = map.heights[tile] + (map.slope[tile] ? 1 : 0);
+    const nextTop = simulated.heights[tile] + (simulated.slope[tile] ? 1 : 0);
+    if (nextTop <= oldTop) continue;
+    const candidate: OccupancyVolume = {
+      tileX: tile % map.width,
+      tileY: (tile / map.width) | 0,
+      base: oldTop * Z_STEP,
+      clearance: nextTop * Z_STEP,
+      kind: 'terrain',
+      name: 'Raised terrain',
+    };
+    const blocker = firstOccupancyBlocker([candidate], existing);
+    if (blocker) return blocker;
+  }
+  return undefined;
+}
+
 /** A scenery placement to judge: the tile, the item and the piece's rotation (0-3). */
 export interface ScenerySpot {
   x: number;
@@ -313,6 +397,19 @@ export function previewScenery(w: World, spot: ScenerySpot): SceneryResult {
   if (!item) return SceneryResult.Invalid;
   const result = sceneryPlacementResult(w.map, spot.x, spot.y, spot.item, spot.rotation);
   if (result !== SceneryResult.Ok) return result;
+  const tile = w.map.index(spot.x, spot.y);
+  const base = (w.map.heights[tile] + (w.map.slope[tile] ? 1 : 0)) * Z_STEP;
+  const edge = item.category === 'fences';
+  const candidate: OccupancyVolume = {
+    tileX: spot.x,
+    tileY: spot.y,
+    base,
+    clearance: base + Math.max(1, item.height) * Z_STEP,
+    kind: edge ? 'wall' : 'scenery',
+    name: item.name,
+    edgeMask: edge ? 1 << (spot.rotation & 3) : undefined,
+  };
+  if (firstOccupancyBlocker([candidate], worldOccupancies(w))) return SceneryResult.Blocked;
   return canAfford(w, item.priceCents) ? SceneryResult.Ok : SceneryResult.InsufficientFunds;
 }
 
@@ -341,6 +438,7 @@ export function previewPathRun(w: World, placements: readonly PathPlacement[]): 
   const plans = withDragLinks(placements).map((p) => {
     const plan = planPathPlacement(m, p);
     if (plan.result !== PathResult.Ok) return plan;
+    if (pathOccupancyBlocker(w, m, p, plan)) return { ...plan, result: PathResult.Blocked };
     if (cash < PATH_COST_CENTS) return { ...plan, result: PathResult.InsufficientFunds };
     placePathOutcome(m, p);
     cash -= PATH_COST_CENTS;

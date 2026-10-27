@@ -113,6 +113,8 @@ export function createSaveLoadController(deps: SaveLoadDependencies) {
       throw err;
     }
     begin(game, true);
+    if (deps.sim.loadWarnings.length > 0)
+      deps.gameUi.setToolStatus(deps.sim.loadWarnings.join(' '));
   }
 
   async function requireSlot(id: string) {

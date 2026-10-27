@@ -20,6 +20,7 @@ const KINDS: OccupancyKind[] = [
   'scenery',
   'wall',
   'parkEntrance',
+  'terrain',
 ];
 
 function volume(kind: OccupancyKind, base = 0, clearance = 64): OccupancyVolume {
@@ -30,7 +31,12 @@ describe('shared occupancy intervals', () => {
   it.each(KINDS.flatMap((a, i) => KINDS.slice(i).map((b) => [a, b] as const)))(
     'rejects overlapping %s and %s volumes',
     (a, b) => {
-      expect(occupancyConflict(volume(a), volume(b))).toBe(true);
+      const pathKinds = ['path', 'queue'];
+      const allowedPathBoarding =
+        (pathKinds.includes(a) &&
+          ['rideEntrance', 'rideExit', 'parkEntrance', 'wall'].includes(b)) ||
+        (pathKinds.includes(b) && ['rideEntrance', 'rideExit', 'parkEntrance', 'wall'].includes(a));
+      expect(occupancyConflict(volume(a), volume(b))).toBe(!allowedPathBoarding);
     },
   );
 
@@ -44,25 +50,25 @@ describe('shared occupancy intervals', () => {
   it('does not block occupancy on a different tile or a disjoint wall edge', () => {
     expect(occupancyConflict(volume('track'), { ...volume('flatRide'), tileX: 6 })).toBe(false);
     expect(
-      occupancyConflict(
-        { ...volume('wall'), edgeMask: 1 },
-        { ...volume('wall'), edgeMask: 2 },
-      ),
+      occupancyConflict({ ...volume('wall'), edgeMask: 1 }, { ...volume('wall'), edgeMask: 2 }),
     ).toBe(false);
   });
 });
 
 describe('multi-tile ride occupancy', () => {
-  it.each([0, 1, 2, 3])('blocks a second ride on an off-anchor footprint tile at rotation %i', (dir) => {
-    const world = new World({ seed: 17, width: 32, height: 32 });
-    world.map.fillFlat(2);
-    world.map.ownership.fill(OWNED);
-    createRide(world, RideType.SwingingShip, 12, 12, dir);
-    const rideTiles = worldOccupancies(world).filter((item) => item.name === 'Swinging Ship 1');
-    expect(rideTiles).toHaveLength(5);
-    const offAnchor = rideTiles.find((item) => item.tileX !== 12 || item.tileY !== 12)!;
-    expect(validateRidePlacement(world, RideType.MerryGoRound, offAnchor.tileX, offAnchor.tileY, 0)).toBe(
-      RideResult.Blocked,
-    );
-  });
+  it.each([0, 1, 2, 3])(
+    'blocks a second ride on an off-anchor footprint tile at rotation %i',
+    (dir) => {
+      const world = new World({ seed: 17, width: 32, height: 32 });
+      world.map.fillFlat(2);
+      world.map.ownership.fill(OWNED);
+      createRide(world, RideType.SwingingShip, 12, 12, dir);
+      const rideTiles = worldOccupancies(world).filter((item) => item.name === 'Swinging Ship 1');
+      expect(rideTiles).toHaveLength(5);
+      const offAnchor = rideTiles.find((item) => item.tileX !== 12 || item.tileY !== 12)!;
+      expect(
+        validateRidePlacement(world, RideType.MerryGoRound, offAnchor.tileX, offAnchor.tileY, 0),
+      ).toBe(RideResult.Blocked);
+    },
+  );
 });

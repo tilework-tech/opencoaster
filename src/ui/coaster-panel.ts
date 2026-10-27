@@ -375,7 +375,15 @@ export class CoasterPanel {
     } else {
       return null;
     }
-    const status = previewStatus(map, snap.buildable, piece, placement, snap.park.cash);
+    const status = previewStatus(
+      map,
+      snap.buildable,
+      piece,
+      placement,
+      snap.park.cash,
+      level,
+      snap.occupancies,
+    );
     return { rideType: ride.type, piece, placement, level, status };
   }
 
