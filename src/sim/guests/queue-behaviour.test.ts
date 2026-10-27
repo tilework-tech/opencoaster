@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { TILE_UNITS } from '../core/constants';
 import type { World } from '../core/world';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
+import { DIR_DX, DIR_DY } from '../pathfinding/directions';
+import { queueLineCoord } from '../rides/queue-lines';
 import { rideQueueSystem } from '../rides/queue-system';
 import { rideQueueCapacity, setRideOpen } from '../rides/ride-operations';
 import { rideSystem } from '../rides/ride-system';
@@ -42,6 +44,18 @@ function tileOf(w: World, slot: number): number {
   return w.map.index(w.guests.cols.x[slot] >> 8, w.guests.cols.y[slot] >> 8);
 }
 
+/** Stands a guest on the open tile, far enough toward the path that the next arrival cannot join. */
+function holdAtJoinEdge(w: World, slot: number, openTile: number): void {
+  const up = w.queues.up[openTile]!;
+  const g = w.guests.cols;
+  g.x[slot] =
+    (openTile % w.map.width) * TILE_UNITS + TILE_UNITS / 2 + DIR_DX[up]! * (TILE_UNITS * 0.78);
+  g.y[slot] =
+    Math.floor(openTile / w.map.width) * TILE_UNITS +
+    TILE_UNITS / 2 +
+    DIR_DY[up]! * (TILE_UNITS * 0.78);
+}
+
 function sendToRide(w: World, ride: number, x = 2): number {
   const slot = guestAt(w, x, 5);
   const g = w.guests.cols;
@@ -69,8 +83,7 @@ describe('queuing guests', () => {
         g.state[slot] = GuestState.Queuing;
         g.targetRide[slot] = rideId;
         g.queueSeq[slot] = index + 1;
-        g.x[slot] = (tile % w.map.width) * TILE_UNITS + TILE_UNITS / 2;
-        g.y[slot] = Math.floor(tile / w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        holdAtJoinEdge(w, slot, tile);
         return { slot, tile, sequence: index + 1 };
       });
       const joinTile = w.queues.joinTile[ride];
@@ -126,8 +139,7 @@ describe('queuing guests', () => {
         g.state[slot] = GuestState.Queuing;
         g.targetRide[slot] = park.rideId;
         g.queueSeq[slot] = sequence;
-        g.x[slot] = (tile % park.w.map.width) * TILE_UNITS + TILE_UNITS / 2;
-        g.y[slot] = Math.floor(tile / park.w.map.width) * TILE_UNITS + TILE_UNITS / 2;
+        holdAtJoinEdge(park.w, slot, tile);
       }
       guestSystem.update(park.w);
       park.w.tick++;
@@ -169,7 +181,7 @@ describe('queuing guests', () => {
     });
   });
 
-  it('enters the line only when it has chosen the ride, then queues single file', () => {
+  it('enters the line only when it has chosen the ride, then queues single file, a spacing apart', () => {
     const { w, ride } = parkWithLongQueue();
     const slots: number[] = [];
     for (let i = 0; i < 4; i++) {
@@ -181,13 +193,13 @@ describe('queuing guests', () => {
       w,
       1500,
       () => {
-        const seen = new Set<number>();
+        const seen = new Set<string>();
         for (const s of slots) {
           if (w.guests.cols.state[s] !== GuestState.Queuing) continue;
           sawQueuing = true;
-          const tile = tileOf(w, s);
-          expect(seen.has(tile)).toBe(false);
-          seen.add(tile);
+          const at = `${w.guests.cols.x[s]},${w.guests.cols.y[s]}`;
+          expect(seen.has(at)).toBe(false);
+          seen.add(at);
         }
       },
       false,
@@ -228,14 +240,22 @@ describe('queuing guests', () => {
     }
     step(w, 2500, undefined, false);
     const distances = slots.map((s) => w.queues.dist[tileOf(w, s)]).sort((a, b) => a - b);
-    expect(distances.slice(0, 2)).toEqual([0, 0]);
-    expect(new Set(distances.slice(2)).size).toBe(distances.length - 2);
-    const before = distances[distances.length - 1];
-    step(w, 3000);
-    const after = slots
-      .filter((s) => w.guests.cols.state[s] === GuestState.Queuing)
-      .map((s) => w.queues.dist[tileOf(w, s)]);
-    expect(Math.max(0, ...after)).toBeLessThan(before);
+    expect(new Set(slots.map((s) => w.guests.cols.x[s])).size).toBe(slots.length);
+    expect(distances[distances.length - 1]).toBeLessThanOrEqual(2);
+    const last = slots[slots.length - 1]!;
+    const lineCoord = (slot: number): number =>
+      queueLineCoord(w, ride, w.guests.cols.x[slot]!, w.guests.cols.y[slot]!);
+    const before = lineCoord(last);
+    expect(before).toBeGreaterThanOrEqual(5 * 64);
+    let rode = false;
+    step(w, 3000, () => {
+      rode ||= slots.some((s) => w.guests.cols.state[s] === GuestState.Riding);
+    });
+    expect(rode).toBe(true);
+    const state = w.guests.cols.state[last];
+    if (state === GuestState.Queuing || state === GuestState.Waiting) {
+      expect(lineCoord(last)).toBeLessThan(before);
+    }
   });
 
   it('turns guests away when the line is full', () => {

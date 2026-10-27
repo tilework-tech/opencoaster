@@ -16,7 +16,7 @@ const onQueueTile = (p: SimProbe, g: { x: number; y: number }): boolean =>
 for (const mobile of [false, true]) {
   const lift = mobile ? 0.25 : 0.5;
   test.describe(mobile ? 'queue lines (Pixel 8)' : 'queue lines (desktop)', () => {
-    test('guests queue single file in order and wanderers never enter the line', async ({
+    test('guests queue single file in order, spaced apart, and wanderers never enter the line', async ({
       browser,
     }, testInfo) => {
       test.setTimeout(480_000);
@@ -37,7 +37,7 @@ for (const mobile of [false, true]) {
         const queuing = p.guests.filter((g) => g.state === 1);
         for (const g of queuing) {
           if (!joined.has(g.id)) joined.set(g.id, p.tick);
-          const distance = LONG_QUEUE.entrance.x - g.x;
+          const distance = (LONG_QUEUE.entrance.x + 0.5) * 256 - g.px;
           if (distance > (lastDistance.get(g.id) ?? 0)) leavers.add(g.id);
           lastDistance.set(g.id, distance);
         }
@@ -45,13 +45,15 @@ for (const mobile of [false, true]) {
           if (g.state === 0)
             expect(onQueueTile(p, g), `wanderer ${g.id} on a queue tile`).toBe(false);
         }
-        const tiles = queuing.filter((g) => !leavers.has(g.id)).map((g) => `${g.x},${g.y}`);
-        expect(new Set(tiles).size, 'one queuing guest per tile').toBe(tiles.length);
         const line = queuing
           .filter((g) => !leavers.has(g.id))
-          .map((g) => ({ id: g.id, distance: LONG_QUEUE.entrance.x - g.x }))
+          .map((g) => ({ id: g.id, distance: (LONG_QUEUE.entrance.x + 0.5) * 256 - g.px }))
           .sort((a, b) => a.distance - b.distance);
         for (let i = 1; i < line.length; i++) {
+          expect(
+            line[i]!.distance - line[i - 1]!.distance,
+            'queued guests stand a spacing apart',
+          ).toBeGreaterThanOrEqual(48);
           expect(
             joined.get(line[i]!.id)!,
             `guest ${line[i]!.id} joined before the guest ahead of it`,

@@ -274,14 +274,14 @@ export function configureRide(world: World, rideId: number, options: RideOperati
 }
 
 /**
- * Guests a ride's line can hold. A built queue holds one guest per queue tile single file, plus
- * the loading area at the entrance; a ride entered straight from a path counts its declared tiles.
+ * Guests a ride's line can hold. A built queue holds four guests per queue tile single file, the
+ * entrance tile included; a ride entered straight from a path counts its declared tiles.
  */
 export function rideQueueCapacity(world: World, slot: number): number {
   const ride = world.rides.cols;
   const limit = ride.queueLimit[slot];
   const built = world.queues.hasQueue[slot]
-    ? world.queues.tiles[slot] + Math.max(1, ride.capacity[slot])
+    ? (world.queues.tiles[slot] + 1) * QUEUE_GUESTS_PER_TILE
     : (ride.queueLineTiles[slot] + 1) * QUEUE_GUESTS_PER_TILE;
   return limit > 0 && limit < built ? limit : built;
 }

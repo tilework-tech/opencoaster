@@ -22,10 +22,14 @@ import type { NavOptions } from '../pathfinding';
 import { addRideIncome, isShopCategory, rideQueueCapacity } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
 import {
-  claimQueueTile,
   directionBetween,
-  isQueueTileOccupied,
-  markQueueOccupancy,
+  updateQueueLines,
+  noteQueueJoin,
+  queueEntryBlocked,
+  queueLineCoord,
+  queueLinePoint,
+  queueSegmentHeading,
+  QUEUE_SPACING,
   refreshQueueIndex,
 } from '../rides/queue-lines';
 import { ticketPriceCents } from '../rides/queue-system';
@@ -720,21 +724,59 @@ function joinQueueLine(world: World, slot: number, ride: number): void {
   }
   const open = q.openTile[ride];
   if (open < 0) return;
-  if (isQueueTileOccupied(world, open)) {
+  if (queueEntryBlocked(world, ride)) {
     turnAwayFromBlockedQueue(world, slot, rideId, q.joinTile[ride]);
     return;
   }
-  claimQueueTile(world, open);
   g.state[slot] = GuestState.Queuing;
   g.patience[slot] = 0;
   g.queueSeq[slot] = ++r.queueSerial[ride];
   g.heading[slot] = directionBetween(world, q.joinTile[ride], open);
   lines.approaching[ride]--;
   lines.queued[ride]++;
-  moveAlongHeading(world, slot);
+  g.x[slot] = (q.joinTile[ride] % world.map.width) * TILE_UNITS + TILE_CENTRE;
+  g.y[slot] = Math.floor(q.joinTile[ride] / world.map.width) * TILE_UNITS + TILE_CENTRE;
+  noteQueueJoin(world, ride, slot, (q.dist[open] + 1) * TILE_UNITS);
+  stepAlongQueueLine(world, slot, ride, 0);
 }
 
-/** One update of a guest in a line: shuffle forward when the tile ahead is free, else idle. */
+const linePoint = { x: 0, y: 0 };
+
+/**
+ * Walks a guest down its line toward `goal` (a line coordinate), one step at most. Returns true
+ * once the guest stands at `goal`.
+ */
+function stepAlongQueueLine(world: World, slot: number, ride: number, goal: number): boolean {
+  const g = world.guests.cols;
+  const map = world.map;
+  const s = queueLineCoord(world, ride, g.x[slot], g.y[slot]);
+  if (s <= goal) return s === goal;
+  const to = Math.max(goal, s - GUEST_SPEED);
+  g.heading[slot] = queueLinePoint(
+    world,
+    ride,
+    map.index(g.x[slot] >> 8, g.y[slot] >> 8),
+    to,
+    linePoint,
+  );
+  g.x[slot] = linePoint.x;
+  g.y[slot] = linePoint.y;
+  g.z[slot] = map.heightAt(linePoint.x, linePoint.y);
+  return to === goal;
+}
+
+/** Walks a guest one step toward one spacing behind the guest ahead; true once it stands there. */
+function followQueueLine(world: World, slot: number, ride: number): boolean {
+  const q = world.queues;
+  if (q.lineGuest[slot] !== world.guests.slotToId[slot]) return false;
+  const ahead = q.lineAhead[slot];
+  return stepAlongQueueLine(world, slot, ride, ahead < 0 ? 0 : ahead + QUEUE_SPACING);
+}
+
+/**
+ * One update of a guest in a line: walk down the chain until one spacing behind the guest ahead,
+ * and join the loading group once at the front.
+ */
 function updateQueuing(world: World, slot: number, guestTick: number): void {
   const g = world.guests.cols;
   const q = world.queues;
@@ -742,50 +784,29 @@ function updateQueuing(world: World, slot: number, guestTick: number): void {
   const inbound = g.targetRide[slot] >= 0;
   const ride = inbound ? targetRideSlot(world, slot) : -1;
   const gaveUp = inbound && ride >= 0 && tickQueuePatience(world, slot, guestTick);
-  if (!atTileCentre(world, slot)) {
-    moveAlongHeading(world, slot);
-    return;
-  }
   const tile = map.index(g.x[slot] >> 8, g.y[slot] >> 8);
-  if (!map.isQueue(tile)) {
-    g.targetRide[slot] = -1;
-    g.state[slot] = GuestState.Wandering;
-    return;
-  }
-  if (
-    !inbound ||
-    ride < 0 ||
-    world.rides.cols.state[ride] !== RideState.Open ||
-    q.owner[tile] !== ride
-  ) {
-    g.targetRide[slot] = -1;
+  const onLine =
+    ride >= 0 && (q.owner[tile] === ride || (tile === q.joinTile[ride] && q.hasQueue[ride] === 1));
+  if (!onLine || world.rides.cols.state[ride] !== RideState.Open || gaveUp) {
+    if (gaveUp) leaveQueue(world, slot, true);
+    else g.targetRide[slot] = -1;
+    if (!map.isQueue(tile)) {
+      g.state[slot] = GuestState.Wandering;
+      return;
+    }
+    if (!atTileCentre(world, slot)) {
+      g.heading[slot] = queueSegmentHeading(world, g.x[slot], g.y[slot]);
+      moveAlongHeading(world, slot);
+      return;
+    }
     walkOutOfLine(world, slot, tile);
     return;
   }
-  if (gaveUp) {
-    leaveQueue(world, slot, true);
-    walkOutOfLine(world, slot, tile);
-    return;
-  }
-  const dist = q.dist[tile];
-  if (dist === 0) {
+  if (!followQueueLine(world, slot, ride)) return;
+  const platform = Math.max(1, world.rides.cols.capacity[ride]);
+  if (q.lineRank[slot] < platform) {
     g.state[slot] = GuestState.Waiting;
     world.rides.cols.queueLength[ride]++;
-    return;
-  }
-  const edges = map.pathEdges(tile);
-  for (let d = 0; d < 4; d++) {
-    if (!(edges & (1 << d))) continue;
-    const next = map.neighbor(tile, d);
-    if (next < 0 || q.owner[next] !== ride || q.dist[next] !== dist - 1) continue;
-    g.heading[slot] = d;
-    const platformFull =
-      dist === 1 &&
-      world.rides.cols.queueLength[ride] >= Math.max(1, world.rides.cols.capacity[ride]);
-    if (platformFull || (dist > 1 && isQueueTileOccupied(world, next))) return;
-    claimQueueTile(world, next);
-    moveAlongHeading(world, slot);
-    return;
   }
 }
 
@@ -902,6 +923,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
       leaveQueue(world, slot, false);
     } else if (hasQueueLine(world, ride)) {
       if (tickQueuePatience(world, slot, guestTick)) leaveQueue(world, slot, true);
+      else followQueueLine(world, slot, ride);
     } else if (isThrillCategory(rideCategory(world, ride))) {
       g.patience[slot] = Math.min(0xffff, g.patience[slot] + UPDATE_STRIDE);
       if (
@@ -993,7 +1015,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     if (
       hasQueueLine(world, ride) &&
       approach === world.queues.joinTile[ride] &&
-      isQueueTileOccupied(world, world.queues.openTile[ride]) &&
+      queueEntryBlocked(world, ride) &&
       joinTileHasEarlierGuest(world, slot, approach)
     )
       return false;
@@ -1057,7 +1079,7 @@ export function createGuestSystem(
     update(world) {
       refreshQueueIndex(world);
       recountRideLines(world);
-      markQueueOccupancy(world);
+      updateQueueLines(world);
       if (world.tick % ARRIVAL_INTERVAL === 0 && hasParkEntrance(world)) {
         spawnArrival(world, admissionProvider(world));
       }

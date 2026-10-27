@@ -5,6 +5,12 @@ import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
 import { DIR_DX, DIR_DY } from '../pathfinding/directions';
 import { GuestState } from '../guests/guest-store';
+import { TILE_UNITS } from '../core/constants';
+
+const TILE_CENTRE = TILE_UNITS >> 1;
+
+/** Distance between guests standing in a line: four to a queue tile. */
+export const QUEUE_SPACING = TILE_UNITS >> 2;
 
 /**
  * Which queue tiles belong to which ride and how far each is from the ride entrance. Derived from
@@ -23,9 +29,24 @@ export interface QueueIndex {
   tiles: Uint16Array;
   /** Per ride slot: 1 when the entrance is a queue tile (0 for rides entered straight from a path). */
   hasQueue: Uint8Array;
-  /** Tile occupancy by queuing guests: valid for `occStamp` ticks only. */
-  occupied: Uint32Array;
-  occStamp: number;
+  /** Direction toward the ride entrance from each tile of a line, or -1. */
+  down: Int8Array;
+  /**
+   * Direction toward the open end from each tile on the walked chain, or -1. The open tile points at
+   * the path tile it joins.
+   */
+  up: Int8Array;
+  /** Per ride slot: line coordinate of the last guest in the line, or -1 when it is empty. */
+  tail: Int32Array;
+  /** Per guest slot, valid for the tick: id of the guest the entry describes (-1 when not in a line). */
+  lineGuest: Int32Array;
+  /** Per guest slot: line coordinate of the guest directly ahead, or -1 for the head of the line. */
+  lineAhead: Int32Array;
+  /** Per guest slot: position in its line, 0 at the front; large unless every guest ahead is waiting to board. */
+  lineRank: Int32Array;
+  /** Scratch for ordering a line: `coordinate * 2^20 + guest slot`. */
+  lineKeys: Float64Array;
+  lineCounts: Int32Array;
   /** Boarding marks currently written into the map: `tile * 2` for an entrance, `+ 1` for an exit. */
   marks: Int32Array;
   marksScratch: Int32Array;
@@ -45,8 +66,14 @@ export function createQueueIndex(tiles: number, rideCapacity: number): QueueInde
     joinTile: new Int32Array(rideCapacity).fill(-1),
     tiles: new Uint16Array(rideCapacity),
     hasQueue: new Uint8Array(rideCapacity),
-    occupied: new Uint32Array(tiles),
-    occStamp: 1,
+    down: new Int8Array(tiles).fill(-1),
+    up: new Int8Array(tiles).fill(-1),
+    tail: new Int32Array(rideCapacity).fill(-1),
+    lineGuest: new Int32Array(0),
+    lineAhead: new Int32Array(0),
+    lineRank: new Int32Array(0),
+    lineKeys: new Float64Array(0),
+    lineCounts: new Int32Array(rideCapacity + 1),
     marks: new Int32Array(rideCapacity * 2),
     marksScratch: new Int32Array(rideCapacity * 2),
     markCount: 0,
@@ -125,6 +152,8 @@ function rebuild(world: World): void {
   const map = world.map;
   const ride = world.rides.cols;
   q.owner.fill(-1);
+  q.down.fill(-1);
+  q.up.fill(-1);
   q.openTile.fill(-1, 0, world.rides.count);
   q.joinTile.fill(-1, 0, world.rides.count);
   q.tiles.fill(0, 0, world.rides.count);
@@ -161,10 +190,18 @@ function rebuild(world: World): void {
         if (next < 0 || q.owner[next] >= 0 || !map.isQueue(next)) continue;
         q.owner[next] = slot;
         q.dist[next] = q.dist[tile] + 1;
+        q.down[next] = (d + 2) & 3;
         frontier[tail++] = next;
       }
     }
     q.tiles[slot] = tail - 1;
+    let chain = q.openTile[slot];
+    if (chain >= 0) q.up[chain] = directionBetween(world, chain, q.joinTile[slot]);
+    while (chain >= 0 && q.down[chain] >= 0) {
+      const below = map.neighbor(chain, q.down[chain]);
+      q.up[below] = (q.down[chain] + 2) & 3;
+      chain = below;
+    }
   }
   let orphans = 0;
   for (let i = 0; i < q.owner.length; i++) if (q.owner[i] < 0 && map.isQueue(i)) orphans++;
@@ -188,38 +225,172 @@ export function directionBetween(world: World, from: number, to: number): number
   return -1;
 }
 
-/** Tile a queuing guest at position (x, y) is standing on or walking toward. */
-function claimedTile(world: World, slot: number): number {
-  const g = world.guests.cols;
-  const map = world.map;
-  const tile = map.index(g.x[slot] >> 8, g.y[slot] >> 8);
-  const heading = g.heading[slot];
-  if (heading > 3) return tile;
-  const horizontal = heading === 0 || heading === 2;
-  const offset = (horizontal ? g.x[slot] : g.y[slot]) & 255;
-  if (offset === 128) return tile;
-  const forward = heading <= 1 ? offset > 128 : offset < 128;
-  return forward ? map.neighbor(tile, heading) : tile;
+/**
+ * Position of (x, y) along ride `ride`'s line, in world units from the centre of the entrance tile.
+ * The line is the polyline through the centres of the queue tiles from the open end to the
+ * entrance, continued one tile past the open end through the path tile it joins. Returns -1 off
+ * the line.
+ */
+export function queueLineCoord(world: World, ride: number, x: number, y: number): number {
+  const q = world.queues;
+  const tile = world.map.index(x >> 8, y >> 8);
+  const ox = (x & (TILE_UNITS - 1)) - TILE_CENTRE;
+  const oy = (y & (TILE_UNITS - 1)) - TILE_CENTRE;
+  if (q.owner[tile] === ride) {
+    const base = q.dist[tile] * TILE_UNITS;
+    const up = q.up[tile];
+    const awayFromEntrance = up < 0 ? 0 : ox * DIR_DX[up] + oy * DIR_DY[up];
+    if (awayFromEntrance > 0) return base + awayFromEntrance;
+    const down = q.down[tile];
+    const towardEntrance = down < 0 ? 0 : ox * DIR_DX[down] + oy * DIR_DY[down];
+    return base - Math.max(0, towardEntrance);
+  }
+  const open = q.openTile[ride];
+  if (open >= 0 && tile === q.joinTile[ride]) {
+    const up = q.up[open];
+    return (q.dist[open] + 1) * TILE_UNITS + ox * DIR_DX[up] + oy * DIR_DY[up];
+  }
+  return -1;
 }
 
-/** Marks every tile a line-bound queuing guest occupies or is walking into. */
-export function markQueueOccupancy(world: World): void {
+/**
+ * Moves a guest at line coordinate `from` (standing on `tile`) down the line to `to <= from`.
+ * Writes the new position through `out` and returns the heading of the move.
+ */
+export function queueLinePoint(
+  world: World,
+  ride: number,
+  tile: number,
+  to: number,
+  out: { x: number; y: number },
+): number {
   const q = world.queues;
-  q.occStamp++;
+  const map = world.map;
+  let dist: number;
+  let up: number;
+  let down: number;
+  if (q.owner[tile] === ride) {
+    dist = q.dist[tile];
+    up = q.up[tile];
+    down = q.down[tile];
+  } else {
+    const open = q.openTile[ride];
+    dist = q.dist[open] + 1;
+    up = q.up[open];
+    down = (up + 2) & 3;
+  }
+  const cx = (tile % map.width) * TILE_UNITS + TILE_CENTRE;
+  const cy = Math.floor(tile / map.width) * TILE_UNITS + TILE_CENTRE;
+  const rel = to - dist * TILE_UNITS;
+  if (rel > 0 && up >= 0) {
+    out.x = cx + DIR_DX[up] * rel;
+    out.y = cy + DIR_DY[up] * rel;
+    return (up + 2) & 3;
+  }
+  const d = down >= 0 ? down : (up + 2) & 3;
+  out.x = cx - DIR_DX[d] * rel;
+  out.y = cy - DIR_DY[d] * rel;
+  return d;
+}
+
+/** Heading that walks a guest off the line's centre path back to the nearest tile centre or outward. */
+export function queueSegmentHeading(world: World, x: number, y: number): number {
+  const q = world.queues;
+  const tile = world.map.index(x >> 8, y >> 8);
+  const ox = (x & (TILE_UNITS - 1)) - TILE_CENTRE;
+  const oy = (y & (TILE_UNITS - 1)) - TILE_CENTRE;
+  const up = q.up[tile];
+  if (up >= 0 && ox * DIR_DX[up] + oy * DIR_DY[up] > 0) return up;
+  const down = q.down[tile];
+  return down >= 0 ? (down + 2) & 3 : -1;
+}
+
+function ensureLineCapacity(q: QueueIndex, guests: number): void {
+  if (q.lineGuest.length >= guests) return;
+  const size = guests + (guests >> 1) + 16;
+  q.lineGuest = new Int32Array(size);
+  q.lineAhead = new Int32Array(size);
+  q.lineRank = new Int32Array(size);
+  q.lineKeys = new Float64Array(size);
+}
+
+/**
+ * Orders every line's guests (queuing inbound plus waiting at the head) by their position along it:
+ * records for each the coordinate of the guest ahead and its rank, and for each ride the last
+ * guest's coordinate.
+ */
+export function updateQueueLines(world: World): void {
+  const q = world.queues;
   const g = world.guests.cols;
+  const rides = world.rides.count;
+  ensureLineCapacity(q, world.guests.count);
+  q.tail.fill(-1, 0, rides);
+  q.lineCounts.fill(0, 0, rides + 1);
+  const keys = q.lineKeys;
+  q.lineGuest.fill(-1, 0, world.guests.count);
+  let n = 0;
   for (let slot = 0; slot < world.guests.count; slot++) {
-    if (g.state[slot] !== GuestState.Queuing || g.targetRide[slot] < 0) continue;
-    const here = world.map.index(g.x[slot] >> 8, g.y[slot] >> 8);
-    q.occupied[here] = q.occStamp;
-    const ahead = claimedTile(world, slot);
-    if (ahead >= 0) q.occupied[ahead] = q.occStamp;
+    const state = g.state[slot];
+    if (state !== GuestState.Queuing && state !== GuestState.Waiting) continue;
+    const id = g.targetRide[slot];
+    if (id < 0) continue;
+    const ride = world.rides.idToSlot[id];
+    if (world.rides.slotToId[ride] !== id || !q.hasQueue[ride]) continue;
+    const s = queueLineCoord(world, ride, g.x[slot], g.y[slot]);
+    if (s < 0) continue;
+    keys[n++] = (ride * 0x2000000 + s) * 0x100000 + slot;
+  }
+  // Insertion sort: lines are nearly ordered from one tick to the next.
+  for (let i = 1; i < n; i++) {
+    const key = keys[i];
+    let j = i - 1;
+    while (j >= 0 && keys[j] > key) {
+      keys[j + 1] = keys[j];
+      j--;
+    }
+    keys[j + 1] = key;
+  }
+  let previousRide = -1;
+  let rank = 0;
+  let aheadS = -1;
+  let aheadReady = true;
+  for (let i = 0; i < n; i++) {
+    const key = keys[i];
+    const slot = key % 0x100000;
+    const rest = (key - slot) / 0x100000;
+    const s = rest % 0x2000000;
+    const ride = (rest - s) / 0x2000000;
+    if (ride !== previousRide) {
+      previousRide = ride;
+      rank = 0;
+      aheadS = -1;
+      aheadReady = true;
+    }
+    q.lineGuest[slot] = world.guests.slotToId[slot];
+    q.lineAhead[slot] = aheadS;
+    q.lineRank[slot] = aheadReady ? rank : 0x7fffffff;
+    rank++;
+    aheadReady = aheadReady && g.state[slot] === GuestState.Waiting;
+    q.tail[ride] = s;
+    aheadS = s;
   }
 }
 
-export function isQueueTileOccupied(world: World, tile: number): boolean {
-  return world.queues.occupied[tile] === world.queues.occStamp;
+/** True when a guest joining at the open end would stand closer than the spacing to the last one. */
+export function queueEntryBlocked(world: World, ride: number): boolean {
+  const q = world.queues;
+  const tail = q.tail[ride];
+  const open = q.openTile[ride];
+  return tail >= 0 && open >= 0 && (q.dist[open] + 1) * TILE_UNITS - tail < QUEUE_SPACING;
 }
 
-export function claimQueueTile(world: World, tile: number): void {
-  world.queues.occupied[tile] = world.queues.occStamp;
+/** Records a guest that just joined at the open end as the last in its line. */
+export function noteQueueJoin(world: World, ride: number, slot: number, s: number): void {
+  const q = world.queues;
+  if (slot < q.lineGuest.length) {
+    q.lineGuest[slot] = world.guests.slotToId[slot];
+    q.lineAhead[slot] = q.tail[ride];
+    q.lineRank[slot] = 0x7fffffff;
+  }
+  q.tail[ride] = s;
 }
