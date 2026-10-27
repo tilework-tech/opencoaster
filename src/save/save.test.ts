@@ -27,8 +27,61 @@ import { PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
 import { placeScenery, SceneryItem } from '../sim/map/scenery';
 import { refreshQueueIndex } from '../sim/rides/queue-lines';
 import { createRide, placeRideEntranceExit } from '../sim/rides/ride-operations';
+import {
+  SMALL_CIRCUIT,
+  buildCircuit,
+  createCoaster,
+  flatOwnedSim,
+  queueGuests,
+  run,
+} from '../sim/rides/coaster-fixtures';
+import { syncVehicleTracks, VehicleTrackRegistry } from '../sim/vehicles/vehicle-track';
+import { rideTrainSlots } from '../sim/vehicles/ride-trains';
 
 describe('save', () => {
+  it('repairs a serialized station-last test train so it completes testing and serves guests', () => {
+    const sim = flatOwnedSim(1);
+    const rideId = createCoaster(sim, RideType.WoodenCoaster);
+    buildCircuit(sim, rideId, [...SMALL_CIRCUIT.slice(1), ...SMALL_CIRCUIT.slice(0, 1)]);
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
+    sim.step();
+    const tracks = new VehicleTrackRegistry();
+    syncVehicleTracks(sim.world, tracks);
+    const track = tracks.get(rideId)!;
+    const train = rideTrainSlots(sim.world, rideId)[0];
+    sim.world.vehicles.cols.trackPos[train] = track.cumulativeLengthsQ8[track.stationSegment - 1];
+    sim.world.vehicles.cols.lastSegment[train] = track.stationSegment - 1;
+
+    const loaded = new Simulation(deserialize(serialize(sim.world)));
+    const loadedTrain = rideTrainSlots(loaded.world, rideId)[0];
+    expect(loaded.world.vehicles.cols.trackPos[loadedTrain]).toBe(
+      track.cumulativeLengthsQ8[track.stationSegment],
+    );
+    run(loaded, 9000);
+    const rideSlot = loaded.world.rides.idToSlot[rideId];
+    expect(loaded.world.rides.cols.tested[rideSlot]).toBe(1);
+
+    const stationType = PieceId.Station;
+    const station = loaded.world.track.pieces.cols;
+    let stationX = -1;
+    let stationY = -1;
+    for (let piece = 0; piece < loaded.world.track.pieces.count; piece++) {
+      if (station.rideId[piece] === rideId && station.pieceType[piece] === stationType) {
+        stationX = station.x[piece];
+        stationY = station.y[piece];
+      }
+    }
+    loaded.enqueue({ type: 'placePath', x: stationX, y: stationY - 2 });
+    loaded.enqueue({ type: 'placeRideEntrance', rideId, x: stationX, y: stationY - 1 });
+    loaded.enqueue({ type: 'placeRideExit', rideId, x: stationX, y: stationY + 1 });
+    loaded.step();
+    queueGuests(loaded, rideId, 12);
+    loaded.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+    run(loaded, 3000);
+    expect(loaded.world.rides.cols.tested[rideSlot]).toBe(1);
+    expect(loaded.world.rides.cols.guestsServed[rideSlot]).toBeGreaterThan(0);
+  });
+
   it('writes the current version with climate metadata', () => {
     expect(SAVE_VERSION).toBe(26);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });

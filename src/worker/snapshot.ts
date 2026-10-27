@@ -9,7 +9,7 @@ import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { GuestState } from '../sim/guests/guest-store';
 import { recountRideLines } from '../sim/guests/ride-lines';
-import { getConstructionCursor } from '../sim/track/construction';
+import { circuitStatus, getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
 import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/ledger';
@@ -21,6 +21,7 @@ import { demolitionRefund } from '../sim/rides/ride-refund';
 import { estimatedWaitTicks, rideQueueCapacity } from '../sim/rides/ride-operations';
 import { worldOccupancies } from '../sim/map/occupancy';
 import type { OccupancyVolume } from '../sim/map/occupancy';
+import { maxCarsForRide, maxTrainsForRide } from '../sim/vehicles/ride-trains';
 
 /** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
@@ -28,7 +29,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 32;
+export const RIDE_INFO_STRIDE = 37;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -102,6 +103,16 @@ export const enum RideInfo {
   QueueLimit = 30,
   /** Permille of the current ride phase already elapsed, used to synchronize animated ride sprites. */
   PhaseProgress = 31,
+  /** Trains the operator asked for; 0 means automatic. */
+  TrainsSet = 32,
+  /** Cars per train the operator asked for; 0 means the ride type's default. */
+  CarsSet = 33,
+  /** Most trains the block sections allow (track rides; 0 otherwise). */
+  MaxTrains = 34,
+  /** Most cars the station platform holds (track rides; 0 otherwise). */
+  MaxCars = 35,
+  /** Guests per dispatch with the current layout. */
+  Capacity = 36,
 }
 
 export const enum RideFlag {
@@ -112,6 +123,8 @@ export const enum RideFlag {
   CircuitClosed = 1 << 4,
   /** The entrance sits on a queue tile, so guests line up on a built queue. */
   HasQueue = 1 << 5,
+  /** The circuit is closed and includes a station: the minimum for testing the ride. */
+  CircuitComplete = 1 << 6,
 }
 
 export interface DecodedCursor {
@@ -390,7 +403,8 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
     (r.queueConnected[slot] ? RideFlag.QueueConnected : 0) |
     (r.tested[slot] ? RideFlag.Tested : 0) |
     (world.queues.hasQueue[slot] ? RideFlag.HasQueue : 0) |
-    (trackRide && world.track.closed[rideId] ? RideFlag.CircuitClosed : 0);
+    (trackRide && world.track.closed[rideId] ? RideFlag.CircuitClosed : 0) |
+    (trackRide && circuitStatus(world, rideId).complete ? RideFlag.CircuitComplete : 0);
   info[o + RideInfo.GuestsServed] = r.guestsServed[slot];
   info[o + RideInfo.Price] = r.price[slot];
   info[o + RideInfo.TrackPieces] = trackRide ? world.track.count[rideId] : 0;
@@ -413,6 +427,11 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.QueueCapacity] = rideQueueCapacity(world, slot);
   info[o + RideInfo.QueueLimit] = r.queueLimit[slot];
   info[o + RideInfo.PhaseProgress] = phaseProgress(r, slot);
+  info[o + RideInfo.TrainsSet] = r.trainCount[slot];
+  info[o + RideInfo.CarsSet] = r.carsPerTrain[slot];
+  info[o + RideInfo.Capacity] = r.capacity[slot];
+  info[o + RideInfo.MaxTrains] = definition?.usesTrack ? maxTrainsForRide(world, rideId) : 0;
+  info[o + RideInfo.MaxCars] = definition?.usesTrack ? maxCarsForRide(world, rideId) : 0;
   if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;

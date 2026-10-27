@@ -105,7 +105,7 @@ test('the builder raises the start and closes a circuit whose ends sit one land 
   await build(construction, 'Right small', 'Level');
   await build(construction, 'Right small', 'Level');
   await build(construction, 'Straight', 'Level');
-  await expect(info).toContainText('open');
+  await expect(info).toContainText('Circuit incomplete');
   await build(construction, 'Straight', 'Down');
   await build(construction, 'Straight', 'Level');
   await expect(construction.locator('.coaster-height')).toHaveText(
@@ -113,7 +113,8 @@ test('the builder raises the start and closes a circuit whose ends sit one land 
   );
   await build(construction, 'Right small', 'Level');
   await build(construction, 'Right small', 'Level');
-  await expect(info).toContainText('Track 10 pieces, closed circuit');
+  await expect(info).toContainText('Track 10 pieces');
+  await expect(info).toContainText('Circuit complete');
 
   if (proofDir) {
     mkdirSync(proofDir, { recursive: true });

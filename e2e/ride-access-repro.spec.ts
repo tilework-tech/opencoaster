@@ -265,7 +265,7 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
     ['Right small', 'Level', 'Normal'],
   ])
     await placePiece(shape, slope, drive);
-  await expect(page.locator('.coaster-info')).toContainText('closed circuit');
+  await expect(page.locator('.coaster-info')).toContainText('Circuit complete');
   await screenshot(page, testInfo, 'p0-4-looping-coaster-before-access');
   const coasterEntrance = page.getByRole('button', { name: /Place entrance at tile/ }).first();
   await expect(coasterEntrance).toBeVisible();

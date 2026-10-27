@@ -1,6 +1,6 @@
+import { circuitLabel } from '../coaster-panel';
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import type { RideType } from '../../sim/rides/ride-types';
-import { MAX_CARS, MAX_TRAINS_PER_RIDE } from '../../sim/vehicles/ride-trains';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, iconButton, setText, statRow } from '../dom';
@@ -124,25 +124,27 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const trainsInput = element('input', 'count-input');
   trainsInput.type = 'number';
   trainsInput.min = '0';
-  trainsInput.max = String(MAX_TRAINS_PER_RIDE);
   trainsInput.value = '0';
   trainsInput.setAttribute('aria-label', 'Trains on the track (0 for automatic)');
   const carsInput = element('input', 'count-input');
   carsInput.type = 'number';
   carsInput.min = '0';
-  carsInput.max = String(MAX_CARS);
   carsInput.value = '0';
   carsInput.setAttribute('aria-label', 'Cars per train (0 for default)');
-  const trainsRow = element('div', 'button-row');
-  trainsRow.append(
-    trainsInput,
-    carsInput,
-    button(
-      'Set trains',
-      () => ctx.actions.setRideTrains(rideId, Number(trainsInput.value), Number(carsInput.value)),
-      'ui-button',
-    ),
+  let layoutEdited = false;
+  for (const input of [trainsInput, carsInput])
+    input.addEventListener('input', () => (layoutEdited = true));
+  const setTrains = button(
+    'Set trains',
+    () => {
+      layoutEdited = false;
+      ctx.actions.setRideTrains(rideId, Number(trainsInput.value), Number(carsInput.value));
+    },
+    'ui-button',
   );
+  const trainsRow = element('div', 'button-row');
+  trainsRow.append(trainsInput, carsInput, setTrains);
+  const trainsReason = element('p', 'ui-help train-layout-reason');
   const reliability = gauge('Reliability');
   const maintenance = { inspect: statRow('Inspection interval'), breakdowns: statRow('Condition') };
   const measurements = {
@@ -193,6 +195,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       operating.unload.row,
       element('p', 'ui-help', 'Trains and cars per train (0 for automatic)'),
       trainsRow,
+      trainsReason,
     );
     p('maintenance').append(
       reliability.row,
@@ -353,7 +356,36 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       partButtons.hidden = serviceRide;
 
       setText(vehicle.type.value, def?.name ?? 'Ride');
-      setText(vehicle.capacity.value, String(def?.capacity ?? 0));
+      setText(vehicle.capacity.value, String(info[o + RideInfo.Capacity]));
+      const maxTrains = info[o + RideInfo.MaxTrains];
+      const maxCars = info[o + RideInfo.MaxCars];
+      const layoutLocked = state !== 0;
+      trainsInput.max = String(maxTrains);
+      carsInput.max = String(maxCars);
+      trainsInput.disabled = layoutLocked;
+      carsInput.disabled = layoutLocked;
+      const trainsValue = Number(trainsInput.value);
+      const carsValue = Number(carsInput.value);
+      const outOfRange =
+        !Number.isInteger(trainsValue) ||
+        !Number.isInteger(carsValue) ||
+        trainsValue < 0 ||
+        carsValue < 0 ||
+        trainsValue > maxTrains ||
+        carsValue > maxCars;
+      setTrains.disabled = layoutLocked || outOfRange;
+      if (!layoutEdited) {
+        trainsInput.value = String(info[o + RideInfo.TrainsSet]);
+        carsInput.value = String(info[o + RideInfo.CarsSet]);
+      }
+      setText(
+        trainsReason,
+        layoutLocked
+          ? 'Close the ride to change trains and cars per train.'
+          : outOfRange
+            ? `The station holds up to ${maxCars} cars per train; the block sections allow up to ${maxTrains} trains.`
+            : `Up to ${maxTrains} trains of up to ${maxCars} cars (0 for automatic).`,
+      );
       setText(vehicle.cost.value, formatMoney(def?.cost ?? 0));
       setText(operating.load.value, seconds(def?.loadTicks ?? 0));
       setText(
@@ -384,7 +416,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(
         measurements.pieces.value,
         def?.usesTrack
-          ? `${info[o + RideInfo.TrackPieces]} pieces${flags & RideFlag.CircuitClosed ? ', closed circuit' : ''}`
+          ? `${info[o + RideInfo.TrackPieces]} pieces · ${circuitLabel(flags)}`
           : 'not a track ride',
       );
 

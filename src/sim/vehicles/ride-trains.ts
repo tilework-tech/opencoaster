@@ -1,13 +1,16 @@
 import type { World } from '../core/world';
+import { RideState } from '../rides/ride-store';
 import { spawnTrain, VehicleState } from './vehicle-store';
-import { syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
+import { maxTrainsOnTrack, syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
+import type { VehicleTrack } from './vehicle-track';
+import { CAR_LENGTH_Q8 } from './vehicle-system';
 
 /** Dispatch is driven by the ride's own operating rules, so the train never self-dispatches. */
 const RIDE_MANAGED_MIN_WAIT = 0xffff;
 /** Empty mass of one car; riders add `PASSENGER_MASS` each, so loaded trains run more freely. */
 export const CAR_MASS = 1800;
 export const RIDERS_PER_CAR = 4;
-/** A train must fit inside the station piece. */
+/** Most cars a train can have, before the station length limits it further. */
 export const MAX_CARS = 5;
 /** Most trains a coaster runs at once, however many block sections it has. */
 export const MAX_TRAINS_PER_RIDE = 4;
@@ -33,6 +36,25 @@ export function rideTrainSlots(world: World, rideId: number): number[] {
     if (cols.rideId[slot] === rideId) out.push(slot);
   }
   return out;
+}
+
+function positionTrainAtStation(
+  world: World,
+  track: VehicleTrack,
+  slot: number,
+  state: VehicleState.Waiting | VehicleState.Testing,
+): void {
+  const waiting = state === VehicleState.Waiting && track.stationEndSegment >= 0;
+  const wrapsToStart = waiting && track.stationEndSegment >= track.segmentLengths.length;
+  const atEnd = waiting && !wrapsToStart;
+  const segment = atEnd ? track.stationEndSegment : wrapsToStart ? 0 : track.stationSegment;
+  const point = segment * 3;
+  const cols = world.vehicles.cols;
+  cols.trackPos[slot] = track.cumulativeLengthsQ8[segment];
+  cols.x[slot] = track.points[point];
+  cols.y[slot] = track.points[point + 1];
+  cols.z[slot] = track.points[point + 2];
+  cols.lastSegment[slot] = atEnd ? segment - 1 : wrapsToStart ? 0xffff : segment;
 }
 
 export function removeRideTrains(world: World, rideId: number): void {
@@ -66,17 +88,59 @@ export function spawnRideTrain(
     carCount,
   });
   if (slot < 0) return -1;
-  const cols = world.vehicles.cols;
-  const atEnd =
-    state === VehicleState.Waiting &&
-    track.stationEndSegment >= 0 &&
-    track.stationEndSegment < track.segmentLengths.length;
-  const segment = atEnd ? track.stationEndSegment : track.stationSegment;
-  const point = segment * 3;
-  cols.trackPos[slot] = track.cumulativeLengthsQ8[segment];
-  cols.x[slot] = track.points[point];
-  cols.y[slot] = track.points[point + 1];
-  cols.z[slot] = track.points[point + 2];
-  cols.lastSegment[slot] = atEnd ? segment - 1 : segment;
+  positionTrainAtStation(world, track, slot, state);
   return slot;
+}
+
+function currentTrack(world: World, rideId: number): VehicleTrack | undefined {
+  const tracks = (world.vehicleTracks ??= new VehicleTrackRegistry());
+  syncVehicleTracks(world, tracks);
+  return tracks.get(rideId);
+}
+
+/** Restores parked and testing trains to the station positions implied by their ride state. */
+export function repairSavedRideTrains(world: World): void {
+  const vehicles = world.vehicles.cols;
+  const rides = world.rides.cols;
+  const parked: number[] = [];
+  for (let slot = 0; slot < world.vehicles.count; slot++) {
+    const rideSlot = world.rides.idToSlot[vehicles.rideId[slot]];
+    if (rideSlot < 0) continue;
+    const rideState = rides.state[rideSlot];
+    if (
+      (rideState === RideState.Closed ||
+        rideState === RideState.Testing ||
+        rideState === RideState.Open) &&
+      (vehicles.state[slot] === VehicleState.Waiting ||
+        vehicles.state[slot] === VehicleState.Testing)
+    )
+      parked.push(slot);
+  }
+  if (parked.length === 0) return;
+
+  const tracks = (world.vehicleTracks ??= new VehicleTrackRegistry());
+  syncVehicleTracks(world, tracks);
+  for (const slot of parked) {
+    const rideId = vehicles.rideId[slot];
+    const state = vehicles.state[slot];
+    const track = tracks.get(rideId);
+    if (!track || track.stationSegment < 0) continue;
+
+    positionTrainAtStation(world, track, slot, state);
+    vehicles.speed[slot] = 0;
+  }
+}
+
+/** Longest train the ride's station platform holds: the cars must all stand inside it. */
+export function maxCarsForRide(world: World, rideId: number): number {
+  const track = currentTrack(world, rideId);
+  if (!track || track.stationSegment < 0 || track.stationEndQ8 < 0) return MAX_CARS;
+  const platform = track.stationEndQ8 - track.cumulativeLengthsQ8[track.stationSegment];
+  return Math.max(1, Math.min(MAX_CARS, Math.floor(platform / CAR_LENGTH_Q8)));
+}
+
+/** Most trains the ride runs at once: one per block section, at most `MAX_TRAINS_PER_RIDE`. */
+export function maxTrainsForRide(world: World, rideId: number): number {
+  const track = currentTrack(world, rideId);
+  return track ? Math.min(MAX_TRAINS_PER_RIDE, maxTrainsOnTrack(track)) : 1;
 }

@@ -114,6 +114,12 @@ const MAIN_TURNS: readonly TurnKind[] = [
 ];
 const SPECIAL_TURNS = TURN_LABELS.filter(([turn]) => !MAIN_TURNS.includes(turn));
 
+/** RCT2-style circuit wording, kept apart from the ride's Open/Closed status. */
+export function circuitLabel(flags: number): string {
+  if (flags & RideFlag.CircuitComplete) return 'Circuit complete';
+  return flags & RideFlag.CircuitClosed ? 'Circuit incomplete (no station)' : 'Circuit incomplete';
+}
+
 export class CoasterPanel {
   private readonly root: HTMLElement;
   private window: UiWindow | null = null;
@@ -538,7 +544,7 @@ export class CoasterPanel {
     const tested = (flags & RideFlag.Tested) !== 0;
     if (closed && !hasEntrance && this.buildMode !== 'entrance') {
       this.buildMode = 'entrance';
-      this.actions.status('Place entrance next to the station.');
+      this.actions.status('Circuit complete. Place entrance next to the station.');
     } else if (closed && hasEntrance && !hasExit && this.buildMode !== 'exit') {
       this.buildMode = 'exit';
       this.actions.status('Place exit next to the station.');
@@ -586,7 +592,7 @@ export class CoasterPanel {
             ? 'Test the ride before opening it.'
             : 'Circuit complete. Remove a piece to change the layout.'
       : piece
-        ? `${piece.name}: ${dollars(piece.cost)} of ${dollars(snapshot.park.cash)} cash`
+        ? `${circuitLabel(flags)}. ${piece.name}: ${dollars(piece.cost)} of ${dollars(snapshot.park.cash)} cash`
         : 'No piece fits those controls here.';
   }
 
@@ -601,7 +607,7 @@ export class CoasterPanel {
       : 'Ratings: run a test';
     return [
       `${ride.def.name} ${ride.id + 1} · ${state}, ${PHASE_NAMES[info[o + RideInfo.Phase]] ?? ''}`,
-      `Track ${info[o + RideInfo.TrackPieces]} pieces, ${flags & RideFlag.CircuitClosed ? 'closed circuit' : 'open'}`,
+      `Track ${info[o + RideInfo.TrackPieces]} pieces · ${circuitLabel(flags)}`,
       `Entrance ${flags & RideFlag.EntrancePlaced ? 'yes' : 'no'} · Exit ${flags & RideFlag.ExitPlaced ? 'yes' : 'no'} · Queue ${flags & RideFlag.QueueConnected ? 'linked' : 'not linked'}`,
       `Waiting ${info[o + RideInfo.QueueLength]} · Served ${info[o + RideInfo.GuestsServed]}`,
       ratings,

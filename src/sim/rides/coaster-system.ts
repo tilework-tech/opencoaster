@@ -3,6 +3,7 @@ import type { World } from '../core/world';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import {
   MAX_TRAINS_PER_RIDE,
+  carsForCapacity,
   findRideTrain,
   removeRideTrains,
   rideTrainSlots,
@@ -260,7 +261,31 @@ function standDown(world: World, slot: number, rideId: number): void {
     return;
   }
   abortCycle(world, slot);
+  parkTrain(world, slot, rideId, trains);
+}
+
+/**
+ * A tested, closed ride keeps one empty train standing in the station, built to the ride's
+ * current car count; an untested ride has none.
+ */
+function parkTrain(world: World, slot: number, rideId: number, trains: readonly number[]): void {
+  const ride = world.rides.cols;
+  if (!ride.tested[slot]) {
+    removeRideTrains(world, rideId);
+    return;
+  }
+  const cars = carsForCapacity(ride.capacity[slot] > 0 ? ride.capacity[slot] : 16);
+  const v = world.vehicles.cols;
+  if (
+    trains.length === 1 &&
+    v.carCount[trains[0]] === cars &&
+    v.state[trains[0]] === VehicleState.Waiting &&
+    v.passengers[trains[0]] === 0
+  ) {
+    return;
+  }
   removeRideTrains(world, rideId);
+  spawnRideTrain(world, rideId, VehicleState.Waiting, ride.capacity[slot]);
 }
 
 /**

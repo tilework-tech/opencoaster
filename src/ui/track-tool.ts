@@ -242,7 +242,8 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.Ok]: 'Done.',
   [RideResult.NoSuchRide]: 'That ride no longer exists.',
   [RideResult.NotTrackRide]: 'This ride does not use track.',
-  [RideResult.TrackIncomplete]: 'Build a closed circuit that includes a station first.',
+  [RideResult.TrackIncomplete]:
+    'Circuit incomplete: build a closed circuit that includes a station first.',
   [RideResult.Busy]: 'The ride is running; close it and wait for the train to return.',
   [RideResult.Broken]: 'The ride is broken down and needs a mechanic.',
   [RideResult.NotTested]: 'Run a test before opening the ride.',
