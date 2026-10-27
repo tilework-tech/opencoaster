@@ -112,7 +112,7 @@ describe('AdaptiveResolution', () => {
     expect(controller.scale).toBeLessThan(1);
   });
 
-  it('keeps using the learned refresh budget when GPU work delays later callbacks', () => {
+  it('adapts when the display cadence changes from 60 Hz to 30 Hz', () => {
     const controller = new AdaptiveResolution();
     run(
       controller,
@@ -120,12 +120,10 @@ describe('AdaptiveResolution', () => {
       3,
       () => 2,
     );
-    let lowestScale = controller.scale;
-    for (let i = 0; i < 180; i++) {
+    for (let i = 0; i < 120; i++) {
       controller.record(33.3, 2);
-      lowestScale = Math.min(lowestScale, controller.scale);
+      expect(controller.scale).toBe(1);
     }
-    expect(lowestScale).toBeLessThan(1);
   });
 
   it('detects overload above the observed refresh budget', () => {

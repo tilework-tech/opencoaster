@@ -90,10 +90,9 @@ export class AdaptiveResolution {
       intervalSpread < STEADY_SPREAD &&
       renderAverage <= this.slowMs &&
       intervalAverage >= 4 &&
-      intervalAverage < 50 &&
-      (!Number.isFinite(this.refreshIntervalMs) || intervalAverage <= slowThreshold)
+      intervalAverage < 50
     ) {
-      this.refreshIntervalMs = Math.min(this.refreshIntervalMs, intervalAverage);
+      this.refreshIntervalMs = intervalAverage;
       slowThreshold = Math.max(this.slowMs, this.refreshIntervalMs * REFRESH_BUDGET_FACTOR);
     }
     const windowMs = this.elapsed;
