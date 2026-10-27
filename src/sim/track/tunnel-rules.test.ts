@@ -1,3 +1,4 @@
+import { TRACK_STEPS_PER_LEVEL } from '../core/constants';
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { LandAction, LandResult, planLand } from '../map/land-tool';
@@ -34,7 +35,7 @@ function place(sim: Simulation, rideId: number, x: number, pieceType: number = P
     pieceType,
     x,
     y: 20,
-    z: LEVEL,
+    z: LEVEL * TRACK_STEPS_PER_LEVEL,
     dir: 0,
     mode: PieceMode.Normal,
   });

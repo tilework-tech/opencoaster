@@ -1,4 +1,4 @@
-import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../sim/core/constants';
 import { decodeCarPose } from '../worker/car-poses';
 import type { CarPose } from '../worker/car-poses';
 import { RideInfo, RIDE_INFO_STRIDE, SNAPSHOT_STRIDE } from '../worker/snapshot';
@@ -131,7 +131,7 @@ export class CoasterScene {
         ? trackCellSprites(pieceType, dir, rotation, family, mode, snapshot.tick)
         : transportTrackCells(pieceType, dir, rotation, transport!);
       const hidden = undergroundView
-        ? undergroundTiles(map, pieceType, originX, originY, z / Z_STEP, dir)
+        ? undergroundTiles(map, pieceType, originX, originY, z / TRACK_Z_STEP, dir)
         : null;
       if (family)
         this.addPortals(pieceType, family, rideId, originX, originY, z, dir, map, rotation);
@@ -176,7 +176,14 @@ export class CoasterScene {
     rotation: Rotation,
   ): void {
     const art = family === 'log-flume' || family === 'river-rapids' ? 'wood' : trackArt(family);
-    for (const portal of pieceTunnelPortals(map, pieceType, originX, originY, z / Z_STEP, dir)) {
+    for (const portal of pieceTunnelPortals(
+      map,
+      pieceType,
+      originX,
+      originY,
+      z / TRACK_Z_STEP,
+      dir,
+    )) {
       const view = rotateDirection(portal.facing, rotation);
       this.push(
         `rides/coaster/${art}/tunnel/view-${view}`,

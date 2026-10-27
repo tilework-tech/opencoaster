@@ -926,7 +926,7 @@ describe('vehicle simulation', () => {
         pieceType: PieceId.Station,
         x: 5,
         y: 5,
-        z: 4,
+        z: 8,
         dir: 0,
         mode: PieceMode.Normal,
       }),

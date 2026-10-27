@@ -1,3 +1,4 @@
+import { TRACK_STEPS_PER_LEVEL } from '../sim/core/constants';
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/core/simulation';
 import { OWNED } from '../sim/map/tile-map';
@@ -33,7 +34,7 @@ function tunnelWorld(): { sim: Simulation; map: MapData } {
         pieceType: x === 14 ? PieceId.Station : PieceId.Flat,
         x,
         y: 20,
-        z: LEVEL,
+        z: LEVEL * TRACK_STEPS_PER_LEVEL,
         dir: 0,
         mode: PieceMode.Normal,
       }),

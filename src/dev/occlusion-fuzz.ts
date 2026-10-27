@@ -1,7 +1,7 @@
 import { Simulation } from '../sim/core/simulation';
 import type { Command } from '../sim/core/commands';
 import { Prng } from '../sim/core/prng';
-import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
+import { TILE_UNITS, TRACK_STEPS_PER_LEVEL, Z_STEP } from '../sim/core/constants';
 import { GuestState, HEADING_NONE, spawnGuest } from '../sim/guests/guest-store';
 import { LitterKind, dropLitter } from '../sim/guests/litter-store';
 import { PathAddition } from '../sim/map/paths';
@@ -247,7 +247,7 @@ class ParkBuilder {
           pieceType: pieceByName(name)!.id,
           x: cursor.hasTrack ? cursor.x : sx,
           y: cursor.hasTrack ? cursor.y : sy,
-          z: cursor.hasTrack ? cursor.z : GROUND,
+          z: cursor.hasTrack ? cursor.z : GROUND * TRACK_STEPS_PER_LEVEL,
           dir: cursor.hasTrack ? cursor.dir : 0,
           mode,
         },

@@ -6,14 +6,14 @@ import type { TrackPath } from './track-path';
 export const MAX_TRACK_PIECES = 16384;
 export const MAX_TRACK_RIDES = 256;
 export const MAX_PIECES_PER_RIDE = 2048;
-/** Highest entry height (in height levels) a piece may reach; applies to the whole piece. */
+/** Highest height (in land levels) any part of a piece may reach. */
 export const MAX_TRACK_LEVEL = 96;
 
 /** One row per placed piece. Links hold stable entity ids (-1 = none), never slots. */
 export const TRACK_SCHEMA = {
   rideId: Uint16Array,
   pieceType: Uint16Array,
-  /** Origin tile and entry height level. */
+  /** Origin tile and entry height in track steps (TRACK_Z_STEP, half a land level). */
   x: Int16Array,
   y: Int16Array,
   z: Int16Array,

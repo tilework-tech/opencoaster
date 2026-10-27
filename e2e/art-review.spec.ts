@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
 import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import { SCENERY_CATALOG } from '../src/sim/map/scenery';
 import { project } from '../src/render/projection';
-import { TILE_UNITS } from '../src/sim/core/constants';
+import { TILE_UNITS, TRACK_STEPS_PER_LEVEL } from '../src/sim/core/constants';
 import { pathAdditionPlacements } from '../src/render/ground-anchor';
 
 interface ReviewItem {
@@ -295,7 +295,7 @@ async function initialise(page: Page): Promise<void> {
           pieceType: pieceByName(name)!.id,
           x: cursor.hasTrack ? cursor.x : 20,
           y: cursor.hasTrack ? cursor.y : 20,
-          z: cursor.hasTrack ? cursor.z : 2,
+          z: cursor.hasTrack ? cursor.z : 2 * TRACK_STEPS_PER_LEVEL,
           dir: cursor.hasTrack ? cursor.dir : 0,
           mode,
         });

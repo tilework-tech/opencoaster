@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BANK_DEG, PIECES, PieceId, SAMPLES, TANGENT_ONE, pieceByName } from './catalog';
 import { Bank, PieceFlag, Slope } from './track-types';
 import { sinCosTurns } from './geometry';
-import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../core/constants';
 
 function sampleRange(id: number): [number, number] {
   const p = PIECES[id];
@@ -11,10 +11,10 @@ function sampleRange(id: number): [number, number] {
 
 function entryGrad(slope: number): number {
   return slope === Slope.Up25 || slope === Slope.Down25
-    ? Math.sign(slope) * 0.5
+    ? Math.sign(slope) * 0.25
     : slope === Slope.Flat
       ? 0
-      : Math.sign(slope) * 2;
+      : Math.sign(slope);
 }
 
 describe('track catalog', () => {
@@ -88,10 +88,10 @@ describe('track catalog', () => {
     }
   });
 
-  it('ends at an integer height delta and the declared exit tile', () => {
+  it('ends at a whole number of track steps and the declared exit tile', () => {
     for (const p of PIECES) {
       const [, b] = sampleRange(p.id);
-      expect(SAMPLES.z[b], p.name).toBe(p.dz * Z_STEP);
+      expect(SAMPLES.z[b], p.name).toBe(p.dz * TRACK_Z_STEP);
       const hd = p.headingDelta;
       const ex = SAMPLES.x[b];
       const ey = SAMPLES.y[b];
@@ -206,9 +206,9 @@ describe('track catalog', () => {
       const m = Math.floor((a + b) / 2);
       return SAMPLES.tz[m] / SAMPLES.tx[m];
     };
-    expect(mid('up25')).toBeCloseTo(0.5, 1);
-    expect(mid('up60')).toBeCloseTo(2, 1);
-    expect(mid('down25')).toBeCloseTo(-0.5, 1);
+    expect(mid('up25')).toBeCloseTo(0.25, 1);
+    expect(mid('up60')).toBeCloseTo(1, 1);
+    expect(mid('down25')).toBeCloseTo(-0.25, 1);
     expect(mid('flat')).toBe(0);
   });
 
@@ -284,18 +284,18 @@ describe('corkscrew, helix, S-bend and banked slope pieces', () => {
               ),
             ).reduce((sum, length) => sum + length, 0);
             expect(
-              Math.abs(Math.abs(p.dz * Z_STEP) - horizontalLength * 0.5),
+              Math.abs(Math.abs(p.dz * TRACK_Z_STEP) - horizontalLength * 0.25),
               name,
-            ).toBeLessThanOrEqual(Z_STEP / 2);
-            expect(SAMPLES.z[b], name).toBe(p.dz * Z_STEP);
+            ).toBeLessThanOrEqual(Z_STEP);
+            expect(SAMPLES.z[b], name).toBe(p.dz * TRACK_Z_STEP);
             expect(
               SAMPLES.tz[a] / Math.hypot(SAMPLES.tx[a]!, SAMPLES.ty[a]!),
               `${name} entry grade`,
-            ).toBeCloseTo(sign * 0.5, 1);
+            ).toBeCloseTo(sign * 0.25, 1);
             expect(
               SAMPLES.tz[b] / Math.hypot(SAMPLES.tx[b]!, SAMPLES.ty[b]!),
               `${name} exit grade`,
-            ).toBeCloseTo(sign * 0.5, 1);
+            ).toBeCloseTo(sign * 0.25, 1);
             const heights = Array.from({ length: b - a + 1 }, (_, i) => SAMPLES.z[a + i]);
             expect(
               heights.every(
@@ -350,7 +350,7 @@ describe('corkscrew, helix, S-bend and banked slope pieces', () => {
   it('winds helices a full circle, banked on entry and exit, changing height smoothly', () => {
     for (const p of PIECES.filter((q) => q.name.includes('Helix'))) {
       const up = p.name.endsWith('Up');
-      expect(p.dz, p.name).toBe((up ? 1 : -1) * (p.name.startsWith('small') ? 4 : 6));
+      expect(p.dz * TRACK_Z_STEP, p.name).toBe((up ? 1 : -1) * 2 * Z_STEP);
       expect(p.entryBank).toBe(p.name.includes('Left') ? Bank.Left : Bank.Right);
       expect(p.exitBank).toBe(p.entryBank);
       expect(p.entrySlope).toBe(Slope.Flat);

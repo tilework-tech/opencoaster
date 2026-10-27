@@ -33,6 +33,7 @@ export type Command =
       pieceType: number;
       x: number;
       y: number;
+      /** Entry height in track steps (TRACK_Z_STEP, half a land level). */
       z: number;
       dir: number;
       mode: number;

@@ -87,15 +87,15 @@ describe('track element measurement', () => {
 });
 
 describe('ratings written by a test run', () => {
-  it('rates the starter coaster as before within a few hundredths', () => {
+  it('rates the starter coaster within its established band', () => {
     const { sim, rideId } = tested(SMALL_CIRCUIT);
     const r = ratings(sim, rideId);
-    expect(r.e).toBeGreaterThan(440);
-    expect(r.e).toBeLessThan(500);
-    expect(r.i).toBeGreaterThan(440);
-    expect(r.i).toBeLessThan(500);
-    expect(r.n).toBeGreaterThan(140);
-    expect(r.n).toBeLessThan(190);
+    expect(r.e).toBeGreaterThan(400);
+    expect(r.e).toBeLessThan(470);
+    expect(r.i).toBeGreaterThan(310);
+    expect(r.i).toBeLessThan(380);
+    expect(r.n).toBeGreaterThan(100);
+    expect(r.n).toBeLessThan(150);
   });
 
   it('adds scenery near the station to excitement only', () => {

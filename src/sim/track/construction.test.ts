@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { World } from '../core/world';
 import { Simulation } from '../core/simulation';
 import { hashWorld } from '../core/hash';
-import { Z_STEP } from '../core/constants';
+import { TRACK_STEPS_PER_LEVEL, TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { OWNED } from '../map/tile-map';
 import { PIECES, PieceId, pieceByName } from './catalog';
 import {
@@ -160,15 +160,20 @@ describe('construction', () => {
         mode: 0,
       }),
     ).toBe(TrackResult.BelowGround);
-    expect(validatePlacement(w, { ...req, rideId: ride, z: MAX_TRACK_LEVEL, mode: 0 })).toBe(
-      TrackResult.Ok,
-    );
+    expect(
+      validatePlacement(w, {
+        ...req,
+        rideId: ride,
+        z: MAX_TRACK_LEVEL * TRACK_STEPS_PER_LEVEL,
+        mode: 0,
+      }),
+    ).toBe(TrackResult.Ok);
     expect(
       validatePlacement(w, {
         ...req,
         rideId: ride,
         pieceType: PieceId.VerticalLoopRight,
-        z: MAX_TRACK_LEVEL,
+        z: MAX_TRACK_LEVEL * TRACK_STEPS_PER_LEVEL,
         mode: 0,
       }),
     ).toBe(TrackResult.TooHigh);
@@ -202,8 +207,9 @@ describe('construction', () => {
     };
     expect(validatePlacement(w, { ...req, z: BASE_Z })).toBe(TrackResult.Blocked);
     expect(validatePlacement(w, { ...req, z: BASE_Z + 1 })).toBe(TrackResult.Blocked);
-    expect(validatePlacement(w, { ...req, z: BASE_Z + 4 })).toBe(TrackResult.Ok);
-    expect(validatePlacement(w, { ...req, z: BASE_Z - 6 })).toBe(TrackResult.Ok);
+    expect(validatePlacement(w, { ...req, z: BASE_Z + 6 })).toBe(TrackResult.Blocked);
+    expect(validatePlacement(w, { ...req, z: BASE_Z + 7 })).toBe(TrackResult.Ok);
+    expect(validatePlacement(w, { ...req, z: BASE_Z - 7 })).toBe(TrackResult.Ok);
   });
 
   it('validates lift and brake modes against the piece type', () => {
@@ -321,15 +327,15 @@ describe('construction', () => {
     expect(circuitStatus(w, ride).pieces).toBe(0);
   });
 
-  it('keeps entry heights consistent in height levels', () => {
+  it('keeps entry heights consistent in track steps of half a land level', () => {
     start(w, ride, 'flat');
     app(w, ride, 'flatToUp25');
     app(w, ride, 'up25ToUp60');
     app(w, ride, 'up60');
     const c = getConstructionCursor(w, ride);
-    expect(c.z).toBe(BASE_Z + 1 + 5 + 8);
+    expect(c.z).toBe(BASE_Z + 1 + 4 + 8);
     expect(c.slope).toBe(Slope.Up60);
-    expect(Z_STEP).toBe(64);
+    expect(c.z * TRACK_Z_STEP).toBe(BASE_Z * TRACK_Z_STEP + 6.5 * Z_STEP);
   });
 });
 

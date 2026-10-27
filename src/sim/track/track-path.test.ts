@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../core/world';
-import { Z_STEP } from '../core/constants';
+import { TRACK_Z_STEP } from '../core/constants';
 import { BANK_DEG, PIECES, PieceId, TANGENT_ONE } from './catalog';
 import { getConstructionCursor, placeTrack, removeTrack } from './construction';
 import { getTrackPath } from './track-path';
@@ -58,7 +58,7 @@ describe('track path', () => {
     expect(p.closed).toBe(false);
     expect(p.x[0]).toBe(5 * 256 + 128);
     expect(p.y[0]).toBe(5 * 256);
-    expect(p.z[0]).toBe(4 * Z_STEP);
+    expect(p.z[0]).toBe(4 * TRACK_Z_STEP);
     expect(p.x[p.count - 1]).toBe(5 * 256 + 128);
     expect(p.y[p.count - 1]).toBe(6 * 256);
     expect([p.tx[0], p.ty[0], p.tz[0]]).toEqual([0, TANGENT_ONE, 0]);
@@ -94,7 +94,7 @@ describe('track path', () => {
     expect(p.mode[p.count - 1]).toBe(PieceMode.BlockBrake);
     let top = 0;
     for (let i = 0; i < p.count; i++) top = Math.max(top, p.z[i]);
-    expect(top).toBe((6 + 1 + 2 + 5 + 8 + 5 + 1) * Z_STEP);
+    expect(top).toBe((6 + 1 + 2 + 4 + 8 + 4 + 1) * TRACK_Z_STEP);
     expect(Math.max(...p.bank)).toBe(BANK_DEG);
     expect(Math.min(...p.bank)).toBe(0);
   });

@@ -277,11 +277,14 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
       peakZ = previousZ;
       crestPoint--;
     }
-    let lowZ = input.points[start + 2];
+    const dropZ = input.points[start + 2];
+    let lowZ = dropZ;
     for (let descent = segment; descent < segmentCount; descent++) {
       const point = descent * 3;
       const endZ = input.points[point + 5];
-      if (endZ >= input.points[point + 2]) break;
+      const startZ = input.points[point + 2];
+      // A drop that leaves level track can begin with a sample segment too shallow to lose height.
+      if (endZ > startZ || (endZ === startZ && lowZ < dropZ)) break;
       lowZ = Math.min(lowZ, endZ);
     }
     dropHeights[segment] = Math.min(0xffff, Math.max(0, peakZ - lowZ));

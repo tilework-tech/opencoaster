@@ -1,4 +1,6 @@
 import type { Command } from '../sim/core/commands';
+import { TRACK_STEPS_PER_LEVEL } from '../sim/core/constants';
+import { MAX_TRACK_LEVEL } from '../sim/track/track-store';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import type { RideTypeDef } from '../sim/rides/ride-types';
@@ -40,7 +42,7 @@ export interface TrackGhost {
   rideType: RideType;
   piece: TrackPieceDef;
   placement: Placement;
-  /** Placement height in height levels. */
+  /** Placement height in land levels; track sits on half levels too (e.g. 1.5). */
   level: number;
   status: TrackResult;
 }
@@ -124,6 +126,9 @@ export class CoasterPanel {
   private readonly placeButton: HTMLButtonElement;
   private rideTypeValue: RideType = RideType.WoodenCoaster;
   private readonly directionButton: HTMLButtonElement;
+  private readonly startHeightRow: HTMLElement;
+  private readonly startHeightLabel: HTMLElement;
+  private readonly heightLine: HTMLElement;
   private readonly modeButtons = new Map<BuildMode, HTMLButtonElement>();
   private readonly costLine: HTMLElement;
   private readonly rideInfo: HTMLElement;
@@ -134,6 +139,9 @@ export class CoasterPanel {
   private choice: PieceChoice = { turn: 'station', slope: Slope.Flat, bank: Bank.None };
   private mode: PieceMode = PieceMode.Normal;
   private startDir = 0;
+  /** Land levels the first piece sits above the ground under it, for the ride it was set on. */
+  private startRaise = 0;
+  private startRaiseRide = -1;
   private rides: RideSummary[] = [];
   private activeRideId = -1;
   private hover: [number, number] | null = null;
@@ -186,6 +194,19 @@ export class CoasterPanel {
     this.directionButton = this.button('Start direction: +x', () => {
       this.startDir = (this.startDir + 1) & 3;
     });
+    this.startHeightLabel = document.createElement('span');
+    this.startHeightRow = document.createElement('div');
+    this.startHeightRow.className = 'coaster-row';
+    this.startHeightRow.append(
+      this.button('Lower start', () => (this.startRaise = Math.max(0, this.startRaise - 1))),
+      this.startHeightLabel,
+      this.button(
+        'Raise start',
+        () => (this.startRaise = Math.min(this.maxStartRaise(), this.startRaise + 1)),
+      ),
+    );
+    this.heightLine = document.createElement('div');
+    this.heightLine.className = 'coaster-height';
     this.placeButton = this.button('Build piece', () => this.placeAtCursor());
     this.placeButton.classList.add('primary');
     const removeButton = this.button('Demolish last piece', () => this.removeLast());
@@ -226,6 +247,8 @@ export class CoasterPanel {
       banks,
       this.row('Drive', this.modeSelect),
       this.directionButton,
+      this.startHeightRow,
+      this.heightLine,
       this.costLine,
       buildRow,
     );
@@ -345,10 +368,10 @@ export class CoasterPanel {
     let level: number;
     if (cursor.hasTrack) {
       placement = { x: info[RideInfo.CursorX], y: info[RideInfo.CursorY], dir: cursor.dir };
-      level = info[RideInfo.CursorZ];
+      level = info[RideInfo.CursorZ] / TRACK_STEPS_PER_LEVEL;
     } else if (this.hover) {
       placement = { x: this.hover[0], y: this.hover[1], dir: this.startDir };
-      level = map.heights[this.hover[1] * map.width + this.hover[0]];
+      level = map.heights[this.hover[1] * map.width + this.hover[0]] + this.startRaise;
     } else {
       return null;
     }
@@ -399,7 +422,7 @@ export class CoasterPanel {
         pieceType: piece.id,
         x,
         y,
-        z: map.heights[y * map.width + x],
+        z: (map.heights[y * map.width + x] + this.startRaise) * TRACK_STEPS_PER_LEVEL,
         dir: this.startDir,
         mode: this.mode,
       };
@@ -411,6 +434,11 @@ export class CoasterPanel {
   private setStatus(status: 'open' | 'close' | 'test'): void {
     const ride = this.activeRide();
     if (ride) this.actions.command({ type: 'setRideStatus', rideId: ride.id, status });
+  }
+
+  /** The ride type's height limit, in land levels, bounds how far the start can be raised. */
+  private maxStartRaise(): number {
+    return this.activeRide()?.def.trackRules?.maxLevel ?? MAX_TRACK_LEVEL;
   }
 
   private activeRide(): RideSummary | undefined {
@@ -508,6 +536,16 @@ export class CoasterPanel {
     }
     const cursor = decodeCursor(info[RideInfo.Cursor]);
     this.directionButton.hidden = cursor.hasTrack;
+    this.startHeightRow.hidden = cursor.hasTrack;
+    if (this.startRaiseRide !== ride.id) {
+      this.startRaiseRide = ride.id;
+      this.startRaise = 0;
+    }
+    this.startHeightLabel.textContent =
+      this.startRaise === 0 ? 'Start on the ground' : `Start ${this.startRaise} above ground`;
+    this.heightLine.textContent = cursor.hasTrack
+      ? `Track end at height ${info[RideInfo.CursorZ] / TRACK_STEPS_PER_LEVEL}`
+      : '';
     const piece = resolvePiece(cursor, this.choice, ride.type);
     this.placeButton.disabled = !piece || closed;
     const modes = piece ? allowedModes(piece, ride.type) : [PieceMode.Normal];

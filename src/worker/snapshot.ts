@@ -15,7 +15,7 @@ import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/l
 import type { ActiveAward, ParkNewsItem } from '../sim/economy/ledger';
 import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
-import { TILE_UNITS } from '../sim/core/constants';
+import { TILE_UNITS, TRACK_Z_STEP } from '../sim/core/constants';
 import { demolitionRefund } from '../sim/rides/ride-refund';
 import { estimatedWaitTicks, rideQueueCapacity } from '../sim/rides/ride-operations';
 
@@ -69,7 +69,7 @@ export const enum RideInfo {
   GuestsServed = 9,
   Price = 10,
   TrackPieces = 11,
-  /** Tile and height level where the next piece attaches (valid when the cursor has track). */
+  /** Tile, and height in track steps (TRACK_Z_STEP), where the next piece attaches (valid when the cursor has track). */
   CursorX = 12,
   CursorY = 13,
   CursorZ = 14,
@@ -514,7 +514,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   for (let i = 0, o = 0; i < trackCount; i++, o += SNAPSHOT_STRIDE) {
     trackData[o] = trackPieces.cols.x[i] * 256 + 128;
     trackData[o + 1] = trackPieces.cols.y[i] * 256 + 128;
-    trackData[o + 2] = trackPieces.cols.z[i] * 64;
+    trackData[o + 2] = trackPieces.cols.z[i] * TRACK_Z_STEP;
     trackData[o + 3] =
       (trackPieces.cols.rideId[i] << 16) |
       (trackPieces.cols.mode[i] << 10) |

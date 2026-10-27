@@ -25,7 +25,7 @@ Path: @/src/sim/core
 - The additive `createRide` command carries a ride type, anchor tile coordinates and an optional orientation `dir` (quarter turns, default 0). Core checks that the catalog type is unlocked by research before affordability, then `validateRidePlacement` ([rides/ride-footprint.ts](../ride-footprint.ts)), which covers every tile of the rotated footprint: map bounds, build rights, supported surfaces, water, paths, scenery, other rides, track and the ground-height spread the ride's supports allow. A locked type reports `RideResult.ResearchRequired` through simulation feedback. It charges the catalog cost to `RideConstruction` only when ride creation succeeds.
 - `placeTrack` and `removeTrack` are handled entirely by `applyTrackCommand` in the [track command handler](../track/track-commands.ts), including ride-type rules, ownership, funds and charging. A successful `createRide` also reports the new ride id as the feedback subject.
 - [EntityStore](entity-store.ts) stores entities in typed-array columns with stable IDs and dense slot reuse. World schemas supply the domain fields, and [hash.ts](hash.ts) incorporates store arrays into the state hash.
-- [constants.ts](constants.ts) centralizes simulation scale, tick rate, and capacities; [prng.ts](prng.ts) provides seeded random values used by simulation systems.
+- [constants.ts](constants.ts) centralizes simulation scale, tick rate, and capacities (vertical scale: `Z_STEP` per land level, and `TRACK_Z_STEP`, half of it, per track height step); [prng.ts](prng.ts) provides seeded random values used by simulation systems.
 
 ### Things to Know
 

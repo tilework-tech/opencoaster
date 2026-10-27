@@ -5,7 +5,7 @@ import type { Page, TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 import { project, rotateOffset } from '../src/render/projection';
 import type { Rotation } from '../src/render/projection';
-import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
+import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../src/sim/core/constants';
 import type { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';
 import { RideType } from '../src/sim/rides/ride-types';
@@ -132,7 +132,7 @@ async function dumpTrack(page: Page): Promise<Placed[]> {
         dir: (word >> 8) & 3,
         x: Math.floor(latest.tracks.data[i * 4]! / 256),
         y: Math.floor(latest.tracks.data[i * 4 + 1]! / 256),
-        z: latest.tracks.data[i * 4 + 2]! / 64,
+        z: latest.tracks.data[i * 4 + 2]! / TRACK_Z_STEP,
       });
     }
     return out;
@@ -258,7 +258,11 @@ function worldPoint(t: Placed, k: number): [number, number, number] {
     SAMPLES.y[k]! - half,
     (t.dir & 3) as Rotation,
   );
-  return [t.x * TILE_UNITS + half + rx, t.y * TILE_UNITS + half + ry, t.z * Z_STEP + SAMPLES.z[k]!];
+  return [
+    t.x * TILE_UNITS + half + rx,
+    t.y * TILE_UNITS + half + ry,
+    t.z * TRACK_Z_STEP + SAMPLES.z[k]!,
+  ];
 }
 
 async function save(name: string, image: Buffer, testInfo: TestInfo): Promise<void> {

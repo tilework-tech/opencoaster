@@ -1,5 +1,5 @@
 import type { World } from '../core/world';
-import { Z_STEP } from '../core/constants';
+import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { CLEARANCE_UNITS, PIECES } from './catalog';
 import { MAX_PIECES_PER_RIDE, MAX_TRACK_LEVEL, MAX_TRACK_RIDES } from './track-store';
 import { PieceFlag, PieceMode, TrackResult } from './track-types';
@@ -8,7 +8,7 @@ import type { Bank, Direction, Slope } from './track-types';
 export interface PlaceRequest {
   rideId: number;
   pieceType: number;
-  /** Origin tile and entry height level of the piece. */
+  /** Origin tile and entry height of the piece, in track steps (TRACK_Z_STEP). */
   x: number;
   y: number;
   z: number;
@@ -169,7 +169,7 @@ function attachPoint(world: World, req: PlaceRequest): Attach | TrackResult {
 function checkSpace(world: World, req: PlaceRequest): TrackResult {
   const def = PIECES[req.pieceType];
   const map = world.map;
-  const baseZ = req.z * Z_STEP;
+  const baseZ = req.z * TRACK_Z_STEP;
   const tunnelOk = (def.flags & PieceFlag.TunnelOk) !== 0;
   for (const cell of def.footprint) {
     const [rx, ry] = rotateTile(cell.i, cell.j, req.dir);
@@ -187,7 +187,7 @@ function checkSpace(world: World, req: PlaceRequest): TrackResult {
   for (let s = 0; s < n; s++) {
     const odef = PIECES[c.pieceType[s]];
     if (Math.abs(c.x[s] - req.x) > 6 || Math.abs(c.y[s] - req.y) > 6) continue;
-    const obase = c.z[s] * Z_STEP;
+    const obase = c.z[s] * TRACK_Z_STEP;
     for (const oc of odef.footprint) {
       const [ox, oy] = rotateTile(oc.i, oc.j, c.dir[s]);
       const otx = c.x[s] + ox;
@@ -225,8 +225,8 @@ export function validatePlacement(world: World, req: PlaceRequest): TrackResult 
   return checkSpace(world, req);
 }
 
-/** Recomputes arclength offsets, length and closure for a ride after an edit. */
-function relink(world: World, rideId: number): void {
+/** Recomputes a ride's piece count, start arclengths and length, and invalidates its path. */
+export function relinkRide(world: World, rideId: number): void {
   const t = world.track;
   const c = t.pieces.cols;
   t.version[rideId]++;
@@ -310,7 +310,7 @@ export function placeTrack(world: World, req: PlaceRequest): TrackResult {
     c.prev[t.pieces.idToSlot[t.head[r]]] = t.tail[r];
     t.closed[r] = 1;
   }
-  relink(world, r);
+  relinkRide(world, r);
   t.lastPiece = id;
   return TrackResult.Ok;
 }
@@ -345,7 +345,7 @@ function removeInner(world: World, rideId: number, pieceId: number): TrackResult
     t.pieces.despawnSlot(slot);
     t.head[rideId] = -1;
     t.tail[rideId] = -1;
-    relink(world, rideId);
+    relinkRide(world, rideId);
     return TrackResult.Ok;
   }
   const prevId = c.prev[slot];
@@ -364,7 +364,7 @@ function removeInner(world: World, rideId: number, pieceId: number): TrackResult
     c.prev[t.pieces.idToSlot[nextId]] = -1;
   }
   t.pieces.despawnSlot(slot);
-  relink(world, rideId);
+  relinkRide(world, rideId);
   return TrackResult.Ok;
 }
 
@@ -388,7 +388,7 @@ export function removeRideTrack(world: World, rideId: number): void {
       t.tail[rideId] = -1;
     }
   }
-  relink(world, rideId);
+  relinkRide(world, rideId);
 }
 
 export function circuitStatus(world: World, rideId: number): CircuitStatus {

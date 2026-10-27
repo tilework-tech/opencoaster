@@ -1,7 +1,7 @@
 import { refreshQueueIndex } from './queue-lines';
 import { popcount4 } from '../pathfinding/directions';
 import type { World } from '../core/world';
-import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { charge, earn } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
@@ -71,7 +71,7 @@ function trackAtGround(world: World, x: number, y: number): boolean {
     for (const cell of piece.footprint) {
       const [rx, ry] = rotateTile(cell.i, cell.j, pieces.cols.dir[s]);
       if (pieces.cols.x[s] + rx !== x || pieces.cols.y[s] + ry !== y) continue;
-      if (pieces.cols.z[s] * Z_STEP + cell.zMin <= groundZ + 2 * Z_STEP) return true;
+      if (pieces.cols.z[s] * TRACK_Z_STEP + cell.zMin <= groundZ + 2 * Z_STEP) return true;
     }
   }
   return false;

@@ -1,4 +1,4 @@
-import { Z_STEP } from '../../src/sim/core/constants';
+import { TRACK_STEPS_PER_LEVEL, Z_STEP } from '../../src/sim/core/constants';
 import { PIECES, pieceByName } from '../../src/sim/track/catalog';
 import { pieceExit } from '../../src/sim/track/construction';
 import type { TrackPieceDef } from '../../src/sim/track/track-types';
@@ -78,7 +78,7 @@ export interface Placement {
   piece: TrackPieceDef;
   x: number;
   y: number;
-  /** Entry height in height levels. */
+  /** Entry height in track steps (TRACK_Z_STEP, half a land level). */
   z: number;
   dir: number;
 }
@@ -220,7 +220,12 @@ export function composeCells(
       if (!def) continue;
       const tileX = placement.x + cell.dx;
       const tileY = placement.y + cell.dy;
-      const [x, y] = screenOf(tileX + 0.5, tileY + 0.5, placement.z, rotation);
+      const [x, y] = screenOf(
+        tileX + 0.5,
+        tileY + 0.5,
+        placement.z / TRACK_STEPS_PER_LEVEL,
+        rotation,
+      );
       drawn.push({ sprite: frameOf(def), x, y, depth: tileDepth(tileX, tileY, rotation) });
     }
   }
@@ -272,7 +277,14 @@ export function composeModels(
   for (const placement of placements) {
     const view = rotateDirection(placement.dir, rotation);
     const [vx, vy] = viewTile(placement.x + 0.5, placement.y + 0.5, rotation);
-    mesh.push(...translateMesh(rotateMesh(kind.mesh(placement.piece), view), vx, vy, placement.z));
+    mesh.push(
+      ...translateMesh(
+        rotateMesh(kind.mesh(placement.piece), view),
+        vx,
+        vy,
+        placement.z / TRACK_STEPS_PER_LEVEL,
+      ),
+    );
   }
   const sprite = renderMesh(mesh);
   const canvas = newCanvas(like.left, like.top, like.width, like.height);

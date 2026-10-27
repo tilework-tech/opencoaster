@@ -65,5 +65,8 @@ describe('heightReadoutText', () => {
     expect(heightReadoutText(m, [1, 1], { tool: 'track', rotation: 0, trackLevel: 9 })).toBe(
       'Height 6 · track at 9',
     );
+    expect(heightReadoutText(m, [1, 1], { tool: 'track', rotation: 0, trackLevel: 1.5 })).toBe(
+      'Height 6 · track at 1.5',
+    );
   });
 });

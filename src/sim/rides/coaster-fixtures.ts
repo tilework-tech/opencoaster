@@ -1,3 +1,4 @@
+import { TRACK_STEPS_PER_LEVEL } from '../core/constants';
 import { Simulation } from '../core/simulation';
 import { GuestState, spawnGuest } from '../guests/guest-store';
 import { OWNED } from '../map/tile-map';
@@ -6,7 +7,10 @@ import { getConstructionCursor } from '../track/construction';
 import { PieceMode } from '../track/track-types';
 import { RideType } from './ride-types';
 
-/** Station followed by a lifted climb, four right-hand turns and a drop; closes after 14 pieces. */
+/**
+ * Station followed by a lifted two-level climb, four right-hand turns and a two-level drop; closes
+ * after 14 pieces.
+ */
 export const SMALL_CIRCUIT: ReadonlyArray<readonly [string, PieceMode]> = [
   ['station', PieceMode.Normal],
   ['flatToUp25', PieceMode.ChainLift],
@@ -63,7 +67,7 @@ export function buildCircuit(
       pieceType: pieceByName(name)!.id,
       x: cursor.hasTrack ? cursor.x : STATION_X,
       y: cursor.hasTrack ? cursor.y : STATION_Y,
-      z: cursor.hasTrack ? cursor.z : GROUND,
+      z: cursor.hasTrack ? cursor.z : GROUND * TRACK_STEPS_PER_LEVEL,
       dir: cursor.hasTrack ? cursor.dir : 0,
       mode,
     });

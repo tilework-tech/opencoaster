@@ -1,3 +1,4 @@
+import { TRACK_STEPS_PER_LEVEL } from './constants';
 import { describe, expect, it } from 'vitest';
 import { Simulation } from './simulation';
 import { hashWorld } from './hash';
@@ -152,7 +153,7 @@ describe('Simulation', () => {
       pieceType: piece.id,
       x: 5,
       y: 6,
-      z,
+      z: z * TRACK_STEPS_PER_LEVEL,
       dir: 0,
       mode: 0,
     });
