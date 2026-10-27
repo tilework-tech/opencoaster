@@ -22,6 +22,12 @@ Path: @/src/app/tools/path
 - The renderers draw the ghosts translucently in their depth-sorted sprite pass ([render](../../../render/docs.md)); refused pieces are tinted red. `PathTool` clears them whenever the preview hides.
 - [state.ts](state.ts): the tool's settings (mode, surface, queue, piece direction and slope, cursor) and the once-only Footpaths hint.
 
+### Raised footpaths
+
+- Piece mode keeps the cursor's height: Up raises it one level, Level holds it, Down lowers it, so Up/Level/Down chain into a climb, a raised run and a descent. Build on a tile that already holds a footpath continues at that piece's height, and Demolish removes the last piece laid.
+- A piece built with an explicit level stays flat over sloping terrain instead of following the ground; floating pieces are held up by support posts the renderers draw (the steel coaster column sprite under a footing), down to the terrain.
+- Up to three footpaths may stack on one tile. The sim gives each its own walk node ([pathfinding](../../../sim/pathfinding/docs.md)), so guests walk over a bridge and along the path beneath it. Posts are drawn only for the lowest path of a tile, so the space under a bridge stays open.
+
 ### Things to Know
 
 - Only tiles without a footpath are previewed and laid during a drag; a tile that is already paved is shown neutral and costs nothing.
