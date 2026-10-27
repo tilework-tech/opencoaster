@@ -88,6 +88,7 @@ import type { Rotation } from './projection';
 import {
   pathElementSprite,
   lowestPathBases,
+  pathElementSurface,
   pathSupports,
   queueRailSprites,
   flowerBedSpriteName,
@@ -2491,6 +2492,7 @@ export class WebGL2Renderer implements Renderer {
         map.heights[y * map.width + x]!,
         baseHeight,
         lowest[y * map.width + x]!,
+        pathElementSurface(paths[o + 3]!, paths[o + 5]!),
       )) {
         const entry = spritePages.resolve(support.sprite);
         const frame = entry?.frames[0];

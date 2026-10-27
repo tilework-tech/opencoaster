@@ -6,6 +6,11 @@ import type { Sprite } from './raster';
 import { placeOnFootprint, rideCellContext, rideCellMesh } from './ride-cells';
 import { coasterSprites } from './models/coaster/sprites';
 import { PATH_STYLES, pathMesh, queueRailMesh } from './models/paths';
+import {
+  pathSupportBaseMesh,
+  pathSupportCapMesh,
+  pathSupportColumnMesh,
+} from './models/path-supports';
 import { trenchArchTexture, trenchFloorTexture, trenchWallTexture } from './models/trench';
 import { WATER_FRAMES, waterTexture } from './models/water';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
@@ -139,6 +144,24 @@ function pathSprites(): SpriteDef[] {
         footprint: ONE_TILE,
       });
   }
+  out.push({
+    key: 'paths/support/base',
+    frames: [renderMesh(pathSupportBaseMesh())],
+    footprint: ONE_TILE,
+  });
+  for (const style of PATH_STYLES)
+    out.push(
+      {
+        key: `paths/support/${style}/column`,
+        frames: [renderMesh(pathSupportColumnMesh(style))],
+        footprint: ONE_TILE,
+      },
+      {
+        key: `paths/support/${style}/cap`,
+        frames: [renderMesh(pathSupportCapMesh(style))],
+        footprint: ONE_TILE,
+      },
+    );
   for (let direction = 0; direction < 2; direction++)
     out.push({
       key: `paths/queue/rail-${direction}`,

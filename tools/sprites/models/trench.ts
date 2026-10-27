@@ -117,16 +117,18 @@ export function trenchArchTexture(): Sprite {
   const h = TRENCH_ARCH_HEIGHT * k;
   const pixels = new Uint8Array(w * h);
   const cx = TRENCH_ARCH_WIDTH / 2;
-  const cy = 10;
-  const inner = 6.5;
-  const outer = 9.5;
+  // The texture is mapped onto a face twice as tall as it is wide on screen, so horizontal
+  // distances are halved to keep the arch round once drawn; radii are in screen pixels.
+  const cy = 7.4;
+  const inner = 3.7;
+  const outer = 5.2;
   const bins = 7;
   const tones = [3, 4, 3, 4, 3, 4, 3];
   for (let j = 0; j < h; j++)
     for (let i = 0; i < w; i++) {
       const px = (i + 0.5) / k;
       const py = (j + 0.5) / k;
-      const dx = px - cx;
+      const dx = (px - cx) / 2;
       const dy = py - cy;
       const above = dy < 0;
       const radius = above ? Math.hypot(dx, dy) : Math.abs(dx);

@@ -265,7 +265,8 @@ describe('generated sprite catalogue', () => {
 
   it('draws every flat path tile on the 64x32 diamond centred on the tile', () => {
     for (const [key, sprite] of sprites) {
-      if (!key.startsWith('paths/') || key.includes('ramp')) continue;
+      if (!key.startsWith('paths/') || key.includes('ramp') || key.startsWith('paths/support/'))
+        continue;
       const frame = sprite.frames[0];
       expect(frame.width).toBe(64);
       expect(frame.anchor.x).toBe(32);
