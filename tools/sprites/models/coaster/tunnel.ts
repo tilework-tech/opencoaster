@@ -9,7 +9,7 @@ export const TUNNEL_VARIANTS = ['face', 'slope', 'cut'] as const;
 export type TunnelVariantName = (typeof TUNNEL_VARIANTS)[number];
 
 const STONE = ramp('stone');
-const GRASS = ramp('grass');
+const GRASS = ramp('turf');
 const DARK = ramp('outline')[0]!;
 /** Tile-unit height of one simulation height level. */
 const LEVEL = 0.25;
@@ -42,8 +42,8 @@ const voussoirA = material(STONE, { levelBias: 1 });
 const voussoirB = material(STONE, { levelBias: 0 });
 const keystone = material(STONE, { levelBias: 2 });
 const coping = material(STONE, { levelBias: 1 });
-const earth = material(GRASS);
-const earthSide = material(GRASS, { levelBias: -1 });
+const earth = material(GRASS, { fixedLevel: 2 });
+const earthSide = material(GRASS, { fixedLevel: 1 });
 
 interface Shape {
   /** Depth of the headwall behind the mouth plane. */
@@ -54,14 +54,16 @@ interface Shape {
   top: number;
   /** Splayed wing walls: how far they reach out in front of the mouth (0 for none). */
   wing: number;
-  /** Length of the grass embankment that carries the land back down to the ground behind. */
+  /** Length of the grass embankment behind the headwall that blends it into the land. */
   mound: number;
+  /** Height of the embankment crest where it ends, as a fraction of the headwall height. */
+  crest: number;
 }
 
 const SHAPES: Record<TunnelVariantName, Shape> = {
-  face: { depth: 0.2, pier: 0.1, top: 0.52, wing: 0, mound: 0 },
-  slope: { depth: 0.16, pier: 0.09, top: 0.4, wing: 0.18, mound: 0 },
-  cut: { depth: 0.2, pier: 0.09, top: 0.4, wing: 0.3, mound: 0.8 },
+  face: { depth: 0.2, pier: 0.1, top: 0.52, wing: 0, mound: 1.0, crest: 0.8 },
+  slope: { depth: 0.16, pier: 0.09, top: 0.4, wing: 0.18, mound: 0.8, crest: 0.6 },
+  cut: { depth: 0.2, pier: 0.09, top: 0.4, wing: 0.3, mound: 0.7, crest: 0.05 },
 };
 
 /**
@@ -240,35 +242,71 @@ export function tunnelPortalMesh(art: TrackArt, variant: TunnelVariantName = 'sl
       );
     }
 
-  // Embankment carrying the land from the headwall top back down to the ground behind it.
-  if (s.mound > 0) {
+  // Embankment: a grassed hump over the tunnel behind the headwall. Its crest tapers back toward
+  // the ground and its flanks slope down to the ground either side, so the headwall reads as the
+  // front of a mound set into the land; terrain that rises behind it simply covers the tail.
+  {
     const back = -s.depth - s.mound;
-    const w = wall + 0.02;
+    const w = wall + 0.01;
+    const spread = 0.3;
+    const crest = s.top * s.crest;
+    const tail = w * 0.55;
+    const base = FLOOR;
+    const spreadY = w + spread;
     mesh.push(
       ...quad(
         [
           at(-s.depth, -w, s.top),
           at(-s.depth, w, s.top),
-          at(back, w * 0.8, 0),
-          at(back, -w * 0.8, 0),
+          at(back, tail, crest),
+          at(back, -tail, crest),
+        ],
+        earth,
+      ),
+      ...quad(
+        [
+          at(-s.depth, w, s.top),
+          at(-s.depth, spreadY, 0),
+          at(back, spreadY * 0.7, 0),
+          at(back, tail, crest),
+        ],
+        earthSide,
+      ),
+      ...quad(
+        [
+          at(-s.depth, -w, s.top),
+          at(back, -tail, crest),
+          at(back, -spreadY * 0.7, 0),
+          at(-s.depth, -spreadY, 0),
         ],
         earth,
       ),
       ...polygon(
         [
+          at(back, tail, crest),
+          at(back, spreadY * 0.7, 0),
+          at(back, spreadY * 0.7, base),
+          at(back, -spreadY * 0.7, base),
+          at(back, -spreadY * 0.7, 0),
+          at(back, -tail, crest),
+        ],
+        earthSide,
+      ),
+      ...polygon(
+        [
           at(-s.depth, w, s.top),
-          at(-s.depth, w, FLOOR),
-          at(back, w * 0.8, FLOOR),
-          at(back, w * 0.8, 0),
+          at(-s.depth, spreadY, 0),
+          at(-s.depth, spreadY, base),
+          at(-s.depth, w, base),
         ],
         earthSide,
       ),
       ...polygon(
         [
           at(-s.depth, -w, s.top),
-          at(back, -w * 0.8, 0),
-          at(back, -w * 0.8, FLOOR),
-          at(-s.depth, -w, FLOOR),
+          at(-s.depth, -w, base),
+          at(-s.depth, -spreadY, base),
+          at(-s.depth, -spreadY, 0),
         ],
         earthSide,
       ),
