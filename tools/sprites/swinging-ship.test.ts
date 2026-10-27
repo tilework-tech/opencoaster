@@ -28,7 +28,9 @@ describe('swinging ship pendulum', () => {
     expect(SHIP_SWING_DEGREES.some((angle) => angle > 0)).toBe(true);
     expect(SHIP_SWING_DEGREES.some((angle) => angle < 0)).toBe(true);
     expect(SHIP_SWING_DEGREES.at(-1)).toBe(0);
-    expect(SHIP_SWING_DEGREES.filter((angle) => Math.abs(angle) >= peak * 0.9).length).toBeGreaterThan(2);
+    expect(
+      SHIP_SWING_DEGREES.filter((angle) => Math.abs(angle) >= peak * 0.9).length,
+    ).toBeGreaterThan(2);
   });
 
   it('keeps the hull outside the support-frame sides and above the platform for every pose and view', () => {
@@ -61,9 +63,7 @@ describe('swinging ship pendulum', () => {
   });
 
   it('keeps every seated rider at a fixed distance from the pivot throughout the swing', () => {
-    const reference = swingingShipSeats(0).map(([x, y, z]) =>
-      Math.hypot(x, y, z - SHIP_AXLE_Z),
-    );
+    const reference = swingingShipSeats(0).map(([x, y, z]) => Math.hypot(x, y, z - SHIP_AXLE_Z));
     for (let frame = 1; frame < SHIP_SWING_DEGREES.length; frame++) {
       const seats = swingingShipSeats(frame);
       seats.forEach(([x, y, z], seat) => {

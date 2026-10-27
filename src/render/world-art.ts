@@ -171,7 +171,10 @@ export function rideSpriteFrame(
 ): number {
   if (frameCount > 9) {
     if (frameCount < 2 || phase !== RidePhase.Running) return 0;
-    return 1 + (Math.floor(Math.max(0, phaseTicks ?? tick) / TICKS_PER_ANIMATION_FRAME) % (frameCount - 1));
+    return (
+      1 +
+      (Math.floor(Math.max(0, phaseTicks ?? tick) / TICKS_PER_ANIMATION_FRAME) % (frameCount - 1))
+    );
   }
   if (
     frameCount < 2 ||

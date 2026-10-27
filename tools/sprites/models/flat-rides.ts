@@ -237,7 +237,20 @@ const SHIP_ARM = 1.9;
 export const SHIP_MAX_SWING_DEGREES = 60;
 
 function swingingShipProfile(): number[] {
-  const passes = [20, 32, 44, 54, SHIP_MAX_SWING_DEGREES, -SHIP_MAX_SWING_DEGREES, SHIP_MAX_SWING_DEGREES, -SHIP_MAX_SWING_DEGREES, 52, -36, 18, 0];
+  const passes = [
+    20,
+    32,
+    44,
+    54,
+    SHIP_MAX_SWING_DEGREES,
+    -SHIP_MAX_SWING_DEGREES,
+    SHIP_MAX_SWING_DEGREES,
+    -SHIP_MAX_SWING_DEGREES,
+    52,
+    -36,
+    18,
+    0,
+  ];
   const angles = [0];
   for (const amplitude of passes) {
     for (let step = 1; step <= 12; step++) {
@@ -287,7 +300,11 @@ function rotateShipPoint(point: Vec3, swing: number): Vec3 {
   const [x, y, z] = point;
   const dy = y;
   const dz = z - SHIP_AXLE_Z;
-  return [x, dy * Math.cos(swing) - dz * Math.sin(swing), SHIP_AXLE_Z + dy * Math.sin(swing) + dz * Math.cos(swing)];
+  return [
+    x,
+    dy * Math.cos(swing) - dz * Math.sin(swing),
+    SHIP_AXLE_Z + dy * Math.sin(swing) + dz * Math.cos(swing),
+  ];
 }
 
 /** Hull mesh after rotation around the crosswise axle. */
@@ -301,10 +318,13 @@ export function swingingShipHull(frame: number): Mesh {
 export function swingingShipArmEndpoints(frame: number): Array<readonly [Vec3, Vec3]> {
   const swing = ((SHIP_SWING_DEGREES[frame] ?? 0) * Math.PI) / 180;
   const hullTop = SHIP_AXLE_Z - SHIP_ARM;
-  return [-0.25, 0.25].map((x) => [
-    rotateShipPoint([x, 0, SHIP_AXLE_Z], swing),
-    rotateShipPoint([x, 0, hullTop + 0.36], swing),
-  ] as const);
+  return [-0.25, 0.25].map(
+    (x) =>
+      [
+        rotateShipPoint([x, 0, SHIP_AXLE_Z], swing),
+        rotateShipPoint([x, 0, hullTop + 0.36], swing),
+      ] as const,
+  );
 }
 
 /** Swinging ship; `frame` 0..7 indexes `SHIP_SWING_DEGREES`, negative is the idle pose. */
