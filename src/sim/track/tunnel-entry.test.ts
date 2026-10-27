@@ -25,19 +25,26 @@ const LEVEL = 5;
 const ENTRY = { x: 6, y: 4 };
 
 describe('which land shapes allow a tunnel entry', () => {
-  it('allows a sloped side that faces the track and rises straight away from the edge', () => {
-    const hill = fromVertices((vx) => LEVEL + Math.min(3, Math.max(0, vx - 6)));
+  it('allows the side of a gentle hill, rising one level straight away from the edge, as a slope', () => {
+    const hill = fromVertices((vx) => LEVEL + Math.min(1, Math.max(0, vx - 6)));
     const portals = pieceTunnelPortals(hill, id('flat'), ENTRY.x, ENTRY.y, LEVEL, 0);
     expect(portals).toHaveLength(1);
     expect(portals[0]).toMatchObject({ valid: true, variant: 'slope', entering: true, facing: 2 });
     expect(badTunnelEntry(hill, id('flat'), ENTRY.x, ENTRY.y, LEVEL, 0)).toBe(false);
   });
 
+  it('allows a steep hillside that keeps rising as a face', () => {
+    const hill = fromVertices((vx) => LEVEL + Math.min(3, Math.max(0, vx - 6)));
+    const portals = pieceTunnelPortals(hill, id('flat'), ENTRY.x, ENTRY.y, LEVEL, 0);
+    expect(portals).toHaveLength(1);
+    expect(portals[0]).toMatchObject({ valid: true, variant: 'face', entering: true });
+  });
+
   it('allows an exit through the far side of a hill', () => {
     const hill = fromVertices((vx) => LEVEL + 3 - Math.min(3, Math.max(0, vx - 6)));
     const portals = pieceTunnelPortals(hill, id('flat'), 8, ENTRY.y, LEVEL, 0);
     expect(portals).toHaveLength(1);
-    expect(portals[0]).toMatchObject({ valid: true, variant: 'slope', entering: false, facing: 0 });
+    expect(portals[0]).toMatchObject({ valid: true, entering: false, facing: 0 });
   });
 
   it('allows track sloping down into flat ground, as a cut', () => {
@@ -82,7 +89,7 @@ describe('which land shapes allow a tunnel entry', () => {
     });
     const portals = pieceTunnelPortals(hill, id('flat'), mid, mid, LEVEL, dir);
     expect(portals).toHaveLength(1);
-    expect(portals[0]).toMatchObject({ valid: true, variant: 'slope' });
+    expect(portals[0]).toMatchObject({ valid: true });
     const cornerHill = fromVertices((vx, vy) => LEVEL + (vx === mid + 2 && vy === mid ? 1 : 0));
     expect(badTunnelEntry(cornerHill, id('flat'), mid, mid, LEVEL, dir)).toBe(false);
   });

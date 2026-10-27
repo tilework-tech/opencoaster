@@ -97,9 +97,10 @@ export function undergroundTiles(
 
 /**
  * How a tunnel mouth meets the land:
- * - `slope`: the side of a hill that rises straight away from the mouth;
- * - `face`: level ground whose edge stands above the track, so the mouth is cut into a vertical wall;
- * - `cut`: track sloping down into flat ground, through a trench with retaining walls.
+ * - `slope`: the side of a gentle hill that rises one level straight away from the mouth;
+ * - `face`: a steep hillside that keeps rising beyond the first tile, or ground whose edge stands
+ *   well above the track, so the mouth is set into a high wall;
+ * - `cut`: track sloping down into flat ground, held back by retaining walls and an embankment.
  */
 export type TunnelVariant = 'face' | 'slope' | 'cut';
 
@@ -168,6 +169,7 @@ function mouthVariant(
   ty: number,
   facing: number,
   edgeGap: number,
+  keepsRising: boolean,
 ): TunnelVariant | null {
   if (tx < 0 || ty < 0 || tx >= terrain.width || ty >= terrain.height) return null;
   const levels = cornerLevels(terrain, tx, ty);
@@ -176,7 +178,7 @@ function mouthVariant(
   if (levels[n1] !== levels[n2] || levels[f1] !== levels[f2]) return null;
   const rise = levels[f1]! - levels[n1]!;
   if (rise !== 0 && rise !== 1) return null;
-  if (edgeGap < -Z_STEP / 2) return 'face';
+  if (edgeGap < -Z_STEP / 2 || (rise === 1 && keepsRising)) return 'face';
   return rise === 1 ? 'slope' : 'cut';
 }
 
@@ -258,7 +260,16 @@ function buildPortal(
   if (behindX < 0 || behindY < 0 || behindX >= terrain.width || behindY >= terrain.height)
     return portal;
   const edgeGround = cornerLevels(terrain, behindX, behindY)[n1]! * Z_STEP;
-  const variant = mouthVariant(terrain, behindX, behindY, facing, zEdge - edgeGround);
+  const innerX = behindX - sx;
+  const innerY = behindY - sy;
+  const [f1] = EDGE_CORNERS[(facing + 2) & 3]!;
+  const keepsRising =
+    innerX >= 0 &&
+    innerY >= 0 &&
+    innerX < terrain.width &&
+    innerY < terrain.height &&
+    cornerLevels(terrain, innerX, innerY)[f1]! > cornerLevels(terrain, behindX, behindY)[f1]!;
+  const variant = mouthVariant(terrain, behindX, behindY, facing, zEdge - edgeGround, keepsRising);
   if (variant) {
     portal.variant = variant;
     portal.valid = true;
