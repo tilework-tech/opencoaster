@@ -34,10 +34,14 @@ const OUT = join('.local', 'occlusion', process.env.OCCLUSION_LABEL ?? 'current'
 /** Acceptance: overall mismatch share of object pixels, and per kind pair of contested pixels. */
 const MAX_MISMATCH = Number(process.env.OCCLUSION_MAX ?? 0.005);
 const MAX_PAIR = Number(process.env.OCCLUSION_MAX_PAIR ?? 0.02);
-/** Keep the reported #139 regression pairs within their rounded baseline rates. */
+/**
+ * Per-pair ceilings tighter than MAX_PAIR. `support>land-overlay` is a depth tie at support bases
+ * (the overlay is part of the ground, so a support standing on the surface must win it); a
+ * regression to the overlay winning that tie lifts it above 2%.
+ */
 const MAX_PAIR_BASELINES: Record<string, number> = {
   'ground>track': 0.00065,
-  'support>land-overlay': 0.01265,
+  'support>land-overlay': 0.002,
 };
 /** Pairs need this many contested pixels before their rate is judged. */
 const MIN_CONTESTED = 200;

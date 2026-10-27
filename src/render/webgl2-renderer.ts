@@ -139,8 +139,14 @@ const HOLE_FLOAT = 22;
  * model").
  */
 export const DEPTH_PER_LEVEL = 1 / 1024;
-/** Mesh mode of a land-overlay tile, drawn in the translucent pass on the terrain surface. */
+/**
+ * Mesh mode of a land-overlay tile. The overlay is drawn as part of the ground, before every
+ * sprite and without writing depth, so anything standing on the surface wins its depth ties.
+ */
 const LAND_OVERLAY_MODE = 2.3;
+const PASS_OPAQUE = 0;
+const PASS_TRANSLUCENT = 1;
+const PASS_GROUND_OVERLAY = 2;
 /** Screen length, in world pixels, of a tile edge: the period base of sale-border dashes. */
 const TILE_EDGE_PIXELS = Math.hypot(TILE_W / 2, TILE_H / 2);
 /** Opacity of footpath placement previews drawn in the world. */
@@ -694,8 +700,13 @@ export class WebGL2Renderer implements Renderer {
   private instanceData = new Float32Array(INITIAL_INSTANCE_CAPACITY * INSTANCE_FLOATS);
   private depths = new Int32Array(INITIAL_INSTANCE_CAPACITY);
   private pageIds = new Int16Array(INITIAL_INSTANCE_CAPACITY);
-  /** 1 for instances drawn in the translucent pass: water, patrol overlays and previews. */
+  /**
+   * Draw pass per instance: `PASS_OPAQUE`, `PASS_GROUND_OVERLAY` for the land overlay, or
+   * `PASS_TRANSLUCENT` for water, patrol overlays and previews.
+   */
   private translucent = new Uint8Array(INITIAL_INSTANCE_CAPACITY);
+  /** Index in `runs` of the first opaque run, after the ground-overlay runs. */
+  private opaqueRun = 0;
   /** Index in `runs` of the first translucent run. */
   private translucentRun = 0;
   private readonly runs: { start: number; count: number; pages: number[] }[] = [];
@@ -1076,8 +1087,11 @@ export class WebGL2Renderer implements Renderer {
     gl.uniform1f(uniforms.idMode, this.idMode ? 1 : 0);
     for (let index = 0; index < this.runs.length; index++) {
       const run = this.runs[index];
-      // Translucent surfaces are depth tested but never hide what is drawn after them.
-      // In ID mode they are scored as surfaces, so they keep writing depth.
+      // The ground overlay and translucent surfaces are depth tested but never hide what is drawn
+      // after them. In ID mode the translucent surfaces are scored as surfaces, so they keep
+      // writing depth; the ground overlay never does, as it stands for the ground it lies on.
+      if (index === 0 && this.opaqueRun > 0) gl.depthMask(false);
+      if (index === this.opaqueRun) gl.depthMask(true);
       if (index === this.translucentRun && !this.idMode) gl.depthMask(false);
       for (let slot = 0; slot < TEXTURE_SLOTS; slot++) {
         const page = run.pages[slot];
@@ -3152,7 +3166,11 @@ export class WebGL2Renderer implements Renderer {
     this.instanceData[offset + HEIGHT_SCALE_FLOAT] = frame && !meshMode ? height / frame.height : 1;
     this.instanceData[offset + HOLE_FLOAT] = mesh.hole ?? 0;
     this.translucent[this.count] =
-      this.ghostMode !== 0 || meshMode === 3 || (meshMode > 1.4 && meshMode < 2.5) ? 1 : 0;
+      meshMode === LAND_OVERLAY_MODE
+        ? PASS_GROUND_OVERLAY
+        : this.ghostMode !== 0 || meshMode === 3 || (meshMode > 1.4 && meshMode < 2.5)
+          ? PASS_TRANSLUCENT
+          : PASS_OPAQUE;
     if (this.captureRecords)
       this.captureRecords[this.count] =
         objectId < FIRST_INSTANCE_OBJECT_ID
@@ -3243,14 +3261,19 @@ export class WebGL2Renderer implements Renderer {
     const buffer = this.instanceBuffer;
     if (!gl || !buffer) return;
     sortByDepth(this.depths, this.count, this.order);
-    // Opaque instances first, then the translucent pass, each keeping its back-to-front order.
+    // Ground overlay first, then opaque instances, then the translucent pass, each keeping its
+    // back-to-front order.
     const partition = this.partition;
+    let next = 0;
+    for (const pass of [PASS_GROUND_OVERLAY, PASS_OPAQUE, PASS_TRANSLUCENT])
+      for (let i = 0; i < this.count; i++)
+        if (this.translucent[this.order[i]] === pass) partition[next++] = this.order[i];
+    let underlay = 0;
     let opaque = 0;
     for (let i = 0; i < this.count; i++)
-      if (!this.translucent[this.order[i]]) partition[opaque++] = this.order[i];
-    let next = opaque;
-    for (let i = 0; i < this.count; i++)
-      if (this.translucent[this.order[i]]) partition[next++] = this.order[i];
+      if (this.translucent[i] === PASS_GROUND_OVERLAY) underlay++;
+      else if (this.translucent[i] === PASS_OPAQUE) opaque++;
+    opaque += underlay;
     this.partition = this.order;
     this.order = partition;
     for (let i = 0; i < this.count; i++) {
@@ -3261,16 +3284,22 @@ export class WebGL2Renderer implements Renderer {
         this.orderedData[to + j] = this.instanceData[from + j];
       this.orderedPages[i] = this.pageIds[source];
     }
-    const solid = buildTextureRuns(this.orderedPages.subarray(0, opaque), TEXTURE_SLOTS);
-    const clear = buildTextureRuns(this.orderedPages.subarray(opaque, this.count), TEXTURE_SLOTS);
+    const sections = [
+      { from: 0, to: underlay },
+      { from: underlay, to: opaque },
+      { from: opaque, to: this.count },
+    ];
     this.runs.length = 0;
-    this.runs.push(...solid.runs);
-    this.translucentRun = this.runs.length;
-    for (const run of clear.runs) this.runs.push({ ...run, start: run.start + opaque });
-    for (let i = 0; i < opaque; i++)
-      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = solid.slots[i];
-    for (let i = opaque; i < this.count; i++)
-      this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = clear.slots[i - opaque];
+    const runStarts: number[] = [];
+    for (const { from, to } of sections) {
+      runStarts.push(this.runs.length);
+      const built = buildTextureRuns(this.orderedPages.subarray(from, to), TEXTURE_SLOTS);
+      for (const run of built.runs) this.runs.push({ ...run, start: run.start + from });
+      for (let i = from; i < to; i++)
+        this.orderedData[i * INSTANCE_FLOATS + SLOT_FLOAT] = built.slots[i - from];
+    }
+    this.opaqueRun = runStarts[1];
+    this.translucentRun = runStarts[2];
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     if (this.depths.length > this.bufferCapacity) {
       gl.bufferData(gl.ARRAY_BUFFER, this.instanceData.byteLength, gl.DYNAMIC_DRAW);
