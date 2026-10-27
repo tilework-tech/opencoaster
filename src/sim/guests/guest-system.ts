@@ -391,9 +391,7 @@ function turnAwayFromBlockedQueue(
   for (let other = 0; other < world.guests.count; other++) {
     if (
       other === slot ||
-      (g.state[other] !== GuestState.Wandering &&
-        g.state[other] !== GuestState.Queuing &&
-        g.state[other] !== GuestState.Waiting) ||
+      g.state[other] !== GuestState.Wandering ||
       g.targetRide[other] !== rideId ||
       world.guests.slotToId[other]! >= guestId
     )
