@@ -28,7 +28,7 @@ import type { RideType } from './ride-types';
 import { RideResult } from './ride-results';
 
 /** A test lap that has not finished after five game minutes is abandoned. */
-const TEST_TIMEOUT_TICKS = 12_000;
+export const TEST_TIMEOUT_TICKS = 12_000;
 
 function clampRating(value: number): number {
   return Math.max(0, Math.min(MAX_RATING, value));

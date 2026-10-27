@@ -105,6 +105,14 @@ function rideCrashRules(world: World, rideId: number) {
   };
 }
 
+/** Whether the piece in `slot` continues a platform: the piece before it is also a station piece. */
+function followsStationPiece(world: World, slot: number): boolean {
+  const pieces = world.track.pieces;
+  const before = pieces.cols.prev[slot];
+  if (before < 0 || !pieces.isAlive(before)) return false;
+  return (PIECES[pieces.cols.pieceType[pieces.idToSlot[before]]].flags & PieceFlag.Station) !== 0;
+}
+
 /** Converts the track subsystem's cached polyline into the vehicle system's compact tick input. */
 export function createVehicleTrackFromPath(world: World, path: TrackPath): VehicleTrack {
   const segmentCount = path.count - 1;
@@ -150,7 +158,8 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     if (pieceDef.flags & PieceFlag.Station)
       segmentFlags[segment] |= VehicleSegmentFlag.StationDrive;
     if (firstPieceSegment) {
-      if (pieceDef.flags & PieceFlag.Station) segmentFlags[segment] |= VehicleSegmentFlag.Station;
+      if (pieceDef.flags & PieceFlag.Station && !followsStationPiece(world, pieceSlot))
+        segmentFlags[segment] |= VehicleSegmentFlag.Station;
       if (pieceDef.flags & PieceFlag.Crest) segmentFlags[segment] |= VehicleSegmentFlag.Crest;
       if (pieceDef.flags & PieceFlag.DropStart)
         segmentFlags[segment] |= VehicleSegmentFlag.DropStart;

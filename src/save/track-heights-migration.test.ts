@@ -148,4 +148,31 @@ describe('loading saves with whole-level track', () => {
     expect(getConstructionCursor(loaded, rideId).hasTrack).toBe(true);
     expect(loaded.rides.cols.state[loaded.rides.idToSlot[rideId]]).toBe(RideState.Closed);
   });
+  it('keeps a circuit closed when the new piece rises leave it short, by ramping level track', () => {
+    const sim = flatOwnedSim(1);
+    const rideId = createCoaster(sim);
+    buildCircuit(sim, rideId, SMALL_CIRCUIT);
+    const t = sim.world.track;
+    const c = t.pieces.cols;
+    const slots: number[] = [];
+    for (let id = t.head[rideId]; id >= 0 && slots.length < 14; id = c.next[t.pieces.idToSlot[id]])
+      slots.push(t.pieces.idToSlot[id]);
+    const flat = pieceByName('flat')!.id;
+    c.pieceType[slots[7]] = flat;
+    c.pieceType[slots[9]] = flat;
+    storeOldHeights(sim.world, rideId, (name) => V25_DZ[name]);
+
+    const loaded = deserialize(asVersion25(serialize(sim.world)));
+
+    expect(circuitStatus(loaded, rideId).closed).toBe(true);
+    const lt = loaded.track;
+    const lc = lt.pieces.cols;
+    let rise = 0;
+    for (let id = lt.head[rideId], n = 0; n < lt.count[rideId]; n++) {
+      const slot = lt.pieces.idToSlot[id];
+      rise += PIECES[lc.pieceType[slot]].dz;
+      id = lc.next[slot];
+    }
+    expect(rise).toBe(0);
+  });
 });
