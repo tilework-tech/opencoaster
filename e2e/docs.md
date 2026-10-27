@@ -58,4 +58,6 @@ Path: @/e2e
 - [mobile.spec.ts](mobile.spec.ts) runs at a 390 px phone viewport with touch: it checks the scrolling toolbar, stacked bottom sheets, a 44 px minimum for every visible control, and tap-to-build.
 - [terrain-edge-faces.spec.ts](terrain-edge-faces.spec.ts) replaces the sandbox map with a fixture from [support/terrain-fixture.ts](support/terrain-fixture.ts) (pit, plateau, terraces; plus map-corner and footpath-ramp fixtures for proof captures) and asserts that essentially no clear-colour pixels remain inside the terrain in all four rotations under WebGL2 and Canvas2D (`TERRAIN_PROOF_DIR` also saves screenshots). [construction-marker.spec.ts](construction-marker.spec.ts) checks the construction marker's pole while the footpath and track tools are active.
 
+- [coaster-tunnels.spec.ts](coaster-tunnels.spec.ts) builds a wooden coaster through the real construction panel: one test through a ridge (portals found by pixel at entry and exit in all four rotations, and the U underground view revealing buried track), one on flat ground checking that every sample of the sim centre line has drawn track pixels within a few pixels in all four rotations. `TUNNEL_PROOF_DIR` saves screenshots; `CANVAS2D=1` forces the Canvas2D renderer and reads it through `toDataURL`.
+
 Created and maintained by Nori.

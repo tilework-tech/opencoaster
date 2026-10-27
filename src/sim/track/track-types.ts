@@ -59,6 +59,8 @@ export const enum TrackResult {
   InsufficientFunds = 14,
   PieceNotAllowed = 15,
   OverWater = 16,
+  /** A tunnel section would pass under a ride, a footpath or water. */
+  TunnelBlocked = 17,
 }
 
 /**

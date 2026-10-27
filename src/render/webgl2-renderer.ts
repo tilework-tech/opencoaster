@@ -479,6 +479,7 @@ void main() {
     if (baked.a > 0.5) height = vAnchorZ + decodeHeight(baked) * vHeightScale;
   }
   gl_FragDepth = clamp(0.5 - height * ${glslFloat(DEPTH_PER_LEVEL)}, 0.0, 1.0);
+  if (vGhost > 2.5) gl_FragDepth = 0.0;
   if (vMeshMode > 1.4 && vMeshMode < 2.0) outColor = vec4(0.26, 0.53, 1.0, 0.32);
   if (vMeshMode > 1.9 && vMeshMode < 2.2) outColor = vec4(0.96, 0.2, 0.16, 0.38);
   if (vMeshMode > 2.2 && vMeshMode < 2.5) outColor = landOverlay();
@@ -508,7 +509,7 @@ void main() {
   if (vMeshMode > 0.5 && vMeshMode < 1.5) outColor.rgb *= vTerrainShade;
   if (vGhost > 0.5) {
     outColor.a *= ${glslFloat(GHOST_ALPHA)};
-    if (vGhost > 1.5) outColor.rgb = mix(outColor.rgb, vec3(0.9, 0.16, 0.14), 0.6);
+    if (vGhost > 1.5 && vGhost < 2.5) outColor.rgb = mix(outColor.rgb, vec3(0.9, 0.16, 0.14), 0.6);
   }
   if (vGridlines > 0.5 && vMeshMode > 0.5 && vMeshMode < 1.5) {
     vec2 edge = min(vTileUv, 1.0 - vTileUv);
@@ -681,6 +682,7 @@ export class WebGL2Renderer implements Renderer {
   private patrolPreviewRemove = false;
   private ghostMode = 0;
   private landOverlay = false;
+  private undergroundView = false;
   private visibleCount = 0;
   private gridlinesActive = false;
   private dpr = 1;
@@ -746,6 +748,10 @@ export class WebGL2Renderer implements Renderer {
     this.map = map;
     this.pickCacheKey = '';
     this.pickCacheSnapshot = null;
+  }
+
+  setUndergroundView(visible: boolean): void {
+    this.undergroundView = visible;
   }
 
   setLandOverlay(visible: boolean): void {
@@ -2491,7 +2497,7 @@ export class WebGL2Renderer implements Renderer {
     viewportHeight: number,
   ): boolean {
     const scene = this.coasterScene;
-    scene.build(snapshot, map, camera.rotation);
+    scene.build(snapshot, map, camera.rotation, this.undergroundView);
     const hasSprite = scene.items
       .slice(0, scene.length)
       .some((item) => spritePages.resolve(item.key.split('#')[0]));
@@ -2519,8 +2525,11 @@ export class WebGL2Renderer implements Renderer {
           frame.width,
           frame.height,
         )
-      )
+      ) {
+        this.ghostMode = item.xray ? 3 : 0;
         this.append(item.x, item.y, item.z, frame.width, frame.height, item.key, item.depth);
+        this.ghostMode = 0;
+      }
     }
     return true;
   }

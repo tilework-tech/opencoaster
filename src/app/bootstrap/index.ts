@@ -1,3 +1,4 @@
+import { undergroundTile } from '../../sim/track/clearance';
 import { SimClient } from '../../worker/sim-client';
 import { showsLandOverlay } from '../tools/land-overlay';
 import { createRenderer } from '../../render/create-renderer';
@@ -655,6 +656,19 @@ export async function bootstrap(): Promise<void> {
     pathFeedback.setOwnershipWarning(hoverGhost !== null);
     buildHoverFeedback.update(hoverGhost);
     const trackGhost = sim.map ? coasterPanel.ghost() : null;
+    renderer.setUndergroundView(
+      displayOptionEnabled('underground-view') ||
+        (trackGhost !== null &&
+          sim.map !== null &&
+          undergroundTile(
+            sim.map,
+            trackGhost.piece.id,
+            trackGhost.placement.x,
+            trackGhost.placement.y,
+            trackGhost.level,
+            trackGhost.placement.dir,
+          ) >= 0),
+    );
     trackPreview.draw(
       trackGhost,
       sim.map ?? { width: 0, height: 0 },
