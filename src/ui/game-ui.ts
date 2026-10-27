@@ -671,7 +671,7 @@ export class GameUI {
         this.optionToggle('Gridlines', 'gridlines'),
         this.optionToggle('Underground view (U)', 'underground-view'),
         this.optionToggle('Construction marker', 'construction-marker'),
-        this.optionToggle('Reduce resolution below pixel scale when slow', 'reduce-resolution-when-slow'),
+        this.optionToggle('Reduce resolution when slow', 'reduce-resolution-when-slow'),
         this.optionToggle('Performance overlay', 'performance-overlay', (on) =>
           this.parent.classList.toggle('hud-visible', on),
         ),

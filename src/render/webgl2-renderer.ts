@@ -1962,19 +1962,30 @@ export class WebGL2Renderer implements Renderer {
       (height + ((mask >> 3) & 1)) * 64,
     ] as const;
     const corners = viewTerrainCornerHeights(worldCorners, rotation);
-    this.append(
-      rx * TILE_UNITS,
-      ry * TILE_UNITS,
-      height * 64,
-      TILE_W,
-      TILE_H,
-      terrainSurfaceSpriteName(terrainSurface),
-      2 * (rx + ry) - height,
-      1,
-      corners,
-      terrainLightFactor(corners),
-      this.gridlinesActive ? terrainContourViewEdges(map, x, y, rotation) : 0,
-    );
+    if (meshesOnly)
+      this.appendDepthInstance(
+        rx * TILE_UNITS,
+        ry * TILE_UNITS,
+        height * 64,
+        TILE_W,
+        TILE_H,
+        corners,
+        1,
+      );
+    else
+      this.append(
+        rx * TILE_UNITS,
+        ry * TILE_UNITS,
+        height * 64,
+        TILE_W,
+        TILE_H,
+        terrainSurfaceSpriteName(terrainSurface),
+        2 * (rx + ry) - height,
+        1,
+        corners,
+        terrainLightFactor(corners),
+        this.gridlinesActive ? terrainContourViewEdges(map, x, y, rotation) : 0,
+      );
     const tileCorners = terrainTileCorners(x, y, height, mask);
     for (let direction = 0; direction < 4; direction++) {
       if (!terrainEdgeFacesViewer(direction, rotation)) continue;
@@ -1984,18 +1995,30 @@ export class WebGL2Renderer implements Renderer {
       const top = Math.max(face.start.height, face.end.height);
       const bottom = face.bottomHeight;
       if (top <= bottom) continue;
-      this.append(
-        face.start.x * TILE_UNITS,
-        face.start.y * TILE_UNITS,
-        bottom * 64,
-        (face.end.x - face.start.x) * TILE_UNITS,
-        (face.end.y - face.start.y) * TILE_UNITS,
-        terrainCliffSpriteName(terrainSurface, (direction + rotation) & 3),
-        // Cliff faces paint over the tile tops behind them in the ground cache.
-        2 * (rx + ry) - height - bottom + 0.25,
-        4,
-        [face.start.height * 64, face.end.height * 64, bottom * 64, bottom * 64],
-      );
+      const cliffCorners = [face.start.height * 64, face.end.height * 64, bottom * 64, bottom * 64];
+      if (meshesOnly)
+        this.appendDepthInstance(
+          face.start.x * TILE_UNITS,
+          face.start.y * TILE_UNITS,
+          bottom * 64,
+          (face.end.x - face.start.x) * TILE_UNITS,
+          (face.end.y - face.start.y) * TILE_UNITS,
+          cliffCorners,
+          4,
+        );
+      else
+        this.append(
+          face.start.x * TILE_UNITS,
+          face.start.y * TILE_UNITS,
+          bottom * 64,
+          (face.end.x - face.start.x) * TILE_UNITS,
+          (face.end.y - face.start.y) * TILE_UNITS,
+          terrainCliffSpriteName(terrainSurface, (direction + rotation) & 3),
+          // Cliff faces paint over the tile tops behind them in the ground cache.
+          2 * (rx + ry) - height - bottom + 0.25,
+          4,
+          cliffCorners,
+        );
     }
     const waterLevel = map.waterLevel?.[index] ?? 0;
     if (
@@ -2912,6 +2935,43 @@ export class WebGL2Renderer implements Renderer {
             };
     this.depths[this.count] = Math.round(depth * 2);
     this.pageIds[this.count] = page;
+    this.count++;
+  }
+
+  /** Adds terrain geometry for the depth pass without resolving atlas and painter-order data. */
+  private appendDepthInstance(
+    x: number,
+    y: number,
+    z: number,
+    width: number,
+    height: number,
+    corners: readonly number[],
+    meshMode: number,
+  ): void {
+    if (this.count === this.depths.length) this.grow();
+    const offset = this.count * INSTANCE_FLOATS;
+    this.instanceData[offset] = x;
+    this.instanceData[offset + 1] = y;
+    this.instanceData[offset + 2] = z;
+    this.instanceData[offset + 3] = width;
+    this.instanceData[offset + 4] = height;
+    this.instanceData[offset + 5] = 0;
+    this.instanceData[offset + 6] = 0;
+    this.instanceData[offset + 7] = 1;
+    this.instanceData[offset + 8] = 1;
+    this.instanceData[offset + 9] = meshMode;
+    this.instanceData[offset + 10] = corners[0] ?? z;
+    this.instanceData[offset + 11] = corners[1] ?? z;
+    this.instanceData[offset + 12] = corners[2] ?? z;
+    this.instanceData[offset + 13] = corners[3] ?? z;
+    this.instanceData[offset + 14] = 0;
+    this.instanceData[offset + 15] = 1;
+    this.instanceData[offset + 16] = 0;
+    this.instanceData[offset + 17] = 0;
+    this.instanceData[offset + 18] = 0;
+    this.instanceData[offset + 19] = 0;
+    this.instanceData[offset + 20] = z;
+    this.instanceData[offset + 21] = 1;
     this.count++;
   }
 

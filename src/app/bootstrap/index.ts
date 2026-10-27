@@ -547,7 +547,7 @@ export async function bootstrap(): Promise<void> {
         renderMs,
         renderer.visibleSpriteCount,
         renderer.backend,
-        appliedScale,
+        capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
       );
     }
     refreshPanels(now);

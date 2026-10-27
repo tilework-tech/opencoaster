@@ -134,7 +134,10 @@ export class AdaptiveResolution {
   setPixelPolicy(devicePixelRatio: number, zoom: number, allowBelowPixelFloor: boolean): void {
     const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
     const cameraZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
-    const pixelFloor = Math.max(ABSOLUTE_MIN_SCALE, Math.min(1, 1 / (dpr * Math.max(1, cameraZoom))));
+    const pixelFloor = Math.max(
+      ABSOLUTE_MIN_SCALE,
+      Math.min(1, 1 / (dpr * Math.max(1, cameraZoom))),
+    );
     const nextMinimum = allowBelowPixelFloor ? this.relaxedMinScale : pixelFloor;
     if (nextMinimum === this.minScale) return;
     this.minScale = nextMinimum;
