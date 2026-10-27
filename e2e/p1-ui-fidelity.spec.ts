@@ -136,9 +136,10 @@ test('park windows return to their dragged position when reopened', async ({ pag
   expect(initial).not.toBeNull();
   await page.mouse.move(initial!.x + 70, initial!.y + 16);
   await page.mouse.down();
-  await page.mouse.move(120, 140);
+  await page.mouse.move(120, 140, { steps: 8 });
   await page.mouse.up();
   const moved = await park.boundingBox();
+  expect(moved?.x).not.toBe(initial!.x);
   await page.getByRole('button', { name: 'Close Park', exact: true }).click();
   await page.getByRole('button', { name: 'Park', exact: true }).click();
   const reopened = await page.locator('[data-panel="park"]').boundingBox();

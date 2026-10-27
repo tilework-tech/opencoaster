@@ -340,18 +340,26 @@ export async function buildQueuedRide(
 
   await toolbarTool(page, 'New ride');
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
-  await page.locator('.ride-card[data-ride-type="1"]').click();
+  const rideCard = page.locator('.ride-card[data-ride-type="1"]');
+  await rideCard.focus();
+  await rideCard.press('Enter');
   await focus(page, layout.ride, lift);
   const [rx, ry] = await tileScreenPoint(page, world, layout.ride);
   if (mobile) await page.touchscreen.tap(rx, ry);
   else await page.mouse.click(rx, ry);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   const { entrance, exit } = layout;
-  await page
-    .getByRole('button', { name: `Place entrance at tile ${entrance.x}, ${entrance.y}` })
-    .click();
+  const entranceTarget = page.getByRole('button', {
+    name: `Place entrance at tile ${entrance.x}, ${entrance.y}`,
+  });
+  await entranceTarget.focus();
+  await entranceTarget.press('Enter');
   await expect(page.locator('.tool-status')).toContainText('Place exit');
-  await page.getByRole('button', { name: `Place exit at tile ${exit.x}, ${exit.y}` }).click();
+  const exitTarget = page.getByRole('button', {
+    name: `Place exit at tile ${exit.x}, ${exit.y}`,
+  });
+  await exitTarget.focus();
+  await exitTarget.press('Enter');
 
   const rideWindow = page.locator('[data-panel="ride-0"]');
   const legacy = options.legacy === true;

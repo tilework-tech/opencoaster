@@ -2,13 +2,16 @@ import { expect, test, type Page } from '@playwright/test';
 import { openPage, startScenario } from './support/park';
 
 async function setDisplayOption(page: Page, name: string, on: boolean): Promise<void> {
-  await page.getByRole('button', { name: 'Game options' }).click();
+  const options = page.getByRole('button', { name: 'Game options' });
+  await options.focus();
+  await options.press('Enter');
   await page.getByRole('tab', { name: 'Display' }).click();
   const box = page.getByRole('checkbox', { name, exact: true });
   await expect(box).toBeEnabled();
   if (on) await box.check();
   else await box.uncheck();
-  await page.getByRole('button', { name: 'Game options' }).click();
+  await options.focus();
+  await options.press('Enter');
 }
 
 async function inkedPixels(page: Page): Promise<number> {

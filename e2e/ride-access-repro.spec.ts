@@ -302,7 +302,8 @@ test('builds, tests, and opens a completed looping coaster through the UI', asyn
   if ((await closeConstruction.count()) > 0) await closeConstruction.click();
   await connectEntranceWithPath(page, world, entranceTile);
   await toolbarAction(page, 'Rides');
-  await coasterRow.click();
+  await coasterRow.focus();
+  await coasterRow.press('Enter');
   await expect(coasterWindow.locator('.ride-checklist')).not.toContainText(
     'Entrance has no queue or path',
   );
