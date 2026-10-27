@@ -147,8 +147,6 @@ for (const name of ['face', 'slope', 'cut'] as SceneName[]) {
     page.setDefaultTimeout(15_000);
     const scene = buildScene(name);
     await loadScene(page, testInfo, scene);
-    const mouth = scene.mouths[0]!;
-    const entryPoint = [mouth.x, mouth.y, mouth.z] as const;
     const focus = [
       (scene.focus.x + 0.5) * 256,
       (scene.focus.y + 0.5) * 256,
@@ -158,6 +156,12 @@ for (const name of ['face', 'slope', 'cut'] as SceneName[]) {
       await aim(page, scene, focus, 1);
       await aim(page, scene, focus, 1);
       await save(`${name}-whole-rot${turn}`, await capture(page));
+      // The mouth whose arch faces the camera in this view, else the first.
+      const rotation = await page.evaluate(
+        () => (window as unknown as { __camera: { rotation: number } }).__camera.rotation,
+      );
+      const mouth = scene.mouths.find((m) => ((m.facing + rotation) & 3) < 2) ?? scene.mouths[0]!;
+      const entryPoint = [mouth.x, mouth.y, mouth.z] as const;
       const closeups: Buffer[] = [];
       for (const zoom of [1, 2]) {
         await aim(page, scene, entryPoint, zoom);

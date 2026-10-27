@@ -18,8 +18,10 @@ export const TRENCH_WALL_STRIPS = 8;
 /** Pixel sizes of the trench textures in the atlas: the wall and the arch headwall. */
 export const TRENCH_WALL_TEXTURE_HEIGHT = 32;
 export const TRENCH_WALL_TEXTURE_WIDTH = 32;
-export const TRENCH_ARCH_TEXTURE_WIDTH = 24;
-export const TRENCH_ARCH_TEXTURE_HEIGHT = 16;
+export const TRENCH_ARCH_TEXTURE_WIDTH = 96;
+export const TRENCH_ARCH_TEXTURE_HEIGHT = 64;
+/** Height of the arch texture, in levels: it stands on the floor. */
+export const TRENCH_ARCH_LEVELS = 1;
 /** Brightness of a wall or headwall by whether it faces the lit side of the view. */
 export const TRENCH_WALL_LIT = 1;
 export const TRENCH_WALL_DARK = 0.84;

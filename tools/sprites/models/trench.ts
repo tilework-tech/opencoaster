@@ -80,49 +80,75 @@ export function trenchWallTexture(): Sprite {
   return sprite(w, h, pixels);
 }
 
+/** Texels per logical pixel of the arch texture: it is sampled after the face is sheared. */
+export const TRENCH_ARCH_SUPERSAMPLE = 4;
+/** Height of the arch texture in levels: it stands on the floor and is one level tall. */
+export const TRENCH_ARCH_LEVELS = 1;
+
+/** Mortar and joint thickness of the arch masonry, in logical pixels. */
+const JOINT = 0.9;
+
+/** Ashlar of the spandrels at a point of the face, in logical pixels. */
+function spandrel(px: number, py: number): number {
+  const course = Math.floor(py / COURSE);
+  const lengths = BLOCKS[(course + 1) % BLOCKS.length]!;
+  const total = lengths.reduce((a, b) => a + b, 0);
+  const scaled = (px * total) / TRENCH_ARCH_WIDTH;
+  let start = 0;
+  let index = 0;
+  for (; index < lengths.length; index++) {
+    if (scaled < start + lengths[index]!) break;
+    start += lengths[index]!;
+  }
+  const joint = py - course * COURSE > COURSE - JOINT || scaled - start < JOINT;
+  const noise = hash(course * 7 + 1, index * 13 + start);
+  return joint ? STONE[0]! : STONE[noise % 3 === 0 ? 2 : 1]!;
+}
+
 /**
- * The headwall of a trench seen face-on, as wide as the cut and one level tall: a semicircular
- * arch of alternating voussoirs with a keystone, set in ashlar, over a mouth that darkens
- * toward its centre.
+ * The headwall of a trench seen face-on, as wide as the cut and one level tall: a round arch of
+ * seven voussoirs with a keystone, set in ashlar under a coping course, over a mouth that darkens
+ * toward its centre. Drawn from continuous shapes at `TRENCH_ARCH_SUPERSAMPLE` texels per pixel
+ * so that sampling the sheared face yields clean edges at any zoom.
  */
 export function trenchArchTexture(): Sprite {
-  const w = TRENCH_ARCH_WIDTH;
-  const h = TRENCH_ARCH_HEIGHT;
+  const k = TRENCH_ARCH_SUPERSAMPLE;
+  const w = TRENCH_ARCH_WIDTH * k;
+  const h = TRENCH_ARCH_HEIGHT * k;
   const pixels = new Uint8Array(w * h);
-  const cx = w / 2;
+  const cx = TRENCH_ARCH_WIDTH / 2;
   const cy = 10;
   const inner = 6.5;
   const outer = 9.5;
   const bins = 7;
   const tones = [3, 4, 3, 4, 3, 4, 3];
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      const dx = x + 0.5 - cx;
-      const dy = y + 0.5 - cy;
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++) {
+      const px = (i + 0.5) / k;
+      const py = (j + 0.5) / k;
+      const dx = px - cx;
+      const dy = py - cy;
       const above = dy < 0;
       const radius = above ? Math.hypot(dx, dy) : Math.abs(dx);
       let colour: number;
-      if (y === 0) colour = STONE[4]!;
+      if (py < 1) colour = STONE[4]!;
       else if (radius < inner) {
         const edge = inner - radius;
         const shade = edge < 1.1 ? 2 : edge < 2.4 ? 1 : 0;
-        colour = GLOOM[Math.min(3, shade + (y > h - 3 ? 1 : 0))]!;
+        colour = GLOOM[Math.min(3, shade + (py > TRENCH_ARCH_HEIGHT - 3 ? 1 : 0))]!;
       } else if (radius < outer) {
         if (above) {
           const along = ((Math.atan2(dx, -dy) + Math.PI / 2) / Math.PI) * bins;
           const bin = Math.min(bins - 1, Math.floor(along));
-          const joint = along - bin < 0.1;
+          const joint = (along - bin) * ((inner + outer) / 2) * (Math.PI / bins) < JOINT;
           colour = STONE[joint ? 0 : tones[bin]!]!;
         } else {
-          const along = (y - cy) / 3;
+          const along = (py - cy) / 3;
           const course = Math.floor(along);
-          colour = STONE[along - course < 0.34 ? 0 : course % 2 === 0 ? 3 : 4]!;
+          colour = STONE[(along - course) * 3 < JOINT ? 0 : course % 2 === 0 ? 3 : 4]!;
         }
-      } else {
-        const { tone, joint } = ashlar(x, y, w, 1);
-        colour = joint ? STONE[0]! : STONE[tone >= 3 ? 1 : 2]!;
-      }
-      pixels[y * w + x] = colour;
+      } else colour = spandrel(px, py);
+      pixels[j * w + i] = colour;
     }
   return sprite(w, h, pixels);
 }

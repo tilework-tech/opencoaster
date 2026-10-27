@@ -112,8 +112,7 @@ export function buildScene(name: SceneName): ProofScene {
       });
     }
   }
-  const first = mouths[0];
-  if (first) placeReferenceGuest(world, first);
+  for (const mouth of mouths) placeReferenceGuest(world, mouth);
   return { world, mouths, focus: { x: layout.focus[0], y: layout.focus[1] } };
 }
 
@@ -124,7 +123,7 @@ const STEP: readonly (readonly [number, number])[] = [
   [0, -1],
 ];
 
-/** Stands a guest on the grass beside the first mouth, for scale; the proof pauses the game. */
+/** Stands a guest on the grass beside a mouth, for scale; the proof pauses the game. */
 function placeReferenceGuest(world: World, mouth: ProofScene['mouths'][number]): void {
   spawnGuest(world);
   const slot = world.guests.count - 1;

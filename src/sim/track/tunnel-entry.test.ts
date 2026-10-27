@@ -97,3 +97,15 @@ describe('which land shapes allow a tunnel entry', () => {
     expect(badTunnelEntry(cornerHill, id('flat'), mid, mid, Z, dir)).toBe(false);
   });
 });
+
+describe('turns in a shallow trench', () => {
+  const plain = fromVertices(() => LEVEL);
+
+  it('refuses a turn that sits partly below the ground but not yet under cover', () => {
+    expect(badTunnelEntry(plain, id('smallLeft'), 6, 4, Z - 1, 0)).toBe(true);
+  });
+
+  it('allows the same turn once the track is a level or more down', () => {
+    expect(badTunnelEntry(plain, id('smallLeft'), 6, 4, Z - 3, 0)).toBe(false);
+  });
+});

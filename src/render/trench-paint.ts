@@ -3,6 +3,7 @@ import { terrainVertex } from './oracle-terrain';
 import type { Camera, MapData } from './renderer';
 import type { TrenchTile } from '../sim/track/trench';
 import {
+  TRENCH_ARCH_LEVELS,
   TRENCH_ARCH_TEXTURE_HEIGHT,
   TRENCH_ARCH_TEXTURE_WIDTH,
   TRENCH_HEAD_DARK,
@@ -154,7 +155,7 @@ function paintWall(face: TrenchFace, shade: number, vertex: Vertex, quad: Quad):
 function paintHead(face: TrenchFace, shade: number, vertex: Vertex, quad: Quad): void {
   const [t0, t1] = face.top;
   const [b0, b1] = face.bottom;
-  const archLevels = TRENCH_ARCH_TEXTURE_HEIGHT / Z_PIXELS;
+  const archLevels = TRENCH_ARCH_LEVELS;
   const w = TRENCH_ARCH_TEXTURE_WIDTH;
   const h = TRENCH_ARCH_TEXTURE_HEIGHT;
   const lift = (p: TrenchPoint, height: number): TrenchPoint => ({ ...p, height });
@@ -162,8 +163,8 @@ function paintHead(face: TrenchFace, shade: number, vertex: Vertex, quad: Quad):
   const arch1 = lift(t1, Math.min(t1.height, b1.height + archLevels));
   quad(
     [
-      vertex(arch0, 0, h - (arch0.height - b0.height) * Z_PIXELS),
-      vertex(arch1, w, h - (arch1.height - b1.height) * Z_PIXELS),
+      vertex(arch0, 0, h - ((arch0.height - b0.height) / archLevels) * h),
+      vertex(arch1, w, h - ((arch1.height - b1.height) / archLevels) * h),
       vertex(b1, w, h),
       vertex(b0, 0, h),
     ],

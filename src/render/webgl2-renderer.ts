@@ -62,7 +62,7 @@ import type { PageFrame, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
 import { TrenchIndex } from './trench-index';
 import {
-  TRENCH_ARCH_TEXTURE_HEIGHT,
+  TRENCH_ARCH_LEVELS,
   TRENCH_EDGE_OVERLAP,
   TRENCH_HALF_WIDTH,
   TRENCH_HEAD_DARK,
@@ -2211,7 +2211,7 @@ export class WebGL2Renderer implements Renderer {
     const shade = facing === 0 ? TRENCH_HEAD_LIT : TRENCH_HEAD_DARK;
     const [start, end] = face.top;
     const floor = face.bottom[0].height;
-    const archLevels = TRENCH_ARCH_TEXTURE_HEIGHT / Z_PIXELS;
+    const archLevels = TRENCH_ARCH_LEVELS;
     const archStart = Math.min(start.height, floor + archLevels);
     const archEnd = Math.min(end.height, floor + archLevels);
     const shown = Math.min(1, (archStart + archEnd) / 2 - floor);
