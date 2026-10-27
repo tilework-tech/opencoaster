@@ -13,6 +13,8 @@ export const LITTER_SPRITE_SIZE = { width: 6, height: 3 } as const;
 
 /** Simulation ticks each flat-ride animation frame is shown for. */
 export const TICKS_PER_ANIMATION_FRAME = 8;
+/** Full scale of `RideInfo.PhaseProgress`. */
+export const PHASE_PROGRESS_MAX = 1000;
 const GRASS_AMBIENT_TREES = [
   'tree-oak',
   'tree-conifer',
@@ -162,12 +164,24 @@ export function rideCellSpriteKey(
   return `${rideSpriteName(type)}/view-${rideCellView(cameraRotation, rideDir)}/cell-${cellIndex}`;
 }
 
-/** Frame zero is the idle pose; active cycle frames show riders. */
+/**
+ * Frame zero is the idle pose; active cycle frames show riders. Sprites with more than nine
+ * frames (the Swinging Ship) spread their whole profile over the Running phase using
+ * `phaseProgress`, a permille of the phase elapsed.
+ */
 export function rideSpriteFrame(
   phase: RidePhase | number,
   tick: number,
   frameCount: number,
+  phaseProgress?: number,
 ): number {
+  if (frameCount > 9) {
+    if (phase !== RidePhase.Running) return 0;
+    const progress = Math.min(Math.max(0, phaseProgress ?? 0), PHASE_PROGRESS_MAX);
+    return (
+      1 + Math.min(frameCount - 2, Math.floor((progress * (frameCount - 1)) / PHASE_PROGRESS_MAX))
+    );
+  }
   if (
     frameCount < 2 ||
     (phase !== RidePhase.Loading && phase !== RidePhase.Running && phase !== RidePhase.Unloading)

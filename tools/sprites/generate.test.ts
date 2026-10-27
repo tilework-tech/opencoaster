@@ -8,6 +8,7 @@ import { alignFrames } from './output';
 import { TRANSPARENT } from './raster';
 import { TRANSPORT_STYLES } from './models/transport';
 import { PALETTE } from './palette';
+import { SHIP_SWING_DEGREES } from './models/flat-rides';
 import { terrainMeshTriangles } from '../../src/render/terrain-geometry';
 
 const sprites = new Map(buildSprites().map((s) => [s.key, s]));
@@ -330,7 +331,7 @@ describe('generated sprite catalogue', () => {
             .join('|'),
         );
         for (const cell of present) {
-          expect([1, 9]).toContain(cell!.frames.length);
+          expect([1, 9, SHIP_SWING_DEGREES.length + 1]).toContain(cell!.frames.length);
           expect(cell!.footprint).toEqual({ width: 1, height: 1 });
           const aligned = alignFrames(cell!.frames);
           expect(aligned[0].anchor.x).toBe(aligned[0].width / 2);

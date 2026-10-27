@@ -4,6 +4,7 @@ import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
 import { rideBaseLevel } from '../sim/rides/ride-footprint';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import { RidePhase } from '../sim/rides/ride-store';
 import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { GuestState } from '../sim/guests/guest-store';
@@ -27,7 +28,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 31;
+export const RIDE_INFO_STRIDE = 32;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -99,6 +100,8 @@ export const enum RideInfo {
   QueueCapacity = 29,
   /** The operator's queue length limit; 0 means none. */
   QueueLimit = 30,
+  /** Permille of the current ride phase already elapsed, used to synchronize animated ride sprites. */
+  PhaseProgress = 31,
 }
 
 export const enum RideFlag {
@@ -361,6 +364,13 @@ function writePeopleLayer<S extends Schema>(
   layer.count = n;
 }
 
+/** Permille of the Running phase elapsed; 0 in every other phase. */
+function phaseProgress(r: World['rides']['cols'], slot: number): number {
+  if (r.phase[slot] !== RidePhase.Running || r.runTicks[slot] === 0) return 0;
+  const elapsed = Math.max(0, r.runTicks[slot] - r.phaseTicks[slot]);
+  return Math.min(1000, Math.round((elapsed * 1000) / r.runTicks[slot]));
+}
+
 function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   const r = world.rides.cols;
   const o = slot * RIDE_INFO_STRIDE;
@@ -402,6 +412,7 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.WaitTicks] = estimatedWaitTicks(world, slot);
   info[o + RideInfo.QueueCapacity] = rideQueueCapacity(world, slot);
   info[o + RideInfo.QueueLimit] = r.queueLimit[slot];
+  info[o + RideInfo.PhaseProgress] = phaseProgress(r, slot);
   if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;

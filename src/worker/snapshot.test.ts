@@ -5,7 +5,7 @@ import { TILE_UNITS } from '../sim/core/constants';
 import { OWNED, RIGHTS_OWNED, SALE_RIGHTS } from '../sim/map/tile-map';
 import { createCoaster, buildCircuit, flatOwnedSim } from '../sim/rides/coaster-fixtures';
 import { FeedbackDomain } from '../sim/core/feedback';
-import { RideState } from '../sim/rides/ride-store';
+import { RidePhase, RideState } from '../sim/rides/ride-store';
 import { GuestState } from '../sim/guests/guest-store';
 import { flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/fixtures';
 import { RideType } from '../sim/rides/ride-types';
@@ -264,6 +264,29 @@ describe('render snapshot', () => {
     };
 
     expect(capture()).toEqual(capture());
+  });
+
+  it('publishes the elapsed share of the Running phase and zero in other phases', () => {
+    const sim = flatOwnedSim();
+    const rideId = createCoaster(sim, RideType.SteelLoopingCoaster);
+    const slot = sim.world.rides.idToSlot[rideId];
+    const rides = sim.world.rides.cols;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+    const progress = (): number => {
+      writeSnapshot(sim.world, snapshot);
+      return snapshot.rideInfo[RideInfo.PhaseProgress]!;
+    };
+
+    rides.runTicks[slot] = 480;
+    rides.phase[slot] = RidePhase.Running;
+    rides.phaseTicks[slot] = 480;
+    expect(progress()).toBe(0);
+    rides.phaseTicks[slot] = 240;
+    expect(progress()).toBe(500);
+    rides.phaseTicks[slot] = 1;
+    expect(progress()).toBe(998);
+    rides.phase[slot] = RidePhase.Unloading;
+    expect(progress()).toBe(0);
   });
 
   it('publishes per-ride status, ratings and the track construction cursor', () => {

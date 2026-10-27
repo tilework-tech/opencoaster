@@ -16,6 +16,7 @@ export interface RideCellDraw {
   rideId: number;
   /** Ride phase, which selects the animation frame of the slice. */
   phase: number;
+  phaseProgress: number;
   x: number;
   y: number;
   z: number;
@@ -61,6 +62,7 @@ export class RideCellScene {
       const dir = snapshot.rideInfo[o + RideInfo.Dir];
       const base = snapshot.rideInfo[o + RideInfo.BaseLevel];
       const phase = snapshot.rideInfo[o + RideInfo.Phase];
+      const phaseProgress = snapshot.rideInfo[o + RideInfo.PhaseProgress];
       const tiles = rideFootprintTiles(
         def,
         snapshot.rideInfo[o + RideInfo.RideX],
@@ -79,6 +81,7 @@ export class RideCellScene {
           rideCellSpriteKey(type, cell, dir, rotation),
           snapshot.rideInfo[o + RideInfo.Id]!,
           phase,
+          phaseProgress,
           x,
           y,
           base * Z_STEP,
@@ -92,6 +95,7 @@ export class RideCellScene {
     key: string,
     rideId: number,
     phase: number,
+    phaseProgress: number,
     x: number,
     y: number,
     z: number,
@@ -99,12 +103,13 @@ export class RideCellScene {
   ): void {
     let item = this.items[this.count];
     if (!item) {
-      item = { key, rideId, phase, x, y, z, depth };
+      item = { key, rideId, phase, phaseProgress, x, y, z, depth };
       this.items.push(item);
     } else {
       item.key = key;
       item.rideId = rideId;
       item.phase = phase;
+      item.phaseProgress = phaseProgress;
       item.x = x;
       item.y = y;
       item.z = z;
