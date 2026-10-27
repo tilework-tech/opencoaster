@@ -1,4 +1,4 @@
-import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { Bank, PieceFlag, Slope } from './track-types';
 import type { FootprintCell, PieceShape, TrackPieceDef } from './track-types';
 import {
@@ -21,14 +21,37 @@ export const TANGENT_ONE = 1024;
 export const SAMPLE_SPACING = 32;
 
 const HALF = TILE_UNITS / 2;
-/** Rise per unit of horizontal run for each slope class. */
+/**
+ * Rise per unit of horizontal run for each slope class. With Z_STEP = TILE_UNITS / 4 these match
+ * RCT2, where a 25-degree piece climbs one land step per tile and a 60-degree piece four.
+ */
 const GRADE: Record<number, number> = {
-  [Slope.Down60]: -2,
-  [Slope.Down25]: -0.5,
+  [Slope.Down60]: -1,
+  [Slope.Down25]: -0.25,
   [Slope.Flat]: 0,
-  [Slope.Up25]: 0.5,
-  [Slope.Up60]: 2,
+  [Slope.Up25]: 0.25,
+  [Slope.Up60]: 1,
 };
+/**
+ * Rise in track steps of a one-tile straight from its entry to its exit slope class, keyed by the
+ * absolute slope classes, from RCT2's track coordinate table (OpenRCT2 src/openrct2/ride/TrackData.cpp):
+ * flat to 25 degrees half a land step, 25 degrees one, 25 to 60 degrees two, 60 degrees four.
+ */
+const STRAIGHT_RISE: Record<string, number> = {
+  '0>0': 0,
+  '0>1': 1,
+  '1>0': 1,
+  '1>1': 2,
+  '1>2': 4,
+  '2>1': 4,
+  '2>2': 8,
+};
+/**
+ * Rise in track steps of a 25-degree quarter turn by radius: RCT2's 3-tile and 5-tile sloped
+ * quarter turns climb two and four land steps; the large turn matches OpenRCT2's pair of 25-degree
+ * eighth turns (three land steps each).
+ */
+const SLOPED_TURN_RISE: Record<number, number> = { 1.5: 4, 2.5: 8, 3.5: 12 };
 const BANK_ANGLE: Record<number, number> = {
   [Bank.None]: 0,
   [Bank.Left]: -BANK_DEG,
@@ -51,6 +74,7 @@ type Horizontal =
   | { kind: 'loop'; side: 1 | -1 }
   | { kind: 'sBend'; side: 1 | -1 }
   | { kind: 'corkscrew'; side: 1 | -1 }
+  /** A full turn; `rise` in track steps (RCT2 half helices climb one land step per half turn). */
   | { kind: 'helix'; radiusTiles: number; driftTiles: number; side: 1 | -1; rise: number };
 
 interface Spec {
@@ -273,10 +297,10 @@ const SPECS: Spec[] = [
   helix('smallHelixRightDown', 1.5, 3, 1, -4),
   helix('smallHelixLeftUp', 1.5, 3, -1, 4),
   helix('smallHelixRightUp', 1.5, 3, 1, 4),
-  helix('largeHelixLeftDown', 2.5, 4, -1, -6),
-  helix('largeHelixRightDown', 2.5, 4, 1, -6),
-  helix('largeHelixLeftUp', 2.5, 4, -1, 6),
-  helix('largeHelixRightUp', 2.5, 4, 1, 6),
+  helix('largeHelixLeftDown', 2.5, 4, -1, -4),
+  helix('largeHelixRightDown', 2.5, 4, 1, -4),
+  helix('largeHelixLeftUp', 2.5, 4, -1, 4),
+  helix('largeHelixRightUp', 2.5, 4, 1, 4),
   ...([-1, 1] as const).flatMap((side) => {
     const n = side === -1 ? 'left' : 'right';
     const N = side === -1 ? 'Left' : 'Right';
@@ -439,22 +463,14 @@ function buildCurve(spec: Spec): { curve: Curve; dz: number; headingDelta: numbe
   }
   if (h.kind === 'helix') {
     const base = helixCurve(h.radiusTiles * TILE_UNITS, h.driftTiles * TILE_UNITS, h.side, HALF);
-    return { curve: withProfile(base, h.rise * Z_STEP, 0, 0), dz: h.rise, headingDelta: 0 };
+    return { curve: withProfile(base, h.rise * TRACK_Z_STEP, 0, 0), dz: h.rise, headingDelta: 0 };
   }
   if (h.kind === 'arc') {
     const base = arcCurve(h.radiusTiles * TILE_UNITS, h.side, HALF);
     if (g0 !== 0 || g1 !== 0) {
-      let horizontalLength = 0;
-      let previous = base.pos(0);
-      for (let i = 1; i <= 1024; i++) {
-        const point = base.pos(i / 1024);
-        horizontalLength += Math.hypot(point.x - previous.x, point.y - previous.y);
-        previous = point;
-      }
-      const rise = (horizontalLength * (g0 + g1)) / 2;
-      const dz = Math.round(rise / Z_STEP);
+      const dz = Math.sign(g0 + g1) * SLOPED_TURN_RISE[h.radiusTiles];
       return {
-        curve: withProfile(base, dz * Z_STEP, g0, g1),
+        curve: withProfile(base, dz * TRACK_Z_STEP, g0, g1),
         dz,
         headingDelta: h.side === 1 ? 1 : 3,
       };
@@ -465,11 +481,14 @@ function buildCurve(spec: Spec): { curve: Curve; dz: number; headingDelta: numbe
       headingDelta: h.side === 1 ? 1 : 3,
     };
   }
-  const rise = (TILE_UNITS * (g0 + g1)) / 2;
-  const dz = rise / Z_STEP;
-  if (!Number.isInteger(dz)) throw new Error(`piece ${spec.name}: rise is not whole height levels`);
+  const entry = spec.entrySlope ?? Slope.Flat;
+  const exit = spec.exitSlope ?? Slope.Flat;
+  const steps = STRAIGHT_RISE[`${Math.abs(entry)}>${Math.abs(exit)}`];
+  if (steps === undefined || (entry > 0 && exit < 0) || (entry < 0 && exit > 0))
+    throw new Error(`piece ${spec.name}: no RCT2 rise for this slope pair`);
+  const dz = (entry < 0 || exit < 0 ? -1 : 1) * steps;
   return {
-    curve: withProfile(straightCurve(TILE_UNITS, HALF), rise, g0, g1),
+    curve: withProfile(straightCurve(TILE_UNITS, HALF), dz * TRACK_Z_STEP, g0, g1),
     dz,
     headingDelta: 0,
   };

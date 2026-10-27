@@ -1,5 +1,5 @@
 import type { World } from '../core/world';
-import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { TILE_UNITS, TRACK_Z_STEP } from '../core/constants';
 import { PIECES, SAMPLES } from './catalog';
 import { MAX_TRACK_RIDES } from './track-store';
 
@@ -8,7 +8,7 @@ import { MAX_TRACK_RIDES } from './track-store';
  *
  * Points run from the head piece to the tail piece. For a closed circuit the final point repeats
  * the first one with `s === length`, so a train at `s` wraps with `s % length`. All values are
- * integers: positions in TILE_UNITS (z in the same unit scale, Z_STEP per height level), tangents
+ * integers: positions in TILE_UNITS (z in the same unit scale, Z_STEP per land level), tangents
  * scaled by TANGENT_ONE, bank in degrees, `s` the arclength from point 0.
  */
 export interface TrackPath {
@@ -90,7 +90,7 @@ export function buildTrackPath(world: World, rideId: number): TrackPath {
     const dir = c.dir[slot];
     const ox = c.x[slot] * TILE_UNITS;
     const oy = c.y[slot] * TILE_UNITS;
-    const oz = c.z[slot] * Z_STEP;
+    const oz = c.z[slot] * TRACK_Z_STEP;
     path.pieceStart[pi++] = n;
     const last = c.next[slot] < 0;
     const end = def.sampleStart + (last ? def.sampleCount : def.sampleCount - 1);

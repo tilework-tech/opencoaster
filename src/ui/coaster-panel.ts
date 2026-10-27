@@ -1,4 +1,5 @@
 import type { Command } from '../sim/core/commands';
+import { TRACK_STEPS_PER_LEVEL } from '../sim/core/constants';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import type { RideTypeDef } from '../sim/rides/ride-types';
@@ -40,7 +41,7 @@ export interface TrackGhost {
   rideType: RideType;
   piece: TrackPieceDef;
   placement: Placement;
-  /** Placement height in height levels. */
+  /** Placement height in land levels; track sits on half levels too (e.g. 1.5). */
   level: number;
   status: TrackResult;
 }
@@ -345,7 +346,7 @@ export class CoasterPanel {
     let level: number;
     if (cursor.hasTrack) {
       placement = { x: info[RideInfo.CursorX], y: info[RideInfo.CursorY], dir: cursor.dir };
-      level = info[RideInfo.CursorZ];
+      level = info[RideInfo.CursorZ] / TRACK_STEPS_PER_LEVEL;
     } else if (this.hover) {
       placement = { x: this.hover[0], y: this.hover[1], dir: this.startDir };
       level = map.heights[this.hover[1] * map.width + this.hover[0]];
@@ -399,7 +400,7 @@ export class CoasterPanel {
         pieceType: piece.id,
         x,
         y,
-        z: map.heights[y * map.width + x],
+        z: map.heights[y * map.width + x] * TRACK_STEPS_PER_LEVEL,
         dir: this.startDir,
         mode: this.mode,
       };

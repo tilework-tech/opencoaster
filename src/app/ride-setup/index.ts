@@ -498,14 +498,14 @@ export function createRideSetup(deps: RideSetupDependencies) {
         if (!piece) continue;
         const trackX = Math.floor(snapshot.tracks.data[offset] / 256);
         const trackY = Math.floor(snapshot.tracks.data[offset + 1] / 256);
-        const trackZ = Math.floor(snapshot.tracks.data[offset + 2] / 256);
+        const trackZ = snapshot.tracks.data[offset + 2];
         const direction = (packed >>> 8) & 0xff;
         occupiedByTrack = piece.footprint.some((cell) => {
           const [rx, ry] = rotateTile(cell.i, cell.j, direction);
           return (
             trackX + rx === candidate.x &&
             trackY + ry === candidate.y &&
-            trackZ * Z_STEP + cell.zMin <= (map.heights[index] + 2) * Z_STEP
+            trackZ + cell.zMin <= (map.heights[index] + 2) * Z_STEP
           );
         });
       }

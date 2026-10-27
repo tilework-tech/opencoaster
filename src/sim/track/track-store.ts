@@ -13,7 +13,7 @@ export const MAX_TRACK_LEVEL = 96;
 export const TRACK_SCHEMA = {
   rideId: Uint16Array,
   pieceType: Uint16Array,
-  /** Origin tile and entry height level. */
+  /** Origin tile and entry height in track steps (TRACK_Z_STEP, half a land level). */
   x: Int16Array,
   y: Int16Array,
   z: Int16Array,

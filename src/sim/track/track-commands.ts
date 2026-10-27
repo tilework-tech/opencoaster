@@ -1,6 +1,6 @@
 import type { World } from '../core/world';
 import type { Command } from '../core/commands';
-import { Z_STEP } from '../core/constants';
+import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { charge } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
@@ -48,7 +48,7 @@ function checkRideRules(world: World, req: PlaceRequest): TrackResult {
   if (req.mode === PieceMode.ChainLift && waterRide) return TrackResult.BadMode;
   let top = 0;
   for (const cell of def.footprint) top = Math.max(top, cell.zMax);
-  if (req.z * Z_STEP + top > rules.maxLevel * Z_STEP) return TrackResult.TooHigh;
+  if (req.z * TRACK_Z_STEP + top > rules.maxLevel * Z_STEP) return TrackResult.TooHigh;
   return TrackResult.Ok;
 }
 

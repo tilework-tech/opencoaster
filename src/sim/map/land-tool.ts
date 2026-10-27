@@ -1,5 +1,5 @@
 import type { World } from '../core/world';
-import { Z_STEP } from '../core/constants';
+import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { rideFootprintTiles } from '../rides/ride-footprint';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
@@ -258,7 +258,7 @@ export function structureConflict(
       const t = m.index(x, y);
       if (!flagged[t]) continue;
       const top = Math.max(oldTop.get(t) ?? 0, m.heights[t] + (m.slope[t] !== 0 ? 1 : 0));
-      if (pieces.cols.z[s] * Z_STEP + cell.zMin <= (top + 2) * Z_STEP)
+      if (pieces.cols.z[s] * TRACK_Z_STEP + cell.zMin <= (top + 2) * Z_STEP)
         return hit(LandResult.RideInTheWay, t);
     }
   }

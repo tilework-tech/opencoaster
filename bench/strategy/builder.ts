@@ -1,4 +1,4 @@
-import { Z_STEP } from '../../src/sim/core/constants';
+import { TRACK_STEPS_PER_LEVEL, TRACK_Z_STEP, Z_STEP } from '../../src/sim/core/constants';
 import type { Simulation } from '../../src/sim/core/simulation';
 import { PathAddition } from '../../src/sim/map/paths';
 import { PATH_COST_CENTS } from '../../src/sim/map/tile-map';
@@ -308,7 +308,12 @@ export class ParkBuilder {
       const cursor = getConstructionCursor(world, rideId);
       const at = cursor.hasTrack
         ? cursor
-        : { x: stationTile[0], y: stationTile[1], z: groundZ, dir: dir as 0 | 1 | 2 | 3 };
+        : {
+            x: stationTile[0],
+            y: stationTile[1],
+            z: groundZ * TRACK_STEPS_PER_LEVEL,
+            dir: dir as 0 | 1 | 2 | 3,
+          };
       const def = pieceByName(name)!;
       sim.enqueue({
         type: 'placeTrack',
@@ -324,8 +329,8 @@ export class ParkBuilder {
       for (const cell of PIECES[def.id].footprint) {
         const [rx, ry] = rotateTile(cell.i, cell.j, at.dir);
         if (
-          at.z * Z_STEP + cell.zMin <= groundZ * Z_STEP &&
-          at.z * Z_STEP + cell.zMax >= groundZ * Z_STEP
+          at.z * TRACK_Z_STEP + cell.zMin <= groundZ * Z_STEP &&
+          at.z * TRACK_Z_STEP + cell.zMax >= groundZ * Z_STEP
         ) {
           ground.add(map.index(at.x + rx, at.y + ry));
         }

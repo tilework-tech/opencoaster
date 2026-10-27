@@ -113,7 +113,7 @@ export interface TrackPieceDef {
   /** Tile offset from the origin tile to the tile the next piece starts in, in the local frame. */
   dx: number;
   dy: number;
-  /** Height delta in height levels (Z_STEP units). */
+  /** Height delta in track steps (TRACK_Z_STEP units, half a land level). */
   dz: number;
   /** Build cost in cents. */
   cost: number;
