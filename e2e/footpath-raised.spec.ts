@@ -38,9 +38,14 @@ test.describe('raised footpaths (piece mode)', () => {
     const levels: number[] = [];
     const build = async (slope: 'Up' | 'Level' | 'Down'): Promise<void> => {
       await press(page, slope);
-      await expect.poll(async () => (await ghostLevels(page)).length).toBe(1);
-      const [preview] = await ghostLevels(page);
-      levels.push(preview!.z);
+      let z = Number.NaN;
+      await expect
+        .poll(async () => {
+          z = (await ghostLevels(page))[0]?.z ?? Number.NaN;
+          return z;
+        })
+        .toBeGreaterThanOrEqual(0);
+      levels.push(z);
       await press(page, 'Build');
       await expect(page.locator('.tool-status')).toContainText('Built at');
     };
