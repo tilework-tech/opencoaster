@@ -349,17 +349,13 @@ export async function buildQueuedRide(
   else await page.mouse.click(rx, ry);
   await expect(page.locator('.tool-status')).toContainText('Place entrance');
   const { entrance, exit } = layout;
-  const entranceTarget = page.getByRole('button', {
-    name: `Place entrance at tile ${entrance.x}, ${entrance.y}`,
-  });
-  await entranceTarget.focus();
-  await entranceTarget.press('Enter');
+  const [entranceX, entranceY] = await tileScreenPoint(page, world, entrance);
+  if (mobile) await page.touchscreen.tap(entranceX, entranceY);
+  else await page.mouse.click(entranceX, entranceY);
   await expect(page.locator('.tool-status')).toContainText('Place exit');
-  const exitTarget = page.getByRole('button', {
-    name: `Place exit at tile ${exit.x}, ${exit.y}`,
-  });
-  await exitTarget.focus();
-  await exitTarget.press('Enter');
+  const [exitX, exitY] = await tileScreenPoint(page, world, exit);
+  if (mobile) await page.touchscreen.tap(exitX, exitY);
+  else await page.mouse.click(exitX, exitY);
 
   const rideWindow = page.locator('[data-panel="ride-0"]');
   const legacy = options.legacy === true;
