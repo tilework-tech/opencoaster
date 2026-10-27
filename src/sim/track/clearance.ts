@@ -1,4 +1,4 @@
-import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { PIECES, SAMPLES } from './catalog';
 
 /** The per-tile terrain arrays of `TileMap` and of the renderer's `MapData`. */
@@ -57,7 +57,7 @@ function samplePoint(
         : (dir & 3) === 2
           ? [-lx, -ly]
           : [ly, -lx];
-  return [x * TILE_UNITS + half + rx, y * TILE_UNITS + half + ry, z * Z_STEP + SAMPLES.z[sample]!];
+  return [x * TILE_UNITS + half + rx, y * TILE_UNITS + half + ry, z * TRACK_Z_STEP + SAMPLES.z[sample]!];
 }
 
 function tileOf(terrain: TerrainTiles, xu: number, yu: number): number {
@@ -69,7 +69,7 @@ function tileOf(terrain: TerrainTiles, xu: number, yu: number): number {
 /**
  * Tile indices (y * width + x) where a piece placed at (`x`, `y`, `z`) turned `dir` quarter turns
  * has its centre line below the ground, at any sample along the piece including both ends.
- * `z` is a height level, as in a placement command.
+ * `z` is in track steps (TRACK_Z_STEP), as in a placement command.
  */
 export function undergroundTiles(
   terrain: TerrainTiles,
