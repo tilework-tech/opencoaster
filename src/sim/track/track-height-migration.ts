@@ -22,17 +22,15 @@ export function migrateTrackHeights(world: World): number[] {
     const oldLength = t.length[ride];
     let id = t.head[ride];
     let z = c.z[t.pieces.idToSlot[id]] * TRACK_STEPS_PER_LEVEL;
-    let tail = id;
     do {
       const slot = t.pieces.idToSlot[id];
       c.z[slot] = z;
       z += PIECES[c.pieceType[slot]].dz;
-      tail = id;
       id = c.next[slot];
     } while (id >= 0 && id !== t.head[ride]);
     if (t.closed[ride] === 1) {
       const hs = t.pieces.idToSlot[t.head[ride]];
-      const ts = t.pieces.idToSlot[tail];
+      const ts = t.pieces.idToSlot[t.tail[ride]];
       const exit = pieceExit(c.pieceType[ts], c.x[ts], c.y[ts], c.z[ts], c.dir[ts]);
       if (exit.z !== c.z[hs]) {
         c.next[ts] = -1;
