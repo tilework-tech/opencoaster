@@ -3,11 +3,13 @@ import { rotatePoint } from './mesh';
 import type { Vec3 } from './mesh';
 import {
   SHIP_AXLE_Z,
+  SHIP_MAX_SWING_DEGREES,
   SHIP_SWING_DEGREES,
   swingingShipArmEndpoints,
   swingingShipHull,
   swingingShipSeats,
 } from './models/flat-rides';
+import { model } from './models/rides/swinging-ship';
 
 const PLATFORM_TOP = 0.07;
 const HULL_SIDE_CLEARANCE = 0.06;
@@ -18,11 +20,11 @@ function hullVertices(frame: number): Vec3[] {
 
 describe('swinging ship pendulum', () => {
   it('uses enough poses for smooth motion and builds through repeated passes before settling', () => {
-    expect(SHIP_SWING_DEGREES.length).toBeGreaterThanOrEqual(40);
+    expect(SHIP_SWING_DEGREES.length).toBeGreaterThanOrEqual(100);
+    expect(model.frames).toBe(SHIP_SWING_DEGREES.length + 1);
     expect(SHIP_SWING_DEGREES[0]).toBe(0);
     const peak = Math.max(...SHIP_SWING_DEGREES.map(Math.abs));
-    expect(peak).toBeGreaterThanOrEqual(45);
-    expect(peak).toBeLessThanOrEqual(65);
+    expect(peak).toBe(SHIP_MAX_SWING_DEGREES);
     expect(SHIP_SWING_DEGREES.some((angle) => angle > 0)).toBe(true);
     expect(SHIP_SWING_DEGREES.some((angle) => angle < 0)).toBe(true);
     expect(SHIP_SWING_DEGREES.at(-1)).toBe(0);
@@ -36,7 +38,9 @@ describe('swinging ship pendulum', () => {
         const turned = hull.map((vertex) => rotatePoint(vertex, view));
         const across = turned.map((vertex) => Math.abs(vertex[view % 2 === 0 ? 0 : 1]));
         const bottom = Math.min(...turned.map(([, , z]) => z));
-        expect(Math.max(...across), `frame ${frame}, view ${view}`).toBeLessThanOrEqual(0.44 - HULL_SIDE_CLEARANCE);
+        expect(Math.max(...across), `frame ${frame}, view ${view}`).toBeLessThanOrEqual(
+          0.44 - 0.035 - HULL_SIDE_CLEARANCE,
+        );
         expect(bottom, `frame ${frame}, view ${view}`).toBeGreaterThan(PLATFORM_TOP);
       }
     }
@@ -68,6 +72,19 @@ describe('swinging ship pendulum', () => {
           10,
         );
       });
+    }
+  });
+
+  it('keeps seated riders within the hull width for every pose', () => {
+    for (let frame = 0; frame < SHIP_SWING_DEGREES.length; frame++) {
+      const swing = (SHIP_SWING_DEGREES[frame]! * Math.PI) / 180;
+      for (const [x, y, z] of swingingShipSeats(frame)) {
+        const dy = y;
+        const dz = z - SHIP_AXLE_Z;
+        const localY = dy * Math.cos(swing) + dz * Math.sin(swing);
+        const width = 0.34 * (1 - 0.5 * Math.abs(localY / 1.8) ** 3);
+        expect(Math.abs(x) + 0.055, `frame ${frame}, seat y ${localY}`).toBeLessThan(width);
+      }
     }
   });
 });

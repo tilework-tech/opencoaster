@@ -234,14 +234,14 @@ export function merryGoRoundSeats(frame: number): Vec3[] {
 
 export const SHIP_AXLE_Z = 3.4;
 const SHIP_ARM = 1.9;
-const SHIP_MAX_SWING_DEGREES = 60;
+export const SHIP_MAX_SWING_DEGREES = 60;
 
 function swingingShipProfile(): number[] {
-  const passes = [20, 32, 44, 54, 60, -60, 60, -60, 52, -36, 18, 0];
+  const passes = [20, 32, 44, 54, SHIP_MAX_SWING_DEGREES, -SHIP_MAX_SWING_DEGREES, SHIP_MAX_SWING_DEGREES, -SHIP_MAX_SWING_DEGREES, 52, -36, 18, 0];
   const angles = [0];
   for (const amplitude of passes) {
-    for (let step = 1; step <= 6; step++) {
-      angles.push(amplitude * Math.sin((step / 6) * Math.PI));
+    for (let step = 1; step <= 12; step++) {
+      angles.push(amplitude * Math.sin((step / 12) * Math.PI));
     }
   }
   return angles;
@@ -334,7 +334,7 @@ export function swingingShipSeats(frame: number): Vec3[] {
   for (let i = 0; i < 6; i++)
     for (const x of [-0.2, 0.2]) {
       const y = -0.95 + i * 0.38;
-      const z = hullTop - 0.04 + 0.16;
+      const z = hullTop + 0.2;
       out.push(rotateShipPoint([x, y, z], swing));
     }
   return out;
