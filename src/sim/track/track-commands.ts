@@ -6,7 +6,7 @@ import { charge } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
 import { ElementType, Surface } from '../map/tile-map';
 import { rideCoversTile } from '../rides/ride-footprint';
-import { undergroundTiles } from './clearance';
+import { badTunnelEntry, undergroundTiles } from './clearance';
 import { invalidateRideTest } from '../rides/coaster';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
@@ -99,6 +99,8 @@ export function validatePlaceCommand(world: World, req: PlaceRequest): TrackResu
     }
   }
   if (tunnelBlocked(world, req)) return TrackResult.TunnelBlocked;
+  if (badTunnelEntry(world.map, req.pieceType, req.x, req.y, req.z, req.dir))
+    return TrackResult.TunnelEntry;
   if (!ownsFootprint(world, req)) return TrackResult.NotOwned;
   if (world.economy.cash < PIECES[req.pieceType].cost) return TrackResult.InsufficientFunds;
   return TrackResult.Ok;

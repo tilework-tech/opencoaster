@@ -95,6 +95,14 @@ export function undergroundTiles(
   return out;
 }
 
+/**
+ * How a tunnel mouth meets the land:
+ * - `slope`: the side of a hill that rises straight away from the mouth;
+ * - `face`: level ground whose edge stands above the track, so the mouth is cut into a vertical wall;
+ * - `cut`: track sloping down into flat ground, through a trench with retaining walls.
+ */
+export type TunnelVariant = 'face' | 'slope' | 'cut';
+
 /** A place where track passes through the terrain surface, with the portal that marks it. */
 export interface TunnelPortal {
   /** Fixed-point world position of the mouth, and the track height there in z units. */
@@ -105,16 +113,77 @@ export interface TunnelPortal {
   facing: number;
   /** True where track enters the ground, false where it comes out. */
   entering: boolean;
+  /** How the mouth meets the land, from the shape of the tile behind it. */
+  variant: TunnelVariant;
+  /**
+   * False when the mouth is not on a tile edge of level ground that is flat or rises straight
+   * away from it: a tunnel may not enter or leave through a corner, a diagonal or sideways slope,
+   * or the middle of a tile.
+   */
+  valid: boolean;
 }
+
+/** How far from a tile edge the centre line may meet the ground and still count as at that edge. */
+const EDGE_SNAP = TILE_UNITS / 4;
+
+/** Corners of a tile, ordered (x,y), (x+1,y), (x+1,y+1), (x,y+1), that lie on the edge facing `dir`. */
+const EDGE_CORNERS: readonly (readonly [number, number])[] = [
+  [1, 2],
+  [2, 3],
+  [3, 0],
+  [0, 1],
+];
+
+const FACING_STEP: readonly (readonly [number, number])[] = [
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+  [0, -1],
+];
 
 function headingOf(dx: number, dy: number): number {
   return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 0 : 2) : dy >= 0 ? 1 : 3;
 }
 
+function cornerLevels(terrain: TerrainTiles, tx: number, ty: number): number[] {
+  const tile = ty * terrain.width + tx;
+  const base = terrain.heights[tile]!;
+  const bits = terrain.slope[tile]!;
+  return [
+    base + (bits & 1),
+    base + ((bits >> 1) & 1),
+    base + ((bits >> 2) & 1),
+    base + ((bits >> 3) & 1),
+  ];
+}
+
+/**
+ * The shape rule for a mouth at tile edge `facing` of the tile (`tx`, `ty`) behind it: the edge
+ * and the opposite edge are level and the ground there is no lower than at the edge, at most one
+ * level higher. Returns the variant when the shape allows a mouth, otherwise null.
+ */
+function mouthVariant(
+  terrain: TerrainTiles,
+  tx: number,
+  ty: number,
+  facing: number,
+  edgeGap: number,
+): TunnelVariant | null {
+  if (tx < 0 || ty < 0 || tx >= terrain.width || ty >= terrain.height) return null;
+  const levels = cornerLevels(terrain, tx, ty);
+  const [n1, n2] = EDGE_CORNERS[facing]!;
+  const [f1, f2] = EDGE_CORNERS[(facing + 2) & 3]!;
+  if (levels[n1] !== levels[n2] || levels[f1] !== levels[f2]) return null;
+  const rise = levels[f1]! - levels[n1]!;
+  if (rise !== 0 && rise !== 1) return null;
+  if (edgeGap < -Z_STEP / 2) return 'face';
+  return rise === 1 ? 'slope' : 'cut';
+}
+
 /**
  * Portals of one placed piece: one wherever its centre line goes from above the ground to below
- * it, or back out. A piece boundary is never a transition, since neighbours share the boundary
- * sample.
+ * it, or back out, snapped to the tile edge it crosses. A piece boundary is never a transition,
+ * since neighbours share the boundary sample.
  */
 export function pieceTunnelPortals(
   terrain: TerrainTiles,
@@ -137,19 +206,76 @@ export function pieceTunnelPortals(
       if (wasUnder !== isUnder) {
         const t = Math.abs(previousGap) / (Math.abs(previousGap) + Math.abs(gap) || 1);
         const heading = headingOf(point[0] - previous[0], point[1] - previous[1]);
-        out.push({
-          x: Math.round(previous[0] + (point[0] - previous[0]) * t),
-          y: Math.round(previous[1] + (point[1] - previous[1]) * t),
-          z: Math.round(previous[2] + (point[2] - previous[2]) * t),
-          facing: isUnder ? (heading + 2) & 3 : heading,
-          entering: isUnder,
-        });
+        const facing = isUnder ? (heading + 2) & 3 : heading;
+        out.push(buildPortal(terrain, previous, point, t, facing, isUnder, heading));
       }
     }
     previous = point;
     previousGap = gap;
   }
   return out;
+}
+
+function buildPortal(
+  terrain: TerrainTiles,
+  from: readonly [number, number, number],
+  to: readonly [number, number, number],
+  t: number,
+  facing: number,
+  entering: boolean,
+  heading: number,
+): TunnelPortal {
+  const crossing = [
+    from[0] + (to[0] - from[0]) * t,
+    from[1] + (to[1] - from[1]) * t,
+    from[2] + (to[2] - from[2]) * t,
+  ];
+  const axis = heading & 1;
+  const edge = Math.round(crossing[axis]! / TILE_UNITS) * TILE_UNITS;
+  const onEdge = Math.abs(crossing[axis]! - edge) <= EDGE_SNAP;
+  const portal: TunnelPortal = {
+    x: Math.round(crossing[0]!),
+    y: Math.round(crossing[1]!),
+    z: Math.round(crossing[2]!),
+    facing,
+    entering,
+    variant: 'cut',
+    valid: false,
+  };
+  if (!onEdge) return portal;
+  const span = to[axis]! - from[axis]!;
+  const along = span === 0 ? t : (edge - from[axis]!) / span;
+  const zEdge = from[2] + (to[2] - from[2]) * Math.min(1, Math.max(0, along));
+  const position = [crossing[0]!, crossing[1]!];
+  position[axis] = edge;
+  portal.x = Math.round(position[0]!);
+  portal.y = Math.round(position[1]!);
+  portal.z = Math.round(zEdge);
+  const [sx, sy] = FACING_STEP[facing]!;
+  const behindX = Math.floor((portal.x - sx) / TILE_UNITS);
+  const behindY = Math.floor((portal.y - sy) / TILE_UNITS);
+  const [n1] = EDGE_CORNERS[facing]!;
+  if (behindX < 0 || behindY < 0 || behindX >= terrain.width || behindY >= terrain.height)
+    return portal;
+  const edgeGround = cornerLevels(terrain, behindX, behindY)[n1]! * Z_STEP;
+  const variant = mouthVariant(terrain, behindX, behindY, facing, zEdge - edgeGround);
+  if (variant) {
+    portal.variant = variant;
+    portal.valid = true;
+  }
+  return portal;
+}
+
+/** True when any tunnel mouth of the piece is not on a tile edge of suitable ground. */
+export function badTunnelEntry(
+  terrain: TerrainTiles,
+  pieceType: number,
+  x: number,
+  y: number,
+  z: number,
+  dir: number,
+): boolean {
+  return pieceTunnelPortals(terrain, pieceType, x, y, z, dir).some((p) => !p.valid);
 }
 
 /** First tile index of `undergroundTiles`, or -1 when the whole piece is above ground. */
