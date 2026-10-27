@@ -20,6 +20,7 @@ describe('display options', () => {
     const storage = memoryStorage();
     expect(displayOptionEnabled('height-labels', storage)).toBe(false);
     expect(displayOptionEnabled('construction-marker', storage)).toBe(false);
+    expect(displayOptionEnabled('reduce-resolution-when-slow', storage)).toBe(false);
   });
 
   it('persist across reads and can be switched off again', () => {
@@ -29,9 +30,14 @@ describe('display options', () => {
     expect(displayOptionEnabled('gridlines', storage)).toBe(false);
     setDisplayOption('height-labels', false, storage);
     expect(displayOptionEnabled('height-labels', storage)).toBe(false);
+    setDisplayOption('reduce-resolution-when-slow', true, storage);
+    expect(displayOptionEnabled('reduce-resolution-when-slow', storage)).toBe(true);
   });
 
   it('keeps the storage keys the Display window has always used', () => {
     expect(displayOptionKey('gridlines')).toBe('opencoaster-option-gridlines');
+    expect(displayOptionKey('reduce-resolution-when-slow')).toBe(
+      'opencoaster-option-reduce-resolution-when-slow',
+    );
   });
 });

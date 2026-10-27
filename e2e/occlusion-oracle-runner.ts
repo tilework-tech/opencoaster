@@ -34,6 +34,11 @@ const OUT = join('.local', 'occlusion', process.env.OCCLUSION_LABEL ?? 'current'
 /** Acceptance: overall mismatch share of object pixels, and per kind pair of contested pixels. */
 const MAX_MISMATCH = Number(process.env.OCCLUSION_MAX ?? 0.005);
 const MAX_PAIR = Number(process.env.OCCLUSION_MAX_PAIR ?? 0.02);
+/** Keep the reported #139 regression pairs within their rounded baseline rates. */
+const MAX_PAIR_BASELINES: Record<string, number> = {
+  'ground>track': 0.00065,
+  'support>land-overlay': 0.01265,
+};
 /** Pairs need this many contested pixels before their rate is judged. */
 const MIN_CONTESTED = 200;
 
@@ -112,6 +117,7 @@ export function occlusionOracleTest(defaults: { seeds: string; zooms: string }):
       MAX_MISMATCH,
     );
     for (const [key, p] of Object.entries(pairRates))
-      if (p.contested >= MIN_CONTESTED) expect(p.rate, key).toBeLessThanOrEqual(MAX_PAIR);
+      if (p.contested >= MIN_CONTESTED)
+        expect(p.rate, key).toBeLessThanOrEqual(MAX_PAIR_BASELINES[key] ?? MAX_PAIR);
   });
 }

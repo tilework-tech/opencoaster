@@ -45,6 +45,29 @@ describe('AdaptiveResolution', () => {
     expect(controller.scale).toBe(0.5);
   });
 
+  it('keeps at least one backing pixel per game pixel at the current DPR and zoom', () => {
+    for (const [dpr, zoom] of [
+      [1, 0.5],
+      [2, 1],
+      [2, 2],
+      [1, 4],
+    ]) {
+      const controller = new AdaptiveResolution();
+      controller.setPixelPolicy(dpr!, zoom!, false);
+      run(controller, () => 16.7, 2);
+      run(controller, (scale) => 100 * scale * scale, 6);
+      expect(dpr! * Math.max(1, zoom!) * controller.scale).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('allows a lower pixel density only when the caller opts in', () => {
+    const controller = new AdaptiveResolution();
+    controller.setPixelPolicy(2, 1, true);
+    run(controller, () => 16.7, 2);
+    run(controller, (scale) => 100 * scale * scale, 6);
+    expect(controller.scale).toBe(0.3);
+  });
+
   it('restores resolution after frames recover for long enough', () => {
     const controller = new AdaptiveResolution();
     run(controller, fillBound, 6);
@@ -67,10 +90,34 @@ describe('AdaptiveResolution', () => {
     expect(raises).toBeLessThanOrEqual(3);
   });
 
-  it('keeps full resolution when frames are slow regardless of resolution', () => {
-    // A display capped at 30 Hz produces ~33 ms frames at any scale; blurring the image cannot help.
+  it('does not reduce scale at stable 30–60 Hz refresh cadences', () => {
+    for (const refreshInterval of [33.3, 25, 20, 16.7]) {
+      const controller = new AdaptiveResolution();
+      for (let i = 0; i < 1200; i++) {
+        controller.record(refreshInterval);
+        expect(controller.scale).toBe(1);
+      }
+    }
+  });
+
+  it('detects overload above the observed refresh budget', () => {
     const controller = new AdaptiveResolution();
-    run(controller, () => 33.3, 40);
-    expect(controller.scale).toBe(1);
+    run(controller, () => 33.3, 3);
+    let lowestScale = controller.scale;
+    for (let i = 0; i < 100; i++) {
+      controller.record(50);
+      lowestScale = Math.min(lowestScale, controller.scale);
+    }
+    expect(lowestScale).toBeLessThan(1);
+  });
+
+  it('raises the scale to the crisp-pixel floor when the opt-in is turned off', () => {
+    const controller = new AdaptiveResolution();
+    controller.setPixelPolicy(2, 1, true);
+    run(controller, () => 16.7, 2);
+    run(controller, (scale) => 100 * scale * scale, 6);
+    expect(controller.scale).toBe(0.3);
+    controller.setPixelPolicy(2, 1, false);
+    expect(2 * controller.scale).toBeGreaterThanOrEqual(1);
   });
 });

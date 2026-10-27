@@ -492,6 +492,11 @@ export async function bootstrap(): Promise<void> {
     last = now;
     fps = fps * 0.95 + (1000 / Math.max(dt, 1)) * 0.05;
     frameEmaMs = frameEmaMs * 0.95 + Math.min(dt, 100) * 0.05;
+    resolution.setPixelPolicy(
+      capDevicePixelRatio(window.devicePixelRatio || 1),
+      camera.zoom,
+      displayOptionEnabled('reduce-resolution-when-slow'),
+    );
     resolution.record(dt);
     if (resolution.scale !== appliedScale) {
       appliedScale = resolution.scale;
@@ -542,6 +547,7 @@ export async function bootstrap(): Promise<void> {
         renderMs,
         renderer.visibleSpriteCount,
         renderer.backend,
+        appliedScale,
       );
     }
     refreshPanels(now);

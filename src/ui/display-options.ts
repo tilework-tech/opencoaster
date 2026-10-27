@@ -4,7 +4,8 @@ export type DisplayOption =
   | 'gridlines'
   | 'construction-marker'
   | 'performance-overlay'
-  | 'underground-view';
+  | 'underground-view'
+  | 'reduce-resolution-when-slow';
 
 export function displayOptionKey(option: DisplayOption): string {
   return `opencoaster-option-${option}`;
