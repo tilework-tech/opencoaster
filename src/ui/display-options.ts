@@ -1,6 +1,10 @@
 /** Switches in Game options > Display. They live in the browser's local storage, not in a save. */
 export type DisplayOption =
-  'height-labels' | 'gridlines' | 'construction-marker' | 'performance-overlay';
+  | 'height-labels'
+  | 'gridlines'
+  | 'construction-marker'
+  | 'performance-overlay'
+  | 'underground-view';
 
 export function displayOptionKey(option: DisplayOption): string {
   return `opencoaster-option-${option}`;

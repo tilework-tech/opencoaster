@@ -8,12 +8,14 @@ import {
   trackedRideFamily,
   supportOffset,
   supportStack,
+  trackArt,
   trackCellSprites,
   transportCarSpriteKey,
   transportFamily,
   transportTrackCells,
 } from './coaster-art';
 import type { CoasterFamily, TrackRideFamily, TransportFamily } from './coaster-art';
+import { pieceTunnelPortals, undergroundTiles } from '../sim/track/clearance';
 import type { MapData } from './renderer';
 import type { Rotation } from './projection';
 import { rotateDirection, viewDepth } from './projection';
@@ -26,6 +28,8 @@ export interface CoasterDrawItem {
   y: number;
   z: number;
   depth: number;
+  /** Drawn translucent over the terrain, to show track hidden below ground. */
+  xray: boolean;
 }
 
 /** Painter depth of a world point, in the renderer's convention: far tiles first. */
@@ -35,6 +39,7 @@ function tileDepth(x: number, y: number, map: MapData, rotation: Rotation): numb
 
 const TRACK_OFFSET = 1;
 const SUPPORT_OFFSET = 0.5;
+const PORTAL_OFFSET = 0.25;
 const CAR_OFFSET = 1.5;
 const RIDER_OFFSET = 0.1;
 /** Riders shown per car; cars carry at most this many seated figures. */
@@ -55,10 +60,18 @@ export class CoasterScene {
     return this.count;
   }
 
-  private push(key: string, rideId: number, x: number, y: number, z: number, depth: number): void {
+  private push(
+    key: string,
+    rideId: number,
+    x: number,
+    y: number,
+    z: number,
+    depth: number,
+    xray = false,
+  ): void {
     let item = this.items[this.count];
     if (!item) {
-      item = { key, rideId, x, y, z, depth };
+      item = { key, rideId, x, y, z, depth, xray };
       this.items.push(item);
     } else {
       item.key = key;
@@ -67,6 +80,7 @@ export class CoasterScene {
       item.y = y;
       item.z = z;
       item.depth = depth;
+      item.xray = xray;
     }
     this.count++;
   }
@@ -76,7 +90,7 @@ export class CoasterScene {
     return this.families.has(rideId) || this.transports.has(rideId);
   }
 
-  build(snapshot: Snapshot, map: MapData, rotation: Rotation): void {
+  build(snapshot: Snapshot, map: MapData, rotation: Rotation, undergroundView = false): void {
     this.count = 0;
     this.families.clear();
     this.transports.clear();
@@ -90,11 +104,16 @@ export class CoasterScene {
       else if (transport) this.transports.set(id, transport);
     }
     if (this.families.size === 0 && this.transports.size === 0) return;
-    this.addTrack(snapshot, map, rotation);
+    this.addTrack(snapshot, map, rotation, undergroundView);
     this.addCars(snapshot, map, rotation);
   }
 
-  private addTrack(snapshot: Snapshot, map: MapData, rotation: Rotation): void {
+  private addTrack(
+    snapshot: Snapshot,
+    map: MapData,
+    rotation: Rotation,
+    undergroundView: boolean,
+  ): void {
     const tracks = snapshot.tracks;
     for (let i = 0, o = 0; i < tracks.count; i++, o += SNAPSHOT_STRIDE) {
       const word = tracks.data[o + 3];
@@ -111,6 +130,11 @@ export class CoasterScene {
       const cells = family
         ? trackCellSprites(pieceType, dir, rotation, family, mode, snapshot.tick)
         : transportTrackCells(pieceType, dir, rotation, transport!);
+      const hidden = undergroundView
+        ? undergroundTiles(map, pieceType, originX, originY, z / Z_STEP, dir)
+        : null;
+      if (family)
+        this.addPortals(pieceType, family, rideId, originX, originY, z, dir, map, rotation);
       for (let c = 0; c < cells.length; c++) {
         const tileX = originX + cells[c].dx;
         const tileY = originY + cells[c].dy;
@@ -119,6 +143,8 @@ export class CoasterScene {
         const y = tileY * TILE_UNITS + TILE_UNITS / 2;
         const depth = tileDepth(x, y, map, rotation);
         this.push(cells[c].key, rideId, x, y, z, depth + TRACK_OFFSET);
+        if (hidden && hidden.includes(tileY * map.width + tileX))
+          this.push(cells[c].key, rideId, x, y, z, depth + TRACK_OFFSET, true);
         if (family && family !== 'log-flume' && family !== 'river-rapids')
           this.addSupports(
             pieceType,
@@ -134,6 +160,32 @@ export class CoasterScene {
             depth,
           );
       }
+    }
+  }
+
+  /** Stone portals where the piece's centre line enters or leaves the hillside. */
+  private addPortals(
+    pieceType: number,
+    family: TrackRideFamily,
+    rideId: number,
+    originX: number,
+    originY: number,
+    z: number,
+    dir: number,
+    map: MapData,
+    rotation: Rotation,
+  ): void {
+    const art = family === 'log-flume' || family === 'river-rapids' ? 'wood' : trackArt(family);
+    for (const portal of pieceTunnelPortals(map, pieceType, originX, originY, z / Z_STEP, dir)) {
+      const view = rotateDirection(portal.facing, rotation);
+      this.push(
+        `rides/coaster/${art}/tunnel/view-${view}`,
+        rideId,
+        portal.x,
+        portal.y,
+        portal.z,
+        tileDepth(portal.x, portal.y, map, rotation) + TRACK_OFFSET + PORTAL_OFFSET,
+      );
     }
   }
 

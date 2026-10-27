@@ -103,6 +103,9 @@ const GUEST_TINTS = [
   '#1abc9c',
 ];
 /** Largest coaster sprite half-extent in pixels, for viewport culling. */
+/** Levels added to the height of track drawn through the terrain, so it wins every depth test. */
+const XRAY_HEIGHT_BOOST = 200;
+const XRAY_ALPHA = 0.55;
 const COASTER_CULL_RADIUS = 160;
 const SEAM = 0.5;
 /** Ground-layer key offset of a raised tile repainted over the cliff faces behind it. */
@@ -148,6 +151,7 @@ export class Canvas2DRenderer implements Renderer {
   private surface: DepthSurface | null = null;
   private recordIds = false;
   private landOverlay = false;
+  private undergroundView = false;
   private landOverlayMap: MapData | null = null;
   private landOverlayCodes = new Int16Array(0);
   /** Bumped with every new map, keying the composite's cached ground heights. */
@@ -274,6 +278,10 @@ export class Canvas2DRenderer implements Renderer {
         if (tile >= 0 && tile < map.width * map.height) this.sceneryIndices[cursor[tile]++] = i;
       }
     }
+  }
+
+  setUndergroundView(visible: boolean): void {
+    this.undergroundView = visible;
   }
 
   setLandOverlay(visible: boolean): void {
@@ -1712,7 +1720,7 @@ export class Canvas2DRenderer implements Renderer {
     const atlas = this.atlas;
     if (!atlas) return false;
     const scene = this.coasterScene;
-    scene.build(snapshot, map, cam.rotation);
+    scene.build(snapshot, map, cam.rotation, this.undergroundView);
     const hasSprite = scene.items
       .slice(0, scene.length)
       .some((item) => atlas.resolve(item.key.split('#')[0]));
@@ -1725,7 +1733,13 @@ export class Canvas2DRenderer implements Renderer {
       this.queueAtDepth(item.depth, () => {
         this.anchor(item.x, item.y, item.z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, COASTER_CULL_RADIUS)) return;
-        if (drawAnchoredSprite(ctx, atlas, item.key, t[0]!, t[1]!)) {
+        if (item.xray) {
+          if (this.surface) this.surface.anchorHeight += XRAY_HEIGHT_BOOST;
+          ctx.globalAlpha = XRAY_ALPHA;
+        }
+        const drawn = drawAnchoredSprite(ctx, atlas, item.key, t[0]!, t[1]!);
+        if (item.xray) ctx.globalAlpha = 1;
+        if (drawn) {
           this.visibleCount++;
         } else if (item.key.includes('/track/') || item.key.startsWith('track/')) {
           ctx.fillStyle = '#cf5650';

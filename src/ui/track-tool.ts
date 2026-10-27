@@ -182,6 +182,7 @@ const TRACK_MESSAGES: Record<TrackResult, string> = {
   [TrackResult.NotOwned]: 'You need to own the land or its construction rights.',
   [TrackResult.InsufficientFunds]: 'Not enough cash for that piece.',
   [TrackResult.PieceNotAllowed]: 'This ride type cannot use that piece or mode.',
+  [TrackResult.TunnelBlocked]: 'Tunnels cannot run under rides, footpaths or water.',
   [TrackResult.OverWater]: 'Track cannot be built over open water for this ride type.',
 };
 

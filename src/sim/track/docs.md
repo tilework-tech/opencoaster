@@ -32,4 +32,6 @@ Path: @/src/sim/track
 - The generated [track coverage matrix](../../../docs/art/track-coverage.md) lists every catalog piece against each tracked ride type, including slope and bank transitions, builder restrictions, sprite availability, and the four direction-by-camera-view combinations.
 - Changing track invalidates `tested`, so track rides must pass another vehicle test before opening. A complete circuit also needs a station, and every station tile is considered for entrance/exit placement.
 
+- Tunnels: track may run below the terrain (`TunnelOk` pieces), but [clearance.ts](clearance.ts) finds every tile where the centre line dips under the interpolated ground (`undergroundTiles`) and the command path refuses (`TrackResult.TunnelBlocked`) a section that would pass under a ride footprint, a footpath or water. `pieceTunnelPortals` returns where a piece's centre line crosses the surface, with the direction the portal faces; renderers and the build preview use the same functions over `heights`/`slope`, so they agree with the sim. Land edits already refuse to change ground within two levels of (or above) any track piece (`structureConflict`), which protects tunnel sections.
+
 Created and maintained by Nori.

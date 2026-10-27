@@ -87,6 +87,8 @@ export interface Renderer {
    * land-rights or construction-rights tool is open, as in RCT2.
    */
   setLandOverlay(visible: boolean): void;
+  /** Shows track hidden below the terrain as a translucent overlay. */
+  setUndergroundView(visible: boolean): void;
   /** Selects the individual worker whose patrol blocks are shown; null hides them. */
   setPatrolStaff(staffId: number | null): void;
   /** Hides one guest or staff member from the park while the player holds them. */

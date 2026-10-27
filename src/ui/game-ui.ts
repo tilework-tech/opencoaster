@@ -40,6 +40,7 @@ import { SCENERY_WINDOW, openToolWindow } from './windows/tool-windows';
 import { openLandWindow } from './windows/land-window';
 import { openClearWindow, openWaterWindow } from './windows/area-windows';
 import { openPathWindow } from './windows/path-window';
+import { displayOptionEnabled, setDisplayOption } from './display-options';
 import { shortcutFor } from './shortcuts';
 import type { KeyLike } from './shortcuts';
 
@@ -408,6 +409,9 @@ export class GameUI {
       case 'rotatePiece':
         this.actions.rotatePiece();
         return true;
+      case 'undergroundView':
+        this.toggleUndergroundView();
+        return true;
       case 'zoom':
         this.actions.zoom(action.direction);
         return true;
@@ -569,7 +573,7 @@ export class GameUI {
         return this.openNotice(
           'view',
           'View options',
-          'Underground view and see-through overlays are not available in this version.',
+          'Underground view shows track below the terrain through the land (U).',
           'map',
         );
       default:
@@ -604,7 +608,14 @@ export class GameUI {
         'ui-button',
       );
       hud.setAttribute('aria-pressed', String(this.parent.classList.contains('hud-visible')));
-      win.pane().append(hud);
+      const underground = button(
+        'Underground view',
+        () => this.toggleUndergroundView(),
+        'ui-button',
+      );
+      underground.classList.add('underground-view-toggle');
+      underground.setAttribute('aria-pressed', String(displayOptionEnabled('underground-view')));
+      win.pane().append(hud, underground);
     }
     return { update() {} };
   }
@@ -658,6 +669,7 @@ export class GameUI {
         element('p', 'ui-help', 'View and display options'),
         this.optionToggle('Height labels', 'height-labels'),
         this.optionToggle('Gridlines', 'gridlines'),
+        this.optionToggle('Underground view (U)', 'underground-view'),
         this.optionToggle('Construction marker', 'construction-marker'),
         this.optionToggle('Performance overlay', 'performance-overlay', (on) =>
           this.parent.classList.toggle('hud-visible', on),
@@ -688,6 +700,21 @@ export class GameUI {
     };
   }
 
+  private toggleUndergroundView(): void {
+    setDisplayOption('underground-view', !displayOptionEnabled('underground-view'));
+    this.syncUndergroundControls();
+  }
+
+  private syncUndergroundControls(): void {
+    const on = displayOptionEnabled('underground-view');
+    for (const control of this.parent.querySelectorAll('.underground-view-toggle'))
+      control.setAttribute('aria-pressed', String(on));
+    for (const input of this.parent.querySelectorAll<HTMLInputElement>(
+      'input[data-option="underground-view"]',
+    ))
+      input.checked = on;
+  }
+
   private optionToggle(
     labelText: string,
     key: string,
@@ -702,6 +729,7 @@ export class GameUI {
       input.title = unavailableReason;
       label.title = unavailableReason;
     }
+    input.dataset.option = key;
     input.checked = localStorage.getItem(`opencoaster-option-${key}`) === 'true';
     input.addEventListener('change', () => {
       localStorage.setItem(`opencoaster-option-${key}`, String(input.checked));

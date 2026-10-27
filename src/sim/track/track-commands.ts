@@ -4,7 +4,9 @@ import { Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { charge } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
-import { Surface } from '../map/tile-map';
+import { ElementType, Surface } from '../map/tile-map';
+import { rideCoversTile } from '../rides/ride-footprint';
+import { undergroundTiles } from './clearance';
 import { invalidateRideTest } from '../rides/coaster';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
@@ -59,6 +61,21 @@ function ownsFootprint(world: World, req: PlaceRequest): boolean {
   return true;
 }
 
+/** True when a below-ground section of the piece would run under a ride, a footpath or water. */
+function tunnelBlocked(world: World, req: PlaceRequest): boolean {
+  const map = world.map;
+  for (const tile of undergroundTiles(map, req.pieceType, req.x, req.y, req.z, req.dir)) {
+    if (map.waterLevel[tile] > map.heights[tile]) return true;
+    for (let e = map.firstElement(tile); e >= 0; e = map.nextElement(e))
+      if (map.elType[e] === ElementType.Path) return true;
+    const x = tile % map.width;
+    const y = (tile / map.width) | 0;
+    for (let slot = 0; slot < world.rides.count; slot++)
+      if (rideCoversTile(world, slot, x, y)) return true;
+  }
+  return false;
+}
+
 /**
  * Everything that decides whether a placement command succeeds: ride-type rules, geometry,
  * ownership of every tile the piece covers, and the park's cash.
@@ -81,6 +98,7 @@ export function validatePlaceCommand(world: World, req: PlaceRequest): TrackResu
         return TrackResult.OverWater;
     }
   }
+  if (tunnelBlocked(world, req)) return TrackResult.TunnelBlocked;
   if (!ownsFootprint(world, req)) return TrackResult.NotOwned;
   if (world.economy.cash < PIECES[req.pieceType].cost) return TrackResult.InsufficientFunds;
   return TrackResult.Ok;
