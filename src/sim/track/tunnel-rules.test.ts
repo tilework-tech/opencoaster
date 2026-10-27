@@ -1,5 +1,5 @@
-import { TRACK_STEPS_PER_LEVEL } from '../core/constants';
 import { describe, expect, it } from 'vitest';
+import { TRACK_STEPS_PER_LEVEL } from '../core/constants';
 import { Simulation } from '../core/simulation';
 import { LandAction, LandResult, planLand } from '../map/land-tool';
 import { placePath } from '../map/paths';

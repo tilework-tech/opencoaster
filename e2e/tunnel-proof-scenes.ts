@@ -1,3 +1,4 @@
+import { TRACK_STEPS_PER_LEVEL } from '../src/sim/core/constants';
 import type { World } from '../src/sim/core/world';
 import { createRide } from '../src/sim/rides/ride-operations';
 import { RideType } from '../src/sim/rides/ride-types';
@@ -77,7 +78,7 @@ export function buildScene(name: SceneName): ProofScene {
       pieceType: pieceByName(piece)!.id,
       x: cursor.hasTrack ? cursor.x : STATION.x,
       y: cursor.hasTrack ? cursor.y : STATION.y,
-      z: cursor.hasTrack ? cursor.z : GROUND,
+      z: cursor.hasTrack ? cursor.z : GROUND * TRACK_STEPS_PER_LEVEL,
       dir: cursor.hasTrack ? cursor.dir : 0,
       mode: PieceMode.Normal,
     };

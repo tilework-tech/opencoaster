@@ -125,7 +125,7 @@ export interface TunnelPortal {
 }
 
 /** How far from a tile edge the centre line may meet the ground and still count as at that edge. */
-const EDGE_SNAP = TILE_UNITS / 4;
+const EDGE_SNAP = (TILE_UNITS * 2) / 5;
 
 /** Corners of a tile, ordered (x,y), (x+1,y), (x+1,y+1), (x,y+1), that lie on the edge facing `dir`. */
 const EDGE_CORNERS: readonly (readonly [number, number])[] = [
