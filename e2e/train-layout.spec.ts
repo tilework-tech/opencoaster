@@ -1,21 +1,20 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
-import { World } from '../src/sim/core/world';
-import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
-import { prepareScenario } from '../src/sim/scenario/scenario-layout';
-import { serialize } from '../src/save/save';
-import { RideType } from '../src/sim/rides/ride-types';
+import type { World } from '../src/sim/core/world';
+import {
+  centerCameraOn,
+  clickGameTile,
+  dragThrough,
+  createScenarioWorld,
+} from './footpath-helpers';
+import type { Tile } from './footpath-helpers';
+
+/** The last tile of the Open Grounds park-entrance path before the coaster site. */
+const PARK_PATH_END: Tile = { x: 47, y: 70 };
 
 const coasterName = 'Steel Looping Coaster';
-const starterScenario = parseScenarioFile(
-  JSON.parse(
-    readFileSync(new URL('../src/sim/scenario/scenarios/starter.json', import.meta.url), 'utf8'),
-  ),
-);
-
 const CORE_ACTIONS = [
   'Pause',
   'Footpaths',
@@ -27,56 +26,14 @@ const CORE_ACTIONS = [
   'Save / Load',
 ];
 
-async function mapTileClick(
-  page: Page,
-  x: number,
-  y: number,
-  center: readonly [number, number],
-  mobile: boolean,
-  groundLevel = 2,
-  expectCoordinates = true,
-): Promise<void> {
-  await centerMapOnTile(page, ...center, mobile);
-  const bounds = await page.locator('#game').boundingBox();
-  if (!bounds) throw new Error('Game viewport is missing');
-  const clickTileX = x - 1;
-  const dx = clickTileX - center[0];
-  const dy = y - center[1];
-  const screenX = bounds.width / 2 + (dx - dy) * 32;
-  const screenY = bounds.height / 2 + (dx + dy) * 16 - groundLevel * 16;
-  await page.mouse.click(bounds.x + screenX, bounds.y + screenY);
-  if (!expectCoordinates) return;
-  // Footpath laying answers after the sim previews it, so wait for the status to name this tile.
-  await expect
-    .poll(() => page.locator('.tool-status').innerText(), { timeout: 10_000 })
-    .toMatch(new RegExp(`(?:requested at| at) ${x}, ${y}\\b`));
-}
-
-async function centerMapOnTile(page: Page, x: number, y: number, mobile: boolean): Promise<void> {
-  await toolbarAction(page, 'Map', mobile);
-  const minimap = page.locator('.minimap');
-  await expect.poll(() => minimap.evaluate((canvas) => canvas.width)).toBe(128);
-  const bounds = await minimap.boundingBox();
-  if (!bounds) throw new Error('Park map is missing');
-  const dimensions = await minimap.evaluate((canvas) => ({
-    width: canvas.width,
-    height: canvas.height,
-  }));
-  const mapHeight = dimensions.height - 1;
-  const clickX = bounds.x + ((x - y + mapHeight + 0.5) / dimensions.width) * bounds.width;
-  const clickY = bounds.y + (((x + y) / 2 + 0.25) / dimensions.height) * bounds.height;
-  await minimap.click({ position: { x: clickX - bounds.x, y: clickY - bounds.y } });
-  await page.getByRole('button', { name: 'Close Map' }).click();
-}
-
 async function placeStationPart(
   page: Page,
   expected: string,
-  mobile: boolean,
-  center: readonly [number, number],
+  world: World,
+  center: Tile,
   at?: readonly [number, number],
-): Promise<void> {
-  await centerMapOnTile(page, ...center, mobile);
+): Promise<Tile> {
+  await centerCameraOn(page, world, center, 1);
   const part = expected === 'Place exit' ? 'entrance' : 'exit';
   const exact = at
     ? page.getByRole('button', { name: `Place ${part} at tile ${at[0]}, ${at[1]}` })
@@ -85,8 +42,25 @@ async function placeStationPart(
     exact && (await exact.count()) > 0
       ? exact
       : page.getByRole('button', { name: new RegExp(`Place ${part} at tile`) }).first();
+  const label = (await target.getAttribute('aria-label')) ?? '';
+  const match = label.match(/tile (\d+), (\d+)/);
+  if (!match) throw new Error(`Station part target has no tile: ${label}`);
   await target.click();
   await expect(page.locator('.tool-status')).toContainText(expected);
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+
+/** Lays a footpath from the park entrance's path north to the tile in front of the ride entrance. */
+async function connectToParkPath(page: Page, world: World, entrance: Tile): Promise<void> {
+  await toolbarAction(page, 'Footpaths', false);
+  await page.getByRole('button', { name: 'Tarmac', exact: true }).click();
+  const run = Array.from({ length: PARK_PATH_END.y - entrance.y }, (_, k) => ({
+    x: PARK_PATH_END.x,
+    y: PARK_PATH_END.y - k,
+  }));
+  await centerCameraOn(page, world, entrance, 1);
+  await dragThrough(page, world, run);
+  await page.mouse.up();
 }
 
 async function screenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
@@ -126,26 +100,6 @@ async function startStarterPark(
   }
 }
 
-async function importUnlockedCoaster(
-  page: Page,
-  testInfo: TestInfo,
-  mobile: boolean,
-): Promise<void> {
-  const world = new World({
-    seed: starterScenario.seed,
-    width: starterScenario.mapWidth,
-    height: starterScenario.mapHeight,
-  });
-  prepareScenario(world, starterScenario);
-  world.research.unlocked.add(RideType.SteelLoopingCoaster);
-  const savePath = testInfo.outputPath('starter-coaster-unlocked.park');
-  await writeFile(savePath, serialize(world));
-  await toolbarAction(page, 'Save / Load', mobile);
-  await page.getByRole('button', { name: 'Import save file' }).click();
-  await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
-  await expect(page.locator('.hud')).toContainText('tick');
-}
-
 async function toolbarAction(page: Page, name: string, mobile: boolean): Promise<void> {
   const toolbar = page.locator('.game-toolbar');
   if (mobile) await toolbar.getByRole('button', { name: 'Actions', exact: true }).tap();
@@ -163,27 +117,16 @@ const carCount = (page: Page): Promise<number> =>
     () => (window as unknown as { __snapshot?: CarSnapshot }).__snapshot?.cars.count ?? -1,
   );
 
-async function buildBlockSectionedCoaster(page: Page, testInfo: TestInfo): Promise<void> {
-  await startStarterPark(page, false);
-  await importUnlockedCoaster(page, testInfo, false);
-  const clickTile = (x: number, y: number) => mapTileClick(page, x, y, [x, y], false);
-  await toolbarAction(page, 'Footpaths', false);
-  for (const [x, y] of [
-    [21, 44],
-    [22, 44],
-    [23, 44],
-    [24, 44],
-    [25, 44],
-    [25, 43],
-    [26, 43],
-    [27, 43],
-    [28, 43],
-  ] as const)
-    await clickTile(x, y);
+async function buildBlockSectionedCoaster(page: Page): Promise<void> {
+  await startStarterPark(page, false, 'Open Grounds');
+  await page.getByRole('button', { name: 'Close Park' }).click();
+  const STATION: Tile = { x: 47, y: 60 };
   await toolbarAction(page, 'New ride', false);
   await page.getByRole('tab', { name: 'Roller Coasters' }).click();
   await page.getByRole('button', { name: new RegExp(`^${coasterName}`) }).click();
-  await clickTile(28, 42);
+  const world = createScenarioWorld('open-grounds');
+  await centerCameraOn(page, world, STATION, 1);
+  await clickGameTile(page, world, STATION);
   const construction = page.locator('[data-panel="construction"]');
   await expect(construction).toBeVisible();
   let pieces = 0;
@@ -217,14 +160,15 @@ async function buildBlockSectionedCoaster(page: Page, testInfo: TestInfo): Promi
   await page.mouse.down();
   await page.mouse.move(60, 500, { steps: 8 });
   await page.mouse.up();
-  await placeStationPart(page, 'Place exit', false, [28, 43], [28, 43]);
-  await placeStationPart(page, 'Test ride', false, [28, 43], [29, 43]);
+  const entrance = await placeStationPart(page, 'Place exit', world, STATION);
+  await placeStationPart(page, 'Test ride', world, STATION);
   await construction.getByRole('button', { name: 'Test', exact: true }).click();
   await toolbarAction(page, 'Game options', false);
   await page.getByRole('button', { name: /4×/ }).first().click();
   await page.getByRole('button', { name: 'Close Options' }).click();
   await expect(construction).toContainText('Test complete', { timeout: 120_000 });
   await construction.getByRole('button', { name: 'Close', exact: true }).click();
+  await connectToParkPath(page, world, entrance);
 }
 
 async function openOperatingTab(page: Page) {
@@ -271,7 +215,7 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
     test.setTimeout(900_000);
     page.setDefaultTimeout(10_000);
     if (backend === 'Canvas2D') await forceCanvas2D(page);
-    await buildBlockSectionedCoaster(page, testInfo);
+    await buildBlockSectionedCoaster(page);
     await expect(page.locator('.hud')).toContainText(backend);
     const win = await openOperatingTab(page);
     const trains = win.getByLabel('Trains on the track (0 for automatic)');
