@@ -20,7 +20,6 @@ export {
 } from './vehicle-track';
 export type { VehicleTrack, VehicleTrackInput } from './vehicle-track';
 export { calculateTrackedRideRatings } from './vehicle-ratings';
-export { maxTrainsOnTrack } from './vehicle-track';
 
 const Q8 = 256;
 const GRAVITY_Q8 = 32;
@@ -224,23 +223,88 @@ function holdTarget(world: World, track: VehicleTrack, slot: number): number {
   return position + bestDistance;
 }
 
+/** Empty track an unsectioned circuit keeps between the rear of one train and the front of the next. */
+const FOLLOW_GAP_Q8 = CAR_LENGTH_Q8;
+
+function trainLengthQ8(cols: World['vehicles']['cols'], slot: number): number {
+  return Math.max(1, cols.carCount[slot]) * CAR_LENGTH_Q8;
+}
+
+/**
+ * Open track between the front of `position` and the rear of the nearest train of the ride ahead
+ * of it, or -1 when no other train is out there. Zero when the trains overlap.
+ */
+function gapToTrainAhead(
+  world: World,
+  track: VehicleTrack,
+  slot: number,
+  position: number,
+  lengthQ8: number,
+): number {
+  const cols = world.vehicles.cols;
+  const total = track.totalLengthQ8;
+  let nearest = -1;
+  for (let other = 0; other < world.vehicles.count; other++) {
+    if (other === slot || cols.rideId[other] !== track.rideId) continue;
+    const state = cols.state[other];
+    if (state === VehicleState.Crashed || state === VehicleState.Stalled) continue;
+    const otherLength = trainLengthQ8(cols, other);
+    const rear = Math.min(cols.trackPos[other], total) - otherLength;
+    let gap = (((rear - position) % total) + total) % total;
+    if (gap >= total - otherLength - lengthQ8) gap = 0;
+    if (nearest < 0 || gap < nearest) nearest = gap;
+  }
+  return nearest;
+}
+
+/**
+ * Position where a train of an unsectioned circuit must stop to leave `FOLLOW_GAP_Q8` behind the
+ * train ahead; -1 when the way is clear. May exceed the track length past the seam.
+ */
+function followTarget(world: World, track: VehicleTrack, slot: number): number {
+  if (track.blockSectioned || !track.loop) return -1;
+  const cols = world.vehicles.cols;
+  const position = cols.trackPos[slot];
+  const gap = gapToTrainAhead(world, track, slot, position, trainLengthQ8(cols, slot));
+  return gap < 0 ? -1 : position + Math.max(0, gap - FOLLOW_GAP_Q8);
+}
+
 /** True when the zone beyond the station is free, so a loaded train may leave. */
 export function stationDepartureClear(world: World, track: VehicleTrack, slot: number): boolean {
+  if (!track.blockSectioned) {
+    if (!track.loop) return true;
+    const cols = world.vehicles.cols;
+    const gap = gapToTrainAhead(world, track, slot, cols.trackPos[slot], trainLengthQ8(cols, slot));
+    return gap < 0 || gap >= 2 * FOLLOW_GAP_Q8;
+  }
   const ends = track.boundariesQ8;
   if (ends.length < 2 || track.stationEndQ8 < 0) return true;
   const zone = zoneOf(track, track.stationEndQ8);
   return !otherTrainInZone(world, track, slot, (zone + 1) % ends.length);
 }
 
-/** True while a train waits at a block-section boundary for the zone ahead to clear. */
+/**
+ * True while a train waits for the track ahead to clear: at a block-section boundary until the
+ * zone ahead is free, or behind another train on an unsectioned circuit.
+ */
 export function trainHeldAtBoundary(world: World, track: VehicleTrack, slot: number): boolean {
   const cols = world.vehicles.cols;
-  return cols.speed[slot] === 0 && track.boundariesQ8.includes(cols.trackPos[slot]);
+  if (cols.speed[slot] !== 0) return false;
+  if (!track.blockSectioned) {
+    const stop = followTarget(world, track, slot);
+    return stop >= 0 && stop - cols.trackPos[slot] <= 0;
+  }
+  return track.boundariesQ8.includes(cols.trackPos[slot]);
 }
 
-/** True when no train of the ride has any car in the station's block zone. */
+/** True when no train of the ride has any car in the station, so a new train can be placed there. */
 export function stationZoneClear(world: World, track: VehicleTrack): boolean {
   if (track.stationEndQ8 < 0) return true;
+  if (!track.blockSectioned) {
+    const platform = track.stationEndQ8 - track.cumulativeLengthsQ8[track.stationSegment];
+    const window = platform + 2 * FOLLOW_GAP_Q8;
+    return gapToTrainAhead(world, track, -1, track.stationEndQ8 + FOLLOW_GAP_Q8, window) !== 0;
+  }
   return !otherTrainInZone(world, track, -1, zoneOf(track, track.stationEndQ8));
 }
 
@@ -476,6 +540,16 @@ function advanceTrain(world: World, track: VehicleTrack, slot: number): void {
   let stop = -1;
   if (arriving) stop = track.stationEndQ8;
   else if (cols.state[slot] === VehicleState.Running) stop = holdTarget(world, track, slot);
+  let followed = false;
+  let sharesTrack = false;
+  if (cols.state[slot] === VehicleState.Running || arriving) {
+    const follow = followTarget(world, track, slot);
+    sharesTrack = follow >= 0;
+    if (follow >= 0 && (stop < 0 || follow < stop)) {
+      stop = follow;
+      followed = true;
+    }
+  }
   if (
     stop < 0 &&
     speed === 0 &&
@@ -484,6 +558,9 @@ function advanceTrain(world: World, track: VehicleTrack, slot: number): void {
     track.boundariesQ8.includes(position)
   ) {
     // A block brake lets a held train go at crawl speed once the zone ahead is clear.
+    speed = OPEN_BLOCK_SPEED_Q8;
+  } else if (speed === 0 && sharesTrack && (stop < 0 || stop > position)) {
+    // On a circuit shared with other trains, one that stood behind another sets off again once the way is clear.
     speed = OPEN_BLOCK_SPEED_Q8;
   }
   if (stop >= 0) {
@@ -592,7 +669,7 @@ function advanceTrain(world: World, track: VehicleTrack, slot: number): void {
   cols.trackPos[slot] = nextPosition;
   cols.speed[slot] = nextSpeed;
 
-  if (stopped && arriving) {
+  if (stopped && arriving && !followed) {
     cols.trackPos[slot] = stop >= track.totalLengthQ8 ? 0 : stop;
     cols.state[slot] = VehicleState.Unloading;
     cols.dispatchTicks[slot] = 0;

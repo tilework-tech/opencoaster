@@ -271,7 +271,7 @@ describe('queue links', () => {
       const bytes = serialize(w);
       const headerLen = new DataView(bytes.buffer).getUint32(4, true);
       const header = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-      const old = header.replace('"version":26', '"version":24');
+      const old = header.replace('"version":27', '"version":24');
       expect(old).not.toBe(header);
       const patched = new Uint8Array(bytes);
       patched.set(new TextEncoder().encode(old), 8);

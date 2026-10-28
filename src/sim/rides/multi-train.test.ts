@@ -16,6 +16,7 @@ import {
   queueGuests,
   run,
 } from './coaster-fixtures';
+import { RideMode } from './ride-modes';
 import { RideType } from './ride-types';
 
 /** SMALL_CIRCUIT with block brakes on two of its flat pieces: three block zones, two trains. */
@@ -30,6 +31,7 @@ function openedCoaster(
   const sim = flatOwnedSim(seed);
   const rideId = createCoaster(sim, RideType.WoodenCoaster);
   buildCircuit(sim, rideId, layout);
+  sim.enqueue({ type: 'setRideMode', rideId, mode: RideMode.ContinuousCircuitBlockSectioned });
   sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
   run(sim, 8000);
   connectStation(sim, rideId);

@@ -4,6 +4,7 @@ import { getTrackPath } from '../track/track-path';
 import { MAX_TRACK_RIDES } from '../track/track-store';
 import { PieceFlag, PieceMode } from '../track/track-types';
 import type { TrackPath } from '../track/track-path';
+import { RideMode } from '../rides/ride-modes';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import { RideType } from '../rides/ride-types';
 import { CREST_CRASH_SPEED_Q8, DROP_CRASH_SPEED_Q8 } from './speed-units';
@@ -46,6 +47,11 @@ export interface VehicleTrackInput {
   /** A zero marks a block section that currently cannot accept a train. */
   blockOpen?: Uint8Array;
   loop?: boolean;
+  /**
+   * Block brakes and the station split the loop into block sections that hold one train each.
+   * Without it trains share the loop and keep their distance; defaults to true.
+   */
+  blockSectioned?: boolean;
   /** Crest, drop-start and train-collision crashes apply; defaults to true. */
   crashable?: boolean;
   /** Turn, helix and shelter counts for the rating terms; defaults to none. */
@@ -78,9 +84,10 @@ export interface VehicleTrack extends Required<VehicleTrackInput> {
   boundariesQ8: Int32Array;
 }
 
-/** Fewer than two boundaries cannot separate trains. */
-export function maxTrainsOnTrack(track: VehicleTrack): number {
-  return track.boundariesQ8.length >= 2 ? track.boundariesQ8.length - 1 : 1;
+/** Whether the ride's trains are kept apart by block sections rather than by distance. */
+export function rideIsBlockSectioned(world: World, rideId: number): boolean {
+  const slot = world.rides.idToSlot[rideId];
+  return slot >= 0 && world.rides.cols.mode[slot] === RideMode.ContinuousCircuitBlockSectioned;
 }
 
 const PATH_CURVATURE_SHIFT = 6;
@@ -133,6 +140,7 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
   const pieceCols = world.track.pieces.cols;
   let currentPiece = -1;
   const rideType = world.rides.cols.typeId[world.rides.idToSlot[path.rideId]];
+  const blockSectioned = rideIsBlockSectioned(world, path.rideId);
   const waterRide = rideType === RideType.LogFlume || rideType === RideType.RiverRapids;
   let entryTx = 0;
   let entryTy = 0;
@@ -153,7 +161,8 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     if (mode === PieceMode.ChainLift) segmentFlags[segment] |= VehicleSegmentFlag.ChainLift;
     if (mode === PieceMode.WaterLift) segmentFlags[segment] |= VehicleSegmentFlag.WaterLift;
     if (mode === PieceMode.Brake) segmentFlags[segment] |= VehicleSegmentFlag.Brake;
-    if (mode === PieceMode.BlockBrake) segmentFlags[segment] |= VehicleSegmentFlag.Block;
+    if (mode === PieceMode.BlockBrake)
+      segmentFlags[segment] |= blockSectioned ? VehicleSegmentFlag.Block : VehicleSegmentFlag.Brake;
     if (mode === PieceMode.Launch) segmentFlags[segment] |= VehicleSegmentFlag.Launch;
     if (pieceDef.flags & PieceFlag.Station)
       segmentFlags[segment] |= VehicleSegmentFlag.StationDrive;
@@ -201,6 +210,7 @@ export function createVehicleTrackFromPath(world: World, path: TrackPath): Vehic
     invertedSegments,
     curvatureShift: PATH_CURVATURE_SHIFT,
     loop: path.closed,
+    blockSectioned,
     ...rideCrashRules(world, path.rideId),
     elements: measureTrackElements(world, path),
     sourceVersion: path.version,
@@ -312,7 +322,8 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     }
   }
   const ends: number[] = [];
-  if (input.loop) {
+  const blockSectioned = input.blockSectioned ?? true;
+  if (input.loop && blockSectioned) {
     if (stationEndSegment >= 0) ends.push(cumulativeLengthsQ8[stationEndSegment]);
     for (let segment = 0; segment < segmentCount; segment++) {
       if (!(input.segmentFlags[segment] & VehicleSegmentFlag.Block)) continue;
@@ -335,6 +346,7 @@ export function createVehicleTrack(input: VehicleTrackInput): VehicleTrack {
     invertedSegments,
     blockOpen,
     loop: input.loop ?? false,
+    blockSectioned,
     crashable: input.crashable ?? true,
     elements: input.elements ?? NO_TRACK_ELEMENTS,
     crestCrashSpeedQ8: input.crestCrashSpeedQ8 ?? CREST_CRASH_SPEED_Q8,
@@ -393,7 +405,11 @@ export function syncVehicleTracks(world: World, tracks: VehicleTrackRegistry): v
       if (tracks.get(rideId)?.sourceVersion !== -1) tracks.delete(rideId);
       continue;
     }
-    if (tracks.get(rideId)?.sourceVersion !== path.version) {
+    const current = tracks.get(rideId);
+    if (
+      current?.sourceVersion !== path.version ||
+      current.blockSectioned !== rideIsBlockSectioned(world, rideId)
+    ) {
       tracks.set(createVehicleTrackFromPath(world, path));
     }
   }

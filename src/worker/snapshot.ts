@@ -21,7 +21,11 @@ import { demolitionRefund } from '../sim/rides/ride-refund';
 import { estimatedWaitTicks, rideQueueCapacity } from '../sim/rides/ride-operations';
 import { worldOccupancies } from '../sim/map/occupancy';
 import type { OccupancyVolume } from '../sim/map/occupancy';
-import { maxCarsForRide, maxTrainsForRide } from '../sim/vehicles/ride-trains';
+import {
+  blockSectionsForRide,
+  maxCarsForRide,
+  maxTrainsForRide,
+} from '../sim/vehicles/ride-trains';
 
 /** Ints per entity in a layer: fixed-point x, y, z, then layer-specific render metadata. */
 export const SNAPSHOT_STRIDE = 4;
@@ -29,7 +33,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 37;
+export const RIDE_INFO_STRIDE = 39;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -113,6 +117,10 @@ export const enum RideInfo {
   MaxCars = 35,
   /** Guests per dispatch with the current layout. */
   Capacity = 36,
+  /** `RideMode` the ride is set to. */
+  Mode = 37,
+  /** Block sections of a closed circuit: its station plus each run of block brakes (track rides; 0 otherwise). */
+  BlockSections = 38,
 }
 
 export const enum RideFlag {
@@ -432,6 +440,10 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.Capacity] = r.capacity[slot];
   info[o + RideInfo.MaxTrains] = definition?.usesTrack ? maxTrainsForRide(world, rideId) : 0;
   info[o + RideInfo.MaxCars] = definition?.usesTrack ? maxCarsForRide(world, rideId) : 0;
+  info[o + RideInfo.Mode] = r.mode[slot];
+  info[o + RideInfo.BlockSections] = definition?.usesTrack
+    ? blockSectionsForRide(world, rideId)
+    : 0;
   if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;

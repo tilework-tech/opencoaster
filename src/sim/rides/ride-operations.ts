@@ -2,7 +2,7 @@ import type { World } from '../core/world';
 import { Surface } from '../map/tile-map';
 import { maxCarsForRide, maxTrainsForRide, RIDERS_PER_CAR } from '../vehicles/ride-trains';
 import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
-import type { RideMode } from './ride-modes';
+import { RideMode } from './ride-modes';
 import { RELIABILITY_MAX } from './ride-maintenance';
 import { rideFootprintTiles } from './ride-footprint';
 import {
@@ -599,6 +599,15 @@ export function setRideMode(world: World, rideId: number, mode: RideMode): boole
   ride.mode[slot] = mode;
   if (!definition.usesTrack) applyRideModeRatings(world, slot);
   return true;
+}
+
+/**
+ * Block brakes only separate trains in block-sectioned mode, so placing one moves a ride that
+ * offers the mode into it.
+ */
+export function enableBlockSections(world: World, rideId: number): void {
+  if (getRideMode(world, rideId) === RideMode.ContinuousCircuit)
+    setRideMode(world, rideId, RideMode.ContinuousCircuitBlockSectioned);
 }
 
 /** Sets how often a mechanic inspects the ride: one of the listed minutes, or 0 for never. */

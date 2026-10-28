@@ -5,10 +5,19 @@ import {
   VehicleSegmentFlag,
   VehicleTrackRegistry,
   createVehicleTrack,
-  maxTrainsOnTrack,
   stepVehicles,
 } from './vehicle-system';
 import { VehicleState, getTrainState, spawnTrain } from './vehicle-store';
+import { trainLimit } from './train-limit';
+
+const blockLimit = (track: ReturnType<typeof squareLoop>) =>
+  trainLimit({
+    blockSectioned: true,
+    sections: track.boundariesQ8.length,
+    loop: track.loop,
+    cars: 1,
+    trackLengthQ8: track.totalLengthQ8,
+  });
 
 const Q8 = 256;
 const STATION = VehicleSegmentFlag.Station | VehicleSegmentFlag.StationDrive;
@@ -51,9 +60,9 @@ describe('block sections', () => {
   const sections = () => squareLoop({ 0: STATION, 1: STATION, 6: BLOCK, 11: BLOCK });
 
   it('limits a loop to one train fewer than it has block boundaries', () => {
-    expect(maxTrainsOnTrack(sections())).toBe(2);
-    expect(maxTrainsOnTrack(squareLoop({ 0: STATION }))).toBe(1);
-    expect(maxTrainsOnTrack(squareLoop({}))).toBe(1);
+    expect(blockLimit(sections())).toBe(2);
+    expect(blockLimit(squareLoop({ 0: STATION }))).toBe(1);
+    expect(blockLimit(squareLoop({}))).toBe(1);
   });
 
   it('holds a train at the end of its zone while the next zone is occupied, then releases it', () => {

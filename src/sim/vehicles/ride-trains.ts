@@ -1,9 +1,12 @@
 import type { World } from '../core/world';
 import { RideState } from '../rides/ride-store';
 import { spawnTrain, VehicleState } from './vehicle-store';
-import { maxTrainsOnTrack, syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
+import { syncVehicleTracks, VehicleTrackRegistry } from './vehicle-track';
 import type { VehicleTrack } from './vehicle-track';
 import { CAR_LENGTH_Q8 } from './vehicle-system';
+import { MAX_TRAINS_PER_RIDE, trainLimit } from './train-limit';
+
+export { MAX_TRAINS_PER_RIDE };
 
 /** Dispatch is driven by the ride's own operating rules, so the train never self-dispatches. */
 const RIDE_MANAGED_MIN_WAIT = 0xffff;
@@ -12,8 +15,6 @@ export const CAR_MASS = 1800;
 export const RIDERS_PER_CAR = 4;
 /** Most cars a train can have, before the station length limits it further. */
 export const MAX_CARS = 5;
-/** Most trains a coaster runs at once, however many block sections it has. */
-export const MAX_TRAINS_PER_RIDE = 4;
 
 export function carsForCapacity(capacity: number): number {
   return Math.max(1, Math.min(MAX_CARS, Math.ceil(capacity / RIDERS_PER_CAR)));
@@ -139,8 +140,24 @@ export function maxCarsForRide(world: World, rideId: number): number {
   return Math.max(1, Math.min(MAX_CARS, Math.floor(platform / CAR_LENGTH_Q8)));
 }
 
-/** Most trains the ride runs at once: one per block section, at most `MAX_TRAINS_PER_RIDE`. */
+/** Block sections of the ride's circuit; 0 unless it runs block-sectioned. */
+export function blockSectionsForRide(world: World, rideId: number): number {
+  return currentTrack(world, rideId)?.boundariesQ8.length ?? 0;
+}
+
+/**
+ * Most trains the ride runs at once: its block sections in block-sectioned mode, else the track
+ * length over the train length (see `trainLimit`).
+ */
 export function maxTrainsForRide(world: World, rideId: number): number {
   const track = currentTrack(world, rideId);
-  return track ? Math.min(MAX_TRAINS_PER_RIDE, maxTrainsOnTrack(track)) : 1;
+  if (!track) return 1;
+  const slot = world.rides.idToSlot[rideId];
+  return trainLimit({
+    blockSectioned: track.blockSectioned,
+    sections: track.boundariesQ8.length,
+    loop: track.loop,
+    cars: carsForCapacity(world.rides.cols.capacity[slot]),
+    trackLengthQ8: track.totalLengthQ8,
+  });
 }

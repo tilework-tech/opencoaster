@@ -51,7 +51,7 @@ interface SimWindow {
   __camera: { x: number; y: number; zoom: number; rotation: number };
 }
 
-const RIDE_INFO_STRIDE = 37;
+const RIDE_INFO_STRIDE = 39;
 
 async function readTrain(page: Page, rideId: number): Promise<Reading | null> {
   return page.evaluate((id) => {

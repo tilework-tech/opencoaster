@@ -81,6 +81,7 @@ export interface GameUIActions {
   setRidePrice(rideId: number, priceCents: number): void;
   setRideQueueLimit(rideId: number, limit: number): void;
   setRideTrains(rideId: number, trains: number, cars: number): void;
+  setRideMode(rideId: number, mode: number): void;
   setRideStatus(rideId: number, status: 'open' | 'close' | 'test'): void;
   demolishRide(rideId: number): void;
   placeRidePart(rideId: number, part: 'entrance' | 'exit'): void;

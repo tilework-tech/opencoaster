@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
-import type { Page, TestInfo } from '@playwright/test';
+import type { Locator, Page, TestInfo } from '@playwright/test';
 import type { World } from '../src/sim/core/world';
 import {
   centerCameraOn,
@@ -117,7 +117,7 @@ const carCount = (page: Page): Promise<number> =>
     () => (window as unknown as { __snapshot?: CarSnapshot }).__snapshot?.cars.count ?? -1,
   );
 
-async function buildBlockSectionedCoaster(page: Page): Promise<void> {
+async function buildCoaster(page: Page, blockBrakes: boolean): Promise<void> {
   await startStarterPark(page, false, 'Open Grounds');
   await page.getByRole('button', { name: 'Close Park' }).click();
   const STATION: Tile = { x: 47, y: 60 };
@@ -130,7 +130,8 @@ async function buildBlockSectionedCoaster(page: Page): Promise<void> {
   const construction = page.locator('[data-panel="construction"]');
   await expect(construction).toBeVisible();
   let pieces = 0;
-  const place = async (shape: string, slope: string, drive = 'Normal') => {
+  const place = async (shape: string, slope: string, wanted = 'Normal') => {
+    const drive = wanted === 'Block brake' && !blockBrakes ? 'Normal' : wanted;
     if (shape === 'Station')
       await construction.getByLabel('Special elements').selectOption({ label: shape });
     else await construction.getByRole('button', { name: shape, exact: true }).click();
@@ -169,6 +170,13 @@ async function buildBlockSectionedCoaster(page: Page): Promise<void> {
   await expect(construction).toContainText('Test complete', { timeout: 120_000 });
   await construction.getByRole('button', { name: 'Close', exact: true }).click();
   await connectToParkPath(page, world, entrance);
+}
+
+const MODE_BLOCK = 'Continuous circuit block sectioned';
+
+async function chooseMode(win: Locator, mode: string): Promise<void> {
+  await win.getByLabel('Ride mode').selectOption({ label: mode });
+  await expect(win.getByLabel('Ride mode')).toHaveValue(mode === MODE_BLOCK ? '7' : '6');
 }
 
 async function openOperatingTab(page: Page) {
@@ -215,9 +223,10 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
     test.setTimeout(900_000);
     page.setDefaultTimeout(10_000);
     if (backend === 'Canvas2D') await forceCanvas2D(page);
-    await buildBlockSectionedCoaster(page);
+    await buildCoaster(page, true);
     await expect(page.locator('.hud')).toContainText(backend);
     const win = await openOperatingTab(page);
+    await chooseMode(win, MODE_BLOCK);
     const trains = win.getByLabel('Trains on the track (0 for automatic)');
     const cars = win.getByLabel('Cars per train (0 for default)');
     const set = win.getByRole('button', { name: 'Set trains' });
@@ -239,7 +248,10 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
     await proofShot(page, testInfo, backend, 'closed-1-train-2-cars');
 
     await trains.fill('4');
-    await expect(win.locator('.train-layout-reason')).toContainText('block sections allow up to 3');
+    await expect(win.locator('.train-layout-reason')).toContainText('Block sections allow up to 3');
+    await expect(win.locator('.train-layout-reason')).toContainText(
+      'Add block brakes for more trains',
+    );
     await expect(set).toBeDisabled();
     await trains.fill('3');
     await cars.fill(String(maxCars));
@@ -269,3 +281,49 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
     await proofShot(page, testInfo, backend, `open-3-trains-${maxCars}-cars`);
   });
 }
+
+test('a continuous circuit without block brakes takes several trains, and block-sectioned mode needs brakes for them', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(900_000);
+  page.setDefaultTimeout(10_000);
+  await buildCoaster(page, false);
+  const win = await openOperatingTab(page);
+  const trains = win.getByLabel('Trains on the track (0 for automatic)');
+  const cars = win.getByLabel('Cars per train (0 for default)');
+  const set = win.getByRole('button', { name: 'Set trains' });
+  await expect(win.getByLabel('Ride mode')).toHaveValue('6');
+  expect(Number(await trains.getAttribute('max'))).toBeGreaterThanOrEqual(3);
+  await trains.fill('3');
+  await cars.fill('2');
+  await expect(set).toBeEnabled();
+  await set.click();
+  await expect(trains).toHaveValue('3');
+  await expect.poll(() => carCount(page)).toBe(2);
+  await proofShot(page, testInfo, 'WebGL2', 'continuous-circuit-3-trains-settings');
+
+  await chooseMode(win, MODE_BLOCK);
+  await expect(trains).toHaveAttribute('max', '1');
+  await trains.fill('2');
+  await expect(set).toBeDisabled();
+  await expect(win.locator('.train-layout-reason')).toContainText(
+    'Add block brakes for more trains',
+  );
+  await chooseMode(win, 'Continuous circuit');
+
+  await win.getByRole('tab', { name: 'View' }).click();
+  await win.getByRole('button', { name: 'Open', exact: true }).click();
+  await win.getByRole('tab', { name: 'Mechanics' }).click();
+  await expect(win.getByLabel('Ride mode')).toBeDisabled();
+  const seen = new Set<number>();
+  await expect
+    .poll(
+      async () => {
+        seen.add(await carCount(page));
+        return seen.has(6);
+      },
+      { timeout: 240_000, intervals: [500] },
+    )
+    .toBe(true);
+  await proofShot(page, testInfo, 'WebGL2', 'continuous-circuit-3-trains-running');
+});

@@ -1,6 +1,7 @@
 import { circuitLabel } from '../coaster-panel';
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import type { RideType } from '../../sim/rides/ride-types';
+import { RideMode } from '../../sim/rides/ride-modes';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, iconButton, setText, statRow } from '../dom';
@@ -131,6 +132,15 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   carsInput.min = '0';
   carsInput.value = '0';
   carsInput.setAttribute('aria-label', 'Cars per train (0 for default)');
+  const modeSelect = element('select', 'ride-mode-select');
+  modeSelect.setAttribute('aria-label', 'Ride mode');
+  modeSelect.addEventListener('change', () =>
+    ctx.actions.setRideMode(rideId, Number(modeSelect.value)),
+  );
+  const modeRow = element('div', 'button-row');
+  modeRow.append(element('span', 'ui-help', 'Mode'), modeSelect);
+  const modeReason = element('p', 'ui-help ride-mode-reason');
+  let modeSignature = '';
   let layoutEdited = false;
   for (const input of [trainsInput, carsInput])
     input.addEventListener('input', () => (layoutEdited = true));
@@ -190,6 +200,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       element('p', 'ui-help', 'Vehicle choice is fixed for each ride type in this version.'),
     );
     p('operating').append(
+      modeRow,
+      modeReason,
       operating.load.row,
       operating.run.row,
       operating.unload.row,
@@ -360,6 +372,32 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       const maxTrains = info[o + RideInfo.MaxTrains];
       const maxCars = info[o + RideInfo.MaxCars];
       const layoutLocked = state !== 0;
+      const mode = info[o + RideInfo.Mode];
+      const blockSectioned = mode === RideMode.ContinuousCircuitBlockSectioned;
+      const modes = def?.modes ?? [];
+      modeRow.hidden = modes.length < 2;
+      modeReason.hidden = modeRow.hidden;
+      const modesKey = modes.map((entry) => entry.mode).join(',');
+      if (modesKey !== modeSignature) {
+        modeSignature = modesKey;
+        modeSelect.replaceChildren(
+          ...modes.map((entry) => {
+            const option = element('option', undefined, entry.name);
+            option.value = String(entry.mode);
+            return option;
+          }),
+        );
+      }
+      modeSelect.value = String(mode);
+      modeSelect.disabled = layoutLocked;
+      setText(
+        modeReason,
+        layoutLocked
+          ? 'Close the ride to change its mode.'
+          : blockSectioned
+            ? 'Block brakes and the station split the track into sections; each holds one train.'
+            : 'Trains share the track and keep their distance; block brakes act as plain brakes.',
+      );
       trainsInput.max = String(maxTrains);
       carsInput.max = String(maxCars);
       trainsInput.disabled = layoutLocked;
@@ -382,9 +420,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         trainsReason,
         layoutLocked
           ? 'Close the ride to change trains and cars per train.'
-          : outOfRange
-            ? `The station holds up to ${maxCars} cars per train; the block sections allow up to ${maxTrains} trains.`
-            : `Up to ${maxTrains} trains of up to ${maxCars} cars (0 for automatic).`,
+          : trainLimitText(blockSectioned, maxTrains, maxCars, outOfRange),
       );
       setText(vehicle.cost.value, formatMoney(def?.cost ?? 0));
       setText(operating.load.value, seconds(def?.loadTicks ?? 0));
@@ -441,4 +477,22 @@ function findRow(snapshot: Snapshot, rideId: number): number | null {
   for (let i = 0; i < snapshot.rides.count; i++)
     if (snapshot.rideInfo[i * RIDE_INFO_STRIDE + RideInfo.Id] === rideId) return i;
   return null;
+}
+
+/** Why the ride runs no more trains than it does, and what would allow more. */
+function trainLimitText(
+  blockSectioned: boolean,
+  maxTrains: number,
+  maxCars: number,
+  outOfRange: boolean,
+): string {
+  const cars = `The station holds up to ${maxCars} cars per train. `;
+  if (blockSectioned) {
+    const limit = `Block sections allow up to ${maxTrains} ${maxTrains === 1 ? 'train' : 'trains'}.`;
+    return `${outOfRange ? cars : ''}${limit} Add block brakes for more trains.`;
+  }
+  const limit = `The track has room for up to ${maxTrains} ${maxTrains === 1 ? 'train' : 'trains'} of this length`;
+  return outOfRange
+    ? `${cars}${limit}; use fewer cars or a longer track for more trains.`
+    : `${limit} (0 for automatic).`;
 }

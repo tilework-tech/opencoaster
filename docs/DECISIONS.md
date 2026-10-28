@@ -65,6 +65,15 @@ Source: [fidelity/rides.md](fidelity/rides.md). All of these are named constants
 | Mechanic target        | A track ride has no tile, so mechanics walk to a tile next to its exit.                                                                                                                                                                                                                                                                                                                                                      |
 | Save format            | Version 11 appends five reliability, mode and mechanic-work columns to the ride store. Saves through version 10 scale stored percent reliability and use each ride type's default mode; version 10 guest-navigation data and research work units are preserved.                                                                                                                                                              |
 
+## Trains per coaster
+
+- Block-sectioned mode allows `stations + block brakes - 1` trains (block-brake runs and the station are the boundaries), at least 1, matching the described RCT2 rule.
+- Continuous circuit allows `floor(track length / (3 x train length))` trains: each train keeps two train lengths of track clear in front of it. RCT2's own track-length formula is not published as a table; this is an OpenCoaster choice that keeps trains far enough apart to brake behind each other.
+- Both modes are capped at 16 trains per ride. Automatic (0 trains) runs one train on a continuous circuit and every section's worth on a block-sectioned circuit.
+- A train on a continuous circuit brakes to stop one car length behind the train ahead, and a train leaves the station only with two car lengths of track clear ahead.
+- Placing a block brake on a ride that offers block-sectioned mode and is in continuous circuit mode switches it to block-sectioned (`enableBlockSections`), because a block brake in continuous circuit mode is only a plain brake and can stall a test lap. The operator can switch back.
+- Saves from before version 27 that have block brakes on a ride that offers block-sectioned mode are set to that mode, so their trains stay separated.
+
 ## Parallel work conventions
 
 - Each workstream owns its module directory under `src/sim/<module>` (or `src/render`, `src/ui`). Edits to `src/sim/core` (World, Command union, constants, `SYSTEM_ORDER`) must be small and additive; rebase on `main` before opening a PR.
