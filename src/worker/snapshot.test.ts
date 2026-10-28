@@ -23,6 +23,7 @@ import { StaffKind, StaffOrder } from '../sim/staff/staff-store';
 import {
   RideInfo,
   RIDE_INFO_STRIDE,
+  STAFF_STAT_STRIDE,
   createSnapshot,
   decodeCursor,
   snapshotBuffers,
@@ -83,6 +84,34 @@ describe('render snapshot', () => {
     expect(snapshot.audioEvents).toEqual([{ id: 2, type: 'demolish' }]);
     writeSnapshot(simulation.world, snapshot);
     expect(snapshot.audioEvents).toEqual([]);
+  });
+
+  it('publishes each worker activity total and hire tick by staff slot', () => {
+    const simulation = new Simulation({ seed: 23, width: 8, height: 8 });
+    simulation.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    simulation.step();
+    const cols = simulation.world.staff.cols;
+    cols.sweeps[0] = 1;
+    cols.lawnsMown[0] = 2;
+    cols.gardensWatered[0] = 3;
+    cols.binsEmptied[0] = 4;
+    cols.ridesInspected[0] = 5;
+    cols.ridesFixed[0] = 6;
+    cols.vandalsStopped[0] = 7;
+    cols.guestsEntertained[0] = 8;
+    const snapshot = createSnapshot({ guests: 0, staff: 1, vehicles: 0, litter: 0, mapTiles: 64 });
+    writeSnapshot(simulation.world, snapshot);
+    expect(Array.from(snapshot.staffStats.subarray(0, STAFF_STAT_STRIDE))).toEqual([
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      cols.hiredTick[0],
+    ]);
   });
 
   it('publishes each worker task-order mask by stable staff id', () => {
@@ -477,7 +506,7 @@ describe('staff and ground state in the snapshot', () => {
     expect(snapshot.grounds[sim.world.map.index(2, 2)]).toBe(
       sim.world.grounds[sim.world.map.index(2, 2)],
     );
-    expect(snapshotBuffers(snapshot)).toHaveLength(16);
+    expect(snapshotBuffers(snapshot)).toHaveLength(17);
   });
 });
 

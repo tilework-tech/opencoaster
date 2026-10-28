@@ -30,6 +30,7 @@ export const enum StaffOrder {
   RepairRides = 4,
   WatchForVandalism = 5,
   EntertainGuests = 6,
+  MowGrass = 7,
 }
 
 export type StaffOrderId =
@@ -39,7 +40,8 @@ export type StaffOrderId =
   | 'inspect-rides'
   | 'repair-rides'
   | 'watch-for-vandalism'
-  | 'entertain-guests';
+  | 'entertain-guests'
+  | 'mow-grass';
 
 const STAFF_ORDER_IDS: readonly StaffOrderId[] = [
   'sweep-paths',
@@ -49,10 +51,11 @@ const STAFF_ORDER_IDS: readonly StaffOrderId[] = [
   'repair-rides',
   'watch-for-vandalism',
   'entertain-guests',
+  'mow-grass',
 ];
 
 const STAFF_ORDERS_BY_KIND: readonly (readonly StaffOrder[])[] = [
-  [StaffOrder.SweepPaths, StaffOrder.EmptyBins, StaffOrder.WaterGardens],
+  [StaffOrder.SweepPaths, StaffOrder.EmptyBins, StaffOrder.WaterGardens, StaffOrder.MowGrass],
   [StaffOrder.InspectRides, StaffOrder.RepairRides],
   [StaffOrder.WatchForVandalism],
   [StaffOrder.EntertainGuests],
@@ -66,6 +69,9 @@ export function defaultStaffOrderFlags(kind: number): number {
   return staffOrdersForKind(kind).reduce((flags, order) => flags | (1 << order), 0);
 }
 
+/** Tile steps without other work before a handyman will mow. */
+export const MOW_TILE_DELAY = 12;
+
 export const STAFF_SCHEMA = {
   x: Int32Array,
   y: Int32Array,
@@ -78,7 +84,31 @@ export const STAFF_SCHEMA = {
   orderFlags: Uint8Array,
   sweeps: Uint16Array,
   vandalsStopped: Uint16Array,
+  lawnsMown: Uint16Array,
+  gardensWatered: Uint16Array,
+  binsEmptied: Uint16Array,
+  ridesInspected: Uint16Array,
+  ridesFixed: Uint16Array,
+  guestsEntertained: Uint16Array,
+  hiredTick: Int32Array,
+  /** Tile steps taken since the last non-mowing task; mowing waits for `MOW_TILE_DELAY`. */
+  mowTimeout: Uint8Array,
+  /** Non-zero while a security guard is slowed by a crowd. */
+  walkSlow: Uint8Array,
 } as const;
+
+/** Columns added in save version 32, after the stopped-vandal counter. */
+export const STAFF_STAT_COLUMNS = [
+  'lawnsMown',
+  'gardensWatered',
+  'binsEmptied',
+  'ridesInspected',
+  'ridesFixed',
+  'guestsEntertained',
+  'hiredTick',
+  'mowTimeout',
+  'walkSlow',
+] as const;
 
 export function spawnStaff(w: World, kind: number): boolean {
   if (!Number.isInteger(kind) || kind < StaffKind.Handyman || kind > StaffKind.Entertainer)
@@ -98,6 +128,15 @@ export function spawnStaff(w: World, kind: number): boolean {
   s.cols.orderFlags[slot] = defaultStaffOrderFlags(kind);
   s.cols.sweeps[slot] = 0;
   s.cols.vandalsStopped[slot] = 0;
+  s.cols.lawnsMown[slot] = 0;
+  s.cols.gardensWatered[slot] = 0;
+  s.cols.binsEmptied[slot] = 0;
+  s.cols.ridesInspected[slot] = 0;
+  s.cols.ridesFixed[slot] = 0;
+  s.cols.guestsEntertained[slot] = 0;
+  s.cols.hiredTick[slot] = w.tick;
+  s.cols.mowTimeout[slot] = 0;
+  s.cols.walkSlow[slot] = 0;
   w.economy.inputs.wageBillPerWeek += STAFF_WAGE_CENTS_PER_WEEK[kind] ?? 0;
   return true;
 }

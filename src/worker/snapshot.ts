@@ -178,6 +178,9 @@ export interface SnapshotLayer {
   data: Int32Array;
 }
 
+/** Values published per worker in `Snapshot.staffStats`. */
+export const STAFF_STAT_STRIDE = 9;
+
 export interface Snapshot {
   tick: number;
   /** Increments for each published snapshot, including paused state changes. */
@@ -195,6 +198,12 @@ export interface Snapshot {
   staffIds: Int32Array;
   /** Per-worker enabled task orders, using StaffOrder bit positions. */
   staffOrders: Uint8Array;
+  /**
+   * Activity totals per staff slot, `STAFF_STAT_STRIDE` values each: litter swept, lawns mown,
+   * gardens watered, bins emptied, rides inspected, rides fixed, vandals stopped, guests
+   * entertained, then the tick the worker was hired.
+   */
+  staffStats: Int32Array;
   /** Player-given staff names by staff id. */
   staffNames: ReadonlyMap<number, string>;
   vehicles: SnapshotLayer;
@@ -309,6 +318,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     staff: layer(caps.staff),
     staffIds: new Int32Array(caps.staff),
     staffOrders: new Uint8Array(caps.staff),
+    staffStats: new Int32Array(caps.staff * STAFF_STAT_STRIDE),
     staffNames: new Map(),
     vehicles: layer(caps.vehicles),
     cars: layer(caps.cars ?? caps.vehicles * MAX_CARS),
@@ -372,6 +382,7 @@ export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
       s.patrolAreas.buffer as ArrayBuffer,
       s.staffIds.buffer as ArrayBuffer,
       s.staffOrders.buffer as ArrayBuffer,
+      s.staffStats.buffer as ArrayBuffer,
       s.patrolAreaIds.buffer as ArrayBuffer,
       s.guestDetails.buffer as ArrayBuffer,
       s.guestIds.buffer as ArrayBuffer,
@@ -571,6 +582,19 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   for (let i = 0; i < staffIdCount; i++) out.staffIds[i] = world.staff.slotToId[i];
   for (let i = 0; i < staffIdCount; i++) out.patrolAreaIds[i] = world.staff.cols.patrolArea[i]!;
   out.staffOrders.set(world.staff.cols.orderFlags.subarray(0, staffIdCount));
+  const staffCols = world.staff.cols;
+  for (let i = 0; i < staffIdCount; i++) {
+    const o = i * STAFF_STAT_STRIDE;
+    out.staffStats[o] = staffCols.sweeps[i];
+    out.staffStats[o + 1] = staffCols.lawnsMown[i];
+    out.staffStats[o + 2] = staffCols.gardensWatered[i];
+    out.staffStats[o + 3] = staffCols.binsEmptied[i];
+    out.staffStats[o + 4] = staffCols.ridesInspected[i];
+    out.staffStats[o + 5] = staffCols.ridesFixed[i];
+    out.staffStats[o + 6] = staffCols.vandalsStopped[i];
+    out.staffStats[o + 7] = staffCols.guestsEntertained[i];
+    out.staffStats[o + 8] = staffCols.hiredTick[i];
+  }
   out.staffNames = world.staffNames;
   const groundCount = Math.min(world.grounds.length, out.grounds.length);
   out.grounds.set(world.grounds.subarray(0, groundCount));

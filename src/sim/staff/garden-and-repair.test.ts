@@ -7,7 +7,7 @@ import { createRide, isRideInspectionDue } from '../rides/ride-operations';
 import { triggerRideBreakdown } from '../rides/ride-maintenance';
 import { RideType } from '../rides/ride-types';
 import { FLOWER_BED, FLOWER_BED_THIRSTY, GROUNDS_GROW_INTERVAL, OVERGROWTH_MASK } from './grounds';
-import { setStaffOrder, StaffKind, spawnStaff } from './staff-store';
+import { MOW_TILE_DELAY, setStaffOrder, StaffKind, spawnStaff } from './staff-store';
 import { staffSystem } from './staff-system';
 import { flatWorld, layPath, row } from '../integration/fixtures';
 
@@ -17,6 +17,7 @@ function handymanWorld(seed: number) {
   sim.world.map.fillFlat(2);
   for (let x = 4; x <= 10; x++) placePath(sim.world.map, { x, y: 6, z: 2 });
   spawnStaff(sim.world, StaffKind.Handyman);
+  sim.world.staff.cols.mowTimeout[0] = MOW_TILE_DELAY;
   sim.world.staff.cols.x[0] = 6 * 256 + 128;
   sim.world.staff.cols.y[0] = 6 * 256 + 128;
   return sim;
@@ -195,6 +196,48 @@ describe('mechanic response', () => {
     }
 
     expect(w.rides.cols.state[slot]).toBe(RideState.Broken);
+  });
+});
+
+describe('mechanic statistics', () => {
+  function rideAt(seed: number) {
+    const w = flatWorld(20, seed);
+    layPath(w, [...row(6, 4, 10), [7, 7], [7, 8]]);
+    const rideId = createRide(w, RideType.MerryGoRound, 8, 8);
+    const slot = w.rides.idToSlot[rideId];
+    w.rides.cols.state[slot] = RideState.Open;
+    w.rides.cols.phase[slot] = RidePhase.Waiting;
+    w.rides.cols.queueConnected[slot] = 1;
+    spawnStaff(w, StaffKind.Mechanic);
+    w.staff.cols.x[0] = 7 * 256 + 128;
+    w.staff.cols.y[0] = 8 * 256 + 128;
+    return { w, rideId, slot };
+  }
+
+  it('counts a completed repair as one ride fixed', () => {
+    const { w, rideId, slot } = rideAt(3);
+    triggerRideBreakdown(w, rideId);
+    for (let i = 0; i < 200 && w.rides.cols.state[slot] !== RideState.Open; i++) {
+      staffSystem.update(w);
+      w.tick += 16;
+    }
+    expect(w.rides.cols.state[slot]).toBe(RideState.Open);
+    expect(w.staff.cols.ridesFixed[0]).toBe(1);
+    expect(w.staff.cols.ridesInspected[0]).toBe(0);
+  });
+
+  it('counts a completed inspection as one ride inspected', () => {
+    const { w, rideId, slot } = rideAt(4);
+    w.tick = 200_000;
+    w.rides.cols.lastInspectionTick[slot] = 0;
+    expect(isRideInspectionDue(w, rideId)).toBe(true);
+    for (let i = 0; i < 400 && isRideInspectionDue(w, rideId); i++) {
+      w.tick += 16;
+      staffSystem.update(w);
+    }
+    expect(isRideInspectionDue(w, rideId)).toBe(false);
+    expect(w.staff.cols.ridesInspected[0]).toBe(1);
+    expect(w.staff.cols.ridesFixed[0]).toBe(0);
   });
 });
 

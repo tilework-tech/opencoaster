@@ -36,6 +36,7 @@ import {
   triggerRideBreakdown,
   rideSystem,
 } from './index';
+import { statsVersionColumns } from '../../save/legacy-save-fixtures';
 
 function world(): World {
   return new World({ seed: 17, width: 16, height: 16 });
@@ -79,7 +80,8 @@ function preRidesSave(w: World): Uint8Array {
         (array) =>
           array !== w.staff.cols.orderFlags &&
           array !== w.staff.cols.sweeps &&
-          array !== w.staff.cols.vandalsStopped,
+          array !== w.staff.cols.vandalsStopped &&
+          !statsVersionColumns(w).includes(array),
       ),
     ...w.vehicles.arrays(),
     ...w.litter.arrays().filter((array) => array !== w.litter.cols.birthOrder),

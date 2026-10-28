@@ -90,7 +90,7 @@ describe('save', () => {
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(31);
+    expect(SAVE_VERSION).toBe(32);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -98,7 +98,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(31);
+    expect(header.version).toBe(32);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -217,6 +217,56 @@ describe('save', () => {
 
     expect(loaded.staff.cols.sweeps[0]).toBe(23);
     expect(loaded.staff.cols.vandalsStopped[0]).toBe(0);
+  });
+
+  it('round-trips staff statistics and guest sight memory', () => {
+    const sim = new Simulation({ seed: 19, width: 8, height: 8 });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    sim.step();
+    const cols = sim.world.staff.cols;
+    cols.lawnsMown[0] = 11;
+    cols.gardensWatered[0] = 12;
+    cols.binsEmptied[0] = 13;
+    cols.ridesInspected[0] = 14;
+    cols.ridesFixed[0] = 15;
+    cols.guestsEntertained[0] = 16;
+    cols.hiredTick[0] = 1234;
+    cols.mowTimeout[0] = 5;
+
+    const loaded = deserialize(serialize(sim.world)).staff.cols;
+
+    expect([
+      loaded.lawnsMown[0],
+      loaded.gardensWatered[0],
+      loaded.binsEmptied[0],
+      loaded.ridesInspected[0],
+      loaded.ridesFixed[0],
+      loaded.guestsEntertained[0],
+      loaded.hiredTick[0],
+      loaded.mowTimeout[0],
+    ]).toEqual([11, 12, 13, 14, 15, 16, 1234, 5]);
+  });
+
+  it('loads a version 31 save with zeroed statistics and mowing kept on for gardeners', () => {
+    const sim = new Simulation({ seed: 20, width: 8, height: 8 });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+    sim.step();
+    sim.world.staff.cols.sweeps[0] = 9;
+    sim.world.staff.cols.orderFlags[0] &= ~(1 << StaffOrder.MowGrass);
+    sim.world.staff.cols.orderFlags[1] &= ~(
+      (1 << StaffOrder.MowGrass) |
+      (1 << StaffOrder.WaterGardens)
+    );
+    const w = sim.world;
+    const legacy = withoutColumns(serialize(w), 31, allWorldViews(w), []);
+
+    const loaded = deserialize(legacy).staff.cols;
+
+    expect(loaded.sweeps[0]).toBe(9);
+    expect(loaded.lawnsMown[0]).toBe(0);
+    expect(loaded.orderFlags[0] & (1 << StaffOrder.MowGrass)).not.toBe(0);
+    expect(loaded.orderFlags[1] & (1 << StaffOrder.MowGrass)).toBe(0);
   });
 
   it('round-trips the selected path style and defaults older saves to tarmac', () => {

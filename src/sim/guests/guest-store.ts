@@ -32,6 +32,9 @@ export const enum GuestThought {
   Tired = 13,
   OutOfMoney = 14,
   BadValue = 15,
+  BadLitter = 16,
+  PathDisgusting = 17,
+  Vandalism = 18,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */
@@ -95,7 +98,16 @@ export const GUEST_SCHEMA = {
   /** Position in the ride's queue order: the ride's serial when the guest joined its line. */
   queueSeq: Uint32Array,
   happinessTarget: Uint8Array,
+  /** Litter seen on the last three path tiles, two bits each, with a two-bit recall timer on top. */
+  litterSeen: Uint8Array,
+  /** The same history for vomit. */
+  disgustSeen: Uint8Array,
+  /** Vandalised tiles among the last six, one bit each, with a two-bit complaint cooldown on top. */
+  vandalSeen: Uint8Array,
 } as const;
+
+/** Guest columns added in save version 32. */
+export const GUEST_SIGHT_COLUMNS = ['litterSeen', 'disgustSeen', 'vandalSeen'] as const;
 
 export function recordRideHistory(w: World, slot: number, rideId: number): void {
   const guests = w.guests.cols;

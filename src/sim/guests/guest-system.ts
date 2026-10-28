@@ -49,6 +49,7 @@ import {
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
+import { noteTileSights } from './path-sights';
 import { guestPriceCents, spendVoucher } from './vouchers';
 import {
   applyGuestBudget,
@@ -968,6 +969,8 @@ function stepToward(
     return false;
   g.heading[slot] = dir;
   moveAlongHeading(world, slot);
+  if (atTileCentre(world, slot))
+    noteTileSights(world, slot, world.map.index(g.x[slot] >> 8, g.y[slot] >> 8));
   return true;
 }
 

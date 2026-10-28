@@ -6,6 +6,7 @@ import { RideType } from '../sim/rides/ride-types';
 import { rideCoversTile } from '../sim/rides/ride-footprint';
 import { createRide } from '../sim/rides/ride-operations';
 import { deserialize, serialize } from './save';
+import { statsVersionColumns } from './legacy-save-fixtures';
 
 function park(): World {
   const w = new World({ seed: 3, width: 24, height: 24 });
@@ -38,6 +39,7 @@ function asVersion19(w: World): Uint8Array {
     w.rides.cols.queueLimit,
     w.guests.cols.queueSeq,
     w.guests.cols.happinessTarget,
+    ...statsVersionColumns(w),
   ]);
   const body = bytes.subarray(8 + headerLength);
   const kept: Uint8Array[] = [];

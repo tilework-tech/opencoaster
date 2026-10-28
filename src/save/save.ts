@@ -2,7 +2,12 @@ import { flattenWaterBodies } from '../sim/map/area-tools';
 import { World } from '../sim/core/world';
 import { EntityStore } from '../sim/core/entity-store';
 import type { Schema } from '../sim/core/entity-store';
-import { GUEST_SCHEMA, GuestState, HEADING_NONE } from '../sim/guests/guest-store';
+import {
+  GUEST_SCHEMA,
+  GUEST_SIGHT_COLUMNS,
+  GuestState,
+  HEADING_NONE,
+} from '../sim/guests/guest-store';
 import type { ParkState } from '../sim/guests/park';
 import { restoreLedger, saveLedger } from '../sim/economy/ledger';
 import type { LedgerSave } from '../sim/economy/ledger';
@@ -12,7 +17,11 @@ import type { ScenarioState } from '../sim/scenario/scenario';
 import {
   calculateStaffWageBill,
   defaultStaffOrderFlags,
+  MOW_TILE_DELAY,
+  StaffKind,
+  StaffOrder,
   STAFF_SCHEMA,
+  STAFF_STAT_COLUMNS,
 } from '../sim/staff/staff-store';
 import { LITTER_SCHEMA } from '../sim/guests/litter-store';
 import {
@@ -35,7 +44,10 @@ import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 
-export const SAVE_VERSION = 31;
+/** Staff activity totals and guest sight memory are stored from this version. */
+const STAFF_STATS_SAVE_VERSION = 32;
+const PRE_STAFF_STATS_SAVE_VERSION = 31;
+export const SAVE_VERSION = 32;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
@@ -106,11 +118,13 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
         'rideHistory3',
         'litterMemory',
         'angriness',
+        ...GUEST_SIGHT_COLUMNS,
       ].includes(name),
   ),
 ) as Omit<
   typeof GUEST_SCHEMA,
   | 'heading'
+  | (typeof GUEST_SIGHT_COLUMNS)[number]
   | 'approachGap'
   | 'navGoal'
   | 'navGap'
@@ -128,17 +142,26 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
   | 'litterMemory'
   | 'angriness'
 >;
+type StatColumn = (typeof STAFF_STAT_COLUMNS)[number];
+const isStatColumn = (name: string): boolean =>
+  (STAFF_STAT_COLUMNS as readonly string[]).includes(name);
 const PRE_ORDER_STAFF_SCHEMA = Object.fromEntries(
   Object.entries(STAFF_SCHEMA).filter(
-    ([name]) => name !== 'orderFlags' && name !== 'sweeps' && name !== 'vandalsStopped',
+    ([name]) =>
+      name !== 'orderFlags' &&
+      name !== 'sweeps' &&
+      name !== 'vandalsStopped' &&
+      !isStatColumn(name),
   ),
-) as Omit<typeof STAFF_SCHEMA, 'orderFlags' | 'sweeps' | 'vandalsStopped'>;
+) as Omit<typeof STAFF_SCHEMA, 'orderFlags' | 'sweeps' | 'vandalsStopped' | StatColumn>;
 const PRE_SWEEP_STAFF_SCHEMA = Object.fromEntries(
-  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'sweeps' && name !== 'vandalsStopped'),
-) as Omit<typeof STAFF_SCHEMA, 'sweeps' | 'vandalsStopped'>;
+  Object.entries(STAFF_SCHEMA).filter(
+    ([name]) => name !== 'sweeps' && name !== 'vandalsStopped' && !isStatColumn(name),
+  ),
+) as Omit<typeof STAFF_SCHEMA, 'sweeps' | 'vandalsStopped' | StatColumn>;
 const PRE_VANDAL_STOP_STAFF_SCHEMA = Object.fromEntries(
-  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'vandalsStopped'),
-) as Omit<typeof STAFF_SCHEMA, 'vandalsStopped'>;
+  Object.entries(STAFF_SCHEMA).filter(([name]) => name !== 'vandalsStopped' && !isStatColumn(name)),
+) as Omit<typeof STAFF_SCHEMA, 'vandalsStopped' | StatColumn>;
 const LEGACY_LITTER_SCHEMA = Object.fromEntries(
   Object.entries(LITTER_SCHEMA).filter(([name]) => name !== 'birthOrder'),
 ) as Omit<typeof LITTER_SCHEMA, 'birthOrder'>;
@@ -367,6 +390,19 @@ function migrateVersion15Staff(
   world.staff.cols.vandalsStopped.fill(0);
 }
 
+/** Handymen who tended gardens before mowing was its own order keep mowing; hire dates start at park open. */
+function migrateStaffStats(world: World): void {
+  const staff = world.staff.cols;
+  for (let slot = 0; slot < world.staff.count; slot++) {
+    if (
+      staff.kind[slot] === StaffKind.Handyman &&
+      (staff.orderFlags[slot] & (1 << StaffOrder.WaterGardens)) !== 0
+    )
+      staff.orderFlags[slot] |= 1 << StaffOrder.MowGrass;
+    staff.mowTimeout[slot] = MOW_TILE_DELAY;
+  }
+}
+
 function migrateLegacyLitter(world: World, legacy: EntityStore<typeof LEGACY_LITTER_SCHEMA>): void {
   copyStoreIndexArrays(world.litter, legacy as EntityStore<Schema>);
   for (const key of Object.keys(LEGACY_LITTER_SCHEMA) as (keyof typeof LEGACY_LITTER_SCHEMA)[]) {
@@ -465,7 +501,8 @@ function guestColumnsAbsent(version: number): number {
     (version < GUEST_MEMORY_SAVE_VERSION ? 2 : 0) +
     (version < VOUCHER_SAVE_VERSION ? 2 : 0) +
     (version <= PRE_QUEUE_ORDER_SAVE_VERSION ? 1 : 0) +
-    (version < HAPPINESS_TARGET_SAVE_VERSION ? 1 : 0)
+    (version < HAPPINESS_TARGET_SAVE_VERSION ? 1 : 0) +
+    (version < STAFF_STATS_SAVE_VERSION ? GUEST_SIGHT_COLUMNS.length : 0)
   );
 }
 
@@ -517,6 +554,7 @@ export function deserialize(bytes: Uint8Array): World {
     BOARDING_FRONT_SAVE_VERSION,
     HAPPINESS_TARGET_SAVE_VERSION,
     DOWNTIME_SAVE_VERSION,
+    PRE_STAFF_STATS_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -586,7 +624,11 @@ export function deserialize(bytes: Uint8Array): World {
         ? version13Staff.arrays()
         : version15Staff
           ? version15Staff.arrays()
-          : allViews.slice(staffViewStart, staffViewEnd)),
+          : allViews.slice(
+              staffViewStart,
+              staffViewEnd -
+                (header.version < STAFF_STATS_SAVE_VERSION ? STAFF_STAT_COLUMNS.length : 0),
+            )),
     ...allViews.slice(staffViewEnd, vehicleViewEnd),
     ...(legacyLitter ? legacyLitter.arrays() : allViews.slice(vehicleViewEnd, litterViewEnd)),
     ...allViews.slice(litterViewEnd, rideViewStart),
@@ -662,6 +704,7 @@ export function deserialize(bytes: Uint8Array): World {
     migrateGuestHistory(world, header.stores.guests.count);
   if (header.version <= PRE_APPROACH_SAVE_VERSION)
     migrateMissingApproachGap(world, header.stores.guests.count);
+  if (header.version < STAFF_STATS_SAVE_VERSION) migrateStaffStats(world);
   if (header.version < VOUCHER_SAVE_VERSION)
     migrateVoucherlessGuests(world, header.stores.guests.count);
   if (header.version < PRE_TRACKED_WATER_RIDES_SAVE_VERSION) migrateFlatWaterRides(world);
