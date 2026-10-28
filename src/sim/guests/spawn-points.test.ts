@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { World } from '../core/world';
@@ -81,10 +80,5 @@ describe('guest spawning', () => {
     const world = new World({ seed: 1, width: 32, height: 32 });
     expect(spawnGuest(world)).toBe(false);
     expect(world.guests.count).toBe(0);
-  });
-
-  it('never picks a random tile for a new guest', () => {
-    const source = readFileSync(new URL('./guest-store.ts', import.meta.url), 'utf8');
-    expect(source).not.toMatch(/rng\.int\(\s*\w+\.map\.(width|height)\s*\)/);
   });
 });

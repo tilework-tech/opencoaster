@@ -93,6 +93,11 @@ export function hashWorld(world: World): number {
   }
   mix(world.park.entranceX);
   mix(world.park.entranceY);
+  mix(world.park.spawns.length);
+  for (const spawn of world.park.spawns) {
+    mix(spawn.x);
+    mix(spawn.y);
+  }
   mix(world.track.lastResult);
   return h >>> 0;
 }
