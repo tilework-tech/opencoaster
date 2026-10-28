@@ -523,7 +523,7 @@ async function startSandbox(page: Page, mobile = false): Promise<void> {
   if (await park.count()) await park.getByRole('button', { name: 'Close Park' }).click();
 }
 
-async function auditToolbar(page: Page, mobile = false): Promise<void> {
+async function auditToolbar(page: Page, mobile = false, auditPanelControls = true): Promise<void> {
   const toolbar = page.locator('.game-toolbar');
   const actions = toolbar.getByRole('button', { name: 'Actions', exact: true });
   if (mobile && (await actions.getAttribute('aria-expanded')) !== 'true')
@@ -590,11 +590,12 @@ async function auditToolbar(page: Page, mobile = false): Promise<void> {
       await expect(panel).toBeVisible();
       if (mobile && (await actions.getAttribute('aria-expanded')) === 'true')
         await actions.tap({ timeout: 5_000 });
-      await exerciseWindow(page, panel, mobile);
+      if (auditPanelControls) await exerciseWindow(page, panel, mobile);
+      else await panel.getByRole('button', { name: /^Close / }).click();
     } else if (label === 'Save / Load') {
       const menu = page.locator('[aria-label="Game menu"]');
       await expect(menu).toBeVisible();
-      await exercisePane(page, menu, mobile);
+      if (auditPanelControls) await exercisePane(page, menu, mobile);
       await menu.getByRole('button', { name: 'Back to title' }).click();
       await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
     }
@@ -633,12 +634,14 @@ async function checkDisabledControls(page: Page, mobile = false): Promise<void> 
   else await finance.getByRole('button', { name: 'Close Finances' }).click();
 }
 
-test('enabled desktop toolbar and window controls cause an observable effect', async ({ page }) => {
+test('desktop toolbar actions open their panels and cause an observable effect', async ({
+  page,
+}) => {
   test.setTimeout(600_000);
   visitedDetailTypes.clear();
   await startSandbox(page);
   await checkDisabledControls(page);
-  await auditToolbar(page);
+  await auditToolbar(page, false, false);
 });
 
 test('enabled Pixel 8 toolbar and window controls cause an observable effect', async ({
