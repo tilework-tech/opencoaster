@@ -315,7 +315,11 @@ function demolishRide(world: World, rideId: number): RideResult {
     guests.targetX[guest] = access[0]!;
     guests.targetY[guest] = access[1]!;
     guests.navGoal[guest] = 0;
-    guests.navGap[guest] = 0;
+    guests.pathCursor[guest] = 0;
+    guests.pathHistory0[guest] = 0;
+    guests.pathHistory1[guest] = 0;
+    guests.pathHistory2[guest] = 0;
+    guests.pathHistory3[guest] = 0;
     guests.navSteps[guest] = 0;
     guests.state[guest] = GuestState.Wandering;
   }

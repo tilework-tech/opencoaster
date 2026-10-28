@@ -16,7 +16,8 @@ import {
   updateRideMaintenance,
 } from '../sim/rides';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
-import { HEADING_NONE } from '../sim/guests/guest-store';
+import { GuestState, HEADING_NONE } from '../sim/guests/guest-store';
+import { LEAVING_COUNTDOWN } from '../sim/guests/navigation';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
 import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
@@ -90,7 +91,7 @@ describe('save', () => {
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(32);
+    expect(SAVE_VERSION).toBe(33);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -98,7 +99,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(32);
+    expect(header.version).toBe(33);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -624,7 +625,7 @@ describe('save: guest history and satiation migration', () => {
       const guest = guestAt(world, 4, 5);
       world.guests.cols.hunger[guest] = 30;
       world.guests.cols.thirst[guest] = 50;
-      world.guests.cols.approachGap[guest] = 12;
+      world.guests.cols.wanderSteps[guest] = 12;
       const views = [
         ...world.map.arrays(),
         ...world.guests.arrays(),
@@ -642,7 +643,7 @@ describe('save: guest history and satiation migration', () => {
         ...(version <= 9 ? navigationColumns(world) : []),
         ...(version === 8
           ? [
-              world.guests.cols.approachGap,
+              world.guests.cols.wanderSteps,
               world.rides.cols.trainCount,
               world.rides.cols.carsPerTrain,
             ]
@@ -659,7 +660,7 @@ describe('save: guest history and satiation migration', () => {
       expect(loaded.guests.cols.visitTicks[guest]).toBe(0);
       expect(loaded.guests.cols.ridesTaken[guest]).toBe(0);
       expect(loaded.guests.cols.lastRide[guest]).toBe(-1);
-      expect(loaded.guests.cols.approachGap[guest]).toBe(version === 8 ? 0xffff : 12);
+      expect(loaded.guests.cols.wanderSteps[guest]).toBe(0);
     },
   );
 
@@ -869,7 +870,7 @@ describe('save: map and economy together', () => {
 /** Guest columns added in save version 10. */
 function navigationColumns(world: World): ArrayBufferView[] {
   const c = world.guests.cols;
-  return [c.navGoal, c.navGap, c.navSteps, c.lostTicks, c.hasMap];
+  return [c.navGoal, c.pathCursor, c.navSteps, c.lostTicks, c.hasMap];
 }
 
 /** Version 12 and earlier did not contain guest history or per-worker task orders. */
@@ -1016,7 +1017,7 @@ describe('save: version 4 migration', () => {
       world.guests.cols.visitTicks,
       world.guests.cols.ridesTaken,
       world.guests.cols.lastRide,
-      world.guests.cols.approachGap,
+      world.guests.cols.wanderSteps,
       ...navigationColumns(world),
       ...v12Columns(world),
       world.rides.cols.trainCount,
@@ -1070,7 +1071,7 @@ describe('save: version 4 migration', () => {
     layPath(world, row(5, 2, 8));
     const guestSlot = guestAt(world, 2, 5);
     world.guests.cols.navGoal[guestSlot] = 3;
-    world.guests.cols.navGap[guestSlot] = 2;
+    world.guests.cols.pathCursor[guestSlot] = 2;
     world.guests.cols.navSteps[guestSlot] = 7;
     world.guests.cols.lostTicks[guestSlot] = 500;
     world.guests.cols.hasMap[guestSlot] = 1;
@@ -1099,8 +1100,8 @@ describe('save: version 4 migration', () => {
 
     const loaded = deserialize(legacy);
 
-    expect(loaded.guests.cols.navGoal[guestSlot]).toBe(3);
-    expect(loaded.guests.cols.navGap[guestSlot]).toBe(2);
+    expect(loaded.guests.cols.navGoal[guestSlot]).toBe(0);
+    expect(loaded.guests.cols.pathCursor[guestSlot]).toBe(0);
     expect(loaded.guests.cols.navSteps[guestSlot]).toBe(7);
     expect(loaded.guests.cols.lostTicks[guestSlot]).toBe(500);
     expect(loaded.guests.cols.hasMap[guestSlot]).toBe(1);
@@ -1163,7 +1164,7 @@ describe('save: version 4 migration', () => {
       world.guests.cols.visitTicks,
       world.guests.cols.ridesTaken,
       world.guests.cols.lastRide,
-      world.guests.cols.approachGap,
+      world.guests.cols.wanderSteps,
       ...navigationColumns(world),
       world.guests.cols.rideHistoryCursor,
       world.guests.cols.rideHistory0,
@@ -1276,5 +1277,65 @@ describe('save: ride downtime window', () => {
     expect(loaded.rides.cols.reliabilityRaw[loaded.rides.idToSlot[id]]).toBe(
       w.rides.cols.reliabilityRaw[w.rides.idToSlot[id]],
     );
+  });
+});
+
+describe('save: guest wayfinding state', () => {
+  function wayfinder(): { w: World; stayer: number; leaver: number } {
+    const w = flatWorld(16);
+    layPath(w, row(5, 2, 8));
+    const stayer = guestAt(w, 4, 5);
+    const leaver = guestAt(w, 6, 5);
+    const g = w.guests.cols;
+    g.lostCountdown[stayer] = 77;
+    g.wanderSteps[stayer] = 300;
+    g.navGoal[stayer] = 9;
+    g.pathCursor[stayer] = 2;
+    g.pathHistory0[stayer] = (70 << 4) | 3;
+    g.pathHistory3[stayer] = (12 << 4) | 8;
+    g.state[leaver] = GuestState.Leaving;
+    return { w, stayer, leaver };
+  }
+
+  it('round trips the countdown, wander count and junction memory', () => {
+    const { w, stayer } = wayfinder();
+    const loaded = deserialize(serialize(w));
+    const g = loaded.guests.cols;
+    expect(g.lostCountdown[stayer]).toBe(77);
+    expect(g.wanderSteps[stayer]).toBe(300);
+    expect(g.navGoal[stayer]).toBe(9);
+    expect(g.pathCursor[stayer]).toBe(2);
+    expect(g.pathHistory0[stayer]).toBe((70 << 4) | 3);
+    expect(g.pathHistory3[stayer]).toBe((12 << 4) | 8);
+  });
+
+  it('loads a version 31 save with empty memory and the exit countdown running for leavers', () => {
+    const { w, stayer, leaver } = wayfinder();
+    const loaded = deserialize(withoutColumns(serialize(w), 31, allWorldViews(w), []));
+    const g = loaded.guests.cols;
+    expect(g.lostCountdown[stayer]).toBe(0);
+    expect(g.wanderSteps[stayer]).toBe(0);
+    expect(g.navGoal[stayer]).toBe(0);
+    expect(g.pathCursor[stayer]).toBe(0);
+    expect(g.pathHistory0[stayer]).toBe(0);
+    expect(g.lostCountdown[leaver]).toBe(LEAVING_COUNTDOWN);
+    expect(g.state[leaver]).toBe(GuestState.Leaving);
+  });
+
+  it('loads version 32 staff and guest sight data before adding wayfinding fields', () => {
+    const { w, stayer, leaver } = wayfinder();
+    w.guests.cols.sightMemory[stayer] = 0x12345678;
+    expect(spawnStaff(w, StaffKind.Handyman)).toBe(true);
+    w.staff.cols.lawnsMown[0] = 14;
+
+    const loaded = deserialize(withoutColumns(serialize(w), 32, allWorldViews(w), []));
+    const g = loaded.guests.cols;
+
+    expect(g.sightMemory[stayer]).toBe(0x12345678);
+    expect(loaded.staff.cols.lawnsMown[0]).toBe(14);
+    expect(g.lostCountdown[stayer]).toBe(0);
+    expect(g.navGoal[stayer]).toBe(0);
+    expect(g.pathHistory0[stayer]).toBe(0);
+    expect(g.lostCountdown[leaver]).toBe(LEAVING_COUNTDOWN);
   });
 });

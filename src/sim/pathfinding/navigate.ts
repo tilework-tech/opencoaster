@@ -8,22 +8,51 @@ import { networkFor, QUEUE_CAP } from './network';
 
 type RngLike = Pick<Prng, 'int'>;
 
+/** Junctions a guest looks ahead through when walking the park without a map. */
+export const GUEST_JUNCTIONS = 5;
+/** Junctions a guest holding a park map looks ahead through. */
+export const GUEST_MAP_JUNCTIONS = 7;
+/** Junctions a guest heading for the exit looks ahead through. */
+export const GUEST_LEAVING_JUNCTIONS = 7;
+/** Junctions a guest heading for the exit looks ahead through once it has been lost for a while. */
+export const GUEST_LEAVING_LOST_JUNCTIONS = 8;
+/** Junctions staff look ahead through. */
+export const STAFF_JUNCTIONS = 8;
+
+/** Junctions of a goal-directed walk that are remembered. */
+const MEMORY_SLOTS = 4;
+
+/**
+ * The last few junctions an entity passed through on its way to one goal, each with the exits it
+ * has not taken yet. Back at a remembered junction it chooses among the untried exits, so it works
+ * through the alternatives instead of repeating the same wrong turn. Choosing a new goal clears it.
+ */
+export interface JunctionMemory {
+  /** Goal node plus one the memory belongs to; 0 = none. */
+  goal: number;
+  /** Slot the next new junction is written to. */
+  cursor: number;
+  /** `(node + 1) << 4 | untried exits`; 0 = empty. */
+  slots: Int32Array;
+}
+
+export function createJunctionMemory(): JunctionMemory {
+  return { goal: 0, cursor: 0, slots: new Int32Array(MEMORY_SLOTS) };
+}
+
 export interface NavOptions {
   /** Direction the entity just moved in; the reverse is avoided unless at a dead end. */
   fromDir: number;
-  /**
-   * Junction budget per decision. A junction costs 1, or 2 when the corridor leading to it had
-   * no choice along the way; corridor tiles themselves are free.
-   */
+  /** Junction budget per decision. Every junction costs 1; corridor tiles are free. */
   maxJunctions: number;
   /** Total corridor tiles one decision may traverse. */
   maxTiles: number;
   /** Search radius (Chebyshev, tiles) around the start tile. */
   maxDistance: number;
-  /** Tiles walked since the current target was chosen. */
-  stepsTaken: number;
-  /** Past this many steps the entity is lost and wanders. Use a huge value to never get lost. */
-  lostAfter: number;
+  /** When wandering aimlessly, go straight on half the time if that exit is open. */
+  straightBias: boolean;
+  /** Junctions passed on the way to the current goal; null = none remembered. */
+  memory: JunctionMemory | null;
   /** Per-tile mask (1 = inside). When set, movement is confined to it; outside tiles route back in. */
   patrol: PatrolMask | null;
 }
@@ -36,18 +65,19 @@ function patrolContains(patrol: PatrolMask, tile: number): boolean {
 
 export const DEFAULT_GUEST_OPTS: Readonly<NavOptions> = {
   fromDir: DIR_NONE,
-  maxJunctions: 16,
+  maxJunctions: GUEST_JUNCTIONS,
   maxTiles: 15000,
   maxDistance: 200,
-  stepsTaken: 0,
-  lostAfter: 0x7fffffff,
+  straightBias: true,
+  memory: null,
   patrol: null,
 };
 
 export const DEFAULT_STAFF_OPTS: Readonly<NavOptions> = {
   ...DEFAULT_GUEST_OPTS,
-  maxJunctions: 16,
+  maxJunctions: STAFF_JUNCTIONS,
   maxTiles: 50000,
+  straightBias: false,
 };
 
 /** Distance score per tile: the original scores in 32-unit tiles and divides by 16. */
@@ -100,8 +130,57 @@ export function nextDirection(
   if (target >= 0 && net.component(tile) !== net.component(target)) return DIR_NONE;
   if (popcount4(cand) === 1) return lowestDir(cand);
 
-  if (target < 0 || opts.stepsTaken > opts.lostAfter) return pickDir(cand, rng);
-  return searchDirection(net, tile, target, cand, rng, opts);
+  if (target < 0) return wanderDirection(cand, rng, opts);
+  const memory = opts.memory;
+  if (memory === null) return searchDirection(net, tile, target, cand, rng, opts);
+  return rememberedDirection(net, tile, target, mask, cand, rng, opts, memory);
+}
+
+/** Aimless walking: straight on half the time when that exit is open, else any open exit. */
+function wanderDirection(cand: number, rng: RngLike, opts: Readonly<NavOptions>): number {
+  if (opts.straightBias && opts.fromDir >= 0 && (cand & (1 << opts.fromDir)) !== 0) {
+    if (rng.int(2) === 0) return opts.fromDir;
+  }
+  return pickDir(cand, rng);
+}
+
+/**
+ * Goal-directed choice at a junction with memory. A junction with three or more exits is
+ * remembered along with the exits not yet taken; coming back to it the entity chooses among those,
+ * and when none are left every exit becomes available again.
+ */
+function rememberedDirection(
+  net: PathNetwork,
+  tile: number,
+  target: number,
+  mask: number,
+  cand: number,
+  rng: RngLike,
+  opts: Readonly<NavOptions>,
+  memory: JunctionMemory,
+): number {
+  const slots = memory.slots;
+  if (memory.goal !== target + 1) {
+    memory.goal = target + 1;
+    memory.cursor = 0;
+    slots.fill(0);
+  }
+  if (popcount4(mask) < 3) return searchDirection(net, tile, target, cand, rng, opts);
+
+  const key = (tile + 1) << 4;
+  let at = -1;
+  for (let i = 0; i < MEMORY_SLOTS; i++) {
+    if (slots[i] >> 4 === tile + 1) at = i;
+  }
+  const choices = at >= 0 ? slots[at] & 15 & cand || cand : cand;
+  const dir = searchDirection(net, tile, target, choices, rng, opts);
+  if (dir === DIR_NONE) return dir;
+  if (at < 0) {
+    at = memory.cursor;
+    memory.cursor = (at + 1) & (MEMORY_SLOTS - 1);
+  }
+  slots[at] = key | (choices & ~(1 << dir));
+  return dir;
 }
 
 /** True if a walkable route joins the two tiles (optionally staying inside a patrol mask). */
@@ -154,10 +233,8 @@ function distanceScore(a: number, b: number, g: PathGraph): number {
   return (ax < ay ? ax : ay) * SCORE_PER_TILE * SECONDARY_RANGE + (ax < ay ? ay : ax);
 }
 
-/** Budget cost of arriving at a junction through a corridor of `len` steps. */
-function junctionCost(len: number): number {
-  return len > 1 ? 2 : 1;
-}
+/** Budget cost of arriving at a junction. */
+const JUNCTION_COST = 1;
 
 function chebyshev(a: number, b: number, g: PathGraph): number {
   const w = g.width;
@@ -240,7 +317,7 @@ function searchDirection(
       qArr[tail] = net.walkArr;
       qFirst[tail] = d;
       qSteps[tail] = net.walkLen;
-      qCost[tail] = junctionCost(net.walkLen);
+      qCost[tail] = JUNCTION_COST;
       tail++;
     }
   }
@@ -272,7 +349,7 @@ function searchDirection(
         qArr[tail] = net.linkArr[node * 4 + d];
         qFirst[tail] = first;
         qSteps[tail] = total;
-        const next = cost + junctionCost(net.linkLen[node * 4 + d]);
+        const next = cost + JUNCTION_COST;
         qCost[tail] = next < 255 ? next : 255;
         tail++;
       }
@@ -313,7 +390,7 @@ function patrolDirection(
   if (!patrolContains(patrol, tile))
     return bfsFirstDir(net, tile, -1, patrol, false, opts.maxTiles);
 
-  if (target >= 0 && patrolContains(patrol, target) && opts.stepsTaken <= opts.lostAfter) {
+  if (target >= 0 && patrolContains(patrol, target)) {
     const d = bfsFirstDir(net, tile, target, patrol, true, opts.maxTiles);
     if (d !== DIR_NONE) return d;
   }

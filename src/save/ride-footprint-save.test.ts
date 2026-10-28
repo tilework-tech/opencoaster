@@ -40,6 +40,11 @@ function asVersion19(w: World): Uint8Array {
     w.guests.cols.queueSeq,
     w.guests.cols.happinessTarget,
     ...statsVersionColumns(w),
+    w.guests.cols.lostCountdown,
+    w.guests.cols.pathHistory0,
+    w.guests.cols.pathHistory1,
+    w.guests.cols.pathHistory2,
+    w.guests.cols.pathHistory3,
   ]);
   const body = bytes.subarray(8 + headerLength);
   const kept: Uint8Array[] = [];

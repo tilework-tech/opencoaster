@@ -118,15 +118,17 @@ Effect: an empty park starts at 250 (700 base − 150 guest term − 100 missing
 
 ### Navigation
 
-| Constant        | Value                  | Meaning                                                                                                       |
-| --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Junction budget | 16 cost units          | A junction costs 1, or 2 after a stretch with no choice. A park map adds 16.                                  |
-| Distance score  | 2 x smaller axis gap   | Compared first; the larger gap is a secondary tie-break.                                                      |
-| Lost after      | 12 blind choices       | Junction choices where the pathfinder could not see the target and the guest got no closer. A map doubles it. |
-| Lost wander     | 2,400 ticks            | No ride or stall is chosen; a guest without a map seeks the nearest visible information kiosk.                |
-| Park map        | 0.60                   | Bought by a lost guest at an information kiosk, in place of an umbrella.                                      |
-| Exit not found  | -30 happiness / 11,520 | A leaving guest with no route to the gate stays, wanders and thinks "I'm lost!" (O-44).                       |
-| Walking energy  | -1 per need step       | Need steps are 128 ticks; only wandering and queuing guests lose energy this way.                             |
+| Constant        | Value                                   | Meaning                                                                                                                 |
+| --------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Junction budget | 5, map 7, leaving 7, leaving and lost 8 | Every junction costs 1; staff use 8. Sources in [mechanics/guests.md](mechanics/guests.md) P-1.                         |
+| Junction memory | last 4 junctions                        | Untried exits only on a return; cleared with the goal (P-5).                                                            |
+| Distance score  | 2 x smaller axis gap                    | Compared first; the larger gap is a secondary tie-break.                                                                |
+| Ride search     | 200 tile centres                        | Thoughts and -30 happiness target at 60 and 30 left; the ride is dropped at zero (P-7).                                 |
+| Exit search     | 254, then every 90 tile centres         | "I can't find the exit!" and -30 happiness target each time; below 90 the guest is lost (P-8).                          |
+| Lost clock      | 508 tile centres, then every 48         | "I'm lost!" and -30 happiness target; needs two rides in the park (P-9).                                                |
+| Lost wander     | 2,400 ticks                             | Project mechanic (P-11): no ride or stall is chosen; a guest without a map seeks the nearest visible information kiosk. |
+| Park map        | 0.60                                    | Bought by a lost guest at an information kiosk, in place of an umbrella.                                                |
+| Walking energy  | -1 per need step                        | Need steps are 128 ticks; only wandering and queuing guests lose energy this way.                                       |
 
 ### Stalls
 
@@ -392,7 +394,7 @@ Scenario sweep after the retune (`pnpm balance -- --scenario all --seeds 12`): t
 ## Known gaps
 
 - Far rides still cost a long walk: after the change the wooden coaster (a 35-tile walk, open for the last two thirds of the year) serves 362 guests against 905 for the merry-go-round next to the gate, and it is capped by what its single train carries. Energy is a placeholder until the target-based needs model lands ([fidelity/guests.md](fidelity/guests.md) F2).
-- The lost trigger and the park map's effect are placeholders (O-62 has no source); lost guests are rare in the scripted park (never more than one in the month-end samples).
+- The lost state follows the public OpenRCT2 description (guests.md P-7 to P-10); the kiosk seek and 2,400-tick lost wander are project mechanics (P-11). Banner "no entry" signs are not modelled.
 - Guests remember their last ride and total ride count for the repeat-ride gate; they do not keep a broader ride-history list.
 - Stall demand is not weather-sensitive beyond the kiosk (economy.md describes hot/cold item values).
 - Per-type wear, the age schedule, and repair times are tuned for plausibility rather than measured against RCT2 (see DECISIONS.md). Starter ride and food/drink prices use selected OpenRCT2 compatibility references; other stall prices are not comprehensively calibrated.
@@ -439,3 +441,26 @@ Scenario win counts from `pnpm balance -- --scenario all --jobs 3` (12 seeds eac
 | tidewater-docks      | challenging | 12/12  | 12/12 |
 
 Two scenarios gain wins (bramblewood-hollow +1, thunderhead-mesa +2); none lose. The strategies keep every ride open and a mechanic hired, so the repair reliability gain and the end of wear on closed rides outweigh the higher per-type unreliability factors. The 5,000-guest bench (`pnpm bench -- --guests 5000 --ticks 200`, three runs each, quiet machine) is unchanged: mean 0.49-0.50 ms/tick on main against 0.49-0.54 ms on this branch, p99 1.21 ms against 1.20-1.33 ms.
+
+## Gap #6: RCT2 guest wayfinding
+
+OpenRCT2 scopes pathfinding history to the active goal: `GuestPathfinding.cpp` uses the stored history only when its recorded goal matches the current goal, and clears it when the goal is different or invalid. Its ride-selection and map-purchase paths reset the goal. References: [GuestPathfinding.cpp](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/peep/GuestPathfinding.cpp#L1208-L1270), [Peep::ResetPathfinding](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Peep.cpp#L2461-L2467), [guest ride selection](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Guest.cpp#L1649-L1668), [map purchase](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Guest.cpp#L1496-L1498). These are behavior references only; no OpenRCT2 code is copied.
+
+OpenCoaster clears junction memory when it assigns or clears a ride destination, when a guest starts leaving, and when it reaches a goal. A regression test covers a guest on a dead-end spur selecting a new ride behind it and successfully walking back. Arrival cleanup is an OpenCoaster lifecycle choice; the cited source establishes clearing on a changed or invalid goal, not a separate arrival-only reset.
+
+After rebasing on PR #172 (main `a89cf5c`, save version 32), `pnpm balance -- --scenario all` ran all 12 seeds per scenario on main and this branch. No scenario targets or tuning values changed. Main won 95/120; this branch won 91/120.
+
+| scenario             | tab         | main wins | branch wins | main mean cash | branch mean cash |
+| -------------------- | ----------- | --------: | ----------: | -------------: | ---------------: |
+| bramblewood-hollow   | beginner    |     12/12 |       12/12 |        $60,803 |          $53,300 |
+| copper-ridge         | challenging |      0/12 |        0/12 |         $1,848 |          -$1,480 |
+| glacier-point        | expert      |      0/12 |        0/12 |        $17,548 |          $17,558 |
+| lantern-bay          | beginner    |     12/12 |       12/12 |        $61,616 |          $52,047 |
+| meadowbrook          | beginner    |     12/12 |        7/12 |        $57,463 |          $49,136 |
+| open-grounds         | other       |     12/12 |       12/12 |        $65,245 |          $58,982 |
+| riverside-fairground | real        |     12/12 |       12/12 |        $15,129 |           $4,221 |
+| seaside-promenade    | real        |     12/12 |       12/12 |        $26,687 |          $21,088 |
+| thunderhead-mesa     | expert      |     11/12 |       12/12 |        $60,021 |          $52,927 |
+| tidewater-docks      | challenging |     12/12 |       12/12 |        $61,884 |          $58,376 |
+
+The default starter balance run (`pnpm balance`, modest profile, eight months) recorded $3,688 in ride tickets and $3,707 in food and drink sales on this branch, versus $4,930 and $4,735 on main. Ride-ticket income is 25.2% below main, outside the roughly 5% target. The wayfinding reset fixes the goal-history mismatch, but these measurements do not show the expected economy recovery; this PR remains unmerged pending further diagnosis.
