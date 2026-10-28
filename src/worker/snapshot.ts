@@ -12,7 +12,12 @@ import { recountRideLines } from '../sim/guests/ride-lines';
 import { circuitStatus, getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
-import { LedgerCategory, PriceMode, completedMonthTotal } from '../sim/economy/ledger';
+import {
+  HISTORY_MONTHS,
+  LedgerCategory,
+  PriceMode,
+  completedMonthTotal,
+} from '../sim/economy/ledger';
 import type { ActiveAward, ParkNewsItem } from '../sim/economy/ledger';
 import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
@@ -231,6 +236,10 @@ export interface SnapshotEconomy {
   wageBillPerWeek: number;
   thisMonth: number[];
   lastMonth: number[];
+  /** Retained completed months, newest first, each indexed by `LedgerCategory`. */
+  pastMonths: number[][];
+  /** Ride and stall running costs billed every fortnight, cents. */
+  rideUpkeepPerFortnight: number;
   monthsCompleted: number;
   /** Guests the park rating counts as lost: lost, stranded, or off the footpaths. */
   lostGuests: number;
@@ -315,6 +324,10 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
       wageBillPerWeek: 0,
       thisMonth: new Array<number>(LedgerCategory.COUNT).fill(0),
       lastMonth: new Array<number>(LedgerCategory.COUNT).fill(0),
+      pastMonths: Array.from({ length: HISTORY_MONTHS }, () =>
+        new Array<number>(LedgerCategory.COUNT).fill(0),
+      ),
+      rideUpkeepPerFortnight: 0,
       monthsCompleted: 0,
       lostGuests: 0,
     },
@@ -602,7 +615,11 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   for (let c = 0; c < LedgerCategory.COUNT; c++) {
     economy.thisMonth[c] = ledger.monthlyTotals[c];
     economy.lastMonth[c] = completedMonthTotal(ledger, c);
+    for (let m = 0; m < HISTORY_MONTHS; m++) {
+      economy.pastMonths[m][c] = completedMonthTotal(ledger, c, m);
+    }
   }
+  economy.rideUpkeepPerFortnight = ledger.inputs.rideUpkeepPerFortnight;
   const research = world.research;
   const current = research.inventions[research.currentIndex];
   out.research.funding = research.funding;

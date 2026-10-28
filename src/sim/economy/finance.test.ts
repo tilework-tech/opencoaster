@@ -62,3 +62,32 @@ describe('interest and company value', () => {
     expect(sim.world.economy.cash).toBe(before - 10_000);
   });
 });
+
+describe('loan limits', () => {
+  it('borrows up to the scenario maximum exactly and no further', () => {
+    const l = loanable();
+    l.maxLoan = 300_000;
+    expect(borrow(l, 300_000)).toBe(true);
+    expect(borrow(l, 100_000)).toBe(false);
+    expect(l.loan).toBe(300_000);
+  });
+
+  it('rejects partial steps and repayments beyond the balance or cash', () => {
+    const l = loanable();
+    l.maxLoan = 300_000;
+    l.loan = 100_000;
+    l.cash = 500_000;
+    expect(repay(l, 150_000)).toBe(false);
+    expect(repay(l, 200_000)).toBe(false);
+    expect(repay(l, 100_000)).toBe(true);
+    expect(l.loan).toBe(0);
+  });
+
+  it('stops charging interest once the loan is repaid', () => {
+    const l = loanable();
+    l.loan = 100_000;
+    l.cash = 500_000;
+    repay(l, 100_000);
+    expect(weeklyInterestCents(l)).toBe(0);
+  });
+});

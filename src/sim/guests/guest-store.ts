@@ -31,6 +31,7 @@ export const enum GuestThought {
   QueuingForAges = 12,
   Tired = 13,
   OutOfMoney = 14,
+  BadValue = 15,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */

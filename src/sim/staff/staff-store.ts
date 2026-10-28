@@ -1,9 +1,11 @@
+import { WEEKS_PER_MONTH } from '../economy/calendar';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
 
 export const STAFF_WAGE_CENTS_PER_MONTH = [5_000, 8_000, 6_000, 5_500] as const;
+/** A park month is four weeks long, so a week of wages is a quarter of the monthly salary. */
 export const STAFF_WAGE_CENTS_PER_WEEK = STAFF_WAGE_CENTS_PER_MONTH.map((monthly) =>
-  Math.round((monthly * 12) / 52),
+  Math.round(monthly / WEEKS_PER_MONTH),
 );
 
 export function calculateStaffWageBill(w: World): number {

@@ -3,6 +3,7 @@ export const TICKS_PER_WEEK = 4096;
 export const TICKS_PER_FORTNIGHT = 8192;
 export const TICKS_PER_MONTH = 16384;
 export const MONTHS_PER_YEAR = 8;
+export const WEEKS_PER_MONTH = TICKS_PER_MONTH / TICKS_PER_WEEK;
 export const TICKS_PER_YEAR = TICKS_PER_MONTH * MONTHS_PER_YEAR;
 export const WEEKS_PER_YEAR = TICKS_PER_YEAR / TICKS_PER_WEEK;
 /** Park rating and park value refresh cadence (inferred from OpenRCT2 summaries). */

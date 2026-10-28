@@ -6,6 +6,8 @@ import { createBalancePark, TICKS_PER_YEAR } from './balance-park';
 import type { BalanceProfile } from './balance-park';
 import { TICKS_PER_MONTH } from '../src/sim/economy/calendar';
 import { LedgerCategory } from '../src/sim/economy/ledger';
+import { itemValueCents } from '../src/sim/guests/willingness';
+import { LOAN_STEP_CENTS } from '../src/sim/economy/finance';
 import { RIDE_CATALOG } from '../src/sim/rides/ride-types';
 import type { RideType } from '../src/sim/rides/ride-types';
 import { GuestThought } from '../src/sim/guests/guest-store';
@@ -41,7 +43,11 @@ if (!['minimal', 'modest', 'ambitious'].includes(profile)) {
 const park = createBalancePark({ seed: seed || undefined, profile });
 const sim = park.sim;
 const world = sim.world;
+const admissionDollars = arg('admission', -1);
+if (admissionDollars >= 0) world.economy.admissionPrice = Math.round(admissionDollars * 100);
 const fee = Math.max(1, world.economy.admissionPrice);
+const repayAtMonth = arg('repay-loan-month', -1);
+const priceAtValue = process.argv.includes('--stalls-at-value');
 
 function thoughtHistogram(s: Simulation): number[] {
   const g = s.world.guests.cols;
@@ -95,6 +101,26 @@ console.log(
 );
 
 for (let t = 0; t < ticks; t++) {
+  if (repayAtMonth >= 0 && world.tick === repayAtMonth * TICKS_PER_MONTH) {
+    const l = world.economy;
+    sim.enqueue({
+      type: 'economy',
+      action: {
+        type: 'repay',
+        cents:
+          Math.min(l.loan, l.cash - 1_000_000) -
+          (Math.min(l.loan, l.cash - 1_000_000) % LOAN_STEP_CENTS),
+      },
+    });
+  }
+  if (priceAtValue && world.tick % TICKS_PER_MONTH === 1) {
+    for (let slot = 0; slot < world.rides.count; slot++) {
+      const def = RIDE_CATALOG[world.rides.cols.typeId[slot] as RideType];
+      if (def.serves === undefined) continue;
+      const rideId = world.rides.slotToId[slot];
+      sim.enqueue({ type: 'setRidePrice', rideId, priceCents: itemValueCents(world, slot) });
+    }
+  }
   park.runSchedule();
   sim.step();
   const l = world.economy;

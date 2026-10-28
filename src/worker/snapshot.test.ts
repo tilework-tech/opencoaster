@@ -194,6 +194,25 @@ describe('render snapshot', () => {
     expect(snapshot.research.funding).toBe(Funding.Normal);
   });
 
+  it('publishes the retained months, newest first, and the recurring upkeep bill', () => {
+    const world = new World({ seed: 9, width: 8, height: 8 });
+    const l = world.economy;
+    l.monthsCompleted = 3;
+    l.historyHead = 2;
+    l.history[0 * LedgerCategory.COUNT + LedgerCategory.Wages] = -100;
+    l.history[1 * LedgerCategory.COUNT + LedgerCategory.Wages] = -200;
+    l.history[2 * LedgerCategory.COUNT + LedgerCategory.Wages] = -300;
+    l.inputs.rideUpkeepPerFortnight = 4_400;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+
+    expect(snapshot.economy.pastMonths.map((m) => m[LedgerCategory.Wages])).toEqual([
+      -300, -200, -100, 0, 0,
+    ]);
+    expect(snapshot.economy.rideUpkeepPerFortnight).toBe(4_400);
+  });
+
   it('publishes whether each tile allows construction', () => {
     const world = new World({ seed: 9, width: 8, height: 8 });
     const owned = world.map.index(2, 2);

@@ -209,7 +209,12 @@ export class WindowManager {
     const win = new UiWindow(spec, this);
     this.windows.set(spec.id, win);
     this.layer.append(win.root);
-    const fallback = cascadePosition(this.opened++, window.innerWidth, window.innerHeight);
+    const fallback = cascadePosition(
+      this.opened++,
+      window.innerWidth,
+      window.innerHeight,
+      spec.width,
+    );
     const remembered = this.positions.get(spec.id);
     const openingPointer = this.pointer;
     const place = (): void => {

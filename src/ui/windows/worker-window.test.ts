@@ -25,7 +25,7 @@ describe('worker details', () => {
       tileX: 4,
       tileY: 6,
       height: 2,
-      weeklyWage: 1846,
+      weeklyWage: 2000,
     });
   });
 

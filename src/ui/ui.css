@@ -467,7 +467,7 @@
 .ledger-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 11px;
 }
 .ledger-table th {
   text-align: left;
@@ -476,6 +476,17 @@
 .ledger-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.finance-outlook {
+  padding: 4px 6px;
+  border: 1px solid var(--bevel-dark);
+  font-weight: 600;
+}
+.finance-outlook[data-level='low'] {
+  color: #7a4a00;
+}
+.finance-outlook[data-level='overdrawn'] {
+  color: #a32117;
 }
 .ledger-total th,
 .ledger-total td {

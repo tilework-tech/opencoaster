@@ -966,7 +966,7 @@ describe('save: version 4 migration', () => {
     world.guests.cols.targetRide[2] = 0;
     const loaded = deserialize(versionFourSave(world));
     expect(loaded.guests.count).toBe(5);
-    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_154);
+    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_250);
     expect(loaded.park.entranceX).toBe(-1);
     for (let slot = 0; slot < 5; slot++) {
       if (slot !== 1) expect(loaded.guests.cols.x[slot]).toBe(world.guests.cols.x[slot]);
@@ -1006,7 +1006,7 @@ describe('save: version 4 migration', () => {
 
     expect(loaded.patrolAreas.every((value) => value === 0)).toBe(true);
     expect(loaded.umbrellas.every((value) => value === 0)).toBe(true);
-    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_154);
+    expect(loaded.economy.inputs.wageBillPerWeek).toBe(1_250);
     expect(loaded.park.entranceX).toBe(world.park.entranceX);
   });
 

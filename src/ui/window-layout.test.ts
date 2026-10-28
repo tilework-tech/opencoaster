@@ -25,6 +25,11 @@ describe('window layout', () => {
     expect(far.y).toBeLessThan(800);
   });
 
+  it('keeps a wide window fully on screen at its first position', () => {
+    expect(cascadePosition(0, 1280, 800, 460).x + 460).toBeLessThanOrEqual(1280);
+    expect(cascadePosition(0, 1280, 800).x + 380).toBeLessThanOrEqual(1280);
+  });
+
   it('keeps a dragged window title bar reachable', () => {
     const size = { width: 300, height: 200 };
     expect(clampPosition(-900, -50, size, 1280, 800)).toEqual({ x: -260, y: 40 });

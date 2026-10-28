@@ -8,6 +8,12 @@ export function formatMoney(cents: number): string {
   return `${cents < 0 ? '-' : ''}$${abs}`;
 }
 
+/** Whole dollars, for tables where cents only add width. */
+export function formatWholeMoney(cents: number): string {
+  const abs = Math.round(Math.abs(cents) / 100).toLocaleString('en-US');
+  return `${cents < 0 && Math.round(Math.abs(cents) / 100) > 0 ? '-' : ''}$${abs}`;
+}
+
 export function formatDate(tick: number): string {
   const date = gameDate(tick);
   return `${date.day} ${date.monthName}, Year ${date.year}`;

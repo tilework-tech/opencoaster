@@ -99,6 +99,8 @@ export interface RideTypeDef {
   breakdowns: readonly BreakdownWeight[];
   /** Price a new ride or stall starts at, in cents. */
   defaultPriceCents: number;
+  /** What guests think the item sold here is worth, in cents; the price they tolerate is measured from it. Defaults to `defaultPriceCents`. */
+  itemValueCents?: number;
   inspectionIntervalTicks: number;
   /** What a food or drink stall sells, which decides which guest needs it meets. */
   serves?: 'food' | 'drink';
@@ -406,6 +408,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     unreliability: 0,
     breakdowns: [],
     defaultPriceCents: 120,
+    itemValueCents: 190,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     serves: 'food',
   },
@@ -428,6 +431,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     unreliability: 0,
     breakdowns: [],
     defaultPriceCents: 80,
+    itemValueCents: 120,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     serves: 'drink',
   },

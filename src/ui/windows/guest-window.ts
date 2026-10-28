@@ -30,6 +30,7 @@ export const THOUGHT_LABELS: readonly string[] = [
   "I've been queuing for ages",
   "I'm tired",
   "I'm running out of money",
+  "I'm not paying that much",
 ];
 
 export interface GuestDetails {

@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { WEEKS_PER_MONTH } from '../economy/calendar';
 
 export enum Funding {
   None = 0,
@@ -9,9 +10,13 @@ export enum Funding {
 
 /**
  * Cash paid per month at each funding level (economy.md: $0 / $100 / $200 / $400 per month).
- * Charged on the month boundary, so it lands in the month that just ended.
+ * Paid in weekly quarters (see FUNDING_WEEKLY_CENTS).
  */
 export const FUNDING_MONTHLY_CENTS: readonly number[] = [0, 10_000, 20_000, 40_000];
+/** Funding is paid out weekly: a quarter of the monthly figure each week. */
+export const FUNDING_WEEKLY_CENTS: readonly number[] = FUNDING_MONTHLY_CENTS.map((monthly) =>
+  Math.floor(monthly / WEEKS_PER_MONTH),
+);
 
 /**
  * Work added to research progress each week at each funding level. The reported intervals
