@@ -23,6 +23,8 @@ export class PathNetwork {
   readonly linkArr: Uint8Array;
 
   readonly comp: Int32Array;
+  /** 1 for a node with exits that no neighbour leads back to (a ride exit); it shares its exit's component. */
+  private readonly sourceOnly: Uint8Array;
   private compValid = false;
 
   readonly stamp: Int32Array;
@@ -51,6 +53,7 @@ export class PathNetwork {
     this.linkLen = new Int32Array(n * 4);
     this.linkArr = new Uint8Array(n * 4);
     this.comp = new Int32Array(n);
+    this.sourceOnly = new Uint8Array(n);
     this.stamp = new Int32Array(n);
     this.tileQueue = new Int32Array(n);
     this.tileFirst = new Uint8Array(n);
@@ -125,9 +128,16 @@ export class PathNetwork {
     return this.comp[tile];
   }
 
+  /** True when walkers can leave `node` but never enter it. */
+  isSourceOnly(node: number): boolean {
+    if (!this.compValid) this.labelComponents();
+    return this.sourceOnly[node] === 1;
+  }
+
   private labelComponents(): void {
     const { comp, tileQueue: q, graph: g } = this;
     comp.fill(0);
+    this.sourceOnly.fill(0);
     let id = 0;
     for (let s = 0; s < this.size; s++) {
       if (comp[s] !== 0 || g.edgeMask(s) === 0) continue;
@@ -148,6 +158,16 @@ export class PathNetwork {
           }
         }
       }
+    }
+    // A node with exits that nothing leads back to (a ride exit) belongs to the component it feeds.
+    for (let s = 0; s < this.size; s++) {
+      const m = g.edgeMask(s);
+      if (m === 0) continue;
+      const d = m & 1 ? 0 : m & 2 ? 1 : m & 4 ? 2 : 3;
+      const nb = stepNode(g, s, d);
+      if ((g.edgeMask(nb) & (1 << oppositeDir(d))) !== 0) continue;
+      comp[s] = comp[nb];
+      this.sourceOnly[s] = 1;
     }
     this.compValid = true;
   }

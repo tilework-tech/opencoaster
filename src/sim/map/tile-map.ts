@@ -101,11 +101,41 @@ export const PATH_ENTRANCE_MARK = 0x20000000;
 /** `elData` mark on the path tile that is a ride's exit; queues never join it. */
 export const PATH_EXIT_MARK = 0x10000000;
 export const PATH_BOARDING_MARKS = PATH_ENTRANCE_MARK | PATH_EXIT_MARK;
+/**
+ * `elData` bits of a boarding tile's front edge: the one edge that joins it to the path, set with
+ * `PATH_FRONT_KNOWN` and the direction in `PATH_FRONT_DIR`. Written with the boarding marks.
+ */
+export const PATH_FRONT_SHIFT = 12;
+export const PATH_FRONT_DIR = 0x3 << PATH_FRONT_SHIFT;
+export const PATH_FRONT_KNOWN = 0x4000;
+export const PATH_BOARDING_BITS = PATH_BOARDING_MARKS | PATH_FRONT_DIR | PATH_FRONT_KNOWN;
 /** `elData` bits of a queue piece: bit `8 + dir` set when it is linked to its queue neighbour in `dir`. */
 export const PATH_QUEUE_LINK_SHIFT = 8;
 export const PATH_QUEUE_LINKS = 0xf << PATH_QUEUE_LINK_SHIFT;
 /** Bits of a path element's `elData` that survive addition changes and repairs. */
-export const PATH_KEPT_BITS = PATH_BOARDING_MARKS | PATH_QUEUE_LINKS;
+export const PATH_KEPT_BITS = PATH_BOARDING_BITS | PATH_QUEUE_LINKS;
+
+/** True for a ride exit, or a ride entrance (always a queue piece): tiles only their front edge joins. */
+export function isBoardingGate(map: TileMap, e: number): boolean {
+  const data = map.elData[e];
+  return (
+    (data & PATH_EXIT_MARK) !== 0 ||
+    ((data & PATH_ENTRANCE_MARK) !== 0 && (map.elFlags[e] & PathFlag.Queue) !== 0)
+  );
+}
+
+/** Front edge direction of a ride entrance or exit tile `e`, or -1 for any other path piece. */
+export function boardingFront(map: TileMap, e: number): number {
+  const data = map.elData[e];
+  if (!isBoardingGate(map, e) || !(data & PATH_FRONT_KNOWN)) return -1;
+  return (data & PATH_FRONT_DIR) >> PATH_FRONT_SHIFT;
+}
+
+/** False when `e` is a ride entrance or exit whose front edge is not `dir`: it joins nothing on its sides or back. */
+export function boardingAllows(map: TileMap, e: number, dir: number): boolean {
+  const front = boardingFront(map, e);
+  return front < 0 || front === dir;
+}
 
 export function isPathElementBroken(map: TileMap, element: number): boolean {
   return element >= 0 && (map.elData[element] & PATH_ADDITION_BROKEN) !== 0;
@@ -512,7 +542,14 @@ export class TileMap {
           const joined = n < 0 ? -1 : this.adjoiningPath(i, e, d);
           const toQueue =
             joined >= 0 ? (this.elFlags[joined] & PathFlag.Queue) !== 0 : n >= 0 && this.isQueue(n);
-          if (n < 0 || toQueue || this.wallOnEdge(i, d) || this.wallOnEdge(n, (d + 2) & 3)) {
+          const toBoarding = joined >= 0 && isBoardingGate(this, joined);
+          if (
+            n < 0 ||
+            toQueue ||
+            toBoarding ||
+            this.wallOnEdge(i, d) ||
+            this.wallOnEdge(n, (d + 2) & 3)
+          ) {
             mask &= ~(1 << d);
             continue;
           }

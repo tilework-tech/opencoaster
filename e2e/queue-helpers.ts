@@ -13,8 +13,8 @@ import type { Tile } from './footpath-helpers';
  * through the controls: a walkway north from the gate, a Merry-Go-Round with its entrance, exit and
  * queue line, and a path from the exit back to the walkway.
  *
- *   y=61..63            ride (52..54, 61..63), exit (51,63) -> exit path (50..48,63) -> walkway
- *   y=64  walkway (47,64) queue (48..52,64)  entrance (53,64)
+ *   y=63..65  ride (54..56, 63..65); exit (53,63) fronts west -> exit path (52..48,63) -> walkway
+ *   y=64  walkway (47,64) queue (48..52,64)  entrance (53,64) fronts west
  */
 export const WALKWAY: Tile[] = Array.from({ length: 9 }, (_, k) => ({ x: 47, y: 70 - k }));
 
@@ -32,11 +32,13 @@ export interface Layout {
 
 /** A six-tile queue running east from the walkway into the entrance of a 3x3 ride. */
 export const LONG_QUEUE: Layout = {
-  ride: { x: 53, y: 62 },
+  ride: { x: 55, y: 64 },
   entrance: { x: 53, y: 64 },
-  exit: { x: 51, y: 63 },
+  exit: { x: 53, y: 63 },
   queue: Array.from({ length: 5 }, (_, k) => ({ x: 48 + k, y: 64 })),
   exitRun: [
+    { x: 52, y: 63 },
+    { x: 51, y: 63 },
     { x: 50, y: 63 },
     { x: 49, y: 63 },
     { x: 48, y: 63 },
@@ -52,9 +54,9 @@ export const LONG_QUEUE: Layout = {
  *   y=66   48 49 50 51 52, open end (48,66) beside the walkway at (47,66)
  */
 export const SNAKE_QUEUE: Layout = {
-  ride: { x: 53, y: 62 },
+  ride: { x: 55, y: 64 },
   entrance: { x: 53, y: 64 },
-  exit: { x: 51, y: 63 },
+  exit: { x: 53, y: 63 },
   queueDrags: [
     [48, 49, 50, 51, 52].map((x) => ({ x, y: 66 })).concat([{ x: 52, y: 65 }]),
     [
@@ -69,6 +71,8 @@ export const SNAKE_QUEUE: Layout = {
     return this.queueDrags!.flat();
   },
   exitRun: [
+    { x: 52, y: 63 },
+    { x: 51, y: 63 },
     { x: 50, y: 63 },
     { x: 49, y: 63 },
     { x: 48, y: 63 },
@@ -81,9 +85,9 @@ export const SNAKE_QUEUE: Layout = {
  * walkway so the open end stays on the path.
  */
 export const BLOCK_QUEUE: Layout = {
-  ride: { x: 53, y: 62 },
+  ride: { x: 55, y: 64 },
   entrance: { x: 53, y: 64 },
-  exit: { x: 51, y: 63 },
+  exit: { x: 53, y: 63 },
   queueDrags: [
     [48, 49, 50, 51, 52].map((x) => ({ x, y: 64 })),
     [49, 50, 51, 52].map((x) => ({ x, y: 65 })),
@@ -93,6 +97,8 @@ export const BLOCK_QUEUE: Layout = {
     return this.queueDrags!.flat();
   },
   exitRun: [
+    { x: 52, y: 63 },
+    { x: 51, y: 63 },
     { x: 50, y: 63 },
     { x: 49, y: 63 },
     { x: 48, y: 63 },
@@ -101,9 +107,9 @@ export const BLOCK_QUEUE: Layout = {
 
 /** The entrance is the whole queue: it touches the walkway, so the line holds only the loading area. */
 export const SHORT_QUEUE: Layout = {
-  ride: { x: 49, y: 62 },
+  ride: { x: 50, y: 64 },
   entrance: { x: 48, y: 64 },
-  exit: { x: 47, y: 62 },
+  exit: { x: 48, y: 63 },
   queue: [],
   exitRun: [],
 };

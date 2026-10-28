@@ -115,7 +115,7 @@ export function isReachable(
   const net = networkFor(graph);
   if (graph.edgeMask(from) === 0 || graph.edgeMask(to) === 0) return false;
   if (from === to) return true;
-  if (patrol === null) return net.component(from) === net.component(to);
+  if (patrol === null) return !net.isSourceOnly(to) && net.component(from) === net.component(to);
   if (!patrolContains(patrol, from) || !patrolContains(patrol, to)) return false;
   return bfsFirstDir(net, from, to, patrol, true, INF) !== DIR_NONE;
 }

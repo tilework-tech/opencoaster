@@ -1,7 +1,15 @@
 import type { World } from '../core/world';
-import { PATH_ENTRANCE_MARK, PATH_EXIT_MARK } from '../map/tile-map';
+import {
+  boardingFront,
+  PATH_BOARDING_MARKS,
+  PATH_ENTRANCE_MARK,
+  PATH_EXIT_MARK,
+  PATH_FRONT_DIR,
+  PATH_FRONT_KNOWN,
+} from '../map/tile-map';
 import { queueOpening, recomputePathEdges, trimEntranceLinks } from '../map/paths';
 import { RIDE_CATALOG } from './ride-types';
+import { inferBoardingFronts } from './boarding-front';
 import type { RideType } from './ride-types';
 import { DIR_DX, DIR_DY } from '../pathfinding/directions';
 import { GuestState } from '../guests/guest-store';
@@ -89,11 +97,29 @@ function usesQueue(world: World, slot: number): boolean {
   return category !== 'stall' && category !== 'facility';
 }
 
-function markBit(world: World, tile: number, bit: number, on: boolean): void {
-  const e = world.map.pathElement(tile, -1);
+function writeMark(world: World, key: number, on: boolean): void {
+  const e = world.map.pathElement(key >> 1, -1);
   if (e < 0) return;
-  if (on) world.map.elData[e] |= bit;
-  else world.map.elData[e] &= ~bit;
+  const data = world.map.elData;
+  data[e] &= ~PATH_BOARDING_MARKS;
+  if (!on) data[e] &= ~(PATH_FRONT_DIR | PATH_FRONT_KNOWN);
+  if (on) data[e] |= key & 1 ? PATH_EXIT_MARK : PATH_ENTRANCE_MARK;
+}
+
+/** Gives a ride's entrance and exit pieces a front edge when they have none, facing as the connections do. */
+function ensureFronts(world: World, slot: number): void {
+  const ride = world.rides.cols;
+  const map = world.map;
+  const missing = (x: number, y: number): boolean => {
+    if (!map.inBounds(x, y)) return false;
+    const e = map.pathElement(map.index(x, y), -1);
+    return e >= 0 && !(map.elData[e] & PATH_FRONT_KNOWN);
+  };
+  if (
+    (ride.entrancePlaced[slot] && missing(ride.entranceX[slot], ride.entranceY[slot])) ||
+    (ride.exitPlaced[slot] && missing(ride.exitX[slot], ride.exitY[slot]))
+  )
+    inferBoardingFronts(world, slot);
 }
 
 /**
@@ -122,17 +148,15 @@ function syncBoardingMarks(world: World): boolean {
   if (!q.ready) {
     for (let i = 0; i < map.width * map.height; i++) {
       for (let e = map.firstElement(i); e >= 0; e = map.nextElement(e)) {
-        map.elData[e] &= ~(PATH_ENTRANCE_MARK | PATH_EXIT_MARK);
+        map.elData[e] &= ~PATH_BOARDING_MARKS;
       }
     }
   } else {
-    for (let k = 0; k < q.markCount; k++) {
-      markBit(world, q.marks[k] >> 1, q.marks[k] & 1 ? PATH_EXIT_MARK : PATH_ENTRANCE_MARK, false);
-    }
+    for (let k = 0; k < q.markCount; k++) writeMark(world, q.marks[k], false);
   }
-  for (let k = 0; k < n; k++) {
-    markBit(world, next[k] >> 1, next[k] & 1 ? PATH_EXIT_MARK : PATH_ENTRANCE_MARK, true);
-  }
+  for (let k = 0; k < n; k++) writeMark(world, next[k], true);
+  for (let slot = 0; slot < world.rides.count; slot++)
+    if (usesQueue(world, slot)) ensureFronts(world, slot);
   for (let k = 0; k < n; k++) {
     if (next[k] & 1) continue;
     const tile = next[k] >> 1;
@@ -145,6 +169,16 @@ function syncBoardingMarks(world: World): boolean {
   q.markCount = n;
   q.ready = true;
   return true;
+}
+
+/** Path tile a guest walks to for an entrance with no queue line: the one in front of it, or the entrance itself when it has no front. */
+function entranceApproach(map: World['map'], entrance: number): number {
+  const e = map.pathElement(entrance, -1);
+  if (e < 0) return -1;
+  const front = boardingFront(map, e);
+  if (front < 0) return entrance;
+  const n = map.neighbor(entrance, front);
+  return n >= 0 && map.adjoiningPath(entrance, e, front) >= 0 ? n : -1;
 }
 
 function rebuild(world: World): void {
@@ -164,7 +198,7 @@ function rebuild(world: World): void {
     if (!map.inBounds(ride.entranceX[slot], ride.entranceY[slot])) continue;
     const entrance = map.index(ride.entranceX[slot], ride.entranceY[slot]);
     if (!map.isQueue(entrance)) {
-      q.joinTile[slot] = map.isWalkable(entrance) ? entrance : -1;
+      q.joinTile[slot] = entranceApproach(map, entrance);
       continue;
     }
     if (q.owner[entrance] >= 0) continue;

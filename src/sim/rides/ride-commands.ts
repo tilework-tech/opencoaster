@@ -7,9 +7,7 @@ import { charge, earn } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
 import { PATH_COST_CENTS, Surface } from '../map/tile-map';
 import { placePath } from '../map/paths';
-import { PIECES } from '../track/catalog';
-import { circuitStatus, rotateTile } from '../track/construction';
-import { PieceFlag } from '../track/track-types';
+import { circuitStatus } from '../track/construction';
 import { abortCycle, abortRideTest, isTrackRide, startRideTest } from './coaster';
 import { GuestState, HEADING_NONE } from '../guests/guest-store';
 import { removeRideTrains } from '../vehicles/ride-trains';
@@ -23,7 +21,8 @@ import {
 } from './ride-operations';
 import type { RideMode } from './ride-modes';
 import { RIDE_CATALOG } from './ride-types';
-import { rideCoversTile, rideFootprintTiles } from './ride-footprint';
+import { rideCoversTile } from './ride-footprint';
+import { faceBoardingAwayFromRide, rideBoardingTiles } from './ride-boarding';
 import type { RideType } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
 import { RideResult } from './ride-results';
@@ -41,27 +40,6 @@ export type RideCommand =
   /** `minutes` is one of `INSPECTION_INTERVAL_MINUTES`, or 0 for never. */
   | { type: 'setRideInspection'; rideId: number; minutes: number }
   | { type: 'demolishRide'; rideId: number };
-
-/** Tiles the ride's guests board and leave from: station tiles for track rides. */
-function boardingTiles(world: World, rideId: number, slot: number): Array<[number, number]> {
-  const out: Array<[number, number]> = [];
-  const ride = world.rides.cols;
-  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-  if (!def.usesTrack) {
-    return rideFootprintTiles(def, ride.rideX[slot], ride.rideY[slot], ride.dir[slot]);
-  }
-  const pieces = world.track.pieces;
-  for (let s = 0; s < pieces.count; s++) {
-    if (pieces.cols.rideId[s] !== rideId) continue;
-    const piece = PIECES[pieces.cols.pieceType[s]];
-    if (!(piece.flags & PieceFlag.Station)) continue;
-    for (const cell of piece.footprint) {
-      const [rx, ry] = rotateTile(cell.i, cell.j, pieces.cols.dir[s]);
-      out.push([pieces.cols.x[s] + rx, pieces.cols.y[s] + ry]);
-    }
-  }
-  return out;
-}
 
 function rideFootprintAt(world: World, x: number, y: number): boolean {
   for (let slot = 0; slot < world.rides.count; slot++) {
@@ -175,7 +153,7 @@ function placeBoardingTile(
   if (!Number.isInteger(x) || !Number.isInteger(y) || !world.map.inBounds(x, y)) {
     return RideResult.OutOfBounds;
   }
-  const adjacent = boardingTiles(world, rideId, slot).some(
+  const adjacent = rideBoardingTiles(world, slot).some(
     ([bx, by]) => Math.abs(bx - x) + Math.abs(by - y) === 1,
   );
   if (!adjacent) return RideResult.NotAdjacentToStation;
@@ -236,11 +214,13 @@ function placeBoardingTile(
     ride.entranceX[slot] = x;
     ride.entranceY[slot] = y;
     ride.entrancePlaced[slot] = 1;
+    faceBoardingAwayFromRide(world, slot);
     connectQueueFromEntrance(world, slot);
   } else {
     ride.exitX[slot] = x;
     ride.exitY[slot] = y;
     ride.exitPlaced[slot] = 1;
+    faceBoardingAwayFromRide(world, slot);
     if (ride.entrancePlaced[slot]) connectQueueFromEntrance(world, slot);
   }
   return RideResult.Ok;
