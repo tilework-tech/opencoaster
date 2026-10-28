@@ -6,7 +6,12 @@ import { RideState } from '../rides/ride-store';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
 import { calculateStaffWageBill } from '../staff/staff-store';
 import { setEconomyInputs } from './api';
-import { rideValueContribution } from './park-rating';
+import {
+  HAPPY_ABOVE,
+  LITTER_COUNTS_AFTER_TICKS,
+  RATING_UNIT_DIVISOR,
+  rideValueContribution,
+} from './park-rating';
 import { ridersInRecentWindow } from '../rides/ride-store';
 import type { ParkValueRide } from './ledger';
 
@@ -15,8 +20,6 @@ export const INPUT_REFRESH_TICKS = 128;
 /** Fortnightly running cost of an open ride, as a fraction (1/N) of its build cost. Tunable. */
 export const RIDE_UPKEEP_DIVISOR = 50;
 const SHOP_UPKEEP_DIVISOR = 100;
-/** Guests below this happiness count as unhappy for the park rating. */
-const UNHAPPY_BELOW = 128;
 
 /**
  * Publishes what rides, stalls and guests currently contribute to the economy: upkeep,
@@ -31,17 +34,25 @@ export const parkInputsSystem: System = {
     let upkeep = 0;
     const valueRides: ParkValueRide[] = [];
     let qualifying = 0;
-    let attractions = 0;
     let excitement = 0;
     let intensity = 0;
-    let broken = 0;
+    let downRides = 0;
+    let rideCount = 0;
+    let rated = 0;
+    let ratedExcitement = 0;
+    let ratedIntensity = 0;
     for (let slot = 0; slot < world.rides.count; slot++) {
       const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
       if (!definition) continue;
       const shop = isShopCategory(definition.category);
+      rideCount++;
+      if (ride.state[slot] === RideState.Broken) downRides++;
+      if (!shop && ride.tested[slot] !== 0) {
+        rated++;
+        ratedExcitement += Math.trunc(ride.excitement[slot] / RATING_UNIT_DIVISOR);
+        ratedIntensity += Math.trunc(ride.intensity[slot] / RATING_UNIT_DIVISOR);
+      }
       if (!shop) {
-        attractions++;
-        if (ride.state[slot] === RideState.Broken) broken++;
         const typeBonus = Math.max(
           1,
           Math.floor(definition.valueWeights.reduce((sum, weight) => sum + weight, 0) / 10),
@@ -63,12 +74,17 @@ export const parkInputsSystem: System = {
       }
     }
 
+    let oldLitter = 0;
+    for (let slot = 0; slot < world.litter.count; slot++) {
+      if (world.litter.cols.age[slot] >= LITTER_COUNTS_AFTER_TICKS) oldLitter++;
+    }
+
     const guests = world.guests.cols;
-    let unhappy = 0;
+    let happy = 0;
     let lost = 0;
     const map = world.map;
     for (let slot = 0; slot < world.guests.count; slot++) {
-      if (guests.happiness[slot] < UNHAPPY_BELOW) unhappy++;
+      if (guests.happiness[slot] > HAPPY_ABOVE) happy++;
       if (guests.state[slot] === GuestState.Riding) continue;
       if (guests.lostTicks[slot] > 0) {
         lost++;
@@ -86,10 +102,17 @@ export const parkInputsSystem: System = {
       excitementTotal: excitement,
       intensityTotal: intensity,
       lostGuests: lost,
+      happyGuests: happy,
       unhappyPercent:
-        world.guests.count === 0 ? 0 : Math.floor((unhappy * 100) / world.guests.count),
-      rideDowntimePercent: attractions === 0 ? 0 : Math.floor((broken * 100) / attractions),
-      litter: world.litter.count,
+        world.guests.count === 0
+          ? 0
+          : Math.floor(((world.guests.count - happy) * 100) / world.guests.count),
+      rideCount,
+      ratedRideCount: rated,
+      ratedExcitementEighths: ratedExcitement,
+      ratedIntensityEighths: ratedIntensity,
+      rideDowntimePercent: rideCount === 0 ? 0 : Math.floor((downRides * 100) / rideCount),
+      litter: oldLitter,
     });
   },
 };

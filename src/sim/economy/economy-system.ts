@@ -12,6 +12,7 @@ import { weeklyInterestCents } from './finance';
 import { chargeCampaignWeek } from './marketing';
 import { DIFFICULT_RATING_BASE, RATING_BASE, computeParkRating, parkValueOf } from './park-rating';
 import { evaluateMonthlyAward } from './awards';
+import { refreshGuestGeneration } from './guest-generation';
 
 /**
  * Order at a shared boundary: weekly charges, then fortnightly upkeep, then the monthly
@@ -45,6 +46,7 @@ export const economySystem: System = {
       l.parkValue = parkValueOf(guests, l.inputs);
       const base = l.difficultRating ? DIFFICULT_RATING_BASE : RATING_BASE;
       l.parkRating = computeParkRating(guests, l.inputs, base);
+      refreshGuestGeneration(world);
     }
     if (monthBoundary) evaluateMonthlyAward(world, t);
   },

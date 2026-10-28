@@ -34,6 +34,15 @@ export interface ParkValueRide {
   typeBonus: number;
 }
 
+/** Figures refreshed with the park rating that decide how many guests arrive. */
+export interface GuestGeneration {
+  /** Chance per tick, out of 65536, that a guest arrives. */
+  probability: number;
+  suggestedGuestMax: number;
+  /** Twice the value of open rides beyond what they charge, in cents. */
+  rideValueForMoney: number;
+}
+
 export interface ActiveAward {
   awardId: number;
   expiresTick: number;
@@ -65,8 +74,17 @@ export interface EconomyInputs {
   lostGuests: number;
   /** Guests who are unhappy, as a whole percent (0-100). */
   unhappyPercent: number;
-  /** Ride downtime, as a whole percent of ride-time (0-100). */
+  /** Average downtime across every ride and stall, as a whole percent (0-100). */
   rideDowntimePercent: number;
+  /** Rides and stalls of every kind, open or not. */
+  rideCount: number;
+  /** Rides that have ratings (tested), open or not, and their summed ratings in eighths of 1/100. */
+  ratedRideCount: number;
+  ratedExcitementEighths: number;
+  ratedIntensityEighths: number;
+  /** Guests whose happiness is above the happy threshold. */
+  happyGuests: number;
+  /** Litter old enough to count against the park rating. */
   litter: number;
   casualties: number;
   drowningCasualties: number;
@@ -98,6 +116,7 @@ export interface Ledger {
   campaignTarget: number;
   parkValue: number;
   parkRating: number;
+  guestGeneration: GuestGeneration;
   activeAwards: ActiveAward[];
   parkNews: ParkNewsItem[];
 }
@@ -122,6 +141,11 @@ export function createLedger(): Ledger {
       lostGuests: 0,
       unhappyPercent: 0,
       rideDowntimePercent: 0,
+      rideCount: 0,
+      ratedRideCount: 0,
+      ratedExcitementEighths: 0,
+      ratedIntensityEighths: 0,
+      happyGuests: 0,
       litter: 0,
       casualties: 0,
       drowningCasualties: 0,
@@ -138,6 +162,7 @@ export function createLedger(): Ledger {
     campaignTarget: NO_TARGET,
     parkValue: 0,
     parkRating: 0,
+    guestGeneration: { probability: 0, suggestedGuestMax: 0, rideValueForMoney: 0 },
     activeAwards: [],
     parkNews: [],
   };
@@ -180,6 +205,7 @@ export interface LedgerSave {
   campaignTarget?: number;
   parkValue: number;
   parkRating: number;
+  guestGeneration?: GuestGeneration;
   activeAwards?: ActiveAward[];
   parkNews?: ParkNewsItem[];
 }
@@ -203,6 +229,7 @@ export function saveLedger(l: Ledger): LedgerSave {
     campaignTarget: l.campaignTarget,
     parkValue: l.parkValue,
     parkRating: l.parkRating,
+    guestGeneration: { ...l.guestGeneration },
     activeAwards: l.activeAwards.map((award) => ({ ...award })),
     parkNews: l.parkNews.map((item) => ({ ...item })),
   };
@@ -226,6 +253,7 @@ export function restoreLedger(l: Ledger, s: LedgerSave): void {
   l.campaignTarget = s.campaignTarget ?? NO_TARGET;
   l.parkValue = s.parkValue;
   l.parkRating = s.parkRating;
+  l.guestGeneration = { ...createLedger().guestGeneration, ...s.guestGeneration };
   l.activeAwards = (s.activeAwards ?? []).map((award) => ({ ...award }));
   l.parkNews = (s.parkNews ?? []).map((item) => ({ ...item }));
 }

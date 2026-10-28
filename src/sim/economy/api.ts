@@ -3,11 +3,7 @@ import { PriceMode, post } from './ledger';
 import { LedgerCategory } from './ledger';
 import type { EconomyInputs } from './ledger';
 import type { VoucherKind } from './vouchers';
-import {
-  marketingAttractionBps as attractionBps,
-  marketingRideTarget as rideTarget,
-  marketingVoucher,
-} from './marketing';
+import { marketingRideTarget as rideTarget, marketingVoucher } from './marketing';
 
 function assertAmount(cents: number): void {
   if (!Number.isSafeInteger(cents) || cents < 0) {
@@ -51,11 +47,6 @@ export function gateAdmissionCents(world: World): number {
 /** Whether rides may charge guests per ride. */
 export function ridePricingEnabled(world: World): boolean {
   return world.economy.priceMode === PriceMode.PerRide;
-}
-
-/** Guest attraction multiplier in basis points (10000 = no campaign). */
-export function marketingAttraction(world: World): number {
-  return attractionBps(world.economy);
 }
 
 /** Voucher the next arriving guest receives, with the ride or stall it names. */

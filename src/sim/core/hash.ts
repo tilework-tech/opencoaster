@@ -57,6 +57,7 @@ export function hashWorld(world: World): number {
     e.parkValue,
     e.parkRating,
     ...Object.values(e.inputs),
+    ...Object.values(e.guestGeneration),
   ]) {
     mix(v);
   }

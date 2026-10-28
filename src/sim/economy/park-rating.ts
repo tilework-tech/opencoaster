@@ -1,28 +1,42 @@
 import type { EconomyInputs, ParkValueRide } from './ledger';
 
 export const MAX_RATING = 999;
-/** Starting rating before penalties; a difficult-rating scenario starts lower. */
-export const RATING_BASE = 700;
-export const DIFFICULT_RATING_BASE = 600;
-/** New attractions gradually restore the points removed from the starting base. */
-const DEVELOPMENT_BONUS_MAX = 480;
-const DEVELOPMENT_BONUS_ATTRACTIONS = 6;
-/** Happiness penalty when no guest is happy; each happiness point removed lowers it by 2. */
+/** Rating before any factor is applied; a difficult-rating scenario starts lower. */
+export const RATING_BASE = 1150;
+export const DIFFICULT_RATING_BASE = 1050;
+/** Guest-count factor: -150 with no guests, rising one point per 13 guests up to 2000 guests. */
+const GUEST_TERM_MAX_GUESTS = 2000;
+const GUEST_TERM_DIVISOR = 13;
+const GUEST_TERM_FLOOR = 150;
+/** Happiness factor: -500 with no happy guests, 0 once 250/300 (5/6) of guests are happy. */
 const HAPPINESS_PENALTY_START = 500;
-/** Happy share, in 300ths of the guest count, beyond which the happiness penalty is fully removed. */
 const HAPPINESS_OFFSET_CAP = 250;
+/** Guests with happiness above this count as happy. */
+export const HAPPY_ABOVE = 128;
+/** Lost guests up to this number are forgiven; each further one costs LOST_GUEST_PENALTY. */
+const LOST_GUESTS_FORGIVEN = 25;
+const LOST_GUEST_PENALTY = 7;
+/** Uptime factor: -200 plus two points per percent of average ride uptime. */
+const UPTIME_PENALTY_START = 200;
+/** Ride-mix factor: -100 with no rated rides, else up to -100 as averages leave the ideals below. */
+const PROXIMITY_PENALTY_START = 100;
+const PROXIMITY_CAP = 50;
+/** Ride ratings are summed in eighths of a hundredth: a 3.68 excitement is 46. */
+export const RATING_UNIT_DIVISOR = 8;
+/** Ideal average excitement and intensity, in eighths. */
+export const IDEAL_EXCITEMENT_EIGHTHS = 46;
+export const IDEAL_INTENSITY_EIGHTHS = 65;
+/** Variety factor: -200 until the capped excitement and intensity totals add up to 2000. */
+const VARIETY_PENALTY_START = 200;
+const VARIETY_TOTAL_CAP = 1000;
+const VARIETY_DIVISOR = 10;
+/** Litter at least this many ticks old counts against the rating; the cap is 150 pieces. */
+export const LITTER_COUNTS_AFTER_TICKS = 7680;
+const LITTER_CAP = 150;
+const LITTER_PENALTY_EACH = 4;
+const CASUALTY_PENALTY_CAP = 1000;
 /** $7 per guest, expressed in cents. */
 export const PARK_VALUE_PER_GUEST_CENTS = 700;
-
-/** Average ride ratings, in 1/100 units, that earn no proximity penalty. */
-export const IDEAL_EXCITEMENT = 368;
-export const IDEAL_INTENSITY = 520;
-/** Each hundredth of distance from the ideal average costs 1/PROXIMITY_DIVISOR rating, up to the cap. */
-const PROXIMITY_DIVISOR = 4;
-const PROXIMITY_CAP = 50;
-/** Total excitement (and, separately, intensity) at which the variety penalty disappears: 80.00. */
-export const VARIETY_TOTAL = 8000;
-const VARIETY_CAP = 100;
 
 /** Community-derived per-type factors; exact RCT2 values remain an open compatibility question. */
 export function rideValueContribution(rides: readonly ParkValueRide[]): number {
@@ -44,56 +58,96 @@ export function parkValueOf(
   );
 }
 
-function proximityPenalty(total: number, count: number, ideal: number): number {
-  if (count === 0) return PROXIMITY_CAP;
-  const average = Math.floor(total / count);
-  return Math.min(PROXIMITY_CAP, Math.floor(Math.abs(average - ideal) / PROXIMITY_DIVISOR));
+export interface ParkRatingBreakdown {
+  base: number;
+  guests: number;
+  happiness: number;
+  lostGuests: number;
+  rideUptime: number;
+  rideMix: number;
+  rideVariety: number;
+  litter: number;
+  casualties: number;
+  /** Sum of the factors before clamping to 0..999. */
+  raw: number;
+  total: number;
 }
 
-function varietyPenalty(total: number): number {
-  return Math.max(0, VARIETY_CAP - Math.floor((total * VARIETY_CAP) / VARIETY_TOTAL));
+function rideMixFactor(inputs: EconomyInputs): number {
+  const rated = inputs.ratedRideCount;
+  if (rated <= 0) return -PROXIMITY_PENALTY_START;
+  const excitement = Math.abs(
+    Math.trunc(inputs.ratedExcitementEighths / rated) - IDEAL_EXCITEMENT_EIGHTHS,
+  );
+  const intensity = Math.abs(
+    Math.trunc(inputs.ratedIntensityEighths / rated) - IDEAL_INTENSITY_EIGHTHS,
+  );
+  return (
+    0 -
+    Math.min(Math.trunc(excitement / 2), PROXIMITY_CAP) -
+    Math.min(Math.trunc(intensity / 2), PROXIMITY_CAP)
+  );
 }
 
 /**
- * Community-derived rating formula (economy.md). The guest term follows the guide's stated
- * range (-150 at 0 guests to about +3 at 2000). The ride terms penalise a park whose open
- * attractions average far from the ideal excitement and intensity, and a park whose attractions
- * add up to too little excitement or intensity overall. Constants are tunable (docs/BALANCE.md)
- * and unverified against the original game.
+ * Park rating as a sum of named factors. The factor shapes follow the original game's rating
+ * (docs/mechanics/gap-audit.md, "Park rating formula"): a high base, then penalties for few or
+ * unhappy guests, lost guests, ride downtime, rides far from the ideal excitement/intensity,
+ * a thin ride roster, old litter and casualties. The ride factors count every rated ride,
+ * open or not.
  */
+export function parkRatingBreakdown(
+  guests: number,
+  inputs: EconomyInputs,
+  base: number = RATING_BASE,
+): ParkRatingBreakdown {
+  const guestFactor =
+    Math.trunc(Math.min(guests, GUEST_TERM_MAX_GUESTS) / GUEST_TERM_DIVISOR) - GUEST_TERM_FLOOR;
+  const happyShare =
+    guests > 0
+      ? Math.min(HAPPINESS_OFFSET_CAP, Math.trunc((inputs.happyGuests * 300) / guests))
+      : 0;
+  const happiness = 2 * happyShare - HAPPINESS_PENALTY_START;
+  const lostGuests = 0 - Math.max(0, inputs.lostGuests - LOST_GUESTS_FORGIVEN) * LOST_GUEST_PENALTY;
+  const uptime = inputs.rideCount > 0 ? (100 - inputs.rideDowntimePercent) * 2 : 0;
+  const rideUptime = uptime - UPTIME_PENALTY_START;
+  const rideMix = rideMixFactor(inputs);
+  const varietyTotal =
+    Math.min(VARIETY_TOTAL_CAP, inputs.ratedExcitementEighths) +
+    Math.min(VARIETY_TOTAL_CAP, inputs.ratedIntensityEighths);
+  const rideVariety = Math.trunc(varietyTotal / VARIETY_DIVISOR) - VARIETY_PENALTY_START;
+  const litter = 0 - Math.min(LITTER_CAP, inputs.litter) * LITTER_PENALTY_EACH;
+  const typedCasualties = inputs.drowningCasualtyPenalty + inputs.fatalRideCrashPenalty;
+  const casualties = 0 - Math.min(CASUALTY_PENALTY_CAP, typedCasualties + inputs.casualties * 100);
+  const raw =
+    base +
+    guestFactor +
+    happiness +
+    lostGuests +
+    rideUptime +
+    rideMix +
+    rideVariety +
+    litter +
+    casualties;
+  return {
+    base,
+    guests: guestFactor,
+    happiness,
+    lostGuests,
+    rideUptime,
+    rideMix,
+    rideVariety,
+    litter,
+    casualties,
+    raw,
+    total: Math.min(MAX_RATING, Math.max(0, raw)),
+  };
+}
+
 export function computeParkRating(
   guests: number,
   inputs: EconomyInputs,
   base: number = RATING_BASE,
 ): number {
-  const guestTerm = Math.floor(Math.min(guests, 2000) / 13) - 150;
-  const happyThirds = 3 * (100 - inputs.unhappyPercent);
-  const happinessPenalty =
-    HAPPINESS_PENALTY_START - 2 * Math.min(HAPPINESS_OFFSET_CAP, happyThirds);
-  const lostPenalty = Math.max(0, inputs.lostGuests - 25) * 7;
-  const uptimePenalty = Math.min(200, inputs.rideDowntimePercent * 2);
-  const litterPenalty = Math.min(600, inputs.litter * 4);
-  const typedCasualties = inputs.drowningCasualtyPenalty + inputs.fatalRideCrashPenalty;
-  const casualtyPenalty = Math.min(1000, typedCasualties + inputs.casualties * 100);
-  const count = inputs.openAttractionCount;
-  const ridePenalty =
-    proximityPenalty(inputs.excitementTotal, count, IDEAL_EXCITEMENT) +
-    proximityPenalty(inputs.intensityTotal, count, IDEAL_INTENSITY) +
-    varietyPenalty(inputs.excitementTotal) +
-    varietyPenalty(inputs.intensityTotal);
-  const developmentBonus = Math.floor(
-    (Math.min(count, DEVELOPMENT_BONUS_ATTRACTIONS) * DEVELOPMENT_BONUS_MAX) /
-      DEVELOPMENT_BONUS_ATTRACTIONS,
-  );
-  const raw =
-    base +
-    guestTerm +
-    developmentBonus -
-    happinessPenalty -
-    lostPenalty -
-    uptimePenalty -
-    litterPenalty -
-    casualtyPenalty -
-    ridePenalty;
-  return Math.min(MAX_RATING, Math.max(0, raw));
+  return parkRatingBreakdown(guests, inputs, base).total;
 }
