@@ -3,7 +3,7 @@
   "name": "Tidewater Docks",
   "category": "challenging",
   "climate": "cold",
-  "description": "An old dockyard park with a loan to clear. Pay off the debt and lift the park's value past $5,500 by the end of year four.",
+  "description": "An old dockyard park with a loan to clear. Pay off the debt and lift the park's value past $8,300 by the end of year four.",
   "seed": 2202,
   "map": {
     "width": 80,
@@ -172,7 +172,7 @@
   ],
   "objective": {
     "kind": "repayLoanAndParkValue",
-    "target": 550000,
+    "target": 830000,
     "byYear": 4
   }
 }

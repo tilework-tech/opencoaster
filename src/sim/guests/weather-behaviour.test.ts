@@ -26,7 +26,7 @@ function chooseRide(weather: WeatherKind, umbrella: boolean) {
   world.rides.cols.nausea[thrill] = 0;
   world.weather.kind = weather;
   if (umbrella) world.umbrellas[world.guests.slotToId[guest]] = 1;
-  createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 })).update(world);
+  createGuestSystem(() => ({ generationProbability: 0, entranceFee: 0 })).update(world);
   return {
     selected: world.guests.cols.targetRide[guest],
     gentleId: world.rides.slotToId[gentle],
@@ -59,7 +59,7 @@ describe('weather guest behaviour', () => {
     world.rides.cols.price[kiosk] = 75;
     world.weather.kind = WeatherKind.Rain;
     const cash = world.guests.cols.cash[guest];
-    const update = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));
+    const update = createGuestSystem(() => ({ generationProbability: 0, entranceFee: 0 }));
 
     const startX = world.guests.cols.x[guest];
     for (let tick = 0; tick < 1200; tick++) {
@@ -90,7 +90,7 @@ describe('weather guest behaviour', () => {
       world.weather.kind = WeatherKind.Rain;
       const cash = world.guests.cols.cash[guest];
 
-      createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 })).update(world);
+      createGuestSystem(() => ({ generationProbability: 0, entranceFee: 0 })).update(world);
 
       expect(world.umbrellas[world.guests.slotToId[guest]]).toBe(0);
       expect(world.guests.cols.cash[guest]).toBe(cash);
@@ -111,7 +111,7 @@ describe('rain shelters', () => {
     }
     world.guests.cols.happiness[guest] = 200;
     world.weather.kind = WeatherKind.Rain;
-    const system = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));
+    const system = createGuestSystem(() => ({ generationProbability: 0, entranceFee: 0 }));
     for (let i = 0; i < 400; i++) {
       system.update(world);
       world.tick++;

@@ -3,7 +3,7 @@
   "name": "Copper Ridge",
   "category": "challenging",
   "climate": "hotAndDry",
-  "description": "Dry red hills with a mine-cart past. Build five coasters rated 4.60 excitement or better before the end of the first year.",
+  "description": "Dry red hills with a mine-cart past. Build three coasters rated 4.30 excitement or better before the end of the first year.",
   "seed": 2101,
   "map": {
     "width": 96,
@@ -170,8 +170,8 @@
   },
   "objective": {
     "kind": "completeCoasters",
-    "target": 5,
-    "minimumExcitement": 460,
+    "target": 3,
+    "minimumExcitement": 430,
     "byYear": 1
   }
 }

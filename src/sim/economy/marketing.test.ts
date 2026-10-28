@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BASIS_POINTS, NO_TARGET, createLedger } from './ledger';
+import { NO_TARGET, createLedger } from './ledger';
 import { VoucherKind } from './vouchers';
 import {
   CAMPAIGNS,
   MAX_CAMPAIGN_WEEKS,
   chargeCampaignWeek,
-  marketingAttractionBps,
+  marketingRideTarget,
   marketingVoucher,
   startCampaign,
 } from './marketing';
@@ -88,14 +88,27 @@ describe('campaign costs and attraction', () => {
     expect(l.cash).toBe(cash - 2 * CAMPAIGNS[FREE_ENTRY].weeklyCostCents);
     expect(l.campaignWeeksLeft).toBe(0);
   });
+});
 
-  it('boosts attraction only while the campaign has weeks left', () => {
+describe('campaign ride target', () => {
+  it('names the promoted ride only while a ride campaign has weeks left', () => {
     const l = createLedger();
-    expect(marketingAttractionBps(l)).toBe(BASIS_POINTS);
-    startCampaign(l, FREE_ENTRY, 1);
-    expect(marketingAttractionBps(l)).toBe(CAMPAIGNS[FREE_ENTRY].attractionBps);
+    expect(marketingRideTarget(l)).toBe(NO_TARGET);
+    startCampaign(
+      l,
+      CAMPAIGNS.findIndex((c) => c.name === 'Free ride vouchers'),
+      1,
+      7,
+    );
+    expect(marketingRideTarget(l)).toBe(7);
     chargeCampaignWeek(l);
-    expect(marketingAttractionBps(l)).toBe(BASIS_POINTS);
+    expect(marketingRideTarget(l)).toBe(NO_TARGET);
+  });
+
+  it('names no ride for a park-wide campaign', () => {
+    const l = createLedger();
+    startCampaign(l, FREE_ENTRY, 1);
+    expect(marketingRideTarget(l)).toBe(NO_TARGET);
   });
 });
 

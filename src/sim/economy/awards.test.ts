@@ -3,8 +3,8 @@ import { Simulation } from '../core/simulation';
 import { TICKS_PER_MONTH } from './calendar';
 import { createSnapshot, writeSnapshot } from '../../worker/snapshot';
 import { deserialize, serialize } from '../../save/save';
-import { awardAttractionBps, AWARDS, AWARD_DURATION_MONTHS, evaluateMonthlyAward } from './awards';
-import { marketingAttraction } from './api';
+import { AWARDS, AWARD_DURATION_MONTHS, evaluateMonthlyAward } from './awards';
+import { guestGenerationProbability } from './guest-generation';
 import { spawnGuest } from '../guests/guest-store';
 import { GuestState } from '../guests/guest-store';
 import { RideState } from '../rides/ride-store';
@@ -64,9 +64,7 @@ describe('monthly park awards', () => {
     expect(news(sim).length).toBeGreaterThan(0);
     expect(news(sim)).toEqual(news(new Simulation(restored)));
     expect(sim.world.economy.activeAwards).toEqual(restored.economy.activeAwards);
-    expect(awardAttractionBps(sim.world.economy.activeAwards, sim.world.tick)).toBe(
-      awardAttractionBps(restored.economy.activeAwards, restored.tick),
-    );
+    expect(restored.economy.guestGeneration).toEqual(sim.world.economy.guestGeneration);
   });
 
   it('registers the documented award catalog and expires its attraction effect', () => {
@@ -94,17 +92,19 @@ describe('monthly park awards', () => {
       awardId: 0,
       expiresTick: AWARD_DURATION_MONTHS * TICKS_PER_MONTH,
     });
-    expect(awardAttractionBps(sim.world.economy.activeAwards, 0)).toBe(12_500);
-    expect(
-      awardAttractionBps(sim.world.economy.activeAwards, AWARD_DURATION_MONTHS * TICKS_PER_MONTH),
-    ).toBe(10_000);
-
-    sim.world.economy.campaignId = 1;
-    sim.world.economy.campaignWeeksLeft = 1;
-    expect(marketingAttraction(sim.world)).toBeGreaterThan(10_000);
-    expect(awardAttractionBps(sim.world.economy.activeAwards, sim.world.tick)).toBe(12_500);
-    sim.world.economy.activeAwards = [{ awardId: 13, expiresTick: 100_000 }];
-    expect(awardAttractionBps(sim.world.economy.activeAwards, sim.world.tick)).toBe(7_500);
+    const probabilityAt = (tick: number, awards = sim.world.economy.activeAwards) =>
+      guestGenerationProbability({
+        parkRating: 850,
+        guests: 0,
+        suggestedGuestMax: 1000,
+        entranceFeeCents: 0,
+        rideValueForMoney: 0,
+        awards,
+        tick,
+      });
+    expect(probabilityAt(0)).toBe(875);
+    expect(probabilityAt(AWARD_DURATION_MONTHS * TICKS_PER_MONTH)).toBe(700);
+    expect(probabilityAt(0, [{ awardId: 13, expiresTick: 100_000 }])).toBe(525);
   });
 
   it('judges park food awards from hunger satiation', () => {

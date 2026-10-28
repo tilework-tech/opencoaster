@@ -25,7 +25,7 @@ Marketing has six campaign types, each available for one to six weeks. The weekl
 
 The RCT2 manual says campaigns bring new guests to the park, lists six campaign choices, and lets the player choose a duration in weeks. [Manual, Research and Marketing](https://rct2.rctspace.com/rct2_manual.pdf#page=26) OpenRCT2 is used only as a behavior reference for the campaign attraction weights and voucher/target distinctions; its implementation is not copied. [OpenRCT2 Marketing reference](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/management/Marketing.cpp)
 
-OpenCoaster converts the OpenRCT2 relative attraction weights into its existing arrival multiplier model. The multipliers are a project approximation, not a claim of exact vanilla RCT2 probability values. Entry vouchers affect the gate charge; ride and food vouchers are stored on guests and only apply to the selected target. Ride campaigns direct arriving guests to their selected open ride. Campaigns charge once per active week and stop after their selected duration.
+Each running campaign rolls once per tick against its own chance out of 65,536 (free entry 400, free rides 300, park advertising 250, the others 200) for an extra guest, separately from the natural arrival roll that depends on the park rating; those chances are OpenRCT2's relative weights used as probabilities, not a claim of exact vanilla RCT2 values. Entry vouchers affect the gate charge; ride and food vouchers are stored on guests and only apply to the selected target. Ride campaigns direct arriving guests to their selected open ride. Campaigns charge once per active week and stop after their selected duration.
 
 ## Sources and limits
 

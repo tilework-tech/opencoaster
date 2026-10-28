@@ -135,16 +135,6 @@ export function evaluateMonthlyAward(world: World, tick: number): void {
   if (l.parkNews.length > MAX_NEWS) l.parkNews.splice(0, l.parkNews.length - MAX_NEWS);
 }
 
-export function awardAttractionBps(awards: readonly ActiveAward[], tick: number): number {
-  let bps = 10_000;
-  for (const active of awards) {
-    if (active.expiresTick <= tick) continue;
-    const definition = AWARDS[active.awardId];
-    if (definition) bps = Math.floor((bps * (definition.positive ? 12_500 : 7_500)) / 10_000);
-  }
-  return bps;
-}
-
 export function liveAwards(l: Ledger, tick: number): ActiveAward[] {
   return l.activeAwards.filter((award) => award.expiresTick > tick);
 }

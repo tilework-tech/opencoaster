@@ -26,7 +26,6 @@ export function createLitterSystem(): System {
           }
         } else if (world.rng.int(TRASH_ONE_IN) === 0) dropLitter(world, x, y, LitterKind.Trash);
       }
-      world.economy.inputs.litter = Math.min(100, litter.count);
     },
   };
 }
