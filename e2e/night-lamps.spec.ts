@@ -226,6 +226,8 @@ async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
             if (backend === 'webgl2') {
               const gl = canvas.getContext('webgl2')!;
               gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+            } else {
+              canvas.getContext('2d')!.getImageData(0, 0, 1, 1);
             }
           };
           for (let i = 0; i < 5; i++) sync(api.draw(backend, hour, 0, zoom, lit));
@@ -316,12 +318,14 @@ for (const backend of BACKENDS) {
         runs.push(
           await page.evaluate(
             ([b, h, l]) =>
-              (window as unknown as { __night: { time: TimeFn } }).__night.time(b, h, 0.6, l, 12),
+              (window as unknown as { __night: { time: TimeFn } }).__night.time(b, h, 0.6, l, 40),
             [backend, hour, lit] as const,
           ),
         );
       results[label] = runs;
     }
+    for (const run of results['day-on'] as Array<{ median: number }>)
+      expect(run.median).toBeGreaterThan(1);
     console.log(`NIGHT_BENCH_RESULT ${backend} ${JSON.stringify(results)}`);
     expect(Object.keys(results).length).toBeGreaterThan(1);
     if (backend === 'canvas2d') {

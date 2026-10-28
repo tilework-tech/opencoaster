@@ -11,14 +11,14 @@ import {
 } from './night-lighting';
 import type { LampLightBuffer } from './night-lighting';
 
-/** Canvas2D night pass: dims the finished scene, then adds lamp pools and lit lamp heads. */
+/**
+ * Canvas2D night pass: multiplies the finished scene by the ambient tint, then adds one light-pool
+ * sprite per lamp and the lit lamp heads. The pool sprite is a small CPU-backed canvas rebuilt only
+ * when the scale changes, so a frame never reads a large offscreen canvas back into the scene.
+ */
 export class CanvasNightPass {
-  private poolCanvas: HTMLCanvasElement | null = null;
-  private cachedPositions = new Float32Array(0);
-  private cachedLampCount = -1;
-  private cachedWidth = 0;
-  private cachedScale = 0;
-  private cachedDpr = 0;
+  private poolSprite: HTMLCanvasElement | null = null;
+  private poolScale = 0;
 
   /**
    * Draws over the whole canvas in backing-pixel space. `lampCount` lamps are read from `lights`,
@@ -34,6 +34,7 @@ export class CanvasNightPass {
   ): void {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
     if (darkness > 0) {
       const [r, g, b] = ambientTint(darkness);
       ctx.globalCompositeOperation = 'multiply';
@@ -44,10 +45,6 @@ export class CanvasNightPass {
     ctx.restore();
   }
 
-  /**
-   * Each pool ring is one path over every lamp, so a ring costs a single fill however many lamps
-   * there are; where pools overlap the light does not add up twice.
-   */
   private drawLamps(
     ctx: CanvasRenderingContext2D,
     lights: LampLightBuffer,
@@ -55,85 +52,46 @@ export class CanvasNightPass {
     scale: number,
     dpr: number,
   ): void {
-    const canvas = ctx.canvas;
-    this.cachePools(canvas.width, canvas.height, lights, lampCount, scale, dpr);
+    const sprite = this.poolSpriteFor(scale);
+    const halfWidth = sprite.width >> 1;
+    const halfHeight = sprite.height >> 1;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(this.poolCanvas!, 0, 0);
+    for (let i = 0; i < lampCount; i++)
+      ctx.drawImage(
+        sprite,
+        Math.round(lights.data[i * 2]! * dpr) - halfWidth,
+        Math.round(lights.data[i * 2 + 1]! * dpr) - halfHeight,
+      );
     this.drawHeads(ctx, lights, lampCount, scale, dpr);
   }
 
-  private cachePools(
-    width: number,
-    height: number,
-    lights: LampLightBuffer,
-    lampCount: number,
-    scale: number,
-    dpr: number,
-  ): void {
-    if (!this.poolCanvas) this.poolCanvas = document.createElement('canvas');
-    const canvas = this.poolCanvas;
-    const changed =
-      canvas.width !== width ||
-      canvas.height !== height ||
-      this.cachedLampCount !== lampCount ||
-      this.cachedScale !== scale ||
-      this.cachedDpr !== dpr ||
-      this.positionsChanged(lights, lampCount);
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
-    this.cachedWidth = width;
-    if (changed) {
-      const poolCtx = canvas.getContext('2d');
-      if (!poolCtx) throw new Error('Canvas2D light-pool context is unavailable');
-      poolCtx.setTransform(1, 0, 0, 1, 0, 0);
-      poolCtx.clearRect(0, 0, width, height);
-      this.drawPools(poolCtx, lights, lampCount, scale, dpr);
-      this.copyPositions(lights, lampCount);
-      this.cachedLampCount = lampCount;
-      this.cachedScale = scale;
-      this.cachedDpr = dpr;
-      return;
-    }
-  }
-
-  private positionsChanged(lights: LampLightBuffer, lampCount: number): boolean {
-    if (this.cachedWidth === 0 || this.cachedPositions.length !== lampCount * 2) return true;
-    for (let i = 0; i < lampCount * 2; i++)
-      if (this.cachedPositions[i] !== lights.data[i]) return true;
-    return false;
-  }
-
-  private copyPositions(lights: LampLightBuffer, lampCount: number): void {
-    if (this.cachedPositions.length !== lampCount * 2)
-      this.cachedPositions = new Float32Array(lampCount * 2);
-    this.cachedPositions.set(lights.data.subarray(0, lampCount * 2));
-  }
-
-  private drawPools(
-    ctx: CanvasRenderingContext2D,
-    lights: LampLightBuffer,
-    lampCount: number,
-    scale: number,
-    dpr: number,
-  ): void {
+  /** One lamp's banded pool: each pixel holds the lamp colour at the strength of its ring. */
+  private poolSpriteFor(scale: number): HTMLCanvasElement {
+    if (this.poolSprite && this.poolScale === scale) return this.poolSprite;
+    const width = Math.max(2, Math.ceil(POOL_RADIUS_X * scale) * 2);
+    const height = Math.max(2, Math.ceil(POOL_RADIUS_Y * scale) * 2);
+    const canvas = this.poolSprite ?? document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('Canvas2D light-pool context is unavailable');
+    const image = ctx.createImageData(width, height);
     const [lr, lg, lb] = LAMP_LIGHT_COLOUR;
-    ctx.globalCompositeOperation = 'lighter';
-    for (let band = POOL_BANDS.length - 1; band >= 0; band--) {
-      const [edge, strength] = POOL_BANDS[band]!;
-      const next = POOL_BANDS[band + 1]?.[1] ?? 0;
-      const step = strength - next;
-      ctx.fillStyle = `rgb(${Math.round(lr * step)},${Math.round(lg * step)},${Math.round(lb * step)})`;
-      const radiusX = POOL_RADIUS_X * edge * scale;
-      const radiusY = POOL_RADIUS_Y * edge * scale;
-      ctx.beginPath();
-      for (let i = 0; i < lampCount; i++) {
-        const x = Math.round(lights.data[i * 2]! * dpr);
-        const y = Math.round(lights.data[i * 2 + 1]! * dpr);
-        ctx.moveTo(x + radiusX, y);
-        ctx.ellipse(x, y, radiusX, radiusY, 0, 0, Math.PI * 2);
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const radius = Math.hypot((x + 0.5) / (width / 2) - 1, (y + 0.5) / (height / 2) - 1);
+        const band = POOL_BANDS.find(([edge]) => radius <= edge);
+        if (!band) continue;
+        const at = (y * width + x) * 4;
+        image.data[at] = Math.round(lr * band[1]);
+        image.data[at + 1] = Math.round(lg * band[1]);
+        image.data[at + 2] = Math.round(lb * band[1]);
+        image.data[at + 3] = 255;
       }
-      ctx.fill();
-    }
+    ctx.putImageData(image, 0, 0);
+    this.poolSprite = canvas;
+    this.poolScale = scale;
+    return canvas;
   }
 
   private drawHeads(
