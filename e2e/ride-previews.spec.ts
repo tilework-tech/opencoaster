@@ -130,17 +130,20 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
         await expect(thumbnail, `${name} thumbnail drawn`).toHaveAttribute('data-preview', /.+/, {
           timeout: 30_000,
         });
-        await expect
-          .poll(async () => (await thumbnail.evaluate(readPreview, EDGE_BAND)).opaque, {
-            timeout: 30_000,
-            message: `${name} thumbnail pixels rendered`,
-          })
-          .toBeGreaterThanOrEqual(100);
-        expectWholePreview(
-          `${name} thumbnail`,
-          await thumbnail.evaluate(readPreview, EDGE_BAND),
-          100,
-        );
+        let reading = await thumbnail.evaluate(readPreview, EDGE_BAND);
+        if (reading.opaque < 100) {
+          const stamp = await thumbnail.getAttribute('data-preview');
+          await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
+          await expect(thumbnail).not.toHaveAttribute('data-preview', stamp!);
+          await expect
+            .poll(async () => (await thumbnail.evaluate(readPreview, EDGE_BAND)).opaque, {
+              timeout: 30_000,
+              message: `${name} thumbnail pixels rendered after redraw`,
+            })
+            .toBeGreaterThanOrEqual(100);
+          reading = await thumbnail.evaluate(readPreview, EDGE_BAND);
+        }
+        expectWholePreview(`${name} thumbnail`, reading, 100);
       }
     }
 

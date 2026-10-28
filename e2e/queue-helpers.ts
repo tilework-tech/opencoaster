@@ -423,13 +423,11 @@ export async function buildQueuedRide(
 
   if (options.queueLimit !== undefined) {
     const value = rideWindow.locator('.ride-queue-limit .stat-value');
-    for (
-      let guard = 0;
-      guard < 40 && (await value.innerText()) !== `${options.queueLimit} guests`;
-      guard++
-    ) {
+    for (let guard = 0; guard < 40; guard++) {
+      const current = await value.innerText();
+      if (current === `${options.queueLimit} guests`) break;
       await rideWindow.getByRole('button', { name: 'Shorten queue limit' }).click();
-      await page.waitForTimeout(250);
+      await expect(value).not.toHaveText(current);
     }
     await expect(value).toHaveText(`${options.queueLimit} guests`);
   }
