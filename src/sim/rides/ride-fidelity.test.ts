@@ -655,7 +655,6 @@ function downgradeToVersion9(w: World): Uint8Array {
     ...added.map((name) => cols[name]),
     guestColumns.happinessTarget,
     guestColumns.lostCountdown,
-    guestColumns.wanderSteps,
     guestColumns.pathHistory0,
     guestColumns.pathHistory1,
     guestColumns.pathHistory2,
