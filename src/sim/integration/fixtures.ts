@@ -28,6 +28,7 @@ export function prepareFlat(w: World): void {
 export function legacyGuestArrays(w: World): ArrayBufferView[] {
   const columnsAbsentFromVersion3 = new Set([
     'heading',
+    'happinessTarget',
     'approachGap',
     'navGoal',
     'navGap',

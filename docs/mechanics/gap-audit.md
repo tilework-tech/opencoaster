@@ -7,7 +7,7 @@ Scope: compare the current OpenCoaster simulation with RollerCoaster Tycoon 2 (R
 | Rank | Gap to prioritize | Impact | Size | Why it ranks here |
 | ---: | --- | --- | --- | --- |
 | 1 | Calibrate park rating and guest generation against RCT2 | High | M | Rating and arrivals amplify nearly every management decision; current rating starts at 700/600 and uses project-specific development bonuses. |
-| 2 | Validate guest needs, happiness, thoughts, and leaving rules | High | L | The full need loop exists, but thresholds, decay, response, and thoughts shape whether the park feels legible and fair. |
+| 2 | Validate guest needs, happiness, thoughts, and leaving rules | High | L | The main rates, need-driven happiness response, guest thoughts, and probabilistic departure checks now follow the documented RCT2-derived behavior; exact cadence scaling and some thought triggers still need in-game comparison. |
 | 3 | Match finance timing, interest, and price/value response | High | M | Loans, prices, income, and running costs work, while interest and wage cadence and several willingness-to-pay rules remain assumptions. |
 | 4 | Validate ride reliability, inspection, repair, and downtime | High | M | The full mechanic loop exists; wear, failure odds, repair times, and weather weighting are tuned locally. |
 | 5 | Calibrate tracked and flat ride ratings and test completion | High | L | Ratings affect ride demand, price, park rating, and objectives; current coefficients and flat-ride coverage are not RCT2-validated. |

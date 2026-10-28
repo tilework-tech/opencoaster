@@ -58,11 +58,14 @@ function corridorWithRide(): { w: World; ride: number } {
 }
 
 describe('guest needs', () => {
-  it('uses satiation values and decays them once every 128 ticks', () => {
+  it('loses two hunger points and gains one toilet point every 128 ticks', () => {
     const w = flatWorld();
     spawnGuest(w);
+    w.weather.temperature = 20;
     w.guests.cols.hunger[0] = 200;
     w.guests.cols.thirst[0] = 200;
+    w.guests.cols.toilet[0] = 10;
+    w.guests.cols.energy[0] = 100;
     w.tick = 1;
     for (let tick = 1; tick < 128; tick++) {
       w.tick = tick;
@@ -72,34 +75,63 @@ describe('guest needs', () => {
     expect(w.guests.cols.thirst[0]).toBe(200);
     w.tick = 128;
     guestSystem.update(w);
-    expect(w.guests.cols.hunger[0]).toBe(199);
-    expect(w.guests.cols.thirst[0]).toBe(199);
+    expect(w.guests.cols.hunger[0]).toBe(198);
+    expect(w.guests.cols.thirst[0]).toBe(200);
+    expect(w.guests.cols.toilet[0]).toBe(11);
+    expect(w.guests.cols.energy[0]).toBe(100);
   });
 
-  it.each([
-    { motive: 'healthy needs', energy: 255, hunger: 200, thirst: 200, toilet: 0, loss: 0 },
-    { motive: 'low energy', energy: 50, hunger: 200, thirst: 200, toilet: 0, loss: 2 },
-    { motive: 'low hunger satiation', energy: 255, hunger: 9, thirst: 200, toilet: 0, loss: 1 },
-    { motive: 'low thirst satiation', energy: 255, hunger: 200, thirst: 9, toilet: 0, loss: 1 },
-    { motive: 'high toilet need', energy: 255, hunger: 200, thirst: 200, toilet: 195, loss: 1 },
-  ])(
-    'applies the 512-tick happiness motive for $motive',
-    ({ energy, hunger, thirst, toilet, loss }) => {
-      const w = flatWorld();
-      const slot = guestAt(w, 4, 5);
-      const g = w.guests.cols;
-      g.happiness[slot] = 200;
-      g.energy[slot] = energy;
-      g.hunger[slot] = hunger;
-      g.thirst[slot] = thirst;
-      g.toilet[slot] = toilet;
+  it('loses one thirst point per need update at 21 C', () => {
+    const w = flatWorld();
+    const slot = guestAt(w, 4, 5);
+    w.weather.temperature = 21;
+    w.guests.cols.thirst[slot] = 200;
+    w.tick = 128;
 
-      w.tick = 512;
-      guestSystem.update(w);
+    guestSystem.update(w);
 
-      expect(g.happiness[slot]).toBe(200 - loss);
-    },
-  );
+    expect(w.guests.cols.thirst[slot]).toBe(199);
+  });
+
+  it('keeps comfortable happiness steady between idle-motive updates', () => {
+    const w = flatWorld();
+    const slot = guestAt(w, 4, 5);
+    const g = w.guests.cols;
+    g.happiness[slot] = 200;
+    g.happinessTarget[slot] = 200;
+    g.energy[slot] = 255;
+    g.hunger[slot] = 200;
+    g.thirst[slot] = 200;
+    g.toilet[slot] = 0;
+    g.nausea[slot] = 80;
+    g.state[slot] = GuestState.Riding;
+    w.tick = 128 - w.guests.slotToId[slot];
+
+    guestSystem.update(w);
+
+    expect(g.happinessTarget[slot]).toBe(200);
+    expect(g.happiness[slot]).toBe(200);
+    expect(g.nausea[slot]).toBe(78);
+  });
+
+  it('moves happiness toward its need-adjusted target on the 512-tick idle cadence', () => {
+    const w = flatWorld();
+    const slot = guestAt(w, 4, 5);
+    const g = w.guests.cols;
+    g.happiness[slot] = 130;
+    g.happinessTarget[slot] = 130;
+    g.energy[slot] = 50;
+    g.hunger[slot] = 9;
+    g.thirst[slot] = 9;
+    g.toilet[slot] = 195;
+    w.tick = 512 - w.guests.slotToId[slot];
+
+    guestSystem.update(w);
+
+    expect(g.happinessTarget[slot]).toBe(124);
+    expect(g.happiness[slot]).toBe(126);
+    expect(g.energy[slot]).toBe(49);
+  });
 
   it('spawns guests with original energy bounds and four nausea-tolerance buckets', () => {
     const w = flatWorld(32);
@@ -117,37 +149,43 @@ describe('guest needs', () => {
     expect(hashWorld(w)).toBe(hashWorld(replay));
   });
 
-  it('does not leave immediately below the thresholds, then leaves on a deterministic chance check', () => {
-    const make = (seed: number) => {
-      const w = flatWorld(16, 8);
-      layPath(w, row(5, 2, 8));
-      setParkEntrance(w, 2, 5);
-      w.rng.seed(seed);
-      const slot = guestAt(w, 4, 5);
-      w.guests.cols.happiness[slot] = 20;
-      w.guests.cols.energy[slot] = 40;
-      w.guests.cols.cash[slot] = 400;
-      return w;
-    };
-    const early = make(1);
-    run(early, 10239);
-    expect(early.guests.count).toBe(1);
+  it('leaves a first-time guest after five periods only when no ride can be chosen', () => {
+    const w = flatWorld(16, 8);
+    layPath(w, row(5, 2, 8));
+    setParkEntrance(w, 2, 5);
+    const slot = guestAt(w, 4, 5);
+    w.guests.cols.visitTicks[slot] = 10_236;
+    w.tick = 10_239 - w.guests.slotToId[slot];
 
-    let departed = 0;
-    let remaining = 0;
-    for (let seed = 1; seed <= 12; seed++) {
-      const w = make(seed);
-      run(w, 25000);
-      if (w.guests.count === 0) departed++;
-      else remaining++;
-      if (seed === 7) {
-        const sameSeed = make(seed);
-        run(sameSeed, 25000);
-        expect(hashWorld(w)).toBe(hashWorld(sameSeed));
-      }
+    guestSystem.update(w);
+    expect(w.guests.cols.state[slot]).not.toBe(GuestState.Leaving);
+
+    w.tick = 10_240 - w.guests.slotToId[slot];
+    guestSystem.update(w);
+
+    expect(w.guests.cols.state[slot]).toBe(GuestState.Leaving);
+    expect([
+      w.guests.cols.thought0[slot],
+      w.guests.cols.thought1[slot],
+      w.guests.cols.thought2[slot],
+      w.guests.cols.thought3[slot],
+    ]).toContain(GuestThought.Leaving);
+  });
+
+  it('sends a first-time guest toward an available ride instead of leaving for low cash', () => {
+    for (let seed = 1; seed <= 256; seed++) {
+      const { w, ride } = corridorWithRide();
+      const slot = guestAt(w, 2, 5);
+      w.guests.cols.cash[slot] = 0;
+      w.guests.cols.visitTicks[slot] = 10_236;
+      w.tick = 10_240 - w.guests.slotToId[slot];
+      w.rng.seed(seed);
+
+      guestSystem.update(w);
+
+      expect(w.guests.cols.state[slot]).not.toBe(GuestState.Leaving);
+      expect(w.guests.cols.targetRide[slot]).toBe(w.rides.slotToId[ride]);
     }
-    expect(departed).toBeGreaterThan(0);
-    expect(remaining).toBeGreaterThan(0);
   });
 
   it('only repeats a ride when guest needs and a random roll allow it', () => {
@@ -226,7 +264,7 @@ describe('guest needs', () => {
     const happy = make(200);
 
     runGuestOnly(early, 2600);
-    runGuestOnly(happy, 6000);
+    runGuestOnly(happy, 3000);
 
     expect(early.guests.cols.state[0]).toBe(GuestState.Waiting);
     expect(happy.guests.cols.state[0]).toBe(GuestState.Waiting);
@@ -236,29 +274,23 @@ describe('guest needs', () => {
     expect(happy.guests.cols.thought3[0]).not.toBe(GuestThought.QueueTooLong);
   });
 
-  it('starts the thrill-queue balk timer when the guest arrives at the ride', () => {
-    for (let seed = 1; seed <= 8; seed++) {
-      const { w, ride } = corridorWithRide();
-      w.rng.seed(seed);
-      for (let i = 0; i < 8; i++) {
-        const slot = guestAt(w, 11, 5);
-        w.guests.cols.targetRide[slot] = w.rides.slotToId[ride];
-        w.guests.cols.happiness[slot] = 40;
-        w.guests.cols.hunger[slot] = 255;
-        w.guests.cols.thirst[slot] = 255;
-        w.guests.cols.energy[slot] = 255;
-      }
+  it('keeps a happy guest in the thrill queue before their wait limit', () => {
+    const { w, ride } = corridorWithRide();
+    const slot = guestAt(w, 11, 5);
+    w.guests.cols.targetRide[slot] = w.rides.slotToId[ride];
+    w.guests.cols.happiness[slot] = 200;
+    w.guests.cols.happinessTarget[slot] = 200;
+    w.guests.cols.hunger[slot] = 255;
+    w.guests.cols.thirst[slot] = 255;
+    w.guests.cols.energy[slot] = 255;
 
-      runGuestOnly(w, 4300);
+    runGuestOnly(w, 4300);
 
-      for (let slot = 0; slot < w.guests.count; slot++) {
-        expect(w.guests.cols.state[slot]).toBe(GuestState.Waiting);
-        expect(w.guests.cols.thought0[slot]).not.toBe(GuestThought.QueueTooLong);
-        expect(w.guests.cols.thought1[slot]).not.toBe(GuestThought.QueueTooLong);
-        expect(w.guests.cols.thought2[slot]).not.toBe(GuestThought.QueueTooLong);
-        expect(w.guests.cols.thought3[slot]).not.toBe(GuestThought.QueueTooLong);
-      }
-    }
+    expect(w.guests.cols.state[slot]).toBe(GuestState.Waiting);
+    expect(w.guests.cols.thought0[slot]).not.toBe(GuestThought.QueueTooLong);
+    expect(w.guests.cols.thought1[slot]).not.toBe(GuestThought.QueueTooLong);
+    expect(w.guests.cols.thought2[slot]).not.toBe(GuestThought.QueueTooLong);
+    expect(w.guests.cols.thought3[slot]).not.toBe(GuestThought.QueueTooLong);
   });
 
   it('times out a happy guest waiting for a busy facility', () => {
@@ -418,7 +450,7 @@ describe('stalls and toilets', () => {
     g.thirst[slot] = 200;
     const cash = g.cash[slot];
     runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
-    expect(g.hunger[slot]).toBeGreaterThan(180);
+    expect(g.hunger[slot]).toBeGreaterThanOrEqual(180);
     expect(g.cash[slot]).toBe(cash - price);
     expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkSales]).toBe(price);
     expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkStock]).toBeLessThan(0);

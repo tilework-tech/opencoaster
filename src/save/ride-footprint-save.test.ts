@@ -37,6 +37,7 @@ function asVersion19(w: World): Uint8Array {
     w.rides.cols.queueSerial,
     w.rides.cols.queueLimit,
     w.guests.cols.queueSeq,
+    w.guests.cols.happinessTarget,
   ]);
   const body = bytes.subarray(8 + headerLength);
   const kept: Uint8Array[] = [];
@@ -45,6 +46,7 @@ function asVersion19(w: World): Uint8Array {
     if (!dropped.has(array)) kept.push(body.subarray(offset, offset + array.byteLength));
     offset += array.byteLength;
   }
+  expect(offset).toBe(body.byteLength);
   const out = new Uint8Array(8 + newHeader.length + kept.reduce((n, part) => n + part.length, 0));
   const outView = new DataView(out.buffer);
   outView.setUint32(0, view.getUint32(0, true), true);

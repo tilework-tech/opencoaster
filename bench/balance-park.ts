@@ -189,15 +189,10 @@ function layCoasterPaths(sim: Simulation): void {
   const { x, y } = COASTER_STATION;
   pathRun(sim, x - 5, SPINE_X, SPINE_TOP);
   pathRun(sim, x - 4, x, y - 1, true);
-  for (const [px, py] of [
-    [x, y + 1],
-    [x + 1, y + 1],
-    [x + 2, y + 1],
-    [x + 2, y],
-    [x + 2, y - 1],
-  ]) {
-    sim.enqueue({ type: 'placePath', x: px, y: py });
-  }
+  pathRun(sim, x, x + 5, y + 1);
+  sim.enqueue({ type: 'placePath', x: x + 5, y });
+  sim.enqueue({ type: 'placePath', x: x + 5, y: y - 1 });
+  pathRun(sim, x + 3, x + 4, y - 1);
 }
 
 function buildCoaster(sim: Simulation): number {

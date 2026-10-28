@@ -7,6 +7,7 @@ import { MAX_RATING } from '../src/sim/economy/park-rating';
 import { RideType } from '../src/sim/rides/ride-types';
 import { deserialize, serialize } from '../src/save/save';
 import { ScenarioStatus } from '../src/sim/scenario/scenario';
+import { isReachable } from '../src/sim/pathfinding/navigate';
 
 function run(ticks: number, seed?: number) {
   const park = createBalancePark({ seed });
@@ -74,6 +75,26 @@ describe('scripted starter park', () => {
       loaded.step();
     }
     expect(hashWorld(loaded.world)).toBe(hashWorld(park.sim.world));
+  });
+
+  it('connects the coaster exit to the park entrance for mechanic access', () => {
+    const park = createBalancePark();
+    const targetTick = TICKS_PER_MONTH * 2 + 1;
+    while (park.sim.world.tick < targetTick) {
+      park.runSchedule();
+      park.sim.step();
+    }
+    const world = park.sim.world;
+    const coaster = Array.from({ length: world.rides.count }, (_, slot) => slot).find(
+      (slot) => world.rides.cols.typeId[slot] === RideType.WoodenCoaster,
+    );
+    expect(coaster, 'the coaster is built by the third construction wave').toBeDefined();
+    const exit = world.map.index(
+      world.rides.cols.exitX[coaster!],
+      world.rides.cols.exitY[coaster!],
+    );
+    const entrance = world.map.index(world.park.entranceX, world.park.entranceY);
+    expect(isReachable(world, entrance, exit)).toBe(true);
   });
 
   it(

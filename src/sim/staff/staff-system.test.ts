@@ -372,6 +372,7 @@ describe('staff commands and work', () => {
     world.guests.cols.x[guestSlot] = 5 * 256 + 128;
     world.guests.cols.y[guestSlot] = 5 * 256 + 128;
     world.guests.cols.happiness[guestSlot] = 100;
+    world.guests.cols.happinessTarget[guestSlot] = 100;
     spawnStaff(world, StaffKind.Handyman);
     spawnStaff(world, StaffKind.Entertainer);
     world.staff.cols.x[1] = 5 * 256 + 128;
@@ -381,6 +382,7 @@ describe('staff commands and work', () => {
     staffSystem.update(world);
 
     expect(world.guests.cols.happiness[guestSlot]).toBe(101);
+    expect(world.guests.cols.happinessTarget[guestSlot]).toBe(101);
   });
 
   it('limits an entertainer happiness boost to guests within two tiles', () => {

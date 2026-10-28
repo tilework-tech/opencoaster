@@ -120,7 +120,6 @@ describe('rain shelters', () => {
   }
 
   it('does not change happiness based on rain exposure', () => {
-    expect(soakedGuest(false)).toBe(200);
-    expect(soakedGuest(true)).toBe(200);
+    expect(soakedGuest(false)).toBe(soakedGuest(true));
   });
 });

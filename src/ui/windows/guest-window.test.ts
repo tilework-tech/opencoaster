@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { VoucherKind } from '../../sim/economy/vouchers';
-import { filterGuestSummary, orderedHistory, voucherText } from './guest-window';
+import {
+  energyFraction,
+  filterGuestSummary,
+  guestDetailsText,
+  orderedHistory,
+  voucherText,
+} from './guest-window';
 
 describe('guest vouchers', () => {
   it('names the ride or stall a carried voucher is for', () => {
@@ -22,11 +28,18 @@ describe('guest summary filters', () => {
     { id: 4, thought: 2, tileX: 7, tileY: 3, rideIds: [11, 0, 0, 0] },
     { id: 8, thought: 6, tileX: 7, tileY: 3, rideIds: [12, 11, 0, 0] },
     { id: 9, thought: 2, tileX: 1, tileY: 2, rideIds: [12, 0, 0, 0] },
+    { id: 10, thought: 13, tileX: 1, tileY: 2, rideIds: [] },
   ];
 
   it('filters guests by their latest thought', () => {
     expect(filterGuestSummary(guests, { kind: 'thought', value: 2 }).map((g) => g.id)).toEqual([
       4, 9,
+    ]);
+  });
+
+  it('filters guests by the new RCT2 need thoughts', () => {
+    expect(filterGuestSummary(guests, { kind: 'thought', value: 13 }).map((g) => g.id)).toEqual([
+      10,
     ]);
   });
 
@@ -55,6 +68,24 @@ describe('guest summary filters', () => {
   });
 });
 
+describe('guest thoughts', () => {
+  it('shows tired and low-cash thoughts in an individual guest detail view', () => {
+    const text = guestDetailsText({
+      happiness: 82,
+      hunger: 12,
+      thirst: 25,
+      toilet: 160,
+      nausea: 0,
+      energy: 65,
+      cash: 800,
+      thoughts: [13, 14],
+    });
+
+    expect(text).toContain("I'm tired");
+    expect(text).toContain("I'm running out of money");
+  });
+});
+
 describe('guest history ordering', () => {
   it('returns nonempty ring entries newest first across cursor wraparound', () => {
     expect(orderedHistory(1, [5, 6, 7, 8])).toEqual([5, 8, 7, 6]);
@@ -62,5 +93,15 @@ describe('guest history ordering', () => {
 
   it('returns no entries from an empty ring', () => {
     expect(orderedHistory(0, [0, 0, 0, 0])).toEqual([]);
+  });
+});
+
+describe('energy bar', () => {
+  it('spans the 32..128 energy range, empty at the minimum and full at the maximum', () => {
+    expect(energyFraction(32)).toBe(0);
+    expect(energyFraction(80)).toBe(0.5);
+    expect(energyFraction(128)).toBe(1);
+    expect(energyFraction(255)).toBe(1);
+    expect(energyFraction(0)).toBe(0);
   });
 });
