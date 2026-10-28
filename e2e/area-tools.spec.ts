@@ -20,18 +20,20 @@ import type { Calibration } from './support/park';
 
 const SHOTS = 'docs/screenshots/area-tools';
 
-/** Starter Park ground beside the entrance path: owned, dry, flat grass at level 2. */
-const TREE_A = { x: 27, y: 43 };
-const TREE_B = { x: 28, y: 44 };
+/** Starter Park ground beside the entrance path: owned, dry, flat grass at level 4. */
+const TREE_A = { x: 32, y: 43 };
+const TREE_B = { x: 33, y: 44 };
 /** Owned footpath tiles of the entrance spine. */
-const BENCH = { x: 26, y: 44 };
-const PATH = { x: 26, y: 45 };
-/** Centre of the 3×3 the clear test sweeps: x 26..28, y 43..45. */
-const CLEAR_CENTRE = { x: 27, y: 44 };
-/** Top-left of a dry, empty, owned 2×2: x 27..28, y 41..42. */
-const POND = { x: 27, y: 41 };
+const BENCH = { x: 31, y: 44 };
+const PATH = { x: 31, y: 45 };
+/** Centre of the 3×3 the clear test sweeps: x 31..33, y 43..45. */
+const CLEAR_CENTRE = { x: 32, y: 44 };
+/** Top-left of a dry, empty, owned 2×2: x 32..33, y 41..42. */
+const POND = { x: 32, y: 41 };
 /** Flat unowned grass at level 2 beyond the park fence. */
 const BORDER = { x: 27, y: 49 };
+/** Tile the camera centres on so the border stays on screen on a phone. */
+const BORDER_VIEW = { x: 27, y: 46 };
 const OAK_REMOVAL_CENTS = 25;
 
 interface Setup {
@@ -166,7 +168,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
 
     test('clear scenery refuses land the park does not own', async () => {
       const { page } = setup;
-      const cal = await openAreaTool(page, mobile, 'Clear scenery', 'clear', CLEAR_CENTRE);
+      const cal = await openAreaTool(page, mobile, 'Clear scenery', 'clear', BORDER_VIEW);
       const target = point(cal, BORDER.x, BORDER.y);
       await hoverUntil(page, target, async () => {
         await expect(tip(page)).toHaveText('Land not owned by park!', { timeout: 1500 });
