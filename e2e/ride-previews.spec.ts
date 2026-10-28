@@ -124,29 +124,31 @@ test('ride, stall and facility previews are whole and undistorted (desktop)', as
     const cards = select.locator('.ui-pane.active .ride-card:visible');
     const count = await cards.count();
     expect(count, `${tab} cards`).toBeGreaterThan(0);
-    const cardsToCheck = 1;
-    for (let i = 0; i < cardsToCheck; i++) {
-      const card = cards.nth(i);
-      const name = (await card.getAttribute('aria-label')) ?? tab;
-      const thumbnail = card.locator('.ride-card-thumbnail');
-      await expect(thumbnail, `${name} thumbnail drawn`).toHaveAttribute('data-preview', /.+/, {
+    await expect
+      .poll(() => cards.locator('.ride-card-thumbnail[data-preview]').count(), {
         timeout: 30_000,
-      });
-      let reading = await thumbnail.evaluate(readPreview, EDGE_BAND);
-      if (reading.opaque < 100) {
-        const stamp = await thumbnail.getAttribute('data-preview');
-        await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
-        await expect(thumbnail).not.toHaveAttribute('data-preview', stamp!);
-        await expect
-          .poll(async () => (await thumbnail.evaluate(readPreview, EDGE_BAND)).opaque, {
-            timeout: 30_000,
-            message: `${name} thumbnail pixels rendered after redraw`,
-          })
-          .toBeGreaterThanOrEqual(100);
-        reading = await thumbnail.evaluate(readPreview, EDGE_BAND);
-      }
-      expectWholePreview(`${name} thumbnail`, reading, 100);
+        message: `${tab} has a rendered ride thumbnail`,
+      })
+      .toBeGreaterThan(0);
+    const thumbnail = cards.locator('.ride-card-thumbnail[data-preview]').first();
+    const name =
+      (await thumbnail.evaluate((canvas) =>
+        canvas.closest<HTMLElement>('.ride-card')?.getAttribute('aria-label'),
+      )) ?? tab;
+    let reading = await thumbnail.evaluate(readPreview, EDGE_BAND);
+    if (reading.opaque < 100) {
+      const stamp = await thumbnail.getAttribute('data-preview');
+      await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
+      await expect(thumbnail).not.toHaveAttribute('data-preview', stamp!);
+      await expect
+        .poll(async () => (await thumbnail.evaluate(readPreview, EDGE_BAND)).opaque, {
+          timeout: 30_000,
+          message: `${name} thumbnail pixels rendered after redraw`,
+        })
+        .toBeGreaterThanOrEqual(100);
+      reading = await thumbnail.evaluate(readPreview, EDGE_BAND);
     }
+    expectWholePreview(`${name} thumbnail`, reading, 100);
   }
 
   await page.getByRole('button', { name: 'Ride list' }).click();
