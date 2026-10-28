@@ -35,6 +35,8 @@ export const enum GuestThought {
   BadLitter = 16,
   PathDisgusting = 17,
   Vandalism = 18,
+  CantFindRide = 19,
+  CantFindExit = 20,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */
@@ -65,13 +67,13 @@ export const GUEST_SCHEMA = {
   thought1: Uint8Array,
   thought2: Uint8Array,
   thought3: Uint8Array,
-  /** Smallest tile gap to the current destination's entrance; a closer step refreshes patience. */
-  approachGap: Uint16Array,
-  /** Tile (plus one; 0 = none) the guest's progress toward is being tracked for. */
+  /** Tile centres walked since the guest last had somewhere to be, counted for the lost thought. */
+  wanderSteps: Uint16Array,
+  /** Tile (plus one; 0 = none) the guest's junction memory belongs to. */
   navGoal: Int32Array,
-  /** Smallest tile gap to `navGoal` seen while the pathfinder could not see the goal. */
-  navGap: Uint16Array,
-  /** Tiles walked blind without getting closer to `navGoal`. */
+  /** Slot of the junction memory the next new junction is written to. */
+  pathCursor: Uint16Array,
+  /** Footpath visits to tiles cut off from the gate. */
   navSteps: Uint16Array,
   /** Ticks left of being lost: the guest wanders and looks for an information kiosk. */
   lostTicks: Uint16Array,
@@ -104,6 +106,16 @@ export const GUEST_SCHEMA = {
    * among the last six (one bit each, with a two-bit complaint cooldown on top).
    */
   sightMemory: Uint32Array,
+  /**
+   * Tiles left before the guest gives up: 200 while it heads for a ride, 254 once it is leaving
+   * the park (and 90 again each time that runs out).
+   */
+  lostCountdown: Uint8Array,
+  /** The last four junctions passed on the way to `navGoal`, each with the exits not yet tried. */
+  pathHistory0: Int32Array,
+  pathHistory1: Int32Array,
+  pathHistory2: Int32Array,
+  pathHistory3: Int32Array,
 } as const;
 
 /** Guest columns added in save version 32. */

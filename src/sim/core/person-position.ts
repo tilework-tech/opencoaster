@@ -39,9 +39,14 @@ export function setPersonPosition(
     guests.targetRide[slot] = -1;
     guests.state[slot] = GuestState.Wandering;
     guests.heading[slot] = HEADING_NONE;
-    guests.approachGap[slot] = 0;
+    guests.wanderSteps[slot] = 0;
+    guests.lostCountdown[slot] = 0;
     guests.navGoal[slot] = 0;
-    guests.navGap[slot] = 0;
+    guests.pathCursor[slot] = 0;
+    guests.pathHistory0[slot] = 0;
+    guests.pathHistory1[slot] = 0;
+    guests.pathHistory2[slot] = 0;
+    guests.pathHistory3[slot] = 0;
     guests.navSteps[slot] = 0;
     guests.lostTicks[slot] = 0;
     return true;

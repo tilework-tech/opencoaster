@@ -12,6 +12,7 @@ import {
 import { BASIS_POINTS, LedgerCategory, PriceMode } from '../economy/ledger';
 import { gateFeeAfterVoucher, isEntryVoucher, VoucherKind } from '../economy/vouchers';
 import {
+  createJunctionMemory,
   DEFAULT_GUEST_OPTS,
   DIR_DX,
   DIR_DY,
@@ -53,12 +54,15 @@ import { noteTileSights } from './path-sights';
 import { guestPriceCents, spendVoucher } from './vouchers';
 import {
   applyGuestBudget,
-  EXIT_HAPPINESS_LOSS,
-  EXIT_PENALTY_TICKS,
+  checkCantFindExit,
+  checkCantFindRide,
+  checkWanderedLost,
   isLost,
+  LEAVING_COUNTDOWN,
   MAP_PRICE,
-  noteNavigation,
   noteStranded,
+  resetWandering,
+  RIDE_GOAL_COUNTDOWN,
   tickLost,
 } from './navigation';
 import { hasParkEntrance, parkEntranceTile } from './park';
@@ -92,7 +96,6 @@ const TIRED_HAPPINESS_CEILING = 128;
 /** Happiness a ride gives: a flat part plus 1 per this many hundredths of excitement. */
 const RIDE_HAPPINESS = 8;
 const EXCITEMENT_PER_HAPPINESS = 40;
-const APPROACH_PATIENCE = 2400;
 const QUEUE_PATIENCE = 3200;
 const QUEUE_BALK_TICKS = 4300;
 /** A guest in a built queue waits this long plus 24 ticks per point of happiness before leaving. */
@@ -458,23 +461,10 @@ function setDestination(world: World, slot: number, ride: number): void {
   g.targetRide[slot] = world.rides.slotToId[ride];
   g.targetX[slot] = world.rides.cols.entranceX[ride];
   g.targetY[slot] = world.rides.cols.entranceY[ride];
-  g.patience[slot] = APPROACH_PATIENCE;
-  g.approachGap[slot] = 0xffff;
   g.navGoal[slot] = 0;
+  g.lostCountdown[slot] = RIDE_GOAL_COUNTDOWN;
+  resetWandering(world, slot);
   world.rideLines.approaching[ride]++;
-}
-
-/** A guest still getting closer to its destination is making progress, not lost. */
-function noteApproachProgress(world: World, slot: number, tile: number): void {
-  const g = world.guests.cols;
-  const id = g.targetRide[slot];
-  if (!world.rides.isAlive(id)) return;
-  const approach = approachTile(world, world.rides.idToSlot[id]);
-  if (approach < 0) return;
-  const gap = tileDistance(world, tile, approach);
-  if (gap >= g.approachGap[slot]) return;
-  g.approachGap[slot] = gap;
-  g.patience[slot] = APPROACH_PATIENCE;
 }
 
 function clearDestination(world: World, slot: number): void {
@@ -607,8 +597,7 @@ function finishRide(world: World, slot: number, ride: number): void {
   } else if (hasParkEntrance(world)) {
     placeOnTile(world, slot, world.park.entranceX, world.park.entranceY);
   } else {
-    g.state[slot] = GuestState.Leaving;
-    g.targetRide[slot] = -1;
+    beginLeaving(world, slot);
     return;
   }
   recordThought(world, slot, GuestThought.RideEnjoyed);
@@ -689,6 +678,7 @@ function serviceCapacity(world: World, ride: number): number {
 /** Reaches the entrance tile of the guest's destination: join its queue or start using it. */
 function arriveAtDestination(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
+  resetWandering(world, slot);
   const r = world.rides.cols;
   const category = rideCategory(world, ride);
   const rideId = world.rides.slotToId[ride];
@@ -961,6 +951,9 @@ function thinkAboutNeeds(world: World, slot: number): void {
   if (felt.length > 0) recordThought(world, slot, felt[world.rng.int(felt.length)]);
 }
 
+/** The junction memory of the guest being stepped, loaded from and saved back to its columns. */
+const memory = createJunctionMemory();
+
 /** Walks one step toward `target` (or wanders when negative). Returns false if no step exists. */
 function stepToward(
   world: World,
@@ -972,23 +965,38 @@ function stepToward(
   const g = world.guests.cols;
   nav.fromDir = g.heading[slot] > 3 ? DIR_NONE : g.heading[slot];
   applyGuestBudget(world, slot, nav);
+  nav.memory = target >= 0 ? memory : null;
+  if (target >= 0) {
+    memory.goal = g.navGoal[slot];
+    memory.cursor = g.pathCursor[slot];
+    memory.slots[0] = g.pathHistory0[slot];
+    memory.slots[1] = g.pathHistory1[slot];
+    memory.slots[2] = g.pathHistory2[slot];
+    memory.slots[3] = g.pathHistory3[slot];
+  }
   const dir = nextDirection(world, guestNode(world, slot, tile), target, world.rng, nav);
+  if (target >= 0) {
+    g.navGoal[slot] = memory.goal;
+    g.pathCursor[slot] = memory.cursor;
+    g.pathHistory0[slot] = memory.slots[0];
+    g.pathHistory1[slot] = memory.slots[1];
+    g.pathHistory2[slot] = memory.slots[2];
+    g.pathHistory3[slot] = memory.slots[3];
+  }
   if (dir === DIR_NONE) return false;
-  if (target >= 0 && !isLost(world, slot) && noteNavigation(world, slot, tile, target))
-    return false;
   g.heading[slot] = dir;
   walkOn(world, slot);
   return true;
 }
 
-/** A leaving guest that cannot find the exit complains, and gets unhappier the longer it takes. */
-function loseWayOut(world: World, slot: number): void {
-  const g = world.guests.cols;
-  recordThought(world, slot, GuestThought.Lost);
-  if ((world.tick + world.guests.slotToId[slot]) % EXIT_PENALTY_TICKS === 0) {
-    g.happiness[slot] = Math.max(0, g.happiness[slot] - EXIT_HAPPINESS_LOSS);
-    g.happinessTarget[slot] = Math.max(0, g.happinessTarget[slot] - EXIT_HAPPINESS_LOSS);
-  }
+/**
+ * Checks run each time a guest reaches a tile centre: feeling lost after a long aimless walk,
+ * giving up on a ride it cannot find, and failing to find the way out.
+ */
+function checkWayfinding(world: World, slot: number): void {
+  checkWanderedLost(world, slot);
+  if (checkCantFindRide(world, slot)) clearDestination(world, slot);
+  checkCantFindExit(world, slot);
 }
 
 /**
@@ -1020,10 +1028,16 @@ function decideToLeave(world: World, slot: number): boolean {
 }
 
 function startLeaving(world: World, slot: number): void {
+  beginLeaving(world, slot);
+  recordThought(world, slot, GuestThought.Leaving);
+}
+
+/** Heads for the exit; a guest that was not already leaving starts its search for the gate afresh. */
+function beginLeaving(world: World, slot: number): void {
   const g = world.guests.cols;
+  if (g.state[slot] !== GuestState.Leaving) g.lostCountdown[slot] = LEAVING_COUNTDOWN;
   g.state[slot] = GuestState.Leaving;
   g.targetRide[slot] = -1;
-  recordThought(world, slot, GuestThought.Leaving);
 }
 
 /** Returns true when the guest has left the park and should be despawned. */
@@ -1137,6 +1151,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
       walkOn(world, slot);
       return false;
     }
+    checkWayfinding(world, slot);
     const gate = parkEntranceTile(world);
     if (gate < 0 || tile === gate) return true;
     if (
@@ -1145,18 +1160,10 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
       stepOutOfQueue(world, slot, tile)
     )
       return false;
-    if (isLost(world, slot) || !stepToward(world, slot, tile, gate, nav)) {
-      stepToward(world, slot, tile, -1, nav);
-      loseWayOut(world, slot);
-    }
+    if (!stepToward(world, slot, tile, gate, nav)) stepToward(world, slot, tile, -1, nav);
     return false;
   }
 
-  if (g.targetRide[slot] >= 0) {
-    noteApproachProgress(world, slot, tile);
-    g.patience[slot] = Math.max(0, g.patience[slot] - UPDATE_STRIDE);
-    if (g.patience[slot] === 0) clearDestination(world, slot);
-  }
   if (g.activityTicks[slot] > 0)
     g.activityTicks[slot] = Math.max(0, g.activityTicks[slot] - UPDATE_STRIDE);
 
@@ -1165,6 +1172,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     return false;
   }
 
+  checkWayfinding(world, slot);
   let ride = targetRideSlot(world, slot);
   if (g.targetRide[slot] >= 0 && (ride < 0 || world.rides.cols.state[ride] !== RideState.Open)) {
     clearDestination(world, slot);

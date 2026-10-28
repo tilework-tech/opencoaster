@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { hashWorld } from '../core/hash';
 import { LedgerCategory } from '../economy/ledger';
-import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
+import {
+  createRideAtCorner,
+  flatWorld,
+  guestAt,
+  layPath,
+  openRide,
+  row,
+} from '../integration/fixtures';
 import { parkInputsSystem } from '../economy/park-inputs';
 import { RideType } from '../rides/ride-types';
 import { rideQueueSystem } from '../rides/queue-system';
@@ -11,7 +18,28 @@ import type { World } from '../core/world';
 import { GuestState, GuestThought } from './guest-store';
 import { guestSystem } from './guest-system';
 import { setParkEntrance } from './park';
-import { LOST_WANDER_TICKS, MAP_PRICE } from './navigation';
+import {
+  applyGuestBudget,
+  CANT_FIND_PENALTY,
+  checkCantFindExit,
+  checkCantFindRide,
+  checkWanderedLost,
+  EXIT_RETRY_COUNTDOWN,
+  LEAVING_COUNTDOWN,
+  LOST_WALK_LIMIT,
+  LOST_WANDER_TICKS,
+  MAP_PRICE,
+  RIDE_GOAL_COUNTDOWN,
+  WANDER_RESET,
+} from './navigation';
+import {
+  DEFAULT_GUEST_OPTS,
+  GUEST_JUNCTIONS,
+  GUEST_LEAVING_JUNCTIONS,
+  GUEST_LEAVING_LOST_JUNCTIONS,
+  GUEST_MAP_JUNCTIONS,
+} from '../pathfinding';
+import type { NavOptions } from '../pathfinding';
 
 function run(w: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) {
@@ -20,10 +48,6 @@ function run(w: World, ticks: number): void {
     guestSystem.update(w);
     w.tick++;
   }
-}
-
-function tileX(w: World, slot: number): number {
-  return (w.guests.cols.x[slot] / TILE_UNITS) | 0;
 }
 
 function thoughts(w: World, slot: number): number[] {
@@ -39,7 +63,7 @@ function thoughts(w: World, slot: number): number[] {
  */
 function trapWorld(): { w: World; slot: number } {
   const w = flatWorld(64);
-  const east = 30;
+  const east = 62;
   layPath(w, row(1, 2, east));
   for (let x = 5; x < east; x++) layPath(w, [[x, 2]]);
   layPath(w, [
@@ -61,32 +85,234 @@ function trapWorld(): { w: World; slot: number } {
   return { w, slot };
 }
 
-describe('lost guests', () => {
-  it('turns a guest who cannot find its destination into a lost wanderer who thinks so', () => {
+describe('looking for a ride', () => {
+  /** A guest heading for a ride, with the 200-tile search countdown running. */
+  function seeker(): { w: World; slot: number } {
     const { w, slot } = trapWorld();
     const g = w.guests.cols;
-    for (let i = 0; i < 6000 && g.lostTicks[slot] === 0; i++) run(w, 1);
+    g.targetRide[slot] = w.rides.slotToId[0];
+    g.lostCountdown[slot] = RIDE_GOAL_COUNTDOWN;
+    g.happinessTarget[slot] = 100;
+    return { w, slot };
+  }
+
+  it('starts at 200 when a guest picks a ride', () => {
+    const { w, slot } = trapWorld();
+    const g = w.guests.cols;
+    run(w, 40);
+    expect(g.targetRide[slot]).toBe(w.rides.slotToId[0]);
+    expect(g.lostCountdown[slot]).toBeLessThanOrEqual(RIDE_GOAL_COUNTDOWN);
+    expect(g.lostCountdown[slot]).toBeGreaterThan(RIDE_GOAL_COUNTDOWN - 10);
+  });
+
+  it("thinks it can't find the ride at 60 and 30 tiles left, losing 30 happiness each time", () => {
+    const { w, slot } = seeker();
+    const g = w.guests.cols;
+    for (let tile = 1; tile <= 140; tile++) checkCantFindRide(w, slot);
+    expect(g.lostCountdown[slot]).toBe(60);
+    expect(thoughts(w, slot)).not.toContain(GuestThought.CantFindRide);
+    expect(g.happinessTarget[slot]).toBe(100);
+
+    checkCantFindRide(w, slot);
+    expect(thoughts(w, slot)).toContain(GuestThought.CantFindRide);
+    expect(g.happinessTarget[slot]).toBe(100 - CANT_FIND_PENALTY);
+
+    for (let tile = 142; tile <= 170; tile++) checkCantFindRide(w, slot);
+    expect(g.happinessTarget[slot]).toBe(70);
+    checkCantFindRide(w, slot);
+    expect(g.lostCountdown[slot]).toBe(29);
+    expect(g.happinessTarget[slot]).toBe(40);
+  });
+
+  it('gives up on the ride after 200 tiles and keeps the countdown at zero', () => {
+    const { w, slot } = seeker();
+    const g = w.guests.cols;
+    let gaveUp = 0;
+    for (let tile = 1; tile <= 199; tile++) if (checkCantFindRide(w, slot)) gaveUp++;
+    expect(gaveUp).toBe(0);
+    expect(checkCantFindRide(w, slot)).toBe(true);
+    expect(g.lostCountdown[slot]).toBe(0);
+    expect(checkCantFindRide(w, slot)).toBe(false);
+    expect(g.lostCountdown[slot]).toBe(0);
+  });
+
+  it('never goes below zero happiness', () => {
+    const { w, slot } = seeker();
+    w.guests.cols.happinessTarget[slot] = 10;
+    for (let tile = 1; tile <= 200; tile++) checkCantFindRide(w, slot);
+    expect(w.guests.cols.happinessTarget[slot]).toBe(0);
+  });
+
+  it('does nothing for a guest with no ride in mind', () => {
+    const { w, slot } = seeker();
+    const g = w.guests.cols;
+    g.targetRide[slot] = -1;
+    for (let tile = 1; tile <= 50; tile++) checkCantFindRide(w, slot);
+    expect(g.lostCountdown[slot]).toBe(RIDE_GOAL_COUNTDOWN);
+  });
+
+  it('turns a guest who gave up on a ride into a lost wanderer', () => {
+    const { w, slot } = trapWorld();
+    const g = w.guests.cols;
+    for (let i = 0; i < 40000 && g.lostTicks[slot] === 0; i++) run(w, 1);
     expect(g.lostTicks[slot]).toBeGreaterThan(0);
-    expect(thoughts(w, slot)).toContain(GuestThought.Lost);
-    expect(g.targetRide[slot]).toBe(-1);
+    expect(thoughts(w, slot)).toContain(GuestThought.CantFindRide);
     expect(g.state[slot]).toBe(GuestState.Wandering);
   });
+});
 
-  it('stops being lost once the wander period is over', () => {
+describe('junction memory', () => {
+  it('remembers the junctions a guest chose at on its way to a ride, and keeps them when it wanders', () => {
     const { w, slot } = trapWorld();
     const g = w.guests.cols;
-    g.lostTicks[slot] = LOST_WANDER_TICKS;
-    run(w, LOST_WANDER_TICKS + 8);
-    expect(g.lostTicks[slot]).toBe(0);
+    run(w, 700);
+    expect(g.navGoal[slot]).toBeGreaterThan(0);
+    expect(g.pathHistory0[slot] >> 4).toBeGreaterThan(0);
+    g.targetRide[slot] = -1;
+    g.state[slot] = GuestState.Wandering;
+    const before = g.navGoal[slot];
+    run(w, 300);
+    expect(g.navGoal[slot]).toBe(before);
+  });
+});
+
+describe('wandering for too long', () => {
+  it('thinks it is lost after 508 tiles without a destination, then every 48 tiles', () => {
+    const { w, slot } = trapWorld();
+    createRideAtCorner(w, RideType.Toilets, [40, 40]);
+    const g = w.guests.cols;
+    g.happinessTarget[slot] = 200;
+    g.targetRide[slot] = -1;
+    for (let tile = 1; tile <= LOST_WALK_LIMIT - 1; tile++) checkWanderedLost(w, slot);
+    expect(thoughts(w, slot)).not.toContain(GuestThought.Lost);
+    checkWanderedLost(w, slot);
+    expect(thoughts(w, slot)).toContain(GuestThought.Lost);
+    expect(g.happinessTarget[slot]).toBe(200 - CANT_FIND_PENALTY);
+    expect(g.lostTicks[slot]).toBeGreaterThan(0);
+    expect(g.wanderSteps[slot]).toBe(WANDER_RESET);
+
+    g.lostTicks[slot] = 0;
+    for (let tile = 1; tile <= LOST_WALK_LIMIT - WANDER_RESET - 1; tile++)
+      checkWanderedLost(w, slot);
+    expect(g.happinessTarget[slot]).toBe(170);
+    checkWanderedLost(w, slot);
+    expect(g.happinessTarget[slot]).toBe(140);
   });
 
-  it('counts a lost guest among the lost guests the park rating sees', () => {
+  it('counts 508 tiles as 254 steps of the lost clock reset to 230', () => {
+    expect(LOST_WALK_LIMIT).toBe(508);
+    expect(WANDER_RESET).toBe(460);
+  });
+
+  it('needs at least two rides in the park', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 8));
+    createRideAtCorner(w, RideType.MerryGoRound, [20, 20]);
+    const slot = guestAt(w, 4, 5);
+    for (let tile = 1; tile <= 2000; tile++) checkWanderedLost(w, slot);
+    expect(thoughts(w, slot)).not.toContain(GuestThought.Lost);
+  });
+});
+
+describe('lost guests and the park rating', () => {
+  it('counts a leaving guest only once its exit countdown is below 90', () => {
     const { w, slot } = trapWorld();
+    const g = w.guests.cols;
+    g.state[slot] = GuestState.Leaving;
+    g.lostCountdown[slot] = EXIT_RETRY_COUNTDOWN;
     parkInputsSystem.update(w);
     expect(w.economy.inputs.lostGuests).toBe(0);
-    w.guests.cols.lostTicks[slot] = LOST_WANDER_TICKS;
+    g.lostCountdown[slot] = EXIT_RETRY_COUNTDOWN - 1;
     parkInputsSystem.update(w);
     expect(w.economy.inputs.lostGuests).toBe(1);
+  });
+
+  it('does not count a guest that merely gave up on a ride', () => {
+    const { w, slot } = trapWorld();
+    w.guests.cols.lostTicks[slot] = LOST_WANDER_TICKS;
+    parkInputsSystem.update(w);
+    expect(w.economy.inputs.lostGuests).toBe(0);
+  });
+});
+
+describe('looking for the exit', () => {
+  function leaver(): { w: World; slot: number } {
+    const { w, slot } = trapWorld();
+    const g = w.guests.cols;
+    g.state[slot] = GuestState.Leaving;
+    g.lostCountdown[slot] = LEAVING_COUNTDOWN;
+    g.happinessTarget[slot] = 200;
+    return { w, slot };
+  }
+
+  it("thinks it can't find the exit on the 254th tile, then again after 90 more", () => {
+    const { w, slot } = leaver();
+    const g = w.guests.cols;
+    for (let tile = 1; tile <= 253; tile++) checkCantFindExit(w, slot);
+    expect(thoughts(w, slot)).not.toContain(GuestThought.CantFindExit);
+    expect(g.lostCountdown[slot]).toBe(1);
+    checkCantFindExit(w, slot);
+    expect(thoughts(w, slot)).toContain(GuestThought.CantFindExit);
+    expect(g.happinessTarget[slot]).toBe(200 - CANT_FIND_PENALTY);
+    expect(g.lostCountdown[slot]).toBe(EXIT_RETRY_COUNTDOWN);
+
+    for (let tile = 1; tile <= 89; tile++) checkCantFindExit(w, slot);
+    expect(g.happinessTarget[slot]).toBe(170);
+    expect(g.lostCountdown[slot]).toBe(1);
+    checkCantFindExit(w, slot);
+    expect(g.happinessTarget[slot]).toBe(140);
+  });
+
+  it('only runs for a guest that is leaving', () => {
+    const { w, slot } = leaver();
+    w.guests.cols.state[slot] = GuestState.Wandering;
+    checkCantFindExit(w, slot);
+    expect(w.guests.cols.lostCountdown[slot]).toBe(LEAVING_COUNTDOWN);
+  });
+
+  it('starts the countdown at 254 when a guest decides to leave', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 12));
+    const slot = guestAt(w, 8, 5);
+    setParkEntrance(w, 2, 5);
+    const g = w.guests.cols;
+    g.energy[slot] = 0;
+    g.happiness[slot] = 0;
+    g.ridesTaken[slot] = 1;
+    for (let i = 0; i < 20000 && g.state[slot] !== GuestState.Leaving; i++) run(w, 1);
+    expect(g.state[slot]).toBe(GuestState.Leaving);
+    expect(g.lostCountdown[slot]).toBeLessThanOrEqual(LEAVING_COUNTDOWN);
+    expect(g.lostCountdown[slot]).toBeGreaterThan(LEAVING_COUNTDOWN - 8);
+  });
+});
+
+describe('lookahead budget', () => {
+  function budget(setup: (w: World, slot: number) => void): number {
+    const { w, slot } = trapWorld();
+    setup(w, slot);
+    const nav: NavOptions = { ...DEFAULT_GUEST_OPTS };
+    applyGuestBudget(w, slot, nav);
+    return nav.maxJunctions;
+  }
+
+  it('gives a guest 5 junctions, 7 with a map', () => {
+    expect(budget(() => {})).toBe(GUEST_JUNCTIONS);
+    expect(budget((w, slot) => (w.guests.cols.hasMap[slot] = 1))).toBe(GUEST_MAP_JUNCTIONS);
+  });
+
+  it('gives a leaving guest 7 junctions, 8 once its countdown is below 90', () => {
+    const leaving =
+      (countdown: number, map = 0) =>
+      (w: World, slot: number) => {
+        const g = w.guests.cols;
+        g.state[slot] = GuestState.Leaving;
+        g.lostCountdown[slot] = countdown;
+        g.hasMap[slot] = map;
+      };
+    expect(budget(leaving(LEAVING_COUNTDOWN))).toBe(GUEST_LEAVING_JUNCTIONS);
+    expect(budget(leaving(EXIT_RETRY_COUNTDOWN))).toBe(GUEST_LEAVING_JUNCTIONS);
+    expect(budget(leaving(EXIT_RETRY_COUNTDOWN - 1))).toBe(GUEST_LEAVING_LOST_JUNCTIONS);
+    expect(budget(leaving(LEAVING_COUNTDOWN, 1))).toBe(GUEST_LEAVING_JUNCTIONS);
   });
 });
 
@@ -148,16 +374,6 @@ describe('park maps', () => {
     w.guests.cols.hunger[slot] = 0;
     run(w, 1200);
     expect(w.guests.cols.hasMap[slot]).toBe(0);
-  });
-
-  it('lets a guest with a map see further than one without', () => {
-    const without = trapWorld();
-    const mapped = trapWorld();
-    mapped.w.guests.cols.hasMap[mapped.slot] = 1;
-    run(without.w, 2400);
-    run(mapped.w, 2400);
-    expect(thoughts(mapped.w, mapped.slot)).not.toContain(GuestThought.Lost);
-    expect(tileX(mapped.w, mapped.slot)).toBeGreaterThan(tileX(without.w, without.slot) + 4);
   });
 });
 

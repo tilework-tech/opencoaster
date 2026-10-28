@@ -137,12 +137,10 @@ describe('junction memory', () => {
     expect(decide(w, DIR_E, memory)).toBe(DIR_N);
     expect(decide(w, DIR_S, memory, w.map.index(0, 1))).toBe(DIR_W);
   });
-
 });
 
 describe('aimless wandering', () => {
-  const tJunction = (): { map: GridPathGraph } =>
-    world(['         ', '    #    ', '#########']);
+  const tJunction = (): { map: GridPathGraph } => world(['         ', '    #    ', '#########']);
   const plus = (): { map: GridPathGraph } =>
     world(['    #    ', '    #    ', '#########', '    #    ', '    #    ']);
 

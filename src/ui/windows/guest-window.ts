@@ -34,6 +34,8 @@ export const THOUGHT_LABELS: readonly string[] = [
   'The litter here is really bad',
   'This path is disgusting',
   'The vandalism here is really bad',
+  "I can't find the ride I want",
+  "I can't find the exit!",
 ];
 
 export interface GuestDetails {

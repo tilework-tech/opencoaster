@@ -71,6 +71,15 @@ export function withoutColumns(
     ...(version < 32 ? statsVersionColumns(newWorld) : []),
     ...(version < 18 ? [newWorld.guests.cols.voucherKind, newWorld.guests.cols.voucherTarget] : []),
     ...(version < 29 ? [newWorld.guests.cols.happinessTarget] : []),
+    ...(version < 32
+      ? [
+          newWorld.guests.cols.lostCountdown,
+          newWorld.guests.cols.pathHistory0,
+          newWorld.guests.cols.pathHistory1,
+          newWorld.guests.cols.pathHistory2,
+          newWorld.guests.cols.pathHistory3,
+        ]
+      : []),
     ...(version < 30
       ? [
           newWorld.rides.cols.downtimeBucket0,

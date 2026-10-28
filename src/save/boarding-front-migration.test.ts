@@ -30,6 +30,11 @@ function asPreviousVersion(world: World): Uint8Array {
   const dropped = new Set<ArrayBufferView>([
     world.guests.cols.happinessTarget,
     ...statsVersionColumns(world),
+    world.guests.cols.lostCountdown,
+    world.guests.cols.pathHistory0,
+    world.guests.cols.pathHistory1,
+    world.guests.cols.pathHistory2,
+    world.guests.cols.pathHistory3,
   ]);
   const body = bytes.subarray(8 + headerLen);
   const kept: Uint8Array[] = [];

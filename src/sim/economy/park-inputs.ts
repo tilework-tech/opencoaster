@@ -1,6 +1,7 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { GuestState } from '../guests/guest-store';
+import { EXIT_RETRY_COUNTDOWN as LOST_BELOW } from '../guests/navigation';
 import { getRideValueCents, isShopCategory } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
@@ -70,7 +71,7 @@ export const parkInputsSystem: System = {
     for (let slot = 0; slot < world.guests.count; slot++) {
       if (guests.happiness[slot] < UNHAPPY_BELOW) unhappy++;
       if (guests.state[slot] === GuestState.Riding) continue;
-      if (guests.lostTicks[slot] > 0) {
+      if (guests.state[slot] === GuestState.Leaving && guests.lostCountdown[slot] < LOST_BELOW) {
         lost++;
         continue;
       }

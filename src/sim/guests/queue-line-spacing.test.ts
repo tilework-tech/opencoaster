@@ -37,7 +37,7 @@ function send(w: World, ride: number): number {
   const g = w.guests.cols;
   g.targetRide[slot] = w.rides.slotToId[ride];
   g.patience[slot] = 2400;
-  g.approachGap[slot] = 0xffff;
+  g.lostCountdown[slot] = 200;
   g.happiness[slot] = 255;
   g.energy[slot] = 255;
   g.hunger[slot] = 255;

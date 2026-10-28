@@ -390,7 +390,7 @@ function patrolDirection(
   if (!patrolContains(patrol, tile))
     return bfsFirstDir(net, tile, -1, patrol, false, opts.maxTiles);
 
-  if (target >= 0 && patrolContains(patrol, target) && opts.stepsTaken <= opts.lostAfter) {
+  if (target >= 0 && patrolContains(patrol, target)) {
     const d = bfsFirstDir(net, tile, target, patrol, true, opts.maxTiles);
     if (d !== DIR_NONE) return d;
   }

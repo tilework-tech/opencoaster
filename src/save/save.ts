@@ -8,6 +8,7 @@ import {
   GuestState,
   HEADING_NONE,
 } from '../sim/guests/guest-store';
+import { LEAVING_COUNTDOWN } from '../sim/guests/navigation';
 import type { ParkState } from '../sim/guests/park';
 import { restoreLedger, saveLedger } from '../sim/economy/ledger';
 import type { LedgerSave } from '../sim/economy/ledger';
@@ -47,7 +48,10 @@ import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 /** Staff activity totals and guest sight memory are stored from this version. */
 const STAFF_STATS_SAVE_VERSION = 32;
 const PRE_STAFF_STATS_SAVE_VERSION = 31;
-export const SAVE_VERSION = 32;
+/** Guests carry the RCT2 lost countdown, wander counter and junction memory from this version. */
+const WAYFINDING_SAVE_VERSION = 33;
+const PRE_WAYFINDING_SAVE_VERSION = 32;
+export const SAVE_VERSION = 33;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
@@ -102,9 +106,14 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
       ![
         'heading',
         'happinessTarget',
-        'approachGap',
+        'lostCountdown',
+        'pathHistory0',
+        'pathHistory1',
+        'pathHistory2',
+        'pathHistory3',
+        'wanderSteps',
         'navGoal',
-        'navGap',
+        'pathCursor',
         'navSteps',
         'lostTicks',
         'hasMap',
@@ -126,8 +135,14 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
   | 'heading'
   | (typeof GUEST_SIGHT_COLUMNS)[number]
   | 'approachGap'
+  | 'wanderSteps'
   | 'navGoal'
-  | 'navGap'
+  | 'pathCursor'
+  | 'lostCountdown'
+  | 'pathHistory0'
+  | 'pathHistory1'
+  | 'pathHistory2'
+  | 'pathHistory3'
   | 'navSteps'
   | 'lostTicks'
   | 'hasMap'
@@ -415,8 +430,18 @@ function migrateLegacyLitter(world: World, legacy: EntityStore<typeof LEGACY_LIT
   oldestFirst.forEach((slot, order) => (world.litter.cols.birthOrder[slot] = order + 1));
 }
 
-function migrateMissingApproachGap(world: World, count: number): void {
-  world.guests.cols.approachGap.fill(0xffff, 0, count);
+/**
+ * Saves before the RCT2 wayfinding model keep other values in `navGoal`, `pathCursor` and
+ * `wanderSteps`; all three restart empty. A guest already leaving starts its exit countdown.
+ */
+function migratePreWayfindingGuests(world: World, count: number): void {
+  const g = world.guests.cols;
+  g.navGoal.fill(0, 0, count);
+  g.pathCursor.fill(0, 0, count);
+  g.wanderSteps.fill(0, 0, count);
+  for (let slot = 0; slot < count; slot++) {
+    if (g.state[slot] === GuestState.Leaving) g.lostCountdown[slot] = LEAVING_COUNTDOWN;
+  }
 }
 
 function migrateVoucherlessGuests(world: World, count: number): void {
@@ -491,6 +516,9 @@ export function serialize(world: World): Uint8Array {
   return out;
 }
 
+/** Guest columns added in `WAYFINDING_SAVE_VERSION`. */
+const WAYFINDING_GUEST_COLUMNS = 5;
+
 /** Guest columns appended after a save's version: approach, navigation, stats, history, memory, then vouchers. */
 function guestColumnsAbsent(version: number): number {
   return (
@@ -502,7 +530,8 @@ function guestColumnsAbsent(version: number): number {
     (version < VOUCHER_SAVE_VERSION ? 2 : 0) +
     (version <= PRE_QUEUE_ORDER_SAVE_VERSION ? 1 : 0) +
     (version < HAPPINESS_TARGET_SAVE_VERSION ? 1 : 0) +
-    (version < STAFF_STATS_SAVE_VERSION ? GUEST_SIGHT_COLUMNS.length : 0)
+    (version < STAFF_STATS_SAVE_VERSION ? GUEST_SIGHT_COLUMNS.length : 0) +
+    (version < WAYFINDING_SAVE_VERSION ? WAYFINDING_GUEST_COLUMNS : 0)
   );
 }
 
@@ -555,6 +584,7 @@ export function deserialize(bytes: Uint8Array): World {
     HAPPINESS_TARGET_SAVE_VERSION,
     DOWNTIME_SAVE_VERSION,
     PRE_STAFF_STATS_SAVE_VERSION,
+    PRE_WAYFINDING_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -707,6 +737,8 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version < STAFF_STATS_SAVE_VERSION) migrateStaffStats(world);
   if (header.version < VOUCHER_SAVE_VERSION)
     migrateVoucherlessGuests(world, header.stores.guests.count);
+  if (header.version < WAYFINDING_SAVE_VERSION)
+    migratePreWayfindingGuests(world, header.stores.guests.count);
   if (header.version < PRE_TRACKED_WATER_RIDES_SAVE_VERSION) migrateFlatWaterRides(world);
   if (header.version < FLAT_WATER_SAVE_VERSION) flattenWaterBodies(world.map);
   if (header.version < FOOTPRINT_SAVE_VERSION) migrateSingleTileRides(world);
