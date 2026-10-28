@@ -23,45 +23,45 @@ export interface CampaignDef {
  */
 export const CAMPAIGNS: readonly CampaignDef[] = [
   {
-    name: 'free park-entry vouchers',
+    name: 'Free park-entry vouchers',
     target: 'none',
     weeklyCostCents: 5_000,
-    attractionBps: 12_000,
+    attractionBps: 14_000,
     voucher: VoucherKind.FreeEntry,
   },
   {
-    name: 'park advertising',
+    name: 'Park advertising',
     target: 'none',
-    weeklyCostCents: 15_000,
-    attractionBps: 13_500,
+    weeklyCostCents: 35_000,
+    attractionBps: 12_500,
     voucher: VoucherKind.None,
   },
   {
-    name: 'free ride vouchers',
+    name: 'Free ride vouchers',
     target: 'ride',
-    weeklyCostCents: 7_500,
-    attractionBps: 11_500,
+    weeklyCostCents: 5_000,
+    attractionBps: 13_000,
     voucher: VoucherKind.FreeRide,
   },
   {
-    name: 'half-price park-entry vouchers',
+    name: 'Half-price park-entry vouchers',
     target: 'none',
-    weeklyCostCents: 6_000,
+    weeklyCostCents: 5_000,
     attractionBps: 12_000,
     voucher: VoucherKind.HalfPriceEntry,
   },
   {
-    name: 'free food or drink vouchers',
+    name: 'Free food or drink vouchers',
     target: 'item',
-    weeklyCostCents: 4_000,
-    attractionBps: 11_000,
+    weeklyCostCents: 5_000,
+    attractionBps: 12_000,
     voucher: VoucherKind.FreeFoodOrDrink,
   },
   {
-    name: 'selected-ride advertising',
+    name: 'Selected-ride advertising',
     target: 'ride',
-    weeklyCostCents: 8_000,
-    attractionBps: 11_000,
+    weeklyCostCents: 20_000,
+    attractionBps: 12_000,
     voucher: VoucherKind.None,
   },
 ];
@@ -101,6 +101,12 @@ export function startCampaign(
 export function marketingAttractionBps(l: Ledger): number {
   if (l.campaignWeeksLeft <= 0 || l.campaignId === NO_CAMPAIGN) return BASIS_POINTS;
   return CAMPAIGNS[l.campaignId].attractionBps;
+}
+
+/** Ride the campaign attracts guests toward, or NO_TARGET for a park-wide campaign. */
+export function marketingRideTarget(l: Ledger): number {
+  if (l.campaignWeeksLeft <= 0 || l.campaignId === NO_CAMPAIGN) return NO_TARGET;
+  return CAMPAIGNS[l.campaignId].target === 'ride' ? l.campaignTarget : NO_TARGET;
 }
 
 /** The voucher a guest arriving now receives, and the ride or stall it names (NO_TARGET if none). */

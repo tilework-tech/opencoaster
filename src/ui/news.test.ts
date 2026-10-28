@@ -52,6 +52,18 @@ describe('news tracker', () => {
     );
   });
 
+  it('announces a newly unlocked ride by name', () => {
+    const news = new NewsTracker();
+    const before = snap(1, []);
+    news.observe(before);
+    const after = snap(2, []);
+    after.research.unlockedRides[RideType.WoodenCoaster] = 1;
+
+    expect(news.observe(after).map((item) => item.text)).toEqual([
+      'New ride/attraction now available: Wooden Coaster',
+    ]);
+  });
+
   it('reports guest count milestones once', () => {
     const news = new NewsTracker();
     news.observe(snap(1, [], 50));

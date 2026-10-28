@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { TICKS_PER_MONTH, TICKS_PER_WEEK } from '../economy/calendar';
-import { FUNDING_MONTHLY_CENTS, Funding, isUnlocked } from './research';
+import { Funding, isUnlocked } from './research';
 import { applyResearchAction } from './research';
 import { applyScenario } from '../scenario/scenario';
 import type { ScenarioDef } from '../scenario/scenario';
@@ -37,17 +37,18 @@ function scenario(): ScenarioDef {
 }
 
 function weeks(s: Simulation, n: number): void {
-  for (let i = 0; i <= n * TICKS_PER_WEEK; i++) s.step();
+  for (let i = 0; i < n * TICKS_PER_WEEK; i++) s.step();
 }
 
 function months(s: Simulation, n: number): void {
-  for (let i = 0; i <= n * TICKS_PER_MONTH; i++) s.step();
+  for (let i = 0; i < n * TICKS_PER_MONTH; i++) s.step();
 }
 
 /** A sim with research funded at `level` and rides enabled, ready for progress checks. */
 function researching(level: Funding): Simulation {
   const s = new Simulation({ seed: 1, width: 16, height: 16 });
   applyScenario(s.world, scenario());
+  s.world.tick = 1;
   applyResearchAction(s.world.research, { type: 'setFunding', level });
   applyResearchAction(s.world.research, { type: 'setCategories', mask: 1 << RIDES });
   return s;
@@ -61,12 +62,14 @@ describe('research funding and unlocks', () => {
     expect(isUnlocked(s.world, 1)).toBe(false);
   });
 
-  it('charges funding once a month, at the level chosen', () => {
-    const s = researching(Funding.Normal);
-    const start = s.world.economy.cash;
-    months(s, 2);
-    expect(s.world.economy.cash).toBe(start - FUNDING_MONTHLY_CENTS[Funding.Normal] * 2);
-    expect(s.world.economy.monthlyTotals[LedgerCategory.Research]).toBe(0);
+  it('charges the hand-worked RCT2 monthly prices in four weekly amounts', () => {
+    const expectedMonthlyCents = [0, 10_000, 20_000, 40_000];
+    for (const level of [Funding.None, Funding.Minimum, Funding.Normal, Funding.Maximum]) {
+      const s = researching(level);
+      const start = s.world.economy.cash;
+      weeks(s, 4);
+      expect(s.world.economy.cash).toBe(start - expectedMonthlyCents[level]);
+    }
   });
 
   it('takes about 60 days at minimum funding for a 60-day invention', () => {
@@ -104,11 +107,12 @@ describe('research funding and unlocks', () => {
   it('still charges funding when no category is selected, but makes no progress', () => {
     const s = new Simulation({ seed: 1, width: 16, height: 16 });
     applyScenario(s.world, scenario());
+    s.world.tick = 1;
     applyResearchAction(s.world.research, { type: 'setFunding', level: Funding.Normal });
     applyResearchAction(s.world.research, { type: 'setCategories', mask: 0 });
     const start = s.world.economy.cash;
     months(s, 10);
-    expect(s.world.economy.cash).toBe(start - FUNDING_MONTHLY_CENTS[Funding.Normal] * 10);
+    expect(s.world.economy.cash).toBe(start - 20_000 * 10);
     expect(isUnlocked(s.world, 1)).toBe(false);
     expect(isUnlocked(s.world, 2)).toBe(false);
   });

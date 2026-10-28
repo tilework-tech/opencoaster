@@ -1,4 +1,5 @@
 import { Funding, FUNDING_MONTHLY_CENTS } from '../../sim/research/research';
+import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, setText, statRow } from '../dom';
 import { formatMoney } from '../format';
@@ -19,13 +20,13 @@ export const FUNDING_LABELS: ReadonlyArray<readonly [Funding, string]> = [
 
 /** Display names for the research category bits. */
 export const RESEARCH_CATEGORIES: readonly string[] = [
-  'Transport rides',
-  'Gentle rides',
-  'Roller coasters',
-  'Thrill rides',
-  'Water rides',
-  'Shops and stalls',
-  'Scenery and themes',
+  'Transport Rides',
+  'Gentle Rides',
+  'Roller Coasters',
+  'Thrill Rides',
+  'Water Rides',
+  'Shops & Stalls',
+  'Scenery & Themeing',
 ];
 
 export interface FundingControls {
@@ -55,19 +56,19 @@ export function fundingControls(ctx: UiContext): FundingControls {
   const categories = element('div', 'category-list');
   const boxes: HTMLInputElement[] = [];
   let mask = 0;
+  let pendingMask: number | null = null;
   RESEARCH_CATEGORIES.forEach((name, bit) => {
     const label = element('label', 'check-row');
     const box = element('input');
     box.type = 'checkbox';
-    box.addEventListener('change', () =>
+    box.addEventListener('change', () => {
+      mask = box.checked ? mask | (1 << bit) : mask & ~(1 << bit);
+      pendingMask = mask;
       ctx.actions.command({
         type: 'research',
-        action: {
-          type: 'setCategories',
-          mask: box.checked ? mask | (1 << bit) : mask & ~(1 << bit),
-        },
-      }),
-    );
+        action: { type: 'setCategories', mask },
+      });
+    });
     boxes.push(box);
     label.append(box, element('span', '', name));
     categories.append(label);
@@ -81,7 +82,9 @@ export function fundingControls(ctx: UiContext): FundingControls {
   return {
     root,
     update(snapshot) {
-      mask = snapshot.research.enabledCategoryMask;
+      if (pendingMask === snapshot.research.enabledCategoryMask) pendingMask = null;
+      if (pendingMask === null) mask = snapshot.research.enabledCategoryMask;
+      else mask = pendingMask;
       for (const [level, b] of levels)
         b.setAttribute('aria-pressed', String(snapshot.research.funding === level));
       boxes.forEach((box, bit) => {
@@ -114,11 +117,13 @@ export function openResearchWindow(ctx: UiContext): WindowController {
       const r = snapshot.research;
       setText(
         current.value,
-        r.currentCost >= 0
-          ? 'In progress'
+        r.currentItemId >= 0
+          ? `${RIDE_CATALOG[r.currentItemId as keyof typeof RIDE_CATALOG]?.name ?? 'Scenery'} — ${r.progressStage}`
           : r.inventionCount === 0
             ? 'Nothing to research'
-            : 'Complete',
+            : r.unlockedCount < r.inventionCount
+              ? 'No research selected'
+              : 'Complete',
       );
       progress.set(
         r.currentCost > 0 ? r.progress / r.currentCost : 0,
