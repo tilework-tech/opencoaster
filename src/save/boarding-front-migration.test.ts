@@ -5,19 +5,47 @@ import { refreshQueueIndex } from '../sim/rides/queue-lines';
 import { RideType } from '../sim/rides/ride-types';
 import { PATH_BOARDING_BITS } from '../sim/map/tile-map';
 import { DIR_E, DIR_W } from '../sim/pathfinding';
-import { deserialize, SAVE_VERSION, serialize } from './save';
+import type { World } from '../sim/core/world';
+import { deserialize, serialize } from './save';
 
-/** Re-labels a current save as the last version before entrances and exits had a front edge. */
-function asPreviousVersion(bytes: Uint8Array): Uint8Array {
+/** Encodes a world as the last version before entrances and exits had a front edge. */
+function asPreviousVersion(world: World): Uint8Array {
+  const bytes = serialize(world);
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const headerLen = dv.getUint32(4, true);
-  const json = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-  const patched = new TextEncoder().encode(
-    json.replace(`"version":${SAVE_VERSION}`, `"version":${SAVE_VERSION - 1}`),
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLen)));
+  header.version = 27;
+  const patched = new TextEncoder().encode(JSON.stringify(header));
+  const arrays = [
+    ...world.map.arrays(),
+    ...world.guests.arrays(),
+    ...world.staff.arrays(),
+    ...world.vehicles.arrays(),
+    ...world.litter.arrays(),
+    ...world.rides.arrays(),
+    ...world.track.pieces.arrays(),
+    ...world.track.rideTables(),
+  ];
+  const dropped = new Set<ArrayBufferView>([world.guests.cols.happinessTarget]);
+  const body = bytes.subarray(8 + headerLen);
+  const kept: Uint8Array[] = [];
+  let offset = 0;
+  for (const array of arrays) {
+    if (!dropped.has(array)) kept.push(body.subarray(offset, offset + array.byteLength));
+    offset += array.byteLength;
+  }
+  const out = new Uint8Array(
+    8 + patched.length + kept.reduce((size, part) => size + part.length, 0),
   );
-  expect(patched.length).toBe(headerLen);
-  const out = bytes.slice();
+  const outView = new DataView(out.buffer);
+  outView.setUint32(0, dv.getUint32(0, true), true);
+  outView.setUint32(4, patched.length, true);
   out.set(patched, 8);
+  let at = 8 + patched.length;
+  for (const part of kept) {
+    out.set(part, at);
+    at += part.length;
+  }
   return out;
 }
 
@@ -35,7 +63,7 @@ describe('loading a save from before entrances and exits had a front edge', () =
       for (let e = w.map.firstElement(i); e >= 0; e = w.map.nextElement(e))
         w.map.elData[e] &= ~PATH_BOARDING_BITS;
 
-    const loaded = deserialize(asPreviousVersion(serialize(w)));
+    const loaded = deserialize(asPreviousVersion(w));
     refreshQueueIndex(loaded);
 
     const entrance = loaded.map.index(11, 5);
