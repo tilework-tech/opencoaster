@@ -8,6 +8,7 @@ These research specs describe player-visible mechanics and proposed implementati
 - [Rides](rides.md) — ride operations, capacity, ratings, pricing, queues, reliability, and breakdowns.
 - [Track](track.md) — track construction, train motion, ride testing, ratings, and operating behavior.
 - [World](world.md) — staff, litter, weather, land, paths, scenery, and park upkeep.
+- [Staff](staff.md) — staff energy and speed, handyman, mechanic, security and entertainer behaviour, guest litter, vomit and vandalism thoughts, and the staff window statistics.
 - [Engine](engine.md) — world representation, simulation clock, rendering, camera, interface, and save concepts.
 - [Economy spec (PR #1)](https://github.com/tilework-tech/opencoaster/pull/1) — finance, loans, income and costs, research, marketing, park value, and scenario objectives.
 
