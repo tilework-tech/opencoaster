@@ -11,10 +11,5 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   reporter: [['list'], ['./tools/sprites/e2e-spec-timing-reporter.ts']],
   workers: 1,
-  webServer: {
-    command: 'corepack pnpm exec vite --host 127.0.0.1 --port 4173 --strictPort',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: undefined,
 });
