@@ -23,7 +23,7 @@ for (const mobile of [false, true]) {
         'Fails on clean main 152c6df: queue setup remains at “Placing exit…” instead of advancing to “Build the queue”.',
       );
       test.setTimeout(600_000);
-      const page = await openPage(browser, mobile);
+      const page = await openPage(browser, mobile, { canvas2d: true });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, SNAKE_QUEUE, mobile ? 0.25 : 0.5, mobile);

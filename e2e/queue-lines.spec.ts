@@ -21,7 +21,7 @@ for (const mobile of [false, true]) {
       freshBrowser: browser,
     }, testInfo) => {
       test.setTimeout(480_000);
-      const page = await openPage(browser, mobile, { canvas2d: !mobile });
+      const page = await openPage(browser, mobile, { canvas2d: true });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, LONG_QUEUE, lift, mobile);
@@ -73,7 +73,7 @@ for (const mobile of [false, true]) {
 
     test('a full queue turns guests away', async ({ freshBrowser: browser }, testInfo) => {
       test.setTimeout(480_000);
-      const page = await openPage(browser, mobile, { canvas2d: !mobile });
+      const page = await openPage(browser, mobile, { canvas2d: true });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, SHORT_QUEUE, lift, mobile, { queueLimit: 3 });

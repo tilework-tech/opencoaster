@@ -306,12 +306,16 @@ export async function pressAndDrag(
     type: 'touchStart',
     touchPoints: await point(tiles[0]!),
   });
-  for (const tile of tiles.slice(1)) {
+  for (const [index, tile] of tiles.slice(1).entries()) {
     await cdp.send('Input.dispatchTouchEvent', {
       type: 'touchMove',
       touchPoints: await point(tile),
     });
-    await page.waitForTimeout(40);
+    const expectedTiles = index + 2;
+    await expect(page.locator('.path-ghost-label')).toContainText(
+      new RegExp(`^${expectedTiles} tiles? ·`),
+      { timeout: 15_000 },
+    );
   }
   return async () => {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
