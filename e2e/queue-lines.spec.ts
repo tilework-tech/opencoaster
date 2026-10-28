@@ -24,7 +24,7 @@ for (const mobile of [false, true]) {
         'Fails on clean main 152c6df: Pixel 8 ride setup remains at “Placing entrance…” instead of advancing to “Place exit”.',
       );
       test.setTimeout(480_000);
-      const page = await openPage(browser, mobile);
+      const page = await openPage(browser, mobile, { canvas2d: !mobile });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, LONG_QUEUE, lift, mobile);
@@ -78,7 +78,7 @@ for (const mobile of [false, true]) {
         'Fails on clean main 152c6df: Pixel 8 ride setup does not advance from entrance placement to exit placement.',
       );
       test.setTimeout(480_000);
-      const page = await openPage(browser, mobile);
+      const page = await openPage(browser, mobile, { canvas2d: !mobile });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, SHORT_QUEUE, lift, mobile, { queueLimit: 3 });

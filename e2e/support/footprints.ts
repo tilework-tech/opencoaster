@@ -200,7 +200,7 @@ export async function tileScreenPoint(page: Page, [x, y]: Tile): Promise<{ x: nu
   const dy = y - MAP_CENTER[1];
   return {
     x: bounds.x + bounds.width / 2 + (dx - dy) * TILE_HALF_WIDTH,
-    y: bounds.y + bounds.height / 2 + (dx + dy) * TILE_HALF_HEIGHT - 2 * TILE_HALF_HEIGHT,
+    y: bounds.y + bounds.height / 2 + (dx + dy) * TILE_HALF_HEIGHT - 4 * TILE_HALF_HEIGHT,
   };
 }
 

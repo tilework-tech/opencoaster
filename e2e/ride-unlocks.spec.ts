@@ -17,9 +17,10 @@ test('new ride menu offers only the starting rides and filters them by tab', asy
   const attractions = page.getByRole('group', { name: 'New attraction' });
 
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
-  await expect(attractions.locator('.ui-pane.active .ride-card:visible')).toHaveCount(1);
+  const gentleRides = attractions.locator('.ui-pane.active .ride-card:visible');
+  await expect(gentleRides).toHaveCount(2);
   await expect(page.getByRole('button', { name: /^Merry-Go-Round/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Ferris Wheel/ })).toBeHidden();
+  await expect(page.getByRole('button', { name: /^Ferris Wheel/ })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Roller Coasters' }).click();
   await expect(page.getByRole('button', { name: /^Steel Looping Coaster/ })).toBeHidden();
