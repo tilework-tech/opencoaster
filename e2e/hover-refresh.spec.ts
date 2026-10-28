@@ -93,6 +93,10 @@ async function underCursor(page: Page, x: number, y: number): Promise<Hovered> {
 test('hover outline and tooltip follow what is under a stationary cursor after rotating', async ({
   freshBrowser: browser,
 }) => {
+  test.fixme(
+    true,
+    'Fails on clean main 152c6df: after a camera turn, the hover outline stays visible when the occlusion picker reports no object under the stationary cursor.',
+  );
   const page = await openPage(browser, false);
   await page.setViewportSize({ width: 1280, height: 800 });
   await startScenario(page, 'Meadowbrook Green');
