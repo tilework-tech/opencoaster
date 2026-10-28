@@ -148,16 +148,26 @@ function tripFinished(completed: number, tag: number): boolean {
   return passed >= 1 && passed < 0x8000;
 }
 
+const economyVoucher = { kind: VoucherKind.None, target: -1 };
+const economyCampaign = { probability: 0, voucher: economyVoucher, targetRide: -1 };
+const economyAdmission: GuestAdmission = {
+  generationProbability: 0,
+  entranceFee: 0,
+  campaign: economyCampaign,
+};
+
+/** Reads the arrival odds from the ledger into one reused record, so a tick allocates nothing. */
 function admissionFromEconomy(world: World): GuestAdmission {
-  return {
-    generationProbability: world.economy.guestGeneration.probability,
-    entranceFee: gateAdmissionCents(world),
-    campaign: {
-      probability: campaignGenerationProbability(world),
-      voucher: arrivalVoucher(world),
-      targetRide: marketingTargetRide(world),
-    },
-  };
+  economyAdmission.generationProbability = world.economy.guestGeneration.probability;
+  economyAdmission.entranceFee = gateAdmissionCents(world);
+  economyCampaign.probability = campaignGenerationProbability(world);
+  if (economyCampaign.probability > 0) {
+    const voucher = arrivalVoucher(world);
+    economyVoucher.kind = voucher.kind;
+    economyVoucher.target = voucher.target;
+    economyCampaign.targetRide = marketingTargetRide(world);
+  }
+  return economyAdmission;
 }
 
 function rideCategory(world: World, ride: number): string {
