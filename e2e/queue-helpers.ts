@@ -281,6 +281,7 @@ export async function startOpenGrounds(page: Page): Promise<void> {
       },
     )
     .not.toBe(0);
+  await expect(page.locator('#game')).toBeVisible({ timeout: 30_000 });
 }
 
 /**

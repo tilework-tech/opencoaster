@@ -196,6 +196,25 @@ export async function hudTick(page: Page): Promise<number> {
   return Number(tick[1]);
 }
 
+export async function waitForSimulationTicks(
+  page: Page,
+  afterTick: number,
+  tickCount: number,
+): Promise<number> {
+  await page.waitForFunction(
+    ({ after, count }) => {
+      const tick = (window as unknown as { __sim?: { latest?: { tick?: number } } }).__sim?.latest
+        ?.tick;
+      return typeof tick === 'number' && tick >= after + count;
+    },
+    { after: afterTick, count: tickCount },
+    { timeout: 30_000 },
+  );
+  return page.evaluate(
+    () => (window as unknown as { __sim: { latest: { tick: number } } }).__sim.latest.tick,
+  );
+}
+
 export async function savedWorld(page: Page): Promise<World> {
   const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
   while (await closeButtons.count()) await closeButtons.first().click();

@@ -1,4 +1,5 @@
 import { expect, test } from './support/test';
+import { waitForSimulationTicks } from './support/park';
 import {
   SNAKE_QUEUE,
   buildQueuedRide,
@@ -21,10 +22,6 @@ for (const mobile of [false, true]) {
         !mobile,
         'Fails on clean main 152c6df: queue setup remains at “Placing exit…” instead of advancing to “Build the queue”.',
       );
-      test.fixme(
-        mobile,
-        'Fails on clean main 152c6df: Pixel 8 ride setup remains at “Placing exit…” instead of advancing to “Build the queue”.',
-      );
       test.setTimeout(600_000);
       const page = await openPage(browser, mobile);
       page.setDefaultTimeout(15_000);
@@ -37,9 +34,11 @@ for (const mobile of [false, true]) {
       let screenshotted = false;
       let completedGuest = false;
       const deadline = Date.now() + 300_000;
+      let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && !completedGuest) {
-        await page.waitForTimeout(150);
+        sampledTick = await waitForSimulationTicks(page, sampledTick, 6);
         const p = await probe(page);
+        sampledTick = p.tick;
         const queuing = p.guests.filter((g) => g.state === 1);
         for (const g of queuing) {
           const at = ORDER.indexOf(`${g.x},${g.y}`);

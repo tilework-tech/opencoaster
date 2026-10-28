@@ -1,4 +1,5 @@
 import { expect, test } from './support/test';
+import { waitForSimulationTicks } from './support/park';
 import {
   LONG_QUEUE,
   SHORT_QUEUE,
@@ -19,10 +20,6 @@ for (const mobile of [false, true]) {
     test('guests queue single file in order, spaced apart, and wanderers never enter the line', async ({
       freshBrowser: browser,
     }, testInfo) => {
-      test.fixme(
-        mobile,
-        'Fails on clean main 152c6df: Pixel 8 ride setup remains at “Placing entrance…” instead of advancing to “Place exit”.',
-      );
       test.setTimeout(480_000);
       const page = await openPage(browser, mobile, { canvas2d: !mobile });
       page.setDefaultTimeout(15_000);
@@ -35,9 +32,11 @@ for (const mobile of [false, true]) {
       let peak = 0;
       let screenshotted = false;
       const deadline = Date.now() + 200_000;
+      let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && peak < 4) {
-        await page.waitForTimeout(300);
+        sampledTick = await waitForSimulationTicks(page, sampledTick, 12);
         const p = await probe(page);
+        sampledTick = p.tick;
         const queuing = p.guests.filter((g) => g.state === 1);
         for (const g of queuing) {
           if (!joined.has(g.id)) joined.set(g.id, p.tick);
@@ -73,10 +72,6 @@ for (const mobile of [false, true]) {
     });
 
     test('a full queue turns guests away', async ({ freshBrowser: browser }, testInfo) => {
-      test.fixme(
-        mobile,
-        'Fails on clean main 152c6df: Pixel 8 ride setup does not advance from entrance placement to exit placement.',
-      );
       test.setTimeout(480_000);
       const page = await openPage(browser, mobile, { canvas2d: !mobile });
       page.setDefaultTimeout(15_000);
@@ -86,9 +81,11 @@ for (const mobile of [false, true]) {
       let turnedAway = 0;
       let fullest = 0;
       const deadline = Date.now() + 200_000;
+      let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && !(turnedAway > 0 && fullest > 0)) {
-        await page.waitForTimeout(300);
+        sampledTick = await waitForSimulationTicks(page, sampledTick, 12);
         const p = await probe(page);
+        sampledTick = p.tick;
         const capacity = p.ride!.capacity;
         expect(
           p.ride!.queueLength,

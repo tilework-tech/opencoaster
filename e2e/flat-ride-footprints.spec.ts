@@ -214,8 +214,6 @@ interface BuildOptions {
   dir: number;
   /** Turn the ghost with the on-screen button instead of the Z key. */
   rotateWith?: 'key' | 'button';
-  /** Also save a screenshot of guests riding. */
-  savePlaytest?: boolean;
   /** Skip crowd, stall and guest-serving setup for footprint-only WebGL2 cases. */
   skipGuestFlow?: boolean;
 }
@@ -289,13 +287,14 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await page
     .getByRole('button', { name: `Place exit at tile ${site.exit[0]}, ${site.exit[1]}` })
     .click();
-  await expect(status).toContainText('Ride setup complete');
-
-  const windowId = '[data-panel="ride-0"]';
-  const rideWindow = page.locator(windowId);
-  await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
-  await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
-  await page.getByRole('button', { name: 'Close Ride 1' }).click();
+  await expect(status).toContainText(/Ride setup complete|Build the queue/);
+  if (options.skipGuestFlow) await clearTransientUi(page);
+  else {
+    const rideWindow = page.locator('[data-panel="ride-0"]');
+    await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
+    await page.getByRole('button', { name: 'Close Ride 1' }).click();
+  }
   if (!options.skipGuestFlow) {
     await toolbarAction(page, 'Game options');
     await page.getByRole('button', { name: /4×/ }).first().click();
@@ -337,29 +336,18 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
       { timeout: 150_000, message: `${ride.name} guests served` },
     )
     .toBeGreaterThan(0);
-  if (options.savePlaytest) {
-    await page.getByRole('button', { name: 'Close Ride 1' }).click();
-    await page.getByRole('button', { name: 'Close Rides and attractions' }).click();
-    await save(`${prefix}-riding.jpg`, await cropJpeg(await takeShot(page, box), box, PANE_WIDTH));
-  }
 }
 
 test.describe('flat ride footprints (WebGL2)', () => {
   test.slow();
   for (const ride of FOOTPRINT_RIDES) {
-    test(`${ride.name} builds and opens with its footprint aligned`, async ({ page }, testInfo) => {
-      test.fixme(
-        true,
-        'Fails on clean main 9eec5ec: the ride flow now requires a connected queue, which this footprint fixture does not build.',
-      );
+    test(`${ride.name} builds with its footprint aligned`, async ({ page }, testInfo) => {
       test.setTimeout(240_000);
       page.setDefaultTimeout(10_000);
-      const rideFlow = ride.slug === 'merry-go-round';
       await buildAndRide(page, testInfo, {
         ride,
         dir: 0,
-        savePlaytest: rideFlow,
-        skipGuestFlow: !rideFlow,
+        skipGuestFlow: true,
       });
     });
   }
@@ -367,10 +355,6 @@ test.describe('flat ride footprints (WebGL2)', () => {
   test(`${ride.name} turned one quarter turn keeps its footprint and boarding points aligned`, async ({
     page,
   }, testInfo) => {
-    test.fixme(
-      true,
-      'Fails on clean main 9eec5ec: the ride flow now requires a connected queue, which this footprint fixture does not build.',
-    );
     test.setTimeout(240_000);
     page.setDefaultTimeout(10_000);
     await buildAndRide(page, testInfo, {

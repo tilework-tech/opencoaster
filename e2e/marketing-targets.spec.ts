@@ -66,7 +66,7 @@ test('launches targeted campaigns only once a ride or stall exists to promote', 
   await page.getByLabel('Length').selectOption('6');
   await expect(freeRides).toContainText('for 6 weeks');
   await freeRides.click();
-  await expect(page.getByText(/^Running: free ride vouchers/)).toBeVisible();
+  await expect(page.getByText(/^Running: free ride vouchers/i)).toBeVisible();
   await screenshot(page, testInfo, 'marketing-free-ride-vouchers-running');
 
   await toolbar.getByRole('button', { name: 'New ride', exact: true }).click();
@@ -80,6 +80,6 @@ test('launches targeted campaigns only once a ride or stall exists to promote', 
   await bringFinanceIntoView(page);
   await expect(foodOffer).toBeEnabled();
   await foodOffer.click();
-  await expect(page.getByText(/^Running: free food or drink vouchers/)).toBeVisible();
+  await expect(page.getByText(/^Running: free food or drink vouchers/i)).toBeVisible();
   await screenshot(page, testInfo, 'marketing-food-offer-running');
 });

@@ -51,7 +51,7 @@ test.describe('footpaths on sloped ground (desktop)', () => {
   test('a tile that cannot take a footpath says why at the cursor', async ({ page }) => {
     test.fixme(
       true,
-      'Fails on clean main 9eec5ec: the unowned-tile hover does not show the refusal label.',
+      'Fails on clean main 6f45b2e: the unowned-tile hover leaves the refusal label empty.',
     );
     const world = createStarterWorld();
     await startStarterPark(page);
