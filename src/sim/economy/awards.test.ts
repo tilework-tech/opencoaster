@@ -102,7 +102,7 @@ describe('monthly park awards', () => {
         awards,
         tick,
       });
-    expect(probabilityAt(0)).toBe(712);
+    expect(probabilityAt(0)).toBe(875);
     expect(probabilityAt(AWARD_DURATION_MONTHS * TICKS_PER_MONTH)).toBe(700);
     expect(probabilityAt(0, [{ awardId: 13, expiresTick: 100_000 }])).toBe(525);
   });

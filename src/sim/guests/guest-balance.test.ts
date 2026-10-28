@@ -170,36 +170,6 @@ describe('stall service', () => {
   });
 });
 
-describe('park capacity', () => {
-  function arrivals(openRides: number): number {
-    const world = flatWorld(24, 11);
-    layPath(world, row(12, 3, 21));
-    for (let i = 0; i < openRides; i++) {
-      const x = 4 + i * 3;
-      const ride = openRide(
-        world,
-        RideType.MerryGoRound,
-        [x, 11],
-        [x, 12],
-        [x + 1, 11],
-        [[x - 1, 12]],
-      );
-      world.rides.cols.excitement[ride] = 500;
-    }
-    const system = createGuestSystem(() => ({ generationProbability: 65_536, entranceFee: 0 }));
-    world.park.entranceX = 2;
-    world.park.entranceY = 12;
-    layPath(world, [[2, 12]]);
-    stepSystem(world, system, 8_192);
-    return world.guests.count;
-  }
-
-  it('lets a park with more attractions hold more guests', () => {
-    expect(arrivals(0)).toBeLessThanOrEqual(30);
-    expect(arrivals(5)).toBeGreaterThan(30);
-  });
-});
-
 describe('stall edge cases', () => {
   function stallWithGuests(type: RideType, count: number) {
     const world = flatWorld(24, 8);

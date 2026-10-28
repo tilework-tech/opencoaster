@@ -1,6 +1,7 @@
 import { PriceMode } from '../../sim/economy/ledger';
 import { gameDate, TICKS_PER_MONTH } from '../../sim/economy/calendar';
 import { AWARDS } from '../../sim/economy/awards';
+import { RATING_FACTOR_LABELS } from '../../sim/economy/park-rating';
 import type { Stats } from '../../worker/protocol';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, setText, statRow } from '../dom';
@@ -48,6 +49,12 @@ export function openParkWindow(ctx: UiContext): WindowController {
     value: statRow('Park value'),
   };
   const rating = gauge('Park rating');
+  const ratingFactors = RATING_FACTOR_LABELS.map((label) => statRow(label));
+  const arrivals = {
+    chance: statRow('Arrivals per month'),
+    cap: statRow('Suggested guest maximum'),
+    value: statRow('Ride value for money'),
+  };
   const guestChart = element('canvas', 'chart');
   guestChart.width = 300;
   guestChart.height = 110;
@@ -94,6 +101,12 @@ export function openParkWindow(ctx: UiContext): WindowController {
           'ui-help',
           'Rating rises with happy guests, exciting rides and a tidy, well-run park.',
         ),
+        element('p', 'ui-help', 'Rating factors (they add up to the rating, capped at 0-999)'),
+        ...ratingFactors.map((factor) => factor.row),
+        element('p', 'ui-help', 'Guest arrivals'),
+        arrivals.chance.row,
+        arrivals.cap.row,
+        arrivals.value.row,
       );
     win.pane('guests').append(element('p', 'ui-help', 'Guests in the park'), guestChart);
     win.pane('price').append(element('p', 'ui-help', 'How guests pay'), modeRow, admissionBlock);
@@ -116,6 +129,16 @@ export function openParkWindow(ctx: UiContext): WindowController {
         snapshot.scenario.parkRating / MAX_PARK_RATING,
         String(snapshot.scenario.parkRating),
       );
+      snapshot.economy.ratingFactors.forEach((value, i) => {
+        const text = i === 0 ? String(value) : value > 0 ? `+${value}` : String(value);
+        setText(ratingFactors[i].value, text);
+      });
+      setText(
+        arrivals.chance.value,
+        String(Math.round((snapshot.economy.guestProbability * TICKS_PER_MONTH) / 65_536)),
+      );
+      setText(arrivals.cap.value, String(snapshot.economy.suggestedGuestMax));
+      setText(arrivals.value.value, formatMoney(snapshot.economy.rideValueForMoney));
       if (win.activeTab === 'guests') drawChart(guestChart, ctx.series.guests.values(), '#8fd3ff');
       for (const [mode, b] of modeButtons)
         b.setAttribute('aria-pressed', String(snapshot.economy.priceMode === mode));

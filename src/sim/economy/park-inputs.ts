@@ -47,7 +47,10 @@ export const parkInputsSystem: System = {
       const shop = isShopCategory(definition.category);
       rideCount++;
       if (ride.state[slot] === RideState.Broken) downRides++;
-      if (!shop && ride.tested[slot] !== 0) {
+      if (
+        !shop &&
+        (ride.tested[slot] !== 0 || (!definition.usesTrack && ride.excitement[slot] > 0))
+      ) {
         rated++;
         ratedExcitement += Math.trunc(ride.excitement[slot] / RATING_UNIT_DIVISOR);
         ratedIntensity += Math.trunc(ride.intensity[slot] / RATING_UNIT_DIVISOR);
