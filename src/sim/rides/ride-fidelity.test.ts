@@ -212,6 +212,7 @@ describe('time-based reliability', () => {
   it('wears reliability on the check cadence, not per completed cycle', () => {
     const w = world();
     const id = createRide(w, RideType.Twist, 4, 4);
+    w.rides.cols.state[slotOf(w, id)] = RideState.Open;
     const start = getRideReliabilityRaw(w, id);
     expect(start).toBe(RELIABILITY_MAX);
 
@@ -228,6 +229,8 @@ describe('time-based reliability', () => {
     const w = world();
     const young = createRide(w, RideType.Twist, 4, 4);
     const old = createRide(w, RideType.Twist, 8, 8);
+    w.rides.cols.state[slotOf(w, young)] = RideState.Open;
+    w.rides.cols.state[slotOf(w, old)] = RideState.Open;
     w.rides.cols.ageMonths[slotOf(w, old)] = 8 * 6;
     w.tick = RELIABILITY_CHECK_TICKS;
     updateRideMaintenance(w);
@@ -240,6 +243,8 @@ describe('time-based reliability', () => {
     const w = world();
     const id = createRide(w, RideType.Twist, 4, 4);
     setReliability(w, id, 50 * 256 + 17);
+    w.rides.cols.state[slotOf(w, id)] = RideState.Open;
+    w.rides.cols.phase[slotOf(w, id)] = RidePhase.Waiting;
     w.tick = RELIABILITY_CHECK_TICKS;
     updateRideMaintenance(w);
     const raw = getRideReliabilityRaw(w, id);
@@ -281,7 +286,7 @@ describe('breakdown rolls and reasons', () => {
 
   it('breaks at the documented per-check rate for a given reliability', () => {
     const reliability = 12_000;
-    const expected = (25_857 - reliability) / 3_145_728;
+    const expected = (25_857 - (reliability - 4)) / 2 ** 21;
     let breaks = 0;
     const trials = 40_000;
     const w = world(5);
@@ -312,9 +317,9 @@ describe('breakdown rolls and reasons', () => {
   });
 
   it('selects only reasons the ride type allows', () => {
-    const allowed = new Set(RIDE_CATALOG[RideType.Twist].breakdowns.map((b) => b.reason));
+    const allowed = new Set(RIDE_CATALOG[RideType.MerryGoRound].breakdowns.map((b) => b.reason));
     const w = world(9);
-    const id = openRide(w, RideType.Twist);
+    const id = openRide(w, RideType.MerryGoRound);
     const slot = slotOf(w, id);
     const seen = new Set<number>();
     for (let i = 0; i < 400; i++) {

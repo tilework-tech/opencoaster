@@ -5,7 +5,11 @@ import { TICKS_PER_WEEK } from '../economy/calendar';
 import { placePath, setPathAddition, PathAddition } from '../map/paths';
 import { RidePhase, RideState } from '../rides/ride-store';
 import { createRide } from '../rides/ride-operations';
-import { triggerRideBreakdown } from '../rides/ride-maintenance';
+import {
+  MechanicStatus,
+  getRideMechanicStatus,
+  triggerRideBreakdown,
+} from '../rides/ride-maintenance';
 import { RideType } from '../rides/ride-types';
 import {
   StaffKind,
@@ -331,6 +335,51 @@ describe('staff commands and work', () => {
 
     expect(world.rides.cols.state[rideSlot]).toBe(RideState.Open);
     expect(world.rides.cols.phase[rideSlot]).toBe(RidePhase.Waiting);
+  });
+
+  it('shows a repair call, the mechanic heading to the ride, then the repair under way', () => {
+    const sim = new Simulation({ seed: 3, width: 16, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    for (let x = 2; x <= 7; x++) placePath(world.map, { x, y: 8, z: 2 });
+    const rideId = createRide(world, RideType.MerryGoRound, 8, 8);
+    const rideSlot = world.rides.idToSlot[rideId];
+    world.rides.cols.state[rideSlot] = RideState.Open;
+    world.rides.cols.phase[rideSlot] = RidePhase.Waiting;
+    world.rides.cols.queueConnected[rideSlot] = 1;
+    expect(getRideMechanicStatus(world, rideId)).toBe(MechanicStatus.None);
+
+    triggerRideBreakdown(world, rideId);
+    expect(getRideMechanicStatus(world, rideId)).toBe(MechanicStatus.Calling);
+
+    expect(spawnStaff(world, StaffKind.Mechanic)).toBe(true);
+    world.staff.cols.x[0] = 2 * 256 + 128;
+    world.staff.cols.y[0] = 8 * 256 + 128;
+    staffSystem.update(world);
+    world.tick += 16;
+    expect(getRideMechanicStatus(world, rideId)).toBe(MechanicStatus.Heading);
+
+    const seen = new Set<MechanicStatus>();
+    workStaffUntil(world, () => {
+      seen.add(getRideMechanicStatus(world, rideId));
+      return world.rides.cols.state[rideSlot] === RideState.Open;
+    });
+    expect(seen.has(MechanicStatus.Fixing)).toBe(true);
+    expect(getRideMechanicStatus(world, rideId)).toBe(MechanicStatus.None);
+  });
+
+  it('keeps a repair call unanswered when no mechanic is employed', () => {
+    const sim = new Simulation({ seed: 3, width: 16, height: 16 });
+    const world = sim.world;
+    world.map.fillFlat(2);
+    const rideId = createRide(world, RideType.MerryGoRound, 8, 8);
+    world.rides.cols.state[world.rides.idToSlot[rideId]] = RideState.Open;
+    triggerRideBreakdown(world, rideId);
+    for (let i = 0; i < 20; i++) {
+      staffSystem.update(world);
+      world.tick += 16;
+    }
+    expect(getRideMechanicStatus(world, rideId)).toBe(MechanicStatus.Calling);
   });
 
   it('skips a disconnected broken ride and services a reachable repair call', () => {

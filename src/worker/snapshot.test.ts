@@ -10,13 +10,15 @@ import { GuestState } from '../sim/guests/guest-store';
 import { flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/fixtures';
 import { RideType } from '../sim/rides/ride-types';
 import { createRide } from '../sim/rides/ride-operations';
+import { MechanicStatus, breakRide } from '../sim/rides/ride-maintenance';
+import { BreakdownReason } from '../sim/rides/breakdown-reasons';
 import { LedgerCategory, PriceMode } from '../sim/economy/ledger';
 import { applyScenario } from '../sim/scenario/scenario';
 import { findScenario } from '../sim/scenario/catalog';
 import { Funding } from '../sim/research/research';
 import { prepareFlat } from '../sim/integration/fixtures';
 import { PIECES } from '../sim/track/catalog';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG } from '../sim/rides/ride-types';
 import { StaffKind, StaffOrder } from '../sim/staff/staff-store';
 import {
   RideInfo,
@@ -306,6 +308,28 @@ describe('render snapshot', () => {
     expect(progress()).toBe(998);
     rides.phase[slot] = RidePhase.Unloading;
     expect(progress()).toBe(0);
+  });
+
+  it("publishes each ride's maintenance state", () => {
+    const w = flatWorld();
+    const rideId = createRide(w, RideType.Twist, 4, 4);
+    const slot = w.rides.idToSlot[rideId];
+    w.rides.cols.reliability[slot] = 63;
+    w.rides.cols.inspectionIntervalTicks[slot] = 20 * INSPECTION_MINUTE_TICKS;
+    w.rides.cols.lastInspectionTick[slot] = 0;
+    w.tick = 7 * INSPECTION_MINUTE_TICKS + 5;
+    w.rides.cols.state[slot] = RideState.Open;
+    breakRide(w, slot, BreakdownReason.SafetyCutOut);
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(w, snapshot);
+
+    const info = snapshot.rideInfo;
+    expect(info[RideInfo.InspectionMinutes]).toBe(20);
+    expect(info[RideInfo.MinutesSinceInspection]).toBe(7);
+    expect(info[RideInfo.MechanicStatus]).toBe(MechanicStatus.Calling);
+    expect(info[RideInfo.Downtime]).toBe(0);
+    expect(info[RideInfo.Reliability]).toBe(63);
   });
 
   it('publishes per-ride status, ratings and the track construction cursor', () => {

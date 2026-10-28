@@ -116,8 +116,11 @@ export interface RideTypeDef {
   runningCostPerFortnightCents?: number;
 }
 
-/** One minute of the original game's inspection clock, at 40 ticks a second. */
-export const INSPECTION_MINUTE_TICKS = 40 * 60;
+/**
+ * One minute of the original game's inspection clock: 2048 of its ticks, which run at the same 40
+ * a second as ours, so the count carries over unconverted (about 51 real seconds).
+ */
+export const INSPECTION_MINUTE_TICKS = 2048;
 /** Inspection intervals the player can pick, in minutes; 0 means never. */
 export const INSPECTION_INTERVAL_MINUTES = [10, 20, 30, 45, 60, 120] as const;
 /** New rides ask for a mechanic every 30 minutes. */
@@ -141,27 +144,33 @@ export function rectFootprint(width: number, length: number): Array<[number, num
 
 const weights = (reason: BreakdownReason, weight: number): BreakdownWeight => ({ reason, weight });
 
-const FLAT_WITH_RESTRAINTS: readonly BreakdownWeight[] = [
-  weights(BreakdownReason.SafetyCutOut, 20),
-  weights(BreakdownReason.RestraintsStuckClosed, 12),
-  weights(BreakdownReason.RestraintsStuckOpen, 10),
-  weights(BreakdownReason.ControlFailure, 6),
-];
+const SAFETY_CUT_OUT = weights(BreakdownReason.SafetyCutOut, 25);
+const RESTRAINTS_STUCK_CLOSED = weights(BreakdownReason.RestraintsStuckClosed, 12);
+const RESTRAINTS_STUCK_OPEN = weights(BreakdownReason.RestraintsStuckOpen, 10);
+const DOORS_STUCK_CLOSED = weights(BreakdownReason.DoorsStuckClosed, 13);
+const DOORS_STUCK_OPEN = weights(BreakdownReason.DoorsStuckOpen, 10);
+const VEHICLE_MALFUNCTION = weights(BreakdownReason.VehicleMalfunction, 6);
+const CONTROL_FAILURE = weights(BreakdownReason.ControlFailure, 3);
+const BRAKES_FAILURE = weights(BreakdownReason.BrakesFailure, 3);
 
-const FERRIS_WHEEL_BREAKDOWNS: readonly BreakdownWeight[] = [
-  weights(BreakdownReason.SafetyCutOut, 20),
-  weights(BreakdownReason.DoorsStuckClosed, 10),
-  weights(BreakdownReason.DoorsStuckOpen, 8),
-  weights(BreakdownReason.ControlFailure, 4),
+/** Which failures a ride class can suffer, each with its shared weight. */
+const CUT_OUT_ONLY: readonly BreakdownWeight[] = [SAFETY_CUT_OUT];
+const CUT_OUT_AND_CONTROL: readonly BreakdownWeight[] = [SAFETY_CUT_OUT, CONTROL_FAILURE];
+const CUT_OUT_AND_VEHICLE: readonly BreakdownWeight[] = [SAFETY_CUT_OUT, VEHICLE_MALFUNCTION];
+const CUT_OUT_AND_BRAKES: readonly BreakdownWeight[] = [SAFETY_CUT_OUT, BRAKES_FAILURE];
+const VEHICLE_ONLY: readonly BreakdownWeight[] = [VEHICLE_MALFUNCTION];
+const DOORED_TRANSPORT_BREAKDOWNS: readonly BreakdownWeight[] = [
+  SAFETY_CUT_OUT,
+  DOORS_STUCK_CLOSED,
+  DOORS_STUCK_OPEN,
+  VEHICLE_MALFUNCTION,
 ];
-
-/** The one worked example in the public breakdown write-up (a mine train coaster). */
 const COASTER_BREAKDOWNS: readonly BreakdownWeight[] = [
-  weights(BreakdownReason.SafetyCutOut, 25),
-  weights(BreakdownReason.RestraintsStuckClosed, 12),
-  weights(BreakdownReason.RestraintsStuckOpen, 10),
-  weights(BreakdownReason.VehicleMalfunction, 6),
-  weights(BreakdownReason.BrakesFailure, 3),
+  SAFETY_CUT_OUT,
+  RESTRAINTS_STUCK_CLOSED,
+  RESTRAINTS_STUCK_OPEN,
+  VEHICLE_MALFUNCTION,
+  BRAKES_FAILURE,
 ];
 
 const NO_VALUE: RideTypeDef['valueWeights'] = [0, 0, 0];
@@ -191,6 +200,7 @@ function addedRide(
     steep?: boolean;
     inversions?: boolean;
     trackClearanceWorld?: number;
+    breakdowns?: readonly BreakdownWeight[];
   } = {},
 ): RideTypeDef {
   const usesTrack = opts.usesTrack ?? false;
@@ -213,7 +223,7 @@ function addedRide(
     valueWeights: category === 'stall' ? NO_VALUE : [51, 32, 10],
     modes,
     unreliability,
-    breakdowns: category === 'stall' ? [] : FLAT_WITH_RESTRAINTS,
+    breakdowns: category === 'stall' ? [] : (opts.breakdowns ?? CUT_OUT_ONLY),
     defaultPriceCents: category === 'stall' ? 120 : 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     runningCostPerFortnightCents,
@@ -316,8 +326,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     baseNausea: 40,
     valueWeights: [60, 16, 10],
     modes: [modeDef(RideMode.Rotation, 'Rotation')],
-    unreliability: 4,
-    breakdowns: FLAT_WITH_RESTRAINTS,
+    unreliability: 16,
+    breakdowns: CUT_OUT_AND_CONTROL,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
@@ -337,8 +347,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     baseNausea: 310,
     valueWeights: [50, 32, 10],
     modes: [modeDef(RideMode.Swing, 'Swing')],
-    unreliability: 7,
-    breakdowns: FLAT_WITH_RESTRAINTS,
+    unreliability: 10,
+    breakdowns: CUT_OUT_ONLY,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
@@ -363,8 +373,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
         excitement: FERRIS_BACKWARD_EXCITEMENT,
       }),
     ],
-    unreliability: 4,
-    breakdowns: FERRIS_WHEEL_BREAKDOWNS,
+    unreliability: 16,
+    breakdowns: CUT_OUT_ONLY,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
@@ -384,8 +394,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     baseNausea: 460,
     valueWeights: [50, 32, 10],
     modes: [modeDef(RideMode.Rotation, 'Rotation')],
-    unreliability: 8,
-    breakdowns: FLAT_WITH_RESTRAINTS,
+    unreliability: 16,
+    breakdowns: CUT_OUT_ONLY,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
@@ -494,7 +504,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     baseNausea: 30,
     valueWeights: [51, 32, 10],
     modes: TRACK_MODES,
-    unreliability: 10,
+    unreliability: 19,
     breakdowns: COASTER_BREAKDOWNS,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
@@ -534,7 +544,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     baseNausea: 45,
     valueWeights: [51, 32, 10],
     modes: TRACK_MODES,
-    unreliability: 14,
+    unreliability: 15,
     breakdowns: COASTER_BREAKDOWNS,
     defaultPriceCents: 0,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
@@ -568,7 +578,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     8_400,
     3,
     11,
-    6,
+    8,
+    { breakdowns: CUT_OUT_ONLY },
   ),
   [RideType.SpiralSlide]: addedRide(
     RideType.SpiralSlide,
@@ -584,7 +595,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     660,
     1,
     12,
-    4,
+    8,
+    { breakdowns: CUT_OUT_ONLY },
   ),
   [RideType.TopSpin]: addedRide(
     RideType.TopSpin,
@@ -597,7 +609,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     11_200,
     3,
     13,
-    8,
+    19,
+    { breakdowns: CUT_OUT_ONLY },
   ),
   [RideType.Enterprise]: addedRide(
     RideType.Enterprise,
@@ -610,7 +623,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     9_600,
     3,
     14,
-    7,
+    22,
+    { breakdowns: CUT_OUT_ONLY },
   ),
   [RideType.GoKarts]: addedRide(
     RideType.GoKarts,
@@ -623,7 +637,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     15_200,
     3,
     15,
-    5,
+    16,
+    { breakdowns: VEHICLE_ONLY },
   ),
   [RideType.LogFlume]: addedRide(
     RideType.LogFlume,
@@ -639,8 +654,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     30_000,
     4,
     16,
-    8,
+    15,
     {
+      breakdowns: CUT_OUT_AND_BRAKES,
       usesTrack: true,
       trackClearanceWorld: 24 * RCT2_COORDINATE_WORLD,
       allowedPieces: [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 66],
@@ -658,8 +674,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     24_000,
     4,
     17,
-    10,
+    16,
     {
+      breakdowns: CUT_OUT_AND_BRAKES,
       usesTrack: true,
       trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       allowedPieces: [0, 1, 2, 3, 6, 7, 8, 9, 14, 15, 16, 17, 18, 19, 66],
@@ -677,8 +694,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     24_000,
     0,
     18,
-    5,
+    11,
     {
+      breakdowns: CUT_OUT_AND_VEHICLE,
       usesTrack: true,
       trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       maxLevel: 30,
@@ -699,8 +717,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     40_000,
     0,
     19,
-    7,
+    14,
     {
+      breakdowns: DOORED_TRANSPORT_BREAKDOWNS,
       usesTrack: true,
       trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       maxLevel: 50,
@@ -718,8 +737,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     25_000,
     0,
     20,
-    6,
+    14,
     {
+      breakdowns: CUT_OUT_ONLY,
       usesTrack: true,
       trackClearanceWorld: 32 * RCT2_COORDINATE_WORLD,
       maxLevel: 40,
@@ -737,8 +757,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     26_000,
     2,
     21,
-    8,
+    13,
     {
+      breakdowns: COASTER_BREAKDOWNS,
       usesTrack: true,
       maxLevel: 65,
       allowedPieces: JUNIOR_PIECES,
@@ -756,8 +777,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     38_000,
     2,
     22,
-    12,
+    14,
     {
+      breakdowns: COASTER_BREAKDOWNS,
       usesTrack: true,
       maxLevel: 68,
       steep: true,
@@ -776,7 +798,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     9_000,
     1,
     23,
-    4,
+    15,
+    { breakdowns: CUT_OUT_AND_VEHICLE },
   ),
   [RideType.BurgerStall]: {
     ...addedRide(

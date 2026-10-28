@@ -1,5 +1,5 @@
 import { circuitLabel } from '../coaster-panel';
-import { RIDE_CATALOG } from '../../sim/rides/ride-types';
+import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG } from '../../sim/rides/ride-types';
 import type { RideType } from '../../sim/rides/ride-types';
 import { RideMode } from '../../sim/rides/ride-modes';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
@@ -18,7 +18,7 @@ export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
   { id: 'main', label: 'View', icon: 'rides' },
   { id: 'vehicle', label: 'Description', icon: 'coaster' },
   { id: 'operating', label: 'Mechanics', icon: 'options' },
-  { id: 'maintenance', label: 'Maintenance record', icon: 'build' },
+  { id: 'maintenance', label: 'Maintenance', icon: 'build' },
   { id: 'measurements', label: 'Ride statistics', icon: 'info' },
   { id: 'graphs', label: 'Data log', icon: 'chart' },
   { id: 'income', label: 'Financial data', icon: 'finances' },
@@ -26,6 +26,15 @@ export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
 ];
 
 const TICKS_PER_SECOND = 40;
+/** How long a chosen inspection interval stays on screen while the simulation catches up. */
+const PENDING_INTERVAL_MS = 2000;
+
+const MECHANIC_STATUS_LABELS = [
+  'None needed',
+  'Called, none on the way',
+  'On the way',
+  'Working on it',
+] as const;
 const GRAPH_INTERVAL_TICKS = 40;
 
 function seconds(ticks: number): string {
@@ -158,7 +167,31 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   trainsRow.append(trainsInput, carsInput, setTrains);
   const trainsReason = element('p', 'ui-help train-layout-reason');
   const reliability = gauge('Reliability');
-  const maintenance = { inspect: statRow('Inspection interval'), breakdowns: statRow('Condition') };
+  const maintenance = {
+    downtime: statRow('Downtime'),
+    lastInspection: statRow('Last inspection'),
+    mechanic: statRow('Mechanic'),
+    breakdowns: statRow('Condition'),
+  };
+  const inspectionInterval = element('select', 'inspection-interval');
+  inspectionInterval.setAttribute('aria-label', 'Inspection interval');
+  for (const minutes of [...INSPECTION_INTERVAL_MINUTES, 0]) {
+    const option = element('option', undefined, minutes === 0 ? 'Never' : `${minutes} minutes`);
+    option.value = String(minutes);
+    inspectionInterval.append(option);
+  }
+  /** The interval just chosen and when, held until the simulation publishes it or the wait lapses. */
+  let pendingInterval: { value: string; at: number } | null = null;
+  inspectionInterval.addEventListener('change', () => {
+    pendingInterval = { value: inspectionInterval.value, at: performance.now() };
+    ctx.actions.command({
+      type: 'setRideInspection',
+      rideId,
+      minutes: Number(inspectionInterval.value),
+    });
+  });
+  const inspectionRow = element('div', 'stat-row');
+  inspectionRow.append(element('span', 'stat-label', 'Inspection interval'), inspectionInterval);
   const measurements = {
     tested: statRow('Test status'),
     excitement: statRow('Excitement'),
@@ -213,7 +246,10 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     );
     p('maintenance').append(
       reliability.row,
-      maintenance.inspect.row,
+      maintenance.downtime.row,
+      inspectionRow,
+      maintenance.lastInspection.row,
+      maintenance.mechanic.row,
       maintenance.breakdowns.row,
       element(
         'p',
@@ -433,9 +469,22 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(operating.unload.value, seconds(def?.unloadTicks ?? 0));
       const reliabilityPercent = info[o + RideInfo.Reliability];
       reliability.set(reliabilityPercent / 100, `${reliabilityPercent}%`);
+      setText(maintenance.downtime.value, `${info[o + RideInfo.Downtime]}%`);
+      const intervalValue = String(info[o + RideInfo.InspectionMinutes]);
+      if (pendingInterval && pendingInterval.value === intervalValue) pendingInterval = null;
+      if (pendingInterval && performance.now() - pendingInterval.at > PENDING_INTERVAL_MS) {
+        pendingInterval = null;
+      }
+      if (!pendingInterval && inspectionInterval.value !== intervalValue) {
+        inspectionInterval.value = intervalValue;
+      }
       setText(
-        maintenance.inspect.value,
-        `${Math.round((def?.inspectionIntervalTicks ?? 0) / (TICKS_PER_SECOND * 60))} min`,
+        maintenance.lastInspection.value,
+        `${info[o + RideInfo.MinutesSinceInspection]} minutes ago`,
+      );
+      setText(
+        maintenance.mechanic.value,
+        MECHANIC_STATUS_LABELS[info[o + RideInfo.MechanicStatus]] ?? 'None needed',
       );
       setText(maintenance.breakdowns.value, state === 3 ? 'Broken down' : 'Working');
       setText(measurements.tested.value, tested ? 'Tested' : 'Run a test to measure it');

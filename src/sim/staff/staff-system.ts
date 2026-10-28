@@ -1,11 +1,17 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { resolveGraph } from '../pathfinding/graph';
 import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/navigate';
 import type { PatrolMask } from '../pathfinding/navigate';
 import type { NavOptions } from '../pathfinding/navigate';
 import { isRideInspectionDue } from '../rides/ride-operations';
-import { rideServiceX, rideServiceY, serviceRide } from '../rides/ride-maintenance';
+import {
+  markMechanicHeading,
+  rideServiceX,
+  rideServiceY,
+  serviceRide,
+} from '../rides/ride-maintenance';
 import { StaffKind, StaffOrder } from './staff-store';
 import {
   DIR_DX,
@@ -145,8 +151,10 @@ export function createStaffSystem(): System {
         }
         binCount = 0;
         walkableCount = 0;
+        const graph = resolveGraph(map);
         for (let tile = 0; tile < mapSize; tile++) {
-          if (map.isWalkable(tile)) walkableTiles[walkableCount++] = tile;
+          if (map.isWalkable(tile) && graph.edgeMask(tile) !== 0)
+            walkableTiles[walkableCount++] = tile;
           for (
             let element = map.firstElement(tile);
             element >= 0;
@@ -361,6 +369,7 @@ export function createStaffSystem(): System {
           }
           if (targetRide >= 0) {
             const rideId = world.rides.slotToId[targetRide];
+            markMechanicHeading(world, targetRide);
             staff.targetX[slot] = targetTile % map.width;
             staff.targetY[slot] = (targetTile / map.width) | 0;
             moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);

@@ -121,6 +121,27 @@ describe('mechanic response', () => {
     expect(w.rides.cols.phase[slot]).toBe(RidePhase.Waiting);
   });
 
+  it('reaches a broken ride from open ground beside a path tile that joins no network', () => {
+    const w = flatWorld(20, 3);
+    layPath(w, [...row(6, 4, 10), [7, 7], [7, 8], [17, 2]]);
+    const rideId = createRide(w, RideType.MerryGoRound, 8, 8);
+    const slot = w.rides.idToSlot[rideId];
+    w.rides.cols.state[slot] = RideState.Open;
+    w.rides.cols.phase[slot] = RidePhase.Waiting;
+    w.rides.cols.queueConnected[slot] = 1;
+    triggerRideBreakdown(w, rideId);
+    spawnStaff(w, StaffKind.Mechanic);
+    w.staff.cols.x[0] = 18 * 256 + 128;
+    w.staff.cols.y[0] = 2 * 256 + 128;
+
+    for (let i = 0; i < 400 && w.rides.cols.state[slot] !== RideState.Open; i++) {
+      staffSystem.update(w);
+      w.tick += 16;
+    }
+
+    expect(w.rides.cols.state[slot]).toBe(RideState.Open);
+  });
+
   it('services a broken ride before a nearer ride that only needs its inspection', () => {
     const w = flatWorld(20, 4);
     layPath(w, row(7, 2, 16));

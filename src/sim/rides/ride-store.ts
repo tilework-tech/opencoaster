@@ -102,7 +102,26 @@ export const RIDE_SCHEMA = {
   queueSerial: Uint32Array,
   /** Longest line (in guests) the operator allows; 0 means as long as the queue can hold. */
   queueLimit: Uint16Array,
+  /**
+   * Broken-down checks counted in each of the last eight downtime windows, newest first. A window
+   * is `DOWNTIME_WINDOW_TICKS` long and holds at most one count per reliability check.
+   */
+  downtimeBucket0: Uint8Array,
+  downtimeBucket1: Uint8Array,
+  downtimeBucket2: Uint8Array,
+  downtimeBucket3: Uint8Array,
+  downtimeBucket4: Uint8Array,
+  downtimeBucket5: Uint8Array,
+  downtimeBucket6: Uint8Array,
+  downtimeBucket7: Uint8Array,
+  /** Rolling downtime, a whole percent (0-100), refreshed at each window boundary. */
+  downtimePercent: Uint8Array,
+  /** One more than the tick a mechanic last set out for this ride; 0 when none has. */
+  mechanicHeadingTick: Uint32Array,
 } as const;
+
+/** Columns `RIDE_SCHEMA` gained in save version 30: eight downtime buckets, the percent, a tick. */
+export const RIDE_COLUMNS_ADDED_IN_V30 = 10;
 
 /** Columns appended to the schema after each released save version, newest last. */
 export const RIDE_COLUMNS_ADDED_IN_V10 = 5;

@@ -7,6 +7,7 @@ import { isRideTested } from '../sim/rides/ride-operations';
 import { RideResult } from '../sim/rides/ride-results';
 import { RideState } from '../sim/rides/ride-store';
 import { RideType } from '../sim/rides/ride-types';
+import { StaffKind } from '../sim/staff/staff-store';
 import { circuitStatus } from '../sim/track/construction';
 import { deserialize } from './save';
 
@@ -48,6 +49,7 @@ describe("the player's Bramblewood Hollow park", () => {
   it('tests, opens and runs both coasters round full laps with guests aboard', () => {
     const { sim, wood, steel } = loadPark();
     const world = sim.world;
+    sim.enqueue({ type: 'hireStaff', kind: StaffKind.Mechanic });
     const slotOf = (rideId: number) => world.rides.idToSlot[rideId];
 
     for (const rideId of [wood, steel])
