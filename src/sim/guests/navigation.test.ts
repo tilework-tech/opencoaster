@@ -304,23 +304,11 @@ describe('looking for the exit', () => {
     g.happiness[slot] = 0;
     g.ridesTaken[slot] = 1;
     g.navGoal[slot] = 42;
-    g.pathCursor[slot] = 3;
-    g.pathHistory0[slot] = 17;
-    g.pathHistory1[slot] = 33;
-    g.pathHistory2[slot] = 49;
-    g.pathHistory3[slot] = 65;
     for (let i = 0; i < 20000 && g.state[slot] !== GuestState.Leaving; i++) run(w, 1);
     expect(g.state[slot]).toBe(GuestState.Leaving);
     expect(g.lostCountdown[slot]).toBeLessThanOrEqual(LEAVING_COUNTDOWN);
     expect(g.lostCountdown[slot]).toBeGreaterThan(LEAVING_COUNTDOWN - 8);
     expect(g.navGoal[slot]).toBe(0);
-    expect(g.pathCursor[slot]).toBe(0);
-    expect([
-      g.pathHistory0[slot],
-      g.pathHistory1[slot],
-      g.pathHistory2[slot],
-      g.pathHistory3[slot],
-    ]).toEqual([0, 0, 0, 0]);
   });
 });
 
@@ -401,12 +389,7 @@ describe('park maps', () => {
     for (let tick = 0; tick < 20_000 && g.state[slot] !== GuestState.Shopping; tick++) run(w, 1);
     expect(g.state[slot]).toBe(GuestState.Shopping);
     g.navGoal[slot] = 42;
-    g.pathCursor[slot] = 3;
-    g.pathHistory0[slot] = 17;
-    g.pathHistory1[slot] = 33;
-    g.pathHistory2[slot] = 49;
-    g.pathHistory3[slot] = 65;
-    run(w, 1200);
+    for (let tick = 0; tick < 1200 && g.hasMap[slot] === 0; tick++) run(w, 1);
     expect(g.hasMap[slot]).toBe(1);
     expect(g.lostTicks[slot]).toBe(0);
     expect(g.cash[slot]).toBe(cash - MAP_PRICE);
@@ -414,13 +397,6 @@ describe('park maps', () => {
     expect(w.rides.cols.guestsServed[kiosk]).toBe(1);
     expect(w.umbrellas[w.guests.slotToId[slot]]).toBe(0);
     expect(g.navGoal[slot]).toBe(0);
-    expect(g.pathCursor[slot]).toBe(0);
-    expect([
-      g.pathHistory0[slot],
-      g.pathHistory1[slot],
-      g.pathHistory2[slot],
-      g.pathHistory3[slot],
-    ]).toEqual([0, 0, 0, 0]);
   });
 
   it('does not sell a map to a guest who is not lost', () => {

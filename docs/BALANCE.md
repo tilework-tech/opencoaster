@@ -444,34 +444,23 @@ Two scenarios gain wins (bramblewood-hollow +1, thunderhead-mesa +2); none lose.
 
 ## Gap #6: RCT2 guest wayfinding
 
-`pnpm balance -- --scenario all` (12 seeds each, scripted strategies, no scenario objective or rating formula changed), main at `9eec5ec` (#170) against this change before it was rebased onto #171:
+OpenRCT2 scopes pathfinding history to the active goal: `GuestPathfinding.cpp` uses the stored history only when its recorded goal matches the current goal, and clears it when the goal is different or invalid. Its ride-selection and map-purchase paths reset the goal. References: [GuestPathfinding.cpp](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/peep/GuestPathfinding.cpp#L1208-L1270), [Peep::ResetPathfinding](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Peep.cpp#L2461-L2467), [guest ride selection](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Guest.cpp#L1649-L1668), [map purchase](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Guest.cpp#L1496-L1498). These are behavior references only; no OpenRCT2 code is copied.
 
-| scenario             | tab         | wins before | wins after | mean guests | mean rating | mean cash ($)   |
-| -------------------- | ----------- | ----------- | ---------- | ----------- | ----------- | --------------- |
-| bramblewood-hollow   | beginner    | 12/12       | 12/12      | 476 → 618   | 809 → 824   | 60,590 → 53,511 |
-| copper-ridge         | challenging | 0/12        | 0/12       | 427 → 432   | 782 → 762   | 1,781 → -1,753  |
-| glacier-point        | expert      | 0/12        | 0/12       | 75 → 78     | 515 → 517   | 17,560 → 17,551 |
-| lantern-bay          | beginner    | 12/12       | 12/12      | 747 → 756   | 892 → 892   | 61,720 → 52,551 |
-| meadowbrook          | beginner    | 12/12       | 11/12      | 656 → 714   | 803 → 695   | 57,311 → 49,271 |
-| open-grounds         | other       | 12/12       | 12/12      | 844 → 828   | 882 → 870   | 65,372 → 58,873 |
-| riverside-fairground | real        | 12/12       | 12/12      | 984 → 1,107 | 931 → 907   | 15,108 → 4,186  |
-| seaside-promenade    | real        | 12/12       | 12/12      | 451 → 417   | 670 → 659   | 26,663 → 21,448 |
-| thunderhead-mesa     | expert      | 11/12       | 12/12      | 504 → 506   | 757 → 757   | 59,953 → 52,622 |
-| tidewater-docks      | challenging | 12/12       | 12/12      | 616 → 621   | 834 → 843   | 61,454 → 57,969 |
+OpenCoaster clears junction memory when it assigns or clears a ride destination, when a guest starts leaving, and when it reaches a goal. A regression test covers a guest on a dead-end spur selecting a new ride behind it and successfully walking back. Arrival cleanup is an OpenCoaster lifecycle choice; the cited source establishes clearing on a changed or invalid goal, not a separate arrival-only reset.
 
-Total wins are 95/120 on both sides: meadowbrook seed 12 is lost (rating 496 against its target) and thunderhead-mesa seed 3 is won. Year-end cash falls 1 to 14% in most scenarios, and riverside-fairground ends with about $4,200 where it ended with about $15,100.
+After rebasing on PR #172 (main `a89cf5c`, save version 32), `pnpm balance -- --scenario all` ran all 12 seeds per scenario on main and this branch. No scenario targets or tuning values changed. Main won 95/120; this branch won 91/120.
 
-The starter park's default scripted run (`pnpm balance`, modest profile) isolates the cause. Ride-ticket income and food and drink sales over the year, with one wayfinding rule switched off at a time:
+| scenario             | tab         | main wins | branch wins | main mean cash | branch mean cash |
+| -------------------- | ----------- | --------: | ----------: | -------------: | ---------------: |
+| bramblewood-hollow   | beginner    |     12/12 |       12/12 |        $60,803 |          $53,300 |
+| copper-ridge         | challenging |      0/12 |        0/12 |         $1,848 |          -$1,480 |
+| glacier-point        | expert      |      0/12 |        0/12 |        $17,548 |          $17,558 |
+| lantern-bay          | beginner    |     12/12 |       12/12 |        $61,616 |          $52,047 |
+| meadowbrook          | beginner    |     12/12 |        7/12 |        $57,463 |          $49,136 |
+| open-grounds         | other       |     12/12 |       12/12 |        $65,245 |          $58,982 |
+| riverside-fairground | real        |     12/12 |       12/12 |        $15,129 |           $4,221 |
+| seaside-promenade    | real        |     12/12 |       12/12 |        $26,687 |          $21,088 |
+| thunderhead-mesa     | expert      |     11/12 |       12/12 |        $60,021 |          $52,927 |
+| tidewater-docks      | challenging |     12/12 |       12/12 |        $61,884 |          $58,376 |
 
-| variant                           | ride tickets | food and drink | peak guests | rating |
-| --------------------------------- | -----------: | -------------: | ----------: | -----: |
-| main                              |       $4,617 |         $4,630 |         358 |    613 |
-| this change                       |       $3,652 |         $3,449 |         349 |    629 |
-| without junction memory           |       $4,515 |         $4,725 |         358 |    614 |
-| without straight-biased wandering |       $3,875 |         $3,467 |         354 |    641 |
-| without the happiness penalties   |       $3,734 |         $3,709 |         374 |    643 |
-| 16 junctions of lookahead         |       $3,652 |         $3,449 |         349 |    629 |
-
-The junction memory accounts for almost all of the shortfall. In the scripted park a guest often picks its next destination while walking away from it along a dead-end spur (a stall entrance, the gate path). It cannot turn round until it reaches the end, and when it comes back the memory has already marked the exit towards its goal as taken at that junction, so it walks on to the next dead end before trying again. RCT2 follows the same rule, but its parks are rarely made of dead-end spurs off a single spine. The lookahead budget has no effect on the starter park, which has no blind decisions. The memory can be switched off in `stepToward` ([guest-system.ts](../src/sim/guests/guest-system.ts)) by leaving `nav.memory` null.
-
-Strict 5,000-guest benchmark (`pnpm bench -- --guests 5000 --ticks 800 --warmup 500 --strict`), main at `6f45b2e` against this change, five runs each alternating on the same runtime: median mean 0.437 against 0.422 ms/tick (-3.4%), median p99 1.381 against 1.194 ms/tick (-13.5%). The smaller lookahead budget makes each search cheaper, which pays for the memory copy.
+The default starter balance run (`pnpm balance`, modest profile, eight months) recorded $3,688 in ride tickets and $3,707 in food and drink sales on this branch, versus $4,930 and $4,735 on main. Ride-ticket income is 25.2% below main, outside the roughly 5% target. The wayfinding reset fixes the goal-history mismatch, but these measurements do not show the expected economy recovery; this PR remains unmerged pending further diagnosis.

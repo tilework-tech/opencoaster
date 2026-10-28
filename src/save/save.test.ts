@@ -91,7 +91,7 @@ describe('save', () => {
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(32);
+    expect(SAVE_VERSION).toBe(33);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -99,7 +99,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(32);
+    expect(header.version).toBe(33);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -1320,5 +1320,22 @@ describe('save: guest wayfinding state', () => {
     expect(g.pathHistory0[stayer]).toBe(0);
     expect(g.lostCountdown[leaver]).toBe(LEAVING_COUNTDOWN);
     expect(g.state[leaver]).toBe(GuestState.Leaving);
+  });
+
+  it('loads version 32 staff and guest sight data before adding wayfinding fields', () => {
+    const { w, stayer, leaver } = wayfinder();
+    w.guests.cols.sightMemory[stayer] = 0x12345678;
+    expect(spawnStaff(w, StaffKind.Handyman)).toBe(true);
+    w.staff.cols.lawnsMown[0] = 14;
+
+    const loaded = deserialize(withoutColumns(serialize(w), 32, allWorldViews(w), []));
+    const g = loaded.guests.cols;
+
+    expect(g.sightMemory[stayer]).toBe(0x12345678);
+    expect(loaded.staff.cols.lawnsMown[0]).toBe(14);
+    expect(g.lostCountdown[stayer]).toBe(0);
+    expect(g.navGoal[stayer]).toBe(0);
+    expect(g.pathHistory0[stayer]).toBe(0);
+    expect(g.lostCountdown[leaver]).toBe(LEAVING_COUNTDOWN);
   });
 });

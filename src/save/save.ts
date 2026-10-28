@@ -732,8 +732,6 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version <= PRE_RELIABILITY_SAVE_VERSION) migratePreReliabilityRides(world);
   if (header.version <= PRE_GUEST_STATS_SAVE_VERSION)
     migrateGuestHistory(world, header.stores.guests.count);
-  if (header.version <= PRE_APPROACH_SAVE_VERSION)
-    migrateMissingApproachGap(world, header.stores.guests.count);
   if (header.version < STAFF_STATS_SAVE_VERSION) migrateStaffStats(world);
   if (header.version < VOUCHER_SAVE_VERSION)
     migrateVoucherlessGuests(world, header.stores.guests.count);
