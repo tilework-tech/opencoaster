@@ -3,7 +3,10 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { SCENARIO_PREVIEW_RENDERER_VERSION } from './scenario-preview';
+import { World } from '../core/world';
+import { parseScenarioFile } from './scenario-file';
+import { prepareScenario } from './scenario-layout';
+import { renderScenarioPreview, SCENARIO_PREVIEW_RENDERER_VERSION } from './scenario-preview';
 
 const scenarioDirectory = resolve(process.cwd(), 'src/sim/scenario/scenarios');
 const previewDirectory = resolve(process.cwd(), 'public/scenario-previews');
@@ -49,6 +52,18 @@ describe('scenario preview assets', () => {
       const twoX = await sharp(resolve(previewDirectory, preview.twoX))
         .raw()
         .toBuffer({ resolveWithObject: true });
+      const scenario = parseScenarioFile(JSON.parse(source.toString()));
+      const world = new World({
+        seed: scenario.seed,
+        width: scenario.mapWidth,
+        height: scenario.mapHeight,
+      });
+      prepareScenario(world, scenario);
+      const expectedPixels = renderScenarioPreview(world).pixels;
+
+      expect(oneX.data, `${def.id} 1x preview should match its map data`).toEqual(
+        Buffer.from(expectedPixels),
+      );
       expect(oneX.info).toMatchObject({ width: def.map.width, height: def.map.height });
       expect(twoX.info).toMatchObject({ width: def.map.width * 2, height: def.map.height * 2 });
       let pixelated = true;

@@ -144,7 +144,7 @@ export class TitleScreen {
       details.append(
         choose,
         element('p', 'scenario-objective', objectiveText(def)),
-        element('p', 'scenario-difficulty', difficultyText(def)),
+        element('p', 'scenario-rank', scenarioRankText(def)),
         element('p', 'scenario-map-size', `Map size: ${def.mapWidth} × ${def.mapHeight} tiles`),
         element('p', 'scenario-description', def.description ?? ''),
       );
@@ -165,7 +165,7 @@ export class TitleScreen {
         element('h2', 'scenario-preview-name', selected.name),
         element('p', 'scenario-description', selected.description ?? ''),
         element('p', 'scenario-objective', objectiveText(selected)),
-        element('p', 'scenario-difficulty', difficultyText(selected)),
+        element('p', 'scenario-rank', scenarioRankText(selected)),
         element(
           'p',
           'scenario-status',
@@ -255,9 +255,10 @@ function scenarioPreview(scenario: ScenarioDef, className: string): HTMLImageEle
   return image;
 }
 
-function difficultyText(scenario: ScenarioDef): string {
+function scenarioRankText(scenario: ScenarioDef): string {
   const category = scenario.category ?? 'beginner';
-  return `Difficulty: ${category[0].toUpperCase()}${category.slice(1)}`;
+  const label = `${category[0].toUpperCase()}${category.slice(1)}`;
+  return `${category === 'real' || category === 'other' ? 'Category' : 'Difficulty'}: ${label}`;
 }
 
 export function objectiveText(scenario: ScenarioDef): string {

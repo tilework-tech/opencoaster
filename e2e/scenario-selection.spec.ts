@@ -3,11 +3,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const TABS = [
-  ['Beginner Parks', 'beginner', 'Beginner'],
-  ['Challenging Parks', 'challenging', 'Challenging'],
-  ['Expert Parks', 'expert', 'Expert'],
-  ['Real Parks', 'real', 'Real'],
-  ['Other Parks', 'other', 'Other'],
+  ['Beginner Parks', 'beginner', 'Difficulty: Beginner'],
+  ['Challenging Parks', 'challenging', 'Difficulty: Challenging'],
+  ['Expert Parks', 'expert', 'Difficulty: Expert'],
+  ['Real Parks', 'real', 'Category: Real'],
+  ['Other Parks', 'other', 'Category: Other'],
 ] as const;
 const SCENARIOS = readdirSync(resolve(process.cwd(), 'src/sim/scenario/scenarios'))
   .filter((file) => file.endsWith('.json'))
@@ -29,7 +29,7 @@ test('scenario selection lists every tab and remembers completed parks', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'New game' }).click();
 
-  for (const [tab, category, difficulty] of TABS) {
+  for (const [tab, category, categoryText] of TABS) {
     await page.getByRole('tab', { name: tab }).click();
     await expect(page.locator('.scenario-card').first()).toBeVisible();
     await expect(page.locator('.scenario-preview-panel .scenario-objective')).toContainText(
@@ -54,7 +54,7 @@ test('scenario selection lists every tab and remembers completed parks', async (
       await expect(card.locator('.scenario-objective')).toContainText(
         scenario.objective.kind === 'haveFun' ? 'No deadline.' : 'Deadline:',
       );
-      await expect(card.locator('.scenario-difficulty')).toHaveText(`Difficulty: ${difficulty}`);
+      await expect(card.locator('.scenario-rank')).toHaveText(categoryText);
       await expect(card.locator('.scenario-map-size')).toHaveText(
         `Map size: ${scenario.map.width} × ${scenario.map.height} tiles`,
       );
