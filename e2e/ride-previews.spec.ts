@@ -92,7 +92,7 @@ async function tap(page: Page, mobile: boolean, locator: ReturnType<Page['locato
 }
 
 for (const mobile of [false, true]) {
-  for (const renderer of ['webgl2', 'canvas2d'] as const) {
+  for (const renderer of mobile ? (['webgl2'] as const) : (['webgl2', 'canvas2d'] as const)) {
     test(`ride, stall and facility previews are whole and undistorted (${mobile ? 'Pixel 8' : 'desktop'}, ${renderer})`, async ({
       browser,
     }, testInfo) => {

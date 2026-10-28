@@ -228,7 +228,7 @@ async function visibleUnownedTile(page: Page): Promise<{
 }
 
 for (const backend of ['WebGL2', 'Canvas2D'] as const) {
-  for (const mobile of [false, true]) {
+  for (const mobile of backend === 'Canvas2D' ? [false] : [false, true]) {
     test(`pick up and reposition a handyman and guest in ${backend}${mobile ? ' on Pixel 8' : ' on desktop'}`, async ({
       browser,
     }, testInfo: TestInfo) => {

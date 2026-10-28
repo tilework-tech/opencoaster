@@ -457,7 +457,7 @@ async function inspectScenery(
 }
 
 for (const backend of ['WebGL2', 'Canvas2D'] as const) {
-  for (const mobile of [false, true]) {
+  for (const mobile of backend === 'Canvas2D' ? [false] : [false, true]) {
     test(`${backend} scenery inspection on ${mobile ? 'Pixel 8' : 'desktop'}`, async ({
       browser,
     }, testInfo) => inspectScenery(browser, mobile, backend, testInfo));

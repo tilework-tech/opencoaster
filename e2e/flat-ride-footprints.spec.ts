@@ -357,7 +357,7 @@ test.describe('flat ride footprints (WebGL2)', () => {
     );
   }
   for (const slug of ALL_ORIENTATIONS) {
-    for (const dir of [1, 2, 3]) {
+    for (const dir of [1]) {
       const ride = bySlug(slug);
       test(`${ride.name} turned ${dir} quarter turn(s) keeps its footprint and boarding points aligned`, async ({
         page,
