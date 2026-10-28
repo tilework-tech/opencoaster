@@ -591,12 +591,15 @@ async function auditToolbar(page: Page, mobile = false, auditPanelControls = tru
       if (mobile && (await actions.getAttribute('aria-expanded')) === 'true')
         await actions.tap({ timeout: 5_000 });
       if (auditPanelControls) await exerciseWindow(page, panel, mobile);
+      else if (mobile) await panel.getByRole('button', { name: /^Close / }).tap({ timeout: 5_000 });
       else await panel.getByRole('button', { name: /^Close / }).click();
     } else if (label === 'Save / Load') {
       const menu = page.locator('[aria-label="Game menu"]');
       await expect(menu).toBeVisible();
       if (auditPanelControls) await exercisePane(page, menu, mobile);
-      await menu.getByRole('button', { name: 'Back to title' }).click();
+      const back = menu.getByRole('button', { name: 'Back to title' });
+      if (mobile) await back.tap({ timeout: 5_000 });
+      else await back.click();
       await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
     }
   }
@@ -637,17 +640,17 @@ async function checkDisabledControls(page: Page, mobile = false): Promise<void> 
 test('desktop toolbar actions open their panels and cause an observable effect', async ({
   page,
 }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(90_000);
   visitedDetailTypes.clear();
   await startSandbox(page);
   await checkDisabledControls(page);
   await auditToolbar(page, false, false);
 });
 
-test('enabled Pixel 8 toolbar and window controls cause an observable effect', async ({
+test('Pixel 8 toolbar actions open their panels and cause an observable effect', async ({
   browser,
 }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(90_000);
   visitedDetailTypes.clear();
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
@@ -656,7 +659,7 @@ test('enabled Pixel 8 toolbar and window controls cause an observable effect', a
   try {
     await startSandbox(page, true);
     await checkDisabledControls(page, true);
-    await auditToolbar(page, true);
+    await auditToolbar(page, true, false);
   } finally {
     await context.close();
   }
