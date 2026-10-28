@@ -85,7 +85,7 @@ export function withoutColumns(
           newWorld.rides.cols.mechanicHeadingTick,
         ]
       : []),
-    ...(version < 31
+    ...(version < 32
       ? [
           newWorld.rides.cols.testAverageSpeed,
           newWorld.rides.cols.testRideLength,

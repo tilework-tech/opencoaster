@@ -20,12 +20,7 @@ import {
   nextDirection,
 } from '../pathfinding';
 import type { NavOptions } from '../pathfinding';
-import {
-  addRideIncome,
-  getRideValueCents,
-  isShopCategory,
-  rideQueueCapacity,
-} from '../rides/ride-operations';
+import { addRideIncome, isShopCategory, rideQueueCapacity } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
 import {
   directionBetween,
@@ -111,7 +106,6 @@ const SIGHT_TILES = 10;
 const MEAL_RELIEF = 176;
 const MEAL_THIRST = 32;
 const SHOP_HAPPINESS = 8;
-const STOCK_COST_PERCENT = 26;
 /** Longest line, in guests, a stall or facility tolerates before newcomers look elsewhere. */
 const STALL_LINE_LIMIT = 8;
 /** Score cost of each guest already in a ride's line, in the same units as excitement x 4. */
