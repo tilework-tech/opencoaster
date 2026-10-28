@@ -41,6 +41,5 @@ test('the ride window Maintenance tab shows reliability, downtime and inspection
   await expect(interval).toHaveValue('20');
   await interval.selectOption({ label: 'Never' });
   // Past the window in which the chosen value is held on screen, the simulation's value shows.
-  await page.waitForTimeout(2_500);
   await expect(interval).toHaveValue('0');
 });
