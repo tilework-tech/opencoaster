@@ -73,7 +73,7 @@ for (const mobile of [false, true]) {
       const page = await openPage(browser, mobile);
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
-      await buildQueuedRide(page, testInfo, SHORT_QUEUE, lift, mobile);
+      await buildQueuedRide(page, testInfo, SHORT_QUEUE, lift, mobile, { queueLimit: 3 });
 
       let turnedAway = 0;
       let fullest = 0;
