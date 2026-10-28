@@ -120,12 +120,14 @@ Effect: an empty park starts at 250 (700 base − 150 guest term − 100 missing
 
 | Constant        | Value                  | Meaning                                                                                                       |
 | --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Junction budget | 16 cost units          | A junction costs 1, or 2 after a stretch with no choice. A park map adds 16.                                  |
-| Distance score  | 2 x smaller axis gap   | Compared first; the larger gap is a secondary tie-break.                                                      |
-| Lost after      | 12 blind choices       | Junction choices where the pathfinder could not see the target and the guest got no closer. A map doubles it. |
-| Lost wander     | 2,400 ticks            | No ride or stall is chosen; a guest without a map seeks the nearest visible information kiosk.                |
-| Park map        | 0.60                   | Bought by a lost guest at an information kiosk, in place of an umbrella.                                      |
-| Exit not found  | -30 happiness / 11,520 | A leaving guest with no route to the gate stays, wanders and thinks "I'm lost!" (O-44).                       |
+| Junction budget | 5, map 7, leaving 7, leaving and lost 8 | Every junction costs 1; staff use 8. Sources in [mechanics/guests.md](mechanics/guests.md) P-1. |
+| Junction memory | last 4 junctions | Untried exits only on a return; cleared with the goal (P-5). |
+| Distance score  | 2 x smaller axis gap   | Compared first; the larger gap is a secondary tie-break. |
+| Ride search | 200 tile centres | Thoughts and -30 happiness target at 60 and 30 left; the ride is dropped at zero (P-7). |
+| Exit search | 254, then every 90 tile centres | "I can't find the exit!" and -30 happiness target each time; below 90 the guest is lost (P-8). |
+| Lost clock | 508 tile centres, then every 48 | "I'm lost!" and -30 happiness target; needs two rides in the park (P-9). |
+| Lost wander | 2,400 ticks | Project mechanic (P-11): no ride or stall is chosen; a guest without a map seeks the nearest visible information kiosk. |
+| Park map | 0.60 | Bought by a lost guest at an information kiosk, in place of an umbrella. |
 | Walking energy  | -1 per need step       | Need steps are 128 ticks; only wandering and queuing guests lose energy this way.                             |
 
 ### Stalls
@@ -392,7 +394,7 @@ Scenario sweep after the retune (`pnpm balance -- --scenario all --seeds 12`): t
 ## Known gaps
 
 - Far rides still cost a long walk: after the change the wooden coaster (a 35-tile walk, open for the last two thirds of the year) serves 362 guests against 905 for the merry-go-round next to the gate, and it is capped by what its single train carries. Energy is a placeholder until the target-based needs model lands ([fidelity/guests.md](fidelity/guests.md) F2).
-- The lost trigger and the park map's effect are placeholders (O-62 has no source); lost guests are rare in the scripted park (never more than one in the month-end samples).
+- The lost state follows the public OpenRCT2 description (guests.md P-7 to P-10); the kiosk seek and 2,400-tick lost wander are project mechanics (P-11). Banner "no entry" signs are not modelled.
 - Guests remember their last ride and total ride count for the repeat-ride gate; they do not keep a broader ride-history list.
 - Stall demand is not weather-sensitive beyond the kiosk (economy.md describes hot/cold item values).
 - Per-type wear, the age schedule, and repair times are tuned for plausibility rather than measured against RCT2 (see DECISIONS.md). Starter ride and food/drink prices use selected OpenRCT2 compatibility references; other stall prices are not comprehensively calibrated.
