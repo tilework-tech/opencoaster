@@ -1,4 +1,11 @@
-import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
+import type {
+  Camera,
+  MapData,
+  PathPieceGhost,
+  Renderer,
+  RenderViewport,
+  SpriteGhost,
+} from './renderer';
 import { LampLightBuffer, collectLitLamps, darknessAt, lampsLit } from './night-lighting';
 import { CanvasNightPass } from './night-pass-canvas';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
@@ -171,6 +178,10 @@ export class Canvas2DRenderer implements Renderer {
   private pickCacheKey = '';
   private pickCacheSnapshot: Snapshot | null = null;
   private pickTargets: ObjectPickTarget[] = [];
+  private readonly viewportRenderers = new Map<
+    string,
+    { canvas: HTMLCanvasElement; renderer: Canvas2DRenderer; map: MapData | null }
+  >();
 
   get visibleSpriteCount(): number {
     return this.visibleCount;
@@ -410,6 +421,58 @@ export class Canvas2DRenderer implements Renderer {
         ? collectLitLamps(map, cam, viewportWidth, viewportHeight, this.lampLights)
         : 0;
     this.nightPass.draw(ctx, darkness, this.lampLights, lampCount, cam.zoom, this.dpr);
+  }
+
+  drawViewports(
+    snapshot: Snapshot | null,
+    viewports: readonly RenderViewport[],
+    refreshIds: readonly string[],
+  ): void {
+    if (!this.ctx) return;
+    const active = new Set(viewports.map((viewport) => viewport.id));
+    for (const [id, target] of this.viewportRenderers) {
+      if (active.has(id)) continue;
+      target.renderer.dispose();
+      this.viewportRenderers.delete(id);
+    }
+    for (const viewport of viewports) {
+      const width = Math.max(1, Math.round(viewport.rect.width));
+      const height = Math.max(1, Math.round(viewport.rect.height));
+      let target = this.viewportRenderers.get(viewport.id);
+      if (!target) {
+        const canvas = document.createElement('canvas');
+        const renderer = new Canvas2DRenderer();
+        renderer.attach(canvas);
+        target = { canvas, renderer, map: null };
+        this.viewportRenderers.set(viewport.id, target);
+      }
+      if (this.map && target.map !== this.map) {
+        target.renderer.setMap(this.map);
+        target.map = this.map;
+      }
+      target.renderer.setLandOverlay(this.landOverlay);
+      target.renderer.setUndergroundView(this.undergroundView);
+      let redraw = refreshIds.includes(viewport.id);
+      if (target.canvas.width !== width || target.canvas.height !== height) {
+        target.renderer.resize(width, height, 1);
+        redraw = true;
+      }
+      if (redraw) {
+        target.renderer.setGhosts(this.ghosts);
+        target.renderer.setSpriteGhosts(this.spriteGhosts);
+        target.renderer.setPatrolStaff(this.patrolStaffId);
+        target.renderer.setPatrolPreview(this.patrolPreview, this.patrolPreviewRemove);
+        target.renderer.setHeldPerson(this.heldPerson?.person ?? null, this.heldPerson?.id);
+        target.renderer.draw(snapshot, viewport.camera);
+      }
+      const output = viewport.output;
+      const resized = output.width !== width || output.height !== height;
+      if (resized) {
+        output.width = width;
+        output.height = height;
+      }
+      if (redraw || resized) output.getContext('2d')?.drawImage(target.canvas, 0, 0);
+    }
   }
 
   /**
@@ -2017,6 +2080,8 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   dispose(): void {
+    for (const target of this.viewportRenderers.values()) target.renderer.dispose();
+    this.viewportRenderers.clear();
     this.ctx = null;
     this.map = null;
   }

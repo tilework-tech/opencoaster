@@ -41,6 +41,8 @@ import { PathTool } from '../tools/path/controller';
 import { LandController } from '../tools/land-controller';
 import { AreaController } from '../tools/area-controller';
 import { createPathState } from '../tools/path/state';
+import { collectLiveViewports } from './viewport-views';
+import { ViewportRefreshScheduler } from './viewport-refresh';
 import { createRideSetup } from '../ride-setup';
 import { AdaptiveResolution } from '../../render/adaptive-resolution';
 import { scenarioOpeningPosition } from './opening-camera';
@@ -473,6 +475,9 @@ export async function bootstrap(): Promise<void> {
   let renderMs = 0;
   let lastHud = -Infinity;
   let lastPanel = -Infinity;
+  let lastViewportLayout = -Infinity;
+  const viewportRefreshScheduler = new ViewportRefreshScheduler();
+  let liveViewports = collectLiveViewports(root, canvas, sim.latest, sim.map, camera);
   let requestedSnapshotMs = 0;
 
   function refreshPanels(now: number): void {
@@ -541,8 +546,18 @@ export async function bootstrap(): Promise<void> {
     camera.dayNight = displayOptionEnabled('day-night-cycle');
     camera.lampLights = displayOptionEnabled('lamp-lighting');
     const renderStart = performance.now();
+    if (now - lastViewportLayout >= 100) {
+      lastViewportLayout = now;
+      liveViewports = collectLiveViewports(root, canvas, sim.latest, sim.map, camera);
+    }
+    const refreshViewportIds = viewportRefreshScheduler.next(liveViewports, renderer.backend, now);
+    renderer.drawViewports(sim.latest, liveViewports, refreshViewportIds);
     renderer.draw(sim.latest, camera);
     renderMs = performance.now() - renderStart;
+    if (import.meta.env.DEV)
+      (
+        window as unknown as { __viewportRenderStats?: { frameMs: number; count: number } }
+      ).__viewportRenderStats = { frameMs: renderMs, count: liveViewports.length };
     if (now - lastHud >= HUD_INTERVAL_MS) {
       lastHud = now;
       gameUi.syncRotation(camera.rotation);

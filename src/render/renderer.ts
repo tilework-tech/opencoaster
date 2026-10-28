@@ -69,6 +69,15 @@ export interface Camera {
   lampLights?: boolean;
 }
 
+export interface RenderViewport {
+  id: string;
+  camera: Camera;
+  /** CSS-pixel rectangle relative to the main canvas. */
+  rect: { x: number; y: number; width: number; height: number };
+  /** Opaque DOM canvas inside the window slot; receives the cached view so windows stack normally. */
+  output: HTMLCanvasElement;
+}
+
 /**
  * Rendering backend contract. The main thread owns exactly one Renderer; it never touches sim
  * state, only the immutable-for-the-frame Snapshot and the (rarely changing) MapData.
@@ -100,6 +109,15 @@ export interface Renderer {
   /** Sets the 4×4 block shown under the pointer while editing the selected worker's area. */
   setPatrolPreview(tile: readonly [number, number] | null, remove: boolean): void;
   draw(snapshot: Snapshot | null, camera: Camera): void;
+  /**
+   * Refreshes cached offscreen views when requested and presents each into its output canvas.
+   * Call before `draw` in the same frame: WebGL2 stages views in the main canvas.
+   */
+  drawViewports(
+    snapshot: Snapshot | null,
+    viewports: readonly RenderViewport[],
+    refreshIds: readonly string[],
+  ): void;
   /** Every pickable atlas sprite, in back-to-front order, in viewport-local coordinates. */
   objectTargets(
     snapshot: Snapshot | null,

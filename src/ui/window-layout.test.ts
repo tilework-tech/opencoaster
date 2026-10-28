@@ -80,6 +80,33 @@ describe('window layout', () => {
     expect(overlaps).toBe(false);
   });
 
+  it('finds a free slot between occupied corners before overlapping anything', () => {
+    const size = { width: 340, height: 260 };
+    const occupied = [
+      { x: 16, y: 50, ...size },
+      { x: 924, y: 50, ...size },
+      { x: 16, y: 462, ...size },
+      { x: 924, y: 462, ...size },
+    ];
+    const at = positionAwayFromPoint(
+      { x: 500, y: 100 },
+      size,
+      { x: 640, y: 20 },
+      1280,
+      800,
+      occupied,
+    );
+
+    const overlaps = occupied.some(
+      (rect) =>
+        at.x < rect.x + rect.width &&
+        at.x + size.width > rect.x &&
+        at.y < rect.y + rect.height &&
+        at.y + size.height > rect.y,
+    );
+    expect(overlaps).toBe(false);
+  });
+
   it('limits four-times speed to two-times while construction is active', () => {
     expect(effectiveGameSpeed(4, true)).toBe(2);
     expect(effectiveGameSpeed(4, false)).toBe(4);

@@ -9,6 +9,7 @@ import {
 } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, setText, statRow } from '../dom';
+import { liveViewport } from '../live-viewport';
 import { formatMoney } from '../format';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
@@ -324,13 +325,10 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       if (location) ctx.actions.locate(location.x, location.y);
     };
     win.pane('view').append(
+      liveViewport(`guest:${guestId}`, `Guest ${guestId} live view`),
       where.row,
       button('Locate', locate, 'ui-button'),
       button('Pick up', () => ctx.actions.pickUpPerson('guest', guestId), 'ui-button'),
-      Object.assign(button('Track guest', locate, 'ui-button'), {
-        disabled: true,
-        title: 'Following a guest is not available yet.',
-      }),
     );
     win.pane('stats').append(...Object.values(gauges).map((item) => item.row));
     win.pane('rides').append(rides);

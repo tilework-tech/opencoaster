@@ -3,6 +3,7 @@ import { STAFF_WAGE_CENTS_PER_WEEK } from '../../sim/staff/staff-store';
 import { SNAPSHOT_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, setText, statRow } from '../dom';
+import { liveViewport } from '../live-viewport';
 import { formatMoney } from '../format';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
@@ -128,7 +129,13 @@ export function openWorkerWindow(
     );
     sack.classList.add('ui-danger');
     const pickUp = button('Pick up', () => ctx.actions.pickUpPerson('staff', staffId), 'ui-button');
-    view.append(name, role.row, location.row, element('div', 'button-row'));
+    view.append(
+      liveViewport(`staff:${staffId}`, `Staff ${staffId} live view`),
+      name,
+      role.row,
+      location.row,
+      element('div', 'button-row'),
+    );
     view.lastElementChild?.append(locate, pickUp, rename, sack);
 
     const orders = win.pane('orders');
