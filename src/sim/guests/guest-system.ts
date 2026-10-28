@@ -458,17 +458,28 @@ function chooseDestination(world: World, slot: number, tile: number): number {
 
 function setDestination(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
+  clearJunctionMemory(world, slot);
   g.targetRide[slot] = world.rides.slotToId[ride];
   g.targetX[slot] = world.rides.cols.entranceX[ride];
   g.targetY[slot] = world.rides.cols.entranceY[ride];
-  g.navGoal[slot] = 0;
   g.lostCountdown[slot] = RIDE_GOAL_COUNTDOWN;
   resetWandering(world, slot);
   world.rideLines.approaching[ride]++;
 }
 
+function clearJunctionMemory(world: World, slot: number): void {
+  const g = world.guests.cols;
+  g.navGoal[slot] = 0;
+  g.pathCursor[slot] = 0;
+  g.pathHistory0[slot] = 0;
+  g.pathHistory1[slot] = 0;
+  g.pathHistory2[slot] = 0;
+  g.pathHistory3[slot] = 0;
+}
+
 function clearDestination(world: World, slot: number): void {
   world.guests.cols.targetRide[slot] = -1;
+  clearJunctionMemory(world, slot);
 }
 
 /** Keeps one stable guest at a blocked queue join; later arrivals turn back onto the path. */
@@ -601,7 +612,7 @@ function finishRide(world: World, slot: number, ride: number): void {
     return;
   }
   recordThought(world, slot, GuestThought.RideEnjoyed);
-  g.targetRide[slot] = -1;
+  clearDestination(world, slot);
   g.activityTicks[slot] = RIDE_COOLDOWN;
   g.state[slot] = GuestState.Wandering;
 }
@@ -618,7 +629,7 @@ function isMapSale(world: World, slot: number, ride: number): boolean {
 
 function finishShopping(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
-  g.targetRide[slot] = -1;
+  clearDestination(world, slot);
   g.activityTicks[slot] = 0;
   g.state[slot] = GuestState.Wandering;
   if (ride < 0) return;
@@ -640,7 +651,6 @@ function finishShopping(world: World, slot: number, ride: number): void {
     if (mapSale) {
       g.hasMap[slot] = 1;
       g.lostTicks[slot] = 0;
-      g.navGoal[slot] = 0;
     } else {
       world.umbrellas[world.guests.slotToId[slot]] = 1;
     }
@@ -678,6 +688,7 @@ function serviceCapacity(world: World, ride: number): number {
 /** Reaches the entrance tile of the guest's destination: join its queue or start using it. */
 function arriveAtDestination(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
+  clearJunctionMemory(world, slot);
   resetWandering(world, slot);
   const r = world.rides.cols;
   const category = rideCategory(world, ride);
@@ -753,7 +764,7 @@ function leaveQueue(world: World, slot: number, gaveUp: boolean): void {
     recordThought(world, slot, GuestThought.QueueTooLong);
     g.activityTicks[slot] = RIDE_COOLDOWN;
   }
-  g.targetRide[slot] = -1;
+  clearDestination(world, slot);
   const tile = world.map.index(g.x[slot] >> 8, g.y[slot] >> 8);
   g.state[slot] = world.map.isQueue(tile) ? GuestState.Queuing : GuestState.Wandering;
 }
@@ -848,6 +859,7 @@ function joinQueueLine(world: World, slot: number, ride: number): void {
     return;
   }
   g.state[slot] = GuestState.Queuing;
+  clearJunctionMemory(world, slot);
   g.patience[slot] = 0;
   g.queueSeq[slot] = ++r.queueSerial[ride];
   g.heading[slot] = directionBetween(world, q.joinTile[ride], open);
@@ -908,7 +920,7 @@ function updateQueuing(world: World, slot: number, guestTick: number): void {
     ride >= 0 && (q.owner[tile] === ride || (tile === q.joinTile[ride] && q.hasQueue[ride] === 1));
   if (!onLine || world.rides.cols.state[ride] !== RideState.Open || gaveUp) {
     if (gaveUp) leaveQueue(world, slot, true);
-    else g.targetRide[slot] = -1;
+    else clearDestination(world, slot);
     if (!map.isQueue(tile)) {
       g.state[slot] = GuestState.Wandering;
       return;
@@ -1037,7 +1049,7 @@ function beginLeaving(world: World, slot: number): void {
   const g = world.guests.cols;
   if (g.state[slot] !== GuestState.Leaving) g.lostCountdown[slot] = LEAVING_COUNTDOWN;
   g.state[slot] = GuestState.Leaving;
-  g.targetRide[slot] = -1;
+  clearDestination(world, slot);
 }
 
 /** Returns true when the guest has left the park and should be despawned. */
