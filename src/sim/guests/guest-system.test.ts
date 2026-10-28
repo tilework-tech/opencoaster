@@ -7,7 +7,9 @@ import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { RideState } from '../rides/ride-store';
 import { getRideValueCents } from '../rides/ride-operations';
 import { RIDE_PRICE_FLOOR_CENTS } from './willingness';
+import { isReachable } from '../pathfinding';
 import { rideQueueSystem } from '../rides/queue-system';
+import { refreshQueueIndex } from '../rides/queue-lines';
 import { rideSystem } from '../rides/ride-system';
 import { TILE_UNITS } from '../core/constants';
 import type { World } from '../core/world';
@@ -649,7 +651,7 @@ describe('arrivals', () => {
     expect(dear).toBeLessThan(good * 0.5);
   });
 
-  it('charges the gate fee and a campaign draws a bigger crowd', () => {
+  it('charges the gate fee and every campaign family draws a bigger crowd', () => {
     const w = gated();
     w.economy.priceMode = PriceMode.Admission;
     w.economy.admissionPrice = 300;
@@ -660,11 +662,14 @@ describe('arrivals', () => {
     expect(guests).toBeGreaterThan(0);
     expect(w.economy.monthlyTotals[LedgerCategory.Admission]).toBe(300 * guests);
 
-    const advertised = gated();
-    advertised.economy.parkRating = 400;
-    advertised.economy.campaignId = 1;
-    advertised.economy.campaignWeeksLeft = 4;
-    expect(arrivals(advertised, undefined)).toBeGreaterThan(arrivals(quiet, undefined));
+    const quietCrowd = arrivals(quiet, undefined);
+    for (let campaignId = 0; campaignId < 6; campaignId++) {
+      const advertised = gated();
+      advertised.economy.parkRating = 400;
+      advertised.economy.campaignId = campaignId;
+      advertised.economy.campaignWeeksLeft = 4;
+      expect(arrivals(advertised, undefined), `campaign ${campaignId}`).toBeGreaterThan(quietCrowd);
+    }
   });
 
   it('uses positive and negative awards to scale natural park arrivals', () => {
@@ -755,6 +760,59 @@ describe('campaign vouchers', () => {
     const w = admitUnder(VoucherKind.FreeRide, 7, 0);
     expect(w.guests.cols.voucherKind[0]).toBe(VoucherKind.FreeRide);
     expect(w.guests.cols.voucherTarget[0]).toBe(7);
+  });
+
+  it('directs arrivals toward the selected ride for both ride campaigns', () => {
+    for (const campaignId of [2, 5]) {
+      const { w } = corridorWithRide();
+      layPath(w, [
+        [4, 6],
+        [4, 7],
+        [4, 8],
+        [4, 9],
+      ]);
+      layPath(
+        w,
+        [
+          [7, 9],
+          [6, 9],
+          [5, 9],
+        ],
+        true,
+      );
+      layPath(w, [[8, 8]]);
+      const promotedRide = openRide(
+        w,
+        RideType.MerryGoRound,
+        [7, 8],
+        [7, 9],
+        [8, 8],
+        [
+          [6, 9],
+          [5, 9],
+        ],
+      );
+      expect(setParkEntrance(w, 2, 5)).toBe(true);
+      const promotedRideId = w.rides.slotToId[promotedRide];
+      expect(w.rides.cols.state[promotedRide]).toBe(RideState.Open);
+      refreshQueueIndex(w);
+      expect(w.queues.hasQueue[promotedRide]).toBe(1);
+      expect(isReachable(w, w.map.index(2, 5), w.queues.joinTile[promotedRide])).toBe(true);
+      w.economy.campaignId = campaignId;
+      w.economy.campaignTarget = promotedRideId;
+      w.economy.campaignWeeksLeft = 1;
+      w.economy.parkRating = 1000;
+      w.rng.int = () => 0;
+
+      createGuestSystem().update(w);
+
+      expect(w.guests.count).toBe(1);
+      expect(w.guests.cols.targetRide[0]).toBe(promotedRideId);
+      expect(w.guests.cols.voucherKind[0]).toBe(
+        campaignId === 2 ? VoucherKind.FreeRide : VoucherKind.None,
+      );
+      if (campaignId === 2) expect(w.guests.cols.voucherTarget[0]).toBe(promotedRideId);
+    }
   });
 
   it('rides the named ride for nothing and spends the voucher', () => {

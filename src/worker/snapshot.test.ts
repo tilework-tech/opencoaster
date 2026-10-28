@@ -30,6 +30,43 @@ import {
 } from './snapshot';
 
 describe('render snapshot', () => {
+  it('publishes the next enabled invention and its three progress stages', () => {
+    const world = new World({ seed: 1, width: 16, height: 16 });
+    applyScenario(world, {
+      id: 'research-snapshot',
+      name: 'Research snapshot',
+      seed: 1,
+      mapWidth: 16,
+      mapHeight: 16,
+      startingCash: 1_000_000,
+      startingLoan: 0,
+      maxLoan: 0,
+      annualInterestBps: 0,
+      averageGuestCashCents: 5_000,
+      difficultRating: false,
+      priceMode: 0,
+      admissionPrice: 0,
+      availableItemIds: [1],
+      inventions: [{ itemId: 9, category: 2, workUnits: 180 }],
+      objective: { kind: 0, target: 0, rating: 0, categoryMask: 0, byTick: 1 },
+    });
+    world.research.enabledCategoryMask = 1 << 2;
+    const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
+
+    writeSnapshot(world, snapshot);
+    expect(snapshot.research.currentItemId).toBe(9);
+    expect(snapshot.research.progressStage).toBe('Initial research');
+
+    world.research.currentIndex = 0;
+    world.research.progress = 60;
+    writeSnapshot(world, snapshot);
+    expect(snapshot.research.progressStage).toBe('Designing');
+
+    world.research.progress = 120;
+    writeSnapshot(world, snapshot);
+    expect(snapshot.research.progressStage).toBe('Completing design');
+  });
+
   it('publishes successful build and demolition cues once', () => {
     const simulation = new Simulation({ seed: 5, width: 16, height: 16 });
     prepareFlat(simulation.world);

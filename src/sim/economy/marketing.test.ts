@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BASIS_POINTS, NO_TARGET, createLedger } from './ledger';
+import { VoucherKind } from './vouchers';
 import {
   CAMPAIGNS,
   MAX_CAMPAIGN_WEEKS,
   chargeCampaignWeek,
   marketingAttractionBps,
+  marketingVoucher,
   startCampaign,
 } from './marketing';
 
@@ -64,6 +66,18 @@ describe('campaign targets', () => {
 });
 
 describe('campaign costs and attraction', () => {
+  it('uses the RCT2 weekly prices for all six campaigns', () => {
+    const expectedWeeklyCents = [5_000, 35_000, 5_000, 5_000, 5_000, 20_000];
+    CAMPAIGNS.forEach((_, id) => {
+      const l = createLedger();
+      startCampaign(l, id, 1, id === FREE_RIDE || id === 5 || id === FOOD_OFFER ? 9 : undefined);
+      const startingCash = l.cash;
+      chargeCampaignWeek(l);
+      expect(l.cash).toBe(startingCash - expectedWeeklyCents[id]);
+      expect(l.campaignWeeksLeft).toBe(0);
+    });
+  });
+
   it('charges its weekly price for each week and then stops', () => {
     const l = createLedger();
     startCampaign(l, FREE_ENTRY, 2);
@@ -82,5 +96,20 @@ describe('campaign costs and attraction', () => {
     expect(marketingAttractionBps(l)).toBe(CAMPAIGNS[FREE_ENTRY].attractionBps);
     chargeCampaignWeek(l);
     expect(marketingAttractionBps(l)).toBe(BASIS_POINTS);
+  });
+});
+
+describe('campaign guest offers', () => {
+  it.each([
+    [0, VoucherKind.FreeEntry, NO_TARGET],
+    [1, VoucherKind.None, NO_TARGET],
+    [2, VoucherKind.FreeRide, 42],
+    [3, VoucherKind.HalfPriceEntry, NO_TARGET],
+    [4, VoucherKind.FreeFoodOrDrink, 42],
+    [5, VoucherKind.None, 42],
+  ])('campaign %i gives guests the matching offer', (campaignId, kind, target) => {
+    const l = createLedger();
+    startCampaign(l, campaignId, 1, 42);
+    expect(marketingVoucher(l)).toEqual({ kind, target });
   });
 });

@@ -5,7 +5,7 @@ Path: @/src/sim/research
 ### Overview
 
 - Owns scenario research state, category-gated progress, funding levels, invention priority, and the set of unlocked items.
-- The research system updates progress at weekly boundaries and charges funding at monthly boundaries.
+- The research system updates progress at weekly boundaries and pays one quarter of the selected monthly funding amount at each weekly boundary.
 - Research unlock state is a simulation invariant used by ride construction and presented to the UI through simulation feedback.
 
 ### How it fits into the larger codebase
@@ -18,7 +18,7 @@ Path: @/src/sim/research
 ### Core Implementation
 
 - [research.ts](research.ts) defines funding, state, save helpers, unlock queries, and the `setFunding`, `setCategories`, and `setPriority` actions.
-- [research-system.ts](research-system.ts) charges monthly funding even when no invention is eligible, accrues work weekly when funding and an enabled category allow progress, and adds completed item ids to `unlocked`.
+- [research-system.ts](research-system.ts) charges weekly quarters of the selected monthly funding amount even when no invention is eligible, accrues work weekly when funding and an enabled category allow progress, and adds completed item ids to `unlocked`.
 - The player priority list is considered first; remaining eligible inventions retain scenario order. Changing the current target resets progress, while excess work carries to the next invention.
 - Core ride creation calls `isUnlocked` and reports `RideResult.ResearchRequired` for a locked ride type. This keeps the simulation authoritative even when the UI filters locked rides from the selection menu.
 

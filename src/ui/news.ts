@@ -37,6 +37,7 @@ export class NewsTracker {
   private nextId = 1;
   private primed = false;
   private awardKeys = new Set<string>();
+  private unlockedItems = new Set<number>();
 
   constructor(private readonly capacity = 50) {}
 
@@ -70,6 +71,16 @@ export class NewsTracker {
         say('ride', `${name} is back in service`, target);
     }
     this.rides = seen;
+
+    const unlockedItems = new Set<number>();
+    for (let id = 0; id < snapshot.research.unlockedRides.length; id++) {
+      if (!snapshot.research.unlockedRides[id]) continue;
+      unlockedItems.add(id);
+      if (!this.primed || this.unlockedItems.has(id)) continue;
+      const name = RIDE_CATALOG[id as keyof typeof RIDE_CATALOG]?.name;
+      if (name) say('ride', `New ride/attraction now available: ${name}`);
+    }
+    this.unlockedItems = unlockedItems;
 
     const milestone = Math.floor(snapshot.guests.count / GUEST_MILESTONE) * GUEST_MILESTONE;
     if (this.primed && milestone > this.guestMilestone && milestone > 0)
@@ -128,6 +139,7 @@ export class NewsTracker {
   private reset(): void {
     this.primed = false;
     this.awardKeys = new Set();
+    this.unlockedItems = new Set();
     this.rides = new Map();
     this.guestMilestone = 0;
     this.status = ScenarioStatus.Active;

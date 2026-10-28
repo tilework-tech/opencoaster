@@ -7,6 +7,7 @@ import {
   earn,
   gateAdmissionCents,
   marketingAttraction,
+  marketingTargetRide,
 } from '../economy/api';
 import { BASIS_POINTS, LedgerCategory, PriceMode } from '../economy/ledger';
 import { gateFeeAfterVoucher, isEntryVoucher, VoucherKind } from '../economy/vouchers';
@@ -134,6 +135,8 @@ export interface GuestAdmission {
   totalRideValueForMoneyCents?: number;
   /** Arrival multiplier in basis points; 10000 (the default) means no campaign. */
   attractionBps?: number;
+  /** Active ride campaign target, or -1 when arrivals have no promoted ride. */
+  targetRide?: number;
   /** Natural guest-generation multiplier from active park awards. */
   awardBps?: number;
   /** Voucher each arriving guest receives, and the ride or stall it names. */
@@ -193,6 +196,7 @@ function admissionFromEconomy(world: World): GuestAdmission {
     entranceFee: gateAdmissionCents(world),
     totalRideValueForMoneyCents: totalRideValueForMoneyCents(world),
     attractionBps: marketingAttraction(world),
+    targetRide: marketingTargetRide(world),
     awardBps: awardAttractionBps(world.economy.activeAwards, world.tick),
     voucher: arrivalVoucher(world),
   };
@@ -1233,6 +1237,12 @@ function spawnArrival(world: World, admission: GuestAdmission): void {
   if (voucher.kind !== VoucherKind.None && !isEntryVoucher(voucher.kind) && voucher.target >= 0) {
     guest.voucherKind[slot] = voucher.kind;
     guest.voucherTarget[slot] = voucher.target;
+  }
+  const targetRide = admission.targetRide ?? -1;
+  if (targetRide >= 0 && world.rides.isAlive(targetRide)) {
+    const targetSlot = world.rides.idToSlot[targetRide];
+    if (world.rides.cols.state[targetSlot] === RideState.Open)
+      setDestination(world, slot, targetSlot);
   }
 }
 

@@ -3,7 +3,11 @@ import { PriceMode, post } from './ledger';
 import { LedgerCategory } from './ledger';
 import type { EconomyInputs } from './ledger';
 import type { VoucherKind } from './vouchers';
-import { marketingAttractionBps as attractionBps, marketingVoucher } from './marketing';
+import {
+  marketingAttractionBps as attractionBps,
+  marketingRideTarget as rideTarget,
+  marketingVoucher,
+} from './marketing';
 
 function assertAmount(cents: number): void {
   if (!Number.isSafeInteger(cents) || cents < 0) {
@@ -57,6 +61,11 @@ export function marketingAttraction(world: World): number {
 /** Voucher the next arriving guest receives, with the ride or stall it names. */
 export function arrivalVoucher(world: World): { kind: VoucherKind; target: number } {
   return marketingVoucher(world.economy);
+}
+
+/** Ride new arrivals are drawn toward by an active ride offer or advertising campaign. */
+export function marketingTargetRide(world: World): number {
+  return rideTarget(world.economy);
 }
 
 export function recordDrowningCasualty(world: World): void {

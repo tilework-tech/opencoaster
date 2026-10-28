@@ -4,6 +4,7 @@ import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
 import { rideBaseLevel } from '../sim/rides/ride-footprint';
 import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG } from '../sim/rides/ride-types';
+import { nextEligibleInvention } from '../sim/research/research';
 import {
   getRideMechanicStatus,
   getRideMinutesSinceInspection,
@@ -263,6 +264,10 @@ export interface SnapshotResearch {
   /** Work done on the current invention and the work it needs; cost is -1 when nothing is eligible. */
   progress: number;
   currentCost: number;
+  /** Item id currently being researched or next in the enabled scenario order, or -1. */
+  currentItemId: number;
+  /** Player-facing development phase, or an empty string when none is eligible. */
+  progressStage: string;
   inventionCount: number;
   unlockedCount: number;
   /** 1 for each ride type the player may build, indexed by ride type id. */
@@ -348,6 +353,8 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
       enabledCategoryMask: 0,
       progress: 0,
       currentCost: -1,
+      currentItemId: -1,
+      progressStage: '',
       inventionCount: 0,
       unlockedCount: 0,
       unlockedRides: new Uint8Array(RIDE_TYPE_SLOTS),
@@ -639,11 +646,21 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   }
   economy.rideUpkeepPerFortnight = ledger.inputs.rideUpkeepPerFortnight;
   const research = world.research;
-  const current = research.inventions[research.currentIndex];
+  const nextIndex = nextEligibleInvention(research);
+  const current = research.inventions[nextIndex];
+  const currentProgress = nextIndex === research.currentIndex ? research.progress : 0;
   out.research.funding = research.funding;
   out.research.enabledCategoryMask = research.enabledCategoryMask;
-  out.research.progress = research.progress;
+  out.research.progress = current ? currentProgress : 0;
   out.research.currentCost = current ? current.workUnits : -1;
+  out.research.currentItemId = current?.itemId ?? -1;
+  out.research.progressStage = current
+    ? 3 * currentProgress < current.workUnits
+      ? 'Initial research'
+      : 3 * currentProgress < current.workUnits * 2
+        ? 'Designing'
+        : 'Completing design'
+    : '';
   out.research.inventionCount = research.inventions.length;
   out.research.unlockedCount = research.unlocked.size;
   out.research.unlockedRides.fill(0);
