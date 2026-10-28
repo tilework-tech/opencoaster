@@ -183,6 +183,7 @@ describe('leaving guests', () => {
     const slot = guestAt(w, 2, 5);
     w.guests.cols.x[slot] = 50 * TILE_UNITS + 128;
     w.guests.cols.state[slot] = GuestState.Leaving;
+    w.rng.int = (range) => range - 1;
     run(w, 8000);
     expect(w.guests.count).toBe(0);
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hashWorld } from '../core/hash';
 import { World } from '../core/world';
-import { RIDE_CATALOG, type RideTypeDef } from './ride-types';
+import { RIDE_CATALOG, RideType, type RideTypeDef } from './ride-types';
 import { RideMode } from './ride-modes';
 import { createRide, getRideRatings } from './ride-operations';
 import { RideState } from './ride-store';
@@ -199,6 +199,26 @@ function definition(name: string): RideTypeDef | undefined {
 }
 
 describe('expanded ride catalog', () => {
+  it('uses OpenRCT2 guest-generation bonuses and base upkeep for the starter park rides', () => {
+    const starter = [
+      [RideType.MerryGoRound, 45],
+      [RideType.FerrisWheel, 45],
+      [RideType.SwingingShip, 35],
+      [RideType.Twist, 40],
+      [RideType.FoodStall, 15],
+      [RideType.DrinkStall, 15],
+      [RideType.Toilets, 5],
+    ] as const;
+
+    for (const [type, bonus] of starter) {
+      const ride = RIDE_CATALOG[type];
+      expect(ride.guestGenerationBonus).toBe(bonus);
+      expect(ride.runningCostPerFortnightCents).toBe(310);
+      if (type === RideType.FoodStall) expect(ride.stockCostCents).toBe(50);
+      if (type === RideType.DrinkStall) expect(ride.stockCostCents).toBe(30);
+    }
+  });
+
   it('adds the requested base-game ride families across the build categories', () => {
     const names = Object.values(RIDE_CATALOG).map((ride) => ride.name);
     for (const { name } of CONTRACTS) expect(names).toContain(name);

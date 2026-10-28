@@ -1,9 +1,9 @@
-import { WEEKS_PER_YEAR } from './calendar';
-import { BASIS_POINTS } from './ledger';
 import type { Ledger } from './ledger';
 
 /** Player loan adjustments move in $1,000 steps. */
 export const LOAN_STEP_CENTS = 100_000;
+const INTEREST_RATE_SCALE = 16_384;
+const BASIS_POINTS_PER_PERCENT = 100;
 
 export function borrow(l: Ledger, cents: number): boolean {
   if (!isLoanStep(cents) || l.loan + cents > l.maxLoan) return false;
@@ -20,9 +20,11 @@ export function repay(l: Ledger, cents: number): boolean {
   return true;
 }
 
-/** Weekly share of the annual rate, rounded down. Simple interest; see economy.md open question 2. */
+/** Weekly interest using the RCT2-compatible rate conversion, rounded down per payment. */
 export function weeklyInterestCents(l: Ledger): number {
-  return Math.floor((l.loan * l.annualInterestBps) / (BASIS_POINTS * WEEKS_PER_YEAR));
+  return Math.floor(
+    (l.loan * l.annualInterestBps * 5) / (BASIS_POINTS_PER_PERCENT * INTEREST_RATE_SCALE),
+  );
 }
 
 export function companyValue(l: Ledger): number {

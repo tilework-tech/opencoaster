@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGuestSystem } from './guest-system';
 import { GuestState, GuestThought, spawnGuest } from './guest-store';
+import { hashWorld } from '../core/hash';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
 import { rideQueueCapacity } from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
@@ -57,6 +58,29 @@ describe('ride choice against ride ratings', () => {
     const { world, guest } = oneRide({ excitement: 600, intensity: 400, nausea: 1500 });
     expect(world.guests.cols.targetRide[guest]).toBe(-1);
     expect(world.guests.cols.thought0[guest]).toBe(GuestThought.TooNauseous);
+  });
+});
+
+describe('scenario guest cash', () => {
+  it('includes the scenario average in deterministic world state', () => {
+    const first = flatWorld(24, 8);
+    const second = flatWorld(24, 8);
+    second.scenario.averageGuestCashCents += 1;
+    expect(hashWorld(first)).not.toBe(hashWorld(second));
+  });
+
+  it('spawns guests with the RCT2 guest-cash variation around the scenario average', () => {
+    const world = flatWorld(24, 8);
+    world.scenario.averageGuestCashCents = 7_500;
+    const balances: number[] = [];
+    for (let i = 0; i < 64; i++) {
+      expect(spawnGuest(world)).toBe(true);
+      balances.push(world.guests.cols.cash[i]);
+    }
+    expect(balances.every((cash) => cash >= 6_500 && cash <= 9_500)).toBe(true);
+    const average = balances.reduce((sum, cash) => sum + cash, 0) / balances.length;
+    expect(average).toBeGreaterThan(7_900);
+    expect(average).toBeLessThan(8_200);
   });
 });
 
@@ -166,7 +190,7 @@ describe('park capacity', () => {
     world.park.entranceX = 2;
     world.park.entranceY = 12;
     layPath(world, [[2, 12]]);
-    stepSystem(world, system, 3000);
+    stepSystem(world, system, 8_192);
     return world.guests.count;
   }
 

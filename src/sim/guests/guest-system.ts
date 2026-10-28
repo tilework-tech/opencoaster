@@ -8,7 +8,7 @@ import {
   gateAdmissionCents,
   marketingAttraction,
 } from '../economy/api';
-import { BASIS_POINTS, LedgerCategory } from '../economy/ledger';
+import { BASIS_POINTS, LedgerCategory, PriceMode } from '../economy/ledger';
 import { gateFeeAfterVoucher, isEntryVoucher, VoucherKind } from '../economy/vouchers';
 import {
   DEFAULT_GUEST_OPTS,
@@ -19,7 +19,12 @@ import {
   nextDirection,
 } from '../pathfinding';
 import type { NavOptions } from '../pathfinding';
-import { addRideIncome, isShopCategory, rideQueueCapacity } from '../rides/ride-operations';
+import {
+  addRideIncome,
+  getRideValueCents,
+  isShopCategory,
+  rideQueueCapacity,
+} from '../rides/ride-operations';
 import { RideState } from '../rides/ride-store';
 import {
   directionBetween,
@@ -105,12 +110,13 @@ const SIGHT_TILES = 10;
 const MEAL_RELIEF = 176;
 const MEAL_THIRST = 32;
 const SHOP_HAPPINESS = 8;
-const STOCK_COST_PERCENT = 26;
-const ARRIVAL_INTERVAL = 40;
+const ARRIVAL_RANDOM_RANGE = 65_536;
+const ARRIVAL_INPUT_REFRESH_TICKS = 512;
+const rideValueByWorld = new WeakMap<
+  World,
+  { tick: number; rides: Array<{ id: number; type: number; state: number; valueCents: number }> }
+>();
 /** Guests the park comfortably holds before arrivals taper off: a base plus what its rides add. */
-const COMFORTABLE_BASE = 30;
-const COMFORTABLE_PER_ATTRACTION = 40;
-const COMFORTABLE_PER_STALL = 8;
 /** Longest line, in guests, a stall or facility tolerates before newcomers look elsewhere. */
 const STALL_LINE_LIMIT = 8;
 /** Score cost of each guest already in a ride's line, in the same units as excitement x 4. */
@@ -124,6 +130,8 @@ const TASTE_EPOCH_SHIFT = 11;
 export interface GuestAdmission {
   parkRating: number;
   entranceFee: number;
+  /** Current combined ride value guests consider when judging the park entrance fee. */
+  totalRideValueForMoneyCents?: number;
   /** Arrival multiplier in basis points; 10000 (the default) means no campaign. */
   attractionBps?: number;
   /** Natural guest-generation multiplier from active park awards. */
@@ -145,10 +153,45 @@ function tripFinished(completed: number, tag: number): boolean {
   return passed >= 1 && passed < 0x8000;
 }
 
+function totalRideValueForMoneyCents(world: World): number {
+  const cached = rideValueByWorld.get(world);
+  const rides = world.rides.cols;
+  const refreshValues =
+    !cached ||
+    world.tick < cached.tick ||
+    world.tick % ARRIVAL_INPUT_REFRESH_TICKS === 0 ||
+    cached.rides.length !== world.rides.count ||
+    cached.rides.some(
+      (ride, slot) =>
+        ride.id !== world.rides.slotToId[slot] ||
+        ride.type !== rides.typeId[slot] ||
+        ride.state !== rides.state[slot],
+    );
+  const values = refreshValues
+    ? Array.from({ length: world.rides.count }, (_, slot) => ({
+        id: world.rides.slotToId[slot],
+        type: rides.typeId[slot],
+        state: rides.state[slot],
+        valueCents: getRideValueCents(world, world.rides.slotToId[slot]),
+      }))
+    : cached.rides;
+  if (refreshValues) rideValueByWorld.set(world, { tick: world.tick, rides: values });
+
+  let totalCents = 0;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    if (rides.state[slot] !== RideState.Open) continue;
+    const rideValue = values[slot].valueCents;
+    const ridePrice = world.economy.priceMode === PriceMode.PerRide ? rides.price[slot] : 0;
+    totalCents += Math.max(0, rideValue - ridePrice) * 2;
+  }
+  return totalCents;
+}
+
 function admissionFromEconomy(world: World): GuestAdmission {
   return {
     parkRating: world.economy.parkRating,
     entranceFee: gateAdmissionCents(world),
+    totalRideValueForMoneyCents: totalRideValueForMoneyCents(world),
     attractionBps: marketingAttraction(world),
     awardBps: awardAttractionBps(world.economy.activeAwards, world.tick),
     voucher: arrivalVoucher(world),
@@ -611,7 +654,7 @@ function finishShopping(world: World, slot: number, ride: number): void {
     }
     earn(world, LedgerCategory.FoodDrinkSales, price);
     addRideIncome(world, ride, price);
-    charge(world, LedgerCategory.FoodDrinkStock, Math.floor((price * STOCK_COST_PERCENT) / 100));
+    charge(world, LedgerCategory.FoodDrinkStock, RIDE_CATALOG[type].stockCostCents ?? 0);
   }
   g.happinessTarget[slot] = Math.min(255, g.happinessTarget[slot] + SHOP_HAPPINESS);
   r.guestsServed[ride]++;
@@ -1149,30 +1192,35 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
 /** Guests the park holds comfortably: what its open rides, stalls and facilities can serve. */
 function comfortableGuests(world: World): number {
   const r = world.rides.cols;
-  let total = COMFORTABLE_BASE;
+  let total = 0;
   for (let ride = 0; ride < world.rides.count; ride++) {
     if (r.state[ride] !== RideState.Open) continue;
-    total += isThrillCategory(rideCategory(world, ride))
-      ? COMFORTABLE_PER_ATTRACTION
-      : COMFORTABLE_PER_STALL;
+    const definition = RIDE_CATALOG[r.typeId[ride] as RideType];
+    total +=
+      definition?.guestGenerationBonus ?? (isThrillCategory(rideCategory(world, ride)) ? 40 : 8);
   }
   return total;
 }
 
 function spawnArrival(world: World, admission: GuestAdmission): void {
-  const feePenalty = Math.max(0, admission.entranceFee - Math.max(100, admission.parkRating * 2));
-  const base = Math.max(0, Math.min(1000, admission.parkRating - feePenalty));
+  const base = 50 + Math.max(0, Math.min(650, admission.parkRating - 200));
   const campaignBps = admission.attractionBps ?? BASIS_POINTS;
   const campaign = Math.floor((base * campaignBps) / BASIS_POINTS);
-  const attraction =
+  let rate =
     campaignBps === BASIS_POINTS
       ? Math.floor((campaign * (admission.awardBps ?? BASIS_POINTS)) / BASIS_POINTS)
       : campaign;
   const comfortable = comfortableGuests(world);
   const guests = world.guests.count;
-  if (guests >= world.guests.capacity || guests >= comfortable) return;
-  const chance = Math.floor((attraction * (comfortable - guests)) / comfortable);
-  if (world.rng.int(1000) >= chance) return;
+  if (guests >= world.guests.capacity) return;
+  if (guests > comfortable) rate = Math.floor(rate / 4);
+  if (admission.entranceFee > (admission.totalRideValueForMoneyCents ?? 0)) {
+    rate = Math.floor(rate / 4);
+    if (Math.floor(admission.entranceFee / 2) > (admission.totalRideValueForMoneyCents ?? 0)) {
+      rate = Math.floor(rate / 4);
+    }
+  }
+  if (world.rng.int(ARRIVAL_RANDOM_RANGE) >= rate) return;
   if (!spawnGuest(world)) return;
   const slot = world.guests.count - 1;
   const guest = world.guests.cols;
@@ -1198,7 +1246,7 @@ export function createGuestSystem(
       refreshQueueIndex(world);
       recountRideLines(world);
       updateQueueLines(world);
-      if (world.tick % ARRIVAL_INTERVAL === 0 && hasParkEntrance(world)) {
+      if (hasParkEntrance(world)) {
         spawnArrival(world, admissionProvider(world));
       }
       for (let slot = 0; slot < world.guests.count;) {

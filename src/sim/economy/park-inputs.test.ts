@@ -3,7 +3,7 @@ import { Simulation } from '../core/simulation';
 import { layPath, openRide, prepareFlat, row } from '../integration/fixtures';
 import { setRideOpen } from '../rides/ride-operations';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
-import { INPUT_REFRESH_TICKS, RIDE_UPKEEP_DIVISOR } from './park-inputs';
+import { INPUT_REFRESH_TICKS } from './park-inputs';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
 import { completeCycle } from '../rides/ride-system';
 import { parkInputsSystem } from './park-inputs';
@@ -53,7 +53,7 @@ describe('economy inputs from the park', () => {
     refresh(s);
     const inputs = s.world.economy.inputs;
     expect(inputs.rideUpkeepPerFortnight).toBe(
-      Math.floor(RIDE_CATALOG[RideType.MerryGoRound].cost / RIDE_UPKEEP_DIVISOR),
+      RIDE_CATALOG[RideType.MerryGoRound].runningCostPerFortnightCents,
     );
     expect(inputs.rideValue).toBeGreaterThan(0);
     expect(inputs.qualifyingRideCount).toBe(1);

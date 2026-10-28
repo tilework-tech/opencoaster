@@ -90,7 +90,7 @@ describe('save', () => {
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(30);
+    expect(SAVE_VERSION).toBe(31);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -98,11 +98,32 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(30);
+    expect(header.version).toBe(31);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
     expect(restored.staff.cols.vandalsStopped[0]).toBe(27);
+  });
+
+  it('preserves the scenario guest cash average and defaults older saves', () => {
+    const sim = new Simulation({ seed: 1, width: 8, height: 8 });
+    sim.world.scenario.averageGuestCashCents = 7_500;
+    expect(deserialize(serialize(sim.world)).scenario.averageGuestCashCents).toBe(7_500);
+
+    const older = serialize(sim.world);
+    const view = new DataView(older.buffer, older.byteOffset, older.byteLength);
+    const headerEnd = 8 + view.getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(older.subarray(8, headerEnd)));
+    header.version = 30;
+    delete header.scenario.averageGuestCashCents;
+    const json = new TextEncoder().encode(JSON.stringify(header));
+    const body = older.subarray(headerEnd);
+    const legacy = new Uint8Array(8 + json.length + body.length);
+    new DataView(legacy.buffer).setUint32(0, view.getUint32(0, true), true);
+    new DataView(legacy.buffer).setUint32(4, json.length, true);
+    legacy.set(json, 8);
+    legacy.set(body, 8 + json.length);
+    expect(deserialize(legacy).scenario.averageGuestCashCents).toBe(5_000);
   });
 
   it('loads version 26 saves and applies the version 27 migration', () => {
@@ -657,6 +678,7 @@ describe('save: economy, research and scenario state', () => {
       startingLoan: 0,
       maxLoan: 10_000_000,
       annualInterestBps: 1_000,
+      averageGuestCashCents: 5_000,
       difficultRating: false,
       priceMode: 1,
       admissionPrice: 200,
@@ -688,6 +710,7 @@ describe('save: map and economy together', () => {
         startingLoan: 1_000_000,
         maxLoan: 10_000_000,
         annualInterestBps: 1_000,
+        averageGuestCashCents: 5_000,
         difficultRating: false,
         priceMode: 1,
         admissionPrice: 300,

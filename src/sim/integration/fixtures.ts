@@ -12,8 +12,8 @@ import { GUEST_SCHEMA, spawnGuest } from '../guests/guest-store';
 import { setParkEntrance } from '../guests/park';
 
 /** Flat, fully owned, dry map so tests can lay paths and rides wherever they like. */
-export function flatWorld(size = 24, seed = 5): World {
-  const w = new World({ seed, width: size, height: size, maxGuests: 64 });
+export function flatWorld(size = 24, seed = 5, maxGuests = 64): World {
+  const w = new World({ seed, width: size, height: size, maxGuests });
   prepareFlat(w);
   return w;
 }

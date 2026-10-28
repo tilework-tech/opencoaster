@@ -7,6 +7,8 @@ import type { Climate } from '../weather/weather';
 /** Save-slot ids for games that are not scenarios: the development sandbox, and imported files. */
 export const SANDBOX_ID = 'sandbox';
 export const IMPORTED_ID = 'imported';
+/** RCT2's common guest-cash setting; individual scenarios may choose another average. */
+export const DEFAULT_AVERAGE_GUEST_CASH_CENTS = 5_000;
 
 export enum ObjectiveKind {
   /** Guest count reaches target by byTick. */
@@ -161,6 +163,7 @@ export interface ScenarioDef {
   startingLoan: number;
   maxLoan: number;
   annualInterestBps: number;
+  averageGuestCashCents: number;
   difficultRating: boolean;
   priceMode: PriceMode;
   admissionPrice: number;
@@ -178,10 +181,15 @@ export interface ScenarioDef {
 export interface ScenarioState {
   objective: ScenarioObjective | null;
   status: ScenarioStatus;
+  averageGuestCashCents: number;
 }
 
 export function createScenarioState(): ScenarioState {
-  return { objective: null, status: ScenarioStatus.Active };
+  return {
+    objective: null,
+    status: ScenarioStatus.Active,
+    averageGuestCashCents: DEFAULT_AVERAGE_GUEST_CASH_CENTS,
+  };
 }
 
 /** Sets starting finances, research catalogue and objective. Call once, before stepping. */
@@ -203,6 +211,7 @@ export function applyScenario(world: World, def: ScenarioDef): void {
 
   world.scenario.objective = { ...def.objective };
   world.scenario.status = ScenarioStatus.Active;
+  world.scenario.averageGuestCashCents = def.averageGuestCashCents;
   world.weather.climate = def.climate ?? DEFAULT_CLIMATE;
 }
 

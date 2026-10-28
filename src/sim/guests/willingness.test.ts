@@ -49,10 +49,10 @@ describe('price willingness limits', () => {
     expect(itemValueCents(w, slot)).toBe(120);
   });
 
-  it('starts stalls below their item value so a new stall always sells', () => {
+  it('starts stalls at or below their item value so a new stall always sells', () => {
     for (const type of [RideType.FoodStall, RideType.DrinkStall]) {
       const { w, slot } = parkWith(type);
-      expect(w.rides.cols.price[slot]).toBeLessThan(itemValueCents(w, slot));
+      expect(w.rides.cols.price[slot]).toBeLessThanOrEqual(itemValueCents(w, slot));
     }
     const { w, slot } = parkWith(RideType.FoodStall);
     expect(itemValueCents(w, slot)).toBe(190);

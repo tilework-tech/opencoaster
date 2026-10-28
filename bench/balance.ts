@@ -37,8 +37,8 @@ const seed = arg('seed', 0);
 
 const profileArg = process.argv.indexOf('--profile');
 const profile = (profileArg >= 0 ? process.argv[profileArg + 1] : 'modest') as BalanceProfile;
-if (!['minimal', 'modest', 'ambitious'].includes(profile)) {
-  throw new Error(`unknown profile ${profile}; use minimal, modest or ambitious`);
+if (!['minimal', 'sensible', 'modest', 'ambitious'].includes(profile)) {
+  throw new Error(`unknown profile ${profile}; use minimal, sensible, modest or ambitious`);
 }
 const park = createBalancePark({ seed: seed || undefined, profile });
 const sim = park.sim;

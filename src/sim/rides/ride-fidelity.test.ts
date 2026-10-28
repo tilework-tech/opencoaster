@@ -91,6 +91,21 @@ function spawnMechanic(w: World): number {
 }
 
 describe('flat ride modes and ratings', () => {
+  it('starts the starter flat rides at their OpenRCT2 default ticket prices', () => {
+    const w = world();
+    const prices = [
+      [RideType.MerryGoRound, 100],
+      [RideType.FerrisWheel, 100],
+      [RideType.SwingingShip, 150],
+      [RideType.Twist, 100],
+    ] as const;
+
+    for (const [type, expected] of prices) {
+      createRide(w, type, 4, 4);
+      expect(w.rides.cols.price[w.rides.count - 1]).toBe(expected);
+    }
+  });
+
   it('gives every ride type a default mode that its type permits', () => {
     for (const def of Object.values(RIDE_CATALOG)) {
       expect(def.modes.length).toBeGreaterThan(0);
@@ -567,6 +582,7 @@ describe('stall pricing', () => {
       RideType.Toilets,
     ].map((type) => w.rides.cols.price[slotOf(w, createRide(w, type, type, 2))]);
     expect(new Set(prices).size).toBeGreaterThan(2);
+    expect(prices.slice(0, 2)).toEqual([150, 120]);
     expect(RELIABILITY_FULL).toBe(100 * 256);
   });
 });

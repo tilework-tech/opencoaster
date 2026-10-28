@@ -49,6 +49,13 @@ const THIRD_WAVE: Placement[] = [
   { type: RideType.DrinkStall, side: 'west', reach: 2 },
 ];
 
+/** A starter park with four flat rides, basic services, and the target opening staff roster. */
+const SENSIBLE_BUILD: Placement[] = [
+  ...FIRST_WAVE,
+  { type: RideType.SwingingShip, side: 'east', reach: 6 },
+  { type: RideType.Twist, side: 'west', reach: 6 },
+];
+
 /** Extra attractions a keen player adds in months 3 to 5. */
 const EXPANSION: Placement[] = [
   { type: RideType.FerrisWheel, side: 'east', reach: 6 },
@@ -63,10 +70,11 @@ const EXPANSION: Placement[] = [
 ];
 
 /**
- * minimal: first wave only, no staff. modest: all three waves and the coaster.
+ * minimal: first wave only, no staff. sensible: four flat rides, basic services, three staff.
+ * modest: all three waves and the coaster.
  * ambitious: modest plus EXPANSION, one attraction per fortnight from the third month.
  */
-export type BalanceProfile = 'minimal' | 'modest' | 'ambitious';
+export type BalanceProfile = 'minimal' | 'sensible' | 'modest' | 'ambitious';
 
 export interface BalanceOptions {
   seed?: number;
@@ -211,6 +219,7 @@ function buildCoaster(sim: Simulation): number {
 export function createBalancePark(options: BalanceOptions = {}): BalancePark {
   const { seed, profile = 'modest' } = options;
   const minimal = profile === 'minimal';
+  const sensible = profile === 'sensible';
   const ambitious = profile === 'ambitious';
   const def = parseScenarioFile(
     JSON.parse(
@@ -255,9 +264,10 @@ export function createBalancePark(options: BalanceOptions = {}): BalancePark {
       const tick = sim.world.tick;
       if (!done.first) {
         done.first = true;
-        for (const p of FIRST_WAVE) place(sim, p);
+        for (const p of sensible ? SENSIBLE_BUILD : FIRST_WAVE) place(sim, p);
       }
       if (minimal) return;
+      if (sensible) return;
       if (!done.second && tick >= TICKS_PER_MONTH) {
         done.second = true;
         for (const p of SECOND_WAVE) place(sim, p);
