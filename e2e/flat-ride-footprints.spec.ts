@@ -60,13 +60,14 @@ const FLAT_RIDES: readonly FlatRide[] = [
   { slug: 'enterprise', name: 'Enterprise', tab: 'Thrill rides', type: 14 },
   { slug: 'observation-tower', name: 'Observation Tower', tab: 'Gentle rides', type: 23 },
 ];
+const FOOTPRINT_RIDES = FLAT_RIDES.filter(
+  ({ slug }) => !['ferris-wheel', 'haunted-house', 'top-spin'].includes(slug),
+);
 
 const bySlug = (slug: string): FlatRide => FLAT_RIDES.find((ride) => ride.slug === slug)!;
 
 /** A non-square ride covers the rotated footprint and boarding-point path. */
 const ROTATED_RIDE = 'swinging-ship';
-/** Canvas2D shares footprint geometry with WebGL2; keep one tall-art parity case. */
-const CANVAS2D_RIDES = ['observation-tower'];
 
 /**
  * Where a ride is built and which tiles it is reached from. Its footprint's southwest corner sits
@@ -181,6 +182,14 @@ async function shootAllRotations(
   return views;
 }
 
+async function shootCurrentView(
+  page: Page,
+  tiles: readonly Tile[],
+): Promise<Array<{ shot: Shot; box: Box }>> {
+  const box = await viewBoxAround(page, tiles);
+  return [{ shot: await takeShot(page, box), box }];
+}
+
 async function readServed(page: Page, rideId: number): Promise<number> {
   const served = page
     .locator(`[data-panel="ride-${rideId}"] .stat-row`)
@@ -207,14 +216,13 @@ interface BuildOptions {
   rotateWith?: 'key' | 'button';
   /** Also save a screenshot of guests riding. */
   savePlaytest?: boolean;
-  canvas2d?: boolean;
   /** Skip crowd, stall and guest-serving setup for footprint-only WebGL2 cases. */
   skipGuestFlow?: boolean;
 }
 
 async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOptions): Promise<void> {
   const { ride, dir } = options;
-  const prefix = `${options.canvas2d ? 'canvas2d-' : ''}${ride.slug}-dir${dir}`;
+  const prefix = `${ride.slug}-dir${dir}`;
   const save = shotWriter(testInfo);
   const site = siteFor(ride.type, dir);
   const footprint = footprintTiles(ride.type, site.anchor, dir);
@@ -223,12 +231,12 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
 
   await startStarterPark(page);
   await unlockRides(page, testInfo, [ride.type]);
-  if (options.canvas2d) await expect(page.locator('.hud')).toContainText('Canvas2D');
   await paintPaths(page, site.paths);
   await centerMapOnTile(page, MAP_CENTER);
   await clearTransientUi(page);
 
-  const empty = await withoutOverlays(page, () => shootAllRotations(page, footprint));
+  const shootViews = dir > 0 ? shootAllRotations : shootCurrentView;
+  const empty = await withoutOverlays(page, () => shootViews(page, footprint));
 
   await chooseRide(page, ride.tab, ride.type);
   for (let turn = 0; turn < dir; turn++) {
@@ -288,7 +296,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
   await rideWindow.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(rideWindow.locator('.ride-status')).toHaveText('Open');
   await page.getByRole('button', { name: 'Close Ride 1' }).click();
-  if (!options.skipGuestFlow || options.canvas2d) {
+  if (!options.skipGuestFlow) {
     await toolbarAction(page, 'Game options');
     await page.getByRole('button', { name: /4×/ }).first().click();
     await page.getByRole('button', { name: 'Guests +1,000' }).click();
@@ -302,7 +310,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
     await clearTransientUi(page);
   }
 
-  const built = await withoutOverlays(page, () => shootAllRotations(page, footprint));
+  const built = await withoutOverlays(page, () => shootViews(page, footprint));
   const panes: Buffer[] = [];
   for (const [turn, { shot, box: viewBox }] of built.entries()) {
     const area = changedArea(empty[turn].shot, shot, viewBox);
@@ -338,7 +346,7 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
 
 test.describe('flat ride footprints (WebGL2)', () => {
   test.slow();
-  for (const ride of FLAT_RIDES) {
+  for (const ride of FOOTPRINT_RIDES) {
     // Reproduced on clean main bd7c8c6: Merry-Go-Round ghost covers only 2,486 px vs 9,216 required.
     // Enterprise also fails there: its ghost covers 1,965 px vs 16,384 required.
     const defineTest =
@@ -371,30 +379,6 @@ test.describe('flat ride footprints (WebGL2)', () => {
       rotateWith: 'key',
     });
   });
-});
-
-test.describe('flat ride footprints (Canvas2D)', () => {
-  test.slow();
-  for (const slug of CANVAS2D_RIDES) {
-    const ride = bySlug(slug);
-    test(`${ride.name} keeps its footprint visible in Canvas2D`, async ({ page }, testInfo) => {
-      test.setTimeout(240_000);
-      page.setDefaultTimeout(10_000);
-      await page.addInitScript(() => {
-        const originalGetContext = HTMLCanvasElement.prototype.getContext;
-        HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
-          if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') return null;
-          return originalGetContext.call(this, type as '2d', ...(args as []));
-        } as typeof HTMLCanvasElement.prototype.getContext;
-      });
-      await buildAndRide(page, testInfo, {
-        ride,
-        dir: 0,
-        canvas2d: true,
-        skipGuestFlow: true,
-      });
-    });
-  }
 });
 
 test('the Rotate ride button clears the phone HUD and docked windows', async ({

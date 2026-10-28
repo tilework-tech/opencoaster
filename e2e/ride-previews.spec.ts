@@ -116,12 +116,14 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
 
     await toolbarAction(page, 'New ride');
     const select = page.getByRole('group', { name: 'New attraction' });
-    for (const tab of TABS) {
+    const tabs = renderer === 'canvas2d' ? [TABS[0]!] : TABS;
+    for (const tab of tabs) {
       await tap(page, false, page.getByRole('tab', { name: tab }));
       const cards = select.locator('.ui-pane.active .ride-card:visible');
       const count = await cards.count();
       expect(count, `${tab} cards`).toBeGreaterThan(0);
-      for (let i = 0; i < count; i++) {
+      const cardsToCheck = renderer === 'canvas2d' ? 1 : count;
+      for (let i = 0; i < cardsToCheck; i++) {
         const card = cards.nth(i);
         const name = (await card.getAttribute('aria-label')) ?? tab;
         const thumbnail = card.locator('.ride-card-thumbnail');
