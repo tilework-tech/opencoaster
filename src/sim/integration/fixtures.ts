@@ -125,9 +125,18 @@ export function openRide(
   return w.rides.idToSlot[id];
 }
 
+/** Gives a bare test world somewhere for guests to appear, without laying a path to it. */
+export function addSpawnAtCorner(w: World): void {
+  w.park.spawns.push({ x: 0, y: 0 });
+}
+
 /** Spawns one guest on tile (x, y) with the given gate; returns its slot. */
 export function guestAt(w: World, x: number, y: number): number {
   setParkEntrance(w, x, y);
-  if (!spawnGuest(w)) throw new Error('spawnGuest');
+  const spawns = w.park.spawns.splice(0);
+  w.park.spawns.push({ x, y });
+  const spawned = spawnGuest(w);
+  w.park.spawns.splice(0, 1, ...spawns);
+  if (!spawned) throw new Error('spawnGuest');
   return w.guests.count - 1;
 }

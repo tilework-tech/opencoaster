@@ -1,5 +1,6 @@
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
+import { spawnPoints } from './park';
 
 export const enum GuestState {
   Wandering = 0,
@@ -150,16 +151,15 @@ export function recordThought(w: World, slot: number, thought: GuestThought): vo
 }
 
 export function spawnGuest(w: World): boolean {
+  const spawns = spawnPoints(w);
+  if (spawns.length === 0) return false;
   const g = w.guests;
   const slot = g.spawn();
   if (slot < 0) return false;
   w.umbrellas[g.slotToId[slot]] = 0;
-  let tx = w.park.entranceX;
-  let ty = w.park.entranceY;
-  if (tx < 0) {
-    tx = w.rng.int(w.map.width);
-    ty = w.rng.int(w.map.height);
-  }
+  const spawn = spawns.length === 1 ? spawns[0]! : spawns[w.rng.int(spawns.length)]!;
+  const tx = spawn.x;
+  const ty = spawn.y;
   g.cols.x[slot] = tx * TILE_UNITS + (TILE_UNITS >> 1);
   g.cols.y[slot] = ty * TILE_UNITS + (TILE_UNITS >> 1);
   g.cols.z[slot] = w.map.heightAt(g.cols.x[slot], g.cols.y[slot]);

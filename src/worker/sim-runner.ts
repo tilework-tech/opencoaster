@@ -1,8 +1,8 @@
 import { Simulation } from '../sim/core/simulation';
 import type { World } from '../sim/core/world';
 import { MAX_GUESTS, MAX_LITTER, MAX_STAFF, MAX_VEHICLES } from '../sim/core/constants';
-import { prepareScenario } from '../sim/scenario/scenario-layout';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import { prepareScenarioPark } from '../sim/scenario/scenario-layout';
+import { prepareSandbox } from '../sim/scenario/sandbox';
 import { deserialize, serialize } from '../save/save';
 import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
@@ -154,8 +154,8 @@ export class SimRunner {
       height: msg.height,
       maxGuests: msg.maxGuests,
     });
-    if (msg.scenario) prepareScenario(sim.world, msg.scenario);
-    else for (const def of Object.values(RIDE_CATALOG)) sim.world.research.unlocked.add(def.id);
+    if (msg.scenario) prepareScenarioPark(sim.world, msg.scenario);
+    else prepareSandbox(sim.world);
     sim.enqueue({ type: 'spawnGuests', count: msg.initialGuests });
     this.start(sim);
     this.port.post({ type: 'ready' });

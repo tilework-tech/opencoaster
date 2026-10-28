@@ -8,6 +8,7 @@ import { RideState } from '../rides/ride-store';
 import { RideType } from '../rides/ride-types';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
+import { addSpawnAtCorner } from '../integration/fixtures';
 
 function addNearbyRubbish(world: World, x: number, y: number): void {
   for (let i = 0; i < 2; i++) {
@@ -72,6 +73,7 @@ describe('scenario guest cash', () => {
   it('spawns guests with the RCT2 guest-cash variation around the scenario average', () => {
     const world = flatWorld(24, 8);
     world.scenario.averageGuestCashCents = 7_500;
+    addSpawnAtCorner(world);
     const balances: number[] = [];
     for (let i = 0; i < 64; i++) {
       expect(spawnGuest(world)).toBe(true);

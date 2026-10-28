@@ -6,10 +6,11 @@ import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { SALE_LAND } from '../map/tile-map';
 import { PIECES, PieceId } from '../track/catalog';
 import { RideResult } from '../rides/ride-results';
-import { prepareFlat } from '../integration/fixtures';
+import { addSpawnAtCorner, prepareFlat } from '../integration/fixtures';
 
 function run(seed: number, ticks: number): number {
   const sim = new Simulation({ seed, width: 64, height: 64, maxGuests: 2000 });
+  addSpawnAtCorner(sim.world);
   sim.enqueue({ type: 'spawnGuests', count: 500 });
   sim.enqueue({ type: 'spawnStaff', count: 10, kind: 1 });
   for (let i = 0; i < ticks; i++) sim.step();
@@ -34,6 +35,7 @@ describe('Simulation', () => {
 
   it('applies commands at the next tick boundary', () => {
     const sim = new Simulation({ seed: 1, width: 16, height: 16, maxGuests: 100 });
+    addSpawnAtCorner(sim.world);
     sim.enqueue({ type: 'spawnGuests', count: 5 });
     expect(sim.world.guests.count).toBe(0);
     sim.step();

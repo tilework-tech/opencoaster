@@ -2,15 +2,47 @@ import type { World } from '../core/world';
 import { firstOccupancyBlocker, worldOccupancies } from '../map/occupancy';
 import { Z_STEP } from '../core/constants';
 
+export interface PeepSpawn {
+  x: number;
+  y: number;
+}
+
+/** Most spawn points a park can have. */
+export const MAX_PEEP_SPAWNS = 2;
+
 /** Park-level state owned by the guest module: where guests enter and leave. */
 export interface ParkState {
   /** Gate tile coordinates; -1 while the park has no entrance. */
   entranceX: number;
   entranceY: number;
+  /** Path tiles on the map edge where arriving guests appear. */
+  spawns: PeepSpawn[];
 }
 
 export function createParkState(): ParkState {
-  return { entranceX: -1, entranceY: -1 };
+  return { entranceX: -1, entranceY: -1, spawns: [] };
+}
+
+/**
+ * Where new guests appear: the park's spawn points, or the gate for parks that predate them.
+ * Empty when the park has neither, in which case nobody arrives.
+ */
+export function spawnPoints(world: World): readonly PeepSpawn[] {
+  const park = world.park;
+  if (park.spawns.length > 0) return park.spawns;
+  return hasParkEntrance(world) ? [{ x: park.entranceX, y: park.entranceY }] : [];
+}
+
+/** Adds a spawn point on a footpath tile at the map edge; false when the tile cannot take one. */
+export function addPeepSpawn(world: World, x: number, y: number): boolean {
+  const m = world.map;
+  if (!Number.isInteger(x) || !Number.isInteger(y) || !m.inBounds(x, y)) return false;
+  if (x !== 0 && y !== 0 && x !== m.width - 1 && y !== m.height - 1) return false;
+  if (!m.isWalkable(m.index(x, y))) return false;
+  const spawns = world.park.spawns;
+  if (spawns.some((s) => s.x === x && s.y === y) || spawns.length >= MAX_PEEP_SPAWNS) return false;
+  spawns.push({ x, y });
+  return true;
 }
 
 export function hasParkEntrance(world: World): boolean {

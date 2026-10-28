@@ -6,6 +6,7 @@ import { pieceByName } from '../track/catalog';
 import { getConstructionCursor } from '../track/construction';
 import { PieceMode } from '../track/track-types';
 import { RideType } from './ride-types';
+import { addSpawnAtCorner } from '../integration/fixtures';
 
 /**
  * Station followed by a lifted two-level climb, four right-hand turns and a two-level drop; closes
@@ -38,6 +39,7 @@ export function flatOwnedSim(seed = 1): Simulation {
   sim.world.map.waterLevel.fill(0);
   sim.world.map.fillFlat(GROUND);
   sim.world.map.ownership.fill(OWNED);
+  addSpawnAtCorner(sim.world);
   return sim;
 }
 

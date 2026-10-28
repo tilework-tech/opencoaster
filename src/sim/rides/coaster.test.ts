@@ -396,6 +396,7 @@ describe('park guests on a coaster', () => {
     const { sim, rideId } = testedCoaster();
     for (let y = 10; y <= 17; y++) sim.enqueue({ type: 'placePath', x: STATION_X, y });
     sim.enqueue({ type: 'setParkEntrance', x: STATION_X, y: 10 });
+    sim.world.park.spawns.length = 0;
     connectStation(sim, rideId);
     sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
     run(sim, 10000);

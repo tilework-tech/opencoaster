@@ -5,16 +5,9 @@ import { applyScenario } from './scenario';
 import { DEFAULT_LAND, generateScenarioMap, ownedBounds } from './scenario-map';
 import type { TileRect } from './scenario-map';
 import { placePrebuilt } from './scenario-prebuilt';
-import type { EntranceSide, ScenarioDef, ScenarioEntrance } from './scenario';
+import type { ScenarioDef, ScenarioEntrance } from './scenario';
+import { INWARD, layOutApproach } from './park-approach';
 import { setParkEntrance } from '../guests/park';
-
-/** Step from the gate into the park for each side's entrance. */
-const INWARD: Record<EntranceSide, readonly [number, number]> = {
-  north: [0, 1],
-  south: [0, -1],
-  east: [-1, 0],
-  west: [1, 0],
-};
 
 /**
  * Lays the park entrance: the gate is the owned-land edge tile on `side`, and the path runs
@@ -98,4 +91,14 @@ export function prepareScenario(world: World, def: ScenarioDef): void {
   }
   applyScenario(world, def);
   economy.monthlyTotals.fill(0);
+}
+
+/**
+ * `prepareScenario` plus the park's approach: the entrance path continues from the gate across
+ * any unowned land to a spawn point on the map edge, where guests arrive. Call once, before stepping.
+ */
+export function prepareScenarioPark(world: World, def: ScenarioDef): void {
+  prepareScenario(world, def);
+  if (!def.entrance || world.park.entranceX < 0) return;
+  layOutApproach(world, def.entrance.side, world.park.entranceX, world.park.entranceY);
 }
