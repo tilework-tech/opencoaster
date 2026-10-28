@@ -70,7 +70,8 @@ export function suggestedGuestMaximum(world: World): number {
   let total = 0;
   for (let slot = 0; slot < world.rides.count; slot++) {
     if (!isOperating(world, slot)) continue;
-    total += RIDE_BONUS_VALUE[world.rides.cols.typeId[slot] as RideType] ?? 0;
+    const type = world.rides.cols.typeId[slot] as RideType;
+    total += RIDE_CATALOG[type]?.guestGenerationBonus ?? RIDE_BONUS_VALUE[type] ?? 0;
   }
   return Math.min(MAX_SUGGESTED_GUESTS, total);
 }

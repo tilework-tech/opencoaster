@@ -3,7 +3,7 @@
   "name": "Bramblewood Hollow",
   "category": "beginner",
   "climate": "coolAndWet",
-  "description": "A wooded hollow where every ride earns its keep. Reach $1,635 a month in ride ticket income by the end of year three.",
+  "description": "A wooded hollow where every ride earns its keep. Reach $1,800 a month in ride ticket income by the end of year three.",
   "seed": 1303,
   "map": {
     "width": 72,
@@ -173,7 +173,7 @@
   ],
   "objective": {
     "kind": "monthlyRideIncome",
-    "target": 163500,
+    "target": 180000,
     "byYear": 3
   }
 }

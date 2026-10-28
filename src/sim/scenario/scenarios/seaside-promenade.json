@@ -3,7 +3,7 @@
   "name": "Seaside Promenade",
   "category": "real",
   "climate": "warm",
-  "description": "A traditional seaside pier park built on a strip of reclaimed beach. Net $1,220 a month from food and drink by the end of year three.",
+  "description": "A traditional seaside pier park built on a strip of reclaimed beach. Net $1,404 a month from food and drink by the end of year three.",
   "seed": 4101,
   "map": {
     "width": 80,
@@ -166,7 +166,7 @@
   ],
   "objective": {
     "kind": "monthlyFoodProfit",
-    "target": 122000,
+    "target": 140400,
     "byYear": 3
   }
 }
