@@ -16,7 +16,8 @@ export const SURROUNDINGS_HAPPINESS_BONUS = 45;
 
 interface LitterIndex {
   count: number;
-  newestOrder: number;
+  /** Hash of every litter position, so a swap that keeps the count and newest order still rebuilds. */
+  signature: number;
   stride: number;
   prefix: Int32Array;
 }
@@ -42,16 +43,23 @@ function makeLitterPrefix(world: World): LitterIndex {
       prefix[(y + 1) * stride + x + 1] = prefix[y * stride + x + 1] + rowTotal;
     }
   }
-  const newestOrder =
-    world.litter.count === 0 ? 0 : world.litter.cols.birthOrder[world.litter.count - 1];
-  return { count: world.litter.count, newestOrder, stride, prefix };
+  return { count: world.litter.count, signature: litterSignature(world), stride, prefix };
+}
+
+function litterSignature(world: World): number {
+  const { x, y } = world.litter.cols;
+  let hash = 0;
+  for (let slot = 0; slot < world.litter.count; slot++) {
+    hash = (Math.imul(hash, 31) + x[slot]) | 0;
+    hash = (Math.imul(hash, 31) + y[slot]) | 0;
+  }
+  return hash;
 }
 
 function litterInWindow(world: World, centerX: number, centerY: number): number {
   let index = litterIndexByWorld.get(world);
-  const newestOrder =
-    world.litter.count === 0 ? 0 : world.litter.cols.birthOrder[world.litter.count - 1];
-  if (!index || index.count !== world.litter.count || index.newestOrder !== newestOrder) {
+  const signature = litterSignature(world);
+  if (!index || index.count !== world.litter.count || index.signature !== signature) {
     index = makeLitterPrefix(world);
     litterIndexByWorld.set(world, index);
   }

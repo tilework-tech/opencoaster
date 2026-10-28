@@ -78,6 +78,32 @@ describe('guest surroundings', () => {
     expect(world.guests.cols.happiness[slot]).toBe(100);
     expect(world.guests.cols.thought0[slot]).toBe(GuestThought.None);
   });
+
+  it('sees litter that replaced the newest piece when the count and newest order are unchanged', () => {
+    const world = flatWorld(20);
+    const slot = guestAt(world, 10, 10);
+    world.guests.cols.z[slot] = Z_STEP * 4;
+    world.guests.cols.x[slot] = 10 * TILE_UNITS + TILE_UNITS / 2;
+    world.guests.cols.y[slot] = 10 * TILE_UNITS + TILE_UNITS / 2;
+    const drop = (tileX: number, order: number) => {
+      const litter = world.litter.spawn();
+      world.litter.cols.x[litter] = tileX * TILE_UNITS;
+      world.litter.cols.y[litter] = 10 * TILE_UNITS;
+      world.litter.cols.birthOrder[litter] = order;
+    };
+    drop(6, 1);
+    drop(7, 2);
+    world.tick = 9216 - world.guests.slotToId[slot];
+    updateGuestSurroundings(world, slot);
+    expect(world.guests.cols.thought0[slot]).toBe(GuestThought.None);
+
+    world.litter.despawnSlot(1);
+    drop(18, 2);
+    world.tick += 9216;
+    updateGuestSurroundings(world, slot);
+
+    expect(world.guests.cols.thought0[slot]).toBe(GuestThought.VeryClean);
+  });
 });
 
 describe('surroundings assessment cadence', () => {

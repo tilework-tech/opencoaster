@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBalancePark } from './balance-park';
 import { TICKS_PER_MONTH } from '../src/sim/economy/calendar';
-import { LedgerCategory } from '../src/sim/economy/ledger';
 import { GENERATION_ROLL_RANGE } from '../src/sim/economy/guest-generation';
 import { parkRatingBreakdown, RATING_BASE } from '../src/sim/economy/park-rating';
 
@@ -14,27 +13,23 @@ interface MonthEnd {
   suggestedMax: number;
 }
 
-/** Runs the scripted starter park, counting arrivals from gate income and the arrival odds each tick. */
+/** Runs the scripted starter park, counting guest spawns and summing the arrival odds each tick. */
 function trajectory() {
   const park = createBalancePark();
   const world = park.sim.world;
-  const fee = Math.max(1, world.economy.admissionPrice);
   let arrived = 0;
   let expected = 0;
-  let admissionBefore = 0;
-  let monthsBefore = 0;
+  const spawn = world.guests.spawn.bind(world.guests);
+  world.guests.spawn = () => {
+    const slot = spawn();
+    if (slot >= 0) arrived++;
+    return slot;
+  };
   const months: MonthEnd[] = [];
   for (let t = 1; t <= MONTHS * TICKS_PER_MONTH; t++) {
     park.runSchedule();
     expected += world.economy.guestGeneration.probability / GENERATION_ROLL_RANGE;
     park.sim.step();
-    if (world.economy.monthsCompleted !== monthsBefore) {
-      monthsBefore = world.economy.monthsCompleted;
-      admissionBefore = 0;
-    }
-    const admission = world.economy.monthlyTotals[LedgerCategory.Admission];
-    arrived += (admission - admissionBefore) / fee;
-    admissionBefore = admission;
     if (world.tick % TICKS_PER_MONTH === 0) {
       months.push({
         rating: world.economy.parkRating,
