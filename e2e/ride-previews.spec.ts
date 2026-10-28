@@ -130,6 +130,12 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
         await expect(thumbnail, `${name} thumbnail drawn`).toHaveAttribute('data-preview', /.+/, {
           timeout: 30_000,
         });
+        await expect
+          .poll(async () => (await thumbnail.evaluate(readPreview, EDGE_BAND)).opaque, {
+            timeout: 30_000,
+            message: `${name} thumbnail pixels rendered`,
+          })
+          .toBeGreaterThanOrEqual(100);
         expectWholePreview(
           `${name} thumbnail`,
           await thumbnail.evaluate(readPreview, EDGE_BAND),
