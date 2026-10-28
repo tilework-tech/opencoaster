@@ -46,7 +46,7 @@ describe('sensible starter park balance', () => {
         Array.from({ length: w.staff.count }, (_, slot) => w.staff.cols.kind[slot]).sort(),
       ).toEqual([0, 0, 1]);
       expect(w.rides.count).toBe(7);
-      expect(w.scenario.objective?.target).toBe(480);
+      expect(w.scenario.objective?.target).toBe(360);
       expect(w.economy.priceMode).toBe(PriceMode.PerRide);
       expect(w.economy.admissionPrice).toBe(0);
       expect(monthlyNet[1]).toBeGreaterThanOrEqual(0);
