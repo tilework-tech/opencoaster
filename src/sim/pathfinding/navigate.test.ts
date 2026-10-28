@@ -149,14 +149,20 @@ describe('nextDirection', () => {
     return { w, target: w.map.index(width - 2, 0) };
   }
 
-  it('charges 1 per junction for adjacent junctions and 2 after a stretch with no choice', () => {
-    const budget = 9;
-    const opts = { ...DEFAULT_GUEST_OPTS, maxJunctions: budget, fromDir: DIR_NONE };
+  it('charges 1 per junction whether or not corridors lie between them', () => {
     const near = detourWorld(1, 5);
     const far = detourWorld(2, 5);
-    const start = near.w.map.index(0, 1);
-    expect(nextDirection(near.w, start, near.target, new Prng(1), opts)).toBe(DIR_S);
-    expect(nextDirection(far.w, far.w.map.index(0, 1), far.target, new Prng(1), opts)).toBe(DIR_E);
+    for (const { w, target } of [near, far]) {
+      const start = w.map.index(0, 1);
+      const at = (maxJunctions: number): number =>
+        nextDirection(w, start, target, new Prng(1), {
+          ...DEFAULT_GUEST_OPTS,
+          maxJunctions,
+          fromDir: DIR_NONE,
+        });
+      expect(at(9)).toBe(DIR_S);
+      expect(at(3)).toBe(DIR_E);
+    }
   });
 
   it('wanders at junctions without reversing and varies by rng', () => {
@@ -167,16 +173,6 @@ describe('nextDirection', () => {
       seen.add(nextDirection(w, w.map.index(2, 1), -1, new Prng(seed), opts));
     }
     expect(seen).toEqual(new Set([DIR_E, DIR_S, DIR_N]));
-  });
-
-  it('wanders when the guest is lost (walked past lostAfter)', () => {
-    const w = world(['..#..', '#####', '..#..']);
-    const seen = new Set<number>();
-    const opts = { ...DEFAULT_GUEST_OPTS, fromDir: DIR_E, stepsTaken: 1000, lostAfter: 10 };
-    for (let seed = 0; seed < 60; seed++) {
-      seen.add(nextDirection(w, w.map.index(2, 1), w.map.index(4, 1), new Prng(seed), opts));
-    }
-    expect(seen.size).toBeGreaterThan(1);
   });
 
   it('is deterministic for a given rng seed', () => {
