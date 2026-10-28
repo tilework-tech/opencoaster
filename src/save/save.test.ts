@@ -4,10 +4,17 @@ import { Simulation } from '../sim/core/simulation';
 import { hashWorld } from '../sim/core/hash';
 import { PieceId } from '../sim/track/catalog';
 import { SAVE_VERSION, deserialize, serialize } from './save';
+import { allWorldViews, withoutColumns } from './legacy-save-fixtures';
 import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RidePhase, RideState } from '../sim/rides/ride-store';
 import { RideResult } from '../sim/rides/ride-results';
+import {
+  BreakdownReason,
+  breakRide,
+  getRideDowntimePercent,
+  updateRideMaintenance,
+} from '../sim/rides';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
@@ -805,99 +812,6 @@ function v12Columns(world: World): ArrayBufferView[] {
   ];
 }
 
-function allWorldViews(world: World): ArrayBufferView[] {
-  return [
-    ...world.map.arrays(),
-    ...world.guests.arrays(),
-    ...world.staff.arrays(),
-    ...world.vehicles.arrays(),
-    ...world.litter.arrays(),
-    ...world.rides.arrays(),
-    ...world.track.pieces.arrays(),
-    ...world.track.rideTables(),
-  ];
-}
-
-/**
- * Rewrites a current save as `version` would have written it: the header carries that version and
- * the listed columns, which that version did not have, are removed from the body.
- */
-function withoutColumns(
-  current: Uint8Array,
-  version: number,
-  views: ArrayBufferView[],
-  absent: ArrayBufferView[],
-): Uint8Array {
-  const dv = new DataView(current.buffer, current.byteOffset, current.byteLength);
-  const headerLength = dv.getUint32(4, true);
-  const headerEnd = 8 + headerLength;
-  const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
-  header.version = version;
-  if (version < 15) delete header.weather.climate;
-  const encoded = new TextEncoder().encode(JSON.stringify(header));
-  const body = current.subarray(headerEnd);
-  const newWorld = new Simulation({
-    seed: header.seed,
-    width: header.width,
-    height: header.height,
-    maxGuests: header.stores.guests.capacity,
-  }).world;
-  const currentViews = [
-    ...newWorld.map.arrays(),
-    ...newWorld.guests.arrays(),
-    ...newWorld.staff.arrays(),
-    ...newWorld.vehicles.arrays(),
-    ...newWorld.litter.arrays(),
-    ...newWorld.rides.arrays(),
-    ...newWorld.track.pieces.arrays(),
-    ...newWorld.track.rideTables(),
-  ];
-  const additions = [
-    ...(version < 15
-      ? [
-          newWorld.guests.cols.litterMemory,
-          newWorld.guests.cols.angriness,
-          newWorld.staff.cols.sweeps,
-          newWorld.litter.cols.birthOrder,
-        ]
-      : []),
-    ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
-    ...(version < 17 ? [newWorld.map.pathStyle] : []),
-    ...(version < 18 ? [newWorld.guests.cols.voucherKind, newWorld.guests.cols.voucherTarget] : []),
-    ...(version < 23
-      ? [
-          newWorld.guests.cols.queueSeq,
-          newWorld.rides.cols.queueSerial,
-          newWorld.rides.cols.queueLimit,
-        ]
-      : []),
-    ...(version < 29 ? [newWorld.guests.cols.happinessTarget] : []),
-  ];
-  const absentSet = new Set([
-    ...absent,
-    ...additions.map((column) => views[currentViews.indexOf(column)]),
-  ]);
-  const kept: Uint8Array[] = [];
-  let offset = 0;
-  for (const view of views) {
-    if (!absentSet.has(view)) {
-      kept.push(body.subarray(offset, offset + view.byteLength));
-    }
-    offset += view.byteLength;
-  }
-  const bodyBytes = kept.reduce((n, part) => n + part.byteLength, 0);
-  const out = new Uint8Array(8 + encoded.length + bodyBytes);
-  out.set(current.subarray(0, 8));
-  new DataView(out.buffer).setUint32(4, encoded.length, true);
-  out.set(encoded, 8);
-  let at = 8 + encoded.length;
-  for (const part of kept) {
-    out.set(part, at);
-    at += part.byteLength;
-  }
-  return out;
-}
-
 /** Ride columns that saves before version 11 did not have. */
 function reliabilityColumns(world: ReturnType<typeof flatWorld>): ArrayBufferView[] {
   const cols = world.rides.cols;
@@ -1254,5 +1168,40 @@ describe('save: queue lines', () => {
     expect(loaded.queues.joinTile[slot]).toBe(loaded.map.index(4, 5));
     expect(loaded.map.isQueue(loaded.map.index(6, 5))).toBe(true);
     expect(loaded.rides.cols.queueLimit[slot]).toBe(0);
+  });
+});
+
+describe('save: ride downtime window', () => {
+  function worldWithDowntime(): { w: World; id: number } {
+    const w = flatWorld();
+    const id = createRide(w, RideType.Twist, 4, 4);
+    breakRide(w, w.rides.idToSlot[id], BreakdownReason.SafetyCutOut);
+    for (let i = 0; i < 8192 / 256; i++) {
+      w.tick += 256;
+      updateRideMaintenance(w);
+    }
+    return { w, id };
+  }
+
+  it('round-trips the rolling downtime and keeps counting from it', () => {
+    const { w, id } = worldWithDowntime();
+    const loaded = deserialize(serialize(w));
+    expect(getRideDowntimePercent(loaded, id)).toBe(getRideDowntimePercent(w, id));
+    expect(getRideDowntimePercent(loaded, id)).toBeGreaterThan(0);
+    for (const world of [w, loaded]) {
+      world.tick += 8192;
+      updateRideMaintenance(world);
+    }
+    expect(getRideDowntimePercent(loaded, id)).toBe(getRideDowntimePercent(w, id));
+  });
+
+  it('loads a version 27 save with an empty downtime window', () => {
+    const { w, id } = worldWithDowntime();
+    const legacy = withoutColumns(serialize(w), 27, allWorldViews(w), []);
+    const loaded = deserialize(legacy);
+    expect(getRideDowntimePercent(loaded, id)).toBe(0);
+    expect(loaded.rides.cols.reliabilityRaw[loaded.rides.idToSlot[id]]).toBe(
+      w.rides.cols.reliabilityRaw[w.rides.idToSlot[id]],
+    );
   });
 });

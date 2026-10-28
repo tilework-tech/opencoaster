@@ -386,3 +386,22 @@ At rating 650, 3 / 12 seeds won. Before guest-needs fidelity, the 575 target won
 `pnpm balance` on the current guest, navigation and ride model ran seed 2026 for 131,072 ticks. The park peaked at 292 guests, ended with 288 guests and rating 570, and wins the 100-guest / 550-rating objective by 20 points. At month ends the rating ranged from 350 to 710, so the objective checks the year-end score rather than a monthly minimum. The run served 1,032 merry-go-round guests, 1,046 Ferris wheel guests, 1,019 swinging-ship guests, 660 twist guests and 408 wooden-coaster guests.
 
 On the established modest-build seeds 11–16 and 21–26, year-end ratings ranged from 484 to 690. The old 575 target won on 9 / 12; the revised 550 target wins on 10 / 12. The default seed previously reached 644 before the coaster-fidelity changes on main; the current 570 result includes those changes as well as this guest-fidelity work, so those single-seed values are not an isolated before/after comparison.
+
+## Gap #4: RCT2 breakdowns, reliability, inspection and downtime
+
+Scenario win counts from `pnpm balance -- --scenario all --jobs 3` (12 seeds each, scripted strategies, no scenario retuned), main at `152c6df` (#160) against this change:
+
+| scenario             | tab         | before | after |
+| -------------------- | ----------- | ------ | ----- |
+| bramblewood-hollow   | beginner    | 6/12   | 7/12  |
+| copper-ridge         | challenging | 0/12   | 0/12  |
+| glacier-point        | expert      | 0/12   | 0/12  |
+| lantern-bay          | beginner    | 12/12  | 12/12 |
+| meadowbrook          | beginner    | 12/12  | 12/12 |
+| open-grounds         | other       | 11/12  | 11/12 |
+| riverside-fairground | real        | 12/12  | 12/12 |
+| seaside-promenade    | real        | 9/12   | 9/12  |
+| thunderhead-mesa     | expert      | 6/12   | 8/12  |
+| tidewater-docks      | challenging | 12/12  | 12/12 |
+
+Two scenarios gain wins (bramblewood-hollow +1, thunderhead-mesa +2); none lose. The strategies keep every ride open and a mechanic hired, so the repair reliability gain and the end of wear on closed rides outweigh the higher per-type unreliability factors. The 5,000-guest bench (`pnpm bench -- --guests 5000 --ticks 200`, three runs each, quiet machine) is unchanged: mean 0.49-0.50 ms/tick on main against 0.49-0.54 ms on this branch, p99 1.21 ms against 1.20-1.33 ms.

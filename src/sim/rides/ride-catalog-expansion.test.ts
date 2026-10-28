@@ -30,7 +30,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 8_400,
     researchCategory: 3,
     researchOrder: 11,
-    reliability: 6,
+    reliability: 8,
   },
   {
     name: 'Spiral Slide',
@@ -42,7 +42,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 660,
     researchCategory: 1,
     researchOrder: 12,
-    reliability: 4,
+    reliability: 8,
   },
   {
     name: 'Top Spin',
@@ -54,7 +54,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 11_200,
     researchCategory: 3,
     researchOrder: 13,
-    reliability: 8,
+    reliability: 19,
   },
   {
     name: 'Enterprise',
@@ -66,7 +66,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 9_600,
     researchCategory: 3,
     researchOrder: 14,
-    reliability: 7,
+    reliability: 22,
   },
   {
     name: 'Go-Karts',
@@ -78,7 +78,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 15_200,
     researchCategory: 3,
     researchOrder: 15,
-    reliability: 5,
+    reliability: 16,
   },
   {
     name: 'Log Flume',
@@ -90,7 +90,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 30_000,
     researchCategory: 4,
     researchOrder: 16,
-    reliability: 8,
+    reliability: 15,
   },
   {
     name: 'River Rapids',
@@ -102,7 +102,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 24_000,
     researchCategory: 4,
     researchOrder: 17,
-    reliability: 10,
+    reliability: 16,
   },
   {
     name: 'Miniature Railway',
@@ -114,7 +114,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 24_000,
     researchCategory: 0,
     researchOrder: 18,
-    reliability: 5,
+    reliability: 11,
   },
   {
     name: 'Monorail',
@@ -126,7 +126,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 40_000,
     researchCategory: 0,
     researchOrder: 19,
-    reliability: 7,
+    reliability: 14,
   },
   {
     name: 'Chairlift',
@@ -138,7 +138,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 25_000,
     researchCategory: 0,
     researchOrder: 20,
-    reliability: 6,
+    reliability: 14,
   },
   {
     name: 'Junior Roller Coaster',
@@ -150,7 +150,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 26_000,
     researchCategory: 2,
     researchOrder: 21,
-    reliability: 8,
+    reliability: 13,
   },
   {
     name: 'Wild Mouse Coaster',
@@ -162,7 +162,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 38_000,
     researchCategory: 2,
     researchOrder: 22,
-    reliability: 12,
+    reliability: 14,
   },
   {
     name: 'Observation Tower',
@@ -174,7 +174,7 @@ const CONTRACTS: ReadonlyArray<{
     runningCost: 9_000,
     researchCategory: 1,
     researchOrder: 23,
-    reliability: 4,
+    reliability: 15,
   },
   {
     name: 'Burger Stall',

@@ -3,7 +3,7 @@ import { Surface } from '../map/tile-map';
 import { maxCarsForRide, maxTrainsForRide, RIDERS_PER_CAR } from '../vehicles/ride-trains';
 import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
 import { RideMode } from './ride-modes';
-import { RELIABILITY_MAX } from './ride-maintenance';
+import { RELIABILITY_MAX, isRideInspectionDueAt } from './ride-maintenance';
 import { rideFootprintTiles } from './ride-footprint';
 import { inferBoardingFronts } from './boarding-front';
 import {
@@ -549,13 +549,7 @@ export function getEstimatedRideWaitTicks(world: World, rideId: number): number 
 
 export function isRideInspectionDue(world: World, rideId: number): boolean {
   const slot = slotForRide(world, rideId);
-  if (slot < 0) return false;
-  const ride = world.rides.cols;
-  const interval = ride.inspectionIntervalTicks[slot];
-  if (interval === 0 || RIDE_CATALOG[ride.typeId[slot] as RideType]?.breakdowns.length === 0) {
-    return false;
-  }
-  return world.tick - ride.lastInspectionTick[slot] >= interval;
+  return slot >= 0 && isRideInspectionDueAt(world, slot);
 }
 
 export function updateRideAge(world: World): void {

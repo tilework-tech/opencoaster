@@ -17,6 +17,7 @@ import {
 import { LITTER_SCHEMA } from '../sim/guests/litter-store';
 import {
   RIDE_COLUMNS_ADDED_IN_V10,
+  RIDE_COLUMNS_ADDED_IN_V30,
   RIDER_HISTORY_WINDOWS,
   RidePhase,
   RideState,
@@ -34,13 +35,13 @@ import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 
-export const SAVE_VERSION = 29;
+export const SAVE_VERSION = 30;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
-const PRE_BOARDING_FRONT_SAVE_VERSION = 27;
-const PRE_HAPPINESS_TARGET_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
 const BLOCK_MODE_SAVE_VERSION = 27;
+/** Rides carry a rolling downtime window and mechanic heading tick from this version. */
+const DOWNTIME_SAVE_VERSION = 30;
 /** Track heights count half-level track steps from this version; earlier saves store whole levels. */
 const TRACK_STEP_SAVE_VERSION = 26;
 const HAPPINESS_TARGET_SAVE_VERSION = 29;
@@ -477,6 +478,7 @@ function rideColumnsAbsent(version: number): number {
   if (version < RIDER_HISTORY_SAVE_VERSION) absent += RIDER_HISTORY_WINDOWS;
   if (version < FOOTPRINT_SAVE_VERSION) absent += 1;
   if (version <= PRE_QUEUE_ORDER_SAVE_VERSION) absent += 2;
+  if (version < DOWNTIME_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V30;
   return absent;
 }
 
@@ -511,8 +513,10 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_QUEUE_LINKS_SAVE_VERSION,
     PRE_TRACK_STEP_SAVE_VERSION,
     TRACK_STEP_SAVE_VERSION,
-    PRE_BOARDING_FRONT_SAVE_VERSION,
-    PRE_HAPPINESS_TARGET_SAVE_VERSION,
+    BLOCK_MODE_SAVE_VERSION,
+    BOARDING_FRONT_SAVE_VERSION,
+    HAPPINESS_TARGET_SAVE_VERSION,
+    DOWNTIME_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {

@@ -15,47 +15,11 @@ import { circuitStatus, getConstructionCursor } from '../sim/track/construction'
 import { getTrackPath } from '../sim/track/track-path';
 import type { World } from '../sim/core/world';
 import { deserialize, serialize } from './save';
+import { allWorldViews, withoutColumns } from './legacy-save-fixtures';
 
-/** Encodes the current world with the version-25 array layout and track heights. */
+/** Re-writes a current save as a version 25 file, the last version that stored whole-level track. */
 function asVersion25(world: World): Uint8Array {
-  const bytes = serialize(world);
-  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const headerLen = dv.getUint32(4, true);
-  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLen)));
-  header.version = 25;
-  const patched = new TextEncoder().encode(JSON.stringify(header));
-  const arrays = [
-    ...world.map.arrays(),
-    ...world.guests.arrays(),
-    ...world.staff.arrays(),
-    ...world.vehicles.arrays(),
-    ...world.litter.arrays(),
-    ...world.rides.arrays(),
-    ...world.track.pieces.arrays(),
-    ...world.track.rideTables(),
-  ];
-  const dropped = new Set<ArrayBufferView>([world.guests.cols.happinessTarget]);
-  const body = bytes.subarray(8 + headerLen);
-  const kept: Uint8Array[] = [];
-  let offset = 0;
-  for (const array of arrays) {
-    if (!dropped.has(array)) kept.push(body.subarray(offset, offset + array.byteLength));
-    offset += array.byteLength;
-  }
-  expect(offset).toBe(body.byteLength);
-  const out = new Uint8Array(
-    8 + patched.length + kept.reduce((size, part) => size + part.length, 0),
-  );
-  const outView = new DataView(out.buffer);
-  outView.setUint32(0, dv.getUint32(0, true), true);
-  outView.setUint32(4, patched.length, true);
-  out.set(patched, 8);
-  let at = 8 + patched.length;
-  for (const part of kept) {
-    out.set(part, at);
-    at += part.length;
-  }
-  return out;
+  return withoutColumns(serialize(world), 25, allWorldViews(world), []);
 }
 
 /**

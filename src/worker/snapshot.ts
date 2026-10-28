@@ -3,7 +3,11 @@ import { MAX_CARS } from '../sim/vehicles/ride-trains';
 import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
 import { rideBaseLevel } from '../sim/rides/ride-footprint';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG } from '../sim/rides/ride-types';
+import {
+  getRideMechanicStatus,
+  getRideMinutesSinceInspection,
+} from '../sim/rides/ride-maintenance';
 import { RidePhase } from '../sim/rides/ride-store';
 import type { RideType } from '../sim/rides/ride-types';
 import type { CommandFeedback } from '../sim/core/feedback';
@@ -38,7 +42,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 39;
+export const RIDE_INFO_STRIDE = 43;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -126,6 +130,14 @@ export const enum RideInfo {
   Mode = 37,
   /** Block sections of a closed circuit: its station plus each run of block brakes (track rides; 0 otherwise). */
   BlockSections = 38,
+  /** Rolling downtime, a whole percent. */
+  Downtime = 39,
+  /** The mechanic inspection interval in minutes; 0 means never. */
+  InspectionMinutes = 40,
+  /** Minutes since the last inspection, in the original game's inspection minutes. */
+  MinutesSinceInspection = 41,
+  /** `MechanicStatus` of the ride. */
+  MechanicStatus = 42,
 }
 
 export const enum RideFlag {
@@ -434,6 +446,12 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.ExitX] = r.exitX[slot];
   info[o + RideInfo.ExitY] = r.exitY[slot];
   info[o + RideInfo.Reliability] = r.reliability[slot];
+  info[o + RideInfo.Downtime] = r.downtimePercent[slot];
+  info[o + RideInfo.InspectionMinutes] = Math.round(
+    r.inspectionIntervalTicks[slot] / INSPECTION_MINUTE_TICKS,
+  );
+  info[o + RideInfo.MinutesSinceInspection] = getRideMinutesSinceInspection(world, rideId);
+  info[o + RideInfo.MechanicStatus] = getRideMechanicStatus(world, rideId);
   info[o + RideInfo.IncomeCents] = r.incomeCents[slot];
   info[o + RideInfo.RideX] = r.rideX[slot];
   info[o + RideInfo.RideY] = r.rideY[slot];
