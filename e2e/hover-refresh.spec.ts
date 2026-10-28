@@ -91,7 +91,7 @@ async function underCursor(page: Page, x: number, y: number): Promise<Hovered> {
 }
 
 test('hover outline and tooltip follow what is under a stationary cursor after rotating', async ({
-  browser,
+  freshBrowser: browser,
 }) => {
   const page = await openPage(browser, false);
   await page.setViewportSize({ width: 1280, height: 800 });

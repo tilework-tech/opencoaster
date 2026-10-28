@@ -15,7 +15,7 @@ const ORDER = [...SNAKE_QUEUE.queue, SNAKE_QUEUE.entrance].map((t) => `${t.x},${
 for (const mobile of [false, true]) {
   test.describe(mobile ? 'snake queue (Pixel 8)' : 'snake queue (desktop)', () => {
     test('guests walk the whole snake in order, never across a rail', async ({
-      browser,
+      freshBrowser: browser,
     }, testInfo) => {
       test.setTimeout(600_000);
       const page = await openPage(browser, mobile);

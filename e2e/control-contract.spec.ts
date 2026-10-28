@@ -648,7 +648,7 @@ test('desktop toolbar actions open their panels and cause an observable effect',
 });
 
 test('Pixel 8 toolbar actions open their panels and cause an observable effect', async ({
-  browser,
+  freshBrowser: browser,
 }) => {
   test.setTimeout(90_000);
   visitedDetailTypes.clear();

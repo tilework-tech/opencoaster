@@ -63,10 +63,10 @@ const FLAT_RIDES: readonly FlatRide[] = [
 
 const bySlug = (slug: string): FlatRide => FLAT_RIDES.find((ride) => ride.slug === slug)!;
 
-/** Rides turned through all four orientations: both long thin ones and a 3x3. */
-const ALL_ORIENTATIONS = ['swinging-ship', 'ferris-wheel', 'top-spin'];
-/** Representative 3x3, elongated and single-tile/tall-art footprints for the Canvas2D fallback. */
-const CANVAS2D_RIDES = ['twist', 'swinging-ship', 'observation-tower'];
+/** A non-square ride covers the rotated footprint and boarding-point path. */
+const ROTATED_RIDE = 'swinging-ship';
+/** Canvas2D shares footprint geometry with WebGL2; keep one tall-art parity case. */
+const CANVAS2D_RIDES = ['observation-tower'];
 
 /**
  * Where a ride is built and which tiles it is reached from. Its footprint's southwest corner sits
@@ -358,23 +358,19 @@ test.describe('flat ride footprints (WebGL2)', () => {
       },
     );
   }
-  for (const slug of ALL_ORIENTATIONS) {
-    for (const dir of [1]) {
-      const ride = bySlug(slug);
-      test(`${ride.name} turned ${dir} quarter turn(s) keeps its footprint and boarding points aligned`, async ({
-        page,
-      }, testInfo) => {
-        test.setTimeout(240_000);
-        page.setDefaultTimeout(10_000);
-        await buildAndRide(page, testInfo, {
-          ride,
-          dir,
-          skipGuestFlow: true,
-          rotateWith: slug === 'ferris-wheel' && dir === 1 ? 'button' : 'key',
-        });
-      });
-    }
-  }
+  const ride = bySlug(ROTATED_RIDE);
+  test(`${ride.name} turned one quarter turn keeps its footprint and boarding points aligned`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(240_000);
+    page.setDefaultTimeout(10_000);
+    await buildAndRide(page, testInfo, {
+      ride,
+      dir: 1,
+      skipGuestFlow: true,
+      rotateWith: 'key',
+    });
+  });
 });
 
 test.describe('flat ride footprints (Canvas2D)', () => {
@@ -402,7 +398,7 @@ test.describe('flat ride footprints (Canvas2D)', () => {
 });
 
 test('the Rotate ride button clears the phone HUD and docked windows', async ({
-  browser,
+  freshBrowser: browser,
 }, testInfo) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;

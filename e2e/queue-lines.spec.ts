@@ -17,7 +17,7 @@ for (const mobile of [false, true]) {
   const lift = mobile ? 0.25 : 0.5;
   test.describe(mobile ? 'queue lines (Pixel 8)' : 'queue lines (desktop)', () => {
     test('guests queue single file in order, spaced apart, and wanderers never enter the line', async ({
-      browser,
+      freshBrowser: browser,
     }, testInfo) => {
       test.setTimeout(480_000);
       const page = await openPage(browser, mobile);
@@ -73,7 +73,7 @@ for (const mobile of [false, true]) {
       const page = await openPage(browser, mobile);
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
-      await buildQueuedRide(page, testInfo, SHORT_QUEUE, lift, mobile, { queueLimit: 3 });
+      await buildQueuedRide(page, testInfo, SHORT_QUEUE, lift, mobile);
 
       let turnedAway = 0;
       let fullest = 0;

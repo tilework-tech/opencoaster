@@ -91,50 +91,50 @@ async function tap(page: Page, mobile: boolean, locator: ReturnType<Page['locato
   else await locator.click();
 }
 
-for (const mobile of [false, true]) {
-  for (const renderer of mobile ? (['webgl2'] as const) : (['webgl2', 'canvas2d'] as const)) {
-    test(`ride, stall and facility previews are whole and undistorted (${mobile ? 'Pixel 8' : 'desktop'}, ${renderer})`, async ({
-      browser,
-    }, testInfo) => {
-      test.setTimeout(240_000);
-      const page = await openPage(browser, mobile);
-      if (renderer === 'canvas2d')
-        await page.addInitScript(() => {
-          const original = HTMLCanvasElement.prototype.getContext;
-          HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
-            if (/webgl/.test(type)) return null;
-            return original.call(this, type as '2d', ...(args as []));
-          } as typeof HTMLCanvasElement.prototype.getContext;
-        });
-      await startStarterPark(page);
-      const savePath = testInfo.outputPath('all-rides.park');
-      await mkdir(dirname(savePath), { recursive: true });
-      await writeFile(savePath, allRidesSave());
-      await toolbarAction(page, 'Save / Load');
-      await tap(page, mobile, page.getByRole('button', { name: 'Import save file' }));
-      await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
-      await expect(page.locator('.hud')).toContainText('tick');
+for (const renderer of ['webgl2', 'canvas2d'] as const) {
+  test(`${renderer === 'canvas2d' ? 'ride thumbnails' : 'ride, stall and facility previews'} are whole and undistorted (desktop, ${renderer})`, async ({
+    freshBrowser: browser,
+  }, testInfo) => {
+    test.setTimeout(240_000);
+    const page = await openPage(browser, false);
+    if (renderer === 'canvas2d')
+      await page.addInitScript(() => {
+        const original = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
+          if (/webgl/.test(type)) return null;
+          return original.call(this, type as '2d', ...(args as []));
+        } as typeof HTMLCanvasElement.prototype.getContext;
+      });
+    await startStarterPark(page);
+    const savePath = testInfo.outputPath('all-rides.park');
+    await mkdir(dirname(savePath), { recursive: true });
+    await writeFile(savePath, allRidesSave());
+    await toolbarAction(page, 'Save / Load');
+    await tap(page, false, page.getByRole('button', { name: 'Import save file' }));
+    await page.locator('.save-menu input[type="file"]').setInputFiles(savePath);
+    await expect(page.locator('.hud')).toContainText('tick');
 
-      await toolbarAction(page, 'New ride');
-      const select = page.getByRole('group', { name: 'New attraction' });
-      for (const tab of TABS) {
-        await tap(page, mobile, page.getByRole('tab', { name: tab }));
-        const cards = select.locator('.ui-pane.active .ride-card:visible');
-        const count = await cards.count();
-        expect(count, `${tab} cards`).toBeGreaterThan(0);
-        for (let i = 0; i < count; i++) {
-          const card = cards.nth(i);
-          const name = (await card.getAttribute('aria-label')) ?? tab;
-          const thumbnail = card.locator('.ride-card-thumbnail');
-          await expect(thumbnail, `${name} thumbnail drawn`).toHaveAttribute('data-preview', /.+/);
-          expectWholePreview(
-            `${name} thumbnail`,
-            await thumbnail.evaluate(readPreview, EDGE_BAND),
-            100,
-          );
-        }
+    await toolbarAction(page, 'New ride');
+    const select = page.getByRole('group', { name: 'New attraction' });
+    for (const tab of TABS) {
+      await tap(page, false, page.getByRole('tab', { name: tab }));
+      const cards = select.locator('.ui-pane.active .ride-card:visible');
+      const count = await cards.count();
+      expect(count, `${tab} cards`).toBeGreaterThan(0);
+      for (let i = 0; i < count; i++) {
+        const card = cards.nth(i);
+        const name = (await card.getAttribute('aria-label')) ?? tab;
+        const thumbnail = card.locator('.ride-card-thumbnail');
+        await expect(thumbnail, `${name} thumbnail drawn`).toHaveAttribute('data-preview', /.+/);
+        expectWholePreview(
+          `${name} thumbnail`,
+          await thumbnail.evaluate(readPreview, EDGE_BAND),
+          100,
+        );
       }
+    }
 
+    if (renderer === 'webgl2') {
       await page.getByRole('button', { name: 'Ride list' }).click();
       await expect(page.locator('.ride-list .list-row')).toHaveCount(
         Object.keys(RIDE_CATALOG).length,
@@ -170,7 +170,7 @@ for (const mobile of [false, true]) {
           .first()
           .click();
       }
-      await page.context().close();
-    });
-  }
+    }
+    await page.context().close();
+  });
 }

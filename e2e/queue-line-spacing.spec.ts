@@ -16,7 +16,7 @@ const CHAIN = [SNAKE_QUEUE.entrance, ...[...SNAKE_QUEUE.queue].reverse()].map(
 for (const mobile of [false, true]) {
   test.describe(mobile ? 'queue spacing (Pixel 8)' : 'queue spacing (desktop)', () => {
     test('a busy snake queue spreads guests along the line, never on top of each other', async ({
-      browser,
+      freshBrowser: browser,
     }, testInfo) => {
       test.setTimeout(600_000);
       const page = await openPage(browser, mobile);

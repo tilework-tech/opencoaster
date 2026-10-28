@@ -234,7 +234,7 @@ async function inspectParts(
 for (const backend of ['WebGL2', 'Canvas2D'] as const) {
   for (const mobile of backend === 'Canvas2D' ? [false] : [false, true]) {
     test(`coaster parts, ride entrance and exit, and path additions in ${backend} on ${mobile ? 'Pixel 8' : 'desktop'}`, async ({
-      browser,
+      freshBrowser: browser,
     }, testInfo) => inspectParts(browser, mobile, backend, testInfo));
   }
 }

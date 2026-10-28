@@ -241,7 +241,7 @@ test('Enter and Z rotate clockwise; Shift+Enter and X rotate anticlockwise', asy
 });
 
 test('Pixel 8 exposes both rotate controls and rotates both ways with a two-finger twist', async ({
-  browser,
+  freshBrowser: browser,
 }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;

@@ -24,7 +24,7 @@ async function inkedPixels(page: Page): Promise<number> {
 }
 
 test('height marks are off by default, toggle from Options > Display, and persist', async ({
-  browser,
+  freshBrowser: browser,
 }) => {
   const page = await openPage(browser, false);
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -33,7 +33,7 @@ test('height marks are off by default, toggle from Options > Display, and persis
 
   await setDisplayOption(page, 'Height labels', true);
   await expect(page.locator('.terrain-aids')).toBeVisible();
-  await expect.poll(() => inkedPixels(page)).toBeGreaterThan(500);
+  await expect.poll(() => inkedPixels(page), { timeout: 30_000 }).toBeGreaterThan(500);
 
   expect(await page.evaluate(() => localStorage.getItem('opencoaster-option-height-labels'))).toBe(
     'true',

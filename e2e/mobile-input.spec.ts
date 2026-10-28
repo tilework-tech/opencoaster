@@ -121,7 +121,7 @@ async function savedPathCount(page: Page): Promise<number> {
 
 for (const { name, device } of mobileProfiles) {
   test(`${name} supports touch camera controls and path building`, async ({
-    browser,
+    freshBrowser: browser,
   }, testInfo) => {
     const { defaultBrowserType: _browserType, ...options } = device;
     void _browserType;

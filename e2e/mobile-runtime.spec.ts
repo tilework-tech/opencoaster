@@ -2,7 +2,7 @@ import { devices, expect, test } from './support/test';
 import { createTestContext } from './support/test-contexts';
 
 test('the app shell reloads offline after the mobile service worker is installed', async ({
-  browser,
+  freshBrowser: browser,
 }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
