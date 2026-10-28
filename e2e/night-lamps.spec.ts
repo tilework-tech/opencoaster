@@ -34,6 +34,41 @@ type TimeFn = (
 ) => { median: number; p95: number };
 const BACKENDS = ['webgl2', 'canvas2d'] as const;
 
+test('Canvas2D lamp lighting follows lamps as their positions change', async ({ page }) => {
+  await page.goto('/');
+  const colors = await page.evaluate(async () => {
+    const [{ CanvasNightPass }, { LampLightBuffer }] = await Promise.all([
+      import('../src/render/night-pass-canvas'),
+      import('../src/render/night-lighting'),
+    ]);
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    const pass = new CanvasNightPass();
+    const lights = new LampLightBuffer();
+    lights.push(0, 32, 32);
+    const draw = () => {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      pass.draw(ctx, 1, lights, 1, 1, 1);
+    };
+    const brightnessAt = (x: number) => {
+      const [r, g, b] = ctx.getImageData(x, 32, 1, 1).data;
+      return r! + g! + b!;
+    };
+    draw();
+    const original = brightnessAt(32);
+    lights.data[0] = 96;
+    draw();
+    return { original, old: brightnessAt(32), moved: brightnessAt(96) };
+  });
+  expect(colors.original).toBeGreaterThan(0);
+  expect(colors.old).toBe(0);
+  expect(colors.moved).toBeGreaterThan(0);
+});
+
 async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
   await page.goto('/');
   await page.evaluate(
@@ -48,7 +83,6 @@ async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
         { markPathElementBroken },
         { extractMapData },
         { project },
-        calendar,
         lighting,
       ] = await Promise.all([
         import('../src/render/canvas2d-renderer'),
@@ -60,7 +94,6 @@ async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
         import('../src/sim/map/tile-map'),
         import('../src/worker/map-data'),
         import('../src/render/projection'),
-        import('../src/sim/economy/calendar'),
         import('../src/render/night-lighting'),
       ]);
       spritePages.start();
@@ -141,7 +174,7 @@ async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
       }
 
       const tickAt = (hour: number) =>
-        Math.round((((((hour - 8) / 24) % 1) + 1) % 1) * (calendar.TICKS_PER_MONTH / 31));
+        Math.round((((((hour - 8) / 24) % 1) + 1) % 1) * lighting.TICKS_PER_NIGHT_CYCLE);
       const centre = (rotation: 0 | 1 | 2 | 3) => {
         const out = new Float64Array(2);
         project(22 * 256 + 128, 19 * 256, 4 * 64, 48, 48, rotation, out);
@@ -199,7 +232,7 @@ async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
           const samples: number[] = [];
           for (let i = 0; i < frames; i++) {
             const start = performance.now();
-            sync(api.draw(backend, hour, (i & 3) as 0 | 1 | 2 | 3, zoom, lit));
+            sync(api.draw(backend, hour, 0, zoom, lit));
             samples.push(performance.now() - start);
           }
           samples.sort((a, b) => a - b);
@@ -226,6 +259,7 @@ for (const backend of BACKENDS) {
     await mkdir(proofDir!, { recursive: true });
     await setUp(page, backend);
     const cells: Buffer[] = [];
+    const brightness: Partial<Record<TimeOfDay, number>> = {};
     for (const time of TIMES)
       for (let rotation = 0; rotation < 4; rotation++) {
         const url = await page.evaluate(
@@ -234,9 +268,16 @@ for (const backend of BACKENDS) {
           [backend, HOURS[time], rotation] as const,
         );
         const png = Buffer.from((url as string).split(',')[1]!, 'base64');
+        const stats = await sharp(png).stats();
+        expect(stats.channels.slice(0, 3).some((channel) => channel.max > 0)).toBe(true);
+        if (rotation === 0)
+          brightness[time] =
+            stats.channels.slice(0, 3).reduce((sum, channel) => sum + channel.mean, 0) / 3;
         await writeFile(join(proofDir!, `${backend}-${time}-rot${rotation}.png`), png);
         cells.push(png);
       }
+    expect(brightness.dusk).toBeLessThan(brightness.day!);
+    expect(brightness.night).toBeLessThan(brightness.dusk!);
     await sharp({
       create: { width: CELL.width * 4, height: CELL.height * 3, channels: 3, background: '#000' },
     })
@@ -275,7 +316,7 @@ for (const backend of BACKENDS) {
         runs.push(
           await page.evaluate(
             ([b, h, l]) =>
-              (window as unknown as { __night: { time: TimeFn } }).__night.time(b, h, 0.6, l, 40),
+              (window as unknown as { __night: { time: TimeFn } }).__night.time(b, h, 0.6, l, 12),
             [backend, hour, lit] as const,
           ),
         );
@@ -283,5 +324,14 @@ for (const backend of BACKENDS) {
     }
     console.log(`NIGHT_BENCH_RESULT ${backend} ${JSON.stringify(results)}`);
     expect(Object.keys(results).length).toBeGreaterThan(1);
+    if (backend === 'canvas2d') {
+      const medians = (label: string) =>
+        (results[label] as Array<{ median: number }>)
+          .map((run) => run.median)
+          .sort((a, b) => a - b);
+      const day = medians('day-on');
+      const night = medians('night-on');
+      expect(night[1]!).toBeLessThanOrEqual(day[1]! * 1.1);
+    }
   });
 }

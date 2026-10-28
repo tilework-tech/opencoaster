@@ -1,5 +1,5 @@
 import { PATH_ADDITION_BROKEN, PathFlag } from '../sim/map/tile-map';
-import { MONTHS_PER_YEAR, TICKS_PER_MONTH } from '../sim/economy/calendar';
+import { TICKS_PER_MONTH } from '../sim/economy/calendar';
 import { TILE_UNITS } from '../sim/core/constants';
 import { pathAdditionPlacements } from './ground-anchor';
 import { project } from './projection';
@@ -34,15 +34,15 @@ function smoothstep(from: number, to: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Calendar days per park month, matching the day labels of `gameDate`. */
-const DAYS_IN_MONTH = [31, 30, 31, 30, 31, 30, 31, 30];
+/** Number of in-game calendar days in one lighting cycle. */
+const DAYS_PER_CYCLE = 36;
+/** March has 31 calendar days, matching the tick span used by `gameDate`. */
+export const TICKS_PER_NIGHT_CYCLE = (TICKS_PER_MONTH * DAYS_PER_CYCLE) / 31;
 
-/** Hour of day, 0 to 24, on the in-game clock: each calendar day spans its share of the month. */
+/** Hour of day, 0 to 24, derived from the simulation tick without adding saved state. */
 function hourOfDay(tick: number): number {
-  const month = Math.floor((tick % (TICKS_PER_MONTH * MONTHS_PER_YEAR)) / TICKS_PER_MONTH);
-  const days = DAYS_IN_MONTH[month]!;
-  const progress = ((tick % TICKS_PER_MONTH) * days) / TICKS_PER_MONTH;
-  return (DAY_START_HOUR + (progress - Math.floor(progress)) * 24) % 24;
+  const progress = (tick % TICKS_PER_NIGHT_CYCLE) / TICKS_PER_NIGHT_CYCLE;
+  return (DAY_START_HOUR + progress * 24) % 24;
 }
 
 /** 0 in full daylight, 1 at night, easing through dusk (18:00-20:00) and dawn (05:00-07:00). */

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PATH_ADDITION_BROKEN, PathFlag } from '../sim/map/tile-map';
-import { TICKS_PER_MONTH } from '../sim/economy/calendar';
 import {
   LAMP_ON_DARKNESS,
+  TICKS_PER_NIGHT_CYCLE,
   LampLightBuffer,
   collectLitLamps,
   darknessAt,
@@ -10,14 +10,14 @@ import {
 } from './night-lighting';
 import type { Camera, MapData } from './renderer';
 
-/** First day of the first month has 31 days; this is the tick a fraction of that day has passed. */
-function tickAtDayFraction(fraction: number): number {
-  return Math.round((fraction * TICKS_PER_MONTH) / 31);
+/** Tick at a fraction of one lighting cycle. */
+function tickAtCycleFraction(fraction: number): number {
+  return Math.round(fraction * TICKS_PER_NIGHT_CYCLE);
 }
 const MORNING = 0;
-const NOON = tickAtDayFraction(4 / 24);
-const DUSK = tickAtDayFraction(11 / 24);
-const MIDNIGHT = tickAtDayFraction(16 / 24);
+const NOON = tickAtCycleFraction(4 / 24);
+const DUSK = tickAtCycleFraction(11 / 24);
+const MIDNIGHT = tickAtCycleFraction(16 / 24);
 
 function lampMap(lamps: Array<{ x: number; y: number; data: number }>): MapData {
   const size = 16;
@@ -39,16 +39,19 @@ function lampMap(lamps: Array<{ x: number; y: number; data: number }>): MapData 
 const camera: Camera = { x: 0, y: 256, zoom: 1, rotation: 0 };
 
 describe('darkness', () => {
-  it('is zero at noon and full at midnight, and follows the in-game clock each day', () => {
+  it('is zero at noon and full at midnight, repeating after the longer in-game cycle', () => {
     expect(darknessAt(NOON)).toBe(0);
     expect(darknessAt(MORNING)).toBe(0);
     expect(darknessAt(MIDNIGHT)).toBe(1);
-    expect(darknessAt(MIDNIGHT + TICKS_PER_MONTH)).toBeCloseTo(darknessAt(MIDNIGHT + 0), 1);
+    expect(darknessAt(MIDNIGHT + TICKS_PER_NIGHT_CYCLE)).toBeCloseTo(darknessAt(MIDNIGHT), 1);
+    expect(TICKS_PER_NIGHT_CYCLE / 40).toBeGreaterThanOrEqual(6 * 60);
+    expect(TICKS_PER_NIGHT_CYCLE / 40).toBeLessThanOrEqual(10 * 60);
+    expect(TICKS_PER_NIGHT_CYCLE / 12 / 40).toBeGreaterThanOrEqual(20);
   });
 
   it('rises through dusk and falls through dawn without reversing', () => {
     const dusk = [];
-    for (let f = 9 / 24; f <= 13 / 24; f += 0.002) dusk.push(darknessAt(tickAtDayFraction(f)));
+    for (let f = 9 / 24; f <= 13 / 24; f += 0.002) dusk.push(darknessAt(tickAtCycleFraction(f)));
     for (let i = 1; i < dusk.length; i++) expect(dusk[i]!).toBeGreaterThanOrEqual(dusk[i - 1]!);
     expect(darknessAt(DUSK)).toBeGreaterThan(0);
     expect(darknessAt(DUSK)).toBeLessThan(1);
@@ -66,7 +69,7 @@ describe('lamp switching', () => {
   it('changes state once at dusk and once at dawn, never flickering in between', () => {
     let changes = 0;
     let previous = lampsLit(darknessAt(0));
-    for (let tick = 1; tick < TICKS_PER_MONTH / 31; tick++) {
+    for (let tick = 1; tick < TICKS_PER_NIGHT_CYCLE; tick++) {
       const lit = lampsLit(darknessAt(tick));
       if (lit !== previous) changes++;
       previous = lit;

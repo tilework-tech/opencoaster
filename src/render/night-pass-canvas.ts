@@ -13,6 +13,13 @@ import type { LampLightBuffer } from './night-lighting';
 
 /** Canvas2D night pass: dims the finished scene, then adds lamp pools and lit lamp heads. */
 export class CanvasNightPass {
+  private poolCanvas: HTMLCanvasElement | null = null;
+  private cachedPositions = new Float32Array(0);
+  private cachedLampCount = -1;
+  private cachedWidth = 0;
+  private cachedScale = 0;
+  private cachedDpr = 0;
+
   /**
    * Draws over the whole canvas in backing-pixel space. `lampCount` lamps are read from `lights`,
    * positioned in viewport pixels; `zoom` times `dpr` scales every light.
@@ -48,8 +55,69 @@ export class CanvasNightPass {
     scale: number,
     dpr: number,
   ): void {
+    const canvas = ctx.canvas;
+    this.cachePools(canvas.width, canvas.height, lights, lampCount, scale, dpr);
     ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(this.poolCanvas!, 0, 0);
+    this.drawHeads(ctx, lights, lampCount, scale, dpr);
+  }
+
+  private cachePools(
+    width: number,
+    height: number,
+    lights: LampLightBuffer,
+    lampCount: number,
+    scale: number,
+    dpr: number,
+  ): void {
+    if (!this.poolCanvas) this.poolCanvas = document.createElement('canvas');
+    const canvas = this.poolCanvas;
+    const changed =
+      canvas.width !== width ||
+      canvas.height !== height ||
+      this.cachedLampCount !== lampCount ||
+      this.cachedScale !== scale ||
+      this.cachedDpr !== dpr ||
+      this.positionsChanged(lights, lampCount);
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+    this.cachedWidth = width;
+    if (changed) {
+      const poolCtx = canvas.getContext('2d');
+      if (!poolCtx) throw new Error('Canvas2D light-pool context is unavailable');
+      poolCtx.setTransform(1, 0, 0, 1, 0, 0);
+      poolCtx.clearRect(0, 0, width, height);
+      this.drawPools(poolCtx, lights, lampCount, scale, dpr);
+      this.copyPositions(lights, lampCount);
+      this.cachedLampCount = lampCount;
+      this.cachedScale = scale;
+      this.cachedDpr = dpr;
+      return;
+    }
+  }
+
+  private positionsChanged(lights: LampLightBuffer, lampCount: number): boolean {
+    if (this.cachedWidth === 0 || this.cachedPositions.length !== lampCount * 2) return true;
+    for (let i = 0; i < lampCount * 2; i++)
+      if (this.cachedPositions[i] !== lights.data[i]) return true;
+    return false;
+  }
+
+  private copyPositions(lights: LampLightBuffer, lampCount: number): void {
+    if (this.cachedPositions.length !== lampCount * 2)
+      this.cachedPositions = new Float32Array(lampCount * 2);
+    this.cachedPositions.set(lights.data.subarray(0, lampCount * 2));
+  }
+
+  private drawPools(
+    ctx: CanvasRenderingContext2D,
+    lights: LampLightBuffer,
+    lampCount: number,
+    scale: number,
+    dpr: number,
+  ): void {
     const [lr, lg, lb] = LAMP_LIGHT_COLOUR;
+    ctx.globalCompositeOperation = 'lighter';
     for (let band = POOL_BANDS.length - 1; band >= 0; band--) {
       const [edge, strength] = POOL_BANDS[band]!;
       const next = POOL_BANDS[band + 1]?.[1] ?? 0;
@@ -66,6 +134,15 @@ export class CanvasNightPass {
       }
       ctx.fill();
     }
+  }
+
+  private drawHeads(
+    ctx: CanvasRenderingContext2D,
+    lights: LampLightBuffer,
+    lampCount: number,
+    scale: number,
+    dpr: number,
+  ): void {
     const halo = Math.max(1, Math.round(LAMP_HEAD_HALO * scale));
     const core = Math.max(1, Math.round(LAMP_HEAD_CORE * scale));
     const lift = LAMP_HEAD_HEIGHT * scale;

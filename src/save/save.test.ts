@@ -98,6 +98,23 @@ describe('save', () => {
     expect(restored.staff.cols.vandalsStopped[0]).toBe(27);
   });
 
+  it('loads version 26 saves and applies the version 27 migration', () => {
+    const sim = new Simulation({ seed: 26, width: 8, height: 8 });
+    const current = serialize(sim.world);
+    const headerLength = new DataView(current.buffer).getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, 8 + headerLength)));
+    header.version = 26;
+    const encoded = new TextEncoder().encode(JSON.stringify(header));
+    const version26 = new Uint8Array(8 + encoded.length + current.length - 8 - headerLength);
+    version26.set(current.subarray(0, 8));
+    new DataView(version26.buffer).setUint32(4, encoded.length, true);
+    version26.set(encoded, 8);
+    version26.set(current.subarray(8 + headerLength), 8 + encoded.length);
+
+    const restored = deserialize(version26);
+    expect(restored.tick).toBe(sim.world.tick);
+  });
+
   it('migrates legacy walls to the edge that preserves their previous default appearance', () => {
     const sim = new Simulation({ seed: 22, width: 8, height: 8 });
     sim.world.map.ownership[sim.world.map.index(4, 4)] = OWNED;
