@@ -126,17 +126,16 @@ One food stall keeps up with about 60 guests at the current need rate; the scrip
 
 | Build                                        | Month 3 | Month 5 | Month 8 | Cash drift, months 4-8 |
 | -------------------------------------------- | ------- | ------- | ------- | ---------------------- |
-| minimal, before ($3 gate)                    | $45,723 | $45,404 | $44,886 | -$170 a month          |
-| minimal                                      | $46,152 | $45,764 | $45,172 | -$200 a month          |
-| modest, before ($3 gate)                     | $37,227 | $36,250 | $34,901 | -$460 a month          |
-| modest                                       | $38,083 | $37,543 | $36,958 | -$210 a month          |
-| modest, food and drink priced at their value | $38,083 | $37,840 | $37,707 | -$60 a month           |
-| ... and the loan repaid in month 3           | $38,083 | $18,340 | $18,957 | +$190 a month          |
-| ... and an $8 gate                           | $38,607 | $19,122 | $20,199 | +$340 a month          |
-| ambitious, before ($3 gate)                  | $35,508 | $30,989 | $27,992 | -$1,350 a month        |
-| ambitious                                    | $36,439 | $32,502 | $30,541 | -$1,010 a month        |
+| minimal, main ($3 gate)                      | $45,704 | $45,276 | $44,655 | -$207 a month          |
+| minimal                                      | $46,164 | $45,915 | $45,460 | -$146 a month          |
+| modest, main ($3 gate)                       | $37,193 | $36,312 | $35,037 | -$426 a month          |
+| modest                                       | $38,044 | $37,357 | $36,288 | -$358 a month          |
+| modest, food and drink priced at their value | $38,044 | $37,888 | $37,662 | -$77 a month           |
+| ... and the loan repaid in month 3           | $38,044 | $18,388 | $18,912 | +$172 a month          |
+| ambitious, main ($3 gate)                    | $35,500 | $31,435 | $30,201 | -$845 a month          |
+| ambitious                                    | $36,373 | $33,072 | $32,702 | -$516 a month          |
 
-A first build of five attractions costs about $3,500 of the $50,000 starting cash, so the first build is always affordable; the loan interest ($1,750 over the year) is the largest recurring bill, and paying the loan off is what turns the sensible build cash-positive. Unrestrained building (the ambitious profile, 11 more rides) drains cash faster while it builds (months 3 to 7) and then holds flat. Guest counts and park ratings are identical to main in every profile: only the money changed. Pricing food and drink above their value (the rules above) is what makes the stall price matter; raising the default stall prices to value was tried and rejected, because guests then ran short of cash for ride tickets and the per-ride scenarios lost win rate (bramblewood-hollow 6/12 to 2/12).
+A first build of five attractions costs about $3,500 of the $50,000 starting cash, so the first build is always affordable; the loan interest ($1,750 over the year) is the largest recurring bill, and pricing stalls at their value and paying the loan off is what turns the sensible build cash-positive (default play still drifts down slowly). Unrestrained building (the ambitious profile, 11 more rides) drains cash faster while it builds (months 3 to 7) and then holds flat. Guest counts and park ratings are identical to main in every profile: only the money changed. Pricing food and drink above their value (the rules above) is what makes the stall price matter; raising the default stall prices to value was tried and rejected, because guests then ran short of cash for ride tickets and the per-ride scenarios lost win rate (bramblewood-hollow 6/12 to 2/12).
 
 ## Results
 
