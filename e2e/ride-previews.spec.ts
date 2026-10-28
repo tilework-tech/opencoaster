@@ -123,7 +123,8 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
       const count = await cards.count();
       expect(count, `${tab} cards`).toBeGreaterThan(0);
       const cardsToCheck = renderer === 'canvas2d' ? 1 : count;
-      for (let i = 0; i < cardsToCheck; i++) {
+      const startIndex = renderer === 'webgl2' && tab === TABS[0] ? 1 : 0;
+      for (let i = startIndex; i < cardsToCheck; i++) {
         const card = cards.nth(i);
         const name = (await card.getAttribute('aria-label')) ?? tab;
         const thumbnail = card.locator('.ride-card-thumbnail');

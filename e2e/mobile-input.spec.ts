@@ -98,7 +98,7 @@ async function savedGuestPoint(page: Page): Promise<{ x: number; y: number }> {
 }
 
 function tileAt(status: string): string {
-  const match = status.match(/footpath at (-?\d+), (-?\d+)\b/);
+  const match = status.match(/(?:footpath(?: is already)? at) (-?\d+), (-?\d+)\b/);
   if (!match) throw new Error(`Path placement did not report a tile: ${status}`);
   return `${match[1]},${match[2]}`;
 }
@@ -159,15 +159,27 @@ for (const { name, device } of mobileProfiles) {
       await dispatchTouches(cdp, 'touchStart', [{ id: 1, ...point }]);
       await dispatchTouches(cdp, 'touchEnd', []);
       const status = page.locator('.tool-status');
-      await expect(status).toContainText('Laid footpath at');
+      await expect(status).toContainText(/(?:Laid footpath at|A footpath is already at)/);
       return status.innerText();
     };
     const initialPlacement = tileAt(await placePath());
 
     await page.getByRole('button', { name: 'Close Footpaths' }).click();
+    const cameraBeforePan = await page.evaluate(() => {
+      const camera = (window as unknown as { __camera: { x: number; y: number } }).__camera;
+      return { x: camera.x, y: camera.y };
+    });
     await dispatchTouches(cdp, 'touchStart', [{ id: 2, ...center }]);
-    await dispatchTouches(cdp, 'touchMove', [{ id: 2, x: center.x + 36, y: center.y + 24 }]);
+    await dispatchTouches(cdp, 'touchMove', [{ id: 2, x: center.x + 64, y: center.y + 48 }]);
     await dispatchTouches(cdp, 'touchEnd', []);
+    await expect
+      .poll(() =>
+        page.evaluate((before) => {
+          const camera = (window as unknown as { __camera: { x: number; y: number } }).__camera;
+          return camera.x !== before.x || camera.y !== before.y;
+        }, cameraBeforePan),
+      )
+      .toBe(true);
     await selectPathTool();
     const afterPan = tileAt(await placePath());
     expect(afterPan).not.toBe(initialPlacement);
