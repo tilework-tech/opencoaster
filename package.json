@@ -11,8 +11,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "predev": "pnpm art:prepare && pnpm art:pack",
-    "prebuild": "pnpm art:prepare && pnpm art:pack",
+    "predev": "pnpm art:prepare && pnpm art:pack && pnpm scenario-previews:generate",
+    "prebuild": "pnpm art:prepare && pnpm art:pack && pnpm scenario-previews:generate",
+    "scenario-previews:generate": "tsx tools/scenario-previews/generate.ts",
     "sprites:render": "tsx tools/sprites/cli.ts",
     "sprites:track-sheet": "tsx tools/sprites/track-sheet.ts",
     "art:prepare": "tsx tools/art/prepare.ts && pnpm art:characters",

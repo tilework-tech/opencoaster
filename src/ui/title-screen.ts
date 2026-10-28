@@ -140,9 +140,17 @@ export class TitleScreen {
         'scenario-choice',
       );
       choose.setAttribute('aria-pressed', String(def.id === this.selectedScenarioId));
-      card.append(
+      const details = element('div', 'scenario-card-details');
+      details.append(
         choose,
+        element('p', 'scenario-objective', objectiveText(def)),
+        element('p', 'scenario-difficulty', difficultyText(def)),
+        element('p', 'scenario-map-size', `Map size: ${def.mapWidth} × ${def.mapHeight} tiles`),
         element('p', 'scenario-description', def.description ?? ''),
+      );
+      card.append(
+        scenarioPreview(def, 'scenario-card-preview'),
+        details,
         ...(completed[def.id] ? [element('p', 'scenario-status', 'Completed')] : []),
         button('Start', () => this.actions.newGame(def), 'menu-button scenario-card-start'),
       );
@@ -153,10 +161,11 @@ export class TitleScreen {
     const preview = element('section', 'scenario-preview-panel');
     if (selected) {
       preview.append(
-        scenarioPreview(selected),
+        scenarioPreview(selected, 'scenario-map-preview'),
         element('h2', 'scenario-preview-name', selected.name),
         element('p', 'scenario-description', selected.description ?? ''),
         element('p', 'scenario-objective', objectiveText(selected)),
+        element('p', 'scenario-difficulty', difficultyText(selected)),
         element(
           'p',
           'scenario-status',
@@ -166,9 +175,10 @@ export class TitleScreen {
         ),
         element(
           'p',
-          'scenario-meta',
-          `${selected.mapWidth} × ${selected.mapHeight} tiles · Starting cash ${formatMoney(selected.startingCash)}`,
+          'scenario-map-size',
+          `Map size: ${selected.mapWidth} × ${selected.mapHeight} tiles`,
         ),
+        element('p', 'scenario-meta', `Starting cash ${formatMoney(selected.startingCash)}`),
         button('Start', () => this.actions.newGame(selected), 'menu-button scenario-start'),
       );
     } else {
@@ -235,39 +245,19 @@ export class TitleScreen {
   }
 }
 
-function scenarioPreview(scenario: ScenarioDef): SVGSVGElement {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 240 132');
-  svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', `${scenario.name} scenario preview`);
-  svg.classList.add('scenario-map-preview');
-  const shapes: Array<[string, string, string?]> = [
-    ['rect', '0 0 240 132', 'fill:#729b43'],
-    ['path', 'M0 30 Q42 6 84 30 T168 26 T240 32 V0 H0Z', 'fill:#87ad52'],
-    ['path', 'M0 92 Q38 70 76 95 T154 87 T240 94 V132 H0Z', 'fill:#618a3b'],
-    [
-      'path',
-      'M145 78 Q169 58 194 74 Q218 87 212 106 Q199 123 174 112 Q157 104 145 78Z',
-      'fill:#5791a4;stroke:#3b6672;stroke-width:3',
-    ],
-    ['path', 'M0 119 Q48 106 98 119 T193 120 T240 116', 'fill:none;stroke:#d5c18a;stroke-width:5'],
-  ];
-  for (const [tag, geometry, style] of shapes) {
-    const shape = document.createElementNS('http://www.w3.org/2000/svg', tag);
-    if (tag === 'rect') {
-      const [x, y, width, height] = geometry.split(' ');
-      shape.setAttribute('x', x);
-      shape.setAttribute('y', y);
-      shape.setAttribute('width', width);
-      shape.setAttribute('height', height);
-    } else {
-      shape.setAttribute('d', geometry);
-    }
-    const [fill, stroke, width] = (style ?? '').split(';');
-    if (fill) shape.setAttribute('style', [fill, stroke, width].filter(Boolean).join(';'));
-    svg.append(shape);
-  }
-  return svg;
+function scenarioPreview(scenario: ScenarioDef, className: string): HTMLImageElement {
+  const image = element('img', className);
+  const base = `${import.meta.env.BASE_URL}scenario-previews/${encodeURIComponent(scenario.id)}`;
+  image.src = `${base}@1x.png`;
+  image.srcset = `${base}@2x.png 2x`;
+  image.alt = `${scenario.name} scenario preview`;
+  image.draggable = false;
+  return image;
+}
+
+function difficultyText(scenario: ScenarioDef): string {
+  const category = scenario.category ?? 'beginner';
+  return `Difficulty: ${category[0].toUpperCase()}${category.slice(1)}`;
 }
 
 export function objectiveText(scenario: ScenarioDef): string {
