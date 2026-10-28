@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/core/simulation';
 import type { World } from '../sim/core/world';
 import { queueGuests, run } from '../sim/rides/coaster-fixtures';
-import { isRideTested } from '../sim/rides/ride-operations';
+import { getRideTestMeasurements, isRideTested } from '../sim/rides/ride-operations';
 import { RideResult } from '../sim/rides/ride-results';
 import { RideState } from '../sim/rides/ride-store';
 import { RideType } from '../sim/rides/ride-types';
@@ -59,6 +59,42 @@ describe("the player's Bramblewood Hollow park", () => {
       expect(isRideTested(world, rideId)).toBe(true);
       expect(world.rides.cols.state[slotOf(rideId)]).toBe(RideState.Closed);
     }
+    expect(getRideTestMeasurements(world, wood)).toEqual({
+      durationTicks: 5816,
+      maxSpeed: 3124,
+      averageSpeed: 1434,
+      rideLength: 8_336_128,
+      airtimeTicks: 0,
+      maxPositiveG: 553,
+      maxNegativeG: 0,
+      maxLateralG: 365,
+      dropCount: 6,
+      highestDrop: 768,
+      inversionCount: 0,
+    });
+    expect(getRideTestMeasurements(world, steel)).toEqual({
+      durationTicks: 6103,
+      maxSpeed: 4096,
+      averageSpeed: 1685,
+      rideLength: 10_280_448,
+      airtimeTicks: 15,
+      maxPositiveG: 1404,
+      maxNegativeG: -86,
+      maxLateralG: 562,
+      dropCount: 4,
+      highestDrop: 1088,
+      inversionCount: 3,
+    });
+    expect([
+      world.rides.cols.excitement[slotOf(wood)],
+      world.rides.cols.intensity[slotOf(wood)],
+      world.rides.cols.nausea[slotOf(wood)],
+    ]).toEqual([553, 564, 229]);
+    expect([
+      world.rides.cols.excitement[slotOf(steel)],
+      world.rides.cols.intensity[slotOf(steel)],
+      world.rides.cols.nausea[slotOf(steel)],
+    ]).toEqual([564, 1178, 555]);
     expect(world.feedback.code).toBe(RideResult.TestPassed);
 
     for (const rideId of [wood, steel])

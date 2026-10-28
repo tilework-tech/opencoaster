@@ -27,6 +27,7 @@ import { LITTER_SCHEMA } from '../sim/guests/litter-store';
 import {
   RIDE_COLUMNS_ADDED_IN_V10,
   RIDE_COLUMNS_ADDED_IN_V30,
+  RIDE_COLUMNS_ADDED_IN_V33,
   RIDER_HISTORY_WINDOWS,
   RidePhase,
   RideState,
@@ -47,9 +48,11 @@ import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 /** Staff activity totals and guest sight memory are stored from this version. */
 const STAFF_STATS_SAVE_VERSION = 32;
 const PRE_STAFF_STATS_SAVE_VERSION = 31;
-export const SAVE_VERSION = 32;
+export const SAVE_VERSION = 33;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
+/** Rides store average speed, length and air time from their test run from this version. */
+const TEST_METRICS_SAVE_VERSION = 33;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
 const BLOCK_MODE_SAVE_VERSION = 27;
 /** Rides carry a rolling downtime window and mechanic heading tick from this version. */
@@ -278,6 +281,9 @@ function migrateFlatWaterRides(world: World): void {
     rides.testHighestDrop[slot] = 0;
     rides.testInversionCount[slot] = 0;
     rides.testDurationTicks[slot] = 0;
+    rides.testAverageSpeed[slot] = 0;
+    rides.testRideLength[slot] = 0;
+    rides.testAirtimeTicks[slot] = 0;
   }
   const guests = world.guests.cols;
   for (let slot = 0; slot < world.guests.count; slot++) {
@@ -516,6 +522,7 @@ function rideColumnsAbsent(version: number): number {
   if (version < FOOTPRINT_SAVE_VERSION) absent += 1;
   if (version <= PRE_QUEUE_ORDER_SAVE_VERSION) absent += 2;
   if (version < DOWNTIME_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V30;
+  if (version < TEST_METRICS_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V33;
   return absent;
 }
 

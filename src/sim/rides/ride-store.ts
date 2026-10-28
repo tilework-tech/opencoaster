@@ -118,10 +118,16 @@ export const RIDE_SCHEMA = {
   downtimePercent: Uint8Array,
   /** One more than the tick a mechanic last set out for this ride; 0 when none has. */
   mechanicHeadingTick: Uint32Array,
+  testAverageSpeed: Int32Array,
+  testRideLength: Uint32Array,
+  testAirtimeTicks: Uint32Array,
 } as const;
 
 /** Columns `RIDE_SCHEMA` gained in save version 30: eight downtime buckets, the percent, a tick. */
 export const RIDE_COLUMNS_ADDED_IN_V30 = 10;
+
+/** Columns `RIDE_SCHEMA` gained in save version 33: test-run average speed, length and air time. */
+export const RIDE_COLUMNS_ADDED_IN_V33 = 3;
 
 /** Columns appended to the schema after each released save version, newest last. */
 export const RIDE_COLUMNS_ADDED_IN_V10 = 5;

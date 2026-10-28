@@ -246,7 +246,8 @@ function scoreRide(world: World, slot: number, ride: number): number {
   if (!priceIsAcceptable(price, maxRidePriceCents(world, ride))) return TOO_EXPENSIVE;
   if (g.lastRide[slot] === world.rides.slotToId[ride] && !allowsRepeatRide(world, slot, ride))
     return NOT_OFFERED;
-  if (r.intensity[ride] > intensityCeilingOf(g.preferredIntensity[slot])) return TOO_INTENSE;
+  if (r.intensity[ride] > intensityCeilingOf(g.preferredIntensity[slot], g.happiness[slot]))
+    return TOO_INTENSE;
   if (exceedsNauseaLimit(r.nausea[ride], g.nausea[slot], g.nauseaTolerance[slot])) {
     return TOO_NAUSEOUS;
   }
