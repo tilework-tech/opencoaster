@@ -29,11 +29,15 @@ import { closeInvalidOpenRides } from '../sim/rides/ride-commands';
 import { migrateQueueLinks } from '../sim/map/queue-link-migration';
 import { migrateTrackHeights } from '../sim/track/track-height-migration';
 import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
+import { migrateBoardingFronts } from '../sim/rides/boarding-front';
 import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 
-export const SAVE_VERSION = 27;
+export const SAVE_VERSION = 28;
+/** Ride entrances and exits carry a stored front edge from this version. */
+const BOARDING_FRONT_SAVE_VERSION = 28;
+const PRE_BOARDING_FRONT_SAVE_VERSION = 27;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
 const BLOCK_MODE_SAVE_VERSION = 27;
 /** Track heights count half-level track steps from this version; earlier saves store whole levels. */
@@ -503,6 +507,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_QUEUE_LINKS_SAVE_VERSION,
     PRE_TRACK_STEP_SAVE_VERSION,
     TRACK_STEP_SAVE_VERSION,
+    PRE_BOARDING_FRONT_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -652,6 +657,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version < QUEUE_LINKS_SAVE_VERSION) migrateQueueLinks(world);
   if (header.version < TRACK_STEP_SAVE_VERSION) migrateTrackHeights(world);
   if (header.version < BLOCK_MODE_SAVE_VERSION) migrateBlockBrakeRides(world);
+  if (header.version < BOARDING_FRONT_SAVE_VERSION) migrateBoardingFronts(world);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION

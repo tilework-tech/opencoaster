@@ -5,6 +5,7 @@ import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
 import { RideMode } from './ride-modes';
 import { RELIABILITY_MAX } from './ride-maintenance';
 import { rideFootprintTiles } from './ride-footprint';
+import { inferBoardingFronts } from './boarding-front';
 import {
   INSPECTION_INTERVAL_MINUTES,
   INSPECTION_MINUTE_TICKS,
@@ -147,6 +148,7 @@ export function placeRideEntranceExit(
   ride.exitY[slot] = exit.y;
   ride.entrancePlaced[slot] = 1;
   ride.exitPlaced[slot] = 1;
+  inferBoardingFronts(world, slot);
   ride.queueConnected[slot] = 0;
   ride.queueLineTiles[slot] = 0;
   return true;

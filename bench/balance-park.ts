@@ -123,7 +123,7 @@ function allocateRow(p: Placement, rows: number): number | null {
   const used = sideRows[p.side];
   const attraction = p.reach > 2;
   for (let y = SPINE_BOTTOM - 2; y > SPINE_TOP; y--) {
-    const pathRows = [y, y + 1];
+    const pathRows = attraction ? [y, y + 1, y + 2] : [y, y + 1];
     if (pathRows.some((r) => used.bodies.has(r) && attraction)) continue;
     if (pathRows.some((r) => used.paths.has(r))) continue;
     if (attraction) {
@@ -161,7 +161,10 @@ function place(sim: Simulation, p: Placement): number {
   const lo = Math.min(nearSpine, entranceX);
   const hi = Math.max(nearSpine, entranceX);
   pathRun(sim, lo, hi, y, true);
-  pathRun(sim, Math.min(nearSpine, frontX), Math.max(nearSpine, frontX), y + 1);
+  // An exit joins the path only on its front edge, which faces away from the ride: the exit path
+  // runs one row further out than the exit itself.
+  const exitRow = attraction ? y + 2 : y + 1;
+  pathRun(sim, Math.min(nearSpine, frontX), Math.max(nearSpine, frontX), exitRow);
   const before = sim.world.rides.count;
   sim.enqueue({ type: 'createRide', rideType: p.type, x: anchorX, y: anchorY, dir: turn.dir });
   sim.step();

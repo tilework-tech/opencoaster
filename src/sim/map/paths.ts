@@ -1,5 +1,7 @@
 import { rampMask } from './land';
 import {
+  boardingAllows,
+  boardingFront,
   ElementType,
   MAX_ELEMENT_BASE,
   PATH_ENTRANCE_MARK,
@@ -129,6 +131,7 @@ export function linkQueuePieces(m: TileMap, i: number, e: number, dir: number): 
   const f = adjoiningElement(m, i, e, dir);
   if (f < 0 || !isQueueElement(m, e) || !isQueueElement(m, f)) return false;
   const back = (dir + 2) & 3;
+  if (!boardingAllows(m, e, dir) || !boardingAllows(m, f, back)) return false;
   if (queueLinkMask(m, e) & (1 << dir)) return queueLinkMask(m, f) & (1 << back) ? true : false;
   if (freeLinkSlots(m, e) <= 0 || freeLinkSlots(m, f) <= 0) return false;
   setQueueLink(m, e, dir, true);
@@ -136,11 +139,12 @@ export function linkQueuePieces(m: TileMap, i: number, e: number, dir: number): 
   return true;
 }
 
-/** Keeps only the lowest-direction link of a ride entrance's queue piece, which ends its line. */
+/** Keeps only the front-edge link of a ride entrance's queue piece, which ends its line. */
 export function trimEntranceLinks(m: TileMap, i: number, e: number): void {
   const links = queueLinkMask(m, e);
-  if (popcount4(links) <= 1) return;
-  const keep = links & -links;
+  const front = boardingFront(m, e);
+  if (front < 0 && popcount4(links) <= 1) return;
+  const keep = front >= 0 ? 1 << front : links & -links;
   for (let d = 0; d < 4; d++) {
     if (!(links & (1 << d)) || keep === 1 << d) continue;
     const f = adjoiningElement(m, i, e, d);
@@ -241,6 +245,7 @@ export function queueOpening(m: TileMap, i: number, e: number): number {
   for (let d = 0; d < 4; d++) {
     const f = adjoiningElement(m, i, e, d);
     if (f < 0 || isQueueElement(m, f) || m.elData[f] & PATH_EXIT_MARK) continue;
+    if (!boardingAllows(m, e, d) || !boardingAllows(m, f, (d + 2) & 3)) continue;
     if (first < 0) first = d;
     if (queueDir >= 0 && d === ((queueDir + 2) & 3)) straight = d;
   }
@@ -279,6 +284,7 @@ export function queueLinks(m: TileMap, i: number): number {
 
 /** Whether `e` of tile `i` joins the neighbouring element `f` across `dir` under the queue rules. */
 function joins(m: TileMap, i: number, e: number, dir: number, f: number): boolean {
+  if (!boardingAllows(m, e, dir) || !boardingAllows(m, f, (dir + 2) & 3)) return false;
   const qe = isQueueElement(m, e);
   const qf = isQueueElement(m, f);
   if (qe && qf) {

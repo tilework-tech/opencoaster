@@ -153,7 +153,7 @@ describe('guest needs', () => {
   it('only repeats a ride when guest needs and a random roll allow it', () => {
     const repeatTrips = (seed: number, happiness: number): number => {
       const { w, ride } = corridorWithRide();
-      layPath(w, [[12, 5], ...row(6, 9, 12)]);
+      layPath(w, [[13, 4], [13, 5], [12, 5], ...row(6, 9, 12)]);
       w.rng.seed(seed);
       const slot = guestAt(w, 2, 5);
       w.guests.cols.happiness[slot] = 255;

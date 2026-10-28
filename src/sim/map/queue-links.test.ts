@@ -171,7 +171,27 @@ describe('queue links', () => {
     expect(queueEdgesBetween(w, [8, 5], [7, 5])).toBe(false);
   });
 
-  it('joins a ride entrance when a drag ends beside it', () => {
+  it('joins a ride entrance when a drag ends in front of it', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 8));
+    layPath(w, [[11, 5]], true);
+    layPath(w, [[13, 4]]);
+    const id = createRide(w, RideType.MerryGoRound, 11, 3);
+    placeRideEntranceExit(w, id, { x: 11, y: 5 }, { x: 13, y: 4 });
+    refreshQueueIndex(w);
+    drag(
+      w,
+      row(6, 8, 11).map(([x, y]) => [x, y] as Tile),
+    );
+    refreshQueueIndex(w);
+    expectSingleFile(w);
+    expect(links(w, [11, 5])).toBe(0b0010);
+    expect(links(w, [11, 6])).toBe(0b1100);
+    expect(w.queues.tiles[0]).toBe(4);
+    expect(w.queues.openTile[0]).toBe(w.map.index(8, 6));
+  });
+
+  it('does not join a ride entrance from its side when a drag ends beside it', () => {
     const w = flatWorld();
     layPath(w, row(5, 2, 7));
     layPath(w, [[11, 5]], true);
@@ -184,11 +204,8 @@ describe('queue links', () => {
       row(5, 8, 10).map(([x, y]) => [x, y] as Tile),
     );
     refreshQueueIndex(w);
-    expectSingleFile(w);
-    expect(links(w, [11, 5])).toBe(0b0100);
-    expect(links(w, [10, 5])).toBe(0b0101);
-    expect(w.queues.tiles[0]).toBe(3);
-    expect(w.queues.openTile[0]).toBe(w.map.index(8, 5));
+    expect(links(w, [11, 5])).toBe(0);
+    expect(links(w, [10, 5]) & 0b0001).toBe(0);
   });
 
   it('never closes a line into a ring', () => {
@@ -271,7 +288,7 @@ describe('queue links', () => {
       const bytes = serialize(w);
       const headerLen = new DataView(bytes.buffer).getUint32(4, true);
       const header = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-      const old = header.replace('"version":27', '"version":24');
+      const old = header.replace('"version":28', '"version":24');
       expect(old).not.toBe(header);
       const patched = new Uint8Array(bytes);
       patched.set(new TextEncoder().encode(old), 8);

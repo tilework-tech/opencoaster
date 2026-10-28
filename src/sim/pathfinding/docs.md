@@ -28,6 +28,7 @@ Path: @/src/sim/pathfinding
 - A step from a node lands on the neighbouring element whose edge height meets its own (`TileMap.adjoiningPath`), so a ramp joins the level piece at its top and a bridge's deck stays apart from the ground path it crosses. Heuristic distances (`distanceScore`, `chebyshev`) compare the nodes' tiles, not their layers. A tile with more than `WALK_LAYERS` paths exposes only its lowest three.
 - Path and wall element insertion or removal advances the production map's `pathVersion`, invalidating both its cached edge masks and this module's derived corridor links and component labels.
 - Queue tiles expose no ordinary walking exits. Guests route to the ordinary path tile where a ride queue joins the main path, then enter the queue through the ride queue system.
+- A ride exit is walkable only for guests leaving the ride: the map exposes its front edge as an exit and hides every edge leading into it. `PathNetwork` places such a source-only node in the component of the path it feeds and `isReachable` never reports it as a destination. Ride entrances are queue pieces, so they are outside the walking network like any queue tile.
 - [fixture.ts](fixture.ts) provides a grid graph for tests and benchmarks. The legacy `Pathfinder.findPath` contract remains for compatibility and is not used by current consumers.
 
 Created and maintained by Nori.

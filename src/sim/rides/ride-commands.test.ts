@@ -29,8 +29,9 @@ describe('ride commands', () => {
 
     expect(apply({ type: 'placeRideEntrance', rideId, x: 4, y: 5 })).toBe(RideResult.Ok);
     expect(apply({ type: 'placeRideExit', rideId, x: 5, y: 4 })).toBe(RideResult.Ok);
-    expect(placePath(world.map, { x: 3, y: 5, queue: true })).toBe(true);
-    expect(placePath(world.map, { x: 2, y: 5 })).toBe(true);
+    expect(placePath(world.map, { x: 4, y: 6, queue: true })).toBe(true);
+    expect(placePath(world.map, { x: 3, y: 6, queue: true })).toBe(true);
+    expect(placePath(world.map, { x: 2, y: 6 })).toBe(true);
     expect(apply({ type: 'setRideStatus', rideId, status: 'open' })).toBe(RideResult.Ok);
   });
 
