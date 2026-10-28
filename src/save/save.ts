@@ -34,14 +34,16 @@ import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 
-export const SAVE_VERSION = 28;
+export const SAVE_VERSION = 29;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
 const PRE_BOARDING_FRONT_SAVE_VERSION = 27;
+const PRE_HAPPINESS_TARGET_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
 const BLOCK_MODE_SAVE_VERSION = 27;
 /** Track heights count half-level track steps from this version; earlier saves store whole levels. */
 const TRACK_STEP_SAVE_VERSION = 26;
+const HAPPINESS_TARGET_SAVE_VERSION = 29;
 const PRE_TRACK_STEP_SAVE_VERSION = 25;
 const WALL_EDGE_SAVE_VERSION = 24;
 const PRE_WALL_EDGE_SAVE_VERSION = 23;
@@ -86,6 +88,7 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
     ([name]) =>
       ![
         'heading',
+        'happinessTarget',
         'approachGap',
         'navGoal',
         'navGap',
@@ -460,7 +463,8 @@ function guestColumnsAbsent(version: number): number {
     (version <= PRE_RIDE_HISTORY_SAVE_VERSION ? 5 : 0) +
     (version < GUEST_MEMORY_SAVE_VERSION ? 2 : 0) +
     (version < VOUCHER_SAVE_VERSION ? 2 : 0) +
-    (version <= PRE_QUEUE_ORDER_SAVE_VERSION ? 1 : 0)
+    (version <= PRE_QUEUE_ORDER_SAVE_VERSION ? 1 : 0) +
+    (version < HAPPINESS_TARGET_SAVE_VERSION ? 1 : 0)
   );
 }
 
@@ -508,6 +512,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_TRACK_STEP_SAVE_VERSION,
     TRACK_STEP_SAVE_VERSION,
     PRE_BOARDING_FRONT_SAVE_VERSION,
+    PRE_HAPPINESS_TARGET_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
@@ -643,6 +648,11 @@ export function deserialize(bytes: Uint8Array): World {
   }
   if (header.version === PRE_RIDES_SAVE_VERSION) migrateLegacyRides(world, legacyViews);
   if (legacyGuests) migrateLegacyGuests(world, legacyGuests, header.stores.guests.count);
+  if (header.version < HAPPINESS_TARGET_SAVE_VERSION) {
+    world.guests.cols.happinessTarget.set(
+      world.guests.cols.happiness.subarray(0, world.guests.count),
+    );
+  }
   if (header.version <= PRE_RELIABILITY_SAVE_VERSION) migratePreReliabilityRides(world);
   if (header.version <= PRE_GUEST_STATS_SAVE_VERSION)
     migrateGuestHistory(world, header.stores.guests.count);

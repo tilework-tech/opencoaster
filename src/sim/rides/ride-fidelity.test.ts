@@ -631,6 +631,7 @@ function downgradeToVersion9(w: World): Uint8Array {
   const dropped = new Set<ArrayBufferView>([
     w.map.pathStyle,
     ...added.map((name) => cols[name]),
+    guestColumns.happinessTarget,
     guestColumns.navGoal,
     guestColumns.navGap,
     guestColumns.navSteps,

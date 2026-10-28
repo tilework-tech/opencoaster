@@ -58,6 +58,22 @@ const GUEST_SPEED = 12;
 const TILE_CENTRE = TILE_UNITS >> 1;
 /** Needs change once every 128 world ticks. */
 const NEED_DECAY_TICKS = 128;
+/** Idle happiness motives update once every four need updates. */
+const IDLE_MOTIVE_TICKS = 512;
+/** RCT2 checks guests without a ride destination after five 2,048-tick periods. */
+const LEAVE_CHECK_TICKS = 10_240;
+/** Need thoughts are raised once per 1,024 ticks. */
+const THOUGHT_TICKS = 1024;
+const ENERGY_MIN = 32;
+const ENERGY_MAX = 128;
+/** Energy, happiness and cash a guest needs to be sure of staying; below any of them it may leave. */
+const STAY_ENERGY = 55;
+const STAY_HAPPINESS = 45;
+const STAY_CASH = 500;
+/** Chance in 65,536 that an unsettled guest leaves at an idle check (about 5%). */
+const LEAVE_CHANCE = 3277;
+const TIRED_ENERGY = 70;
+const TIRED_HAPPINESS_CEILING = 128;
 /** Happiness a ride gives: a flat part plus 1 per this many hundredths of excitement. */
 const RIDE_HAPPINESS = 8;
 const EXCITEMENT_PER_HAPPINESS = 40;
@@ -70,8 +86,8 @@ const QUEUE_PATIENCE_PER_HAPPINESS = 24;
 /** Waiting this long in a line earns the "queuing for ages" thought and costs happiness. */
 const QUEUE_GRUMBLE_TICKS = 2400;
 const RIDE_COOLDOWN = 640;
-const HUNGER_THOUGHT = 160;
-const THIRST_THOUGHT = 160;
+const HUNGER_THOUGHT = 10;
+const THIRST_THOUGHT = 25;
 const TOILET_THOUGHT = 160;
 const HUNGER_SEEK = 128;
 const THIRST_SEEK = 128;
@@ -490,13 +506,13 @@ function finishRide(world: World, slot: number, ride: number): void {
     g.lastRide[slot] = world.rides.slotToId[ride];
     g.ridesTaken[slot] = Math.min(0xffff, g.ridesTaken[slot] + 1);
     g.nausea[slot] = Math.min(255, g.nausea[slot] + (r.nausea[ride] >> 4));
-    g.happiness[slot] = Math.min(
+    g.happinessTarget[slot] = Math.min(
       255,
-      g.happiness[slot] +
+      g.happinessTarget[slot] +
         RIDE_HAPPINESS +
         Math.floor(r.excitement[ride] / EXCITEMENT_PER_HAPPINESS),
     );
-    g.energy[slot] = Math.min(255, g.energy[slot] + 32);
+    g.energy[slot] = Math.min(ENERGY_MAX, g.energy[slot] + 32);
     stepOffRide(world, slot, ride);
   } else if (hasParkEntrance(world)) {
     placeOnTile(world, slot, world.park.entranceX, world.park.entranceY);
@@ -564,7 +580,7 @@ function finishShopping(world: World, slot: number, ride: number): void {
     addRideIncome(world, ride, price);
     charge(world, LedgerCategory.FoodDrinkStock, Math.floor((price * STOCK_COST_PERCENT) / 100));
   }
-  g.happiness[slot] = Math.min(255, g.happiness[slot] + SHOP_HAPPINESS);
+  g.happinessTarget[slot] = Math.min(255, g.happinessTarget[slot] + SHOP_HAPPINESS);
   r.guestsServed[ride]++;
 }
 
@@ -816,17 +832,24 @@ function updateQueuing(world: World, slot: number, guestTick: number): void {
 
 function ageNeeds(world: World, slot: number): void {
   const g = world.guests.cols;
-  const state = g.state[slot];
-  g.hunger[slot] = Math.max(0, g.hunger[slot] - 1);
-  g.thirst[slot] = Math.max(0, g.thirst[slot] - 1);
-  g.toilet[slot] = Math.min(255, g.toilet[slot] + (g.thirst[slot] < 75 ? 2 : 1));
-  if (state === GuestState.Wandering || state === GuestState.Queuing) {
-    g.energy[slot] = Math.max(0, g.energy[slot] - 1);
-  }
-  g.nausea[slot] = Math.max(0, g.nausea[slot] - 1);
-  if (g.hunger[slot] <= HUNGER_THOUGHT) recordThought(world, slot, GuestThought.Hungry);
-  else if (g.thirst[slot] <= THIRST_THOUGHT) recordThought(world, slot, GuestThought.Thirsty);
-  else if (g.toilet[slot] >= TOILET_THOUGHT) recordThought(world, slot, GuestThought.NeedsToilet);
+  g.hunger[slot] = Math.max(0, g.hunger[slot] - 2);
+  if (world.weather.temperature >= 21) g.thirst[slot] = Math.max(0, g.thirst[slot] - 1);
+  g.toilet[slot] = Math.min(255, g.toilet[slot] + 1);
+  g.nausea[slot] = Math.max(0, g.nausea[slot] - 2);
+}
+
+/** Picks one of the needs a guest currently feels and records it, as the original game does. */
+function thinkAboutNeeds(world: World, slot: number): void {
+  const g = world.guests.cols;
+  const felt: GuestThought[] = [];
+  if (g.energy[slot] <= TIRED_ENERGY && g.happiness[slot] < TIRED_HAPPINESS_CEILING)
+    felt.push(GuestThought.Tired);
+  if (g.hunger[slot] <= HUNGER_THOUGHT) felt.push(GuestThought.Hungry);
+  if (g.thirst[slot] <= THIRST_THOUGHT) felt.push(GuestThought.Thirsty);
+  if (g.toilet[slot] >= TOILET_THOUGHT) felt.push(GuestThought.NeedsToilet);
+  if (g.cash[slot] < STAY_CASH && g.happiness[slot] >= 105 && g.energy[slot] >= TIRED_ENERGY)
+    felt.push(GuestThought.OutOfMoney);
+  if (felt.length > 0) recordThought(world, slot, felt[world.rng.int(felt.length)]);
 }
 
 /** Walks one step toward `target` (or wanders when negative). Returns false if no step exists. */
@@ -855,7 +878,43 @@ function loseWayOut(world: World, slot: number): void {
   recordThought(world, slot, GuestThought.Lost);
   if ((world.tick + world.guests.slotToId[slot]) % EXIT_PENALTY_TICKS === 0) {
     g.happiness[slot] = Math.max(0, g.happiness[slot] - EXIT_HAPPINESS_LOSS);
+    g.happinessTarget[slot] = Math.max(0, g.happinessTarget[slot] - EXIT_HAPPINESS_LOSS);
   }
+}
+
+/**
+ * Idle check for a wandering guest. One who has waited five periods without riding and has no
+ * ride to choose is bored and leaves; otherwise a guest short of energy, happiness or cash leaves
+ * on about one check in twenty.
+ */
+function decideToLeave(world: World, slot: number): boolean {
+  const g = world.guests.cols;
+  if (g.state[slot] !== GuestState.Wandering) return false;
+  if (g.ridesTaken[slot] === 0 && g.visitTicks[slot] >= LEAVE_CHECK_TICKS) {
+    const tile = world.map.index(g.x[slot] >> 8, g.y[slot] >> 8);
+    const firstRide = g.targetRide[slot] >= 0 ? g.targetRide[slot] : chooseRide(world, slot, tile);
+    if (firstRide < 0) {
+      g.happinessTarget[slot] = Math.max(0, g.happinessTarget[slot] - 128);
+      startLeaving(world, slot);
+      return true;
+    }
+    if (g.targetRide[slot] < 0) setDestination(world, slot, firstRide);
+    return false;
+  }
+  const settled =
+    g.energy[slot] >= STAY_ENERGY &&
+    g.happiness[slot] >= STAY_HAPPINESS &&
+    g.cash[slot] >= STAY_CASH;
+  if (settled || world.rng.int(65_536) >= LEAVE_CHANCE) return false;
+  startLeaving(world, slot);
+  return true;
+}
+
+function startLeaving(world: World, slot: number): void {
+  const g = world.guests.cols;
+  g.state[slot] = GuestState.Leaving;
+  g.targetRide[slot] = -1;
+  recordThought(world, slot, GuestThought.Leaving);
 }
 
 /** Returns true when the guest has left the park and should be despawned. */
@@ -868,14 +927,21 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   if (guestTick > 0 && guestTick % NEED_DECAY_TICKS === 0) {
     ageNeeds(world, slot);
   }
-  if (guestTick > 0 && guestTick % 512 === 0) {
-    const penalty =
-      (g.energy[slot] <= 50 ? 2 : 0) +
-      (g.hunger[slot] < 10 ? 1 : 0) +
-      (g.thirst[slot] < 10 ? 1 : 0) +
-      (g.toilet[slot] >= 195 ? 1 : 0);
-    g.happiness[slot] = Math.max(0, g.happiness[slot] - penalty);
+  if (guestTick > 0 && guestTick % IDLE_MOTIVE_TICKS === 0) {
+    g.energy[slot] = Math.max(ENERGY_MIN, g.energy[slot] - 1);
+    g.happinessTarget[slot] = Math.max(
+      0,
+      g.happinessTarget[slot] +
+        (g.happinessTarget[slot] < 127 ? 1 : g.happinessTarget[slot] > 127 ? -1 : 0) -
+        (g.energy[slot] <= 50 ? 2 : 0) -
+        (g.hunger[slot] < 10 ? 1 : 0) -
+        (g.thirst[slot] < 10 ? 1 : 0) -
+        (g.toilet[slot] >= 195 ? 1 : 0),
+    );
+    g.happiness[slot] += Math.max(-4, Math.min(4, g.happinessTarget[slot] - g.happiness[slot]));
+    if (decideToLeave(world, slot)) return false;
   }
+  if (guestTick > 0 && guestTick % THOUGHT_TICKS === 0) thinkAboutNeeds(world, slot);
   const state = g.state[slot];
   if (
     world.weather.kind >= WeatherKind.Rain &&
@@ -987,20 +1053,6 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
 
   if (!atTileCentre(world, slot)) {
     moveAlongHeading(world, slot);
-    return false;
-  }
-
-  const belowLeaveThresholds = g.energy[slot] < 55 || g.happiness[slot] < 45 || g.cash[slot] < 500;
-  if (
-    g.visitTicks[slot] >= 10_240 &&
-    g.targetRide[slot] < 0 &&
-    belowLeaveThresholds &&
-    guestTick % 512 === 0 &&
-    world.rng.int(10_000) < 500
-  ) {
-    g.state[slot] = GuestState.Leaving;
-    g.targetRide[slot] = -1;
-    recordThought(world, slot, GuestThought.Leaving);
     return false;
   }
 

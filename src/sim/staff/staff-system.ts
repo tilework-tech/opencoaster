@@ -579,7 +579,10 @@ function applyEntertainerEffect(
       if (stampByTile[tile] !== indexVersion) continue;
       for (let id = headByTile[tile]; id >= 0; id = nextById[id]) {
         const slot = guests.idToSlot[id];
-        if (slot >= 0) guests.cols.happiness[slot] = Math.min(255, guests.cols.happiness[slot] + 1);
+        if (slot >= 0) {
+          guests.cols.happiness[slot] = Math.min(255, guests.cols.happiness[slot] + 1);
+          guests.cols.happinessTarget[slot] = Math.min(255, guests.cols.happinessTarget[slot] + 1);
+        }
       }
     }
   }

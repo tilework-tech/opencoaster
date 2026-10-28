@@ -7,7 +7,8 @@ import {
 } from '../map/scenery-effects';
 import { GuestState, GuestThought, recordThought } from './guest-store';
 
-export const SCENERY_THOUGHT_INTERVAL = 18;
+/** A guest assesses its surroundings once per 18 idle-motive periods of 512 ticks. */
+export const SCENERY_THOUGHT_INTERVAL = 18 * 512;
 export const SCENERY_THOUGHT_MIN_COUNT = 40;
 export const SCENERY_THOUGHT_MAX_RUBBISH = 8;
 export const CLEAN_THOUGHT_MAX_RUBBISH = 2;
@@ -71,7 +72,7 @@ function litterInWindow(world: World, centerX: number, centerY: number): number 
 export function updateGuestSurroundings(world: World, slot: number): void {
   const guests = world.guests.cols;
   if (guests.state[slot] !== GuestState.Wandering) return;
-  if (world.tick % SCENERY_THOUGHT_INTERVAL >= 4) return;
+  if ((world.tick + world.guests.slotToId[slot]) % SCENERY_THOUGHT_INTERVAL >= 4) return;
 
   const tileX = guests.x[slot] >> TILE_SHIFT;
   const tileY = guests.y[slot] >> TILE_SHIFT;
@@ -95,6 +96,9 @@ export function updateGuestSurroundings(world: World, slot: number): void {
         : GuestThought.None;
   if (thought === GuestThought.None) return;
 
-  guests.happiness[slot] = Math.min(255, guests.happiness[slot] + SURROUNDINGS_HAPPINESS_BONUS);
+  guests.happinessTarget[slot] = Math.min(
+    255,
+    guests.happinessTarget[slot] + SURROUNDINGS_HAPPINESS_BONUS,
+  );
   recordThought(world, slot, thought);
 }

@@ -27,6 +27,8 @@ export const THOUGHT_LABELS: readonly string[] = [
   'Enjoying the scenery',
   'The park is very clean',
   "I've been queuing for ages",
+  "I'm tired",
+  "I'm running out of money",
 ];
 
 export interface GuestDetails {
@@ -122,6 +124,13 @@ export const GUEST_TABS: readonly TabSpec[] = [
 ];
 
 const NEED_MAX = 255;
+/** Energy lives between these bounds, so its bar spans them rather than 0..255. */
+const ENERGY_MIN = 32;
+const ENERGY_MAX = 128;
+
+export function energyFraction(energy: number): number {
+  return Math.max(0, Math.min(1, (energy - ENERGY_MIN) / (ENERGY_MAX - ENERGY_MIN)));
+}
 
 function summaryRows(snapshot: Snapshot | null): GuestSummaryRow[] {
   if (!snapshot) return [];
@@ -356,7 +365,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       gauges.thirst.set((data[offset + 2] ?? 0) / NEED_MAX, String(data[offset + 2] ?? 0));
       gauges.toilet.set((data[offset + 3] ?? 0) / NEED_MAX, String(data[offset + 3] ?? 0));
       gauges.nausea.set((data[offset + 4] ?? 0) / NEED_MAX, String(data[offset + 4] ?? 0));
-      gauges.energy.set((data[offset + 5] ?? 0) / NEED_MAX, String(data[offset + 5] ?? 0));
+      gauges.energy.set(energyFraction(data[offset + 5] ?? 0), String(data[offset + 5] ?? 0));
       setText(cash.value, formatMoney(data[offset + 6] ?? 0));
       const voucherKind = data[offset + 17] ?? 0;
       const voucherTarget = data[offset + 18] ?? -1;

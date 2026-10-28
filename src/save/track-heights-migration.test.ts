@@ -14,19 +14,47 @@ import { PIECES, pieceByName } from '../sim/track/catalog';
 import { circuitStatus, getConstructionCursor } from '../sim/track/construction';
 import { getTrackPath } from '../sim/track/track-path';
 import type { World } from '../sim/core/world';
-import { SAVE_VERSION, deserialize, serialize } from './save';
+import { deserialize, serialize } from './save';
 
-/** Re-labels a current save as a version 25 file, the last version that stored whole-level track. */
-function asVersion25(bytes: Uint8Array): Uint8Array {
+/** Encodes the current world with the version-25 array layout and track heights. */
+function asVersion25(world: World): Uint8Array {
+  const bytes = serialize(world);
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const headerLen = dv.getUint32(4, true);
-  const json = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-  const patched = new TextEncoder().encode(
-    json.replace(`"version":${SAVE_VERSION}`, '"version":25'),
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLen)));
+  header.version = 25;
+  const patched = new TextEncoder().encode(JSON.stringify(header));
+  const arrays = [
+    ...world.map.arrays(),
+    ...world.guests.arrays(),
+    ...world.staff.arrays(),
+    ...world.vehicles.arrays(),
+    ...world.litter.arrays(),
+    ...world.rides.arrays(),
+    ...world.track.pieces.arrays(),
+    ...world.track.rideTables(),
+  ];
+  const dropped = new Set<ArrayBufferView>([world.guests.cols.happinessTarget]);
+  const body = bytes.subarray(8 + headerLen);
+  const kept: Uint8Array[] = [];
+  let offset = 0;
+  for (const array of arrays) {
+    if (!dropped.has(array)) kept.push(body.subarray(offset, offset + array.byteLength));
+    offset += array.byteLength;
+  }
+  expect(offset).toBe(body.byteLength);
+  const out = new Uint8Array(
+    8 + patched.length + kept.reduce((size, part) => size + part.length, 0),
   );
-  expect(patched.length).toBe(headerLen);
-  const out = bytes.slice();
+  const outView = new DataView(out.buffer);
+  outView.setUint32(0, dv.getUint32(0, true), true);
+  outView.setUint32(4, patched.length, true);
   out.set(patched, 8);
+  let at = 8 + patched.length;
+  for (const part of kept) {
+    out.set(part, at);
+    at += part.length;
+  }
   return out;
 }
 
@@ -82,7 +110,7 @@ describe('loading saves with whole-level track', () => {
     moveHeadToCrest(sim.world, rideId);
     storeOldHeights(sim.world, rideId, (name) => V25_DZ[name]);
 
-    const loaded = deserialize(asVersion25(serialize(sim.world)));
+    const loaded = deserialize(asVersion25(sim.world));
 
     const c = loaded.track.pieces.cols;
     let station = loaded.track.head[rideId];
@@ -114,7 +142,7 @@ describe('loading saves with whole-level track', () => {
     expect(sim.world.rides.cols.state[slot]).toBe(RideState.Open);
     storeOldHeights(sim.world, rideId, (name) => V25_DZ[name]);
 
-    const loaded = deserialize(asVersion25(serialize(sim.world)));
+    const loaded = deserialize(asVersion25(sim.world));
 
     const loadedSlot = loaded.rides.idToSlot[rideId];
     expect(loaded.rides.cols.state[loadedSlot]).toBe(RideState.Closed);
@@ -142,7 +170,7 @@ describe('loading saves with whole-level track', () => {
     c.pieceType[up] = pieceByName('up60')!.id;
     storeOldHeights(sim.world, rideId, (name) => (name === 'up60' ? 2 : V25_DZ[name]));
 
-    const loaded = deserialize(asVersion25(serialize(sim.world)));
+    const loaded = deserialize(asVersion25(sim.world));
 
     expect(circuitStatus(loaded, rideId).closed).toBe(false);
     expect(getConstructionCursor(loaded, rideId).hasTrack).toBe(true);
@@ -162,7 +190,7 @@ describe('loading saves with whole-level track', () => {
     c.pieceType[slots[9]] = flat;
     storeOldHeights(sim.world, rideId, (name) => V25_DZ[name]);
 
-    const loaded = deserialize(asVersion25(serialize(sim.world)));
+    const loaded = deserialize(asVersion25(sim.world));
 
     expect(circuitStatus(loaded, rideId).closed).toBe(true);
     const lt = loaded.track;

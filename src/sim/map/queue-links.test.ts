@@ -4,7 +4,7 @@ import { flatWorld, layPath, row } from '../integration/fixtures';
 import { createRide, placeRideEntranceExit } from '../rides/ride-operations';
 import { refreshQueueIndex } from '../rides/queue-lines';
 import { RideType } from '../rides/ride-types';
-import { deserialize, serialize } from '../../save/save';
+import { deserialize, SAVE_VERSION, serialize } from '../../save/save';
 import { applyMapCommand } from './map-commands';
 import { queueLinkMask } from './paths';
 import { migrateQueueLinks } from './queue-link-migration';
@@ -288,7 +288,7 @@ describe('queue links', () => {
       const bytes = serialize(w);
       const headerLen = new DataView(bytes.buffer).getUint32(4, true);
       const header = new TextDecoder().decode(bytes.subarray(8, 8 + headerLen));
-      const old = header.replace('"version":28', '"version":24');
+      const old = header.replace(`"version":${SAVE_VERSION}`, '"version":24');
       expect(old).not.toBe(header);
       const patched = new Uint8Array(bytes);
       patched.set(new TextEncoder().encode(old), 8);

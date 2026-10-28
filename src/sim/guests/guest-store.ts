@@ -29,6 +29,8 @@ export const enum GuestThought {
   Scenery = 10,
   VeryClean = 11,
   QueuingForAges = 12,
+  Tired = 13,
+  OutOfMoney = 14,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */
@@ -91,6 +93,7 @@ export const GUEST_SCHEMA = {
   voucherTarget: Int32Array,
   /** Position in the ride's queue order: the ride's serial when the guest joined its line. */
   queueSeq: Uint32Array,
+  happinessTarget: Uint8Array,
 } as const;
 
 export function recordRideHistory(w: World, slot: number, rideId: number): void {
@@ -103,25 +106,21 @@ export function recordRideHistory(w: World, slot: number, rideId: number): void 
   guests.rideHistoryCursor[slot] = (cursor + 1) & 3;
 }
 
+/** Records a thought as the newest; a thought already in the list moves to the front instead of repeating. */
 export function recordThought(w: World, slot: number, thought: GuestThought): void {
   if (thought === GuestThought.None) return;
   const g = w.guests.cols;
+  const ring = [g.thought0, g.thought1, g.thought2, g.thought3];
   const cursor = g.thoughtCursor[slot] & 3;
-  const previous = (cursor + 3) & 3;
-  const latest =
-    previous === 0
-      ? g.thought0[slot]
-      : previous === 1
-        ? g.thought1[slot]
-        : previous === 2
-          ? g.thought2[slot]
-          : g.thought3[slot];
-  if (latest === thought) return;
-  if (cursor === 0) g.thought0[slot] = thought;
-  else if (cursor === 1) g.thought1[slot] = thought;
-  else if (cursor === 2) g.thought2[slot] = thought;
-  else g.thought3[slot] = thought;
-  g.thoughtCursor[slot] = (cursor + 1) & 3;
+  const kept: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const value = ring[(cursor + i) & 3][slot];
+    if (value !== GuestThought.None && value !== thought) kept.push(value);
+  }
+  kept.push(thought);
+  while (kept.length > 4) kept.shift();
+  for (let i = 0; i < 4; i++) ring[i][slot] = i < kept.length ? kept[i] : GuestThought.None;
+  g.thoughtCursor[slot] = kept.length & 3;
 }
 
 export function spawnGuest(w: World): boolean {
@@ -145,6 +144,7 @@ export function spawnGuest(w: World): boolean {
   g.cols.heading[slot] = HEADING_NONE;
   g.cols.tint[slot] = w.rng.int(8);
   g.cols.happiness[slot] = 96 + w.rng.int(96);
+  g.cols.happinessTarget[slot] = g.cols.happiness[slot];
   g.cols.energy[slot] = 65 + w.rng.int(64);
   g.cols.hunger[slot] = 128 + w.rng.int(128);
   g.cols.thirst[slot] = 128 + w.rng.int(128);
