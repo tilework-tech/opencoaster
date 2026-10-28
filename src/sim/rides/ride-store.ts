@@ -120,7 +120,7 @@ export const RIDE_SCHEMA = {
   mechanicHeadingTick: Uint32Array,
 } as const;
 
-/** Columns `RIDE_SCHEMA` gained in save version 29: eight downtime buckets, the percent, a tick. */
+/** Columns `RIDE_SCHEMA` gained in save version 30: eight downtime buckets, the percent, a tick. */
 export const RIDE_COLUMNS_ADDED_IN_V30 = 10;
 
 /** Columns appended to the schema after each released save version, newest last. */

@@ -1,6 +1,7 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
+import { resolveGraph } from '../pathfinding/graph';
 import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/navigate';
 import type { PatrolMask } from '../pathfinding/navigate';
 import type { NavOptions } from '../pathfinding/navigate';
@@ -150,8 +151,10 @@ export function createStaffSystem(): System {
         }
         binCount = 0;
         walkableCount = 0;
+        const graph = resolveGraph(map);
         for (let tile = 0; tile < mapSize; tile++) {
-          if (map.isWalkable(tile)) walkableTiles[walkableCount++] = tile;
+          if (map.isWalkable(tile) && graph.edgeMask(tile) !== 0)
+            walkableTiles[walkableCount++] = tile;
           for (
             let element = map.firstElement(tile);
             element >= 0;

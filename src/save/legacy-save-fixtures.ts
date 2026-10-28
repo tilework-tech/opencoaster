@@ -60,7 +60,8 @@ export function withoutColumns(
     ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
     ...(version < 17 ? [newWorld.map.pathStyle] : []),
     ...(version < 18 ? [newWorld.guests.cols.voucherKind, newWorld.guests.cols.voucherTarget] : []),
-    ...(version < 29
+    ...(version < 29 ? [newWorld.guests.cols.happinessTarget] : []),
+    ...(version < 30
       ? [
           newWorld.rides.cols.downtimeBucket0,
           newWorld.rides.cols.downtimeBucket1,
