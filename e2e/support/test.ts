@@ -19,7 +19,9 @@ export const test = base.extend<{ freshBrowser: Browser }, { closeSpecBrowser: v
   freshBrowser: async ({ browserName, playwright }, use, testInfo) => {
     const browserType = playwright[browserName];
     const options = testInfo.project.use.launchOptions as Parameters<typeof browserType.launch>[0];
-    const browser = await specBrowsers.acquire(testInfo.file, () => browserType.launch(options));
+    const browser = await specBrowsers.acquire(testInfo.file, testInfo.testId, () =>
+      browserType.launch(options),
+    );
     try {
       await use(browser);
     } finally {

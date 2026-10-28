@@ -1,11 +1,11 @@
 export class SpecBrowserPool<T extends { close(): Promise<void> }> {
-  private current: { file: string; browser: T } | undefined;
+  private current: { file: string; testId: string; browser: T } | undefined;
 
-  async acquire(file: string, launch: () => Promise<T>): Promise<T> {
+  async acquire(file: string, testId: string, launch: () => Promise<T>): Promise<T> {
     const current = this.current;
-    if (current && current.file === file) return current.browser;
+    if (current && current.file === file && current.testId === testId) return current.browser;
     await this.close();
-    this.current = { file, browser: await launch() };
+    this.current = { file, testId, browser: await launch() };
     return this.current.browser;
   }
 
