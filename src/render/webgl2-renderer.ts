@@ -85,6 +85,8 @@ import { anchorKey, rotatedPositionSum } from './depth-key';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
 import type { ObjectPickTarget } from '../input/object-picking';
 import type { Rotation } from './projection';
+import { LampLightBuffer, collectLitLamps, darknessAt, lampsLit } from './night-lighting';
+import { WebGLNightPass } from './night-pass-webgl';
 import {
   pathElementSprite,
   lowestPathBases,
@@ -752,6 +754,8 @@ export class WebGL2Renderer implements Renderer {
   private visibleCount = 0;
   private gridlinesActive = false;
   private dpr = 1;
+  private nightPass: WebGLNightPass | null = null;
+  private readonly lampLights = new LampLightBuffer();
   private lost = false;
   private readonly onLost = (event: Event): void => {
     event.preventDefault();
@@ -759,6 +763,7 @@ export class WebGL2Renderer implements Renderer {
   };
   private readonly onRestored = (): void => {
     this.lost = false;
+    this.nightPass?.reset();
     this.initializeResources();
   };
 
@@ -1060,7 +1065,34 @@ export class WebGL2Renderer implements Renderer {
     );
     this.idMode = false;
     gl.disable(gl.DEPTH_TEST);
+    if (!idMode) this.drawNight(snapshot, map, camera, viewportWidth, viewportHeight);
     return true;
+  }
+
+  /** Dims the finished frame with the time of day and lights the lamps once it is dark enough. */
+  private drawNight(
+    snapshot: Snapshot | null,
+    map: MapData,
+    camera: Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    if (!snapshot || !camera.dayNight || !this.gl) return;
+    const darkness = darknessAt(snapshot.tick);
+    const lampCount =
+      camera.lampLights && lampsLit(darkness)
+        ? collectLitLamps(map, camera, viewportWidth, viewportHeight, this.lampLights)
+        : 0;
+    this.nightPass ??= new WebGLNightPass(this.gl);
+    this.nightPass.draw(
+      darkness,
+      this.lampLights,
+      lampCount,
+      camera.zoom,
+      this.dpr,
+      this.canvas!.width,
+      this.canvas!.height,
+    );
   }
 
   /** Draws the uploaded instance runs, binding each run's atlas pages to the texture slots. */

@@ -43,6 +43,7 @@ import { openClearWindow, openWaterWindow } from './windows/area-windows';
 import { openPathWindow } from './windows/path-window';
 import type { PieceSlope } from '../app/tools/path/run';
 import { displayOptionEnabled, setDisplayOption } from './display-options';
+import type { DisplayOption } from './display-options';
 import { shortcutFor } from './shortcuts';
 import type { KeyLike } from './shortcuts';
 
@@ -692,6 +693,8 @@ export class GameUI {
         this.optionToggle('Gridlines', 'gridlines'),
         this.optionToggle('Underground view (U)', 'underground-view'),
         this.optionToggle('Construction marker', 'construction-marker'),
+        this.optionToggle('Day and night', 'day-night-cycle'),
+        this.optionToggle('Lamp lighting', 'lamp-lighting'),
         this.optionToggle('Reduce resolution when slow', 'reduce-resolution-when-slow'),
         this.optionToggle('Performance overlay', 'performance-overlay', (on) =>
           this.parent.classList.toggle('hud-visible', on),
@@ -752,7 +755,7 @@ export class GameUI {
       label.title = unavailableReason;
     }
     input.dataset.option = key;
-    input.checked = localStorage.getItem(`opencoaster-option-${key}`) === 'true';
+    input.checked = displayOptionEnabled(key as DisplayOption);
     input.addEventListener('change', () => {
       localStorage.setItem(`opencoaster-option-${key}`, String(input.checked));
       onChange?.(input.checked);

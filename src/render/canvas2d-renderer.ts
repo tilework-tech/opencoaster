@@ -1,4 +1,6 @@
 import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
+import { LampLightBuffer, collectLitLamps, darknessAt, lampsLit } from './night-lighting';
+import { CanvasNightPass } from './night-pass-canvas';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
 import {
   SNAPSHOT_STRIDE,
@@ -132,6 +134,8 @@ export class Canvas2DRenderer implements Renderer {
   private cw = 1;
   private ch = 1;
   private dpr = 1;
+  private readonly nightPass = new CanvasNightPass();
+  private readonly lampLights = new LampLightBuffer();
   private readonly tmp = new Float64Array(2);
   private readonly cliffPoints = Array.from({ length: 4 }, () => new Float64Array(2));
   private readonly pathLow = new Float64Array(2);
@@ -388,6 +392,24 @@ export class Canvas2DRenderer implements Renderer {
     for (const item of this.drawOrder) if (!item.ground) item.draw();
     surface?.finish();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (snapshot && cam.dayNight && !this.recordIds) this.drawNight(real, snapshot, map, cam);
+  }
+
+  /** Dims the finished frame with the time of day and lights the lamps once it is dark enough. */
+  private drawNight(
+    ctx: CanvasRenderingContext2D,
+    snapshot: Snapshot,
+    map: MapData,
+    cam: Camera,
+  ): void {
+    const darkness = darknessAt(snapshot.tick);
+    const viewportWidth = this.cw / this.dpr;
+    const viewportHeight = this.ch / this.dpr;
+    const lampCount =
+      cam.lampLights && lampsLit(darkness)
+        ? collectLitLamps(map, cam, viewportWidth, viewportHeight, this.lampLights)
+        : 0;
+    this.nightPass.draw(ctx, darkness, this.lampLights, lampCount, cam.zoom, this.dpr);
   }
 
   /**
