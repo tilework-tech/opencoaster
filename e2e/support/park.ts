@@ -200,7 +200,7 @@ export async function waitForSimulationTicks(
   page: Page,
   afterTick: number,
   tickCount: number,
-): Promise<number> {
+): Promise<void> {
   await page.waitForFunction(
     ({ after, count }) => {
       const tick = (window as unknown as { __sim?: { latest?: { tick?: number } } }).__sim?.latest
@@ -209,9 +209,6 @@ export async function waitForSimulationTicks(
     },
     { after: afterTick, count: tickCount },
     { timeout: 30_000 },
-  );
-  return page.evaluate(
-    () => (window as unknown as { __sim: { latest: { tick: number } } }).__sim.latest.tick,
   );
 }
 

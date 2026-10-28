@@ -36,7 +36,7 @@ for (const mobile of [false, true]) {
       const deadline = Date.now() + 300_000;
       let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && !completedGuest) {
-        sampledTick = await waitForSimulationTicks(page, sampledTick, 6);
+        await waitForSimulationTicks(page, sampledTick, 6);
         const p = await probe(page);
         sampledTick = p.tick;
         const queuing = p.guests.filter((g) => g.state === 1);

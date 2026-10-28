@@ -34,7 +34,7 @@ for (const mobile of [false, true]) {
       const deadline = Date.now() + 200_000;
       let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && peak < 4) {
-        sampledTick = await waitForSimulationTicks(page, sampledTick, 12);
+        await waitForSimulationTicks(page, sampledTick, 12);
         const p = await probe(page);
         sampledTick = p.tick;
         const queuing = p.guests.filter((g) => g.state === 1);
@@ -83,7 +83,7 @@ for (const mobile of [false, true]) {
       const deadline = Date.now() + 200_000;
       let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && !(turnedAway > 0 && fullest > 0)) {
-        sampledTick = await waitForSimulationTicks(page, sampledTick, 12);
+        await waitForSimulationTicks(page, sampledTick, 12);
         const p = await probe(page);
         sampledTick = p.tick;
         const capacity = p.ride!.capacity;

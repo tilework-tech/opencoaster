@@ -91,7 +91,7 @@ test('a crowd on the footpath beside a ride exit never steps onto the hut', asyn
   for (let sample = 0; sample < 90; sample++) {
     const seen = await occupancy(page);
     if (seen.tick === lastTick) {
-      lastTick = await waitForSimulationTicks(page, lastTick, 32);
+      await waitForSimulationTicks(page, lastTick, 32);
       continue;
     }
     lastTick = seen.tick;
@@ -102,7 +102,7 @@ test('a crowd on the footpath beside a ride exit never steps onto the hut', asyn
     if (process.env.EXIT_PROOF_DIR && (sample === 10 || sample === 30 || sample === 50)) {
       await page.screenshot({ path: `${process.env.EXIT_PROOF_DIR}/crowd-${sample}.png` });
     }
-    lastTick = await waitForSimulationTicks(page, seen.tick, 32);
+    await waitForSimulationTicks(page, seen.tick, 32);
   }
 
   if (process.env.EXIT_PROOF_DIR)
