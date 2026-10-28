@@ -119,6 +119,17 @@ Common dispatch controls reported for RCT2:
 
 **Confidence:** manual verifies that these control families exist; the exact option semantics above are from one secondary operations reference and require behavior validation. **RCT2 difference:** block-sectioned continuous-circuit mode is reported as new in RCT2; RCT1 has no block-sectioned mode.
 
+#### Trains per ride by mode
+
+Behaviour reference only (OpenRCT2's description of the max-train calculation was read; no code is copied):
+
+- **Continuous circuit, block-sectioned (and powered-launch block-sectioned):** the limit is the number of stations plus the number of block brakes, minus one, never below 1. One section is always left empty so trains can advance. With no block brakes, a single station gives a limit of 1; with N block brakes and one station it is N. Trains are kept apart by the sections: a train waits at a closed block brake until the section ahead is free. Track length and train length do not enter the limit. Source: OpenRCT2 `Ride::updateMaxVehicles` (https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/ride/Ride.cpp) and the community guides below.
+- **Continuous circuit (no sections):** the limit comes from how much track there is per train, not from block brakes: the station length decides how many trains the platform holds, and for continuous circuit and station-to-station rides whose type allows more vehicles, the total track length does (a quarter of the length, reduced as the maximum speed rises). Block brakes in this mode do not separate trains. Players report about two trains is typical (https://forums.openrct2.org/topic/44-tutorial-block-brakes/).
+- **Shuttle, reverse-incline launched shuttle, powered launch (no sections), LIM launch:** always 1 train.
+- **Block-section counting:** the station counts as a section; a chain lift counts only when it is the last piece before the station (https://forums.openrct2.org/topic/44-tutorial-block-brakes/); "trains = sections - 1" (https://rctmart.rctspace.com/fossil/BlockBrakes.html).
+
+Cars per train is limited by the station platform length (block-sectioned mode also subtracts a safety margin) and by the ride type's mass limit.
+
 Suggested dispatch state machine (design, not a claimed engine formula): `Closed → Testing → Open/WaitingForLoad → Dispatching/Running → Unloading → Open/WaitingForLoad`; breakdown transitions from any operating state to `BrokenDown`, rejects new boarding, handles occupied vehicles safely, then mechanic repair returns to open/closed policy. Check `minWait` first, then dispatch if `load >= threshold OR maxWait elapsed`, with synchronized departure as an additional gate unless a documented emergency/force rule supersedes it. **Confidence: inferred implementation.**
 
 ### 2.5 Reliability, inspections, breakdowns, and crashes

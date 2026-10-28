@@ -261,6 +261,9 @@ export async function bootstrap(): Promise<void> {
     setRideTrains(rideId, trains, cars) {
       sim.command({ type: 'setRideTrains', rideId, trains, cars });
     },
+    setRideMode(rideId, mode) {
+      sim.command({ type: 'setRideMode', rideId, mode });
+    },
     setRideStatus(rideId, status) {
       sim.command({ type: 'setRideStatus', rideId, status });
     },

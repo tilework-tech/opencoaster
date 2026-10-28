@@ -5,6 +5,7 @@ import {
   MAX_TRAINS_PER_RIDE,
   carsForCapacity,
   findRideTrain,
+  maxTrainsForRide,
   removeRideTrains,
   rideTrainSlots,
   spawnRideTrain,
@@ -12,7 +13,6 @@ import {
 import { MAX_RATING } from '../vehicles/vehicle-ratings';
 import { VehicleState } from '../vehicles/vehicle-store';
 import {
-  maxTrainsOnTrack,
   stationDepartureClear,
   stationZoneClear,
   trainHeldAtBoundary,
@@ -186,13 +186,13 @@ function showPhase(world: World, slot: number, trains: readonly number[]): void 
 }
 
 /**
- * Trains the ride runs: the operator's count when set, else as many as it can. Block sections cap
- * both, since a section holds at most one train.
+ * Trains the ride runs: the operator's count when set, else every block section's worth on a
+ * block-sectioned ride and one train on a continuous circuit. The ride's limit caps both.
  */
 function trainTarget(world: World, slot: number, track: VehicleTrack): number {
-  const blocks = maxTrainsOnTrack(track);
   const requested = world.rides.cols.trainCount[slot];
-  return Math.min(requested === 0 ? MAX_TRAINS_PER_RIDE : requested, blocks);
+  const automatic = track.blockSectioned ? MAX_TRAINS_PER_RIDE : 1;
+  return Math.min(requested === 0 ? automatic : requested, maxTrainsForRide(world, track.rideId));
 }
 
 function operate(world: World, slot: number, rideId: number): void {

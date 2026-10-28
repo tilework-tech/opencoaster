@@ -63,3 +63,5 @@ Path: @/src/ui
 - Guest spawning from the toolbar is a development control that sends the existing `spawnGuests` command.
 
 Created and maintained by Nori.
+
+- The ride window's Operating tab has a Ride mode select (shown when the ride type offers more than one mode; locked while the ride is not closed) and the trains/cars controls. The train-limit line under them explains the limit from `RideInfo.Mode`, `MaxTrains` and `MaxCars` and, in block-sectioned mode, says to add block brakes for more trains.

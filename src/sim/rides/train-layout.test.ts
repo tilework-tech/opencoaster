@@ -12,6 +12,7 @@ import {
   run,
 } from './coaster-fixtures';
 import { RideResult } from './ride-results';
+import { RideMode } from './ride-modes';
 import { RideType } from './ride-types';
 import { maxCarsForRide, maxTrainsForRide, rideTrainSlots } from '../vehicles/ride-trains';
 import { VehicleState } from '../vehicles/vehicle-store';
@@ -25,6 +26,7 @@ function openedCoaster(): { sim: Simulation; rideId: number; slot: number } {
   const sim = flatOwnedSim(1);
   const rideId = createCoaster(sim, RideType.WoodenCoaster);
   buildCircuit(sim, rideId, TWO_BLOCK_LAYOUT);
+  sim.enqueue({ type: 'setRideMode', rideId, mode: RideMode.ContinuousCircuitBlockSectioned });
   sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
   run(sim, 8000);
   connectStation(sim, rideId);
@@ -37,6 +39,7 @@ function closedCoaster(): { sim: Simulation; rideId: number; slot: number } {
   const sim = flatOwnedSim(1);
   const rideId = createCoaster(sim, RideType.WoodenCoaster);
   buildCircuit(sim, rideId, TWO_BLOCK_LAYOUT);
+  sim.enqueue({ type: 'setRideMode', rideId, mode: RideMode.ContinuousCircuitBlockSectioned });
   sim.enqueue({ type: 'setRideStatus', rideId, status: 'test' });
   run(sim, 8000);
   connectStation(sim, rideId);

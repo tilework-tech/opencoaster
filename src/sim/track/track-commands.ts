@@ -8,6 +8,7 @@ import { ElementType, Surface } from '../map/tile-map';
 import { rideCoversTile } from '../rides/ride-footprint';
 import { badTunnelEntry, undergroundTiles } from './clearance';
 import { invalidateRideTest } from '../rides/coaster';
+import { enableBlockSections } from '../rides/ride-operations';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
 import { PIECES } from './catalog';
@@ -138,6 +139,7 @@ function applyPlace(world: World, c: Extract<TrackCommand, { type: 'placeTrack' 
   placeTrack(world, req);
   charge(world, LedgerCategory.RideConstruction, PIECES[req.pieceType].cost);
   invalidateRideTest(world, req.rideId);
+  if (req.mode === PieceMode.BlockBrake) enableBlockSections(world, req.rideId);
   return TrackResult.Ok;
 }
 

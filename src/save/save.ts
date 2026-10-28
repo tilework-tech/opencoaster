@@ -21,6 +21,8 @@ import {
   RidePhase,
   RideState,
 } from '../sim/rides/ride-store';
+import { RideMode } from '../sim/rides/ride-modes';
+import { PieceMode } from '../sim/track/track-types';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 import { closeInvalidOpenRides } from '../sim/rides/ride-commands';
@@ -31,7 +33,9 @@ import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
+/** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
+const BLOCK_MODE_SAVE_VERSION = 27;
 /** Track heights count half-level track steps from this version; earlier saves store whole levels. */
 const TRACK_STEP_SAVE_VERSION = 26;
 const PRE_TRACK_STEP_SAVE_VERSION = 25;
@@ -646,6 +650,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version < WALL_EDGE_SAVE_VERSION) migrateWallEdges(world);
   if (header.version < QUEUE_LINKS_SAVE_VERSION) migrateQueueLinks(world);
   if (header.version < TRACK_STEP_SAVE_VERSION) migrateTrackHeights(world);
+  if (header.version < BLOCK_MODE_SAVE_VERSION) migrateBlockBrakeRides(world);
   Object.assign(world.weather, header.weather);
   const research =
     header.version < RESEARCH_UNITS_SAVE_VERSION
@@ -657,6 +662,20 @@ export function deserialize(bytes: Uint8Array): World {
   closeInvalidOpenRides(world);
   repairSavedRideTrains(world);
   return world;
+}
+
+/** Rides with block brakes ran their trains by block section before the mode decided it. */
+function migrateBlockBrakeRides(world: World): void {
+  const pieces = world.track.pieces;
+  const rides = world.rides.cols;
+  for (let slot = 0; slot < pieces.count; slot++) {
+    if (pieces.cols.mode[slot] !== PieceMode.BlockBrake) continue;
+    const rideSlot = world.rides.idToSlot[pieces.cols.rideId[slot]];
+    if (rideSlot < 0) continue;
+    const modes = RIDE_CATALOG[rides.typeId[rideSlot] as RideType]?.modes ?? [];
+    if (modes.some((entry) => entry.mode === RideMode.ContinuousCircuitBlockSectioned))
+      rides.mode[rideSlot] = RideMode.ContinuousCircuitBlockSectioned;
+  }
 }
 
 function migrateWallEdges(world: World): void {
