@@ -39,3 +39,12 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Ensure custom domain
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api repos/${{ github.repository }}/pages --jq '.cname // ""')
+          if [ "$current" != "opencoaster.noriagentic.com" ]; then
+            gh api -X PUT repos/${{ github.repository }}/pages -f cname=opencoaster.noriagentic.com
+          fi
