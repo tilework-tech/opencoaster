@@ -4,6 +4,7 @@ import { Simulation } from '../sim/core/simulation';
 import type { World } from '../sim/core/world';
 import { queueGuests, run } from '../sim/rides/coaster-fixtures';
 import { getRideTestMeasurements, isRideTested } from '../sim/rides/ride-operations';
+import { RELIABILITY_MAX } from '../sim/rides/ride-maintenance';
 import { RideResult } from '../sim/rides/ride-results';
 import { RideState } from '../sim/rides/ride-store';
 import { RideType } from '../sim/rides/ride-types';
@@ -102,6 +103,11 @@ describe("the player's Bramblewood Hollow park", () => {
     sim.step();
     for (const rideId of [wood, steel])
       expect(world.rides.cols.state[slotOf(rideId)]).toBe(RideState.Open);
+    // The saved rides are worn; a random breakdown would stop a lap and say nothing about the layout.
+    for (const rideId of [wood, steel]) {
+      world.rides.cols.reliabilityRaw[slotOf(rideId)] = RELIABILITY_MAX;
+      world.rides.cols.reliability[slotOf(rideId)] = 100;
+    }
     queueGuests(sim, steel, 24);
     run(sim, 12_000);
 
