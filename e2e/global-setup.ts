@@ -33,6 +33,13 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     runArtCommand('tools/art/pack-cli.ts');
   }
 
+  if (!process.env.CI) {
+    const reuseExistingServer = await fetch('http://127.0.0.1:4173/@vite/client')
+      .then((response) => response.ok)
+      .catch(() => false);
+    if (reuseExistingServer) return async () => {};
+  }
+
   const server = await createServer({
     configFile: resolve('vite.config.ts'),
     server: { host: '127.0.0.1', port: 4173, strictPort: true },
