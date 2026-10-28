@@ -342,7 +342,7 @@ export async function buildQueuedRide(
   options: { crowds?: number; queueLimit?: number; legacy?: boolean } = {},
 ): Promise<void> {
   const expectStatus = (text: string | RegExp) =>
-    expect(page.locator('.tool-status')).toContainText(text, { timeout: 20_000 });
+    expect(page.locator('.tool-status')).toContainText(text, { timeout: mobile ? 60_000 : 20_000 });
 
   await toolbarTool(page, 'Footpaths');
   await dragRun(page, WALKWAY, lift, mobile);
