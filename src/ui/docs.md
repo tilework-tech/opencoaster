@@ -8,7 +8,7 @@ Path: @/src/ui
 - Displays worker snapshots and timing statistics; authoritative game state remains in the simulation worker.
 - Below 700 px width windows become stacked bottom sheets (only the front sheet is expanded; tapping a title collapses/expands), while toolbar actions move under a labeled Actions menu. The mobile menu includes separate clockwise and anticlockwise rotation buttons alongside pause, footpaths, rides, finance, staff, park, and save/load, with touch targets of at least 44 px. Pointer focus preserves a collapsed sheet so its title-bar controls, including close, remain tappable.
 - Hosts the game shell: a title screen, an in-game menu (reached from Game options), and a one-time scenario outcome dialog.
-- Title and scenario selection use the same bevelled window chrome as the in-game interface. Each category tab shows how many of its scenarios have been won (`Beginner Parks (1/4)`), won scenarios carry a Completed badge in the list, and the preview states the completion date or `Not completed`; the title screen takes a progress callback so it stays independent of storage. New Game groups scenarios under the five manual-listed categories and shows a park illustration, objective and starting details for the selected park; scenario JSON defaults to Beginner Parks unless `category` is set.
+- Title and scenario selection use the same bevelled window chrome as the in-game interface. Each category tab shows how many of its scenarios have been won (`Beginner Parks (1/4)`), won scenarios carry a Completed badge in the list, and the preview states the completion date or `Not completed`; the title screen takes a progress callback so it stays independent of storage. New Game shows a map-specific top-down image on each scenario card and for the selected park, with objective/deadline, category difficulty and map dimensions alongside it. The images are generated from prepared scenario maps before development or production builds; the UI selects native or 2× assets using `srcset`. Scenario JSON defaults to Beginner Parks unless `category` is set.
 
 ### How it fits into the larger codebase
 
@@ -19,6 +19,7 @@ Path: @/src/ui
 - [Hud](hud.ts) shows worker timing and render statistics; it is hidden until Game > Options > Display > Performance overlay is turned on. It reports FPS, renderer frame time, visible sprite count and the current render scale.
 - Guest details label hunger and thirst as satisfaction because the stored values use a satiation scale: high means full.
 - [title-screen.ts](title-screen.ts), [save-menu.ts](save-menu.ts) and [scenario-dialog.ts](scenario-dialog.ts) are DOM overlays. They call the [app save/load controller](../app/save-load/docs.md), which coordinates [game-saves.ts](../save/game-saves.ts), [slot-store.ts](../save/slot-store.ts) and [SimClient](../worker/sim-client.ts) through callbacks.
+- [title-screen.ts](title-screen.ts) reads scenario definitions from the catalog and points preview images at the generated files in `public/scenario-previews/`. [Scenario preview generation](../../tools/scenario-previews/docs.md) prepares an isolated `World` per source scenario and runs before `dev` and `build`; the UI therefore loads static images without waiting for simulation startup or sprite categories.
 
 ### Core Implementation
 
