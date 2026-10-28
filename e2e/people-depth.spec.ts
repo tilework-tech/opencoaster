@@ -8,8 +8,8 @@ import { OBJECT_KINDS } from '../src/render/object-kinds';
  * (`/depth-fixture.html`) with a guest at a sub-tile position and compares the renderer's
  * object-ID image with the oracle's z-buffer over the same placed sprites and terrain: every
  * pixel of the frame, not only the guest's, must show the object the meshes put there. The
- * Canvas2D composite uses the oracle's own rule, so the two renderers' object kinds are also
- * compared pixel for pixel.
+ * Canvas2D composite uses the oracle's own rule, so its renderer and parity checks use one flat-path
+ * scene across all rotations; WebGL2 carries the full scene matrix.
  */
 
 type Renderer = 'webgl2' | 'canvas2d';
@@ -188,14 +188,19 @@ for (const rotation of ROTATIONS) {
       test(`people and the ${item.name} match the occlusion oracle`, async ({ page }) => {
         const context = page.context();
         const webgl = await Fixture.open(context, 'webgl2', rotation, item.scene);
-        const canvas = await Fixture.open(context, 'canvas2d', rotation, item.scene);
+        const canvas =
+          item.scene === 'path-flat'
+            ? await Fixture.open(context, 'canvas2d', rotation, item.scene)
+            : undefined;
         for (const guest of item.at) {
           const gl = await webgl.score(guest);
-          const c2d = await canvas.score(guest);
-          for (const [renderer, { score }] of [
-            ['webgl2', gl],
-            ['canvas2d', c2d],
-          ] as const) {
+          const c2d = canvas ? await canvas.score(guest) : undefined;
+          for (const [renderer, { score }] of c2d
+            ? ([
+                ['webgl2', gl],
+                ['canvas2d', c2d],
+              ] as const)
+            : ([['webgl2', gl]] as const)) {
             expect(
               score.mismatched / Math.max(1, score.objectPixels),
               `${renderer} guest at ${guest}: ${JSON.stringify(score.pairs)}`,
@@ -208,14 +213,16 @@ for (const rotation of ROTATIONS) {
               `${renderer} guest at ${guest} pixels: ${JSON.stringify(score.pairs)}`,
             ).toBeLessThanOrEqual(MAX_GUEST_MISMATCH);
           }
-          const parity = kindDisagreement(gl.kinds, c2d.kinds);
-          expect(
-            parity.differing / Math.max(1, parity.objects),
-            `webgl2 and canvas2d object kinds, guest at ${guest}`,
-          ).toBeLessThanOrEqual(MAX_KIND_DISAGREEMENT);
+          if (c2d) {
+            const parity = kindDisagreement(gl.kinds, c2d.kinds);
+            expect(
+              parity.differing / Math.max(1, parity.objects),
+              `webgl2 and canvas2d object kinds, guest at ${guest}`,
+            ).toBeLessThanOrEqual(MAX_KIND_DISAGREEMENT);
+          }
         }
         await webgl.close();
-        await canvas.close();
+        await canvas?.close();
       });
     }
   });

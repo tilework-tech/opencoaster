@@ -35,7 +35,7 @@ async function frame(page: Page, canvas2d: boolean): Promise<Buffer> {
 }
 
 for (const renderer of ['webgl2', 'canvas2d'] as const) {
-  test(`${LABEL} ${renderer}`, async ({ browser }, testInfo) => {
+  test(`${LABEL} ${renderer}`, async ({ freshBrowser: browser }, testInfo) => {
     test.skip(!LABEL, 'proof capture only');
     test.setTimeout(900_000);
     await mkdir(OUT, { recursive: true });

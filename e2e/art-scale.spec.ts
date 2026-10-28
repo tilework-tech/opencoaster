@@ -146,7 +146,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
   const mobile = profile === 'pixel-8';
   test.describe(`art scale on ${profile}`, () => {
     for (const ride of RIDES) {
-      test(`${ride.name} covers its tile footprint`, async ({ browser }, testInfo) => {
+      test(`${ride.name} covers its tile footprint`, async ({ freshBrowser: browser }, testInfo) => {
         test.setTimeout(120_000);
         const page = await openPage(browser, mobile);
         page.setDefaultTimeout(8_000);

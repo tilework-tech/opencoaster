@@ -43,7 +43,7 @@ test('height marks are off by default, toggle from Options > Display, and persis
   await expect(page.locator('.terrain-aids')).toBeHidden();
 });
 
-test('hovering a tile reads out its height', async ({ browser }) => {
+test('hovering a tile reads out its height', async ({ freshBrowser: browser }) => {
   const page = await openPage(browser, false);
   await page.setViewportSize({ width: 1280, height: 800 });
   await startScenario(page, 'Meadowbrook Green');
@@ -52,7 +52,7 @@ test('hovering a tile reads out its height', async ({ browser }) => {
   await expect(page.locator('.height-readout')).toHaveText(/^Height \d+/);
 });
 
-test('the construction marker option is available and persists', async ({ browser }) => {
+test('the construction marker option is available and persists', async ({ freshBrowser: browser }) => {
   const page = await openPage(browser, false);
   await page.setViewportSize({ width: 1280, height: 800 });
   await startScenario(page, 'Meadowbrook Green');

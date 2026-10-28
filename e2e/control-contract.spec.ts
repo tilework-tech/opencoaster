@@ -740,7 +740,7 @@ test('every window and camera shortcut produces its documented effect', async ({
   await expect(toolbar.getByRole('button', { name: 'Resume' })).toBeVisible();
 });
 
-test('Pixel 8 can close a pinned staff window', async ({ browser }) => {
+test('Pixel 8 can close a pinned staff window', async ({ freshBrowser: browser }) => {
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
   const context = await createTestContext(browser, device);

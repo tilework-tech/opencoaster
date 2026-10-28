@@ -9,10 +9,12 @@ interface SpecDuration {
 
 export class SpecTimingReporter implements Reporter {
   private readonly durations = new Map<string, number>();
+  private readonly outputPath: string;
 
-  constructor(
-    private readonly outputPath = process.env.E2E_TIMINGS_FILE ?? '.local/e2e/spec-timings.json',
-  ) {}
+  constructor(options: { outputPath?: string } = {}) {
+    this.outputPath =
+      options.outputPath ?? process.env.E2E_TIMINGS_FILE ?? '.local/e2e/spec-timings.json';
+  }
 
   onTestEnd(test: TestCase, result: TestResult): void {
     const file = test.location.file;

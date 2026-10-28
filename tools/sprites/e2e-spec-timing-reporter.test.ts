@@ -16,7 +16,7 @@ describe('SpecTimingReporter', () => {
   it('writes each spec total and lists the 15 slowest specs first', async () => {
     outputDir = await mkdtemp(join(tmpdir(), 'opencoaster-e2e-timings-'));
     const outputPath = join(outputDir, 'timings.json');
-    const reporter = new SpecTimingReporter(outputPath);
+    const reporter = new SpecTimingReporter({ outputPath });
 
     for (let i = 0; i < 16; i++) {
       const test = { location: { file: `/repo/e2e/spec-${i}.spec.ts` } } as TestCase;

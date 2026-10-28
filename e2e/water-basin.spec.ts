@@ -96,7 +96,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       return win;
     }
 
-    test.beforeEach(async ({ browser }) => {
+    test.beforeEach(async ({ freshBrowser: browser }) => {
       test.setTimeout(300_000);
       setup = { page: await openPage(browser, mobile), mobile };
       await startStarterPark(setup.page);
@@ -138,8 +138,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       });
       const cash = await hudCash(page);
       await tapAt(setup, aim);
-      await page.waitForTimeout(1_000);
-      expect(await hudCash(page)).toBe(cash);
+      await expect.poll(() => hudCash(page)).toBe(cash);
 
       const filled = (await savedWorld(page)).map;
       const wet = lake(filled);

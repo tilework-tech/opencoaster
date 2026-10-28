@@ -30,7 +30,7 @@ const SCENES = { block: BLOCK_QUEUE, snake: SNAKE_QUEUE } as const;
 
 for (const renderer of ['webgl2', 'canvas2d'] as const) {
   for (const [scene, layout] of Object.entries(SCENES)) {
-    test(`${LABEL} ${scene} ${renderer}`, async ({ browser }, testInfo) => {
+    test(`${LABEL} ${scene} ${renderer}`, async ({ freshBrowser: browser }, testInfo) => {
       test.skip(!LABEL, 'proof capture only');
       test.setTimeout(900_000);
       await mkdir(OUT, { recursive: true });

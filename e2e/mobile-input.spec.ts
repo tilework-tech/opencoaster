@@ -238,7 +238,7 @@ for (const { name, device } of mobileProfiles) {
   });
 }
 
-test('mobile viewport resizes, pauses while hidden, and resumes on return', async ({ browser }) => {
+test('mobile viewport resizes, pauses while hidden, and resumes on return', async ({ freshBrowser: browser }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
   const context = await createTestContext(browser, { ...options });
@@ -304,7 +304,7 @@ test('mobile viewport resizes, pauses while hidden, and resumes on return', asyn
   await context.close();
 });
 
-test('mobile-emulated rendering reports frame rate with 2,000 guests', async ({ browser }) => {
+test('mobile-emulated rendering reports frame rate with 2,000 guests', async ({ freshBrowser: browser }) => {
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
   const context = await createTestContext(browser, { ...options });

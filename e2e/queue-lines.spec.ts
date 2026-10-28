@@ -68,7 +68,7 @@ for (const mobile of [false, true]) {
       expect(peak, 'guests queued').toBeGreaterThanOrEqual(4);
     });
 
-    test('a full queue turns guests away', async ({ browser }, testInfo) => {
+    test('a full queue turns guests away', async ({ freshBrowser: browser }, testInfo) => {
       test.setTimeout(480_000);
       const page = await openPage(browser, mobile);
       page.setDefaultTimeout(15_000);
