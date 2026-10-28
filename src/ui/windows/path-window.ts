@@ -1,4 +1,5 @@
 import { button, element } from '../dom';
+import { icon } from '../icons';
 import type { UiContext, WindowController } from '../ui-types';
 import { takeFootpathHint } from '../../app/tools/path/state';
 import type { PathMode } from '../../app/tools/path/state';
@@ -11,10 +12,15 @@ const SURFACES: ReadonlyArray<{ style: PathStyle; label: string; swatch: string 
   { style: PathStyle.Dirt, label: 'Dirt', swatch: 'dirt' },
 ];
 
-const SLOPES: ReadonlyArray<{ slope: PieceSlope; label: string }> = [
-  { slope: 'level', label: 'Level' },
-  { slope: 'up', label: 'Up' },
-  { slope: 'down', label: 'Down' },
+const SLOPES: ReadonlyArray<{
+  slope: PieceSlope;
+  label: string;
+  key: string;
+  icon: 'slopeUp' | 'slopeLevel' | 'slopeDown';
+}> = [
+  { slope: 'level', label: 'Level', key: 'L', icon: 'slopeLevel' },
+  { slope: 'up', label: 'Up', key: 'U', icon: 'slopeUp' },
+  { slope: 'down', label: 'Down', key: 'D', icon: 'slopeDown' },
 ];
 
 /** Arrow pad laid out as a cross: north is -y on the map, so it sits above the centre. */
@@ -25,7 +31,8 @@ const ARROWS: ReadonlyArray<{ dir: number; glyph: string; label: string; cell: s
   { dir: 1, glyph: '↓', label: 'Face +Y', cell: 'bottom' },
 ];
 
-const HINT = 'Drag across ground to lay a run; release to build.';
+const HINT =
+  'Drag across ground, then release to build. For raised paths, choose Piece by piece, click a path end, then use Up, Level or Down.';
 
 export const PATH_TABS = [
   { id: 'line', label: 'Lay line', icon: 'paths' },
@@ -125,7 +132,7 @@ export function openPathWindow(ctx: UiContext): WindowController {
   linePane.append(element('p', 'ui-help', 'Tap one tile for one piece. Red tiles say why not.'));
 
   piecePane.append(
-    element('p', 'ui-help', 'Click a tile to set the cursor, then build piece by piece.'),
+    element('p', 'ui-help', 'Click a path end to lock on, or any tile to place a cursor.'),
   );
   const arrows = element('div', 'path-arrows');
   arrows.setAttribute('role', 'group');
@@ -144,6 +151,7 @@ export function openPathWindow(ctx: UiContext): WindowController {
     cell.setAttribute('aria-label', arrow.label);
     cell.setAttribute('aria-pressed', String(state.dir === arrow.dir));
     cell.dataset.cell = arrow.cell;
+    cell.dataset.dir = String(arrow.dir);
     arrowButtons.push(cell);
     arrows.append(cell);
   }
@@ -155,7 +163,7 @@ export function openPathWindow(ctx: UiContext): WindowController {
   const slopeButtons: HTMLButtonElement[] = [];
   for (const option of SLOPES) {
     const slopeButton = button(
-      option.label,
+      '',
       () => {
         footpath.setSlope(option.slope);
         for (const other of slopeButtons)
@@ -163,11 +171,23 @@ export function openPathWindow(ctx: UiContext): WindowController {
       },
       'ui-button',
     );
+    slopeButton.setAttribute('aria-label', option.label);
+    slopeButton.setAttribute('aria-keyshortcuts', option.key);
+    slopeButton.title = `${option.label} · ${option.key}`;
+    slopeButton.replaceChildren(
+      icon(option.icon, 16),
+      element('span', 'path-slope-label', `${option.label} ${option.key}`),
+    );
     slopeButton.setAttribute('aria-pressed', String(state.slope === option.slope));
+    slopeButton.dataset.slope = option.slope;
     slopeButtons.push(slopeButton);
     slopes.append(slopeButton);
   }
   piecePane.append(slopes);
+
+  const heightReadout = element('p', 'ui-help path-height-readout', 'Build height: —');
+  heightReadout.setAttribute('aria-live', 'polite');
+  piecePane.append(heightReadout);
 
   const actions = element('div', 'path-piece-actions');
   actions.append(
@@ -181,6 +201,10 @@ export function openPathWindow(ctx: UiContext): WindowController {
   return {
     update() {
       pressAll(queueToggles, () => state.queue);
+      pressAll(arrowButtons, (other) => Number(other.dataset.dir) === state.dir);
+      pressAll(slopeButtons, (other) => other.dataset.slope === state.slope);
+      const target = footpath.buildTarget;
+      heightReadout.textContent = `Build height: ${target?.level ?? '—'}`;
     },
   };
 }

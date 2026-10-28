@@ -177,10 +177,13 @@ test.describe('footpath tool (desktop)', () => {
   });
 
   test('the Footpaths window shows its hint the first time only', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('opencoaster.footpathHintShown', '1');
+    });
     await startStarterPark(page);
     await toolbarTool(page, 'Footpaths');
     await expect(page.locator('.path-hint')).toHaveText(
-      'Drag across ground to lay a run; release to build.',
+      'Drag across ground, then release to build. For raised paths, choose Piece by piece, click a path end, then use Up, Level or Down.',
     );
 
     await toolbarTool(page, 'Footpaths');

@@ -32,6 +32,7 @@ export interface PathToolDeps {
 interface MapPath {
   base: number;
   rises: number;
+  edges: number;
 }
 
 /** Slope-direction bits of a path element's flags, as `PathFlag.Sloped` and `SLOPE_DIR_SHIFT` lay them out. */
@@ -47,6 +48,7 @@ function pathsAt(map: MapMessage, tile: Tile): MapPath[] {
     found.push({
       base: map.pathElements[e * 6 + 2]!,
       rises: pathRises(map.pathElements[e * 6 + 3]!),
+      edges: map.pathElements[e * 6 + 3]! & PathFlag.Edges,
     });
   }
   return found.sort((a, b) => a.base - b.base);
@@ -208,6 +210,7 @@ export class PathTool implements FootpathControls {
   /** A single tap in line mode lays one piece, judged and reported the same way as a run. */
   tap(tile: Tile): void {
     if (this.deps.state.mode === 'piece') {
+      if (this.lockOntoPathEnd(tile)) return;
       this.deps.state.cursor = tile;
       this.deps.state.cursorLevel = this.levelOfTap(tile);
       this.history = [];
@@ -344,7 +347,15 @@ export class PathTool implements FootpathControls {
       return { tile, tone: piece.result === PathResult.Ok ? 'ok' : 'refused', piece };
     });
     const rect = this.deps.canvas.getBoundingClientRect();
-    this.ghost.show(items, map, this.deps.camera, rect, this.pointer, this.labelFor(items));
+    this.ghost.show(
+      items,
+      map,
+      this.deps.camera,
+      rect,
+      this.pointer,
+      this.labelFor(items),
+      this.deps.state.mode === 'piece' && items.length === 1 ? this.deps.state.dir : undefined,
+    );
     const { style, queue } = this.deps.state;
     this.deps.renderer.setGhosts(pathPieceGhosts(items, map, style, queue));
     const last = items[items.length - 1];
@@ -466,6 +477,33 @@ export class PathTool implements FootpathControls {
     if (paths.length === 0 || paths.some((path) => path.base === this.groundLevel(tile)))
       return null;
     return paths[paths.length - 1]!.base;
+  }
+
+  /** Locks piece mode onto a unique path end and points the next preview out from its open edge. */
+  private lockOntoPathEnd(tile: Tile): boolean {
+    const map = this.deps.sim.map;
+    if (!map) return false;
+    const paths = pathsAt(map, tile);
+    if (paths.length !== 1) return false;
+    const path = paths[0]!;
+    const edges = path.edges;
+    if (edges === 0 || (edges & (edges - 1)) !== 0) return false;
+    let connected = 0;
+    while ((edges & (1 << connected)) === 0) connected++;
+    const direction = (connected + 2) & 3;
+    const level = exitLevel(path.base, path.rises, direction);
+    if (level === null) return false;
+    const next = stepCursor(tile, direction);
+    const { state } = this.deps;
+    state.dir = direction;
+    state.cursor = next;
+    state.cursorLevel = level;
+    this.history = [];
+    this.refreshPiece();
+    this.deps.setStatus(
+      `Locked onto path end at ${tile.x}, ${tile.y}: next piece at ${next.x}, ${next.y}, level ${level}.`,
+    );
+    return true;
   }
 
   /** Build on a tile that is already a footpath: the cursor moves on from that path's far edge. */

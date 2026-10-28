@@ -47,7 +47,7 @@ export const SLOPE_LABELS: Readonly<Record<PieceSlope, string>> = {
   down: 'Down',
 };
 
-const HINT_KEY = 'opencoaster.footpathHintShown';
+const HINT_KEY = 'opencoaster.footpathHintShown.v2';
 
 /** The one-line hint shows the first time the Footpaths window opens, then stays hidden. */
 export function takeFootpathHint(storage: Pick<Storage, 'getItem' | 'setItem'>): boolean {

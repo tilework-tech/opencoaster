@@ -32,6 +32,7 @@ export type ToolMode =
 /** Footpath construction as the Footpaths window drives it. */
 export interface FootpathControls {
   readonly state: Readonly<PathToolState>;
+  readonly buildTarget: Readonly<{ x: number; y: number; level: number }> | null;
   setMode(mode: PathMode): void;
   setStyle(style: PathStyle): void;
   setQueue(queue: boolean): void;

@@ -118,6 +118,7 @@ export class PathGhost {
     canvas: DOMRect,
     cursor: { clientX: number; clientY: number },
     label: GhostLabel | null,
+    direction?: number,
   ): void {
     this.svg.replaceChildren();
     this.svg.setAttribute('width', String(canvas.width));
@@ -142,6 +143,8 @@ export class PathGhost {
       ];
     };
     for (const item of items) this.drawItem(item, map, toScreen);
+    if (direction !== undefined && items.length === 1)
+      this.drawDirection(items[0]!.tile, items[0]!.piece?.z ?? 0, direction, toScreen);
     this.label.hidden = label === null;
     if (label) {
       this.label.textContent = label.text;
@@ -199,5 +202,35 @@ export class PathGhost {
     marker.dataset.entrance = String((piece.link & QueueLink.Entrance) !== 0);
     marker.dataset.openEnd = String((piece.link & QueueLink.OpenEnd) !== 0);
     this.svg.append(marker);
+  }
+
+  private drawDirection(
+    tile: Tile,
+    level: number,
+    direction: number,
+    toScreen: (tx: number, ty: number, level: number) => [number, number],
+  ): void {
+    const [cx, cy] = toScreen(tile.x + 0.5, tile.y + 0.5, level);
+    const [nx, ny] = toScreen(
+      tile.x + 0.5 + (direction === 0 ? 1 : direction === 2 ? -1 : 0),
+      tile.y + 0.5 + (direction === 1 ? 1 : direction === 3 ? -1 : 0),
+      level,
+    );
+    const length = Math.hypot(nx - cx, ny - cy);
+    if (length === 0) return;
+    const ux = (nx - cx) / length;
+    const uy = (ny - cy) / length;
+    const tipX = cx + ux * 25;
+    const tipY = cy + uy * 25;
+    const headX = tipX - ux * 7;
+    const headY = tipY - uy * 7;
+    const side = 4;
+    const shape = document.createElementNS(SVG_NS, 'path');
+    shape.setAttribute('class', 'path-ghost-arrow');
+    shape.setAttribute(
+      'd',
+      `M ${cx} ${cy} L ${tipX} ${tipY} M ${tipX} ${tipY} L ${headX - uy * side} ${headY + ux * side} M ${tipX} ${tipY} L ${headX + uy * side} ${headY - ux * side}`,
+    );
+    this.svg.append(shape);
   }
 }

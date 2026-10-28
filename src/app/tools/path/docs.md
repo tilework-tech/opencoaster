@@ -18,13 +18,14 @@ Path: @/src/app/tools/path
 
 - [run.ts](run.ts): `pathRunTiles` gives a straight line or one turn, along x first; `pieceSlope` maps Level/Up/Down to the sim's slope argument; `stepCursor` moves the piece cursor.
 - [controller.ts](controller.ts): `PathTool` previews the hovered tile, a dragged run, or the piece cursor, lays the run on release, and builds or removes a piece at the cursor. Tiles that already hold a footpath are shown as paved and skipped, so they are never charged twice.
-- [ghost.ts](ghost.ts): `pathPieceGhosts` turns the preview into `PathPieceGhost` entries that the renderer draws in the world with the real footpath sprites: accepted pieces at the base level and slope the sim chose, refused tiles flat on the ground in the chosen surface. `PathGhost` draws only a thin SVG outline over each tile, positioned with the camera (`pieceCornerLevels`); its polygons carry `data-*` attributes with the piece's level, direction, style, queue flag and edges, which the e2e tests read.
+- [ghost.ts](ghost.ts): `pathPieceGhosts` turns the preview into `PathPieceGhost` entries that the renderer draws in the world with the real footpath sprites: accepted pieces at the base level and slope the sim chose, refused tiles flat on the ground in the chosen surface. `PathGhost` draws a thin SVG outline and the selected travel-direction arrow over the next piece, positioned with the camera (`pieceCornerLevels`); its polygons carry `data-*` attributes with the piece's level, direction, style, queue flag and edges, which the e2e tests read.
 - The renderers draw the ghosts translucently in their depth-sorted sprite pass ([render](../../../render/docs.md)); refused pieces are tinted red. `PathTool` clears them whenever the preview hides.
 - [state.ts](state.ts): the tool's settings (mode, surface, queue, piece direction and slope, cursor) and the once-only Footpaths hint.
 
 ### Raised footpaths
 
 - Piece mode keeps the cursor's height: Up raises it one level, Level holds it, Down lowers it, so Up/Level/Down chain into a climb, a raised run and a descent. Build on a tile that already holds a footpath continues at that piece's height, and Demolish removes the last piece laid.
+- Clicking a uniquely connected path end in piece mode locks the cursor onto its open edge and derives the next tile and height from that path's exit. Stacked paths, junctions and other ambiguous tiles use ordinary cursor placement; the tool does not guess which path to continue.
 - A piece built with an explicit level stays flat over sloping terrain instead of following the ground; floating pieces are held up by support posts the renderers draw (the steel coaster column sprite under a footing), down to the terrain.
 - Up to three footpaths may stack on one tile. The sim gives each its own walk node ([pathfinding](../../../sim/pathfinding/docs.md)), so guests walk over a bridge and along the path beneath it. Posts are drawn only for the lowest path of a tile, so the space under a bridge stays open.
 
