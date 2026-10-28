@@ -45,9 +45,7 @@ export function legacyGuestArrays(w: World): ArrayBufferView[] {
     'rideHistory3',
     'litterMemory',
     'angriness',
-    'litterSeen',
-    'disgustSeen',
-    'vandalSeen',
+    'sightMemory',
   ]);
   const legacyColumns = Object.keys(GUEST_SCHEMA).filter(
     (name) => name !== 'heading' && !columnsAbsentFromVersion3.has(name),

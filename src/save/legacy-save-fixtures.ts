@@ -5,9 +5,7 @@ import { STAFF_STAT_COLUMNS } from '../sim/staff/staff-store';
 /** Guest sight-memory and staff activity columns that saves before version 32 did not store. */
 export function statsVersionColumns(world: World): ArrayBufferView[] {
   return [
-    world.guests.cols.litterSeen,
-    world.guests.cols.disgustSeen,
-    world.guests.cols.vandalSeen,
+    world.guests.cols.sightMemory,
     ...STAFF_STAT_COLUMNS.map((name) => world.staff.cols[name]),
   ];
 }

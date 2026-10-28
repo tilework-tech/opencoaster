@@ -23,7 +23,7 @@ Sources (OpenRCT2, `develop`, read 2026-10-28):
 
 - Staff with no patrol area still stay on land the player owns. A worker stranded outside its patrol area roams freely until it re-enters.
 - An idle worker picks a random path edge at each tile and avoids turning back unless at a dead end (mechanics continue straight about half the time).
-- OpenCoaster: an idle worker without work walks to a random walkable tile inside its patrol (anywhere when it has none) and repeats; it does not model the per-tile edge rule or the owned-land restriction.
+- OpenCoaster: an idle worker without work walks to a random walkable tile within three tiles, inside its patrol (anywhere when it has none), and repeats; it does not model the per-tile edge rule or the owned-land restriction.
 
 ## Handyman
 

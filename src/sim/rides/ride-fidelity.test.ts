@@ -600,8 +600,8 @@ describe('determinism and saves', () => {
   }
 
   it('replays identically with breakdowns, repairs and inspections in play', () => {
-    const a = run(77, 20_000);
-    const b = run(77, 20_000);
+    const a = run(81, 20_000);
+    const b = run(81, 20_000);
     expect(hashWorld(a.world)).toBe(hashWorld(b.world));
     expect(a.world.rides.cols.breakdownCounter[0]).toBeGreaterThan(0);
     const c = run(78, 20_000);

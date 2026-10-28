@@ -1,6 +1,6 @@
 import type { World } from '../core/world';
 import { TILE_SHIFT } from '../core/constants';
-import { isPathElementBroken, PathFlag } from '../map/tile-map';
+import { ElementType, isPathElementBroken, PathFlag } from '../map/tile-map';
 import { GuestThought, recordThought } from './guest-store';
 import { LitterKind } from './litter-store';
 
@@ -19,47 +19,100 @@ const VANDALISM_COOLDOWN = 3;
 const TIMER_SHIFT = 6;
 const TIMER_FULL = 3 << TIMER_SHIFT;
 const HISTORY_MASK = 0x3f;
-const LITTER_BIT = 0;
-const VOMIT_BIT = 1;
 
 interface TileCounts {
   litterCount: number;
   newestOrder: number;
-  width: number;
-  trash: Uint8Array;
-  vomit: Uint8Array;
+  map: World['map'];
+  version: number;
+  /** Per tile: `version << 4 | vomit << 2 | trash`; the counts are valid while the version matches. */
+  litterInfo: Uint32Array;
+  /** Per tile: `map revision << 1 | vandalised`; valid while the revision matches. */
+  brokenInfo: Uint32Array;
+  /** Map revision at which `anyBroken` was last worked out. */
+  brokenScanRevision: number;
+  /** Whether any path addition is vandalised, so tiles need checking at all. */
+  anyBroken: boolean;
 }
 
+const MAX_LITTER_VERSION = 0x0fffffff;
 const countsByWorld = new WeakMap<World, TileCounts>();
+let lastWorld: World | null = null;
+let lastCounts: TileCounts | null = null;
 
+/** Whether the path addition on `tile` is vandalised, cached per tile until the map changes. */
+function isVandalised(counts: TileCounts, tile: number): boolean {
+  const map = counts.map;
+  if (counts.brokenScanRevision !== map.revision) {
+    counts.brokenScanRevision = map.revision;
+    counts.anyBroken = false;
+    for (let element = 0; element < map.elementCapacity && !counts.anyBroken; element++)
+      counts.anyBroken =
+        map.elType[element] === ElementType.Path && isPathElementBroken(map, element);
+  }
+  if (!counts.anyBroken) return false;
+  const stamp = (map.revision + 1) & 0x7fffffff;
+  const info = counts.brokenInfo[tile];
+  if (info >>> 1 === stamp) return (info & 1) !== 0;
+  const element = map.pathElement(tile, -1);
+  const broken =
+    element >= 0 &&
+    (map.elFlags[element] & (PathFlag.Bench | PathFlag.Bin | PathFlag.Lamp)) !== 0 &&
+    isPathElementBroken(map, element);
+  counts.brokenInfo[tile] = (stamp << 1) | (broken ? 1 : 0);
+  return broken;
+}
+
+/** Per-tile litter and vomit counts, rebuilt from the litter store when it changes. */
 function tileCounts(world: World): TileCounts {
-  const { width, height } = world.map;
-  const litter = world.litter;
+  const { map, litter } = world;
+  const size = map.width * map.height;
   const newestOrder = litter.count === 0 ? 0 : litter.cols.birthOrder[litter.count - 1];
-  let counts = countsByWorld.get(world);
+  let counts = lastWorld === world ? lastCounts! : countsByWorld.get(world);
   if (
     counts &&
     counts.litterCount === litter.count &&
     counts.newestOrder === newestOrder &&
-    counts.width === width
-  )
+    counts.map === map
+  ) {
+    lastWorld = world;
+    lastCounts = counts;
     return counts;
-  counts = {
-    litterCount: litter.count,
-    newestOrder,
-    width,
-    trash: new Uint8Array(width * height),
-    vomit: new Uint8Array(width * height),
-  };
+  }
+  if (!counts || counts.map !== map || counts.litterInfo.length !== size) {
+    counts = {
+      litterCount: 0,
+      newestOrder: 0,
+      map,
+      version: 0,
+      litterInfo: new Uint32Array(size),
+      brokenInfo: new Uint32Array(size),
+      brokenScanRevision: -1,
+      anyBroken: false,
+    };
+    countsByWorld.set(world, counts);
+  }
+  if (counts.version === MAX_LITTER_VERSION) {
+    counts.litterInfo.fill(0);
+    counts.version = 0;
+  }
+  const version = ++counts.version;
   for (let slot = 0; slot < litter.count; slot++) {
     const x = litter.cols.x[slot] >> TILE_SHIFT;
     const y = litter.cols.y[slot] >> TILE_SHIFT;
-    if (x < 0 || y < 0 || x >= width || y >= height) continue;
-    const bucket = litter.cols.kind[slot] === LitterKind.Vomit ? counts.vomit : counts.trash;
-    const tile = y * width + x;
-    if (bucket[tile] < PATH_SIGHT_TILE_CAP) bucket[tile]++;
+    if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
+    const tile = y * map.width + x;
+    const info = counts.litterInfo[tile];
+    const held = info >>> 4 === version ? info & 15 : 0;
+    const shift = litter.cols.kind[slot] === LitterKind.Vomit ? 2 : 0;
+    const count = (held >> shift) & 3;
+    const next = count < PATH_SIGHT_TILE_CAP ? held + (1 << shift) : held;
+    counts.litterInfo[tile] = (version << 4) | next;
   }
-  countsByWorld.set(world, counts);
+  counts.litterCount = litter.count;
+  counts.newestOrder = newestOrder;
+  lastWorld = world;
+  lastCounts = counts;
   return counts;
 }
 
@@ -82,45 +135,56 @@ function advance(world: World, history: number, count: number): number {
 export function noteTileSights(world: World, slot: number, tile: number): void {
   const g = world.guests.cols;
   const counts = tileCounts(world);
-  const target = g.happinessTarget[slot];
-
-  g.litterSeen[slot] = advance(world, g.litterSeen[slot], counts.trash[tile]);
-  g.disgustSeen[slot] = advance(world, g.disgustSeen[slot], counts.vomit[tile]);
-
-  const complaints: Array<[number, GuestThought, number]> = [
-    [LITTER_BIT, GuestThought.BadLitter, g.litterSeen[slot]],
-    [VOMIT_BIT, GuestThought.PathDisgusting, g.disgustSeen[slot]],
-  ];
+  const vandalised = isVandalised(counts, tile);
+  const info = counts.litterInfo[tile];
+  const seen = info >>> 4 === counts.version ? info & 15 : 0;
+  const trash = seen & 3;
+  const vomit = seen >> 2;
+  const memory = g.sightMemory[slot];
+  if (memory === 0 && trash === 0 && vomit === 0 && !vandalised) return;
+  let litterSeen = memory & 0xff;
+  let disgustSeen = (memory >>> 8) & 0xff;
+  let vandalSeen = (memory >>> 16) & 0xff;
   let loss = 0;
-  for (const [bit, thought, history] of complaints) {
-    if (historySum(history) < PATH_SIGHT_THRESHOLD) continue;
-    if (world.rng.int(0x10000) > BAD_LITTER_ROLL) continue;
-    recordThought(world, slot, thought);
-    loss += PATH_SIGHT_HAPPINESS_LOSS;
-    if (bit === LITTER_BIT) g.litterSeen[slot] |= TIMER_FULL;
-    else g.disgustSeen[slot] |= TIMER_FULL;
-  }
 
-  const element = world.map.pathElement(tile, -1);
-  const vandalised =
-    element >= 0 &&
-    (world.map.elFlags[element] & (PathFlag.Bench | PathFlag.Bin | PathFlag.Lamp)) !== 0 &&
-    isPathElementBroken(world.map, element);
-  const seen = g.vandalSeen[slot];
-  let cooldown = seen >> TIMER_SHIFT;
-  if (cooldown > 0 && world.rng.int(0x10000) <= SIGHT_FADE_ROLL) cooldown--;
-  const tiles = ((seen << 1) | (vandalised ? 1 : 0)) & HISTORY_MASK;
-  const witnessed = popcount(tiles) >= VANDALISM_SIGHT_THRESHOLD && cooldown === 0;
-  if (witnessed) {
-    cooldown = VANDALISM_COOLDOWN;
-    if (world.rng.int(0x10000) <= BAD_LITTER_ROLL) {
-      recordThought(world, slot, GuestThought.Vandalism);
+  if (trash !== 0 || litterSeen !== 0) {
+    litterSeen = advance(world, litterSeen, trash);
+    if (
+      historySum(litterSeen) >= PATH_SIGHT_THRESHOLD &&
+      world.rng.int(0x10000) <= BAD_LITTER_ROLL
+    ) {
+      recordThought(world, slot, GuestThought.BadLitter);
       loss += PATH_SIGHT_HAPPINESS_LOSS;
+      litterSeen |= TIMER_FULL;
     }
   }
-  g.vandalSeen[slot] = (cooldown << TIMER_SHIFT) | tiles;
+  if (vomit !== 0 || disgustSeen !== 0) {
+    disgustSeen = advance(world, disgustSeen, vomit);
+    if (
+      historySum(disgustSeen) >= PATH_SIGHT_THRESHOLD &&
+      world.rng.int(0x10000) <= BAD_LITTER_ROLL
+    ) {
+      recordThought(world, slot, GuestThought.PathDisgusting);
+      loss += PATH_SIGHT_HAPPINESS_LOSS;
+      disgustSeen |= TIMER_FULL;
+    }
+  }
+  if (vandalised || vandalSeen !== 0) {
+    let cooldown = vandalSeen >> TIMER_SHIFT;
+    if (cooldown > 0 && world.rng.int(0x10000) <= SIGHT_FADE_ROLL) cooldown--;
+    const tiles = ((vandalSeen << 1) | (vandalised ? 1 : 0)) & HISTORY_MASK;
+    if (popcount(tiles) >= VANDALISM_SIGHT_THRESHOLD && cooldown === 0) {
+      cooldown = VANDALISM_COOLDOWN;
+      if (world.rng.int(0x10000) <= BAD_LITTER_ROLL) {
+        recordThought(world, slot, GuestThought.Vandalism);
+        loss += PATH_SIGHT_HAPPINESS_LOSS;
+      }
+    }
+    vandalSeen = (cooldown << TIMER_SHIFT) | tiles;
+  }
 
-  if (loss > 0) g.happinessTarget[slot] = Math.max(0, target - loss);
+  g.sightMemory[slot] = litterSeen | (disgustSeen << 8) | (vandalSeen << 16);
+  if (loss > 0) g.happinessTarget[slot] = Math.max(0, g.happinessTarget[slot] - loss);
 }
 
 function popcount(value: number): number {

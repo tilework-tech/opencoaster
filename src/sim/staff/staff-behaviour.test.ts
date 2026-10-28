@@ -109,15 +109,24 @@ describe('handyman task priority', () => {
     ]);
   });
 
-  it('sweeps litter before mowing, and mows only after twelve more tile steps', () => {
+  it('sweeps litter before mowing, and sweeping restarts the twelve-step wait', () => {
     const sim = lineWorld(6);
     const w = sim.world;
     const slot = hireHandyman(sim, 6);
     dropLitter(w, 6, 6, LitterKind.Trash);
     w.grounds[w.map.index(6, 7)] = 12;
 
-    expect(completionOrder(sim, slot, 900)).toEqual(['sweeps']);
-    expect(completionOrder(sim, slot, 3000)).toEqual(['lawnsMown']);
+    let sweptAt = -1;
+    for (let tick = 0; tick < 3000 && w.staff.cols.lawnsMown[slot] < 1; tick++) {
+      sim.step();
+      if (sweptAt < 0 && w.staff.cols.sweeps[slot] === 1) {
+        sweptAt = tick;
+        expect(w.staff.cols.mowTimeout[slot]).toBeLessThan(MOW_TILE_DELAY);
+        expect(w.staff.cols.lawnsMown[slot]).toBe(0);
+      }
+    }
+    expect(sweptAt).toBeGreaterThanOrEqual(0);
+    expect(w.staff.cols.lawnsMown[slot]).toBe(1);
   });
 });
 
@@ -149,12 +158,14 @@ describe('mowing', () => {
     const slot = hireHandyman(sim, 6, 0);
     w.grounds[w.map.index(6, 7)] = MOW_THRESHOLD + 2;
 
-    // Twelve tiles of 256 units at three units a tick take 1,024 ticks.
-    run(sim, 800);
-    expect(w.staff.cols.lawnsMown[slot]).toBe(0);
+    let stepsWhenMown = -1;
+    for (let tick = 0; tick < 4000 && stepsWhenMown < 0; tick++) {
+      const before = w.staff.cols.mowTimeout[slot];
+      sim.step();
+      if (w.staff.cols.lawnsMown[slot] > 0) stepsWhenMown = before;
+    }
 
-    run(sim, 2500);
-    expect(w.staff.cols.lawnsMown[slot]).toBe(1);
+    expect(stepsWhenMown).toBeGreaterThanOrEqual(MOW_TILE_DELAY);
   });
 
   it('ignores grass shorter than the mowing threshold', () => {

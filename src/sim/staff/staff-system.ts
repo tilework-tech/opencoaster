@@ -48,6 +48,9 @@ export function staffStepUnits(energy: number, slowed: boolean): number {
 }
 const GARDEN_SEARCH_RADIUS = 10;
 const WANDER_STRIDE = 80;
+/** Idle workers wander to tiles within this many tiles of where they stand. */
+const WANDER_RADIUS_TILES = 3;
+const WANDER_NEAR_ATTEMPTS = 12;
 export const HANDYMAN_SWEEP_RADIUS_TILES = 3;
 const HANDYMAN_IGNORE_NORMAL_PATH_ROLL = 6553;
 const HANDYMAN_IGNORE_QUEUE_ROLL = 58982;
@@ -59,6 +62,7 @@ function moveStaff(
   walkableTiles: Int32Array,
   walkableCount: number,
   navOptions: NavOptions,
+  navPatrol: PatrolMask | null = patrol,
 ): void {
   const staff = world.staff.cols;
   const map = world.map;
@@ -68,7 +72,7 @@ function moveStaff(
   const tx = staff.targetX[slot];
   const ty = staff.targetY[slot];
   const target = map.index(tx, ty);
-  navOptions.patrol = patrol;
+  navOptions.patrol = navPatrol;
   const dir = nextDirection(world, from, target, world.rng, navOptions);
   if (dir < 0) {
     let best = -1;
@@ -257,10 +261,16 @@ export function createStaffSystem(): System {
             }
             continue;
           }
-          const mowSite =
-            (orders & (1 << StaffOrder.MowGrass)) !== 0 && staff.mowTimeout[slot] >= MOW_TILE_DELAY
-              ? findGardenSite(world, x, y, patrolOrNull, needsMowing)
-              : -1;
+          findGardenSites(
+            world,
+            x,
+            y,
+            patrolOrNull,
+            (orders & (1 << StaffOrder.MowGrass)) !== 0 && staff.mowTimeout[slot] >= MOW_TILE_DELAY,
+            (orders & (1 << StaffOrder.WaterGardens)) !== 0,
+          );
+          const mowSite = gardenSites.mow;
+          const waterSite = gardenSites.water;
           const mowStand =
             mowSite >= 0 ? standTileFor(world, mowSite, staffTile, patrolOrNull) : -1;
           if (mowStand >= 0) {
@@ -303,10 +313,6 @@ export function createStaffSystem(): System {
             }
             continue;
           }
-          const waterSite =
-            (orders & (1 << StaffOrder.WaterGardens)) !== 0
-              ? findGardenSite(world, x, y, patrolOrNull, needsWatering)
-              : -1;
           const waterStand =
             waterSite >= 0 ? standTileFor(world, waterSite, staffTile, patrolOrNull) : -1;
           if (waterStand >= 0) {
@@ -323,7 +329,15 @@ export function createStaffSystem(): System {
             continue;
           }
           wander(world, slot, activePatrol, mapSize);
-          moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
+          moveStaff(
+            world,
+            slot,
+            activePatrol,
+            walkableTiles,
+            walkableCount,
+            navOptions,
+            patrolOrNull,
+          );
           continue;
         } else if (staff.kind[slot] === StaffKind.Mechanic) {
           let targetRide = -1;
@@ -401,7 +415,15 @@ export function createStaffSystem(): System {
             }
           } else {
             wander(world, slot, activePatrol, mapSize);
-            moveStaff(world, slot, activePatrol, walkableTiles, walkableCount, navOptions);
+            moveStaff(
+              world,
+              slot,
+              activePatrol,
+              walkableTiles,
+              walkableCount,
+              navOptions,
+              area > 0 ? activePatrol : null,
+            );
           }
         }
         if (
@@ -444,37 +466,56 @@ export function createStaffSystem(): System {
   };
 }
 
+/** Nearest mowable and waterable sites found by the last `findGardenSites` call, or -1. */
+const gardenSites = { mow: -1, water: -1 };
+
 /**
- * Nearest site within reach that a handyman can work from, or -1. Scans only the search window
- * around the handyman; ties go to the lowest tile index.
+ * Finds the nearest site within reach that a handyman can mow and the nearest it can water, in
+ * one pass over the search window; ties go to the lowest tile index.
  */
-function findGardenSite(
+function findGardenSites(
   world: World,
   x: number,
   y: number,
   patrol: PatrolMask | null,
-  needsWork: (world: World, tile: number) => boolean,
-): number {
+  wantMow: boolean,
+  wantWater: boolean,
+): void {
   const map = world.map;
   const from = map.index(x, y);
-  let best = -1;
-  let bestDistance = 0x7fffffff;
+  let mowDistance = 0x7fffffff;
+  let waterDistance = 0x7fffffff;
+  gardenSites.mow = -1;
+  gardenSites.water = -1;
   for (let dy = -GARDEN_SEARCH_RADIUS; dy <= GARDEN_SEARCH_RADIUS; dy++) {
     for (let dx = -GARDEN_SEARCH_RADIUS; dx <= GARDEN_SEARCH_RADIUS; dx++) {
       const tx = x + dx;
       const ty = y + dy;
       if (!map.inBounds(tx, ty)) continue;
       const distance = Math.abs(dx) + Math.abs(dy);
-      if (distance > bestDistance) continue;
       const tile = map.index(tx, ty);
-      if (distance === bestDistance && tile > best) continue;
-      if (!needsWork(world, tile)) continue;
-      if (standTileFor(world, tile, from, patrol) < 0) continue;
-      best = tile;
-      bestDistance = distance;
+      const value = world.grounds[tile];
+      if (value === 0) continue;
+      if (
+        wantMow &&
+        (distance < mowDistance || (distance === mowDistance && tile < gardenSites.mow)) &&
+        needsMowing(world, tile) &&
+        standTileFor(world, tile, from, patrol) >= 0
+      ) {
+        gardenSites.mow = tile;
+        mowDistance = distance;
+      }
+      if (
+        wantWater &&
+        (distance < waterDistance || (distance === waterDistance && tile < gardenSites.water)) &&
+        needsWatering(world, tile) &&
+        standTileFor(world, tile, from, patrol) >= 0
+      ) {
+        gardenSites.water = tile;
+        waterDistance = distance;
+      }
     }
   }
-  return best;
 }
 
 /** A walkable, reachable tile beside `site` where a handyman can work on it, or -1. */
@@ -500,7 +541,11 @@ function binHasFullSide(data: number): boolean {
   return false;
 }
 
-/** Sends an idle worker to a random walkable tile when it has arrived or its target is unusable. */
+/**
+ * Sends an idle worker to a nearby walkable tile when it has arrived or its target is unusable.
+ * Staying within a few tiles keeps the route search short; a worker with nowhere close falls
+ * back to any walkable tile in its patrol.
+ */
 function wander(world: World, slot: number, patrol: PatrolMask, mapSize: number): void {
   const staff = world.staff.cols;
   const map = world.map;
@@ -509,6 +554,21 @@ function wander(world: World, slot: number, patrol: PatrolMask, mapSize: number)
   const target = mapIndex(world, staff.targetX[slot], staff.targetY[slot]);
   const arrived = staff.targetX[slot] === x && staff.targetY[slot] === y;
   if (!arrived && target >= 0 && patrolAllows(patrol, target) && map.isWalkable(target)) return;
+  for (let attempt = 0; attempt < WANDER_NEAR_ATTEMPTS; attempt++) {
+    const tx = x + world.rng.int(2 * WANDER_RADIUS_TILES + 1) - WANDER_RADIUS_TILES;
+    const ty = y + world.rng.int(2 * WANDER_RADIUS_TILES + 1) - WANDER_RADIUS_TILES;
+    if (!map.inBounds(tx, ty)) continue;
+    const candidate = map.index(tx, ty);
+    if (
+      candidate !== map.index(x, y) &&
+      patrolAllows(patrol, candidate) &&
+      map.isWalkable(candidate)
+    ) {
+      staff.targetX[slot] = tx;
+      staff.targetY[slot] = ty;
+      return;
+    }
+  }
   for (let attempt = 0; attempt < 24; attempt++) {
     const candidate = world.rng.int(mapSize);
     if (patrolAllows(patrol, candidate) && map.isWalkable(candidate)) {

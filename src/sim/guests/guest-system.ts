@@ -525,12 +525,13 @@ function joinTileHasEarlierGuest(world: World, slot: number, tile: number): bool
   return false;
 }
 
-function moveAlongHeading(world: World, slot: number): void {
+/** Steps along the heading; true when the step ends on the next tile centre. */
+function moveAlongHeading(world: World, slot: number): boolean {
   const g = world.guests.cols;
   const heading = g.heading[slot];
   if (heading > 3) {
     if (!atTileCentre(world, slot)) snapToTileCentre(world, slot);
-    return;
+    return false;
   }
   const horizontal = heading === 0 || heading === 2;
   const position = horizontal ? g.x[slot] : g.y[slot];
@@ -547,14 +548,13 @@ function moveAlongHeading(world: World, slot: number): void {
   if (horizontal) g.x[slot] += reach;
   else g.y[slot] += reach;
   g.z[slot] = world.map.heightNear(g.x[slot], g.y[slot], g.z[slot]);
+  return reach === remaining;
 }
 
 /** Walks along the heading; reaching a tile centre lets the guest take in what lies on that tile. */
 function walkOn(world: World, slot: number): void {
   const g = world.guests.cols;
-  const walking = g.heading[slot] <= 3;
-  moveAlongHeading(world, slot);
-  if (walking && atTileCentre(world, slot))
+  if (moveAlongHeading(world, slot))
     noteTileSights(world, slot, world.map.index(g.x[slot] >> 8, g.y[slot] >> 8));
 }
 
