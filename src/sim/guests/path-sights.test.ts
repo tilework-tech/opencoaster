@@ -3,6 +3,7 @@ import { flatWorld, guestAt, layPath, row } from '../integration/fixtures';
 import { PathAddition, setPathAddition } from '../map/paths';
 import { markPathElementBroken } from '../map/tile-map';
 import { GuestThought } from './guest-store';
+import { guestSystem } from './guest-system';
 import { dropLitter, LitterKind } from './litter-store';
 import { BAD_LITTER_ROLL, PATH_SIGHT_HAPPINESS_LOSS, noteTileSights } from './path-sights';
 
@@ -86,5 +87,30 @@ describe('path sights', () => {
     const fired = arrivals(w, [8, 9], 1500, GuestThought.Vandalism);
     expect(fired / 1500).toBeGreaterThan(0.12);
     expect(fired / 1500).toBeLessThan(0.21);
+  });
+
+  it('is noticed by guests walking the park, and not once the path is clean', () => {
+    const complaints = (cleanFirst: boolean): number => {
+      const w = pathWorld();
+      for (let x = 9; x <= 14; x++) {
+        dropLitter(w, x, 6, LitterKind.Vomit);
+        dropLitter(w, x, 6, LitterKind.Vomit);
+      }
+      if (cleanFirst) while (w.litter.count > 0) w.litter.despawnSlot(0);
+      for (let n = 0; n < 12; n++) {
+        const slot = guestAt(w, 4 + n, 6);
+        w.guests.cols.happinessTarget[slot] = 120;
+      }
+      for (let tick = 0; tick < 2_000; tick++) {
+        w.tick = tick;
+        guestSystem.update(w);
+      }
+      let count = 0;
+      for (let slot = 0; slot < w.guests.count; slot++)
+        if (hasThought(w, slot, GuestThought.PathDisgusting)) count++;
+      return count;
+    };
+    expect(complaints(false)).toBeGreaterThan(0);
+    expect(complaints(true)).toBe(0);
   });
 });

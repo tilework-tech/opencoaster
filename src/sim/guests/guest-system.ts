@@ -549,6 +549,15 @@ function moveAlongHeading(world: World, slot: number): void {
   g.z[slot] = world.map.heightNear(g.x[slot], g.y[slot], g.z[slot]);
 }
 
+/** Walks along the heading; reaching a tile centre lets the guest take in what lies on that tile. */
+function walkOn(world: World, slot: number): void {
+  const g = world.guests.cols;
+  const walking = g.heading[slot] <= 3;
+  moveAlongHeading(world, slot);
+  if (walking && atTileCentre(world, slot))
+    noteTileSights(world, slot, world.map.index(g.x[slot] >> 8, g.y[slot] >> 8));
+}
+
 /** A guest with no heading that is not on a tile centre (e.g. from an old save) re-centres. */
 function snapToTileCentre(world: World, slot: number): void {
   const g = world.guests.cols;
@@ -968,9 +977,7 @@ function stepToward(
   if (target >= 0 && !isLost(world, slot) && noteNavigation(world, slot, tile, target))
     return false;
   g.heading[slot] = dir;
-  moveAlongHeading(world, slot);
-  if (atTileCentre(world, slot))
-    noteTileSights(world, slot, world.map.index(g.x[slot] >> 8, g.y[slot] >> 8));
+  walkOn(world, slot);
   return true;
 }
 
@@ -1127,7 +1134,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
 
   if (state === GuestState.Leaving) {
     if (!atTileCentre(world, slot)) {
-      moveAlongHeading(world, slot);
+      walkOn(world, slot);
       return false;
     }
     const gate = parkEntranceTile(world);
@@ -1154,7 +1161,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     g.activityTicks[slot] = Math.max(0, g.activityTicks[slot] - UPDATE_STRIDE);
 
   if (!atTileCentre(world, slot)) {
-    moveAlongHeading(world, slot);
+    walkOn(world, slot);
     return false;
   }
 
