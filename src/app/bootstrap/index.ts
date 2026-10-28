@@ -538,6 +538,8 @@ export async function bootstrap(): Promise<void> {
       if (selectedTool === 'path') pathTool.refreshPiece();
     }
     camera.showGridlines = localStorage.getItem('opencoaster-option-gridlines') === 'true';
+    camera.dayNight = displayOptionEnabled('day-night-cycle');
+    camera.lampLights = displayOptionEnabled('lamp-lighting');
     const renderStart = performance.now();
     renderer.draw(sim.latest, camera);
     renderMs = performance.now() - renderStart;

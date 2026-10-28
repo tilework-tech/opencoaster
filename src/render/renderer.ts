@@ -63,6 +63,10 @@ export interface Camera {
   zoom: number;
   rotation: Rotation;
   showGridlines?: boolean;
+  /** Darkens the scene with the in-game time of day. */
+  dayNight?: boolean;
+  /** Lights path lamps and their ground pools while it is dark. */
+  lampLights?: boolean;
 }
 
 /**

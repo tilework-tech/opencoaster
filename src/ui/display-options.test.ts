@@ -41,3 +41,14 @@ describe('display options', () => {
     );
   });
 });
+
+describe('lighting display options', () => {
+  it('are on until switched off', () => {
+    const storage = memoryStorage();
+    expect(displayOptionEnabled('day-night-cycle', storage)).toBe(true);
+    expect(displayOptionEnabled('lamp-lighting', storage)).toBe(true);
+    setDisplayOption('day-night-cycle', false, storage);
+    expect(displayOptionEnabled('day-night-cycle', storage)).toBe(false);
+    expect(displayOptionEnabled('lamp-lighting', storage)).toBe(true);
+  });
+});

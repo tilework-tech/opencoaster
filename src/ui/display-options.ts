@@ -5,7 +5,11 @@ export type DisplayOption =
   | 'construction-marker'
   | 'performance-overlay'
   | 'underground-view'
-  | 'reduce-resolution-when-slow';
+  | 'reduce-resolution-when-slow'
+  | 'day-night-cycle'
+  | 'lamp-lighting';
+
+const ON_BY_DEFAULT: ReadonlySet<DisplayOption> = new Set(['day-night-cycle', 'lamp-lighting']);
 
 export function displayOptionKey(option: DisplayOption): string {
   return `opencoaster-option-${option}`;
@@ -15,7 +19,8 @@ export function displayOptionEnabled(
   option: DisplayOption,
   storage: Storage = localStorage,
 ): boolean {
-  return storage.getItem(displayOptionKey(option)) === 'true';
+  const stored = storage.getItem(displayOptionKey(option));
+  return stored === null ? ON_BY_DEFAULT.has(option) : stored === 'true';
 }
 
 export function setDisplayOption(

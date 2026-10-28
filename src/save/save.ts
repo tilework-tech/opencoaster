@@ -502,6 +502,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_WALL_EDGE_SAVE_VERSION,
     PRE_QUEUE_LINKS_SAVE_VERSION,
     PRE_TRACK_STEP_SAVE_VERSION,
+    TRACK_STEP_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
