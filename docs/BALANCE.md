@@ -111,31 +111,32 @@ One food stall keeps up with about 60 guests at the current need rate; the scrip
 
 ### Finances
 
-| Constant          | Value                                       | Meaning                                                                                                                           |
-| ----------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Wages             | monthly salary / 4, every week              | A park month is four weeks (16,384 ticks), so a handyman costs $12.50 a week. The old 12/52 conversion undercharged by 8%.        |
-| Research funding  | monthly figure / 4, every week              | $25 / $50 / $100 a week at minimum / normal / maximum; a completed month still holds the full monthly amount.                     |
-| Loan interest     | `loan x annual rate / 32 weeks`, every week | Simple interest on the balance at the boundary, rounded down. Starter: $20,000 at 10% costs $62.50 a week.                        |
-| Ride tickets      | refused above `max($6, 2 x ride value)`     | Value is the age-adjusted rating value; matches the ride window's "too expensive" label.                                          |
-| Stall prices      | refused above `value + 0.70 x divisor`      | Value is the catalog base price ($1.90 food, $1.20 drink, $0.20 toilets). Divisor 1 / 2 / 4 at happiness up to 128 / 180 / above. |
-| Stock cost        | 26% of the sale price                       | The burger's stock cost 5 against its value 19 in the cited item analysis.                                                        |
-| Starter admission | $6                                          | Arrival chance is untouched by a fee up to `max($1, 2 cents x rating)`, so $6 costs no arrivals once the rating passes 300.       |
-| Low-cash warning  | cash below four weeks of recurring bills    | Shown in the Finances window; an overdrawn park (cash below zero) cannot pay for any construction.                                |
+| Constant          | Value                                       | Meaning                                                                                                                                                                                                                  |
+| ----------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Wages             | monthly salary / 4, every week              | A park month is four weeks (16,384 ticks), so a handyman costs $12.50 a week. The old 12/52 conversion undercharged by 8%.                                                                                               |
+| Research funding  | monthly figure / 4, every week              | $25 / $50 / $100 a week at minimum / normal / maximum; a completed month still holds the full monthly amount.                                                                                                            |
+| Loan interest     | `loan x annual rate / 32 weeks`, every week | Simple interest on the balance at the boundary, rounded down. Starter: $20,000 at 10% costs $62.50 a week.                                                                                                               |
+| Ride tickets      | refused above `max($6, 2 x ride value)`     | Value is the age-adjusted rating value; matches the ride window's "too expensive" label.                                                                                                                                 |
+| Stall prices      | refused above `value + 0.70 x divisor`      | Value is the item value ($1.90 food, $1.20 drink, $0.20 toilets); new stalls still start at $1.20 food and $0.80 drink, below it, so default play is unaffected. Divisor 1 / 2 / 4 at happiness up to 128 / 180 / above. |
+| Stock cost        | 26% of the sale price (was 40%)             | The burger's stock cost 5 against its value 19 in the cited item analysis.                                                                                                                                               |
+| Starter admission | $6                                          | Arrival chance is untouched by a fee up to `max($1, 2 cents x rating)`, so $6 costs no arrivals once the rating passes 300.                                                                                              |
+| Low-cash warning  | cash below four weeks of recurring bills    | Shown in the Finances window; an overdrawn park (cash below zero) cannot pay for any construction.                                                                                                                       |
 
-`pnpm balance -- --profile P [--admission DOLLARS] [--repay-loan-month N]` models a player who sets the gate price and pays the loan off. Cash at the end of each month, scripted starter park, default seed:
+`pnpm balance -- --profile P [--admission DOLLARS] [--repay-loan-month N] [--stalls-at-value]` models a player who sets the gate price, prices food and drink at their value and pays the loan off. Cash at the end of each month, scripted starter park, default seed:
 
-| Build                                   | Month 3 | Month 5 | Month 8 | Cash drift, months 4-8 |
-| --------------------------------------- | ------- | ------- | ------- | ---------------------- |
-| minimal, before ($3 gate)               | $45,723 | $45,404 | $44,886 | -$170 a month          |
-| minimal                                 | $46,372 | $46,158 | $45,822 | -$110 a month          |
-| modest, before ($3 gate)                | $37,227 | $36,250 | $34,901 | -$460 a month          |
-| modest                                  | $38,436 | $38,194 | $38,060 | -$60 a month           |
-| modest, loan repaid in month 3          | $38,436 | $18,694 | $19,310 | +$190 a month          |
-| modest, $8 gate, loan repaid in month 3 | $38,960 | $19,476 | $20,552 | +$340 a month          |
-| ambitious, before ($3 gate)             | $35,508 | $30,989 | $27,992 | -$1,350 a month        |
-| ambitious                               | $36,799 | $33,223 | $31,976 | -$790 a month          |
+| Build                                        | Month 3 | Month 5 | Month 8 | Cash drift, months 4-8 |
+| -------------------------------------------- | ------- | ------- | ------- | ---------------------- |
+| minimal, before ($3 gate)                    | $45,723 | $45,404 | $44,886 | -$170 a month          |
+| minimal                                      | $46,152 | $45,764 | $45,172 | -$200 a month          |
+| modest, before ($3 gate)                     | $37,227 | $36,250 | $34,901 | -$460 a month          |
+| modest                                       | $38,083 | $37,543 | $36,958 | -$210 a month          |
+| modest, food and drink priced at their value | $38,083 | $37,840 | $37,707 | -$60 a month           |
+| ... and the loan repaid in month 3           | $38,083 | $18,340 | $18,957 | +$190 a month          |
+| ... and an $8 gate                           | $38,607 | $19,122 | $20,199 | +$340 a month          |
+| ambitious, before ($3 gate)                  | $35,508 | $30,989 | $27,992 | -$1,350 a month        |
+| ambitious                                    | $36,439 | $32,502 | $30,541 | -$1,010 a month        |
 
-A first build of five attractions costs about $3,500 of the $50,000 starting cash, so the first build is always affordable; the loan interest ($1,750 over the year) is the largest recurring bill, and paying the loan off is what turns the sensible build cash-positive. Unrestrained building (the ambitious profile, 11 more rides) drains cash faster while it builds (months 3 to 7) and then holds flat. Guest counts and park ratings are identical to main in every profile: only the money changed.
+A first build of five attractions costs about $3,500 of the $50,000 starting cash, so the first build is always affordable; the loan interest ($1,750 over the year) is the largest recurring bill, and paying the loan off is what turns the sensible build cash-positive. Unrestrained building (the ambitious profile, 11 more rides) drains cash faster while it builds (months 3 to 7) and then holds flat. Guest counts and park ratings are identical to main in every profile: only the money changed. Pricing food and drink above their value (the rules above) is what makes the stall price matter; raising the default stall prices to value was tried and rejected, because guests then ran short of cash for ride tickets and the per-ride scenarios lost win rate (bramblewood-hollow 6/12 to 2/12).
 
 ## Results
 

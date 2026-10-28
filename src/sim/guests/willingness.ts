@@ -20,9 +20,10 @@ export function maxRidePriceCents(world: World, rideSlot: number): number {
   return Math.max(RIDE_PRICE_FLOOR_CENTS, 2 * value);
 }
 
-/** What a stall's item is worth to guests: the catalog base price. */
+/** What a stall's item is worth to guests: the catalog item value, or its starting price when none is set. */
 export function itemValueCents(world: World, rideSlot: number): number {
-  return RIDE_CATALOG[world.rides.cols.typeId[rideSlot] as RideType].defaultPriceCents;
+  const def = RIDE_CATALOG[world.rides.cols.typeId[rideSlot] as RideType];
+  return def.itemValueCents ?? def.defaultPriceCents;
 }
 
 function overpriceDivisor(happiness: number): number {
