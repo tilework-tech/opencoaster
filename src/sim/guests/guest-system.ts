@@ -1216,7 +1216,7 @@ function spawnArrival(world: World, admission: GuestAdmission): void {
   if (guests > comfortable) rate = Math.floor(rate / 4);
   if (admission.entranceFee > (admission.totalRideValueForMoneyCents ?? 0)) {
     rate = Math.floor(rate / 4);
-    if (admission.entranceFee / 2 > (admission.totalRideValueForMoneyCents ?? 0)) {
+    if (Math.floor(admission.entranceFee / 2) > (admission.totalRideValueForMoneyCents ?? 0)) {
       rate = Math.floor(rate / 4);
     }
   }

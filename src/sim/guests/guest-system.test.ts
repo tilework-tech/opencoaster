@@ -621,6 +621,21 @@ describe('arrivals', () => {
     expect(overpriced).toBeLessThan(fairFee * 0.5);
   });
 
+  it('truncates the half-fee before applying the second overpricing penalty', () => {
+    const w = gated();
+    w.rng.int = (range) => (range === 65_536 ? 100 : 0);
+    const system = createGuestSystem(() => ({
+      parkRating: 900,
+      entranceFee: 101,
+      totalRideValueForMoneyCents: 50,
+    }));
+
+    w.tick = 0;
+    system.update(w);
+
+    expect(w.guests.count).toBe(1);
+  });
+
   it('brings in fewer guests at lower ratings and excessive entrance fees', () => {
     const crowd = (rating: number, fee: number): number =>
       Array.from({ length: 16 }, (_, index) =>
