@@ -389,7 +389,7 @@ export async function buildQueuedRide(
   if (layout.queue.length > 0) {
     await focus(page, layout.queue[Math.floor(layout.queue.length / 2)]!, lift);
     const drags = layout.queueDrags ?? [layout.queue];
-    for (const [k, tiles] of drags.entries()) {
+    for (const tiles of drags) {
       const release = await pressAndDrag(page, tiles, mobile);
       if (drags.length === 1) {
         if (!legacy) {
