@@ -122,6 +122,22 @@ describe('vandalism', () => {
     expect(w.staff.cols.vandalsStopped[0]).toBeGreaterThan(0);
   });
 
+  it('is deterred by a guard 6.5 tiles away but not one exactly seven tiles away', () => {
+    const near = benchWorld(20);
+    spawnStaff(near, StaffKind.Security);
+    near.staff.cols.x[0] = 7 * TILE_UNITS + 128 + Math.floor(6.4 * TILE_UNITS);
+    near.staff.cols.y[0] = 6 * TILE_UNITS + 128;
+    runChecks(near, 400);
+    expect(isPathElementBroken(near.map, benchElement(near))).toBe(false);
+
+    const edge = benchWorld(20);
+    spawnStaff(edge, StaffKind.Security);
+    edge.staff.cols.x[0] = 7 * TILE_UNITS + 128 + 7 * TILE_UNITS;
+    edge.staff.cols.y[0] = 6 * TILE_UNITS + 128;
+    runChecks(edge, 400);
+    expect(isPathElementBroken(edge.map, benchElement(edge))).toBe(true);
+  });
+
   it('does not treat a guard with vandalism duty disabled as a deterrent', () => {
     const w = benchWorld(20);
     spawnStaff(w, StaffKind.Security);

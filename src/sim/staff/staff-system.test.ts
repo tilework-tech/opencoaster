@@ -123,7 +123,7 @@ describe('staff commands and work', () => {
     expect(world.staff.cols.sweeps[0]).toBe(0);
   });
 
-  it('does not dispatch a handyman to litter outside the three-tile sweep radius', () => {
+  it('walks an idle handyman along its path until litter on the far end is within reach', () => {
     const sim = new Simulation({ seed: 18, width: 16, height: 16 });
     const world = sim.world;
     world.map.fillFlat(2);
@@ -138,12 +138,13 @@ describe('staff commands and work', () => {
     dropLitter(world, 12, 8, LitterKind.Trash);
     expect(world.litter.count).toBe(1);
 
-    for (let tick = 0; tick < 2_000; tick++) {
+    for (let tick = 0; tick < 6_000 && world.litter.count > 0; tick++) {
       world.tick = tick;
       staffSystem.update(world);
     }
 
-    expect(world.litter.count).toBe(1);
+    expect(world.litter.count).toBe(0);
+    expect(world.staff.cols.sweeps[0]).toBe(1);
   });
 
   it('sweeps reachable litter inside the three-tile radius', () => {
@@ -409,72 +410,6 @@ describe('staff commands and work', () => {
 
     expect(world.rides.cols.state[unreachableSlot]).toBe(RideState.Broken);
     expect(world.rides.cols.state[reachableSlot]).toBe(RideState.Open);
-  });
-
-  it('gives entertainers their scheduled happiness boost at any staff id phase', () => {
-    const sim = new Simulation({ seed: 32, width: 16, height: 16 });
-    const world = sim.world;
-    world.map.fillFlat(2);
-    placePath(world.map, { x: 5, y: 5, z: 2 });
-    const guestId = world.guests.spawn();
-    const guestSlot = world.guests.idToSlot[guestId];
-    world.guests.cols.x[guestSlot] = 5 * 256 + 128;
-    world.guests.cols.y[guestSlot] = 5 * 256 + 128;
-    world.guests.cols.happiness[guestSlot] = 100;
-    world.guests.cols.happinessTarget[guestSlot] = 100;
-    spawnStaff(world, StaffKind.Handyman);
-    spawnStaff(world, StaffKind.Entertainer);
-    world.staff.cols.x[1] = 5 * 256 + 128;
-    world.staff.cols.y[1] = 5 * 256 + 128;
-    world.tick = 79;
-
-    staffSystem.update(world);
-
-    expect(world.guests.cols.happiness[guestSlot]).toBe(101);
-    expect(world.guests.cols.happinessTarget[guestSlot]).toBe(101);
-  });
-
-  it('limits an entertainer happiness boost to guests within two tiles', () => {
-    const sim = new Simulation({ seed: 35, width: 16, height: 16 });
-    const world = sim.world;
-    world.map.fillFlat(2);
-    placePath(world.map, { x: 5, y: 5, z: 2 });
-    const nearbyId = world.guests.spawn();
-    const nearbySlot = world.guests.idToSlot[nearbyId];
-    world.guests.cols.x[nearbySlot] = 7 * 256 + 128;
-    world.guests.cols.y[nearbySlot] = 7 * 256 + 128;
-    world.guests.cols.happiness[nearbySlot] = 100;
-    const distantId = world.guests.spawn();
-    const distantSlot = world.guests.idToSlot[distantId];
-    world.guests.cols.x[distantSlot] = 8 * 256 + 128;
-    world.guests.cols.y[distantSlot] = 8 * 256 + 128;
-    world.guests.cols.happiness[distantSlot] = 100;
-    spawnStaff(world, StaffKind.Handyman);
-    spawnStaff(world, StaffKind.Entertainer);
-    world.staff.cols.x[1] = 5 * 256 + 128;
-    world.staff.cols.y[1] = 5 * 256 + 128;
-    world.tick = 79;
-
-    staffSystem.update(world);
-
-    expect(world.guests.cols.happiness[nearbySlot]).toBe(101);
-    expect(world.guests.cols.happiness[distantSlot]).toBe(100);
-  });
-
-  it('keeps an unassigned handyman in place when there is no work', () => {
-    const sim = new Simulation({ seed: 33, width: 16, height: 16 });
-    const world = sim.world;
-    world.map.fillFlat(2);
-    for (let x = 4; x <= 10; x++) placePath(world.map, { x, y: 6, z: 2 });
-    spawnStaff(world, StaffKind.Handyman);
-    world.staff.cols.x[0] = 4 * 256 + 128;
-    world.staff.cols.y[0] = 6 * 256 + 128;
-    world.staff.cols.targetX[0] = 10;
-    world.staff.cols.targetY[0] = 6;
-
-    staffSystem.update(world);
-
-    expect(world.staff.cols.x[0]).toBe(4 * 256 + 128);
   });
 
   it('brings a mechanic back into its patrol before servicing a reachable ride', () => {

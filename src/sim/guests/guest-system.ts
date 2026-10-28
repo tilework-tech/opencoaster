@@ -49,6 +49,7 @@ import {
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
+import { noteTileSights } from './path-sights';
 import { guestPriceCents, spendVoucher } from './vouchers';
 import {
   applyGuestBudget,
@@ -524,12 +525,13 @@ function joinTileHasEarlierGuest(world: World, slot: number, tile: number): bool
   return false;
 }
 
-function moveAlongHeading(world: World, slot: number): void {
+/** Steps along the heading; true when the step ends on the next tile centre. */
+function moveAlongHeading(world: World, slot: number): boolean {
   const g = world.guests.cols;
   const heading = g.heading[slot];
   if (heading > 3) {
     if (!atTileCentre(world, slot)) snapToTileCentre(world, slot);
-    return;
+    return false;
   }
   const horizontal = heading === 0 || heading === 2;
   const position = horizontal ? g.x[slot] : g.y[slot];
@@ -546,6 +548,14 @@ function moveAlongHeading(world: World, slot: number): void {
   if (horizontal) g.x[slot] += reach;
   else g.y[slot] += reach;
   g.z[slot] = world.map.heightNear(g.x[slot], g.y[slot], g.z[slot]);
+  return reach === remaining;
+}
+
+/** Walks along the heading; reaching a tile centre lets the guest take in what lies on that tile. */
+function walkOn(world: World, slot: number): void {
+  const g = world.guests.cols;
+  if (moveAlongHeading(world, slot))
+    noteTileSights(world, slot, world.map.index(g.x[slot] >> 8, g.y[slot] >> 8));
 }
 
 /** A guest with no heading that is not on a tile centre (e.g. from an old save) re-centres. */
@@ -967,7 +977,7 @@ function stepToward(
   if (target >= 0 && !isLost(world, slot) && noteNavigation(world, slot, tile, target))
     return false;
   g.heading[slot] = dir;
-  moveAlongHeading(world, slot);
+  walkOn(world, slot);
   return true;
 }
 
@@ -1124,7 +1134,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
 
   if (state === GuestState.Leaving) {
     if (!atTileCentre(world, slot)) {
-      moveAlongHeading(world, slot);
+      walkOn(world, slot);
       return false;
     }
     const gate = parkEntranceTile(world);
@@ -1151,7 +1161,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     g.activityTicks[slot] = Math.max(0, g.activityTicks[slot] - UPDATE_STRIDE);
 
   if (!atTileCentre(world, slot)) {
-    moveAlongHeading(world, slot);
+    walkOn(world, slot);
     return false;
   }
 

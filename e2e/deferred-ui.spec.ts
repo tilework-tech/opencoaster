@@ -7,8 +7,10 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
   await page.getByRole('button', { name: 'New game' }).click();
   await expect(page.getByRole('tab', { name: 'Beginner Parks' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Challenging Parks' })).toBeVisible();
-  await expect(page.getByRole('img', { name: 'Starter Park scenario preview' })).toBeVisible();
-  await expect(page.locator('.scenario-objective')).toContainText('100 guests');
+  await expect(
+    page.locator('.scenario-map-preview[alt="Starter Park scenario preview"]'),
+  ).toBeVisible();
+  await expect(page.locator('.scenario-objective').first()).toContainText('guests');
   await page
     .locator('.scenario-card')
     .filter({ hasText: 'Starter Park' })

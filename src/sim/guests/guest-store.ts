@@ -32,6 +32,9 @@ export const enum GuestThought {
   Tired = 13,
   OutOfMoney = 14,
   BadValue = 15,
+  BadLitter = 16,
+  PathDisgusting = 17,
+  Vandalism = 18,
 }
 
 /** Guest columns. Needs and preferences use 0..255; money is integer cents. */
@@ -95,7 +98,16 @@ export const GUEST_SCHEMA = {
   /** Position in the ride's queue order: the ride's serial when the guest joined its line. */
   queueSeq: Uint32Array,
   happinessTarget: Uint8Array,
+  /**
+   * What the guest has seen on recent path tiles, one byte each: litter on the last three tiles
+   * (two bits each, with a two-bit recall timer on top), the same for vomit, and vandalised tiles
+   * among the last six (one bit each, with a two-bit complaint cooldown on top).
+   */
+  sightMemory: Uint32Array,
 } as const;
+
+/** Guest columns added in save version 32. */
+export const GUEST_SIGHT_COLUMNS = ['sightMemory'] as const;
 
 export function recordRideHistory(w: World, slot: number, rideId: number): void {
   const guests = w.guests.cols;
@@ -107,21 +119,34 @@ export function recordRideHistory(w: World, slot: number, rideId: number): void 
   guests.rideHistoryCursor[slot] = (cursor + 1) & 3;
 }
 
+const thoughtScratch = new Uint8Array(5);
+
 /** Records a thought as the newest; a thought already in the list moves to the front instead of repeating. */
 export function recordThought(w: World, slot: number, thought: GuestThought): void {
   if (thought === GuestThought.None) return;
   const g = w.guests.cols;
-  const ring = [g.thought0, g.thought1, g.thought2, g.thought3];
   const cursor = g.thoughtCursor[slot] & 3;
-  const kept: number[] = [];
+  let length = 0;
   for (let i = 0; i < 4; i++) {
-    const value = ring[(cursor + i) & 3][slot];
-    if (value !== GuestThought.None && value !== thought) kept.push(value);
+    const position = (cursor + i) & 3;
+    const value =
+      position === 0
+        ? g.thought0[slot]
+        : position === 1
+          ? g.thought1[slot]
+          : position === 2
+            ? g.thought2[slot]
+            : g.thought3[slot];
+    if (value !== GuestThought.None && value !== thought) thoughtScratch[length++] = value;
   }
-  kept.push(thought);
-  while (kept.length > 4) kept.shift();
-  for (let i = 0; i < 4; i++) ring[i][slot] = i < kept.length ? kept[i] : GuestThought.None;
-  g.thoughtCursor[slot] = kept.length & 3;
+  thoughtScratch[length++] = thought;
+  const first = length > 4 ? length - 4 : 0;
+  const kept = length - first;
+  g.thought0[slot] = kept > 0 ? thoughtScratch[first] : GuestThought.None;
+  g.thought1[slot] = kept > 1 ? thoughtScratch[first + 1] : GuestThought.None;
+  g.thought2[slot] = kept > 2 ? thoughtScratch[first + 2] : GuestThought.None;
+  g.thought3[slot] = kept > 3 ? thoughtScratch[first + 3] : GuestThought.None;
+  g.thoughtCursor[slot] = kept & 3;
 }
 
 export function spawnGuest(w: World): boolean {

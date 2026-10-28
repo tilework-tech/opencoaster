@@ -12,11 +12,11 @@ export const ANGRY_HAPPINESS = 48;
 export const GUEST_LITTER_MEMORY_TICKS = 2_048;
 /** Duration stored after a successful vandalism, in simulation ticks. */
 export const VANDAL_ANGER_TICKS = 512;
-/** Chebyshev tiles within which a security guard deters vandalism. */
+/** Guards strictly closer than this many tiles (Chebyshev, in world units) deter vandalism. */
 export const SECURITY_RADIUS = 7;
 export const VANDAL_SUCCESS_ROLL = 3276;
 
-function securityGuardNearby(world: World, tileX: number, tileY: number): number {
+function securityGuardNearby(world: World, guestX: number, guestY: number): number {
   const staff = world.staff.cols;
   let nearest = -1;
   let nearestDistance = Number.POSITIVE_INFINITY;
@@ -27,12 +27,10 @@ function securityGuardNearby(world: World, tileX: number, tileY: number): number
       (staff.orderFlags[slot] & (1 << StaffOrder.WatchForVandalism)) === 0
     )
       continue;
-    const guardX = (staff.x[slot] / TILE_UNITS) | 0;
-    const guardY = (staff.y[slot] / TILE_UNITS) | 0;
-    const distance = Math.max(Math.abs(guardX - tileX), Math.abs(guardY - tileY));
+    const distance = Math.max(Math.abs(staff.x[slot] - guestX), Math.abs(staff.y[slot] - guestY));
     const staffId = world.staff.slotToId[slot];
     if (
-      distance <= SECURITY_RADIUS &&
+      distance < SECURITY_RADIUS * TILE_UNITS &&
       (distance < nearestDistance || (distance === nearestDistance && staffId < nearestId))
     ) {
       nearest = slot;
@@ -87,7 +85,7 @@ export function createVandalismSystem(): System {
         )
           continue;
         if (world.rng.int(0x10000) > VANDAL_SUCCESS_ROLL) continue;
-        const guard = securityGuardNearby(world, tileX, tileY);
+        const guard = securityGuardNearby(world, guests.x[slot], guests.y[slot]);
         if (guard >= 0) {
           world.staff.cols.vandalsStopped[guard] = Math.min(
             0xffff,

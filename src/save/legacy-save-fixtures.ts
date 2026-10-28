@@ -1,5 +1,14 @@
 import { Simulation } from '../sim/core/simulation';
 import type { World } from '../sim/core/world';
+import { STAFF_STAT_COLUMNS } from '../sim/staff/staff-store';
+
+/** Guest sight-memory and staff activity columns that saves before version 32 did not store. */
+export function statsVersionColumns(world: World): ArrayBufferView[] {
+  return [
+    world.guests.cols.sightMemory,
+    ...STAFF_STAT_COLUMNS.map((name) => world.staff.cols[name]),
+  ];
+}
 
 export function allWorldViews(world: World): ArrayBufferView[] {
   return [
@@ -59,6 +68,7 @@ export function withoutColumns(
       : []),
     ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
     ...(version < 17 ? [newWorld.map.pathStyle] : []),
+    ...(version < 32 ? statsVersionColumns(newWorld) : []),
     ...(version < 18 ? [newWorld.guests.cols.voucherKind, newWorld.guests.cols.voucherTarget] : []),
     ...(version < 29 ? [newWorld.guests.cols.happinessTarget] : []),
     ...(version < 30

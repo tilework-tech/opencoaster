@@ -1,10 +1,11 @@
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../../sim/staff/staff-store';
-import { SNAPSHOT_STRIDE } from '../../worker/snapshot';
+import { SNAPSHOT_STRIDE, STAFF_STAT_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, setText, statRow } from '../dom';
 import { liveViewport } from '../live-viewport';
 import { formatMoney } from '../format';
+import { gameDate } from '../../sim/economy/calendar';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 import { STAFF_KIND_NAMES } from '../staff-roster';
@@ -18,7 +19,27 @@ export interface WorkerDetails {
   tileY: number;
   height: number;
   weeklyWage: number;
+  /** Park tick the worker was hired. */
+  hiredTick: number;
+  /** The activity totals shown for the worker's role. */
+  stats: { label: string; value: number }[];
 }
+
+/** Stat labels per role, each with its offset in `Snapshot.staffStats`. */
+const ROLE_STATS: readonly (readonly (readonly [string, number])[])[] = [
+  [
+    ['Lawns mown', 1],
+    ['Gardens watered', 2],
+    ['Litter swept', 0],
+    ['Bins emptied', 3],
+  ],
+  [
+    ['Rides inspected', 4],
+    ['Rides fixed', 5],
+  ],
+  [['Vandals stopped', 6]],
+  [['Guests entertained', 7]],
+];
 
 /** Resolves a worker's display details from the latest transferable snapshot. */
 export function workerDetails(snapshot: Snapshot | null, staffId: number): WorkerDetails | null {
@@ -37,6 +58,11 @@ export function workerDetails(snapshot: Snapshot | null, staffId: number): Worke
       tileY: Math.floor(snapshot.staff.data[offset + 1] / TILE_UNITS),
       height: Math.floor(snapshot.staff.data[offset + 2] / Z_STEP),
       weeklyWage: STAFF_WAGE_CENTS_PER_WEEK[kind] ?? 0,
+      hiredTick: snapshot.staffStats[slot * STAFF_STAT_STRIDE + 8],
+      stats: (ROLE_STATS[kind] ?? []).map(([label, offset]) => ({
+        label,
+        value: snapshot.staffStats[slot * STAFF_STAT_STRIDE + offset],
+      })),
     };
   }
   return null;
@@ -52,7 +78,8 @@ const ROLE_ORDERS = [
   [
     ['sweep-paths', 'Sweep paths'],
     ['empty-bins', 'Empty bins'],
-    ['water-gardens', 'Maintain gardens'],
+    ['water-gardens', 'Water gardens'],
+    ['mow-grass', 'Mow grass'],
   ],
   [
     ['inspect-rides', 'Inspect rides'],
@@ -72,6 +99,7 @@ const ORDER_BITS: Record<WorkerTaskOrder, number> = {
   'repair-rides': 1 << 4,
   'watch-for-vandalism': 1 << 5,
   'entertain-guests': 1 << 6,
+  'mow-grass': 1 << 7,
 };
 
 /** Opens the three-tab inspector for a worker selected from the staff roster. */
@@ -89,8 +117,12 @@ export function openWorkerWindow(
   });
   const name = element('strong', 'worker-name');
   let currentWorker: WorkerDetails | null = null;
+  let activityLabels = '';
+  let activityValues: HTMLElement[] = [];
   const role = statRow('Role');
   const location = statRow('Location');
+  const employed = statRow('Employed');
+  const activity = element('div', 'worker-activity');
   const wage = statRow('Wage per week');
   const taskLegend = element('legend', 'stat-label', 'Task orders');
   const patrolHint = element(
@@ -154,12 +186,7 @@ export function openWorkerWindow(
     orders.append(taskOrders, taskHint, patrol, patrolHint);
 
     const statistics = win.pane('statistics');
-    const notRecorded = element(
-      'p',
-      'ui-help',
-      'Hire date and activity totals are not recorded by this simulation.',
-    );
-    statistics.append(wage.row, notRecorded);
+    statistics.append(wage.row, employed.row, activity);
   }
 
   return {
@@ -174,6 +201,22 @@ export function openWorkerWindow(
         worker ? `Tile ${worker.tileX}, ${worker.tileY} · height ${worker.height}` : 'Unavailable',
       );
       setText(wage.value, worker ? formatMoney(worker.weeklyWage) : 'Unavailable');
+      if (worker) {
+        const hired = gameDate(worker.hiredTick);
+        setText(employed.value, `${hired.monthName}, year ${hired.year}`);
+      } else setText(employed.value, 'Unavailable');
+      const stats = worker?.stats ?? [];
+      const labels = stats.map((stat) => stat.label).join('|');
+      if (labels !== activityLabels) {
+        activityLabels = labels;
+        activityValues = stats.map(({ label }) => {
+          const row = statRow(label);
+          activity.append(row.row);
+          return row.value;
+        });
+        activity.replaceChildren(...activityValues.map((value) => value.parentElement as Node));
+      }
+      stats.forEach(({ value }, index) => setText(activityValues[index], String(value)));
       const orderGroup = win.pane('orders').firstElementChild as HTMLFieldSetElement;
       const selectedKind = worker?.kind ?? -1;
       let staffSlot = -1;

@@ -45,7 +45,7 @@ describe('park litter', () => {
     expect(survivingTiles.has(503)).toBe(true);
   });
 
-  it('records trash in a path bin and a handyman empties it', () => {
+  it('records trash in a path bin and a handyman empties it once a side is full', () => {
     const world = new World({ seed: 4, width: 16, height: 16 });
     world.map.fillFlat(2);
     expect(placePath(world.map, { x: 8, y: 8, z: 2 })).toBe(true);
@@ -54,6 +54,7 @@ describe('park litter', () => {
     expect(world.map.elData[bin]).toBe(0xff);
     expect(dropLitter(world, 8, 8, LitterKind.Trash)).toBe(true);
     expect(world.map.elData[bin]).not.toBe(0);
+    world.map.elData[bin] = 0b11111100;
 
     expect(spawnStaff(world, StaffKind.Handyman)).toBe(true);
     world.staff.cols.x[0] = 8 * 256 + 128;
