@@ -27,12 +27,17 @@ function stepSystem(world: World, system: ReturnType<typeof createGuestSystem>, 
 }
 
 /** One guest on a footpath with one ride whose ratings the caller sets. */
-function oneRide(ratings: { excitement: number; intensity: number; nausea: number }) {
+function oneRide(
+  ratings: { excitement: number; intensity: number; nausea: number },
+  preference = 100,
+  happiness?: number,
+) {
   const world = flatWorld(24, 8);
   layPath(world, row(5, 3, 15));
   const guest = guestAt(world, 5, 5);
   addNearbyRubbish(world, 5, 5);
-  world.guests.cols.preferredIntensity[guest] = 100;
+  world.guests.cols.preferredIntensity[guest] = preference;
+  if (happiness !== undefined) world.guests.cols.happiness[guest] = happiness;
   world.guests.cols.nauseaTolerance[guest] = 150;
   const ride = openRide(world, RideType.MerryGoRound, [8, 4], [8, 5], [9, 4], [[7, 5]]);
   world.rides.cols.excitement[ride] = ratings.excitement;
@@ -50,6 +55,30 @@ describe('ride choice against ride ratings', () => {
 
   it('refuses an ultra-extreme ride and thinks it too intense', () => {
     const { world, guest } = oneRide({ excitement: 900, intensity: 1500, nausea: 100 });
+    expect(world.guests.cols.targetRide[guest]).toBe(-1);
+    expect(world.guests.cols.thought0[guest]).toBe(GuestThought.TooIntense);
+  });
+
+  it('accepts rides at the maximum intensity tolerance of a spawned guest', () => {
+    const { world, guest, ride } = oneRide(
+      { excitement: 900, intensity: 1074, nausea: 100 },
+      223,
+      255,
+    );
+    expect(world.guests.cols.targetRide[guest]).toBe(world.rides.slotToId[ride]);
+  });
+
+  it('lets a high-preference, very happy guest choose a 10.00 intensity ride', () => {
+    const { world, guest, ride } = oneRide(
+      { excitement: 900, intensity: 1000, nausea: 100 },
+      223,
+      255,
+    );
+    expect(world.guests.cols.targetRide[guest]).toBe(world.rides.slotToId[ride]);
+  });
+
+  it('refuses a ride beyond the maximum intensity tolerance of a spawned guest', () => {
+    const { world, guest } = oneRide({ excitement: 564, intensity: 1178, nausea: 555 }, 223, 255);
     expect(world.guests.cols.targetRide[guest]).toBe(-1);
     expect(world.guests.cols.thought0[guest]).toBe(GuestThought.TooIntense);
   });
