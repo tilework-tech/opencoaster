@@ -43,7 +43,7 @@ Path: @/src/sim/guests
 - A guest whose tile is not a footpath (for example after the path under it is removed, or spawned by `spawnGuests` into a park without a gate) cannot move; it eventually leaves when it is stranded and counts as lost for the park rating.
 - `queueLength` counts only the guests at the head of the line who can board; the ride window and the wait estimate use the whole line (`rideLines.queued`). Capacity is enforced when a guest joins the line.
 - Stalls serve any number of guests at once; `capacity` is not enforced. The Information Kiosk is selected for umbrellas in rain and also sells them to nearby wandering guests.
-- Current saves use version 30. Version 23 added queue-order counters and ride queue limits; version 29 added guest happiness targets; version 30 preserves scenario average guest cash, with older scenario headers using the default. Older saves initialize fields absent from their layouts and rebuild entrance/exit marks on the first tick. Versions 3 and 4 also migrate guests with `HEADING_NONE`. See [save format and migrations](../../save/docs.md) for the full history.
+- Current saves use version 31. Version 23 added queue-order counters and ride queue limits; version 29 added guest happiness targets; version 31 stores the scenario average guest-cash setting, with older scenario headers defaulting to $50. Older saves initialize fields absent from their layouts and rebuild entrance/exit marks on the first tick. Versions 3 and 4 also migrate guests with `HEADING_NONE`. See [save format and migrations](../../save/docs.md) for the full history.
 
 ### Vandalism
 

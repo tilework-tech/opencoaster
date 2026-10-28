@@ -30,27 +30,27 @@ The sensible profile is a small opening park: four flat rides, food and drink st
 | Month                  | Main ending cash | Current ending cash | Current cash change |
 | ---------------------- | ---------------: | ------------------: | ------------------: |
 | Opening                |          $50,000 |             $50,000 |                   — |
-| 1 (construction month) |          $42,978 |             $42,401 |             -$7,599 |
-| 2                      |          $42,784 |             $42,598 |               +$197 |
-| 3                      |          $42,314 |             $42,941 |               +$343 |
-| 4                      |          $41,867 |             $43,201 |               +$260 |
-| 5                      |          $41,465 |             $43,481 |               +$280 |
-| 6                      |          $41,094 |             $43,776 |               +$295 |
+| 1 (construction month) |          $42,966 |             $42,431 |             -$7,569 |
+| 2                      |          $42,770 |             $42,798 |               +$367 |
+| 3                      |          $42,333 |             $43,251 |               +$453 |
+| 4                      |          $41,876 |             $43,686 |               +$435 |
+| 5                      |          $41,461 |             $44,193 |               +$507 |
+| 6                      |          $41,019 |             $44,788 |               +$595 |
 
-The current park has positive month-to-month cash flow from month 2 onward, reaching +$260 in month 4. The matched main baseline declines after the month-one build. Previous six-month ledger totals are omitted because the arrival behavior changed and those totals have not been refreshed.
+The current park has positive month-to-month cash flow from month 2 onward, reaching +$435 in month 4. The matched main baseline declines after the month-one build. Both runs use the same sensible build script from this branch against the respective source trees; on main the script and its profile definition were copied into the temporary measurement snapshot so the construction plan matched exactly. Month-end finances and the detailed RCT2/OpenRCT2 source crosswalk are in [economy fidelity](fidelity/economy.md#economy-calibration-crosswalk).
 
-The full eight-month sensible run ends with 182 guests and rating 401, losing the unchanged year-end objective of 100 guests and rating 450 because the rating is below target. No scenario objective values were changed.
+The full eight-month sensible run ends with 281 guests and rating 553, winning the unchanged year-end objective of 100 guests and rating 450. No scenario objective values were changed; this sensible build now clears the starter objective comfortably, so the target is left unchanged.
 
-The six-month modest profile, which adds more rides and increases the handyman roster from two to four, ends at $40,778 versus $43,776 for the sensible profile. Its extra construction ($4,412), running costs ($493) and wages ($700) outweigh much of its higher ticket and stall income, leaving it $2,998 behind while still solvent. This demonstrates that expansion and over-hiring carry visible costs without making the starter park unplayable.
+The six-month modest profile, which adds more rides and increases the handyman roster from two to four, ends at $40,551 versus $44,788 for the sensible profile. Its extra construction ($4,412), running costs ($465) and wages ($700) outweigh much of its higher ticket and stall income, leaving it $4,237 behind while still solvent. Main's same modest profile ends at $36,990, so the calibrated economy improves its six-month cash by $3,561 while preserving the visible cost of expansion and over-hiring.
 
 ## Scenario and performance effects
 
-| Check                            | Main baseline                       | Economy branch                | Change                                                                                              |
-| -------------------------------- | ----------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| All-scenario sweep, seed 1       | 7/10 wins                           | 8/10 wins                     | Copper Ridge and Glacier Point miss their existing coaster objectives; no objective values changed. |
-| Strict 5,000-guest benchmark p99 | `origin/main`: 5.039 ms/tick median | Current: 5.038 ms/tick median | Effectively tied across three sequential runs per tree; both medians exceed the 3 ms p99 target.    |
+| Check                            | Main baseline        | Economy branch       | Change                                                                                                  |
+| -------------------------------- | -------------------- | -------------------- | ------------------------------------------------------------------------------------------------------- |
+| All-scenario sweep, seed 1       | 7/10 wins            | 9/10 wins            | Copper Ridge and Glacier Point miss on both; Riverside Fairground and Thunderhead Mesa improve to wins. |
+| Strict 5,000-guest benchmark p99 | 3.043 ms/tick median | 2.824 ms/tick median | Branch median is 7.2% lower; both remain within 10%.                                                    |
 
-The scenario sweep is a single-seed comparison, not a general win-rate estimate. Copper Ridge's seed-1 park does not complete its five-coaster 4.60+ objective before year end; Glacier Point does not finish its six-coaster 4.90+ race by tick 22,528. No objective was retuned to change the results. Three sequential strict runs per tree used `pnpm bench -- --guests 5000 --ticks 800 --warmup 500 --strict` on the same runtime for `origin/main` and this branch. Median p99 was 5.039 ms/tick on main and 5.038 ms/tick here (effectively tied); median mean was 1.080 and 1.081 ms/tick, respectively. Individual p99s varied widely, from 2.817–5.186 ms/tick here and 3.466–5.073 ms/tick on main; five of six runs exceeded the 3 ms p99 threshold. These measurements keep the branch within the requested 10% regression limit, though p99 is noisy on this runtime.
+The scenario sweep is a single-seed comparison, not a general win-rate estimate. Copper Ridge's seed-1 park does not complete its five-coaster 4.60+ objective before year end; Glacier Point does not finish its six-coaster 4.90+ race by tick 22,528. No objective was retuned. Three sequential strict runs per tree used `pnpm bench -- --guests 5000 --ticks 800 --warmup 500 --strict` on the same runtime for main at `b12a16c` and this branch. Main p99s were 3.505, 3.043 and 2.846 ms/tick; branch p99s were 2.824, 2.656 and 3.407. Median mean was 0.709 ms/tick on main and 0.710 here. Two of six total runs exceeded the 3 ms p99 threshold. The median p99 comparison is within the requested 10% bound, though p99 remains noisy on this runtime.
 
 ## What changed and why
 
