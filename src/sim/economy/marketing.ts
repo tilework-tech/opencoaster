@@ -17,8 +17,7 @@ export interface CampaignDef {
 
 /**
  * The six RCT2 campaign families, in manual order; the index is the campaign id. Weekly prices
- * are tunable: the manual transcriptions disagree on prices and no controlled RCT2 comparison
- * exists yet (economy.md, Marketing; DECISIONS.md). Each campaign draws extra guests at its own
+ * follow the RCT2 price table (docs/mechanics/research-marketing.md; DECISIONS.md). Each campaign draws extra guests at its own
  * per-tick chance, in the original game's proportions (free entry 400, free rides 300, park
  * advertising 250, half-price entry, free food and ride advertising 200).
  */

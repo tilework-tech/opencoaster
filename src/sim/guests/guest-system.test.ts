@@ -4,6 +4,7 @@ import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { VoucherKind } from '../economy/vouchers';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { RideState } from '../rides/ride-store';
 import { getRideValueCents } from '../rides/ride-operations';
 import { RIDE_PRICE_FLOOR_CENTS } from './willingness';
 import { isReachable } from '../pathfinding';
@@ -603,7 +604,7 @@ describe('campaign vouchers', () => {
     const admission = () => ({
       generationProbability: 0,
       entranceFee: fee,
-      campaign: { probability: 65_536, voucher: { kind, target } },
+      campaign: { probability: 65_536, voucher: { kind, target }, targetRide: -1 },
     });
     createGuestSystem(admission).update(w);
     expect(w.guests.count).toBe(1);
@@ -672,7 +673,7 @@ describe('campaign vouchers', () => {
       w.economy.campaignId = campaignId;
       w.economy.campaignTarget = promotedRideId;
       w.economy.campaignWeeksLeft = 1;
-      w.economy.parkRating = 1000;
+      w.economy.guestGeneration.probability = 0;
       w.rng.int = () => 0;
 
       createGuestSystem().update(w);

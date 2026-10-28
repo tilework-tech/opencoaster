@@ -90,6 +90,28 @@ describe('campaign costs and attraction', () => {
   });
 });
 
+describe('campaign ride target', () => {
+  it('names the promoted ride only while a ride campaign has weeks left', () => {
+    const l = createLedger();
+    expect(marketingRideTarget(l)).toBe(NO_TARGET);
+    startCampaign(
+      l,
+      CAMPAIGNS.findIndex((c) => c.name === 'Free ride vouchers'),
+      1,
+      7,
+    );
+    expect(marketingRideTarget(l)).toBe(7);
+    chargeCampaignWeek(l);
+    expect(marketingRideTarget(l)).toBe(NO_TARGET);
+  });
+
+  it('names no ride for a park-wide campaign', () => {
+    const l = createLedger();
+    startCampaign(l, FREE_ENTRY, 1);
+    expect(marketingRideTarget(l)).toBe(NO_TARGET);
+  });
+});
+
 describe('campaign guest offers', () => {
   it.each([
     [0, VoucherKind.FreeEntry, NO_TARGET],
