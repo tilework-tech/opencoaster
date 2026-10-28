@@ -3,7 +3,7 @@
   "name": "Thunderhead Mesa",
   "category": "expert",
   "climate": "hotAndDry",
-  "description": "A scorched mesa and a hard-to-please crowd. Hold 514 guests and a park rating of 790 through the end of year four.",
+  "description": "A scorched mesa and a hard-to-please crowd. Hold 510 guests and a park rating of 790 through the end of year four.",
   "seed": 3101,
   "map": {
     "width": 96,
@@ -171,7 +171,7 @@
   },
   "objective": {
     "kind": "guestsAndRating",
-    "target": 514,
+    "target": 510,
     "rating": 790,
     "byYear": 4
   }

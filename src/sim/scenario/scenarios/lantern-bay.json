@@ -3,7 +3,7 @@
   "name": "Lantern Bay",
   "category": "beginner",
   "climate": "hotAndDry",
-  "description": "A sandy bay with a long sheltered shore. Lift the park's value above $9,930 within three years.",
+  "description": "A sandy bay with a long sheltered shore. Lift the park's value above $9,600 within three years.",
   "seed": 1202,
   "map": {
     "width": 80,
@@ -180,7 +180,7 @@
   ],
   "objective": {
     "kind": "parkValueByDate",
-    "target": 993000,
+    "target": 960000,
     "byYear": 3
   }
 }
