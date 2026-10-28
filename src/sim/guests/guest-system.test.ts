@@ -4,6 +4,8 @@ import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { VoucherKind } from '../economy/vouchers';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
 import { RideType } from '../rides/ride-types';
+import { getRideValueCents } from '../rides/ride-operations';
+import { RIDE_PRICE_FLOOR_CENTS } from './willingness';
 import { rideQueueSystem } from '../rides/queue-system';
 import { rideSystem } from '../rides/ride-system';
 import { TILE_UNITS } from '../core/constants';
@@ -698,5 +700,72 @@ describe('campaign vouchers', () => {
     runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
     expect(g.hunger[slot]).toBeGreaterThan(170);
     expect(g.thirst[slot]).toBeGreaterThan(150);
+  });
+});
+
+const FOOD_VALUE = 190;
+
+describe('price willingness', () => {
+  const thoughts = (w: World, slot: number): number[] => {
+    const g = w.guests.cols;
+    return [g.thought0[slot], g.thought1[slot], g.thought2[slot], g.thought3[slot]];
+  };
+
+  function perRideCorridor(price: number): { w: World; ride: number; slot: number } {
+    const { w, ride } = corridorWithRide();
+    w.economy.priceMode = PriceMode.PerRide;
+    w.rides.cols.price[ride] = price;
+    const slot = guestAt(w, 2, 5);
+    w.guests.cols.happiness[slot] = 255;
+    w.guests.cols.cash[slot] = 5000;
+    return { w, ride, slot };
+  }
+
+  function rideLimit(): number {
+    const { w, ride } = corridorWithRide();
+    return Math.max(RIDE_PRICE_FLOOR_CENTS, 2 * getRideValueCents(w, w.rides.slotToId[ride]));
+  }
+
+  it('rides at a ticket price within twice the ride value', () => {
+    const { w, ride, slot } = perRideCorridor(Math.min(rideLimit(), 200));
+    run(w, 3000);
+    expect(w.rides.cols.guestsServed[ride]).toBeGreaterThan(0);
+    expect(w.guests.cols.cash[slot]).toBeLessThan(5000);
+  });
+
+  it('refuses a ticket above twice the ride value and thinks it is poor value', () => {
+    const { w, ride, slot } = perRideCorridor(rideLimit() + 1);
+    run(w, 3000);
+    expect(w.rides.cols.guestsServed[ride]).toBe(0);
+    expect(w.guests.cols.cash[slot]).toBe(5000);
+    expect(w.economy.monthlyTotals[LedgerCategory.RideTickets]).toBe(0);
+    expect(thoughts(w, slot)).toContain(GuestThought.BadValue);
+  });
+
+  function stallAt(type: RideType, price: number): { w: World; stall: number; slot: number } {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 20));
+    const stall = openRide(w, type, [9, 4], [9, 5], [10, 4]);
+    w.rides.cols.price[stall] = price;
+    const slot = guestAt(w, 4, 5);
+    w.guests.cols.hunger[slot] = 10;
+    w.guests.cols.thirst[slot] = 10;
+    w.guests.cols.cash[slot] = 5000;
+    return { w, stall, slot };
+  }
+
+  it('buys food priced at its base value', () => {
+    const { w, stall } = stallAt(RideType.FoodStall, FOOD_VALUE);
+    runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
+    expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkSales]).toBe(FOOD_VALUE);
+  });
+
+  it('walks away from food priced beyond what even a delighted guest tolerates', () => {
+    const { w, stall, slot } = stallAt(RideType.FoodStall, FOOD_VALUE + 284);
+    w.guests.cols.happiness[slot] = 255;
+    run(w, 3000);
+    expect(w.rides.cols.guestsServed[stall]).toBe(0);
+    expect(w.guests.cols.cash[slot]).toBe(5000);
+    expect(thoughts(w, slot)).toContain(GuestThought.BadValue);
   });
 });

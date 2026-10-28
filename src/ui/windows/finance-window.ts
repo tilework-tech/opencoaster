@@ -1,11 +1,12 @@
 import { FeedbackDomain } from '../../sim/core/feedback';
 import type { EconomyAction } from '../../sim/economy/actions';
 import { CAMPAIGNS, MAX_CAMPAIGN_WEEKS, MIN_CAMPAIGN_WEEKS } from '../../sim/economy/marketing';
-import { LedgerCategory } from '../../sim/economy/ledger';
+import { HISTORY_MONTHS, LedgerCategory } from '../../sim/economy/ledger';
 import { LOAN_STEP_CENTS } from '../../sim/economy/finance';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, setText, statRow } from '../dom';
-import { drawChart, formatMoney } from '../format';
+import { drawChart, formatMoney, formatWholeMoney } from '../format';
+import { financeOutlook, outlookMessage } from '../finance-outlook';
 import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 import { fundingControls } from './research-window';
@@ -84,7 +85,7 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
     id: 'finance',
     title: 'Finances',
     kind: 'finance',
-    width: 380,
+    width: 460,
     tabs: FINANCE_TABS,
   });
   const cash = statRow('Cash');
@@ -108,26 +109,29 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
   loanRow.append(borrowButton, repayButton);
   const table = element('table', 'ledger-table');
   const head = element('tr');
-  head.append(
-    element('th', '', ''),
-    element('th', '', 'This month'),
-    element('th', '', 'Last month'),
-  );
+  head.append(element('th', '', ''), element('th', '', 'This month'));
+  for (let m = 0; m < HISTORY_MONTHS; m++) {
+    head.append(element('th', '', m === 0 ? 'Last month' : `${m + 1} mo ago`));
+  }
   table.append(head);
-  const cells: Array<{ now: HTMLElement; before: HTMLElement }> = [];
+  const cells: Array<{ now: HTMLElement; before: HTMLElement[] }> = [];
   for (let c = 0; c < LedgerCategory.COUNT; c++) {
     const row = element('tr');
     const now = element('td', 'num');
-    const before = element('td', 'num');
+    const before = Array.from({ length: HISTORY_MONTHS }, () => element('td', 'num'));
     cells.push({ now, before });
-    row.append(element('th', '', CATEGORY_LABELS[c as LedgerCategory]), now, before);
+    row.append(element('th', '', CATEGORY_LABELS[c as LedgerCategory]), now, ...before);
     table.append(row);
   }
   const totalRow = element('tr', 'ledger-total');
   const totalNow = element('td', 'num');
-  const totalBefore = element('td', 'num');
-  totalRow.append(element('th', '', 'Profit'), totalNow, totalBefore);
+  const totalBefore = Array.from({ length: HISTORY_MONTHS }, () => element('td', 'num'));
+  totalRow.append(element('th', '', 'Profit'), totalNow, ...totalBefore);
   table.append(totalRow);
+  const interestRate = statRow('Interest rate');
+  const bills = statRow('Weekly bills');
+  const outlookLine = element('p', 'ui-help finance-outlook');
+  outlookLine.setAttribute('role', 'status');
 
   const charts = {
     cash: element('canvas', 'chart'),
@@ -179,7 +183,18 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
   let lastFeedbackSeq: number | null = null;
 
   if (created) {
-    win.pane('summary').append(cash.row, loan.row, loanRow, summaryFeedback, table);
+    win
+      .pane('summary')
+      .append(
+        cash.row,
+        loan.row,
+        interestRate.row,
+        bills.row,
+        outlookLine,
+        loanRow,
+        summaryFeedback,
+        table,
+      );
     win.pane('cash').append(element('p', 'ui-help', 'Cash over time'), charts.cash);
     win.pane('value').append(element('p', 'ui-help', 'Park value over time'), charts.value);
     win
@@ -202,16 +217,32 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
       if (repayButton.disabled)
         repayButton.title = 'Repayment requires at least $1,000 in loan and cash.';
       else repayButton.removeAttribute('title');
+      const outlook = financeOutlook(snapshot);
+      setText(interestRate.value, `${(e.annualInterestBps / 100).toFixed(1)}% a year`);
+      setText(
+        bills.value,
+        `${formatMoney(outlook.weeklyBills)} (wages ${formatMoney(outlook.wagesPerWeek)}, interest ${formatMoney(outlook.interestPerWeek)}, running ${formatMoney(outlook.upkeepPerWeek)}, research ${formatMoney(outlook.researchPerWeek)}, marketing ${formatMoney(outlook.marketingPerWeek)})`,
+      );
+      setText(outlookLine, outlookMessage(outlook));
+      outlookLine.hidden = outlook.level === 'ok';
+      outlookLine.dataset.level = outlook.level;
       let sumNow = 0;
-      let sumBefore = 0;
+      const sumBefore = new Array<number>(HISTORY_MONTHS).fill(0);
       for (let c = 0; c < LedgerCategory.COUNT; c++) {
         sumNow += e.thisMonth[c];
-        sumBefore += e.lastMonth[c];
-        setText(cells[c].now, formatMoney(e.thisMonth[c]));
-        setText(cells[c].before, e.monthsCompleted > 0 ? formatMoney(e.lastMonth[c]) : '-');
+        setText(cells[c].now, formatWholeMoney(e.thisMonth[c]));
+        for (let m = 0; m < HISTORY_MONTHS; m++) {
+          sumBefore[m] += e.pastMonths[m][c];
+          setText(
+            cells[c].before[m],
+            e.monthsCompleted > m ? formatWholeMoney(e.pastMonths[m][c]) : '-',
+          );
+        }
       }
-      setText(totalNow, formatMoney(sumNow));
-      setText(totalBefore, e.monthsCompleted > 0 ? formatMoney(sumBefore) : '-');
+      setText(totalNow, formatWholeMoney(sumNow));
+      for (let m = 0; m < HISTORY_MONTHS; m++) {
+        setText(totalBefore[m], e.monthsCompleted > m ? formatWholeMoney(sumBefore[m]) : '-');
+      }
       const tab = win.activeTab;
       if (tab === 'cash') drawChart(charts.cash, ctx.series.cash.values(), '#9be28a');
       if (tab === 'value') drawChart(charts.value, ctx.series.value.values(), '#8fd3ff');

@@ -24,15 +24,25 @@ export interface Point {
   y: number;
 }
 
+/** Default window width the cascade assumes when a window does not state its own. */
+export const DEFAULT_WINDOW_WIDTH = 380;
+
 export function cascadePosition(
   index: number,
   viewportWidth: number,
   viewportHeight: number,
+  windowWidth = DEFAULT_WINDOW_WIDTH,
 ): Point {
   const step = 28;
-  const slots = Math.max(1, Math.floor(Math.min(viewportHeight - 300, viewportWidth - 400) / step));
+  const slots = Math.max(
+    1,
+    Math.floor(Math.min(viewportHeight - 300, viewportWidth - windowWidth - 20) / step),
+  );
   const slot = index % slots;
-  return { x: Math.max(16, viewportWidth - 380 - slot * step), y: TOP_INSET + 10 + slot * step };
+  return {
+    x: Math.max(16, viewportWidth - windowWidth - slot * step),
+    y: TOP_INSET + 10 + slot * step,
+  };
 }
 
 /** Chooses a visible corner farthest from the pointer so new windows leave the map target clear. */

@@ -32,6 +32,14 @@ import {
   QUEUE_SPACING,
   refreshQueueIndex,
 } from '../rides/queue-lines';
+import {
+  acceptsItemPrice,
+  ITEM_TOLERANCE_ROLLS,
+  itemValueCents,
+  maxItemPriceCents,
+  maxRidePriceCents,
+  priceIsAcceptable,
+} from './willingness';
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
@@ -97,7 +105,7 @@ const SIGHT_TILES = 10;
 const MEAL_RELIEF = 176;
 const MEAL_THIRST = 32;
 const SHOP_HAPPINESS = 8;
-const STOCK_COST_PERCENT = 40;
+const STOCK_COST_PERCENT = 26;
 const ARRIVAL_INTERVAL = 40;
 /** Guests the park comfortably holds before arrivals taper off: a base plus what its rides add. */
 const COMFORTABLE_BASE = 30;
@@ -191,6 +199,7 @@ const NOT_OFFERED = -1;
 const TOO_INTENSE = -2;
 const TOO_NAUSEOUS = -3;
 const LINE_FULL = -4;
+const TOO_EXPENSIVE = -5;
 
 /** Stable pseudo-random swing so guests with equal needs do not all pick the same ride. */
 function taste(world: World, slot: number, ride: number): number {
@@ -219,6 +228,7 @@ function scoreRide(world: World, slot: number, ride: number): number {
   }
   const category = rideCategory(world, ride);
   if (!isThrillCategory(category)) return NOT_OFFERED;
+  if (!priceIsAcceptable(price, maxRidePriceCents(world, ride))) return TOO_EXPENSIVE;
   if (g.lastRide[slot] === world.rides.slotToId[ride] && !allowsRepeatRide(world, slot, ride))
     return NOT_OFFERED;
   if (r.intensity[ride] > intensityCeilingOf(g.preferredIntensity[slot])) return TOO_INTENSE;
@@ -278,9 +288,11 @@ function chooseRide(world: World, slot: number, tile: number): number {
   let tooIntense = false;
   let tooNauseous = false;
   let full = false;
+  let tooExpensive = false;
   for (let ride = 0; ride < world.rides.count; ride++) {
     const score = scoreRide(world, slot, ride);
-    if (score === TOO_INTENSE) tooIntense = true;
+    if (score === TOO_EXPENSIVE) tooExpensive = true;
+    else if (score === TOO_INTENSE) tooIntense = true;
     else if (score === TOO_NAUSEOUS) tooNauseous = true;
     else if (score === LINE_FULL) full = true;
     if (score <= bestScore) continue;
@@ -293,6 +305,7 @@ function chooseRide(world: World, slot: number, tile: number): number {
     if (tooIntense) recordThought(world, slot, GuestThought.TooIntense);
     else if (tooNauseous) recordThought(world, slot, GuestThought.TooNauseous);
     else if (full) recordThought(world, slot, GuestThought.QueueTooLong);
+    else if (tooExpensive) recordThought(world, slot, GuestThought.BadValue);
   }
   return selected;
 }
@@ -311,6 +324,8 @@ function nearestStall(
   const cash = world.guests.cols.cash[slot];
   let selected = -1;
   let best = SIGHT_TILES + 1;
+  let overpriced = false;
+  const buyingMap = isLost(world, slot);
   for (let ride = 0; ride < world.rides.count; ride++) {
     const type = r.typeId[ride] as RideType;
     const matches = typeof want === 'number' ? type === want : RIDE_CATALOG[type]?.serves === want;
@@ -324,6 +339,14 @@ function nearestStall(
       VoucherKind.FreeFoodOrDrink,
     );
     if (fare > cash) continue;
+    if (
+      !buyingMap &&
+      type !== RideType.InformationKiosk &&
+      !priceIsAcceptable(fare, maxItemPriceCents(world, ride, world.guests.cols.happiness[slot]))
+    ) {
+      overpriced = true;
+      continue;
+    }
     if (world.rideLines.queued[ride] + world.rideLines.approaching[ride] >= STALL_LINE_LIMIT) {
       continue;
     }
@@ -333,6 +356,7 @@ function nearestStall(
     best = distance;
     selected = ride;
   }
+  if (selected < 0 && overpriced) recordThought(world, slot, GuestThought.BadValue);
   return selected;
 }
 
@@ -620,6 +644,20 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
     return;
   }
   if (isThrillCategory(category)) {
+    if (!priceIsAcceptable(price, maxRidePriceCents(world, ride))) {
+      recordThought(world, slot, GuestThought.BadValue);
+      clearDestination(world, slot);
+      return;
+    }
+  } else if (!mapSale && r.typeId[ride] !== RideType.InformationKiosk && price > 0) {
+    const roll = world.rng.int(ITEM_TOLERANCE_ROLLS);
+    if (!acceptsItemPrice(price, itemValueCents(world, ride), g.happiness[slot], roll)) {
+      recordThought(world, slot, GuestThought.BadValue);
+      clearDestination(world, slot);
+      return;
+    }
+  }
+  if (isThrillCategory(category)) {
     if (lines.queued[ride] + lines.approaching[ride] > rideQueueCapacity(world, ride)) {
       recordThought(world, slot, GuestThought.QueueTooLong);
       clearDestination(world, slot);
@@ -734,6 +772,11 @@ function joinQueueLine(world: World, slot: number, ride: number): void {
   );
   const lines = world.rideLines;
   if (r.state[ride] !== RideState.Open || price > g.cash[slot]) {
+    clearDestination(world, slot);
+    return;
+  }
+  if (!priceIsAcceptable(price, maxRidePriceCents(world, ride))) {
+    recordThought(world, slot, GuestThought.BadValue);
     clearDestination(world, slot);
     return;
   }

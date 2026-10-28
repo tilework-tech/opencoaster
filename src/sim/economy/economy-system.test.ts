@@ -8,7 +8,7 @@ import {
   TICKS_PER_WEEK,
 } from './calendar';
 import { DIFFICULT_RATING_BASE, RATING_BASE } from './park-rating';
-import { BASIS_POINTS, LedgerCategory } from './ledger';
+import { BASIS_POINTS, LedgerCategory, completedMonthTotal } from './ledger';
 import { setEconomyInputs } from './api';
 import { RIDE_UPKEEP_DIVISOR } from './park-inputs';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
@@ -50,6 +50,46 @@ function simWithRide(): Simulation {
   );
   return s;
 }
+
+describe('billing cadence', () => {
+  it('pays a staff member one quarter of the monthly salary each week', () => {
+    expect(STAFF_WAGE_CENTS_PER_WEEK).toEqual([1250, 2000, 1500, 1375]);
+    const s = sim();
+    s.enqueue({ type: 'spawnStaff', count: 1, kind: 1 });
+    runUntil(s, TICKS_PER_MONTH);
+    expect(completedMonthTotal(s.world.economy, LedgerCategory.Wages)).toBe(-8000);
+  });
+
+  it('charges research funding weekly, a quarter of the monthly figure at a time', () => {
+    const s = sim();
+    s.world.research.funding = 2;
+    runUntil(s, TICKS_PER_WEEK - 1);
+    expect(s.world.economy.monthlyTotals[LedgerCategory.Research]).toBe(0);
+    runUntil(s, TICKS_PER_WEEK);
+    expect(s.world.economy.monthlyTotals[LedgerCategory.Research]).toBe(-5000);
+    runUntil(s, TICKS_PER_MONTH);
+    expect(completedMonthTotal(s.world.economy, LedgerCategory.Research)).toBe(-20_000);
+  });
+
+  it('books the last week of research and wages in the month that just ended', () => {
+    const s = sim();
+    s.world.research.funding = 3;
+    s.enqueue({ type: 'spawnStaff', count: 1, kind: 0 });
+    runUntil(s, TICKS_PER_MONTH);
+    const l = s.world.economy;
+    expect(completedMonthTotal(l, LedgerCategory.Research)).toBe(-40_000);
+    expect(completedMonthTotal(l, LedgerCategory.Wages)).toBe(-5000);
+    expect(l.monthlyTotals[LedgerCategory.Research]).toBe(0);
+  });
+
+  it('charges loan interest weekly as a 32nd of the annual rate', () => {
+    const s = sim();
+    s.world.economy.loan = 2_000_000;
+    s.world.economy.annualInterestBps = 1000;
+    runUntil(s, TICKS_PER_WEEK);
+    expect(s.world.economy.monthlyTotals[LedgerCategory.Interest]).toBe(-6250);
+  });
+});
 
 describe('economy clock', () => {
   it('pays staff wages weekly and ride upkeep fortnightly', () => {

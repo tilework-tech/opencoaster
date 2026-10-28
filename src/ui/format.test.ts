@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { SampleSeries, formatDate, formatMoney, parsePriceCents, stepPrice } from './format';
+import {
+  SampleSeries,
+  formatDate,
+  formatMoney,
+  formatWholeMoney,
+  parsePriceCents,
+  stepPrice,
+} from './format';
 
 describe('price controls', () => {
   it('steps by ten cents and stays within the sim limits', () => {
@@ -45,5 +52,14 @@ describe('sample series', () => {
     series.record(500, 1);
     series.record(10, 2);
     expect(series.values()).toEqual([2]);
+  });
+});
+
+describe('formatWholeMoney', () => {
+  it('drops the cents and keeps the sign', () => {
+    expect(formatWholeMoney(123_456)).toBe('$1,235');
+    expect(formatWholeMoney(-361_200)).toBe('-$3,612');
+    expect(formatWholeMoney(0)).toBe('$0');
+    expect(formatWholeMoney(-20)).toBe('$0');
   });
 });
