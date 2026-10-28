@@ -13,9 +13,6 @@ describe('ride research catalog', () => {
   it('includes every undiscovered ride in the starter scenario in authored discovery order', () => {
     const expected: ReadonlyArray<readonly [itemId: number, category: number, workUnits: number]> =
       [
-        [2, 3, 180],
-        [3, 1, 360],
-        [4, 3, 360],
         [9, 2, 585],
         [10, 2, 630],
         [11, 3, 675],
@@ -28,7 +25,6 @@ describe('ride research catalog', () => {
         [18, 0, 990],
         [19, 0, 1035],
         [20, 0, 1080],
-        [21, 2, 1125],
         [22, 2, 1170],
         [23, 1, 1215],
         [24, 5, 1260],
@@ -51,8 +47,9 @@ describe('ride research catalog', () => {
   it('loads scenario discoveries as the ride item ids used by the build catalog', () => {
     const world = new World({ seed: 1, width: 16, height: 16 });
     applyScenario(world, starter);
-    expect(world.research.unlocked.has(1)).toBe(true);
-    expect(world.research.unlocked.has(5)).toBe(true);
+    for (const itemId of [1, 2, 3, 4, 5, 6, 7, 8, 21]) {
+      expect(world.research.unlocked.has(itemId), `ride item ${itemId}`).toBe(true);
+    }
     for (const invention of starter.inventions) {
       expect(world.research.unlocked.has(invention.itemId)).toBe(false);
     }

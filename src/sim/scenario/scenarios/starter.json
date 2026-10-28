@@ -9,6 +9,18 @@
     "width": 64,
     "height": 64
   },
+  "terrain": {
+    "seaLevel": 2,
+    "baseLevel": 2,
+    "relief": 0,
+    "cell": 8,
+    "surface": "grass",
+    "buildLevel": 4,
+    "buildLength": 20,
+    "buildWidth": 30,
+    "lakes": [{ "x": 85, "y": 30, "rx": 7, "ry": 6, "depth": 4 }],
+    "hills": [{ "x": 85, "y": 75, "radius": 8, "height": 5 }]
+  },
   "finance": {
     "startingCash": 5000000,
     "startingLoan": 2000000,
@@ -30,19 +42,8 @@
     "admissionPrice": 300
   },
   "research": {
-    "availableItemIds": [1, 5, 6, 7, 8],
+    "availableItemIds": [1, 2, 3, 4, 5, 6, 7, 8, 21],
     "inventions": [
-      {
-        "itemId": 2,
-        "category": 3,
-        "workUnits": 180
-      },
-      {
-        "itemId": 3,
-        "category": 1,
-        "workUnits": 360
-      },
-      { "itemId": 4, "category": 3, "workUnits": 360 },
       { "itemId": 9, "category": 2, "workUnits": 585 },
       { "itemId": 10, "category": 2, "workUnits": 630 },
       { "itemId": 11, "category": 3, "workUnits": 675 },
@@ -55,7 +56,6 @@
       { "itemId": 18, "category": 0, "workUnits": 990 },
       { "itemId": 19, "category": 0, "workUnits": 1035 },
       { "itemId": 20, "category": 0, "workUnits": 1080 },
-      { "itemId": 21, "category": 2, "workUnits": 1125 },
       { "itemId": 22, "category": 2, "workUnits": 1170 },
       { "itemId": 23, "category": 1, "workUnits": 1215 },
       { "itemId": 24, "category": 5, "workUnits": 1260 }
