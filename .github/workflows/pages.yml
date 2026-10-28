@@ -26,7 +26,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm exec vite build --base /opencoaster/
+      - run: pnpm exec vite build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
