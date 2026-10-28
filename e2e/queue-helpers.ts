@@ -384,7 +384,6 @@ export async function buildQueuedRide(
     await expect(rideWindow.locator('.ride-checklist')).toContainText('Entrance has no queue', {
       timeout: 20_000,
     });
-    await screenshot(page, testInfo, 'queue-prompt');
   }
 
   if (layout.queue.length > 0) {
@@ -398,8 +397,7 @@ export async function buildQueuedRide(
           await expect(label).toContainText('links to a ride entrance');
           await expect(label).toContainText('open end joins the path');
         } else await expect(page.locator('.path-ghost-label')).toBeVisible();
-        if (!legacy) await screenshot(page, testInfo, 'queue-ghost');
-      } else if (k === drags.length - 1) await screenshot(page, testInfo, 'queue-ghost');
+      }
       await release();
       await expectStatus(/Laid|Queue connected/);
     }
@@ -412,7 +410,6 @@ export async function buildQueuedRide(
   }
   if (!legacy) await expect(rideWindow.locator('.ride-checklist')).toBeEmpty();
   await focus(page, entrance, lift);
-  if (!legacy) await screenshot(page, testInfo, 'queue-built');
 
   const open = rideWindow.getByRole('button', { name: 'Open', exact: true });
   await toolbarTool(page, 'Rides');

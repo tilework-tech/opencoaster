@@ -347,24 +347,17 @@ async function buildAndRide(page: Page, testInfo: TestInfo, options: BuildOption
 test.describe('flat ride footprints (WebGL2)', () => {
   test.slow();
   for (const ride of FOOTPRINT_RIDES) {
-    // Reproduced on clean main bd7c8c6: Merry-Go-Round ghost covers only 2,486 px vs 9,216 required.
-    // Enterprise also fails there: its ghost covers 1,965 px vs 16,384 required.
-    const defineTest =
-      ride.slug === 'merry-go-round' || ride.slug === 'enterprise' ? test.fixme : test;
-    defineTest(
-      `${ride.name} builds and opens with its footprint aligned`,
-      async ({ page }, testInfo) => {
-        test.setTimeout(240_000);
-        page.setDefaultTimeout(10_000);
-        const rideFlow = ride.slug === 'merry-go-round';
-        await buildAndRide(page, testInfo, {
-          ride,
-          dir: 0,
-          savePlaytest: rideFlow,
-          skipGuestFlow: !rideFlow,
-        });
-      },
-    );
+    test(`${ride.name} builds and opens with its footprint aligned`, async ({ page }, testInfo) => {
+      test.setTimeout(240_000);
+      page.setDefaultTimeout(10_000);
+      const rideFlow = ride.slug === 'merry-go-round';
+      await buildAndRide(page, testInfo, {
+        ride,
+        dir: 0,
+        savePlaytest: rideFlow,
+        skipGuestFlow: !rideFlow,
+      });
+    });
   }
   const ride = bySlug(ROTATED_RIDE);
   test(`${ride.name} turned one quarter turn keeps its footprint and boarding points aligned`, async ({

@@ -452,17 +452,23 @@ async function playStarterCoasterOverWater(
   await expect(page.locator('.coaster-info')).toContainText('Track 1 pieces');
 }
 
-// Fails on clean main bd7c8c6: the ride preview has 0 painted pixels where the assertion expects >100.
-test.fixme('new Starter Park builds and opens rides and a stall before guests ride (desktop)', async ({
+test('new Starter Park builds and opens rides and a stall before guests ride (desktop)', async ({
   page,
 }, testInfo) => {
+  test.fixme(
+    true,
+    'Fails on clean main 152c6df: the minimap click times out while the map canvas is 128×65.',
+  );
   await playStarterRideAccess(page, false, testInfo);
 });
 
-// Fails on clean main bd7c8c6 with the same empty-preview assertion as desktop.
-test.fixme('new Starter Park builds and opens rides and a stall before guests ride (Pixel 8)', async ({
+test('new Starter Park builds and opens rides and a stall before guests ride (Pixel 8)', async ({
   freshBrowser: browser,
 }, testInfo) => {
+  test.fixme(
+    true,
+    'Fails on clean main 152c6df: the coaster track build reports a corner-tunnel validation error and remains at 8 of 9 pieces.',
+  );
   const { defaultBrowserType: _browserType, ...options } = devices['Pixel 8'];
   void _browserType;
   const context = await createTestContext(browser, { ...options, serviceWorkers: 'allow' });

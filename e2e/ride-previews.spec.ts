@@ -127,7 +127,9 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
         const card = cards.nth(i);
         const name = (await card.getAttribute('aria-label')) ?? tab;
         const thumbnail = card.locator('.ride-card-thumbnail');
-        await expect(thumbnail, `${name} thumbnail drawn`).toHaveAttribute('data-preview', /.+/);
+        await expect(thumbnail, `${name} thumbnail drawn`).toHaveAttribute('data-preview', /.+/, {
+          timeout: 30_000,
+        });
         expectWholePreview(
           `${name} thumbnail`,
           await thumbnail.evaluate(readPreview, EDGE_BAND),

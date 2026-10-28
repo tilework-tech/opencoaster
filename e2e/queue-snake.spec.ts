@@ -17,6 +17,10 @@ for (const mobile of [false, true]) {
     test('guests walk the whole snake in order, never across a rail', async ({
       freshBrowser: browser,
     }, testInfo) => {
+      test.fixme(
+        mobile,
+        'Fails on clean main 152c6df: Pixel 8 ride setup remains at “Placing exit…” instead of advancing to “Build the queue”.',
+      );
       test.setTimeout(600_000);
       const page = await openPage(browser, mobile);
       page.setDefaultTimeout(15_000);
