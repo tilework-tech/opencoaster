@@ -26,7 +26,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm exec vite build --base /opencoaster/
+      - run: pnpm exec vite build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -39,3 +39,12 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Ensure custom domain
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api repos/${{ github.repository }}/pages --jq '.cname // ""')
+          if [ "$current" != "opencoaster.noriagentic.com" ]; then
+            gh api -X PUT repos/${{ github.repository }}/pages -f cname=opencoaster.noriagentic.com
+          fi
