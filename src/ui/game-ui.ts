@@ -42,6 +42,7 @@ import { openLandWindow } from './windows/land-window';
 import { openClearWindow, openWaterWindow } from './windows/area-windows';
 import { openPathWindow } from './windows/path-window';
 import type { PieceSlope } from '../app/tools/path/run';
+import { openViewportWindow } from './windows/viewport-window';
 import { displayOptionEnabled, setDisplayOption } from './display-options';
 import type { DisplayOption } from './display-options';
 import { shortcutFor } from './shortcuts';
@@ -142,6 +143,7 @@ export class GameUI {
   private readonly speedGroup: HTMLElement;
   private readonly speedButtons = new Map<number, HTMLButtonElement>();
   private readonly speedNote: HTMLElement;
+  private nextViewportId = 1;
 
   constructor(
     private readonly parent: HTMLElement,
@@ -544,6 +546,7 @@ export class GameUI {
       return openWorkerWindow(this.ctx, Number(workerId), (staffId, order, enabled) =>
         this.actions.command({ type: 'setStaffOrder', staffId, order, enabled }),
       );
+    if (/^viewport-\d+$/.test(id)) return openViewportWindow(this.ctx, id);
     switch (id) {
       case 'land':
         return openLandWindow(this.ctx);
@@ -637,7 +640,14 @@ export class GameUI {
       );
       underground.classList.add('underground-view-toggle');
       underground.setAttribute('aria-pressed', String(displayOptionEnabled('underground-view')));
-      win.pane().append(hud, underground);
+      const newViewport = button(
+        'New viewport',
+        () => {
+          this.openWindow(`viewport-${this.nextViewportId++}`);
+        },
+        'ui-button',
+      );
+      win.pane().append(hud, underground, newViewport);
     }
     return { update() {} };
   }

@@ -73,6 +73,10 @@ export function positionAwayFromPoint(
       point.y < candidate.y - 24 ||
       point.y > candidate.y + size.height + 24,
   );
+  if (!free.length) {
+    const scanned = scanForFreeSlot(size, viewportWidth, viewportHeight, occupied);
+    if (scanned) return scanned;
+  }
   const preferred = vertical.filter((candidate) => clear.includes(candidate));
   const options = preferred.length
     ? preferred
@@ -86,6 +90,30 @@ export function positionAwayFromPoint(
       Math.hypot(at.x + size.width / 2 - point.x, at.y + size.height / 2 - point.y);
     return distance(candidate) > distance(best) ? candidate : best;
   });
+}
+
+/** Scans the usable area in 24 px steps for the first spot that touches no occupied rectangle. */
+function scanForFreeSlot(
+  size: { width: number; height: number },
+  viewportWidth: number,
+  viewportHeight: number,
+  occupied: ReadonlyArray<Point & { width: number; height: number }>,
+): Point | null {
+  const step = 24;
+  const maxX = viewportWidth - size.width - 8;
+  const maxY = viewportHeight - BOTTOM_INSET - size.height - 4;
+  for (let x = 8; x <= maxX; x += step)
+    for (let y = TOP_INSET + 10; y <= maxY; y += step) {
+      const free = !occupied.some(
+        (rect) =>
+          x < rect.x + rect.width &&
+          x + size.width > rect.x &&
+          y < rect.y + rect.height &&
+          y + size.height > rect.y,
+      );
+      if (free) return { x, y };
+    }
+  return null;
 }
 
 /** Keeps at least `GRAB` px of the title bar on screen, and the bar below the toolbar. */

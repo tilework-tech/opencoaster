@@ -12,6 +12,7 @@ import { RIDE_STATE_NAMES } from './ride-list';
 import { priceControl } from './price-control';
 import { spritePages } from '../../render/sprite-pages';
 import { drawRidePreview } from '../ride-preview';
+import { liveViewport } from '../live-viewport';
 
 export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
   { id: 'main', label: 'View', icon: 'rides' },
@@ -95,6 +96,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     served: statRow('Guests served'),
     setup: statRow('Setup'),
   };
+  p('main').append(liveViewport(`ride:${rideId}`, `Ride ${rideId + 1} live view`));
   const limit = { natural: 0, current: 0 };
   const limitValue = element('span', 'stat-value', '');
   const setLimit = (value: number): void => ctx.actions.setRideQueueLimit(rideId, value);

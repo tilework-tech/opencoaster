@@ -23,7 +23,14 @@ import {
   viewTerrainCornerHeights,
   waterIntersectsTerrainTile,
 } from './terrain-geometry';
-import type { Camera, MapData, PathPieceGhost, Renderer, SpriteGhost } from './renderer';
+import type {
+  Camera,
+  MapData,
+  PathPieceGhost,
+  Renderer,
+  RenderViewport,
+  SpriteGhost,
+} from './renderer';
 import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
 import {
   PATH_SURFACE_Z,
@@ -159,6 +166,15 @@ const GHOST_ALPHA = 0.55;
 /** Atlas pages sampled by one draw call; a frame needing more splits into several draws. */
 const TEXTURE_SLOTS = 8;
 const INITIAL_INSTANCE_CAPACITY = 16_384;
+
+interface ViewportTarget {
+  framebuffer: WebGLFramebuffer;
+  texture: WebGLTexture;
+  depth: WebGLRenderbuffer;
+  width: number;
+  height: number;
+  ready: boolean;
+}
 /** World pixels per side of a cached ground texture; one texel per world pixel. */
 const GROUND_CHUNK_SIZE = 512;
 const GROUND_CHUNK_CAPACITY = 48;
@@ -732,6 +748,7 @@ export class WebGL2Renderer implements Renderer {
     idMode: WebGLUniformLocation | null;
   } | null = null;
   private groundFramebuffer: WebGLFramebuffer | null = null;
+  private readonly viewportTargets = new Map<string, ViewportTarget>();
   private readonly groundChunks = new LruCache<WebGLTexture>(GROUND_CHUNK_CAPACITY, (texture) =>
     this.gl?.deleteTexture(texture),
   );
@@ -764,6 +781,7 @@ export class WebGL2Renderer implements Renderer {
   private readonly onRestored = (): void => {
     this.lost = false;
     this.nightPass?.reset();
+    this.viewportTargets.clear();
     this.initializeResources();
   };
 
@@ -867,6 +885,108 @@ export class WebGL2Renderer implements Renderer {
     this.visibleCount = this.count;
   }
 
+  drawViewports(
+    snapshot: Snapshot | null,
+    viewports: readonly RenderViewport[],
+    refreshIds: readonly string[],
+  ): void {
+    const gl = this.gl;
+    const canvas = this.canvas;
+    if (!gl || !canvas) return;
+    const active = new Set(viewports.map((viewport) => viewport.id));
+    for (const [id, target] of this.viewportTargets) {
+      if (active.has(id)) continue;
+      gl.deleteFramebuffer(target.framebuffer);
+      gl.deleteTexture(target.texture);
+      gl.deleteRenderbuffer(target.depth);
+      this.viewportTargets.delete(id);
+    }
+    gl.disable(gl.SCISSOR_TEST);
+    for (const viewport of viewports) {
+      const width = Math.max(1, Math.round(viewport.rect.width * this.dpr));
+      const height = Math.max(1, Math.round(viewport.rect.height * this.dpr));
+      let target = this.viewportTargets.get(viewport.id);
+      if (!target || target.width !== width || target.height !== height) {
+        if (target) {
+          gl.deleteFramebuffer(target.framebuffer);
+          gl.deleteTexture(target.texture);
+          gl.deleteRenderbuffer(target.depth);
+        }
+        target = this.createViewportTarget(width, height);
+        this.viewportTargets.set(viewport.id, target);
+      }
+      const output = viewport.output;
+      const resized = output.width !== width || output.height !== height;
+      if (resized) {
+        output.width = width;
+        output.height = height;
+      }
+      const refreshed = refreshIds.includes(viewport.id) || !target.ready;
+      if (refreshed) {
+        target.ready = this.renderFrame(
+          snapshot,
+          viewport.camera,
+          target.framebuffer,
+          {
+            width,
+            height,
+            cssWidth: viewport.rect.width,
+            cssHeight: viewport.rect.height,
+          },
+          false,
+        );
+      }
+      if (!target.ready || !(refreshed || resized)) continue;
+      // The cached view is staged in the top-left corner of the main canvas, then copied into the
+      // window's own canvas so overlapping windows never share pixels. Callers draw viewports
+      // before the main frame, which clears the staging area.
+      const blitWidth = Math.min(width, canvas.width);
+      const blitHeight = Math.min(height, canvas.height);
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, target.framebuffer);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+      gl.blitFramebuffer(
+        0,
+        0,
+        blitWidth,
+        blitHeight,
+        0,
+        canvas.height - blitHeight,
+        blitWidth,
+        canvas.height,
+        gl.COLOR_BUFFER_BIT,
+        gl.NEAREST,
+      );
+      output
+        .getContext('2d')
+        ?.drawImage(canvas, 0, 0, blitWidth, blitHeight, 0, 0, blitWidth, blitHeight);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+
+  private createViewportTarget(width: number, height: number): ViewportTarget {
+    const gl = this.gl;
+    if (!gl) throw new Error('WebGL2 renderer has no context');
+    const framebuffer = gl.createFramebuffer();
+    const texture = gl.createTexture();
+    const depth = gl.createRenderbuffer();
+    if (!framebuffer || !texture || !depth) throw new Error('Could not allocate viewport target');
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
+      throw new Error('Viewport framebuffer is incomplete');
+    return { framebuffer, texture, depth, width, height, ready: false };
+  }
+
   /**
    * Draws one frame exactly like `draw` in ID mode: every pixel holds the id of the object drawn
    * last over it (see object-kinds.ts), read back top row first.
@@ -960,6 +1080,8 @@ export class WebGL2Renderer implements Renderer {
     snapshot: Snapshot | null,
     camera: Camera,
     target: WebGLFramebuffer | null,
+    output?: { width: number; height: number; cssWidth: number; cssHeight: number },
+    forcedIdMode?: boolean,
   ): boolean {
     this.resolveHeldSlots(snapshot);
     const gl = this.gl;
@@ -967,17 +1089,21 @@ export class WebGL2Renderer implements Renderer {
     const map = this.map;
     if (!gl || !canvas || !map || this.lost || !this.program || !this.vao || !this.fallbackTexture)
       return false;
-    const idMode = target !== null;
+    const idMode = forcedIdMode ?? target !== null;
 
     this.syncPageTextures();
-    const viewportWidth = canvas.width / this.dpr;
-    const viewportHeight = canvas.height / this.dpr;
+    const viewportWidth = output?.cssWidth ?? canvas.width / this.dpr;
+    const viewportHeight = output?.cssHeight ?? canvas.height / this.dpr;
     if (snapshot) this.trenches.update(snapshot, map);
     else this.trenches.clear();
     this.prepareGroundCache(map, camera);
     this.ensureGroundChunks(map, camera, viewportWidth, viewportHeight);
     gl.bindFramebuffer(gl.FRAMEBUFFER, target);
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.viewport(0, 0, output?.width ?? canvas.width, output?.height ?? canvas.height);
+    if (output && !idMode) {
+      gl.clearColor(...BACKGROUND);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
     gl.clearDepth(1);
     gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
@@ -1155,6 +1281,12 @@ export class WebGL2Renderer implements Renderer {
     const gl = this.gl;
     this.groundChunks.clear();
     if (gl) {
+      for (const target of this.viewportTargets.values()) {
+        gl.deleteFramebuffer(target.framebuffer);
+        gl.deleteTexture(target.texture);
+        gl.deleteRenderbuffer(target.depth);
+      }
+      this.viewportTargets.clear();
       if (this.groundProgram) gl.deleteProgram(this.groundProgram);
       if (this.groundFramebuffer) gl.deleteFramebuffer(this.groundFramebuffer);
       this.deleteTextures();
