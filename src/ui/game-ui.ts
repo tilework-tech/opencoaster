@@ -12,6 +12,7 @@ import { objectiveLines } from './objective';
 import { StatusBar } from './status-bar';
 import { BUILD_SPEED_CAP, effectiveGameSpeed } from './window-layout';
 import { Toolbar } from './toolbar';
+import { toolbarButtonSpec, toolbarTooltip } from './toolbar-spec';
 import type { ToolbarItem } from './toolbar';
 import { GAME_SPEEDS } from './settings';
 import type { GameSpeed } from './settings';
@@ -195,50 +196,47 @@ export class GameUI {
       this.speedGroup.append(b);
     }
     this.speedGroup.append(this.speedNote);
+    const handlers: Record<string, () => void> = {
+      pause: () => this.togglePause(),
+      'zoom-out': () => actions.zoom(-1),
+      'zoom-in': () => actions.zoom(1),
+      'rotate-clockwise': () => actions.rotate(1),
+      'rotate-anticlockwise': () => actions.rotate(-1),
+      'save-load': () => actions.openMenu(),
+    };
+    const item = (id: string): ToolbarItem => {
+      const spec = toolbarButtonSpec(id);
+      return {
+        id,
+        icon: spec.icon,
+        label: spec.label,
+        tooltip: toolbarTooltip(spec),
+        onClick: handlers[id] ?? open(spec.windowId ?? id),
+      };
+    };
     const left: ToolbarItem[] = [
-      { id: 'pause', icon: 'pause', label: 'Pause', onClick: () => this.togglePause() },
+      item('pause'),
       { id: 'speed', control: this.speedGroup },
-      { id: 'options', icon: 'options', label: 'Game options', onClick: open('options') },
-      { id: 'zoom-out', icon: 'zoomOut', label: 'Zoom out', onClick: () => actions.zoom(-1) },
-      { id: 'zoom-in', icon: 'zoomIn', label: 'Zoom in', onClick: () => actions.zoom(1) },
-      {
-        id: 'rotate-clockwise',
-        icon: 'rotateRight',
-        label: 'Rotate right',
-        tooltip: 'Rotate right (Enter or Z)',
-        onClick: () => actions.rotate(1),
-      },
-      {
-        id: 'rotate-anticlockwise',
-        icon: 'rotateLeft',
-        label: 'Rotate left',
-        tooltip: 'Rotate left (Shift+Enter or X)',
-        onClick: () => actions.rotate(-1),
-      },
-      { id: 'view', icon: 'view', label: 'View options', onClick: open('view') },
-      { id: 'map', icon: 'map', label: 'Map', onClick: open('map') },
+      ...['options', 'zoom-out', 'zoom-in', 'rotate-clockwise', 'rotate-anticlockwise'].map(item),
+      item('view'),
+      item('map'),
     ];
     const right: ToolbarItem[] = [
-      { id: 'clear', icon: 'demolish', label: 'Clear scenery', onClick: open('clear') },
-      { id: 'land', icon: 'land', label: 'Land', onClick: open('land') },
-      { id: 'water', icon: 'water', label: 'Water', onClick: open('water') },
-      { id: 'scenery', icon: 'scenery', label: 'Scenery', onClick: open('scenery') },
-      { id: 'paths', icon: 'paths', label: 'Footpaths', onClick: open('paths') },
-      { id: 'ride-select', icon: 'newRide', label: 'New ride', onClick: open('ride-select') },
-      { id: 'finance', icon: 'finances', label: 'Finances', onClick: open('finance') },
-      { id: 'research', icon: 'research', label: 'Research', onClick: open('research') },
-      { id: 'ride-list', icon: 'wheel', label: 'Rides', onClick: open('ride-list') },
-      { id: 'park', icon: 'park', label: 'Park', onClick: open('park') },
-      { id: 'staff', icon: 'staff', label: 'Staff', onClick: open('staff') },
-      { id: 'guests', icon: 'guests', label: 'Guests', onClick: open('guests') },
-      { id: 'news', icon: 'news', label: 'Messages', onClick: open('news') },
-      {
-        id: 'save-load',
-        icon: 'saveLoad',
-        label: 'Save / Load',
-        onClick: () => actions.openMenu(),
-      },
-    ];
+      'clear',
+      'land',
+      'water',
+      'scenery',
+      'paths',
+      'ride-select',
+      'finance',
+      'research',
+      'ride-list',
+      'park',
+      'staff',
+      'guests',
+      'news',
+      'save-load',
+    ].map(item);
     this.toolbar = new Toolbar(parent, left, right);
     this.statusBar = new StatusBar(parent, {
       openFinance: () => this.openWindow('finance'),
@@ -331,7 +329,14 @@ export class GameUI {
   /** Shows the pause state without sending it, for state restored from settings. */
   syncPaused(paused: boolean): void {
     this.paused = paused;
-    this.toolbar.relabel('pause', paused ? 'Resume' : 'Pause', icon(paused ? 'play' : 'pause'));
+    const pauseLabel = paused ? 'Resume' : 'Pause';
+    this.toolbar.relabel(
+      'pause',
+      pauseLabel,
+      icon(paused ? 'play' : 'pause'),
+      undefined,
+      toolbarTooltip(toolbarButtonSpec('pause'), pauseLabel),
+    );
   }
 
   /** Shows the speed restored from settings without sending it. */

@@ -21,8 +21,8 @@ export const FINANCE_TABS: readonly TabSpec[] = [
   { id: 'summary', label: 'Financial accounts', icon: 'finances' },
   { id: 'cash', label: 'Cash graph', icon: 'cash' },
   { id: 'value', label: 'Park value', icon: 'park' },
-  { id: 'profit', label: 'Weekly profit', icon: 'raise' },
-  { id: 'marketing', label: 'Marketing', icon: 'news' },
+  { id: 'profit', label: 'Weekly profit', icon: 'chart' },
+  { id: 'marketing', label: 'Marketing', icon: 'megaphone' },
   { id: 'research', label: 'Research', icon: 'research' },
 ];
 

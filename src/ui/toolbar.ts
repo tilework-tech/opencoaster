@@ -105,10 +105,10 @@ export class Toolbar {
   }
 
   /** Replaces a button's icon and name, e.g. Pause ↔ Resume. */
-  relabel(id: string, label: string, icon: Node, caption?: string): void {
+  relabel(id: string, label: string, icon: Node, caption?: string, tooltip = label): void {
     const b = this.buttons.get(id);
     if (!b) return;
-    b.title = label;
+    b.title = tooltip;
     b.setAttribute('aria-label', label);
     b.replaceChildren(icon);
     if (caption) b.append(element('span', 'icon-caption', caption));

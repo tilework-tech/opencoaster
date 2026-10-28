@@ -44,7 +44,7 @@ export function workerDetails(snapshot: Snapshot | null, staffId: number): Worke
 export const WORKER_TABS: readonly TabSpec[] = [
   { id: 'view', label: 'View', icon: 'info' },
   { id: 'orders', label: 'Orders', icon: 'staff' },
-  { id: 'statistics', label: 'Statistics', icon: 'rides' },
+  { id: 'statistics', label: 'Statistics', icon: 'chart' },
 ];
 
 const ROLE_ORDERS = [

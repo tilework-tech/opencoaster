@@ -47,3 +47,11 @@ describe('window tab icons', () => {
     expect(new Set(art).size).toBe(art.length);
   });
 });
+
+describe('window tab names', () => {
+  it.each(WINDOW_TABS)('%s gives every tab a unique non-empty name for its tooltip', (_w, tabs) => {
+    const labels = tabs.map((tab) => tab.label.trim());
+    expect(labels.every((label) => label !== '')).toBe(true);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});

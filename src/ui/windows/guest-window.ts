@@ -107,7 +107,7 @@ export function guestSelectionText(details: string, tick: number): string {
 
 export const GUEST_SUMMARY_TABS: readonly TabSpec[] = [
   { id: 'all', label: 'Guests', icon: 'guests' },
-  { id: 'thought', label: 'By thought', icon: 'news' },
+  { id: 'thought', label: 'By thought', icon: 'thought' },
   { id: 'location', label: 'By location', icon: 'map' },
   { id: 'ride', label: 'By ride', icon: 'rides' },
 ];
@@ -117,8 +117,8 @@ export const GUEST_TABS: readonly TabSpec[] = [
   { id: 'stats', label: 'Stats', icon: 'info' },
   { id: 'rides', label: 'Rides', icon: 'rides' },
   { id: 'cash', label: 'Cash info', icon: 'cash' },
-  { id: 'thoughts', label: 'Recent thoughts', icon: 'news' },
-  { id: 'items', label: 'Carrying', icon: 'bin' },
+  { id: 'thoughts', label: 'Recent thoughts', icon: 'thought' },
+  { id: 'items', label: 'Carrying', icon: 'bag' },
 ];
 
 const NEED_MAX = 255;

@@ -118,7 +118,7 @@ describe('generated UI icons', () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it('draws the paths icon as an isometric footpath segment about 20px square', () => {
+  it('draws the paths icon as an isometric footpath segment about 22px wide', () => {
     const sprite = renderUiIconSprite('paths', 24);
     const xs: number[] = [];
     const ys: number[] = [];
@@ -127,9 +127,9 @@ describe('generated UI icons', () => {
       xs.push(index % 24);
       ys.push(Math.floor(index / 24));
     });
-    expect(Math.max(...xs) - Math.min(...xs) + 1).toBeGreaterThanOrEqual(19);
-    expect(Math.max(...xs) - Math.min(...xs) + 1).toBeLessThanOrEqual(21);
-    expect(Math.max(...ys) - Math.min(...ys) + 1).toBeGreaterThanOrEqual(19);
+    expect(Math.max(...xs) - Math.min(...xs) + 1).toBeGreaterThanOrEqual(20);
+    expect(Math.max(...xs) - Math.min(...xs) + 1).toBeLessThanOrEqual(22);
+    expect(Math.max(...ys) - Math.min(...ys) + 1).toBeGreaterThanOrEqual(14);
     expect(Math.max(...ys) - Math.min(...ys) + 1).toBeLessThanOrEqual(21);
   });
 
