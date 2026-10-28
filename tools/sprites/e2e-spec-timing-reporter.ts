@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { FullResult, Reporter, TestCase, TestResult } from '@playwright/test/reporter';
+import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter';
 
 interface SpecDuration {
   file: string;
@@ -21,7 +21,7 @@ export class SpecTimingReporter implements Reporter {
     this.durations.set(file, (this.durations.get(file) ?? 0) + result.duration);
   }
 
-  async onEnd(_result: FullResult): Promise<void> {
+  async onEnd(): Promise<void> {
     const specs = [...this.durations]
       .map(([file, durationMs]): SpecDuration => ({ file, durationMs }))
       .sort((a, b) => b.durationMs - a.durationMs);
