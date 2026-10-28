@@ -19,7 +19,7 @@ export const RIDE_WINDOW_TABS: readonly TabSpec[] = [
   { id: 'operating', label: 'Mechanics', icon: 'options' },
   { id: 'maintenance', label: 'Maintenance record', icon: 'build' },
   { id: 'measurements', label: 'Ride statistics', icon: 'info' },
-  { id: 'graphs', label: 'Data log', icon: 'map' },
+  { id: 'graphs', label: 'Data log', icon: 'chart' },
   { id: 'income', label: 'Financial data', icon: 'finances' },
   { id: 'customers', label: 'Guest data', icon: 'guests' },
 ];

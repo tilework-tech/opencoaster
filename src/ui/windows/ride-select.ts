@@ -14,11 +14,11 @@ export interface RideTab extends TabSpec {
 }
 
 export const RIDE_TABS: readonly RideTab[] = [
-  { id: 'transport', label: 'Transport rides', icon: 'next', categories: ['transport'] },
+  { id: 'transport', label: 'Transport rides', icon: 'transport', categories: ['transport'] },
   { id: 'coaster', label: 'Roller Coasters', icon: 'coaster', categories: ['coaster'] },
   { id: 'gentle', label: 'Gentle rides', icon: 'carousel', categories: ['gentle'] },
   { id: 'thrill', label: 'Thrill rides', icon: 'twist', categories: ['thrill'] },
-  { id: 'water', label: 'Water rides', icon: 'water', categories: ['water'] },
+  { id: 'water', label: 'Water rides', icon: 'boat', categories: ['water'] },
   { id: 'shops', label: 'Shops & Stalls', icon: 'food', categories: ['shop', 'stall', 'facility'] },
 ];
 

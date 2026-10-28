@@ -8,6 +8,7 @@ import { renderMesh, TRANSPARENT } from './raster';
 import type { Sprite } from './raster';
 import { PALETTE, ramp } from './palette';
 import { palmTreeMesh } from './models/trees';
+import { drawIcon } from './ui-icon-art';
 import { parkEntranceMesh } from './models/park-entrance';
 
 const outline = ramp('outline')[0];
@@ -1458,6 +1459,8 @@ const HAND_AUTHORED_ICONS = new Set([
 ]);
 
 export function renderUiIconSprite(name: string, size: 16 | 24): Sprite {
+  const drawn = drawIcon(name);
+  if (drawn) return size === 24 ? drawn : nearestSprite(drawn, size);
   if (HAND_AUTHORED_ICONS.has(name)) return nearestSprite(iconShapes(name), size);
   const mesh = objectMesh(name);
   if (!mesh) return nearestSprite(iconShapes(name), size);
