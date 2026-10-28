@@ -144,6 +144,47 @@ describe('scenario ground and trees', () => {
     return false;
   };
 
+  it('gives Starter Park a broad flat owned apron with varied terrain beyond it', () => {
+    const starter = SCENARIOS.find((scenario) => scenario.id === 'starter');
+    expect(starter?.terrain).toBeDefined();
+    expect(starter?.entrance).toBeDefined();
+    if (!starter?.terrain || !starter.entrance) return;
+
+    const m = world(starter).map;
+    const apron = buildApron(
+      m.width,
+      m.height,
+      starter.entrance.side,
+      starter.terrain,
+      starter.land,
+    );
+    expect(apron.x1 - apron.x0 + 1).toBe(30);
+    expect(apron.y1 - apron.y0 + 1).toBe(20);
+    const apronArea = (apron.x1 - apron.x0 + 1) * (apron.y1 - apron.y0 + 1);
+    expect(apronArea).toBe(600);
+
+    for (let y = apron.y0; y <= apron.y1; y++) {
+      for (let x = apron.x0; x <= apron.x1; x++) {
+        const i = m.index(x, y);
+        expect(m.heights[i]).toBe(starter.terrain.buildLevel);
+        expect(m.slope[i]).toBe(0);
+        expect(m.waterLevel[i]).toBe(0);
+        expect(m.ownership[i] & OWNED).toBe(OWNED);
+        for (let e = m.firstElement(i); e >= 0; e = m.nextElement(e)) {
+          expect(m.elType[e]).toBe(ElementType.Path);
+        }
+      }
+    }
+
+    const beyondApron = Array.from({ length: m.width * m.height }, (_, i) => i).filter((i) => {
+      const x = i % m.width;
+      const y = Math.floor(i / m.width);
+      return x < apron.x0 - 4 || x > apron.x1 + 4 || y < apron.y0 - 4 || y > apron.y1 + 4;
+    });
+    expect(beyondApron.some((i) => m.waterLevel[i] > m.heights[i])).toBe(true);
+    expect(beyondApron.some((i) => m.heights[i] > starter.terrain!.buildLevel)).toBe(true);
+  });
+
   it('keeps grass-themed ground grass, with rock only on steep faces', () => {
     const def = recipe({
       trees: undefined,

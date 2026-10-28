@@ -409,12 +409,24 @@ describe('render snapshot research unlocks', () => {
     const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
     writeSnapshot(simulation.world, snapshot);
     const unlocked = (type: number) => snapshot.research.unlockedRides[type] === 1;
-    expect(unlocked(RideType.MerryGoRound)).toBe(true);
+    for (const type of [
+      RideType.MerryGoRound,
+      RideType.SwingingShip,
+      RideType.FerrisWheel,
+      RideType.Twist,
+      RideType.FoodStall,
+      RideType.DrinkStall,
+      RideType.InformationKiosk,
+      RideType.Toilets,
+      RideType.JuniorRollerCoaster,
+    ]) {
+      expect(unlocked(type), `ride type ${type}`).toBe(true);
+    }
     expect(unlocked(RideType.SteelLoopingCoaster)).toBe(false);
 
     simulation.world.research.unlocked.add(RideType.SteelLoopingCoaster);
     writeSnapshot(simulation.world, snapshot);
     expect(unlocked(RideType.SteelLoopingCoaster)).toBe(true);
-    expect(unlocked(RideType.FerrisWheel)).toBe(false);
+    expect(unlocked(RideType.FerrisWheel)).toBe(true);
   });
 });
