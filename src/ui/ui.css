@@ -958,6 +958,8 @@
 .path-arrow {
   font-size: 18px;
   line-height: 1;
+  min-height: 36px;
+  font-weight: 700;
 }
 .path-arrow[data-cell='top'] {
   grid-column: 2;
@@ -978,6 +980,32 @@
 .path-slopes > *,
 .path-piece-actions > * {
   flex: 1;
+}
+.path-slopes > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 34px;
+}
+.path-slopes .ui-icon {
+  flex: 0 0 16px;
+}
+.path-height-readout {
+  margin: 5px 0;
+  padding: 3px 6px;
+  border: 1px solid #596b4c;
+  background: rgba(20, 28, 18, 0.72);
+  color: #e9f5d6;
+  font-variant-numeric: tabular-nums;
+}
+.path-ghost-arrow {
+  fill: none;
+  stroke: #fff2a6;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px #182016);
 }
 .land-rights-legend {
   display: flex;

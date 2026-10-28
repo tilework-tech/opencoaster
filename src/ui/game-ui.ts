@@ -41,6 +41,7 @@ import { SCENERY_WINDOW, openToolWindow } from './windows/tool-windows';
 import { openLandWindow } from './windows/land-window';
 import { openClearWindow, openWaterWindow } from './windows/area-windows';
 import { openPathWindow } from './windows/path-window';
+import type { PieceSlope } from '../app/tools/path/run';
 import { displayOptionEnabled, setDisplayOption } from './display-options';
 import { shortcutFor } from './shortcuts';
 import type { KeyLike } from './shortcuts';
@@ -383,6 +384,21 @@ export class GameUI {
 
   /** Runs a default keyboard shortcut; returns true when the key was handled. */
   handleShortcut(event: KeyLike): boolean {
+    if (
+      this.windows.get('paths') &&
+      this.actions.footpath.state.mode === 'piece' &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      const slope = ({ u: 'up', l: 'level', d: 'down' } as Record<string, PieceSlope>)[
+        event.key.toLowerCase()
+      ];
+      if (slope) {
+        this.actions.footpath.setSlope(slope);
+        return true;
+      }
+    }
     const action = shortcutFor(event);
     if (!action) return false;
     switch (action.type) {
