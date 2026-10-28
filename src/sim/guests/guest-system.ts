@@ -259,6 +259,15 @@ function scoreRide(world: World, slot: number, ride: number): number {
   return score > 0 ? score : NOT_OFFERED;
 }
 
+/** The guest's 0-7 price tolerance at a stall, a stable hash so it does not draw from the shared PRNG. */
+function toleranceRoll(world: World, slot: number, ride: number): number {
+  const mix =
+    Math.imul(world.guests.slotToId[slot] + 1, 0x9e3779b1) ^
+    Math.imul(world.rides.slotToId[ride] + 1, 0x27d4eb2f) ^
+    Math.imul((world.tick >> TASTE_EPOCH_SHIFT) + 1, 0x165667b1);
+  return (Math.imul(mix ^ (mix >>> 15), 0x2c1b3c6d) >>> 8) % ITEM_TOLERANCE_ROLLS;
+}
+
 function allowsRepeatRide(world: World, slot: number, ride: number): boolean {
   const g = world.guests.cols;
   const r = world.rides.cols;
@@ -650,7 +659,7 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
       return;
     }
   } else if (!mapSale && r.typeId[ride] !== RideType.InformationKiosk && price > 0) {
-    const roll = world.rng.int(ITEM_TOLERANCE_ROLLS);
+    const roll = toleranceRoll(world, slot, ride);
     if (!acceptsItemPrice(price, itemValueCents(world, ride), g.happiness[slot], roll)) {
       recordThought(world, slot, GuestThought.BadValue);
       clearDestination(world, slot);

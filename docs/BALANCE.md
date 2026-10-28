@@ -124,16 +124,18 @@ One food stall keeps up with about 60 guests at the current need rate; the scrip
 
 `pnpm balance -- --profile P [--admission DOLLARS] [--repay-loan-month N]` models a player who sets the gate price and pays the loan off. Cash at the end of each month, scripted starter park, default seed:
 
-| Build (starter default $6 gate)  | Month 3 | Month 5 | Month 8 | Cash drift, months 4-8 |
-| -------------------------------- | ------- | ------- | ------- | ---------------------- |
-| minimal, before this change ($3) | $45,965 | $45,404 | $44,886 | -$170 a month          |
-| minimal                          | $46,379 | $46,191 | $45,874 | -$100 a month          |
-| modest, before ($3)              | $37,130 | $36,242 | $34,800 | -$470 a month          |
-| modest                           | $38,350 | $38,151 | $37,702 | -$120 a month          |
-| modest, loan repaid in month 3   | $38,350 | $18,651 | $18,952 | +$130 a month          |
-| ambitious                        | $36,752 | $33,071 | $31,230 | about -$450 a month    |
+| Build                                   | Month 3 | Month 5 | Month 8 | Cash drift, months 4-8 |
+| --------------------------------------- | ------- | ------- | ------- | ---------------------- |
+| minimal, before ($3 gate)               | $45,723 | $45,404 | $44,886 | -$170 a month          |
+| minimal                                 | $46,372 | $46,158 | $45,822 | -$110 a month          |
+| modest, before ($3 gate)                | $37,227 | $36,250 | $34,901 | -$460 a month          |
+| modest                                  | $38,436 | $38,194 | $38,060 | -$60 a month           |
+| modest, loan repaid in month 3          | $38,436 | $18,694 | $19,310 | +$190 a month          |
+| modest, $8 gate, loan repaid in month 3 | $38,960 | $19,476 | $20,552 | +$340 a month          |
+| ambitious, before ($3 gate)             | $35,508 | $30,989 | $27,992 | -$1,350 a month        |
+| ambitious                               | $36,799 | $33,223 | $31,976 | -$790 a month          |
 
-A first build of five attractions costs about $3,500 of the $50,000 starting cash, so the first build is always affordable; the loan interest ($1,750 over the year) is the largest recurring bill, and paying the loan off is what turns the sensible build cash-positive. Unrestrained building (the ambitious profile, +11 rides) drains about $1,300 a month while it builds (months 3 to 7) and then holds flat.
+A first build of five attractions costs about $3,500 of the $50,000 starting cash, so the first build is always affordable; the loan interest ($1,750 over the year) is the largest recurring bill, and paying the loan off is what turns the sensible build cash-positive. Unrestrained building (the ambitious profile, 11 more rides) drains cash faster while it builds (months 3 to 7) and then holds flat. Guest counts and park ratings are identical to main in every profile: only the money changed.
 
 ## Results
 
