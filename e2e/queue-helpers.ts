@@ -6,6 +6,7 @@ import { createTestContext } from './support/test-contexts';
 import { project } from '../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { createScenarioWorld, dragThrough, tileScreenPoint, toolbarTool } from './footpath-helpers';
+import { forceCanvas2D } from './support/park';
 import type { Tile } from './footpath-helpers';
 
 /**
@@ -251,15 +252,7 @@ export async function openPage(
     baseURL: options.baseURL ?? 'http://127.0.0.1:4173',
   });
   const page = await context.newPage();
-  if (options.canvas2d) {
-    await page.addInitScript(() => {
-      const originalGetContext = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
-        if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') return null;
-        return originalGetContext.call(this, type as '2d', ...(args as []));
-      } as typeof HTMLCanvasElement.prototype.getContext;
-    });
-  }
+  if (options.canvas2d) await forceCanvas2D(page);
   return page;
 }
 

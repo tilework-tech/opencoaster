@@ -47,6 +47,16 @@ export async function openPage(browser: Browser, mobile: boolean): Promise<Page>
   return page;
 }
 
+export async function forceCanvas2D(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
+      if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') return null;
+      return originalGetContext.call(this, type as '2d', ...(args as []));
+    } as typeof HTMLCanvasElement.prototype.getContext;
+  });
+}
+
 export async function startScenario(page: Page, name: string): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'New game' }).click();

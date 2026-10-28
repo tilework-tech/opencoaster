@@ -9,6 +9,7 @@ import {
   screenshot,
   startStarterPark,
 } from './support/footprints';
+import { forceCanvas2D } from './support/park';
 
 async function bringFinanceIntoView(page: Page): Promise<void> {
   const titlebar = page.locator('[data-panel="finance"] .ui-titlebar');
@@ -25,6 +26,7 @@ test('launches targeted campaigns only once a ride or stall exists to promote', 
 }, testInfo) => {
   test.setTimeout(300_000);
   page.setDefaultTimeout(15_000);
+  await forceCanvas2D(page);
   await startStarterPark(page);
   const toolbar = page.locator('.game-toolbar');
   await expect(toolbar.getByRole('button', { name: 'Finances', exact: true })).toBeVisible();
