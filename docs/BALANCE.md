@@ -118,17 +118,17 @@ Effect: an empty park starts at 250 (700 base − 150 guest term − 100 missing
 
 ### Navigation
 
-| Constant        | Value                  | Meaning                                                                                                       |
-| --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Junction budget | 5, map 7, leaving 7, leaving and lost 8 | Every junction costs 1; staff use 8. Sources in [mechanics/guests.md](mechanics/guests.md) P-1. |
-| Junction memory | last 4 junctions | Untried exits only on a return; cleared with the goal (P-5). |
-| Distance score  | 2 x smaller axis gap   | Compared first; the larger gap is a secondary tie-break. |
-| Ride search | 200 tile centres | Thoughts and -30 happiness target at 60 and 30 left; the ride is dropped at zero (P-7). |
-| Exit search | 254, then every 90 tile centres | "I can't find the exit!" and -30 happiness target each time; below 90 the guest is lost (P-8). |
-| Lost clock | 508 tile centres, then every 48 | "I'm lost!" and -30 happiness target; needs two rides in the park (P-9). |
-| Lost wander | 2,400 ticks | Project mechanic (P-11): no ride or stall is chosen; a guest without a map seeks the nearest visible information kiosk. |
-| Park map | 0.60 | Bought by a lost guest at an information kiosk, in place of an umbrella. |
-| Walking energy  | -1 per need step       | Need steps are 128 ticks; only wandering and queuing guests lose energy this way.                             |
+| Constant        | Value                                   | Meaning                                                                                                                 |
+| --------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Junction budget | 5, map 7, leaving 7, leaving and lost 8 | Every junction costs 1; staff use 8. Sources in [mechanics/guests.md](mechanics/guests.md) P-1.                         |
+| Junction memory | last 4 junctions                        | Untried exits only on a return; cleared with the goal (P-5).                                                            |
+| Distance score  | 2 x smaller axis gap                    | Compared first; the larger gap is a secondary tie-break.                                                                |
+| Ride search     | 200 tile centres                        | Thoughts and -30 happiness target at 60 and 30 left; the ride is dropped at zero (P-7).                                 |
+| Exit search     | 254, then every 90 tile centres         | "I can't find the exit!" and -30 happiness target each time; below 90 the guest is lost (P-8).                          |
+| Lost clock      | 508 tile centres, then every 48         | "I'm lost!" and -30 happiness target; needs two rides in the park (P-9).                                                |
+| Lost wander     | 2,400 ticks                             | Project mechanic (P-11): no ride or stall is chosen; a guest without a map seeks the nearest visible information kiosk. |
+| Park map        | 0.60                                    | Bought by a lost guest at an information kiosk, in place of an umbrella.                                                |
+| Walking energy  | -1 per need step                        | Need steps are 128 ticks; only wandering and queuing guests lose energy this way.                                       |
 
 ### Stalls
 
