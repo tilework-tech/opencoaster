@@ -20,6 +20,7 @@ function scenario(
     startingLoan: 0,
     maxLoan: 0,
     annualInterestBps: 0,
+    averageGuestCashCents: 5_000,
     difficultRating: false,
     priceMode: 0,
     admissionPrice: 0,

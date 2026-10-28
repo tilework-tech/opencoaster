@@ -10,7 +10,6 @@ import {
 import { DIFFICULT_RATING_BASE, RATING_BASE } from './park-rating';
 import { BASIS_POINTS, LedgerCategory, completedMonthTotal } from './ledger';
 import { setEconomyInputs } from './api';
-import { RIDE_UPKEEP_DIVISOR } from './park-inputs';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
 import { layPath, openRide, prepareFlat, row } from '../integration/fixtures';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
@@ -82,12 +81,12 @@ describe('billing cadence', () => {
     expect(l.monthlyTotals[LedgerCategory.Research]).toBe(0);
   });
 
-  it('charges loan interest weekly as a 32nd of the annual rate', () => {
+  it('charges loan interest weekly using the RCT2 annual-rate conversion', () => {
     const s = sim();
     s.world.economy.loan = 2_000_000;
     s.world.economy.annualInterestBps = 1000;
     runUntil(s, TICKS_PER_WEEK);
-    expect(s.world.economy.monthlyTotals[LedgerCategory.Interest]).toBe(-6250);
+    expect(s.world.economy.monthlyTotals[LedgerCategory.Interest]).toBe(-6103);
   });
 });
 
@@ -96,7 +95,7 @@ describe('economy clock', () => {
     const s = simWithRide();
     s.enqueue({ type: 'spawnStaff', count: 2, kind: 0 });
     const wages = 2 * STAFF_WAGE_CENTS_PER_WEEK[0];
-    const upkeep = Math.floor(RIDE_CATALOG[RideType.MerryGoRound].cost / RIDE_UPKEEP_DIVISOR);
+    const upkeep = RIDE_CATALOG[RideType.MerryGoRound].runningCostPerFortnightCents!;
     const start = s.world.economy.cash;
     runUntil(s, TICKS_PER_WEEK);
     expect(s.world.economy.cash).toBe(start - wages);

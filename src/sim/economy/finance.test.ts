@@ -35,11 +35,12 @@ describe('loans', () => {
 });
 
 describe('interest and company value', () => {
-  it('charges a weekly share of the annual rate, rounded down', () => {
+  it('charges the RCT2-compatible weekly interest amount, rounded down per payment', () => {
     const l = loanable();
+    l.loan = 2_000_000;
+    expect(weeklyInterestCents(l)).toBe(6_103);
     l.loan = 3_200_000;
-    // 10% annual over 32 weeks per year: 3,200,000 * 1000 / (10000 * 32) = 10,000 cents
-    expect(weeklyInterestCents(l)).toBe(10_000);
+    expect(weeklyInterestCents(l)).toBe(9_765);
     l.loan = 0;
     expect(weeklyInterestCents(l)).toBe(0);
   });
@@ -59,7 +60,7 @@ describe('interest and company value', () => {
     borrow(sim.world.economy, 3_200_000);
     const before = sim.world.economy.cash;
     for (let i = 0; i <= 4096; i++) sim.step();
-    expect(sim.world.economy.cash).toBe(before - 10_000);
+    expect(sim.world.economy.cash).toBe(before - 9_765);
   });
 });
 

@@ -101,6 +101,8 @@ export interface RideTypeDef {
   defaultPriceCents: number;
   /** What guests think the item sold here is worth, in cents; the price they tolerate is measured from it. Defaults to `defaultPriceCents`. */
   itemValueCents?: number;
+  /** Per-item stock cost in cents for food and drink stalls. */
+  stockCostCents?: number;
   inspectionIntervalTicks: number;
   /** What a food or drink stall sells, which decides which guest needs it meets. */
   serves?: 'food' | 'drink';
@@ -114,6 +116,8 @@ export interface RideTypeDef {
   researchWorkUnits?: number;
   /** Fortnightly open-ride running cost in cents. */
   runningCostPerFortnightCents?: number;
+  /** OpenRCT2 scenario guest-generation bonus contributed by this ride while open. */
+  guestGenerationBonus?: number;
 }
 
 /**
@@ -328,7 +332,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     modes: [modeDef(RideMode.Rotation, 'Rotation')],
     unreliability: 16,
     breakdowns: CUT_OUT_AND_CONTROL,
-    defaultPriceCents: 0,
+    defaultPriceCents: 100,
+    runningCostPerFortnightCents: 310,
+    guestGenerationBonus: 45,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.SwingingShip]: {
@@ -349,7 +355,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     modes: [modeDef(RideMode.Swing, 'Swing')],
     unreliability: 10,
     breakdowns: CUT_OUT_ONLY,
-    defaultPriceCents: 0,
+    defaultPriceCents: 150,
+    runningCostPerFortnightCents: 310,
+    guestGenerationBonus: 35,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.FerrisWheel]: {
@@ -375,7 +383,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     ],
     unreliability: 16,
     breakdowns: CUT_OUT_ONLY,
-    defaultPriceCents: 0,
+    defaultPriceCents: 100,
+    runningCostPerFortnightCents: 310,
+    guestGenerationBonus: 45,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.Twist]: {
@@ -396,7 +406,9 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     modes: [modeDef(RideMode.Rotation, 'Rotation')],
     unreliability: 16,
     breakdowns: CUT_OUT_ONLY,
-    defaultPriceCents: 0,
+    defaultPriceCents: 100,
+    runningCostPerFortnightCents: 310,
+    guestGenerationBonus: 40,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.FoodStall]: {
@@ -417,8 +429,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     modes: SHOP_MODES,
     unreliability: 0,
     breakdowns: [],
-    defaultPriceCents: 120,
+    defaultPriceCents: 150,
+    runningCostPerFortnightCents: 310,
+    guestGenerationBonus: 15,
     itemValueCents: 190,
+    stockCostCents: 50,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     serves: 'food',
   },
@@ -440,8 +455,11 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     modes: SHOP_MODES,
     unreliability: 0,
     breakdowns: [],
-    defaultPriceCents: 80,
+    defaultPriceCents: 120,
+    runningCostPerFortnightCents: 310,
+    guestGenerationBonus: 15,
     itemValueCents: 120,
+    stockCostCents: 30,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     serves: 'drink',
   },
@@ -485,6 +503,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     unreliability: 0,
     breakdowns: [],
     defaultPriceCents: 20,
+    runningCostPerFortnightCents: 310,
+    guestGenerationBonus: 5,
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.WoodenCoaster]: {

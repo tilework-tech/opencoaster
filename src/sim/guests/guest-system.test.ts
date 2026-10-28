@@ -3,7 +3,8 @@ import { hashWorld } from '../core/hash';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { VoucherKind } from '../economy/vouchers';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
-import { RideType } from '../rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { RideState } from '../rides/ride-store';
 import { getRideValueCents } from '../rides/ride-operations';
 import { RIDE_PRICE_FLOOR_CENTS } from './willingness';
 import { rideQueueSystem } from '../rides/queue-system';
@@ -40,8 +41,8 @@ function tileOf(w: World, slot: number): [number, number] {
 }
 
 /** Corridor along y=5 from x=2 to x=11 with a merry-go-round fed by a queue at its east end. */
-function corridorWithRide(): { w: World; ride: number } {
-  const w = flatWorld();
+function corridorWithRide(maxGuests = 64): { w: World; ride: number } {
+  const w = flatWorld(24, 5, maxGuests);
   layPath(w, row(5, 2, 9));
   layPath(w, row(5, 10, 11), true);
   layPath(w, [[12, 4]]);
@@ -192,7 +193,7 @@ describe('guest needs', () => {
 
   it('only repeats a ride when guest needs and a random roll allow it', () => {
     const repeatTrips = (seed: number, happiness: number): number => {
-      const { w, ride } = corridorWithRide();
+      const { w, ride } = corridorWithRide(1);
       layPath(w, [[13, 4], [13, 5], [12, 5], ...row(6, 9, 12)]);
       w.rng.seed(seed);
       const slot = guestAt(w, 2, 5);
@@ -361,7 +362,7 @@ describe('walking the footpaths', () => {
   });
 
   it('rides for free unless the park charges per ride', () => {
-    const { w, ride } = corridorWithRide();
+    const { w, ride } = corridorWithRide(1);
     w.rides.cols.price[ride] = 150;
     const slot = guestAt(w, 2, 5);
     const cash = w.guests.cols.cash[slot];
@@ -455,7 +456,9 @@ describe('stalls and toilets', () => {
     expect(g.hunger[slot]).toBeGreaterThanOrEqual(180);
     expect(g.cash[slot]).toBe(cash - price);
     expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkSales]).toBe(price);
-    expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkStock]).toBeLessThan(0);
+    expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkStock]).toBe(
+      -RIDE_CATALOG[RideType.FoodStall].stockCostCents!,
+    );
     expect(w.rides.cols.guestsServed[stall]).toBe(1);
   });
 
@@ -467,6 +470,9 @@ describe('stalls and toilets', () => {
     g.hunger[slot] = 200;
     runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
     expect(g.thirst[slot]).toBeGreaterThan(180);
+    expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkStock]).toBe(
+      -RIDE_CATALOG[RideType.DrinkStall].stockCostCents!,
+    );
   });
 
   it('lets a guest in need use the toilets', () => {
@@ -501,11 +507,11 @@ describe('arrivals', () => {
   function arrivals(
     w: World,
     provider: Parameters<typeof createGuestSystem>[0],
-    intervals = 200,
+    intervals = 8_192,
   ): number {
     const system = createGuestSystem(provider);
     for (let i = 0; i < intervals; i++) {
-      w.tick = i * 80;
+      w.tick = i;
       system.update(w);
     }
     return w.guests.count;
@@ -522,13 +528,110 @@ describe('arrivals', () => {
     expect(arrivals(w, () => ({ parkRating: 1000, entranceFee: 0 }), 20)).toBe(0);
   });
 
-  it('brings in more guests at a higher rating, and none at an excessive fee', () => {
-    const good = arrivals(gated(), () => ({ parkRating: 900, entranceFee: 0 }));
-    const poor = arrivals(gated(), () => ({ parkRating: 100, entranceFee: 0 }));
-    const dear = arrivals(gated(), () => ({ parkRating: 900, entranceFee: 50_000 }));
+  it('continues to admit guests at a reduced rate after the comfortable crowd size', () => {
+    const w = gated();
+    for (let i = 0; i < 31; i++) spawnGuest(w);
+    const startingGuests = w.guests.count;
+
+    arrivals(w, () => ({ parkRating: 900, entranceFee: 1 }), 8_192);
+
+    expect(w.guests.count).toBeGreaterThan(startingGuests);
+  });
+
+  it('can generate multiple guests during one 40-tick span', () => {
+    const w = gated();
+    w.rides.count = 20;
+    w.rides.cols.typeId.fill(RideType.MerryGoRound, 0, 20);
+    w.rides.cols.state.fill(RideState.Open, 0, 20);
+    const system = createGuestSystem(() => ({ parkRating: 900, entranceFee: 0 }));
+    let previous = w.guests.count;
+    let admittedInSpan = false;
+    for (let tick = 0; tick < 40 * 40; tick++) {
+      w.tick = tick;
+      system.update(w);
+      if ((tick + 1) % 40 === 0) {
+        admittedInSpan ||= w.guests.count - previous > 1;
+        previous = w.guests.count;
+      }
+    }
+    expect(admittedInSpan).toBe(true);
+  });
+
+  it('stops using an expired admission voucher on the next arrival roll', () => {
+    const w = gated();
+    w.rng.int = (range) => (w.tick === 0 ? range - 1 : 0);
+    const system = createGuestSystem((world) => ({
+      parkRating: 900,
+      entranceFee: 100,
+      voucher:
+        world.tick === 0
+          ? { kind: VoucherKind.FreeEntry, target: -1 }
+          : { kind: VoucherKind.None, target: -1 },
+    }));
+
+    w.tick = 0;
+    system.update(w);
+    w.tick = 1;
+    system.update(w);
+
+    expect(w.guests.count).toBe(1);
+    expect(w.economy.monthlyTotals[LedgerCategory.Admission]).toBe(100);
+    expect(w.guests.cols.voucherKind[0]).toBe(VoucherKind.None);
+  });
+
+  it('rechecks ride value after a ride closes before the next 512-tick refresh', () => {
+    const { w, ride } = corridorWithRide();
+    expect(setParkEntrance(w, 2, 5)).toBe(true);
+    w.economy.priceMode = PriceMode.Admission;
+    w.economy.admissionPrice = 100;
+    w.economy.parkRating = 850;
+    expect(getRideValueCents(w, w.rides.slotToId[ride])).toBeGreaterThan(100);
+    w.rng.int = (range) => (w.tick === 0 ? range - 1 : 200);
+    const system = createGuestSystem();
+
+    w.tick = 0;
+    system.update(w);
+    w.rides.cols.state[ride] = RideState.Closed;
+    w.tick = 1;
+    system.update(w);
+
+    expect(w.guests.count).toBe(0);
+  });
+
+  it('reduces arrivals only when the park entrance fee exceeds ride value', () => {
+    let noFee = 0;
+    let fairFee = 0;
+    let overpriced = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const sample = (entranceFee: number) =>
+        arrivals(
+          gated(seed),
+          () => ({
+            parkRating: 600,
+            entranceFee,
+            totalRideValueForMoneyCents: 1,
+          }),
+          8_192,
+        );
+      noFee += sample(0);
+      fairFee += sample(1);
+      overpriced += sample(2);
+    }
+    expect(fairFee).toBeGreaterThan(noFee * 0.8);
+    expect(overpriced).toBeLessThan(fairFee * 0.5);
+  });
+
+  it('brings in fewer guests at lower ratings and excessive entrance fees', () => {
+    const crowd = (rating: number, fee: number): number =>
+      Array.from({ length: 16 }, (_, index) =>
+        arrivals(gated(index + 1), () => ({ parkRating: rating, entranceFee: fee }), 8_192),
+      ).reduce((sum, guests) => sum + guests, 0);
+    const good = crowd(900, 0);
+    const poor = crowd(100, 0);
+    const dear = crowd(900, 50_000);
     expect(good).toBeGreaterThan(poor);
     expect(poor).toBeGreaterThan(0);
-    expect(dear).toBe(0);
+    expect(dear).toBeLessThan(good * 0.5);
   });
 
   it('charges the gate fee and a campaign draws a bigger crowd', () => {
@@ -538,7 +641,7 @@ describe('arrivals', () => {
     w.economy.parkRating = 400;
     const quiet = gated();
     quiet.economy.parkRating = 400;
-    const guests = arrivals(w, undefined, 100);
+    const guests = arrivals(w, undefined);
     expect(guests).toBeGreaterThan(0);
     expect(w.economy.monthlyTotals[LedgerCategory.Admission]).toBe(300 * guests);
 
@@ -546,7 +649,7 @@ describe('arrivals', () => {
     advertised.economy.parkRating = 400;
     advertised.economy.campaignId = 1;
     advertised.economy.campaignWeeksLeft = 4;
-    expect(arrivals(advertised, undefined, 100)).toBeGreaterThan(arrivals(quiet, undefined, 100));
+    expect(arrivals(advertised, undefined)).toBeGreaterThan(arrivals(quiet, undefined));
   });
 
   it('uses positive and negative awards to scale natural park arrivals', () => {
@@ -560,11 +663,11 @@ describe('arrivals', () => {
     let neutral = 0;
     let negative = 0;
     for (let seed = 1; seed <= 20; seed++) {
-      positive += arrivals(make(0, seed), undefined, 20);
+      positive += arrivals(make(0, seed), undefined, 8_192);
       const neutralWorld = gated(seed);
       neutralWorld.economy.parkRating = 600;
-      neutral += arrivals(neutralWorld, undefined, 20);
-      negative += arrivals(make(12, seed), undefined, 20);
+      neutral += arrivals(neutralWorld, undefined, 8_192);
+      negative += arrivals(make(12, seed), undefined, 8_192);
     }
     expect(positive).toBeGreaterThan(neutral);
     expect(negative).toBeLessThan(neutral);
@@ -579,7 +682,7 @@ describe('arrivals', () => {
       if (awardId !== undefined) w.economy.activeAwards.push({ awardId, expiresTick: 100_000 });
       return w;
     };
-    expect(arrivals(make(12), undefined, 200)).toBe(arrivals(make(), undefined, 200));
+    expect(arrivals(make(12), undefined, 8_192)).toBe(arrivals(make(), undefined, 8_192));
   });
 });
 
@@ -607,7 +710,11 @@ describe('campaign vouchers', () => {
     layPath(w, row(5, 2, 9));
     expect(setParkEntrance(w, 2, 5)).toBe(true);
     const admission = () => ({ parkRating: 1000, entranceFee: fee, voucher: { kind, target } });
-    createGuestSystem(admission).update(w);
+    const system = createGuestSystem(admission);
+    for (let tick = 0; tick < 32_768 && w.guests.count === 0; tick++) {
+      w.tick = tick;
+      system.update(w);
+    }
     expect(w.guests.count).toBe(1);
     return w;
   }

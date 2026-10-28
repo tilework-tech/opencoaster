@@ -18,6 +18,7 @@ const valid = {
     annualInterestBps: 1000,
   },
   pricing: { mode: 'admission', admissionPrice: 300 },
+  guests: { averageCashCents: 5_000 },
   research: {
     availableItemIds: [1, 2],
     inventions: [{ itemId: 3, category: 0, workUnits: 9_000 }],
@@ -45,6 +46,7 @@ describe('parseScenarioFile', () => {
       startingLoan: 1_000_000,
       maxLoan: 10_000_000,
       annualInterestBps: 1000,
+      averageGuestCashCents: 5_000,
       priceMode: 1,
       admissionPrice: 300,
       difficultRating: false,
@@ -62,6 +64,21 @@ describe('parseScenarioFile', () => {
         minimumRating: 0,
       },
     });
+  });
+
+  it('uses the scenario guest cash average and defaults older files to the RCT2 average', () => {
+    expect(
+      parseScenarioFile({ ...valid, guests: { averageCashCents: 7_500 } }).averageGuestCashCents,
+    ).toBe(7_500);
+    const legacy = { ...valid };
+    delete (legacy as { guests?: unknown }).guests;
+    expect(parseScenarioFile(legacy).averageGuestCashCents).toBe(5_000);
+  });
+
+  it('rejects invalid guest cash averages', () => {
+    expect(() => parseScenarioFile({ ...valid, guests: { averageCashCents: -1 } })).toThrow(
+      /guests\.averageCashCents/,
+    );
   });
 
   it('parses the four supported climates and rejects an unknown climate', () => {

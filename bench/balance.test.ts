@@ -8,6 +8,7 @@ import { RideType } from '../src/sim/rides/ride-types';
 import { deserialize, serialize } from '../src/save/save';
 import { ScenarioStatus } from '../src/sim/scenario/scenario';
 import { isReachable } from '../src/sim/pathfinding/navigate';
+import { LedgerCategory, PriceMode, completedMonthTotal } from '../src/sim/economy/ledger';
 
 function run(ticks: number, seed?: number) {
   const park = createBalancePark({ seed });
@@ -22,6 +23,39 @@ const FOUR_MONTHS = TICKS_PER_MONTH * 4;
 const FULL_YEAR = TICKS_PER_MONTH * 8;
 /** Multi-month sim runs take 1.5–6 s locally and more on shared CI runners; 5 s is too tight. */
 const LONG_RUN_TIMEOUT_MS = 30_000;
+describe('sensible starter park balance', () => {
+  it(
+    'breaks even by month two and earns profit by month four with the target starter park',
+    () => {
+      const park = createBalancePark({ profile: 'sensible' });
+      const monthlyNet: number[] = [];
+      for (let tick = 0; tick < TICKS_PER_MONTH * 4; tick++) {
+        park.runSchedule();
+        park.sim.step();
+        if (park.sim.world.economy.monthsCompleted > monthlyNet.length) {
+          monthlyNet.push(
+            Array.from({ length: LedgerCategory.COUNT }, (_, category) =>
+              completedMonthTotal(park.sim.world.economy, category),
+            ).reduce((total, value) => total + value, 0),
+          );
+        }
+      }
+      const w = park.sim.world;
+      expect(w.staff.count).toBe(3);
+      expect(
+        Array.from({ length: w.staff.count }, (_, slot) => w.staff.cols.kind[slot]).sort(),
+      ).toEqual([0, 0, 1]);
+      expect(w.rides.count).toBe(7);
+      expect(w.scenario.objective?.target).toBe(100);
+      expect(w.economy.priceMode).toBe(PriceMode.PerRide);
+      expect(w.economy.admissionPrice).toBe(0);
+      expect(monthlyNet[1]).toBeGreaterThanOrEqual(0);
+      expect(monthlyNet[3]).toBeGreaterThan(10_000);
+      expect(monthlyNet).toHaveLength(4);
+    },
+    LONG_RUN_TIMEOUT_MS,
+  );
+});
 
 describe('scripted starter park', () => {
   const sim = run(FOUR_MONTHS);

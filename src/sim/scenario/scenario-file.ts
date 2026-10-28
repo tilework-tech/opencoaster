@@ -1,7 +1,13 @@
 import { TICKS_PER_YEAR } from '../economy/calendar';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { Climate } from '../weather/weather';
-import { IMPORTED_ID, ObjectiveKind, SANDBOX_ID, TREE_SPECIES } from './scenario';
+import {
+  DEFAULT_AVERAGE_GUEST_CASH_CENTS,
+  IMPORTED_ID,
+  ObjectiveKind,
+  SANDBOX_ID,
+  TREE_SPECIES,
+} from './scenario';
 import { MAX_HEIGHT } from '../map/tile-map';
 import { buildApron, DEFAULT_LAND, ownedBounds } from './scenario-map';
 import { PREBUILT_TYPES } from './scenario-prebuilt';
@@ -136,6 +142,7 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
 
   const map = check(() => object(root.map, 'map'));
   const finance = check(() => object(root.finance, 'finance'));
+  const guests = check(() => object(root.guests ?? {}, 'guests'));
   const pricing = check(() => object(root.pricing, 'pricing'));
   const research = check(() => object(root.research ?? {}, 'research'));
 
@@ -155,6 +162,11 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
     maxLoan: check(() => integer(finance.maxLoan, 'finance.maxLoan', 0, MAX_MONEY)),
     annualInterestBps: check(() =>
       integer(finance.annualInterestBps, 'finance.annualInterestBps', 0, 10_000),
+    ),
+    averageGuestCashCents: check(() =>
+      guests.averageCashCents === undefined
+        ? DEFAULT_AVERAGE_GUEST_CASH_CENTS
+        : integer(guests.averageCashCents, 'guests.averageCashCents', 0, 2_000_000_000),
     ),
     difficultRating: check(() => flag(root.difficultRating, 'difficultRating')),
     priceMode: check(() => oneOf(pricing.mode, 'pricing.mode', PRICE_MODES)),

@@ -63,6 +63,7 @@ describe('SimRunner', () => {
         startingLoan: 0,
         maxLoan: 100_000,
         annualInterestBps: 0,
+        averageGuestCashCents: 5_000,
         difficultRating: false,
         priceMode: PriceMode.Admission,
         admissionPrice: 300,

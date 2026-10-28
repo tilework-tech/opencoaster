@@ -153,7 +153,8 @@ export function spawnGuest(w: World): boolean {
   g.cols.nauseaTolerance[slot] =
     toleranceRoll === 0 ? 0 : toleranceRoll < 3 ? 1 : toleranceRoll < 6 ? 2 : 3;
   g.cols.preferredIntensity[slot] = 48 + w.rng.int(176);
-  g.cols.cash[slot] = 5000 + w.rng.int(5000);
+  const cashVariation = w.rng.int(4) * 1_000 - 1_000;
+  g.cols.cash[slot] = Math.max(0, w.scenario.averageGuestCashCents + cashVariation);
   g.cols.patience[slot] = 600;
   g.cols.visitTicks[slot] = 0;
   g.cols.ridesTaken[slot] = 0;

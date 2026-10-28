@@ -85,6 +85,7 @@ export function hashWorld(world: World): number {
   for (const id of r.unlocked) mix(id);
   const s = world.scenario;
   mix(s.status);
+  mix(s.averageGuestCashCents);
   if (s.objective) for (const v of Object.values(s.objective)) mix(v);
   for (const table of world.track.rideTables()) {
     const t = table as Int32Array;
