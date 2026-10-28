@@ -189,6 +189,13 @@ export async function hudCash(page: Page): Promise<number> {
   throw new Error('HUD cash readout is missing');
 }
 
+export async function hudTick(page: Page): Promise<number> {
+  const hud = await page.locator('.hud').innerText();
+  const tick = hud.match(/\btick (\d+)\b/);
+  if (!tick) throw new Error('Simulation tick is missing from the HUD');
+  return Number(tick[1]);
+}
+
 export async function savedWorld(page: Page): Promise<World> {
   const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
   while (await closeButtons.count()) await closeButtons.first().click();

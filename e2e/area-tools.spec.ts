@@ -9,6 +9,7 @@ import {
   expect,
   hoverUntil,
   hudCash,
+  hudTick,
   openPage,
   PHONE_SHIFT,
   point,
@@ -175,8 +176,10 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await expect(overlay(page, 'area-bad').first()).toBeVisible({ timeout: 1500 });
       });
       const before = await hudCash(page);
+      const tick = await hudTick(page);
       await tapAt(setup, target);
       await expect(page.locator('.tool-status')).toContainText('Clearing scenery at');
+      await expect.poll(() => hudTick(page)).toBeGreaterThan(tick);
       await expect.poll(() => hudCash(page)).toBe(before);
     });
 
@@ -188,8 +191,10 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await expect(tip(page)).toHaveText('Footpath in the way.', { timeout: 1500 });
       });
       const before = await hudCash(page);
+      const tick = await hudTick(page);
       await tapAt(setup, target);
       await expect(page.locator('.tool-status')).toContainText('Raising water at');
+      await expect.poll(() => hudTick(page)).toBeGreaterThan(tick);
       await expect.poll(() => hudCash(page)).toBe(before);
     });
   });

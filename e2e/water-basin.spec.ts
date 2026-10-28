@@ -8,6 +8,7 @@ import {
   expect,
   hoverUntil,
   hudCash,
+  hudTick,
   importWorld,
   openPage,
   PHONE_SHIFT,
@@ -137,7 +138,9 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await expect(tip(page)).toHaveText(/^Water would spill over the bank/, { timeout: 1500 });
       });
       const cash = await hudCash(page);
+      const tick = await hudTick(page);
       await tapAt(setup, aim);
+      await expect.poll(() => hudTick(page)).toBeGreaterThan(tick);
       await expect.poll(() => hudCash(page)).toBe(cash);
 
       const filled = (await savedWorld(page)).map;
