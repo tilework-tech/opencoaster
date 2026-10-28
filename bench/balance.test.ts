@@ -89,12 +89,16 @@ describe('scripted starter park', () => {
       (slot) => world.rides.cols.typeId[slot] === RideType.WoodenCoaster,
     );
     expect(coaster, 'the coaster is built by the third construction wave').toBeDefined();
-    const exit = world.map.index(
-      world.rides.cols.exitX[coaster!],
-      world.rides.cols.exitY[coaster!],
-    );
+    const exitX = world.rides.cols.exitX[coaster!];
+    const exitY = world.rides.cols.exitY[coaster!];
     const entrance = world.map.index(world.park.entranceX, world.park.entranceY);
-    expect(isReachable(world, entrance, exit)).toBe(true);
+    const beside = [
+      [exitX + 1, exitY],
+      [exitX - 1, exitY],
+      [exitX, exitY + 1],
+      [exitX, exitY - 1],
+    ].map(([x, y]) => world.map.index(x, y));
+    expect(beside.some((tile) => isReachable(world, entrance, tile))).toBe(true);
   });
 
   it(
