@@ -3,7 +3,7 @@
   "name": "Starter Park",
   "category": "beginner",
   "climate": "warm",
-  "description": "A small rolling valley with a lake. Build a lively park for 100 guests and a rating of 450 before the end of year one.",
+  "description": "A small rolling valley with a lake. Build a lively park for 530 guests and a rating of 740 before the end of year one.",
   "seed": 2026,
   "map": {
     "width": 64,
@@ -70,8 +70,8 @@
   },
   "objective": {
     "kind": "guestsAndRating",
-    "target": 100,
-    "rating": 450,
+    "target": 530,
+    "rating": 740,
     "byYear": 1
   }
 }

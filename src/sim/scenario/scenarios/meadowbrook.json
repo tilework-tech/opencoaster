@@ -3,7 +3,7 @@
   "name": "Meadowbrook Green",
   "category": "beginner",
   "climate": "warm",
-  "description": "A gentle meadow with a duck pond and room to grow. Bring 300 happy guests through the gate within two years.",
+  "description": "A gentle meadow with a duck pond and room to grow. Bring 890 happy guests through the gate within two years.",
   "seed": 1101,
   "map": {
     "width": 72,
@@ -173,8 +173,8 @@
   ],
   "objective": {
     "kind": "guestsByDate",
-    "target": 300,
-    "minimumRating": 500,
+    "target": 890,
+    "minimumRating": 840,
     "byYear": 2
   }
 }

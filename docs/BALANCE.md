@@ -354,26 +354,75 @@ Terrain and tree layout were revised so each park's ground matches its theme and
 
 The scripts play a competent but imperfect player. All build gate-relative: a spine path inward from the gate with one ride or stall per row and side, a queue with bins, an exit path with bins, and coasters on reserved pads at the far end. Bins on every queue and exit path matter more than staffing: with bins only on the spine the same parks sat at 200 to 400 litter and a rating near 300, with bins everywhere litter averages under 10 and the rating stays above 700. Handymen are hired at one per two rides and stalls and mechanics at one per three attractions. Expert and Challenging scripts add per-seed hesitation (skipped build decisions and a late start), so their win rates reflect timing luck as well as terrain; Beginner scripts do not hesitate.
 
-| Park                 | Tab         | Objective                                                         | Setup                                                  | Wins  |
-| -------------------- | ----------- | ----------------------------------------------------------------- | ------------------------------------------------------ | ----- |
-| Meadowbrook Green    | Beginner    | 300 guests, rating 500+, by end of year 2                         | $60k cash, $15k loan, admission $3, south gate         | 12/12 |
-| Lantern Bay          | Beginner    | park value $7,000 by end of year 3                                | $50k, $10k loan, pay per ride, sand and sea, east gate | 12/12 |
-| Bramblewood Hollow   | Beginner    | $750 a month ride ticket income by end of year 3                  | $45k, $15k loan, pay per ride, dense trees, west gate  | 11/12 |
-| Copper Ridge         | Challenging | five coasters of 4.60+ excitement before the end of year 1        | $30k, $25k loan, pay per ride, hills, south gate       | 12/12 |
-| Tidewater Docks      | Challenging | repay the $6k loan and reach park value $5,500 by end of year 4   | $28k, $6k loan, pay per ride, west gate                | 12/12 |
-| Thunderhead Mesa     | Expert      | 460 guests and rating 700+ by end of year 4                       | $30k, $30k loan, difficult rating, hot and dry         | 7/12  |
-| Glacier Point        | Expert      | six coasters of 4.90+ excitement within 22,528 ticks (1.4 months) | $33k, $20k loan, pay per ride, cold, hesitant script   | 6/12  |
-| Seaside Promenade    | Real        | $380 a month food and drink profit by end of year 3               | $40k, $20k loan, free entry and rides                  | 12/12 |
-| Riverside Fairground | Real        | 645 guests, rating 600+, by end of year 3                         | $50k, $25k loan, admission $3, north gate              | 12/12 |
-| Open Grounds         | Other       | Have Fun (no deadline)                                            | $80k, no loan                                          | 12/12 |
+| Park                 | Tab         | Objective                                                           | Setup                                                  | Wins  |
+| -------------------- | ----------- | ------------------------------------------------------------------- | ------------------------------------------------------ | ----- |
+| Meadowbrook Green    | Beginner    | 890 guests, rating 840+, by end of year 2                           | $60k cash, $15k loan, admission $3, south gate         | 9/12  |
+| Lantern Bay          | Beginner    | park value $14,000 by end of year 3                                 | $50k, $10k loan, pay per ride, sand and sea, east gate | 9/12  |
+| Bramblewood Hollow   | Beginner    | $1,635 a month ride ticket income by end of year 3                  | $45k, $15k loan, pay per ride, dense trees, west gate  | 10/12 |
+| Copper Ridge         | Challenging | three coasters of 4.30+ excitement before the end of year 1         | $30k, $25k loan, pay per ride, hills, south gate       | 12/12 |
+| Tidewater Docks      | Challenging | repay the $6k loan and reach park value $13,200 by end of year 4    | $28k, $6k loan, pay per ride, west gate                | 9/12  |
+| Thunderhead Mesa     | Expert      | 1,260 guests and rating 860+ by end of year 4                       | $30k, $30k loan, difficult rating, hot and dry         | 9/12  |
+| Glacier Point        | Expert      | three coasters of 4.50+ excitement within 22,528 ticks (1.4 months) | $33k, $20k loan, pay per ride, cold, hesitant script   | 6/12  |
+| Seaside Promenade    | Real        | $1,220 a month food and drink profit by end of year 3               | $40k, $20k loan, free entry and rides                  | 9/12  |
+| Riverside Fairground | Real        | 1,345 guests, rating 900+, by end of year 3                         | $50k, $25k loan, admission $3, north gate              | 9/12  |
+| Open Grounds         | Other       | Have Fun (no deadline)                                              | $80k, no loan                                          | 12/12 |
 
 Notes on reading the table:
 
-- All Beginner parks win 12/12 and the two Expert parks win 6/12 and 9/12, meeting the documented 10+ and 3 to 9 targets. Thunderhead Mesa ends at 458 to 467 guests and 743 to 778 rating; its three misses fall one or two guests short of the 460-person objective. Glacier Point's six coaster races remain dependent on the random start delay.
-- Seaside Promenade, Copper Ridge and Tidewater Docks win 12/12, 12/12 and 11/12 respectively. Tidewater's one miss ends at $5,437.90 park value; its rating is not part of the objective, which requires the loan at zero and value of $5,500 or more.
-- Riverside Fairground wins 5/12. Its five wins reach 646 to 653 guests with rating 795 to 915; the seven misses fall below the 645-guest condition. Open Grounds has no in-game objective to win. The harness counts a run as healthy when, after four years, the park is solvent, rated 600 or more and holds 200 or more guests; all twelve seeds meet that health check in this run.
-- Glacier Point is a race against the script's random start delay (up to three months). With $33k all six coasters are placed on the first decision after the delay; $30k only pays for five. The six losing seeds (3 and 7 to 11) were still waiting at the deadline with just the four opening items built.
-- Coaster ratings in the table are measured on the apron after a 7,000-tick test: the compact circuit rates 4.67, the "river run" 4.92 and the "switchback" 4.94 (see [bench/strategy/coasters.ts](../bench/strategy/coasters.ts)). These are the best of about 500 closed circuits found by randomised search over a 16-tile box; the wooden coaster's ratings top out near 5.2 for larger circuits, which is why coaster targets stay at 4.90 or below. Scenery within five tiles of a station would add 0.05 per item, but the apron is tree-free and the scripts place no scenery, so only trees just past its edge could add to a station's rating.
+- Wins are counted at the deadline over seeds 1 to 12 with the modest scripted strategy. The thresholds were set from the RCT2 park rating, guest generation and ride rating model (see [Retune after RCT2 ratings and guest generation](#retune-after-rct2-ratings-and-guest-generation)); older sections below record earlier models and their numbers.
+- Open Grounds has no in-game objective to win. The harness counts a run as healthy when, after four years, the park is solvent, rated 600 or more and holds 200 or more guests; it passes 12/12 and is a sanity check, not a difficulty target.
+- Glacier Point is a race against the script's random start delay (up to three months): the six winning seeds place their coasters in time, the six losing seeds end with no qualifying coaster at the deadline.
+- Copper Ridge is 12/12 because the script is deterministic about what it builds: three compact circuits rate 4.33 and two "river run" circuits rate 2.27, whatever the seed. The challenge is the 4.30 bar, not the seed. See the coaster rating note below.
+- Coaster ratings are measured on the apron after a test run (see [bench/strategy/coasters.ts](../bench/strategy/coasters.ts)). With the RCT2 ride ratings the compact circuit rates 4.33, the "river run" 2.27 (about half the old figure; an unmet ride requirement, not investigated here) and the "switchback" 4.62. The `excitement` figures recorded in `coasters.ts` come from the earlier rating model and were not re-searched.
+
+## Retune after RCT2 ratings and guest generation
+
+The RCT2 park rating and guest generation (gap 1) and the RCT2 ride ratings plus guest intensity and nausea gates (gap 5) land together with this retune, on top of main at `6ccc758b` (multi-train circuits, front-edge ride entrances and exits). The formulas are untouched; only the scenario objectives below moved.
+
+What the models did to the scripted parks: arrivals follow `(50 + rating above 200, at most 650) / 65536` per tick, so a high rating draws many more guests, and the suggested guest maximum grows with attractions. Year-end crowds rose 2 to 3 times and most parks now end between 860 and 999 rating. Every old objective was set for the old crowd: eight of ten scenarios were won on every seed, and Copper Ridge and Glacier Point were unwinnable because the old excitement bars were set for the old ride ratings.
+
+Method: every scenario was swept over seeds 1 to 12 with the new tree and the old objectives (`pnpm balance -- --scenario all --seeds 12`). The strategies never read the objective, so each seed's value at the deadline (guests, rating, ride income, park value or qualifying coasters) is independent of the threshold, and each target was placed just under the 25th percentile of those twelve values, which gives 9 wins of 12. The harness was then re-run with the new objectives to confirm the counts.
+
+| Scenario             | Objective                                 | Old       | New         | Why                                                                                                                                                                                                                                             |
+| -------------------- | ----------------------------------------- | --------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Starter Park         | guests / rating at end of year 1          | 100 / 450 | 530 / 740   | Modest build now ends at 526 to 585 guests and 730 to 797 rating (was 250 - 287 and 400 - 631 on main). Targets sit under the lower quartile of the modest runs and keep the scenario seed (2026, 530 guests and rating 755 at year end) a win. |
+| Meadowbrook Green    | guests / min rating by year 2             | 300 / 500 | 890 / 840   | 876 to 1,040 guests and 846 to 901 rating at the deadline (was 347 - 350 and 645 - 816).                                                                                                                                                        |
+| Lantern Bay          | park value by year 3                      | $7,000    | $14,000     | Park value follows guests and rating: $13,500 to $14,800 (was $7,700 to $8,200).                                                                                                                                                                |
+| Bramblewood Hollow   | monthly ride ticket income by year 3      | $750      | $1,635      | Income in the last full month is $1,542 to $1,753 (was $712 to $865).                                                                                                                                                                           |
+| Copper Ridge         | coasters / min excitement by year 1       | 5 / 4.60  | 3 / 4.30    | The compact circuit rates 4.33 and the "river run" 2.27 under the RCT2 ride ratings, so the old 4.60 bar matched nothing the script can build (0/12 on both trees). Three compact circuits clear 4.30.                                          |
+| Tidewater Docks      | loan repaid and park value by year 4      | $5,500    | $13,200     | Park value $12,700 to $14,400 (was $6,100 to $6,400); the loan is always repaid.                                                                                                                                                                |
+| Thunderhead Mesa     | guests / min rating by year 4             | 460 / 700 | 1,260 / 860 | 1,212 to 1,400 guests and 861 to 880 rating (was 459 - 469 and 741 - 778). The rating floor moves with the difficult-rating base, keeping the expert pairing.                                                                                   |
+| Glacier Point        | coasters / min excitement in 22,528 ticks | 6 / 4.90  | 3 / 4.50    | The "switchback" rates 4.62, the "river run" 2.27; the old 4.90 bar was unreachable (0/12 on both trees). Three switchbacks clear 4.50 only when the start delay leaves time, which keeps it a 6/12 race.                                       |
+| Seaside Promenade    | monthly food and drink profit by year 3   | $380      | $1,220      | $1,106 to $1,427 (was $167 to $405).                                                                                                                                                                                                            |
+| Riverside Fairground | guests / min rating by year 3             | 645 / 600 | 1,345 / 900 | 1,305 to 1,570 guests; the rating sits at the 999 cap, so the rating bar is set at 900 to stay meaningful.                                                                                                                                      |
+
+Win rates, seeds 1 to 12, scripted modest strategy, year-end or deadline check. "Main" is main at `6ccc758b`; "combined" is this branch. Guests and rating are medians with the range in brackets.
+
+| scenario             | main: wins | main: guests  | main: rating  | combined, old objective: wins | combined, retuned: wins | combined: guests | combined: rating |
+| -------------------- | ---------- | ------------- | ------------- | ----------------------------- | ----------------------- | ---------------- | ---------------- |
+| bramblewood-hollow   | 8/12       | 417 (407-421) | 805 (783-834) | 12/12                         | 10/12                   | 1133 (1062-1206) | 926 (909-943)    |
+| copper-ridge         | 0/12       | 379 (335-408) | 817 (751-875) | 0/12                          | 12/12                   | 824 (716-842)    | 924 (899-934)    |
+| glacier-point        | 0/12       | 101 (77-244)  | 511 (276-759) | 0/12                          | 6/12                    | 128 (97-186)     | 724 (688-770)    |
+| lantern-bay          | 12/12      | 674 (660-683) | 912 (871-948) | 12/12                         | 9/12                    | 1323 (1260-1395) | 999 (994-999)    |
+| meadowbrook          | 12/12      | 349 (347-350) | 788 (645-816) | 12/12                         | 9/12                    | 927 (876-1040)   | 880 (846-901)    |
+| open-grounds         | 11/12      | 422 (212-426) | 859 (58-875)  | 12/12                         | 12/12                   | 1658 (1545-1711) | 993 (985-998)    |
+| riverside-fairground | 12/12      | 703 (689-713) | 922 (873-941) | 12/12                         | 9/12                    | 1383 (1305-1570) | 999 (999-999)    |
+| seaside-promenade    | 9/12       | 343 (152-347) | 694 (18-724)  | 12/12                         | 9/12                    | 1055 (973-1254)  | 869 (829-888)    |
+| thunderhead-mesa     | 10/12      | 464 (459-469) | 766 (741-778) | 12/12                         | 9/12                    | 1299 (1212-1400) | 872 (861-880)    |
+| tidewater-docks      | 12/12      | 555 (546-561) | 823 (752-878) | 12/12                         | 9/12                    | 1321 (1262-1439) | 954 (912-981)    |
+
+Starter Park, scripted profiles, twelve seeds (11 - 16 and 21 - 26), year-end check, `pnpm balance --profile P --seed N`:
+
+| Profile   | Main wins (100 guests / 450 rating) | Main guests   | Main rating   | Combined wins, old objective | Combined wins, 530 / 740 | Combined guests | Combined rating |
+| --------- | ----------------------------------- | ------------- | ------------- | ---------------------------- | ------------------------ | --------------- | --------------- |
+| minimal   | 0/12                                | 111 (103-117) | 0 (0-0)       | 0/12                         | 0/12                     | 156 (140-167)   | 0 (0-175)       |
+| modest    | 10/12                               | 277 (250-287) | 552 (400-631) | 12/12                        | 10/12                    | 555 (526-585)   | 762 (730-797)   |
+| ambitious | 12/12                               | 329 (296-338) | 687 (592-751) | 12/12                        | 1/12                     | 459 (355-597)   | 716 (630-784)   |
+
+Findings that this retune does not fix:
+
+- The ambitious Starter build wins 1/12 at 530 / 740 even though it builds more. In every ambitious run a Ferris wheel, and often a ship and the wooden coaster, stays broken for tens of thousands of ticks and is never repaired; main shows the same (the second Ferris wheel is down for 86,833 ticks in `pnpm balance --profile ambitious --seed 2026`). The targets follow the modest profile, which is the harness default; the unrepaired breakdowns are a separate mechanic-routing problem.
+- `bench/rating-trajectory.test.ts` bounds relaxed from 1.15 to 1.4 times the suggested maximum and from 120 to 250 rating points. #157 alone on main with front-edge entrances and exits (#167) already overshot the old bounds (445 guests against 442.75 allowed), because guests now leave more slowly once the park is over its maximum; the combined park holds 509 guests against a maximum of 385 at month six.
 
 ### Real flat-ride footprints
 

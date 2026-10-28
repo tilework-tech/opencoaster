@@ -3,7 +3,7 @@
   "name": "Glacier Point",
   "category": "expert",
   "climate": "cold",
-  "description": "A frozen shelf above the lake and almost no time. Have six coasters rated 4.90 excitement or better standing within a month and a half.",
+  "description": "A frozen shelf above the lake and almost no time. Have three coasters rated 4.50 excitement or better standing within a month and a half.",
   "seed": 3202,
   "map": {
     "width": 96,
@@ -165,8 +165,8 @@
   },
   "objective": {
     "kind": "completeCoasters",
-    "target": 6,
-    "minimumExcitement": 490,
+    "target": 3,
+    "minimumExcitement": 450,
     "byTick": 22528
   }
 }

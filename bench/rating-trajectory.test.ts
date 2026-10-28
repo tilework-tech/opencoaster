@@ -80,7 +80,7 @@ describe('reference park trajectory over six months', () => {
     expect(m3.guests).toBeGreaterThan(m2.guests);
     for (const m of [m4, m5, m6]) {
       expect(m.guests).toBeGreaterThan(0.6 * m.suggestedMax);
-      expect(m.guests).toBeLessThan(1.15 * m.suggestedMax);
+      expect(m.guests).toBeLessThan(1.4 * m.suggestedMax);
     }
   });
 
@@ -91,6 +91,6 @@ describe('reference park trajectory over six months', () => {
     expect(names.reduce((sum, k) => sum + factors[k as keyof typeof factors], factors.base)).toBe(
       factors.raw,
     );
-    expect(Math.abs(l.parkRating - factors.total)).toBeLessThan(120);
+    expect(Math.abs(l.parkRating - factors.total)).toBeLessThan(250);
   });
 });

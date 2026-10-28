@@ -3,7 +3,7 @@
   "name": "Riverside Fairground",
   "category": "real",
   "climate": "warm",
-  "description": "A county fairground on a river bend with a big annual crowd. Attract 645 guests by the end of year three.",
+  "description": "A county fairground on a river bend with a big annual crowd. Attract 1,345 guests by the end of year three.",
   "seed": 4202,
   "map": {
     "width": 88,
@@ -178,8 +178,8 @@
   ],
   "objective": {
     "kind": "guestsByDate",
-    "target": 645,
-    "minimumRating": 600,
+    "target": 1345,
+    "minimumRating": 900,
     "byYear": 3
   }
 }
