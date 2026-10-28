@@ -9,7 +9,8 @@ export * from '@playwright/test';
 
 export const test = base.extend<{ freshBrowser: Browser }, { closeSpecBrowser: void }>({
   closeSpecBrowser: [
-    async (_fixtures, use) => {
+    async ({ browserName }, use) => {
+      void browserName;
       await use();
       await specBrowsers.close();
     },
