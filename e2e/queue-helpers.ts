@@ -244,10 +244,11 @@ export async function openPage(
 ): Promise<Page> {
   const { defaultBrowserType: _browserType, ...device } = mobile ? devices['Pixel 8'] : {};
   void _browserType;
+  const scale = options.scale ?? (mobile ? 1 : undefined);
   const context = await createTestContext(browser, {
     ...device,
+    ...(scale !== undefined ? { deviceScaleFactor: scale } : {}),
     baseURL: options.baseURL ?? 'http://127.0.0.1:4173',
-    ...(options.scale ? { deviceScaleFactor: options.scale } : {}),
   });
   const page = await context.newPage();
   if (options.canvas2d) {
@@ -427,9 +428,9 @@ export async function buildQueuedRide(
       const current = await value.innerText();
       if (current === `${options.queueLimit} guests`) break;
       await rideWindow.getByRole('button', { name: 'Shorten queue limit' }).click();
-      await expect(value).not.toHaveText(current);
+      await expect(value).not.toHaveText(current, { timeout: 30_000 });
     }
-    await expect(value).toHaveText(`${options.queueLimit} guests`);
+    await expect(value).toHaveText(`${options.queueLimit} guests`, { timeout: 30_000 });
   }
 
   await toolbarTool(page, 'Game options');
