@@ -24,6 +24,7 @@ import {
 import type { TileMap } from './tile-map';
 import { placeScenery, SceneryItem, SCENERY_CATALOG } from './scenery';
 import { PathAddition, placePath, setPathAddition } from './paths';
+import { materializeAmbientTrees } from './ambient-trees';
 
 function sim(): Simulation {
   const s = new Simulation({ seed: 3, width: 32, height: 32, maxGuests: 10 });
@@ -39,6 +40,17 @@ function sceneryOn(s: Simulation, x: number, y: number): number {
   for (let e = m.firstElement(m.index(x, y)); e >= 0; e = m.nextElement(e))
     if (m.elType[e] === ElementType.SmallScenery) count++;
   return count;
+}
+
+function treeTiles(map: TileMap): Array<{ x: number; y: number }> {
+  const trees: Array<{ x: number; y: number }> = [];
+  for (let y = 0; y < map.height; y++)
+    for (let x = 0; x < map.width; x++) {
+      const tile = map.index(x, y);
+      for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element))
+        if (map.elType[element] === ElementType.SmallScenery) trees.push({ x, y });
+    }
+  return trees;
 }
 
 function additionsOn(s: Simulation, x: number, y: number): number {
@@ -66,6 +78,23 @@ const water = (x: number, y: number, size: number, lower = false): AreaEdit => (
 });
 
 describe('clear scenery tool', () => {
+  it('removes an ambient tree from an acquired tile', () => {
+    const s = sim();
+    s.world.map.ownership.fill(0);
+    s.world.economy.cash = 100_000_000;
+    materializeAmbientTrees(s.world);
+    const tree = treeTiles(s.world.map).find(
+      ({ x, y }) => x > 1 && y > 1 && x < s.world.map.width - 2 && y < s.world.map.height - 2,
+    )!;
+    expect(tree).toBeDefined();
+    s.world.map.ownership[s.world.map.index(tree.x, tree.y)] = OWNED;
+
+    s.enqueue({ type: 'clearScenery', x: tree.x, y: tree.y, width: 1, height: 1 });
+    s.step();
+
+    expect(sceneryOn(s, tree.x, tree.y)).toBe(0);
+  });
+
   it('previews the price of every tree in the area without changing the map', () => {
     const s = sim();
     const m = s.world.map;

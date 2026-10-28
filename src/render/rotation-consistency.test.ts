@@ -376,7 +376,6 @@ function webglPlacements(
   renderer.setGhosts(ghosts.path ?? []);
   renderer.setSpriteGhosts(ghosts.sprite ?? []);
   const args = [map, camera, 2400, 1800];
-  test.appendAmbientTrees!(...args);
   test.appendGrounds!(snapshot, ...args);
   test.appendPathElements!(...args);
   test.appendPathGhosts!(...args);

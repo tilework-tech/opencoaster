@@ -43,11 +43,13 @@ import { migrateBoardingFronts } from '../sim/rides/boarding-front';
 import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
+import { migrateLegacyAmbientTrees } from '../sim/map/ambient-trees';
 
 /** Staff activity totals and guest sight memory are stored from this version. */
 const STAFF_STATS_SAVE_VERSION = 32;
 const PRE_STAFF_STATS_SAVE_VERSION = 31;
-export const SAVE_VERSION = 32;
+const AMBIENT_TREES_SAVE_VERSION = 33;
+export const SAVE_VERSION = AMBIENT_TREES_SAVE_VERSION;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
@@ -554,8 +556,9 @@ export function deserialize(bytes: Uint8Array): World {
     BOARDING_FRONT_SAVE_VERSION,
     HAPPINESS_TARGET_SAVE_VERSION,
     DOWNTIME_SAVE_VERSION,
+    STAFF_STATS_SAVE_VERSION,
     PRE_STAFF_STATS_SAVE_VERSION,
-    SAVE_VERSION,
+    AMBIENT_TREES_SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
     throw new Error(`Unsupported save version ${header.version}`);
@@ -723,6 +726,7 @@ export function deserialize(bytes: Uint8Array): World {
   restoreResearch(world.research, research);
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
+  if (header.version < AMBIENT_TREES_SAVE_VERSION) migrateLegacyAmbientTrees(world);
   closeInvalidOpenRides(world);
   repairSavedRideTrains(world);
   return world;

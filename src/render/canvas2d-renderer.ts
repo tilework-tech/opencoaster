@@ -58,7 +58,6 @@ import {
   rideHutFacingForFootprint,
   rideHutSpriteKey,
   waterFrameIndex,
-  ambientTreeName,
   terrainCliffSpriteName,
   terrainSurfaceSpriteName,
 } from './world-art';
@@ -74,7 +73,7 @@ import { guestFrame, guestSpriteIndex, staffSpriteName } from './webgl2-renderer
 import { anchorKey } from './depth-key';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
-import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
+import { FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
 import {
   PATH_SURFACE_Z,
   pathAdditionBox,
@@ -2033,7 +2032,7 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
-  /** Ambient trees and flower beds, placed by tile exactly as in the WebGL renderer. */
+  /** Flower beds that are stored as grounds effects rather than map scenery elements. */
   private drawGroundProps(
     ctx: CanvasRenderingContext2D,
     map: MapData,
@@ -2056,14 +2055,6 @@ export class Canvas2DRenderer implements Renderer {
         : drawBoxedSprite(ctx, atlas, name, this.tmp[0], this.tmp[1], width, height);
       if (drawn) this.visibleCount++;
     };
-    const tree = ambientTreeName(map.surface[tile]!, x, y);
-    if (tree)
-      place(
-        scenerySpriteName(tree, cam.rotation),
-        0,
-        AMBIENT_TREE_BOX.width,
-        AMBIENT_TREE_BOX.height,
-      );
     if (snapshot && ((snapshot.grounds[tile] ?? 0) & FLOWER_BED) !== 0)
       place(
         flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!),

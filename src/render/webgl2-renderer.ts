@@ -31,7 +31,7 @@ import type {
   RenderViewport,
   SpriteGhost,
 } from './renderer';
-import { AMBIENT_TREE_BOX, FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
+import { FLOWER_BED_BOX, GUEST_BOX, PARK_GATE_BOX } from './sprite-layout';
 import {
   PATH_SURFACE_Z,
   pathAdditionBox,
@@ -122,7 +122,6 @@ import {
   nativeSpriteWorldOffset,
   waterFrameIndex,
   waterSpriteName,
-  ambientTreeName,
 } from './world-art';
 
 const CELL = 64;
@@ -1119,7 +1118,6 @@ export class WebGL2Renderer implements Renderer {
     if (snapshot) this.appendPatrolAreas(snapshot, map, camera, viewportWidth, viewportHeight);
     this.appendWater(map, camera, viewportWidth, viewportHeight, snapshot?.tick ?? 0);
     if (snapshot) {
-      this.appendAmbientTrees(map, camera, viewportWidth, viewportHeight);
       this.appendGrounds(snapshot, map, camera, viewportWidth, viewportHeight);
       this.appendPathElements(map, camera, viewportWidth, viewportHeight);
       this.appendPathGhosts(map, camera, viewportWidth, viewportHeight);
@@ -2426,47 +2424,6 @@ export class WebGL2Renderer implements Renderer {
       0,
       { crop: [0, 1, 0, Math.min(1, (above * Z_PIXELS) / TRENCH_WALL_TEXTURE_HEIGHT)] },
     );
-  }
-
-  private appendAmbientTrees(
-    map: MapData,
-    camera: Camera,
-    viewportWidth: number,
-    viewportHeight: number,
-  ): void {
-    for (let y = 0; y < map.height; y++) {
-      for (let x = 0; x < map.width; x++) {
-        const index = y * map.width + x;
-        const tree = ambientTreeName(map.surface[index]!, x, y);
-        if (!tree) continue;
-        const sprite = scenerySpriteName(tree, camera.rotation);
-        const z = sceneryGroundZ(map.heights[index]!, map.slope[index]!, camera.rotation);
-        const worldX = x * TILE_UNITS + TILE_UNITS / 2;
-        const worldY = y * TILE_UNITS + TILE_UNITS / 2;
-        const depth = anchorKey(map, camera.rotation, worldX, worldY, z);
-        project(worldX, worldY, z, map.width, map.height, camera.rotation, this.projected);
-        if (
-          inViewport(
-            this.projected[0],
-            this.projected[1],
-            camera,
-            viewportWidth,
-            viewportHeight,
-            AMBIENT_TREE_BOX.width,
-            AMBIENT_TREE_BOX.height,
-          )
-        )
-          this.append(
-            worldX,
-            worldY,
-            z,
-            AMBIENT_TREE_BOX.width,
-            AMBIENT_TREE_BOX.height,
-            sprite,
-            depth,
-          );
-      }
-    }
   }
 
   private appendGrounds(

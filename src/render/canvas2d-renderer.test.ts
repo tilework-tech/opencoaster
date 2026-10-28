@@ -709,21 +709,18 @@ describe('Canvas2D fallback map art', () => {
     expect(context.arcs).not.toContain('#397b35');
   });
 
-  it('draws palm or cactus ambient scenery on sandy ground', async () => {
+  it('draws a materialized desert tree through the scenery element path', async () => {
     const map = flatMap();
     map.surface.fill(1);
     const x = 4;
     const y = 1;
+    map.sceneryElements = Int32Array.of(x, y, 0, 0, SceneryItem.CactusTree);
+    map.sceneryCount = 1;
     const camera = { x: (x - y) * 32, y: (x + y) * 16, zoom: 1, rotation: 0 as const };
-    const context = await renderWithAtlas(
-      map,
-      ['trees/tree-palm/view-0', 'trees/tree-cactus/view-0'],
-      null,
-      camera,
-    );
+    const context = await renderWithAtlas(map, ['trees/tree-cactus/view-0'], null, camera);
 
     expect(context.images).toHaveLength(1);
-    expect([1, 2, 3]).toContain(context.spriteSources[0]);
+    expect(context.spriteSources).toEqual([1]);
     expect(context.spriteSources).not.toContain(0);
   });
 

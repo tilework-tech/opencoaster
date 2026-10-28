@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/core/simulation';
 import { hashWorld } from '../sim/core/hash';
 import { PieceId } from '../sim/track/catalog';
+import { placeTrack } from '../sim/track/construction';
+import { PieceMode, TrackResult } from '../sim/track/track-types';
 import { SAVE_VERSION, deserialize, serialize } from './save';
 import { allWorldViews, withoutColumns } from './legacy-save-fixtures';
 import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
@@ -30,7 +32,7 @@ import {
 } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
-import { PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
+import { ElementType, PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
 import { placeScenery, SceneryItem } from '../sim/map/scenery';
 import { refreshQueueIndex } from '../sim/rides/queue-lines';
 import { createRide, placeRideEntranceExit } from '../sim/rides/ride-operations';
@@ -90,7 +92,7 @@ describe('save', () => {
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(32);
+    expect(SAVE_VERSION).toBe(33);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -98,11 +100,55 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(32);
+    expect(header.version).toBe(33);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
     expect(restored.staff.cols.vandalsStopped[0]).toBe(27);
+  });
+
+  it('materializes legacy ambient trees except where the saved park is occupied', () => {
+    const sim = flatOwnedSim(1);
+    const rideId = createCoaster(sim, RideType.WoodenCoaster);
+    expect(
+      placeTrack(sim.world, {
+        rideId,
+        pieceType: PieceId.Flat,
+        x: 13,
+        y: 2,
+        z: 4,
+        dir: 0,
+        mode: PieceMode.Normal,
+      }),
+    ).toBe(TrackResult.Ok);
+    expect(sim.world.track.pieces.count).toBeGreaterThan(0);
+    const current = serialize(sim.world);
+    const view = new DataView(current.buffer, current.byteOffset, current.byteLength);
+    const headerEnd = 8 + view.getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+    header.version = 32;
+    const encoded = new TextEncoder().encode(JSON.stringify(header));
+    const legacy = new Uint8Array(8 + encoded.length + current.length - headerEnd);
+    legacy.set(current.subarray(0, 8));
+    new DataView(legacy.buffer).setUint32(4, encoded.length, true);
+    legacy.set(encoded, 8);
+    legacy.set(current.subarray(headerEnd), 8 + encoded.length);
+
+    const loaded = deserialize(legacy);
+    const map = loaded.map;
+    const trackTile = map.index(13, 2);
+    let sceneryUnderTrack = 0;
+    let otherScenery = 0;
+    for (let tile = 0; tile < map.width * map.height; tile++) {
+      for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element)) {
+        if (map.elType[element] !== ElementType.SmallScenery) continue;
+        if (tile === trackTile) sceneryUnderTrack++;
+        else otherScenery++;
+      }
+    }
+    expect(loaded.track.pieces.count).toBeGreaterThan(0);
+    expect(sceneryUnderTrack).toBe(0);
+    expect(otherScenery).toBeGreaterThan(0);
   });
 
   it('preserves the scenario guest cash average and defaults older saves', () => {

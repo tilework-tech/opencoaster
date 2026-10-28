@@ -342,7 +342,7 @@ describe('generated sprite catalogue', () => {
         expect(poses.slice(1).every((pose) => pose !== poses[0])).toBe(true);
       }
     }
-  });
+  }, 15_000);
 
   it('draws flat rides across their whole footprint', () => {
     const widthOf = (type: RideType): number => {

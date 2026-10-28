@@ -2,7 +2,8 @@ import type { World } from '../core/world';
 import { placePath } from '../map/paths';
 import type { TileMap } from '../map/tile-map';
 import { applyScenario } from './scenario';
-import { DEFAULT_LAND, generateScenarioMap, ownedBounds } from './scenario-map';
+import { materializeAmbientTrees } from '../map/ambient-trees';
+import { buildApron, DEFAULT_LAND, generateScenarioMap, ownedBounds } from './scenario-map';
 import type { TileRect } from './scenario-map';
 import { placePrebuilt } from './scenario-prebuilt';
 import type { EntranceSide, ScenarioDef, ScenarioEntrance } from './scenario';
@@ -97,5 +98,13 @@ export function prepareScenario(world: World, def: ScenarioDef): void {
     if (def.prebuilt) placePrebuilt(world, def.entrance.side, def.prebuilt);
   }
   applyScenario(world, def);
+  const apron = buildApron(
+    world.map.width,
+    world.map.height,
+    def.entrance?.side ?? 'south',
+    def.terrain ?? { buildLength: 10, buildWidth: 18 },
+    def.land,
+  );
+  materializeAmbientTrees(world, [apron]);
   economy.monthlyTotals.fill(0);
 }
