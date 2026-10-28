@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page } from './support/test';
 import { TRACK_STEPS_PER_LEVEL } from '../src/sim/core/constants';
 import { World } from '../src/sim/core/world';
 import { serialize } from '../src/save/save';

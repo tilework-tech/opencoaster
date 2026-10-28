@@ -1,7 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { expect, test } from '@playwright/test';
-import type { Locator, Page, TestInfo } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Locator, Page, TestInfo } from './support/test';
+import { expect, test } from './support/test';
+import type { Page, TestInfo } from './support/test';
+>>>>>>> 2da62ac (Improve e2e runtime instrumentation and cleanup)
 import type { World } from '../src/sim/core/world';
 import {
   centerCameraOn,

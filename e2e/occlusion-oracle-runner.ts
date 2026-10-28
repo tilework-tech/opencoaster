@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 
 /**
  * Registers a test scoring the renderers' per-pixel object ownership against the occlusion oracle

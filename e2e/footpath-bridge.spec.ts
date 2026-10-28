@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page } from './support/test';
 import { Z_STEP } from '../src/sim/core/constants';
 import { planPathPlacement, PathResult } from '../src/sim/map/paths';
 import type { World } from '../src/sim/core/world';
