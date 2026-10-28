@@ -60,7 +60,9 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
     expect(colorPixels, 'the park canvas contains visible color detail').toBeGreaterThan(100);
   });
 
-  test(`staff roles can be hired in the ${profile} park view`, async ({ freshBrowser: browser }, testInfo) => {
+  test(`staff roles can be hired in the ${profile} park view`, async ({
+    freshBrowser: browser,
+  }, testInfo) => {
     test.setTimeout(120_000);
     const { defaultBrowserType: _browserType, ...options } = mobile ? devices['Pixel 8'] : {};
     void _browserType;

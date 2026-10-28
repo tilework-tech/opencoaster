@@ -52,7 +52,9 @@ test('hovering a tile reads out its height', async ({ freshBrowser: browser }) =
   await expect(page.locator('.height-readout')).toHaveText(/^Height \d+/);
 });
 
-test('the construction marker option is available and persists', async ({ freshBrowser: browser }) => {
+test('the construction marker option is available and persists', async ({
+  freshBrowser: browser,
+}) => {
   const page = await openPage(browser, false);
   await page.setViewportSize({ width: 1280, height: 800 });
   await startScenario(page, 'Meadowbrook Green');

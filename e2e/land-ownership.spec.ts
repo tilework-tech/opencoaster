@@ -138,7 +138,9 @@ test('shows an explanatory red build preview while hovering over unowned land', 
   await expect(page.locator('.build-hover-tip')).toHaveText('Land not owned by park');
 });
 
-test('land rights purchase controls fit the Pixel 8 bottom sheet', async ({ freshBrowser: browser }) => {
+test('land rights purchase controls fit the Pixel 8 bottom sheet', async ({
+  freshBrowser: browser,
+}) => {
   const context = await createTestContext(browser, {
     ...devices['Pixel 8'],
     serviceWorkers: 'allow',
