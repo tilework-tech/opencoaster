@@ -5,7 +5,7 @@ import { GuestState } from '../guests/guest-store';
 import { ElementType, Surface } from '../map/tile-map';
 import { worldOccupancies } from '../map/occupancy';
 import { spawnStaff, StaffKind } from '../staff/staff-store';
-import { allWorldViews, withoutColumns } from '../../save/legacy-save-fixtures';
+import { allWorldViews, restVersionColumns, withoutColumns } from '../../save/legacy-save-fixtures';
 import { deserialize, serialize, SAVE_VERSION } from '../../save/save';
 import { flatOwnedSim } from './coaster-fixtures';
 import { BreakdownReason, repairTicksFor } from './breakdown-reasons';
@@ -446,6 +446,21 @@ describe('Observation Tower saves', () => {
     expect(ride.runTicks[0]).toBe(observationTowerRunTicks(DEFAULT_TOWER_HEIGHT));
     expect(ride.loadTicks[0]).toBe(TOWER_LOAD_TICKS);
     expect(ride.unloadTicks[0]).toBe(TOWER_UNLOAD_TICKS);
+  });
+
+  it('loads a v34 tower through the bench and tower migrations together', () => {
+    const { sim } = openTowerWithRider(DEFAULT_TOWER_HEIGHT);
+    const bytes = withoutColumns(
+      serialize(sim.world),
+      34,
+      allWorldViews(sim.world),
+      restVersionColumns(sim.world),
+    );
+    const world = deserialize(bytes);
+
+    expect(world.rides.cols.towerHeight[0]).toBe(DEFAULT_TOWER_HEIGHT);
+    expect(world.guests.count).toBe(sim.world.guests.count);
+    expect(world.guests.cols.seat[0]).toBe(0);
   });
 
   it('continues a v35 trip at the same fraction of the longer run', () => {
