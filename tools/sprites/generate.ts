@@ -17,6 +17,12 @@ import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import type { RideCategory, RideTypeDef } from '../../src/sim/rides/ride-types';
 import { rideSpriteName, wallSpriteName } from '../../src/render/world-art';
 import { RIDE_MODELS } from './models/ride-catalog';
+import {
+  observationTowerBase,
+  observationTowerCabin,
+  observationTowerShaftSection,
+  observationTowerTop,
+} from './models/flat-rides';
 import { rideMesh } from './models/rides';
 import type { RideModel } from './models/rides';
 import {
@@ -245,12 +251,14 @@ export function flatRidePreviewSprites(ride: RideTypeDef, model: RideModel): Spr
 }
 
 function rideSprites(): SpriteDef[] {
-  return RIDE_MODELS.flatMap((baseModel) => {
+  return [
+    ...RIDE_MODELS.flatMap((baseModel) => {
     const model = baseModel.key === 'rides/go-karts' ? GO_KARTS_MODEL : baseModel;
     const ride = Object.values(RIDE_CATALOG).find(
       (definition) =>
         `rides/${definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` === model.key,
     );
+    if (ride?.id === RideType.ObservationTower) return [];
     if (
       ride &&
       (['shop', 'stall', 'facility', 'water'].includes(ride.category) ||
@@ -275,7 +283,26 @@ function rideSprites(): SpriteDef[] {
       ),
       footprint: ONE_TILE,
     }));
-  });
+    }),
+    ...observationTowerPartSprites(),
+  ];
+}
+
+function observationTowerPartSprites(): SpriteDef[] {
+  const parts = [
+    ['base', observationTowerBase()],
+    ['shaft', observationTowerShaftSection()],
+    ['top', observationTowerTop()],
+    ['cabin', observationTowerCabin()],
+  ] as const;
+  const root = `${rideSpriteName(RideType.ObservationTower)}/parts`;
+  return parts.flatMap(([part, mesh]) =>
+    Array.from({ length: 4 }, (_, view): SpriteDef => ({
+      key: `${root}/${part}/view-${view}`,
+      frames: [renderMesh(rotateMesh(physicalToLevels(mesh), view))],
+      footprint: ONE_TILE,
+    })),
+  );
 }
 
 function facilitySprites(): SpriteDef[] {

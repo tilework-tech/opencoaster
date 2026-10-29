@@ -24,7 +24,16 @@ function map(): MapData {
 }
 
 function snapshotWith(
-  rides: Array<{ type: RideType; x: number; y: number; dir: number; base: number }>,
+  rides: Array<{
+    type: RideType;
+    x: number;
+    y: number;
+    dir: number;
+    base: number;
+    towerHeight?: number;
+    phase?: number;
+    phaseProgress?: number;
+  }>,
 ): Snapshot {
   const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
   rides.forEach((ride, index) => {
@@ -35,6 +44,11 @@ function snapshotWith(
     snapshot.rideInfo[o + RideInfo.RideY] = ride.y;
     snapshot.rideInfo[o + RideInfo.Dir] = ride.dir;
     snapshot.rideInfo[o + RideInfo.BaseLevel] = ride.base;
+    if (ride.towerHeight !== undefined)
+      snapshot.rideInfo[o + RideInfo.TowerHeight] = ride.towerHeight;
+    if (ride.phase !== undefined) snapshot.rideInfo[o + RideInfo.Phase] = ride.phase;
+    if (ride.phaseProgress !== undefined)
+      snapshot.rideInfo[o + RideInfo.PhaseProgress] = ride.phaseProgress;
   });
   snapshot.rides.count = rides.length;
   return snapshot;
@@ -126,5 +140,36 @@ describe('RideCellScene', () => {
       0,
     );
     expect(scene.length).toBe(0);
+  });
+
+  it('renders a variable tower as reusable sections with a cabin following ride progress', () => {
+    const scene = new RideCellScene();
+    const m = map();
+    for (let rotation = 0 as Rotation; rotation < 4; rotation = (rotation + 1) as Rotation) {
+      scene.build(
+        snapshotWith([
+          {
+            type: RideType.ObservationTower,
+            x: 12,
+            y: 14,
+            dir: 0,
+            base: 3,
+            towerHeight: 16,
+            phase: 2,
+            phaseProgress: 400,
+          },
+        ]),
+        m,
+        rotation,
+      );
+      expect(scene.length).toBe(15);
+      expect(scene.items.slice(0, scene.length).filter(({ key }) => key.includes('/shaft/')))
+        .toHaveLength(12);
+      const cabin = scene.items.slice(0, scene.length).find(({ key }) => key.includes('/cabin/'))!;
+      expect(cabin.z).toBeGreaterThan(3 * Z_STEP);
+      expect(cabin.z).toBeLessThan((3 + 16) * Z_STEP);
+      expect(new Set(scene.items.slice(0, scene.length).map(({ key }) => key)).size).toBe(4);
+      scene.reset();
+    }
   });
 });

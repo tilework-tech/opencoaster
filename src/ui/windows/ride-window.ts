@@ -1,7 +1,14 @@
 import { circuitLabel } from '../coaster-panel';
-import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG } from '../../sim/rides/ride-types';
-import type { RideType } from '../../sim/rides/ride-types';
+import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
 import { RideMode } from '../../sim/rides/ride-modes';
+import { RideState } from '../../sim/rides/ride-store';
+import { RideType } from '../../sim/rides/ride-types';
+import {
+  DEFAULT_TOWER_HEIGHT,
+  MAX_TOWER_HEIGHT,
+  MIN_TOWER_HEIGHT,
+  TOWER_SECTION_COST,
+} from '../../sim/rides/observation-tower';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, iconButton, setText, statRow } from '../dom';
@@ -208,11 +215,28 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const price = priceControl('Ride price', (cents) => ctx.actions.setRidePrice(rideId, cents));
   const income = { total: statRow('Total income'), perGuest: statRow('Income per guest') };
   const customers = { served: statRow('Guests served'), waiting: statRow('Waiting in queue') };
+  let towerHeight = DEFAULT_TOWER_HEIGHT;
+  const towerHeightValue = element('span', 'stat-value');
+  const adjustTowerHeight = (amount: number): void =>
+    ctx.actions.command({
+      type: 'setObservationTowerHeight',
+      rideId,
+      height: Math.min(MAX_TOWER_HEIGHT, Math.max(MIN_TOWER_HEIGHT, towerHeight + amount)),
+    });
+  const towerHeightRow = element('div', 'stat-row tower-height-row');
+  towerHeightRow.append(
+    element('span', 'stat-label', 'Tower height'),
+    iconButton('minus', 'Remove one tower section', () => adjustTowerHeight(-1)),
+    towerHeightValue,
+    iconButton('plus', 'Add one tower section', () => adjustTowerHeight(1)),
+  );
+  towerHeightRow.hidden = true;
 
   if (created) {
     p('main').append(
       preview,
       status,
+      towerHeightRow,
       statusButtons,
       demolish,
       excitement.row,
@@ -298,6 +322,16 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       rideName = `${def?.name ?? 'Ride'} ${rideId + 1}`;
       const tested = (flags & RideFlag.Tested) !== 0;
       const state = info[o + RideInfo.State];
+      towerHeightRow.hidden = type !== RideType.ObservationTower;
+      if (type === RideType.ObservationTower) {
+        towerHeight = info[o + RideInfo.TowerHeight] || DEFAULT_TOWER_HEIGHT;
+        towerHeightValue.textContent = `${towerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT}) · ${formatMoney(
+          (def?.cost ?? 0) + (towerHeight - DEFAULT_TOWER_HEIGHT) * TOWER_SECTION_COST,
+        )}`;
+        const [lower, , raise] = towerHeightRow.querySelectorAll('button');
+        lower.disabled = state !== RideState.Closed || towerHeight <= MIN_TOWER_HEIGHT;
+        raise.disabled = state !== RideState.Closed || towerHeight >= MAX_TOWER_HEIGHT;
+      }
       win.setTitle(rideName);
       preview.setAttribute('aria-label', `${rideName} preview`);
       if (def) {
@@ -307,6 +341,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
           rotation: ctx.actions.camera().rotation,
           phase: info[o + RideInfo.Phase],
           phaseProgress: info[o + RideInfo.PhaseProgress],
+          towerHeight: info[o + RideInfo.TowerHeight] || DEFAULT_TOWER_HEIGHT,
+          towerCabinLevel: info[o + RideInfo.TowerCabinLevel]! / 1_000,
           tick: snapshot.tick,
         });
       }

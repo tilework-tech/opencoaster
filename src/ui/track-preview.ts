@@ -5,8 +5,7 @@ import type { Camera, SpriteGhost } from '../render/renderer';
 import { TrackResult } from '../sim/track/track-types';
 import type { TrackGhost } from './coaster-panel';
 import { footprintTiles } from './track-tool';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
-import type { RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { drawAnchoredSprite } from '../render/canvas-atlas';
 import { spritePages } from '../render/sprite-pages';
 import type { CanvasAtlas } from '../render/canvas-atlas';
@@ -15,7 +14,13 @@ import {
   rideCellSpriteKey,
   rideHutSpriteKey,
   rideSpriteKey,
+  observationTowerPartSpriteKey,
 } from '../render/world-art';
+import { RidePhase } from '../sim/rides/ride-store';
+import {
+  DEFAULT_TOWER_HEIGHT,
+  observationTowerCabinLevel,
+} from '../sim/rides/observation-tower';
 import { isSlicedRide } from '../render/ride-scene';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { trackPreviewSprites } from './track-preview-art';
@@ -34,6 +39,7 @@ export interface RidePlacementGhost {
   baseLevel: number;
   facing: number;
   valid: boolean;
+  towerHeight?: number;
 }
 
 /**
@@ -52,6 +58,29 @@ export function rideGhostSprites(
   const inside = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < map.width && y < map.height;
   if (isSlicedRide(ghost.type)) {
+    if (ghost.type === RideType.ObservationTower) {
+      const height = ghost.towerHeight ?? DEFAULT_TOWER_HEIGHT;
+      const parts: Array<[string, number]> = [
+        ['base', ghost.baseLevel],
+        ...Array.from({ length: Math.max(0, height - 4) }, (_, section) => [
+          'shaft',
+          ghost.baseLevel + section + 1,
+        ] as [string, number]),
+        ['top', ghost.baseLevel + height - 3],
+        ['cabin', ghost.baseLevel + observationTowerCabinLevel(height, RidePhase.Closed, 0)],
+      ];
+      return parts.map(([part, level]) => ({
+        x: ghost.x,
+        y: ghost.y,
+        level,
+        sprite: observationTowerPartSpriteKey(
+          part as 'base' | 'shaft' | 'top' | 'cabin',
+          rotation,
+        ),
+        kind: 'ride',
+        tone,
+      }));
+    }
     const tiles = rideFootprintTiles(def, ghost.x, ghost.y, ghost.dir);
     const ghosts: SpriteGhost[] = [];
     tiles.forEach(([x, y], cell) => {

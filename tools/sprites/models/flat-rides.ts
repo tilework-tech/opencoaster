@@ -850,6 +850,63 @@ export function enterpriseSeats(frame: number): Vec3[] {
 
 export const TOWER_CABIN_Z = [0.5, 0.9, 1.4, 2.0, 2.5, 2.2, 1.6, 1.0] as const;
 
+/** Observation Tower structure parts are generated once and repeated at runtime. */
+export function observationTowerBase(): Mesh {
+  return [
+    ...cylinder(0, 0, 0, 0.43, 0.43, 0.43, 14, STONE, { capBottom: true }),
+    ...cylinder(0, 0, 0.07, 0.4, 0.2, 0.15, 12, WHITE),
+  ];
+}
+
+/** A repeatable one-level tower shaft segment, authored in physical tile units. */
+export function observationTowerShaftSection(): Mesh {
+  const top = 1 / (39.19 / 16);
+  const mesh: Mesh = [
+    ...cylinder(0, 0, 0, top, 0.11, 0.09, 12, WHITE),
+  ];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU + Math.PI / 4;
+    mesh.push(
+      ...box(
+        [Math.cos(a) * 0.11 - 0.015, Math.sin(a) * 0.11 - 0.015, 0],
+        [Math.cos(a) * 0.11 + 0.015, Math.sin(a) * 0.11 + 0.015, top],
+        RED,
+      ),
+    );
+  }
+  return mesh;
+}
+
+/** Top lantern and roof. Its source geometry stays shared across every tower height. */
+export function observationTowerTop(): Mesh {
+  return [
+    ...cylinder(0, 0, 0, 0.1, 0.34, 0.34, 12, STEEL, { capBottom: true }),
+    ...cylinder(0, 0, 0.1, 0.38, 0.34, 0.34, 12, GLASS),
+    ...cylinder(0, 0, 0.38, 0.46, 0.36, 0.36, 12, YELLOW),
+    ...stripedCone(0, 0, 0.46, 0.75, 0.34, 0.02, 12, RED, WHITE),
+    ...cylinder(0, 0, 0.75, 1, 0.02, 0.012, 4, STEEL),
+  ];
+}
+
+/** Cabin at its own origin, including seated silhouettes so riders follow the moving cabin. */
+export function observationTowerCabin(): Mesh {
+  const mesh: Mesh = [
+    ...cylinder(0, 0, 0, 0.05, 0.3, 0.3, 12, STEEL, { capBottom: true }),
+    ...cylinder(0, 0, 0.05, 0.3, 0.29, 0.29, 12, GLASS),
+    ...cylinder(0, 0, 0.3, 0.36, 0.31, 0.31, 12, YELLOW),
+  ];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU;
+    const x = Math.cos(a) * 0.18;
+    const y = Math.sin(a) * 0.18;
+    mesh.push(
+      ...box([x - 0.035, y - 0.035, 0.07], [x + 0.035, y + 0.035, 0.22], i % 2 ? RED : BLUE),
+      ...cylinder(x, y, 0.22, 0.28, 0.03, 0.03, 6, STONE, { capBottom: true }),
+    );
+  }
+  return mesh;
+}
+
 /** Observation tower; the cabin climbs with `frame` 0..7, negative is the idle pose (at rest). */
 export function observationTower(frame: number): Mesh {
   const mesh: Mesh = [];

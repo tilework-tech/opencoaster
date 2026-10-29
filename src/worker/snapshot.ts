@@ -3,14 +3,18 @@ import { MAX_CARS } from '../sim/vehicles/ride-trains';
 import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
 import { rideBaseLevel } from '../sim/rides/ride-footprint';
-import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG } from '../sim/rides/ride-types';
+import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { nextEligibleInvention } from '../sim/research/research';
 import {
   getRideMechanicStatus,
   getRideMinutesSinceInspection,
 } from '../sim/rides/ride-maintenance';
 import { RidePhase } from '../sim/rides/ride-store';
-import type { RideType } from '../sim/rides/ride-types';
+import {
+  decodeObservationTowerCabinLevel,
+  observationTowerCabinLevel,
+  TOWER_TRAVEL_TICKS_PER_LEVEL,
+} from '../sim/rides/observation-tower';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { GuestState } from '../sim/guests/guest-store';
 import { recountRideLines } from '../sim/guests/ride-lines';
@@ -43,7 +47,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 43;
+export const RIDE_INFO_STRIDE = 45;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -131,6 +135,10 @@ export const enum RideInfo {
   Mode = 37,
   /** Block sections of a closed circuit: its station plus each run of block brakes (track rides; 0 otherwise). */
   BlockSections = 38,
+  /** Tower height in whole land levels (0 for rides other than the Observation Tower). */
+  TowerHeight = 43,
+  /** Cabin level in thousandths, including a stranded cabin or one returning after a breakdown. */
+  TowerCabinLevel = 44,
   /** Rolling downtime, a whole percent. */
   Downtime = 39,
   /** The mechanic inspection interval in minutes; 0 means never. */
@@ -493,6 +501,25 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.BlockSections] = definition?.usesTrack
     ? blockSectionsForRide(world, rideId)
     : 0;
+  info[o + RideInfo.TowerHeight] = r.towerHeight[slot];
+  if (r.typeId[slot] === RideType.ObservationTower) {
+    if (r.phase[slot] === RidePhase.Running) {
+      info[o + RideInfo.TowerCabinLevel] = Math.round(
+        observationTowerCabinLevel(r.towerHeight[slot], r.phase[slot], phaseProgress(r, slot)) * 1_000,
+      );
+    } else if (r.phase[slot] === RidePhase.Broken) {
+      info[o + RideInfo.TowerCabinLevel] = Math.round(
+        decodeObservationTowerCabinLevel(r.phaseTicks[slot]) * 1_000,
+      );
+    } else if (r.phase[slot] === RidePhase.Unloading && r.phaseTicks[slot] > r.unloadTicks[slot]) {
+      info[o + RideInfo.TowerCabinLevel] = Math.round(
+        (0.5 + (r.phaseTicks[slot] - r.unloadTicks[slot]) / TOWER_TRAVEL_TICKS_PER_LEVEL) *
+          1_000,
+      );
+    } else {
+      info[o + RideInfo.TowerCabinLevel] = 500;
+    }
+  } else info[o + RideInfo.TowerCabinLevel] = 0;
   if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;

@@ -6,7 +6,11 @@ import type { Snapshot } from '../worker/snapshot';
 import type { MapData } from './renderer';
 import { rotateFootprint } from './projection';
 import type { Rotation } from './projection';
-import { rideCellSpriteKey } from './world-art';
+import {
+  observationTowerPartSpriteKey,
+  rideCellSpriteKey,
+} from './world-art';
+import { DEFAULT_TOWER_HEIGHT, observationTowerCabinLevel } from '../sim/rides/observation-tower';
 
 /** Tiles beyond its footprint that a flat ride's art can reach (see `OVERHANG` in tools/sprites/ride-cells.ts). */
 
@@ -63,6 +67,27 @@ export class RideCellScene {
       const base = snapshot.rideInfo[o + RideInfo.BaseLevel];
       const phase = snapshot.rideInfo[o + RideInfo.Phase];
       const phaseProgress = snapshot.rideInfo[o + RideInfo.PhaseProgress];
+      if (type === RideType.ObservationTower) {
+        const rx = snapshot.rideInfo[o + RideInfo.RideX];
+        const ry = snapshot.rideInfo[o + RideInfo.RideY];
+        if (rx < 0 || ry < 0 || rx >= map.width || ry >= map.height) continue;
+        const x = rx * TILE_UNITS + TILE_UNITS / 2;
+        const y = ry * TILE_UNITS + TILE_UNITS / 2;
+        const [rotatedX, rotatedY] = rotateFootprint(0, 0, [[rx, ry]], map.width, map.height, rotation).cells[0];
+        const depth = 2 * (rotatedX + rotatedY + 1) - base;
+        const height = snapshot.rideInfo[o + RideInfo.TowerHeight] || DEFAULT_TOWER_HEIGHT;
+        const rideId = snapshot.rideInfo[o + RideInfo.Id]!;
+        this.push(observationTowerPartSpriteKey('base', rotation), rideId, phase, phaseProgress, x, y, base * Z_STEP, depth);
+        for (let section = 0; section < Math.max(0, height - 4); section++)
+          this.push(observationTowerPartSpriteKey('shaft', rotation), rideId, phase, phaseProgress, x, y, (base + section + 1) * Z_STEP, depth);
+        this.push(observationTowerPartSpriteKey('top', rotation), rideId, phase, phaseProgress, x, y, (base + height - 3) * Z_STEP, depth);
+        const cabinLevel =
+          phase === RidePhase.Running
+            ? observationTowerCabinLevel(height, phase, phaseProgress)
+            : snapshot.rideInfo[o + RideInfo.TowerCabinLevel]! / 1_000;
+        this.push(observationTowerPartSpriteKey('cabin', rotation), rideId, phase, phaseProgress, x, y, (base + cabinLevel) * Z_STEP, depth);
+        continue;
+      }
       const tiles = rideFootprintTiles(
         def,
         snapshot.rideInfo[o + RideInfo.RideX],

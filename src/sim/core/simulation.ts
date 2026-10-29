@@ -27,6 +27,11 @@ import { applyRideCommand, refreshRideQueueConnections } from '../rides/ride-com
 import { createRide } from '../rides/ride-operations';
 import { validateRidePlacement } from '../rides/ride-footprint';
 import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
+import {
+  DEFAULT_TOWER_HEIGHT,
+  TOWER_SECTION_COST,
+  isValidObservationTowerHeight,
+} from '../rides/observation-tower';
 import { trackSystem } from '../track/track-system';
 import { applyTrackCommand } from '../track/track-commands';
 import { setPersonPosition } from './person-position';
@@ -63,20 +68,39 @@ export const SYSTEM_ORDER: readonly System[] = [
   scenarioSystem,
 ];
 
-function applyCreateRide(w: World, type: RideType, x: number, y: number, dir: number): void {
+function applyCreateRide(
+  w: World,
+  type: RideType,
+  x: number,
+  y: number,
+  dir: number,
+  towerHeight = DEFAULT_TOWER_HEIGHT,
+): void {
   const report = (code: RideResult, rideId = -1): void =>
     reportFeedback(w.feedback, FeedbackDomain.Ride, code, rideId);
   const definition = RIDE_CATALOG[type];
-  if (!definition || !Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(dir))
+  const cost =
+    (definition?.cost ?? 0) +
+    (type === RideType.ObservationTower
+      ? (towerHeight - DEFAULT_TOWER_HEIGHT) * TOWER_SECTION_COST
+      : 0);
+  if (
+    !definition ||
+    !Number.isInteger(x) ||
+    !Number.isInteger(y) ||
+    !Number.isInteger(dir)
+  )
     return report(RideResult.OutOfBounds);
+  if (type === RideType.ObservationTower && !isValidObservationTowerHeight(towerHeight))
+    return report(RideResult.Blocked);
   if (!isUnlocked(w, type)) return report(RideResult.ResearchRequired);
-  if (w.economy.cash < definition.cost) return report(RideResult.InsufficientFunds);
-  const placement = validateRidePlacement(w, type, x, y, dir & 3);
+  if (w.economy.cash < cost) return report(RideResult.InsufficientFunds);
+  const placement = validateRidePlacement(w, type, x, y, dir & 3, towerHeight);
   if (placement !== RideResult.Ok) return report(placement);
 
-  const rideId = createRide(w, type, x, y, dir & 3);
+  const rideId = createRide(w, type, x, y, dir & 3, towerHeight);
   if (rideId < 0) return report(RideResult.Blocked);
-  charge(w, LedgerCategory.RideConstruction, definition.cost);
+  charge(w, LedgerCategory.RideConstruction, cost);
   report(RideResult.Ok, rideId);
 }
 
@@ -161,13 +185,14 @@ export class Simulation {
         setFlowerBed(w, c.x, c.y, c.enabled);
         break;
       case 'createRide':
-        applyCreateRide(w, c.rideType, c.x, c.y, c.dir ?? 0);
+        applyCreateRide(w, c.rideType, c.x, c.y, c.dir ?? 0, c.towerHeight);
         break;
       case 'placeRideEntrance':
       case 'placeRideExit':
       case 'setRideStatus':
       case 'setRidePrice':
       case 'setRideQueueLimit':
+      case 'setObservationTowerHeight':
       case 'setRideTrains':
       case 'setRideMode':
       case 'setRideInspection':

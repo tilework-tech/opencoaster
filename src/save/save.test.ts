@@ -80,21 +80,6 @@ function ambientTreePlacements(world: World): Array<[number, number]> {
   return placements;
 }
 
-function withSaveVersion(bytes: Uint8Array, version: number, omitSpawnPoints = false): Uint8Array {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const headerEnd = 8 + view.getUint32(4, true);
-  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, headerEnd)));
-  header.version = version;
-  if (omitSpawnPoints && header.park) delete header.park.spawns;
-  const encoded = new TextEncoder().encode(JSON.stringify(header));
-  const result = new Uint8Array(8 + encoded.length + bytes.length - headerEnd);
-  result.set(bytes.subarray(0, 8));
-  new DataView(result.buffer).setUint32(4, encoded.length, true);
-  result.set(encoded, 8);
-  result.set(bytes.subarray(headerEnd), 8 + encoded.length);
-  return result;
-}
-
 describe('save', () => {
   it('repairs a serialized station-last test train so it completes testing and serves guests', () => {
     const sim = flatOwnedSim(1);
@@ -176,7 +161,9 @@ describe('save', () => {
     const entrance = [sim.world.park.entranceX, sim.world.park.entranceY];
     const spawns = sim.world.park.spawns.map((spawn) => ({ ...spawn }));
 
-    const intermediate = withSaveVersion(serialize(sim.world), 33);
+    const intermediate = withoutColumns(serialize(sim.world), 33, allWorldViews(sim.world), [
+      sim.world.rides.cols.towerHeight,
+    ]);
     const migrated = deserialize(intermediate);
     const placements = ambientTreePlacements(migrated);
     expect(placements.length).toBeGreaterThan(0);
@@ -189,14 +176,18 @@ describe('save', () => {
     expect(ambientTreePlacements(repeatedMigration)).toEqual(placements);
     expect(hashWorld(repeatedMigration)).toBe(hashWorld(migrated));
 
-    const reloadedIntermediate = deserialize(withSaveVersion(serialize(migrated), 33));
+    const reloadedIntermediate = deserialize(
+      withoutColumns(serialize(migrated), 33, allWorldViews(migrated), [
+        migrated.rides.cols.towerHeight,
+      ]),
+    );
     expect(ambientTreePlacements(reloadedIntermediate)).toEqual(placements);
     expect(hashWorld(reloadedIntermediate)).toBe(hashWorld(migrated));
-    expect(SAVE_VERSION).toBe(34);
+    expect(SAVE_VERSION).toBe(35);
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(34);
+    expect(SAVE_VERSION).toBe(35);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -204,7 +195,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(34);
+    expect(header.version).toBe(35);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -237,7 +228,22 @@ describe('save', () => {
     expect(occupiedKinds.has('path')).toBe(true);
     expect(occupiedKinds.has('flatRide')).toBe(true);
     expect(occupiedKinds.has('track') || occupiedKinds.has('station')).toBe(true);
-    const legacy = withSaveVersion(serialize(sim.world), 32, true);
+    const legacyWithoutSpawnPoints = withoutColumns(serialize(sim.world), 32, allWorldViews(sim.world), [
+      sim.world.rides.cols.towerHeight,
+    ]);
+    const legacyHeaderLength = new DataView(legacyWithoutSpawnPoints.buffer).getUint32(4, true);
+    const legacyHeader = JSON.parse(
+      new TextDecoder().decode(legacyWithoutSpawnPoints.subarray(8, 8 + legacyHeaderLength)),
+    );
+    delete legacyHeader.park.spawns;
+    const legacyHeaderBytes = new TextEncoder().encode(JSON.stringify(legacyHeader));
+    const legacy = new Uint8Array(
+      8 + legacyHeaderBytes.length + legacyWithoutSpawnPoints.length - 8 - legacyHeaderLength,
+    );
+    legacy.set(legacyWithoutSpawnPoints.subarray(0, 4));
+    new DataView(legacy.buffer).setUint32(4, legacyHeaderBytes.length, true);
+    legacy.set(legacyHeaderBytes, 8);
+    legacy.set(legacyWithoutSpawnPoints.subarray(8 + legacyHeaderLength), 8 + legacyHeaderBytes.length);
 
     const loaded = deserialize(legacy);
     expect(loaded.track.pieces.count).toBeGreaterThan(0);

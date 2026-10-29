@@ -69,3 +69,4 @@ Path: @/src/ui
 Created and maintained by Nori.
 
 - The ride window's Operating tab has a Ride mode select (shown when the ride type offers more than one mode; locked while the ride is not closed) and the trains/cars controls. The train-limit line under them explains the limit from `RideInfo.Mode`, `MaxTrains` and `MaxCars` and, in block-sectioned mode, says to add block brakes for more trains.
+- Observation Tower placement adds plus/minus height controls to the ride tool and shows the selected 4–120 level range and total construction cost. The ghost repeats the generated tower sections so height and obstruction feedback match the committed ride. The ride window composes those sections at the current height and cabin position, and only enables height edits while the tower is closed.

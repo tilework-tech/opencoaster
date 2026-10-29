@@ -169,6 +169,36 @@
   font: inherit;
   cursor: pointer;
 }
+.tower-height-control {
+  position: fixed;
+  z-index: 40;
+  right: 16px;
+  bottom: calc(var(--status-h) + 68px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border: 2px outset var(--bevel-light);
+  background: var(--chrome);
+  color: var(--ink);
+  font: inherit;
+  pointer-events: auto;
+}
+.tower-height-control[hidden],
+.tower-height-row[hidden] {
+  display: none;
+}
+.tower-height-control span {
+  min-width: 168px;
+  text-align: center;
+  font-size: 12px;
+}
+.tower-height-control .ui-button {
+  min-width: 40px;
+  min-height: 40px;
+  font-size: 20px;
+}
 .ride-placement-targets {
   position: fixed;
   z-index: 39;
@@ -1366,6 +1396,14 @@
     top: 216px;
     right: 12px;
     bottom: auto;
+  }
+  .tower-height-control {
+    top: 268px;
+    right: 12px;
+    bottom: auto;
+  }
+  .tower-height-control span {
+    min-width: 140px;
   }
   :root {
     --status-h: 100px;

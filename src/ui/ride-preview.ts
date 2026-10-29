@@ -1,11 +1,10 @@
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
-import type { RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { PIECES, SAMPLES, pieceByName } from '../sim/track/catalog';
 import { TILE_UNITS, TRACK_STEPS_PER_LEVEL, TRACK_Z_STEP, Z_STEP } from '../sim/core/constants';
 import { CAR_LENGTH_Q8 } from '../sim/vehicles/vehicle-system';
 import { pieceExit } from '../sim/track/construction';
 import type { TrackPoint } from '../sim/track/construction';
-import { viewDepth, worldToScreen } from '../render/projection';
+import { viewDepth, worldToScreen, Z_PIXELS } from '../render/projection';
 import type { Rotation } from '../render/projection';
 import {
   carSpriteKey,
@@ -22,7 +21,9 @@ import {
   ridePreviewSpriteKey,
   rideSpriteFrame,
   rideSpriteKey,
+  observationTowerPartSpriteKey,
 } from '../render/world-art';
+import { DEFAULT_TOWER_HEIGHT, observationTowerCabinLevel } from '../sim/rides/observation-tower';
 
 /** Largest magnification of a preview, in CSS pixels per sprite pixel. */
 export const PREVIEW_MAX_SCALE = 3;
@@ -72,6 +73,8 @@ export interface RidePreviewRequest {
   /** Ride phase; selects the animation frame of animated art. */
   phase: number;
   phaseProgress?: number;
+  towerHeight?: number;
+  towerCabinLevel?: number;
   tick: number;
 }
 
@@ -263,6 +266,25 @@ export function ridePreviewItems(req: RidePreviewRequest): PreviewItem[] {
     return trackLoopItems(req).sort(
       (a, b) => a.order - b.order || (a.depth ?? 0) - (b.depth ?? 0) || a.y - b.y || a.x - b.x,
     );
+  }
+  if (req.type === RideType.ObservationTower) {
+    const height = req.towerHeight ?? DEFAULT_TOWER_HEIGHT;
+    const cabinLevel =
+      req.towerCabinLevel ?? observationTowerCabinLevel(height, req.phase, req.phaseProgress ?? 0);
+    const parts: Array<['base' | 'shaft' | 'top' | 'cabin', number]> = [
+      ['base', 0],
+      ...Array.from({ length: Math.max(0, height - 4) }, (_, section) =>
+        ['shaft', section + 1] as ['shaft', number],
+      ),
+      ['top', height - 3],
+      ['cabin', cabinLevel],
+    ];
+    return parts.map(([part, level], order) => ({
+      key: observationTowerPartSpriteKey(part, req.rotation),
+      x: 0,
+      y: -level * Z_PIXELS,
+      order,
+    }));
   }
   if (isSlicedRide(req.type))
     return [{ key: ridePreviewSpriteKey(req.type, req.dir, req.rotation), x: 0, y: 0, order: 0 }];

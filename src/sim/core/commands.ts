@@ -22,7 +22,7 @@ export type Command =
   | { type: 'setStaffOrder'; staffId: number; order: StaffOrderId; enabled: boolean }
   | { type: 'setFlowerBed'; x: number; y: number; enabled: boolean }
   /** `dir` is the quarter turns the footprint is rotated by; omitted means 0. */
-  | { type: 'createRide'; rideType: RideType; x: number; y: number; dir?: number }
+  | { type: 'createRide'; rideType: RideType; x: number; y: number; dir?: number; towerHeight?: number }
   | MapCommand
   | RideCommand
   | { type: 'economy'; action: EconomyAction }

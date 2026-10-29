@@ -5,7 +5,9 @@ import { Surface } from '../map/tile-map';
 import { rotateTile } from '../track/construction';
 import { RideResult } from './ride-results';
 import { DEFAULT_SUPPORT_LEVELS, RIDE_CATALOG } from './ride-types';
-import type { RideType, RideTypeDef } from './ride-types';
+import { DEFAULT_TOWER_HEIGHT, isValidObservationTowerHeight } from './observation-tower';
+import { RideType } from './ride-types';
+import type { RideTypeDef } from './ride-types';
 import {
   firstOccupancyBlocker,
   ridePlacementOccupancies,
@@ -83,11 +85,14 @@ export function validateRidePlacement(
   x: number,
   y: number,
   dir: number,
+  towerHeight = DEFAULT_TOWER_HEIGHT,
 ): RideResult {
   const def = RIDE_CATALOG[type];
   const map = world.map;
   if (!def || !Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(dir))
     return RideResult.OutOfBounds;
+  if (type === RideType.ObservationTower && !isValidObservationTowerHeight(towerHeight))
+    return RideResult.Blocked;
   let low = Infinity;
   let high = -Infinity;
   for (const [dx, dy] of def.footprint) {
@@ -109,7 +114,7 @@ export function validateRidePlacement(
   }
   if (high - low > (def.supportLevels ?? DEFAULT_SUPPORT_LEVELS)) return RideResult.TooSteep;
 
-  const candidates = ridePlacementOccupancies(type, x, y, dir, high * Z_STEP);
+  const candidates = ridePlacementOccupancies(type, x, y, dir, high * Z_STEP, towerHeight);
   return firstOccupancyBlocker(candidates, worldOccupancies(world))
     ? RideResult.Blocked
     : RideResult.Ok;

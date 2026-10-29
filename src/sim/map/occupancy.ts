@@ -1,7 +1,7 @@
 import type { World } from '../core/world';
 import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
-import { RIDE_CATALOG } from '../rides/ride-types';
-import type { RideType } from '../rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { DEFAULT_TOWER_HEIGHT } from '../rides/observation-tower';
 import { PIECES } from '../track/catalog';
 import { ElementType, PathFlag } from './tile-map';
 import { PATH_ENTRANCE_MARK, PATH_EXIT_MARK } from './tile-map';
@@ -178,7 +178,10 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
       const base = map.inBounds(rc.rideX[slot], rc.rideY[slot])
         ? map.heights[map.index(rc.rideX[slot], rc.rideY[slot])] * Z_STEP
         : 0;
-      const height = def.clearanceWorld ?? RIDE_CLEARANCE_WORLD;
+      const height =
+        type === RideType.ObservationTower
+          ? (rc.towerHeight[slot] || DEFAULT_TOWER_HEIGHT) * Z_STEP
+          : (def.clearanceWorld ?? RIDE_CLEARANCE_WORLD);
       for (const [dx, dy] of def.footprint) {
         const [rx, ry] = rotate(dx, dy, rc.dir[slot]);
         out.push({
@@ -243,11 +246,16 @@ export function ridePlacementOccupancies(
   y: number,
   dir: number,
   base: number,
+  towerHeight = DEFAULT_TOWER_HEIGHT,
 ): OccupancyVolume[] {
   const def = RIDE_CATALOG[type as RideType];
   if (!def) return [];
   const kind = def.category === 'stall' || def.category === 'facility' ? 'facility' : 'flatRide';
-  const clearance = base + (def.clearanceWorld ?? RIDE_CLEARANCE_WORLD);
+  const clearance =
+    base +
+    (type === RideType.ObservationTower
+      ? towerHeight * Z_STEP
+      : (def.clearanceWorld ?? RIDE_CLEARANCE_WORLD));
   return def.footprint.map(([dx, dy]) => {
     const [rx, ry] = rotate(dx, dy, dir);
     return {
