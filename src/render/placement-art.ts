@@ -2,9 +2,11 @@ import { PIECES } from '../sim/track/catalog';
 import { rotateTile } from '../sim/track/construction';
 import { Surface } from '../sim/map/tile-map';
 import { DEFAULT_SUPPORT_LEVELS, RIDE_CATALOG } from '../sim/rides/ride-types';
-import type { RideType } from '../sim/rides/ride-types';
+import { RideType } from '../sim/rides/ride-types';
+import { DEFAULT_TOWER_HEIGHT, TOWER_SECTION_COST } from '../sim/rides/observation-tower';
+import { occupancyConflict, ridePlacementOccupancies } from '../sim/map/occupancy';
 import { rideFootprintContains, rideFootprintTiles } from '../sim/rides/ride-footprint';
-import { TILE_UNITS } from '../sim/core/constants';
+import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { SNAPSHOT_STRIDE, RIDE_INFO_STRIDE, RideInfo } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import type { MapData } from './renderer';
@@ -38,9 +40,15 @@ export function ridePlacementValid(
   dir: number,
   map: MapData,
   snapshot: Snapshot,
+  towerHeight = DEFAULT_TOWER_HEIGHT,
 ): boolean {
   const definition = RIDE_CATALOG[type];
-  if (!definition || snapshot.park.cash < definition.cost) return false;
+  const cost =
+    (definition?.cost ?? 0) +
+    (type === RideType.ObservationTower
+      ? (towerHeight - DEFAULT_TOWER_HEIGHT) * TOWER_SECTION_COST
+      : 0);
+  if (!definition || snapshot.park.cash < cost) return false;
 
   const tiles = rideFootprintTiles(definition, x, y, dir);
   let low = Infinity;
@@ -61,6 +69,16 @@ export function ridePlacementValid(
     high = Math.max(high, map.heights[tile] + (map.slope[tile] !== 0 ? 1 : 0));
   }
   if (high - low > (definition.supportLevels ?? DEFAULT_SUPPORT_LEVELS)) return false;
+
+  if (type === RideType.ObservationTower) {
+    const occupied = ridePlacementOccupancies(type, x, y, dir, high * Z_STEP, towerHeight);
+    if (
+      occupied.some((candidate) =>
+        snapshot.occupancies.some((existing) => occupancyConflict(candidate, existing)),
+      )
+    )
+      return false;
+  }
 
   const scenery = map.sceneryElements;
   for (let element = 0; element < (map.sceneryCount ?? 0); element++) {

@@ -325,11 +325,18 @@ export class CoasterPanel {
   }
 
   /** Sends the create command for the selected ride type; selects the new ride on success. */
-  createRideAt(x: number, y: number, dir = 0): string {
+  createRideAt(x: number, y: number, dir = 0, towerHeight?: number): string {
     const def = RIDE_CATALOG[this.rideType];
     this.hover = [x, y];
     this.awaitingCreate = true;
-    this.actions.command({ type: 'createRide', rideType: this.rideType, x, y, dir });
+    this.actions.command({
+      type: 'createRide',
+      rideType: this.rideType,
+      x,
+      y,
+      dir,
+      ...(towerHeight === undefined ? {} : { towerHeight }),
+    });
     return `Building ${def.name} at ${x}, ${y}…`;
   }
 

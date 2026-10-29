@@ -7,7 +7,14 @@ import type { PlacementHover } from '../input';
 import type { CoasterPanel } from '../../ui/coaster-panel';
 import { ridePlacementLevel, ridePlacementValid } from '../../render/placement-art';
 import { facilityFacingFromPaths } from '../../render/world-art';
-import { RIDE_CATALOG } from '../../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
+import {
+  DEFAULT_TOWER_HEIGHT,
+  MAX_TOWER_HEIGHT,
+  MIN_TOWER_HEIGHT,
+  observationTowerCost,
+} from '../../sim/rides/observation-tower';
+import { formatMoney } from '../../ui/format';
 import { FeedbackDomain } from '../../sim/core/feedback';
 import { rideFootprintTiles } from '../../sim/rides/ride-footprint';
 import { Surface } from '../../sim/map/tile-map';
@@ -61,6 +68,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   let ridePlacementTargetSignature = '';
   /** Quarter turns the ride being placed is rotated by. */
   let placementDir = 0;
+  let placementTowerHeight = DEFAULT_TOWER_HEIGHT;
 
   const rotateButton = document.createElement('button');
   rotateButton.type = 'button';
@@ -70,6 +78,32 @@ export function createRideSetup(deps: RideSetupDependencies) {
   rotateButton.hidden = true;
   rotateButton.addEventListener('click', () => rotatePlacement());
   ridePlacementPreview.parentElement?.append(rotateButton);
+  const towerHeightControl = document.createElement('div');
+  towerHeightControl.className = 'tower-height-control';
+  towerHeightControl.hidden = true;
+  const lowerTower = document.createElement('button');
+  lowerTower.type = 'button';
+  lowerTower.className = 'ui-button';
+  lowerTower.textContent = '−';
+  lowerTower.setAttribute('aria-label', 'Lower tower by one section');
+  const towerHeightLabel = document.createElement('span');
+  const raiseTower = document.createElement('button');
+  raiseTower.type = 'button';
+  raiseTower.className = 'ui-button';
+  raiseTower.textContent = '+';
+  raiseTower.setAttribute('aria-label', 'Raise tower by one section');
+  lowerTower.addEventListener('click', () => {
+    placementTowerHeight = Math.max(MIN_TOWER_HEIGHT, placementTowerHeight - 1);
+    gameUi.setToolStatus(`Observation Tower height: ${placementTowerHeight} levels.`);
+    drawRidePlacementPreview(ridePlacementPreview.clientWidth, ridePlacementPreview.clientHeight);
+  });
+  raiseTower.addEventListener('click', () => {
+    placementTowerHeight = Math.min(MAX_TOWER_HEIGHT, placementTowerHeight + 1);
+    gameUi.setToolStatus(`Observation Tower height: ${placementTowerHeight} levels.`);
+    drawRidePlacementPreview(ridePlacementPreview.clientWidth, ridePlacementPreview.clientHeight);
+  });
+  towerHeightControl.append(lowerTower, towerHeightLabel, raiseTower);
+  ridePlacementPreview.parentElement?.append(towerHeightControl);
   /** The ride whose queue the player is being asked to build; its entrance is highlighted. */
   let queuePromptRideId: number | null = null;
   /** Snapshots left in which the prompt is shown again, after the ride feedback line has had its say. */
@@ -84,6 +118,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     pendingRideCreation = null;
     rideSetupNotice = null;
     placementDir = 0;
+    placementTowerHeight = DEFAULT_TOWER_HEIGHT;
     gameUi.selectTool('ride');
     const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
     gameUi.setToolStatus(
@@ -212,7 +247,14 @@ export function createRideSetup(deps: RideSetupDependencies) {
           : [],
         rideType: coasterPanel.rideType,
       };
-      gameUi.setToolStatus(coasterPanel.createRideAt(x, y, placementDir));
+      gameUi.setToolStatus(
+        coasterPanel.createRideAt(
+          x,
+          y,
+          placementDir,
+          coasterPanel.rideType === RideType.ObservationTower ? placementTowerHeight : undefined,
+        ),
+      );
     }
   }
 
@@ -387,6 +429,16 @@ export function createRideSetup(deps: RideSetupDependencies) {
       ridePlacement !== null ||
       deps.selectedTool() !== 'ride' ||
       RIDE_CATALOG[coasterPanel.rideType].footprint.length <= 1;
+    const selectedTower = coasterPanel.rideType === RideType.ObservationTower;
+    towerHeightControl.hidden =
+      !selectedTower || ridePlacement !== null || deps.selectedTool() !== 'ride';
+    const towerCost = observationTowerCost(
+      RIDE_CATALOG[RideType.ObservationTower].cost,
+      placementTowerHeight,
+    );
+    towerHeightLabel.textContent = `${placementTowerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT}) · ${formatMoney(towerCost)}`;
+    lowerTower.disabled = placementTowerHeight <= MIN_TOWER_HEIGHT;
+    raiseTower.disabled = placementTowerHeight >= MAX_TOWER_HEIGHT;
     ridePlacementTargets.setAttribute('viewBox', `0 0 ${width} ${height}`);
     ridePlacementTargets.setAttribute('width', String(width));
     ridePlacementTargets.setAttribute('height', String(height));
@@ -663,7 +715,16 @@ export function createRideSetup(deps: RideSetupDependencies) {
         facing: facilityFacingFromPaths(x, y, map),
         dir: placementDir,
         baseLevel: ridePlacementLevel(coasterPanel.rideType, x, y, placementDir, map),
-        valid: ridePlacementValid(coasterPanel.rideType, x, y, placementDir, map, snapshot),
+        valid: ridePlacementValid(
+          coasterPanel.rideType,
+          x,
+          y,
+          placementDir,
+          map,
+          snapshot,
+          placementTowerHeight,
+        ),
+        towerHeight: placementTowerHeight,
       };
     },
   };

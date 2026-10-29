@@ -118,6 +118,8 @@ export const RIDE_SCHEMA = {
   downtimePercent: Uint8Array,
   /** One more than the tick a mechanic last set out for this ride; 0 when none has. */
   mechanicHeadingTick: Uint32Array,
+  /** Observation Tower height in whole land levels (introduced in save version 36). */
+  towerHeight: Uint8Array,
 } as const;
 
 /** Columns `RIDE_SCHEMA` gained in save version 30: eight downtime buckets, the percent, a tick. */

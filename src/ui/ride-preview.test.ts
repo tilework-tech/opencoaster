@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
-import type { RideType } from '../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { PIECES } from '../sim/track/catalog';
 import { pieceExit } from '../sim/track/construction';
 import { fitPreview, previewLoop, ridePreviewItems } from './ride-preview';
@@ -18,6 +17,20 @@ describe('ride preview items', () => {
     expect(ridePreviewItems(request(2, 1)).map((i) => i.key)).toEqual([
       'rides/flat/swinging-ship/preview/view-1',
     ]);
+  });
+
+  it('builds the Observation Tower preview from its selected height and moving cabin', () => {
+    const short = ridePreviewItems({ ...request(RideType.ObservationTower), towerHeight: 8 });
+    const tall = ridePreviewItems({
+      ...request(RideType.ObservationTower),
+      towerHeight: 16,
+      phase: 2,
+      phaseProgress: 500,
+    });
+    expect(short).toHaveLength(7);
+    expect(tall).toHaveLength(15);
+    expect(Math.min(...tall.map(({ y }) => y))).toBeLessThan(Math.min(...short.map(({ y }) => y)));
+    expect(tall.at(-1)?.key).toContain('/cabin/');
   });
 
   it('shows stalls and toilets as their shopfront sprites', () => {

@@ -4,7 +4,7 @@ import { maxCarsForRide, maxTrainsForRide, RIDERS_PER_CAR } from '../vehicles/ri
 import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
 import { RideMode } from './ride-modes';
 import { RELIABILITY_MAX, isRideInspectionDueAt } from './ride-maintenance';
-import { rideFootprintTiles } from './ride-footprint';
+import { rideBaseLevel, rideFootprintTiles } from './ride-footprint';
 import { inferBoardingFronts } from './boarding-front';
 import {
   INSPECTION_INTERVAL_MINUTES,
@@ -14,6 +14,24 @@ import {
 } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
 import { RideResult } from './ride-results';
+import { charge, earn } from '../economy/api';
+import { LedgerCategory } from '../economy/ledger';
+import { Z_STEP } from '../core/constants';
+import {
+  firstOccupancyBlocker,
+  ridePlacementOccupancies,
+  worldOccupancies,
+} from '../map/occupancy';
+import {
+  DEFAULT_TOWER_HEIGHT,
+  TOWER_LOAD_TICKS,
+  TOWER_SECTION_COST,
+  TOWER_SECTION_REFUND_PERCENT,
+  TOWER_UNLOAD_TICKS,
+  isValidObservationTowerHeight,
+  observationTowerRunTicks,
+} from './observation-tower';
+import { RideType as RideTypeId } from './ride-types';
 import {
   SAME_TYPE_VALUE_PERCENT,
   rideAgeAdjustedValue,
@@ -82,7 +100,14 @@ function isRideInActiveCycle(phase: number): boolean {
   );
 }
 
-export function createRide(world: World, type: RideType, x: number, y: number, dir = 0): number {
+export function createRide(
+  world: World,
+  type: RideType,
+  x: number,
+  y: number,
+  dir = 0,
+  towerHeight = DEFAULT_TOWER_HEIGHT,
+): number {
   const definition = RIDE_CATALOG[type];
   if (!definition || !world.map.inBounds(x, y)) return -1;
   const slot = world.rides.spawn();
@@ -90,17 +115,20 @@ export function createRide(world: World, type: RideType, x: number, y: number, d
 
   const ride = world.rides.cols;
   ride.typeId[slot] = type;
+  ride.towerHeight[slot] = type === RideTypeId.ObservationTower ? towerHeight : 0;
   ride.state[slot] = RideState.Closed;
   ride.phase[slot] = RidePhase.Closed;
   ride.rideX[slot] = x;
   ride.rideY[slot] = y;
   ride.dir[slot] = dir & 3;
   ride.capacity[slot] = definition.capacity;
-  ride.loadTicks[slot] = definition.loadTicks;
-  ride.runTicks[slot] = definition.runTicks;
-  ride.unloadTicks[slot] = definition.unloadTicks;
-  ride.minWaitTicks[slot] = definition.loadTicks;
-  ride.maxWaitTicks[slot] = Math.max(definition.loadTicks, definition.loadTicks * 4);
+  const tower = type === RideTypeId.ObservationTower;
+  const loadTicks = tower ? TOWER_LOAD_TICKS : definition.loadTicks;
+  ride.loadTicks[slot] = loadTicks;
+  ride.runTicks[slot] = tower ? observationTowerRunTicks(towerHeight) : definition.runTicks;
+  ride.unloadTicks[slot] = tower ? TOWER_UNLOAD_TICKS : definition.unloadTicks;
+  ride.minWaitTicks[slot] = loadTicks;
+  ride.maxWaitTicks[slot] = Math.max(loadTicks, loadTicks * 4);
   ride.loadThreshold[slot] = LOAD_TARGET_THRESHOLD[LoadTarget.Half];
   ride.mode[slot] = definition.modes[0].mode;
   applyRideModeRatings(world, slot);
@@ -114,6 +142,56 @@ export function createRide(world: World, type: RideType, x: number, y: number, d
   ride.entranceX[slot] = x;
   ride.entranceY[slot] = y;
   return world.rides.slotToId[slot];
+}
+
+/** Changes the real height of a closed Observation Tower, including travel time and clearance. */
+export function setObservationTowerHeight(
+  world: World,
+  rideId: number,
+  height: number,
+): RideResult {
+  if (!world.rides.isAlive(rideId)) return RideResult.NoSuchRide;
+  const slot = slotForRide(world, rideId);
+  const rides = world.rides.cols;
+  if (rides.typeId[slot] !== RideTypeId.ObservationTower) return RideResult.NotTrackRide;
+  if (!isValidObservationTowerHeight(height)) return RideResult.Blocked;
+  if (rides.state[slot] !== RideState.Closed || rides.phase[slot] !== RidePhase.Closed)
+    return RideResult.Busy;
+  const x = rides.rideX[slot];
+  const y = rides.rideY[slot];
+  if (!world.map.inBounds(x, y)) return RideResult.OutOfBounds;
+  const tile = world.map.index(x, y);
+  if (!world.map.canBuild(tile)) return RideResult.NotOwned;
+
+  const base =
+    rideBaseLevel(world.map, RIDE_CATALOG[RideTypeId.ObservationTower], x, y, rides.dir[slot]) *
+    Z_STEP;
+  const candidates = ridePlacementOccupancies(
+    RideTypeId.ObservationTower,
+    x,
+    y,
+    rides.dir[slot],
+    base,
+    height,
+  );
+  const currentRideName = `${RIDE_CATALOG[RideTypeId.ObservationTower].name} ${rideId + 1}`;
+  const existing = worldOccupancies(world).filter((volume) => volume.name !== currentRideName);
+  if (firstOccupancyBlocker(candidates, existing)) return RideResult.Blocked;
+
+  const delta = height - rides.towerHeight[slot];
+  const amount = Math.abs(delta) * TOWER_SECTION_COST;
+  if (delta > 0 && world.economy.cash < amount) return RideResult.InsufficientFunds;
+  if (delta > 0) charge(world, LedgerCategory.RideConstruction, amount);
+  else if (delta < 0)
+    earn(
+      world,
+      LedgerCategory.RideConstruction,
+      Math.floor((amount * TOWER_SECTION_REFUND_PERCENT) / 100),
+    );
+  rides.towerHeight[slot] = height;
+  rides.runTicks[slot] = observationTowerRunTicks(height);
+  rides.phaseTicks[slot] = 0;
+  return RideResult.Ok;
 }
 
 export function placeRideEntranceExit(

@@ -1,7 +1,6 @@
 import { Z_STEP } from '../sim/core/constants';
-import { RIDE_CATALOG } from '../sim/rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
-import type { RideType } from '../sim/rides/ride-types';
 import { RidePhase } from '../sim/rides/ride-store';
 import { PathFlag, PATH_ADDITION_BROKEN, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
@@ -57,6 +56,16 @@ export function rideHutFacing(rideX: number, rideY: number, partX: number, partY
   if (dx === -1 && dy === 0) return 2;
   if (dx === 0 && dy === -1) return 3;
   return 1;
+}
+
+export type ObservationTowerPart = 'base' | 'shaft' | 'top' | 'cabin';
+
+export function observationTowerPartSpriteKey(
+  part: ObservationTowerPart,
+  rotation: number,
+): string {
+  const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
+  return `${rideSpriteName(RideType.ObservationTower)}/parts/${part}/view-${view}`;
 }
 
 /**

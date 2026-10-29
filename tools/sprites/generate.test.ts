@@ -308,10 +308,11 @@ describe('generated sprite catalogue', () => {
     const targetRides = Object.values(RIDE_CATALOG).filter(
       (ride) =>
         ride.id !== RideType.GoKarts &&
+        ride.id !== RideType.ObservationTower &&
         !ride.usesTrack &&
         (ride.category === 'gentle' || ride.category === 'thrill'),
     );
-    expect(targetRides.length).toBe(9);
+    expect(targetRides.length).toBe(8);
 
     for (const ride of targetRides) {
       for (let view = 0; view < 4; view++) {
@@ -343,6 +344,19 @@ describe('generated sprite catalogue', () => {
       }
     }
   }, 15_000);
+
+  it('generates the Observation Tower from four reusable parts in every view', () => {
+    for (const part of ['base', 'shaft', 'top', 'cabin'])
+      for (let view = 0; view < 4; view++) {
+        const key = `rides/flat/observation-tower/parts/${part}/view-${view}`;
+        const sprite = sprites.get(key);
+        expect(sprite, key).toBeDefined();
+        expect(sprite!.frames).toHaveLength(1);
+        expect(sprite!.frames[0]!.pixels.some((pixel) => pixel !== TRANSPARENT)).toBe(true);
+      }
+    expect(sprites.has('rides/flat/observation-tower/view-0/cell-0')).toBe(false);
+    expect(sprites.has('rides/flat/observation-tower/preview/view-0')).toBe(false);
+  });
 
   it('draws flat rides across their whole footprint', () => {
     const widthOf = (type: RideType): number => {

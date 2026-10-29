@@ -202,7 +202,7 @@ describe('save', () => {
     const reloadedIntermediate = deserialize(withSaveVersion(migrated, 33));
     expect(ambientTreePlacements(reloadedIntermediate)).toEqual(placements);
     expect(hashWorld(reloadedIntermediate)).toBe(hashWorld(migrated));
-    expect(SAVE_VERSION).toBe(35);
+    expect(SAVE_VERSION).toBe(36);
   });
 
   it('loads a version 34 save and lets its tired guests use benches afterwards', () => {
@@ -227,7 +227,7 @@ describe('save', () => {
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(35);
+    expect(SAVE_VERSION).toBe(36);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -235,7 +235,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(35);
+    expect(header.version).toBe(36);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);

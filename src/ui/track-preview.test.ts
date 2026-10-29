@@ -56,4 +56,25 @@ describe('ride placement sprites', () => {
     expect(sprites).toHaveLength(1);
     expect(sprites[0]).toMatchObject({ x: 2, y: 3, level: 3, kind: 'ride' });
   });
+
+  it('previews the selected tower height with one sprite per reusable section', () => {
+    const short = rideGhostSprites(
+      ghost({ type: RideType.ObservationTower, towerHeight: 8 }),
+      map,
+      0,
+    );
+    const tall = rideGhostSprites(
+      ghost({ type: RideType.ObservationTower, towerHeight: 20 }),
+      map,
+      0,
+    );
+
+    expect(short).toHaveLength(8 - 4 + 3);
+    expect(tall).toHaveLength(20 - 4 + 3);
+    expect(tall.filter(({ sprite }) => sprite.includes('/shaft/'))).toHaveLength(16);
+    expect(new Set(tall.map(({ sprite }) => sprite)).size).toBe(4);
+    expect(Math.max(...tall.map(({ level }) => level))).toBeGreaterThan(
+      Math.max(...short.map(({ level }) => level)),
+    );
+  });
 });

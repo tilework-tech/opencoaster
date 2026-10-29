@@ -3,6 +3,7 @@ import { createSnapshot, RideInfo } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import { Surface } from '../sim/map/tile-map';
 import { RideType } from '../sim/rides/ride-types';
+import { Z_STEP } from '../sim/core/constants';
 import { ridePlacementValid, ridePlacementLevel } from './placement-art';
 
 function placementSnapshot(width: number, height: number): Snapshot {
@@ -138,5 +139,21 @@ describe('ride placement preview validity', () => {
     expect(ridePlacementLevel(RideType.MerryGoRound, 3, 3, 0, map)).toBe(6);
     expect(ridePlacementLevel(RideType.MerryGoRound, 2, 2, 0, map)).toBe(5);
     expect(ridePlacementLevel(RideType.MerryGoRound, 6, 6, 0, map)).toBe(4);
+  });
+
+  it('uses the selected tower height when checking vertical obstruction clearance', () => {
+    const snapshot = placementSnapshot(8, 8);
+    snapshot.occupancies.push({
+      tileX: 3,
+      tileY: 3,
+      base: 14 * Z_STEP,
+      clearance: 15 * Z_STEP,
+      kind: 'track',
+      name: 'Elevated track',
+    });
+    const map = openMap();
+
+    expect(ridePlacementValid(RideType.ObservationTower, 3, 3, 0, map, snapshot, 11)).toBe(true);
+    expect(ridePlacementValid(RideType.ObservationTower, 3, 3, 0, map, snapshot, 20)).toBe(false);
   });
 });

@@ -1,7 +1,15 @@
 import { circuitLabel } from '../coaster-panel';
-import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG } from '../../sim/rides/ride-types';
-import type { RideType } from '../../sim/rides/ride-types';
+import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
 import { RideMode } from '../../sim/rides/ride-modes';
+import { RidePhase, RideState } from '../../sim/rides/ride-store';
+import {
+  DEFAULT_TOWER_HEIGHT,
+  MAX_TOWER_HEIGHT,
+  MIN_TOWER_HEIGHT,
+  TOWER_SECTION_COST,
+  TOWER_SECTION_REFUND_PERCENT,
+  observationTowerCost,
+} from '../../sim/rides/observation-tower';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
 import { button, element, gauge, iconButton, setText, statRow } from '../dom';
@@ -208,11 +216,35 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   const price = priceControl('Ride price', (cents) => ctx.actions.setRidePrice(rideId, cents));
   const income = { total: statRow('Total income'), perGuest: statRow('Income per guest') };
   const customers = { served: statRow('Guests served'), waiting: statRow('Waiting in queue') };
+  let towerHeight = DEFAULT_TOWER_HEIGHT;
+  const towerHeightValue = element('span', 'stat-value');
+  const adjustTowerHeight = (amount: number): void =>
+    ctx.actions.command({
+      type: 'setObservationTowerHeight',
+      rideId,
+      height: Math.min(MAX_TOWER_HEIGHT, Math.max(MIN_TOWER_HEIGHT, towerHeight + amount)),
+    });
+  const removeSection = iconButton('minus', 'Remove one tower section', () =>
+    adjustTowerHeight(-1),
+  );
+  const addSection = iconButton('plus', 'Add one tower section', () => adjustTowerHeight(1));
+  const towerHeightRow = element('div', 'stat-row tower-height-row');
+  towerHeightRow.append(
+    element('span', 'stat-label', 'Tower height'),
+    removeSection,
+    towerHeightValue,
+    addSection,
+  );
+  const towerHeightNote = element('p', 'hint tower-height-note');
+  towerHeightRow.hidden = true;
+  towerHeightNote.hidden = true;
 
   if (created) {
     p('main').append(
       preview,
       status,
+      towerHeightRow,
+      towerHeightNote,
       statusButtons,
       demolish,
       excitement.row,
@@ -298,6 +330,20 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       rideName = `${def?.name ?? 'Ride'} ${rideId + 1}`;
       const tested = (flags & RideFlag.Tested) !== 0;
       const state = info[o + RideInfo.State];
+      const isTower = type === RideType.ObservationTower;
+      towerHeightRow.hidden = !isTower;
+      towerHeightNote.hidden = !isTower;
+      if (isTower) {
+        towerHeight = info[o + RideInfo.TowerHeight] || DEFAULT_TOWER_HEIGHT;
+        const editable =
+          state === RideState.Closed && info[o + RideInfo.Phase] === RidePhase.Closed;
+        towerHeightValue.textContent = `${towerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT})`;
+        towerHeightNote.textContent = editable
+          ? `Tower value ${formatMoney(observationTowerCost(def?.cost ?? 0, towerHeight))}. Each section costs ${formatMoney(TOWER_SECTION_COST)} to add and refunds ${formatMoney(Math.floor((TOWER_SECTION_COST * TOWER_SECTION_REFUND_PERCENT) / 100))} to remove.`
+          : 'Close the ride to change its height.';
+        removeSection.disabled = !editable || towerHeight <= MIN_TOWER_HEIGHT;
+        addSection.disabled = !editable || towerHeight >= MAX_TOWER_HEIGHT;
+      }
       win.setTitle(rideName);
       preview.setAttribute('aria-label', `${rideName} preview`);
       if (def) {
@@ -307,6 +353,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
           rotation: ctx.actions.camera().rotation,
           phase: info[o + RideInfo.Phase],
           phaseProgress: info[o + RideInfo.PhaseProgress],
+          towerHeight: info[o + RideInfo.TowerHeight] || DEFAULT_TOWER_HEIGHT,
+          towerCabinLevel: info[o + RideInfo.TowerCabinLevel]! / 1_000,
           tick: snapshot.tick,
         });
       }

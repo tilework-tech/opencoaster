@@ -287,3 +287,26 @@ At 40 simulation ticks/sec, the frame budget is 25 ms across the whole simulatio
 16. Academic description of RCT2 tracked coaster ratings and guest tolerance: https://campbelljc.com/research/papers/campbell-23-trackrl.pdf
 
 This document is a clean-room design specification. Public behavior descriptions and manuals are references; no original assets, decompiled code, or OpenRCT2 implementation code were used or included.
+
+## Observation Tower
+
+Reference facts (public guides, restated in our own words; confidence in parentheses):
+
+- A station with a 1x1 column that the player extends upward, in the same family as the Elevator, Launched Freefall and Roto-Drop (high). [Observation Tower guide](https://outof.games/realms/rollercoastertycoon/guides/507-guide-to-building-an-observation-tower-in-rollercoster-tycoon-1-2/)
+- No tower-specific height limit; the global construction cap of about 600 ft applies, supports are free, and taller towers rate higher but carry fewer guests per hour (medium). Same guide; [Elevator guide](https://outof.games/realms/rollercoastertycoon/guides/483-guide-to-building-an-elevator-in-rollercoaster-tycoon-1-2/).
+- Capacity 20 for the single-deck cabin; cabin speed about 4 mph empty and about 0.5 mph slower full (high / medium). Same guide.
+
+Not found in public sources, therefore OpenCoaster tuning: height per section, section price, top dwell, boarding and unloading durations, whether height can be edited after opening, clearance rules and breakdown behaviour.
+
+Implemented behaviour (see `src/sim/rides/observation-tower.ts`):
+
+| Parameter | Value | Basis |
+|---|---|---|
+| Height range | 8–64 land levels, default 11 (the pre-v35 art height) | tuning |
+| Cabin speed | 39 ticks per level each way (about 1 level/s, about 3.5 mph at 5 ft per level) | tuned near the cited 4 mph |
+| Top dwell | 160 ticks (4 s) | tuning |
+| Loading / unloading | 120 ticks (3 s) each | tuning |
+| Section price | $18.00 above or below the default height; 70% refunded when removed | tuning |
+| Cycle at 1x (40 ticks/s) | Loading + 2 × travel + dwell + Unloading; 8 levels: 673 ticks (16.8 s); 11 levels: 907 ticks (22.7 s) | derived |
+
+Before this change a tower ran a fixed 400-tick Running phase regardless of height inside an 80 + 400 + 80 tick cycle (14 s), and its art looped an eight-pose cabin animation every 64 ticks, so the cabin bobbed about six times per trip.

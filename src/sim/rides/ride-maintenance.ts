@@ -5,10 +5,10 @@ import { breakDownRide, holdRideTrains, releaseHeldTrains } from './coaster';
 import { BreakdownReason, holdsRidersAboard, repairTicksFor } from './breakdown-reasons';
 import type { BreakdownWeight } from './breakdown-reasons';
 import { RidePhase, RideState } from './ride-store';
-import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG } from './ride-types';
-import type { RideType } from './ride-types';
+import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG, RideType } from './ride-types';
 import { RideMode } from './ride-modes';
 import { rideTrainSlots } from '../vehicles/ride-trains';
+import { observationTowerCabinMilli, observationTowerReturnTicks } from './observation-tower';
 
 /** Full reliability (100%) and the top of the scale, which keeps the byte below the percent. */
 export const RELIABILITY_FULL = 100 * 256;
@@ -129,7 +129,9 @@ function pickReason(world: World, slot: number): BreakdownReason {
 
 /**
  * Takes the ride out of service for `reason`. Riders get off at once unless the failure locks
- * restraints or doors shut, in which case they stay aboard until a mechanic repairs it.
+ * restraints or doors shut, in which case they stay aboard until a mechanic repairs it. An
+ * Observation Tower always keeps its riders aboard: the cabin stops where it is and returns to the
+ * station after the repair (see `observationTowerCabinMilli`).
  */
 export function breakRide(world: World, slot: number, reason: BreakdownReason): void {
   const ride = world.rides.cols;
@@ -142,6 +144,20 @@ export function breakRide(world: World, slot: number, reason: BreakdownReason): 
     return;
   }
   const occupied = isActiveCycle(ride.phase[slot]) && ride.boarded[slot] > 0;
+  if (ride.typeId[slot] === RideType.ObservationTower) {
+    ride.phaseTicks[slot] = observationTowerCabinMilli(
+      ride.towerHeight[slot],
+      ride.phase[slot],
+      ride.phaseTicks[slot],
+      ride.runTicks[slot],
+      ride.unloadTicks[slot],
+    );
+    ride.state[slot] = RideState.Broken;
+    ride.phase[slot] = RidePhase.Broken;
+    ride.waitTicks[slot] = 0;
+    ride.breakdownCounter[slot]++;
+    return;
+  }
   if (occupied && !holdsRidersAboard(reason)) releaseRiders(world, slot);
   ride.state[slot] = RideState.Broken;
   ride.phase[slot] = RidePhase.Broken;
@@ -259,10 +275,15 @@ function repair(world: World, slot: number): void {
   const ride = world.rides.cols;
   restoreReliabilityAfterRepair(world, slot);
   if (RIDE_CATALOG[ride.typeId[slot] as RideType].usesTrack) releaseHeldTrains(world, slot);
-  else if (ride.boarded[slot] > 0) releaseRiders(world, slot);
+  else if (ride.typeId[slot] === RideType.ObservationTower && ride.boarded[slot] > 0) {
+    ride.phase[slot] = RidePhase.Unloading;
+    ride.phaseTicks[slot] =
+      ride.unloadTicks[slot] + observationTowerReturnTicks(ride.phaseTicks[slot]);
+  } else if (ride.boarded[slot] > 0) releaseRiders(world, slot);
   ride.breakdownReason[slot] = BreakdownReason.None;
   ride.state[slot] = ride.queueConnected[slot] ? RideState.Open : RideState.Closed;
-  ride.phase[slot] = ride.queueConnected[slot] ? RidePhase.Waiting : RidePhase.Closed;
+  if (ride.phase[slot] !== RidePhase.Unloading)
+    ride.phase[slot] = ride.queueConnected[slot] ? RidePhase.Waiting : RidePhase.Closed;
 }
 
 function inspect(world: World, slot: number): void {

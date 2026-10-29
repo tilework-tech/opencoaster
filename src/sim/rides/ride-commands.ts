@@ -17,6 +17,7 @@ import {
   setRideOpen,
   setRidePrice,
   setRideQueueLimit,
+  setObservationTowerHeight,
   setTrainLayout,
 } from './ride-operations';
 import type { RideMode } from './ride-modes';
@@ -39,6 +40,7 @@ export type RideCommand =
   | { type: 'setRideMode'; rideId: number; mode: RideMode }
   /** `minutes` is one of `INSPECTION_INTERVAL_MINUTES`, or 0 for never. */
   | { type: 'setRideInspection'; rideId: number; minutes: number }
+  | { type: 'setObservationTowerHeight'; rideId: number; height: number }
   | { type: 'demolishRide'; rideId: number };
 
 function rideFootprintAt(world: World, x: number, y: number): boolean {
@@ -365,6 +367,9 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
         : setRideInspectionInterval(world, c.rideId, c.minutes)
           ? RideResult.Ok
           : RideResult.Blocked;
+      break;
+    case 'setObservationTowerHeight':
+      result = setObservationTowerHeight(world, c.rideId, c.height);
       break;
     case 'demolishRide':
       result = demolishRide(world, c.rideId);
