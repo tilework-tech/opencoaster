@@ -20,27 +20,12 @@
     "mode": "perRide"
   },
   "research": {
-    "availableItemIds": [1, 5, 6, 7, 8],
+    "availableItemIds": [1, 2, 3, 5, 6, 7, 8, 9, 12],
     "inventions": [
-      {
-        "itemId": 2,
-        "category": 0,
-        "workUnits": 180
-      },
-      {
-        "itemId": 3,
-        "category": 0,
-        "workUnits": 360
-      },
       {
         "itemId": 4,
         "category": 3,
         "workUnits": 360
-      },
-      {
-        "itemId": 9,
-        "category": 2,
-        "workUnits": 585
       },
       {
         "itemId": 10,
@@ -51,11 +36,6 @@
         "itemId": 11,
         "category": 3,
         "workUnits": 675
-      },
-      {
-        "itemId": 12,
-        "category": 1,
-        "workUnits": 720
       },
       {
         "itemId": 13,

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { LedgerCategory } from '../economy/ledger';
+import { World } from '../core/world';
 import { IMPORTED_ID, SANDBOX_ID, ObjectiveKind } from './scenario';
+import { applyScenario } from './scenario';
 import { SCENARIOS, buildCatalog, findScenario, scenarioDisplayName } from './catalog';
-import { RIDE_CATALOG } from '../rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 
 const minimal = (id: string) => ({
   id,
@@ -122,6 +124,30 @@ describe('ride unlocks per scenario', () => {
       ]);
       const missing = Object.keys(RIDE_CATALOG).filter((id) => !reachable.has(Number(id)));
       expect(missing, def.id).toEqual([]);
+    }
+  });
+
+  it('starts every scenario with at least nine buildable types, including needs and an exciting ride', () => {
+    for (const def of SCENARIOS) {
+      const world = new World({ seed: def.seed, width: 8, height: 8 });
+      applyScenario(world, def);
+      const unlocked = world.research.unlocked;
+      const starting = [...unlocked].map((id) => RIDE_CATALOG[id as RideType]);
+      expect(new Set(def.availableItemIds).size, `${def.id}: unique starting IDs`).toBe(
+        def.availableItemIds.length,
+      );
+      expect(unlocked.size, def.id).toBeGreaterThanOrEqual(9);
+      expect(
+        starting.filter((ride) => ride?.category === 'gentle').length,
+        def.id,
+      ).toBeGreaterThanOrEqual(3);
+      expect(
+        starting.some((ride) => ride?.category === 'coaster' || ride?.category === 'thrill'),
+        def.id,
+      ).toBe(true);
+      for (const type of [RideType.FoodStall, RideType.DrinkStall, RideType.Toilets]) {
+        expect(unlocked.has(type), `${def.id}: ${RIDE_CATALOG[type].name}`).toBe(true);
+      }
     }
   });
 });

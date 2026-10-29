@@ -1384,6 +1384,23 @@ describe('save: version 8 research migration', () => {
     const loaded = deserialize(versionEightSave(world, 2_500));
     expect(loaded.research.inventions).toEqual([{ itemId: 8, category: 0, workUnits: 21 }]);
   });
+
+  it('preserves a version 8 park invention list and unlocks instead of applying new scenario defaults', () => {
+    const world = flatWorld();
+    world.research.inventions = [
+      { itemId: 9, category: 2, workUnits: 585 },
+      { itemId: 10, category: 0, workUnits: 720 },
+    ];
+    world.research.unlocked = new Set([1, 5, 6, 7, 8]);
+
+    const loaded = deserialize(versionEightSave(world, 2_500));
+
+    expect(loaded.research.inventions).toEqual([
+      { itemId: 9, category: 2, workUnits: 21 },
+      { itemId: 10, category: 0, workUnits: 21 },
+    ]);
+    expect(loaded.research.unlocked).toEqual(new Set([1, 5, 6, 7, 8]));
+  });
 });
 
 describe('save: queue lines', () => {

@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { World } from '../core/world';
+import { Simulation } from '../core/simulation';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import { parseScenarioFile } from '../scenario/scenario-file';
 import { applyScenario } from '../scenario/scenario';
+import { FUNDING_WORK_PER_WEEK, Funding } from './research';
+import { TICKS_PER_WEEK } from '../economy/calendar';
 
 const starter = parseScenarioFile(
   JSON.parse(readFileSync(new URL('../scenario/scenarios/starter.json', import.meta.url), 'utf8')),
@@ -16,7 +19,6 @@ describe('ride research catalog', () => {
         [9, 2, 585],
         [10, 2, 630],
         [11, 3, 675],
-        [12, 1, 720],
         [13, 3, 765],
         [14, 3, 810],
         [15, 3, 855],
@@ -53,5 +55,16 @@ describe('ride research catalog', () => {
     for (const invention of starter.inventions) {
       expect(world.research.unlocked.has(invention.itemId)).toBe(false);
     }
+  });
+
+  it('starts normal research across the scenario invention categories and unlocks an invention', () => {
+    const simulation = new Simulation({ seed: 1, width: 16, height: 16 });
+    applyScenario(simulation.world, starter);
+    const firstInvention = starter.inventions[0];
+    const weeks = Math.ceil(firstInvention.workUnits / FUNDING_WORK_PER_WEEK[Funding.Normal]);
+    for (let i = 0; i <= weeks * TICKS_PER_WEEK; i++) {
+      simulation.step();
+    }
+    expect(simulation.world.research.unlocked.has(firstInvention.itemId)).toBe(true);
   });
 });
