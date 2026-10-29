@@ -1,0 +1,126 @@
+{
+  "renderer": "webgl2",
+  "ticksPerSecondAt1x": 40,
+  "loadTicks": 120,
+  "unloadTicks": 120,
+  "timings": [
+    {
+      "id": 0,
+      "name": "short",
+      "height": 8,
+      "expectedRunTicks": 433,
+      "cycles": [
+        {
+          "loadTicks": 118,
+          "runTicks": 432,
+          "unloadTicks": 123,
+          "runSecondsAt1x": 10.8,
+          "maxLevelPerTick": 0.02575,
+          "reversals": 1,
+          "peakLevel": 4
+        },
+        {
+          "loadTicks": 130,
+          "runTicks": 427,
+          "unloadTicks": 121,
+          "runSecondsAt1x": 10.675,
+          "maxLevelPerTick": 0.02575,
+          "reversals": 1,
+          "peakLevel": 4
+        },
+        {
+          "loadTicks": 121,
+          "runTicks": 429,
+          "unloadTicks": 123,
+          "runSecondsAt1x": 10.725,
+          "maxLevelPerTick": 0.025666666666666667,
+          "reversals": 1,
+          "peakLevel": 4
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "medium",
+      "height": 16,
+      "expectedRunTicks": 1057,
+      "cycles": [
+        {
+          "loadTicks": 115,
+          "runTicks": 1057,
+          "unloadTicks": 116,
+          "runSecondsAt1x": 26.425,
+          "maxLevelPerTick": 0.02575,
+          "reversals": 1,
+          "peakLevel": 12
+        },
+        {
+          "loadTicks": 129,
+          "runTicks": 1072,
+          "unloadTicks": 104,
+          "runSecondsAt1x": 26.8,
+          "maxLevelPerTick": 0.0256875,
+          "reversals": 1,
+          "peakLevel": 12
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tall",
+      "height": 26,
+      "expectedRunTicks": 1837,
+      "cycles": [
+        {
+          "loadTicks": 120,
+          "runTicks": 1850,
+          "unloadTicks": 116,
+          "runSecondsAt1x": 46.25,
+          "maxLevelPerTick": 0.02575,
+          "reversals": 1,
+          "peakLevel": 22
+        }
+      ]
+    }
+  ],
+  "speedProbe": [
+    {
+      "label": "1x",
+      "ticks": 160,
+      "wallSeconds": 4.006454999998212,
+      "ticksPerSecond": 39.93555399975075
+    },
+    {
+      "label": "2x",
+      "ticks": 326,
+      "wallSeconds": 4.0065300000011925,
+      "ticksPerSecond": 81.36716809805567
+    },
+    {
+      "label": "4x",
+      "ticks": 632,
+      "wallSeconds": 4.007620000001043,
+      "ticksPerSecond": 157.69958229568562
+    },
+    {
+      "label": "paused",
+      "ticks": 0,
+      "wallSeconds": 4.005664999999106,
+      "ticksPerSecond": 0
+    },
+    {
+      "label": "resumed-1x",
+      "ticks": 163,
+      "wallSeconds": 4.004280000001192,
+      "ticksPerSecond": 40.706444104795736
+    }
+  ],
+  "phaseNames": {
+    "0": "closed",
+    "1": "waiting",
+    "2": "running",
+    "3": "unloading",
+    "4": "broken",
+    "5": "loading"
+  }
+}

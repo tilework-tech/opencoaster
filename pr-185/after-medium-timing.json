@@ -1,0 +1,17 @@
+{
+  "id": 0,
+  "name": "medium",
+  "height": 16,
+  "expectedRunTicks": 1057,
+  "cycles": [
+    {
+      "loadTicks": 119,
+      "runTicks": 1062,
+      "unloadTicks": 61,
+      "runSecondsAt1x": 26.55,
+      "maxLevelPerTick": 0.02575,
+      "reversals": 1,
+      "peakLevel": 12
+    }
+  ]
+}
