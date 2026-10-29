@@ -6,6 +6,7 @@ import { RIDE_CATALOG } from '../rides/ride-types';
 import { parseScenarioFile } from '../scenario/scenario-file';
 import { applyScenario } from '../scenario/scenario';
 import { FUNDING_WORK_PER_WEEK, Funding } from './research';
+import { researchSystem } from './research-system';
 import { TICKS_PER_WEEK } from '../economy/calendar';
 
 const starter = parseScenarioFile(
@@ -57,7 +58,7 @@ describe('ride research catalog', () => {
     }
   });
 
-  it('starts normal research across the scenario invention categories and unlocks an invention', () => {
+  it('starts normal research and unlocks the first scenario invention in simulation', () => {
     const simulation = new Simulation({ seed: 1, width: 16, height: 16 });
     applyScenario(simulation.world, starter);
     const firstInvention = starter.inventions[0];
@@ -66,5 +67,24 @@ describe('ride research catalog', () => {
       simulation.step();
     }
     expect(simulation.world.research.unlocked.has(firstInvention.itemId)).toBe(true);
+  });
+
+  it('unlocks inventions from every research category authored for the scenario', () => {
+    const world = new World({ seed: 1, width: 16, height: 16 });
+    applyScenario(world, starter);
+    const categories = new Set(starter.inventions.map(({ category }) => category));
+    const totalWork = starter.inventions.reduce((sum, { workUnits }) => sum + workUnits, 0);
+    const weeks = Math.ceil(totalWork / FUNDING_WORK_PER_WEEK[Funding.Normal]);
+    for (let week = 1; week <= weeks; week++) {
+      world.tick = week * TICKS_PER_WEEK;
+      researchSystem.update(world);
+    }
+
+    const unlockedCategories = new Set(
+      starter.inventions
+        .filter(({ itemId }) => world.research.unlocked.has(itemId))
+        .map(({ category }) => category),
+    );
+    expect(unlockedCategories).toEqual(categories);
   });
 });
