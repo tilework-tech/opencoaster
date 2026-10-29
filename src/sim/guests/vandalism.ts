@@ -1,3 +1,4 @@
+import { tileHasSeatedGuest } from './benches';
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
@@ -85,6 +86,7 @@ export function createVandalismSystem(): System {
           isPathElementBroken(map, element)
         )
           continue;
+        if (tileHasSeatedGuest(world, tile)) continue;
         if (world.rng.int(0x10000) > VANDAL_SUCCESS_ROLL) continue;
         const guard = securityGuardNearby(world, guests.x[slot], guests.y[slot]);
         if (guard >= 0) {

@@ -102,7 +102,7 @@ export function objectKind(spriteKey: string): ObjectKind {
     case 'vehicles':
       return 'vehicle';
     case 'people':
-      if (second === 'guest-walk') return 'guest';
+      if (second === 'guest-walk' || second === 'guest-sit') return 'guest';
       if (second === 'rider-seated') return 'rider';
       if (second === 'staff' || second === 'staff-costumes') return 'staff';
       return 'other';

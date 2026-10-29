@@ -47,6 +47,8 @@ export class World {
   readonly guests: EntityStore<typeof GUEST_SCHEMA>;
   /** Umbrella ownership indexed by stable guest id. */
   readonly umbrellas: Uint8Array;
+  /** Guest id holding each bench seat, keyed by `tile * 8 + seat code - 1`; rebuilt from guests on load. */
+  readonly seatOwners = new Map<number, number>();
   readonly staff: EntityStore<typeof STAFF_SCHEMA>;
   /** Player-given staff names by stable staff id; not simulated, saved with the game. */
   readonly staffNames = new Map<number, string>();

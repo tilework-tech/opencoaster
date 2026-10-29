@@ -5,6 +5,7 @@ import type { Schema } from '../sim/core/entity-store';
 import {
   GUEST_SCHEMA,
   GUEST_SIGHT_COLUMNS,
+  GUEST_REST_COLUMNS,
   GuestState,
   HEADING_NONE,
 } from '../sim/guests/guest-store';
@@ -45,6 +46,7 @@ import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 import { migrateLegacyAmbientTrees } from '../sim/map/ambient-trees';
 import { purgeExteriorMess } from '../sim/guests/park-interior';
+import { rebuildSeatOwners } from '../sim/guests/benches';
 
 /** Staff activity totals and guest sight memory are stored from this version. */
 const STAFF_STATS_SAVE_VERSION = 32;
@@ -53,7 +55,8 @@ const PRE_STAFF_STATS_SAVE_VERSION = 31;
 const SANDBOX_SPAWN_SAVE_VERSION = 33;
 /** v34: legacy ambient trees become ordinary saved scenery. */
 const AMBIENT_TREES_SAVE_VERSION = 34;
-export const SAVE_VERSION = AMBIENT_TREES_SAVE_VERSION;
+const BENCH_SEATS_SAVE_VERSION = 35;
+export const SAVE_VERSION = BENCH_SEATS_SAVE_VERSION;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
@@ -125,12 +128,14 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
         'litterMemory',
         'angriness',
         ...GUEST_SIGHT_COLUMNS,
+        ...GUEST_REST_COLUMNS,
       ].includes(name),
   ),
 ) as Omit<
   typeof GUEST_SCHEMA,
   | 'heading'
   | (typeof GUEST_SIGHT_COLUMNS)[number]
+  | (typeof GUEST_REST_COLUMNS)[number]
   | 'approachGap'
   | 'navGoal'
   | 'navGap'
@@ -508,7 +513,8 @@ function guestColumnsAbsent(version: number): number {
     (version < VOUCHER_SAVE_VERSION ? 2 : 0) +
     (version <= PRE_QUEUE_ORDER_SAVE_VERSION ? 1 : 0) +
     (version < HAPPINESS_TARGET_SAVE_VERSION ? 1 : 0) +
-    (version < STAFF_STATS_SAVE_VERSION ? GUEST_SIGHT_COLUMNS.length : 0)
+    (version < STAFF_STATS_SAVE_VERSION ? GUEST_SIGHT_COLUMNS.length : 0) +
+    (version < BENCH_SEATS_SAVE_VERSION ? GUEST_REST_COLUMNS.length : 0)
   );
 }
 
@@ -564,6 +570,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_STAFF_STATS_SAVE_VERSION,
     SANDBOX_SPAWN_SAVE_VERSION,
     AMBIENT_TREES_SAVE_VERSION,
+    BENCH_SEATS_SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
     throw new Error(`Unsupported save version ${header.version}`);
@@ -733,6 +740,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.park) Object.assign(world.park, header.park);
   if (header.version < AMBIENT_TREES_SAVE_VERSION) migrateLegacyAmbientTrees(world);
   purgeExteriorMess(world);
+  rebuildSeatOwners(world);
   closeInvalidOpenRides(world);
   repairSavedRideTrains(world);
   return world;

@@ -145,7 +145,7 @@ Checked during a guest's walking update `[V]`:
 - The source spec does not give a memory expiry or sighting radius. OpenCoaster treats a litter or vomit item on the guest's tile as a sighting for 2,048 ticks (`GUEST_LITTER_MEMORY_TICKS`); this is a named tuning assumption, not a source-equivalent duration.
 - Roll: a vandal attempt succeeds when the random 16-bit value is ≤ 3276 (5%) `[C]`.
 - Angry guests (angriness set by a previous vandalism) skip the happiness, energy and memory gates `[V]`.
-- Blocked if the guest is sitting on the same tile (a seated guest protects that tile's bench) `[V]`.
+- Blocked if the guest is sitting on the same tile (a seated guest protects that tile's bench) `[V]`. OpenCoaster has bench sitting and never breaks a bench with a seated or approaching guest.
 - Blocked if a security guard is within 7 tiles, Chebyshev `[V]`.
 
 ### 3.2 Effect
