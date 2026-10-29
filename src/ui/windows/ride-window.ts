@@ -7,6 +7,8 @@ import {
   MAX_TOWER_HEIGHT,
   MIN_TOWER_HEIGHT,
   TOWER_SECTION_COST,
+  TOWER_SECTION_REFUND_PERCENT,
+  observationTowerCost,
 } from '../../sim/rides/observation-tower';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
@@ -222,20 +224,27 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       rideId,
       height: Math.min(MAX_TOWER_HEIGHT, Math.max(MIN_TOWER_HEIGHT, towerHeight + amount)),
     });
+  const removeSection = iconButton('minus', 'Remove one tower section', () =>
+    adjustTowerHeight(-1),
+  );
+  const addSection = iconButton('plus', 'Add one tower section', () => adjustTowerHeight(1));
   const towerHeightRow = element('div', 'stat-row tower-height-row');
   towerHeightRow.append(
     element('span', 'stat-label', 'Tower height'),
-    iconButton('minus', 'Remove one tower section', () => adjustTowerHeight(-1)),
+    removeSection,
     towerHeightValue,
-    iconButton('plus', 'Add one tower section', () => adjustTowerHeight(1)),
+    addSection,
   );
+  const towerHeightNote = element('p', 'hint tower-height-note');
   towerHeightRow.hidden = true;
+  towerHeightNote.hidden = true;
 
   if (created) {
     p('main').append(
       preview,
       status,
       towerHeightRow,
+      towerHeightNote,
       statusButtons,
       demolish,
       excitement.row,
@@ -321,15 +330,18 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       rideName = `${def?.name ?? 'Ride'} ${rideId + 1}`;
       const tested = (flags & RideFlag.Tested) !== 0;
       const state = info[o + RideInfo.State];
-      towerHeightRow.hidden = type !== RideType.ObservationTower;
-      if (type === RideType.ObservationTower) {
+      const isTower = type === RideType.ObservationTower;
+      towerHeightRow.hidden = !isTower;
+      towerHeightNote.hidden = !isTower;
+      if (isTower) {
         towerHeight = info[o + RideInfo.TowerHeight] || DEFAULT_TOWER_HEIGHT;
-        towerHeightValue.textContent = `${towerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT}) · ${formatMoney(
-          (def?.cost ?? 0) + (towerHeight - DEFAULT_TOWER_HEIGHT) * TOWER_SECTION_COST,
-        )}`;
-        const [lower, , raise] = towerHeightRow.querySelectorAll('button');
-        lower.disabled = state !== RideState.Closed || towerHeight <= MIN_TOWER_HEIGHT;
-        raise.disabled = state !== RideState.Closed || towerHeight >= MAX_TOWER_HEIGHT;
+        const editable = state === RideState.Closed;
+        towerHeightValue.textContent = `${towerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT})`;
+        towerHeightNote.textContent = editable
+          ? `Tower value ${formatMoney(observationTowerCost(def?.cost ?? 0, towerHeight))}. Each section costs ${formatMoney(TOWER_SECTION_COST)} to add and refunds ${formatMoney(Math.floor((TOWER_SECTION_COST * TOWER_SECTION_REFUND_PERCENT) / 100))} to remove.`
+          : 'Close the ride to change its height.';
+        removeSection.disabled = !editable || towerHeight <= MIN_TOWER_HEIGHT;
+        addSection.disabled = !editable || towerHeight >= MAX_TOWER_HEIGHT;
       }
       win.setTitle(rideName);
       preview.setAttribute('aria-label', `${rideName} preview`);

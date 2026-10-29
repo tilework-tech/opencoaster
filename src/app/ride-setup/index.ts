@@ -12,8 +12,9 @@ import {
   DEFAULT_TOWER_HEIGHT,
   MAX_TOWER_HEIGHT,
   MIN_TOWER_HEIGHT,
-  TOWER_SECTION_COST,
+  observationTowerCost,
 } from '../../sim/rides/observation-tower';
+import { formatMoney } from '../../ui/format';
 import { FeedbackDomain } from '../../sim/core/feedback';
 import { rideFootprintTiles } from '../../sim/rides/ride-footprint';
 import { Surface } from '../../sim/map/tile-map';
@@ -431,10 +432,11 @@ export function createRideSetup(deps: RideSetupDependencies) {
     const selectedTower = coasterPanel.rideType === RideType.ObservationTower;
     towerHeightControl.hidden =
       !selectedTower || ridePlacement !== null || deps.selectedTool() !== 'ride';
-    const towerCost =
-      RIDE_CATALOG[RideType.ObservationTower].cost +
-      (placementTowerHeight - DEFAULT_TOWER_HEIGHT) * TOWER_SECTION_COST;
-    towerHeightLabel.textContent = `${placementTowerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT}) · $${(towerCost / 100).toFixed(2)}`;
+    const towerCost = observationTowerCost(
+      RIDE_CATALOG[RideType.ObservationTower].cost,
+      placementTowerHeight,
+    );
+    towerHeightLabel.textContent = `${placementTowerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT}) · ${formatMoney(towerCost)}`;
     lowerTower.disabled = placementTowerHeight <= MIN_TOWER_HEIGHT;
     raiseTower.disabled = placementTowerHeight >= MAX_TOWER_HEIGHT;
     ridePlacementTargets.setAttribute('viewBox', `0 0 ${width} ${height}`);

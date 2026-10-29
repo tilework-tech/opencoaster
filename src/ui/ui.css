@@ -172,8 +172,9 @@
 .tower-height-control {
   position: fixed;
   z-index: 40;
-  right: 16px;
-  bottom: calc(var(--status-h) + 68px);
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--status-h) + 52px);
   display: flex;
   align-items: center;
   gap: 6px;
