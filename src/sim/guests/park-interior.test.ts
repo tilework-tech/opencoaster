@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
 import { World } from '../core/world';
-import { DEFAULT_MAP_SIZE, TICK_RATE, TILE_UNITS } from '../core/constants';
+import { DEFAULT_MAP_SIZE, TICK_RATE, TILE_UNITS, Z_STEP } from '../core/constants';
+import { flatWorld, layPath, row } from '../integration/fixtures';
 import { SCENARIOS } from '../scenario/catalog';
 import { prepareSandbox } from '../scenario/sandbox';
 import { prepareScenario } from '../scenario/scenario-layout';
@@ -46,6 +47,28 @@ function scenarioWithoutApproach(): World {
   const def = SCENARIOS.find((s) => s.entrance)!;
   const world = new World({ seed: def.seed, width: def.mapWidth, height: def.mapHeight });
   prepareScenario(world, def);
+  return world;
+}
+
+function bridgeApproachWorld(): World {
+  const world = flatWorld();
+  layPath(world, row(5, 0, 9));
+  layPath(world, row(10, 2, 16));
+  const pieces: Array<[number, number, number, number]> = [
+    [9, 6, 4, 1],
+    [9, 7, 5, 1],
+    [9, 8, 6, -1],
+    [9, 9, 6, -1],
+    [9, 10, 6, -1],
+    [9, 11, 6, -1],
+    [9, 12, 6, -1],
+    [9, 13, 5, 3],
+    [9, 14, 4, 3],
+  ];
+  for (const [x, y, z, slope] of pieces)
+    if (!placePath(world.map, { x, y, z, slope })) throw new Error(`bridge piece ${x},${y}`);
+  if (!setParkEntrance(world, 9, 14)) throw new Error('bridge gate');
+  if (!addPeepSpawn(world, 0, 5)) throw new Error('bridge spawn');
   return world;
 }
 
@@ -123,6 +146,20 @@ function litterCheck(world: World): void {
 }
 
 describe('park interior', () => {
+  it('follows a real spawn-to-gate route over a stacked bridge and leaves nearby lower paths inside', () => {
+    const world = bridgeApproachWorld();
+    const crossing = world.map.index(9, 10);
+    const lower = world.map.walkNode(crossing, 4 * Z_STEP);
+    const bridge = world.map.walkNode(crossing, 6 * Z_STEP);
+    expect(bridge).not.toBe(lower);
+    expect(world.map.edgeMask(bridge)).not.toBe(world.map.edgeMask(lower));
+
+    for (let y = 5; y <= 14; y++)
+      expect(isGateApproach(world, 9, y), `bridge route 9,${y}`).toBe(true);
+
+    expect(isParkInterior(world, 10, 10)).toBe(true);
+  });
+
   it.each(WORLDS)(
     '%s: the gate and approach are outside, the tile past the gate is inside',
     (_n, build) => {

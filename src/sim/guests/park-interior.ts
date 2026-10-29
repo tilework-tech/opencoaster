@@ -43,11 +43,11 @@ function computeApproach(world: World): Uint8Array {
   queue[tail++] = gate;
   while (head < tail) {
     const node = queue[head++]!;
-    const exits = graph.edgeMask(nodeTile(graph, node));
+    const exits = graph.edgeMask(node);
     for (let dir = 0; dir < 4; dir++) {
       if ((exits & (1 << dir)) === 0) continue;
       const next = stepNode(graph, node, dir);
-      if (parent[next] >= 0) continue;
+      if (next < 0 || next >= parent.length || parent[next] >= 0) continue;
       parent[next] = node;
       queue[tail++] = next;
     }
