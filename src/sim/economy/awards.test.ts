@@ -9,6 +9,7 @@ import { spawnGuest } from '../guests/guest-store';
 import { GuestState } from '../guests/guest-store';
 import { RideState } from '../rides/ride-store';
 import { RideType } from '../rides/ride-types';
+import { addSpawnAtCorner } from '../integration/fixtures';
 
 function advanceTo(s: Simulation, tick: number): void {
   while (s.world.tick < tick) s.step();
@@ -113,6 +114,7 @@ describe('monthly park awards', () => {
     const setup = (sim: Simulation, satiation: number) => {
       sim.world.economy.parkRating = 700;
       sim.world.economy.inputs.litter = 10;
+      addSpawnAtCorner(sim.world);
       for (let i = 0; i < 4; i++) {
         spawnGuest(sim.world);
         const slot = sim.world.guests.count - 1;

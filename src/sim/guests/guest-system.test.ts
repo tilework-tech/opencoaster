@@ -16,6 +16,7 @@ import type { World } from '../core/world';
 import { GuestState, GuestThought, spawnGuest } from './guest-store';
 import { createGuestSystem, guestSystem } from './guest-system';
 import { setParkEntrance } from './park';
+import { addSpawnAtCorner } from '../integration/fixtures';
 
 function run(w: World, ticks: number, system = guestSystem): void {
   for (let i = 0; i < ticks; i++) {
@@ -65,6 +66,7 @@ function corridorWithRide(maxGuests = 64): { w: World; ride: number } {
 describe('guest needs', () => {
   it('loses two hunger points and gains one toilet point every 128 ticks', () => {
     const w = flatWorld();
+    addSpawnAtCorner(w);
     spawnGuest(w);
     w.weather.temperature = 20;
     w.guests.cols.hunger[0] = 200;
@@ -140,9 +142,11 @@ describe('guest needs', () => {
 
   it('spawns guests with original energy bounds and four nausea-tolerance buckets', () => {
     const w = flatWorld(32);
+    addSpawnAtCorner(w);
     w.rng.seed(1);
     for (let i = 0; i < 256; i++) spawnGuest(w);
     const replay = flatWorld(32);
+    addSpawnAtCorner(replay);
     replay.rng.seed(1);
     for (let i = 0; i < 256; i++) spawnGuest(replay);
     const energy = Array.from(w.guests.cols.energy.slice(0, w.guests.count));

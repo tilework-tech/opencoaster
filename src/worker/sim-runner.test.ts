@@ -35,7 +35,7 @@ describe('SimRunner', () => {
     r.handle({ type: 'init', seed: 1, width: 16, height: 16, initialGuests: 20, maxGuests: 100 });
     expect(out.map((m) => m.type)).toEqual(['map', 'ready']);
     const map = out.find((m) => m.type === 'map');
-    expect(map && map.type === 'map' ? [map.entranceX, map.entranceY] : null).toEqual([-1, -1]);
+    expect(map && map.type === 'map' ? [map.entranceX, map.entranceY] : null).toEqual([7, 11]);
     r.pump();
     now = 100;
     r.pump();
@@ -95,7 +95,7 @@ describe('SimRunner', () => {
     let now = 0;
     const r = new SimRunner({ post: (m) => out.push(m) }, () => now);
     r.handle({ type: 'init', seed: 1, width: 16, height: 16, initialGuests: 0, maxGuests: 10 });
-    r.handle({ type: 'command', command: { type: 'raiseLand', x: 6, y: 6, width: 1, height: 1 } });
+    r.handle({ type: 'command', command: { type: 'raiseLand', x: 5, y: 5, width: 1, height: 1 } });
     r.pump();
     now = 100;
     r.pump();

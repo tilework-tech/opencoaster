@@ -11,7 +11,7 @@ import { DIFFICULT_RATING_BASE, RATING_BASE } from './park-rating';
 import { BASIS_POINTS, LedgerCategory, completedMonthTotal } from './ledger';
 import { setEconomyInputs } from './api';
 import { STAFF_WAGE_CENTS_PER_WEEK } from '../staff/staff-store';
-import { layPath, openRide, prepareFlat, row } from '../integration/fixtures';
+import { addSpawnAtCorner, layPath, openRide, prepareFlat, row } from '../integration/fixtures';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import { getRideValueCents } from '../rides/ride-operations';
 import { applyEconomyAction } from './actions';
@@ -186,6 +186,7 @@ describe('marketing campaigns', () => {
 describe('park rating and value refresh', () => {
   it('publishes park value from ride value and guests', () => {
     const s = simWithRide();
+    addSpawnAtCorner(s.world);
     s.enqueue({ type: 'spawnGuests', count: 3 });
     runUntil(s, 512);
     const rideValue = s.world.economy.inputs.rideValue;

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/core/simulation';
 import { hashWorld } from '../sim/core/hash';
 import { PieceId } from '../sim/track/catalog';
+import { prepareSandbox } from '../sim/scenario/sandbox';
+import { spawnPoints } from '../sim/guests/park';
 import { SAVE_VERSION, deserialize, serialize } from './save';
 import { allWorldViews, withoutColumns } from './legacy-save-fixtures';
 import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
@@ -19,7 +21,7 @@ import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { HEADING_NONE } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
-import { flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
+import { addSpawnAtCorner, flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
 import {
   StaffKind,
   StaffOrder,
@@ -89,8 +91,32 @@ describe('save', () => {
     expect(loaded.world.rides.cols.guestsServed[rideSlot]).toBeGreaterThan(0);
   });
 
+  it('round trips the park spawn points, and loads older saves with none', () => {
+    const sim = new Simulation({ seed: 3, width: 16, height: 16 });
+    prepareSandbox(sim.world);
+    const { spawns } = sim.world.park;
+    expect(spawns).toHaveLength(1);
+    const restored = deserialize(serialize(sim.world));
+    expect(restored.park.spawns).toEqual(spawns);
+
+    const bytes = serialize(sim.world);
+    const headerLen = new DataView(bytes.buffer).getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLen)));
+    delete header.park.spawns;
+    header.version = 32;
+    const text = new TextEncoder().encode(JSON.stringify(header));
+    const legacy = new Uint8Array(8 + text.length + bytes.length - 8 - headerLen);
+    legacy.set(bytes.subarray(0, 4), 0);
+    new DataView(legacy.buffer).setUint32(4, text.length, true);
+    legacy.set(text, 8);
+    legacy.set(bytes.subarray(8 + headerLen), 8 + text.length);
+    const old = deserialize(legacy);
+    expect(old.park.spawns).toEqual([]);
+    expect(spawnPoints(old)).toEqual([{ x: old.park.entranceX, y: old.park.entranceY }]);
+  });
+
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(32);
+    expect(SAVE_VERSION).toBe(33);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -98,7 +124,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(32);
+    expect(header.version).toBe(33);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -348,6 +374,7 @@ describe('save', () => {
 
   it('migrates version 12 guest stats and initializes guest history and staff orders', () => {
     const sim = new Simulation({ seed: 16, width: 8, height: 8 });
+    addSpawnAtCorner(sim.world);
     sim.enqueue({ type: 'spawnGuests', count: 1 });
     sim.enqueue({ type: 'hireStaff', kind: StaffKind.Entertainer });
     sim.step();

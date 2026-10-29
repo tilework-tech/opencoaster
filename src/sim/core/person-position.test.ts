@@ -6,6 +6,7 @@ import { GuestState } from '../guests/guest-store';
 import { StaffKind } from '../staff/staff-store';
 import { TILE_UNITS } from './constants';
 import { deserialize, serialize } from '../../save/save';
+import { addSpawnAtCorner } from '../integration/fixtures';
 
 describe('setPersonPosition command', () => {
   it('moves a guest and staff member onto the center of owned land deterministically', () => {
@@ -13,6 +14,7 @@ describe('setPersonPosition command', () => {
       const sim = new Simulation({ seed: 9, width: 16, height: 16, maxGuests: 10 });
       sim.world.map.ownership.fill(OWNED);
       sim.world.map.waterLevel.fill(0);
+      addSpawnAtCorner(sim.world);
       sim.enqueue({ type: 'spawnGuests', count: 1 });
       sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
       sim.applyPendingCommands();
@@ -42,6 +44,7 @@ describe('setPersonPosition command', () => {
     const sim = new Simulation({ seed: 10, width: 16, height: 16, maxGuests: 10 });
     sim.world.map.ownership.fill(OWNED);
     sim.world.map.waterLevel.fill(0);
+    addSpawnAtCorner(sim.world);
     sim.enqueue({ type: 'spawnGuests', count: 1 });
     sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
     sim.applyPendingCommands();
@@ -93,6 +96,7 @@ describe('setPersonPosition command', () => {
     const sim = new Simulation({ seed: 11, width: 16, height: 16, maxGuests: 10 });
     sim.world.map.ownership.fill(OWNED);
     sim.world.map.waterLevel.fill(0);
+    addSpawnAtCorner(sim.world);
     sim.enqueue({ type: 'spawnGuests', count: 1 });
     sim.step();
     sim.applyPendingCommands();

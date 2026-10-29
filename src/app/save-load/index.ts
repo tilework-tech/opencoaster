@@ -97,7 +97,7 @@ export function createSaveLoadController(deps: SaveLoadDependencies) {
       seed: 1,
       width: DEFAULT_MAP_SIZE,
       height: DEFAULT_MAP_SIZE,
-      initialGuests: 1000,
+      initialGuests: 0,
     });
     begin({ scenarioId: SANDBOX_ID, scenarioName: scenarioDisplayName(SANDBOX_ID) }, false);
   }

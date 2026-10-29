@@ -47,7 +47,8 @@ import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 /** Staff activity totals and guest sight memory are stored from this version. */
 const STAFF_STATS_SAVE_VERSION = 32;
 const PRE_STAFF_STATS_SAVE_VERSION = 31;
-export const SAVE_VERSION = 32;
+/** v33: park header gains `spawns`, the map-edge points where guests arrive; older saves keep spawning at the gate. */
+export const SAVE_VERSION = 33;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
@@ -555,6 +556,7 @@ export function deserialize(bytes: Uint8Array): World {
     HAPPINESS_TARGET_SAVE_VERSION,
     DOWNTIME_SAVE_VERSION,
     PRE_STAFF_STATS_SAVE_VERSION,
+    STAFF_STATS_SAVE_VERSION,
     SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {

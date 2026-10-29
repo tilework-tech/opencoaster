@@ -1,3 +1,4 @@
+import { addSpawnAtCorner } from '../sim/integration/fixtures';
 import { describe, expect, it } from 'vitest';
 import { World } from '../sim/core/world';
 import { spawnGuest } from '../sim/guests/guest-store';
@@ -12,6 +13,7 @@ import type { FollowTarget } from './follow-target';
 
 function park() {
   const world = new World({ seed: 11, width: 20, height: 20, maxGuests: 2 });
+  addSpawnAtCorner(world);
   spawnGuest(world);
   spawnGuest(world);
   spawnStaff(world, StaffKind.Mechanic);

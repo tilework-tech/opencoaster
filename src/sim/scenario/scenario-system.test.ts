@@ -7,6 +7,7 @@ import type { ScenarioDef, ScenarioObjective } from './scenario';
 import { RideState } from '../rides/ride-store';
 import { RideType } from '../rides/ride-types';
 import { meetsObjective } from './scenario-system';
+import { addSpawnAtCorner } from '../integration/fixtures';
 import { spawnGuest } from '../guests/guest-store';
 import { Climate, DEFAULT_CLIMATE } from '../weather/weather';
 
@@ -33,6 +34,7 @@ function def(objective: ScenarioObjective): ScenarioDef {
 
 function play(objective: ScenarioObjective, setup: (s: Simulation) => void): ScenarioStatus {
   const s = new Simulation({ seed: 1, width: 16, height: 16 });
+  addSpawnAtCorner(s.world);
   applyScenario(s.world, def(objective));
   setup(s);
   for (let i = 0; i < objective.byTick + 1; i++) s.step();
@@ -214,6 +216,7 @@ describe('scenario objectives', () => {
     };
     const s = new Simulation({ seed: 1, width: 16, height: 16 });
     applyScenario(s.world, def(objective));
+    addSpawnAtCorner(s.world);
     s.world.economy.parkRating = 700;
     expect(meetsObjective(s.world, objective)).toBe(false);
     spawnGuest(s.world);
