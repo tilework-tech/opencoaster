@@ -1,0 +1,99 @@
+{
+  "backend": "canvas2d",
+  "mobile": false,
+  "baseUrl": "http://127.0.0.1:4173/",
+  "viewport": {
+    "width": 1000,
+    "height": 700
+  },
+  "setup": {
+    "backend": "canvas2d",
+    "categories": [
+      "coaster-wood",
+      "people",
+      "vehicles",
+      "world"
+    ],
+    "map": [
+      48,
+      48
+    ],
+    "guests": 12,
+    "rides": 1,
+    "tracks": 14,
+    "pathLamps": 19,
+    "renderersInstantiated": [
+      "canvas2d"
+    ]
+  },
+  "conditions": {
+    "clear-night": {
+      "checks": {
+        "canvas": {
+          "uniqueColours": 711,
+          "meanLuma": 74.4,
+          "lumaStdDev": 22.2,
+          "litFraction": 0.994
+        },
+        "coveredBy": null,
+        "contextAlive": true,
+        "contextLosses": 0,
+        "spritesLoaded": true
+      },
+      "screenshotStats": {
+        "uniqueColours": 711,
+        "meanLuma": 74.4,
+        "lumaStdDev": 22.2,
+        "litFraction": 0.994
+      },
+      "timing": null,
+      "problems": []
+    },
+    "rainy-night": {
+      "checks": {
+        "canvas": {
+          "uniqueColours": 711,
+          "meanLuma": 74.4,
+          "lumaStdDev": 22.2,
+          "litFraction": 0.994
+        },
+        "coveredBy": null,
+        "contextAlive": true,
+        "contextLosses": 0,
+        "spritesLoaded": true
+      },
+      "screenshotStats": {
+        "uniqueColours": 931,
+        "meanLuma": 72.6,
+        "lumaStdDev": 22.5,
+        "litFraction": 0.994
+      },
+      "timing": null,
+      "problems": []
+    },
+    "storm-night": {
+      "checks": {
+        "canvas": {
+          "uniqueColours": 711,
+          "meanLuma": 74.4,
+          "lumaStdDev": 22.2,
+          "litFraction": 0.994
+        },
+        "coveredBy": null,
+        "contextAlive": true,
+        "contextLosses": 0,
+        "spritesLoaded": true
+      },
+      "screenshotStats": {
+        "uniqueColours": 956,
+        "meanLuma": 70,
+        "lumaStdDev": 24.6,
+        "litFraction": 0.994
+      },
+      "timing": null,
+      "problems": []
+    }
+  },
+  "pageProblems": [],
+  "valid": true
+}

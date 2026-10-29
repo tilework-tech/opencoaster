@@ -1,0 +1,52 @@
+{
+ "loaded": {
+  "outside": 0,
+  "inside": 3,
+  "guests": 2
+ },
+ "t0": {
+  "outside": 0,
+  "inside": 3,
+  "guests": 152
+ },
+ "t1": {
+  "outside": 0,
+  "inside": 3,
+  "guests": 152
+ },
+ "t2": {
+  "outside": 0,
+  "inside": 3,
+  "guests": 152
+ },
+ "t3": {
+  "outside": 0,
+  "inside": 5,
+  "guests": 152
+ },
+ "t4": {
+  "outside": 0,
+  "inside": 7,
+  "guests": 153
+ },
+ "t5": {
+  "outside": 0,
+  "inside": 7,
+  "guests": 154
+ },
+ "t6": {
+  "outside": 0,
+  "inside": 7,
+  "guests": 154
+ },
+ "t7": {
+  "outside": 0,
+  "inside": 7,
+  "guests": 154
+ },
+ "final": {
+  "outside": 0,
+  "inside": 7,
+  "guests": 154
+ }
+}

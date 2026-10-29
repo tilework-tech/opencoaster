@@ -1,0 +1,36 @@
+{
+ "SAVE_VERSION": 35,
+ "reserializedVersion": 35,
+ "loadedV34": {
+  "trees": 0,
+  "entrance": [
+   63,
+   95
+  ],
+  "spawns": [
+   {
+    "x": 63,
+    "y": 127
+   }
+  ],
+  "litter": 3,
+  "guests": 1,
+  "tick": 96135
+ },
+ "reloadedV35": {
+  "trees": 0,
+  "entrance": [
+   63,
+   95
+  ],
+  "spawns": [
+   {
+    "x": 63,
+    "y": 127
+   }
+  ],
+  "litter": 3,
+  "guests": 1,
+  "tick": 96135
+ }
+}

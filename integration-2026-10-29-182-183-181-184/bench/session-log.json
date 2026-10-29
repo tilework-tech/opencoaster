@@ -1,0 +1,31 @@
+{
+ "firstTick": 1,
+ "lastTick": 131079,
+ "sessions": {
+  "123": {
+   "heading": 3,
+   "start": 48584,
+   "seatedAt": 48616,
+   "end": 49654,
+   "x": 8320,
+   "y": 9867
+  },
+  "221": {
+   "heading": 1,
+   "start": 36429,
+   "seatedAt": 36464,
+   "end": 37565,
+   "x": 7808,
+   "y": 11113
+  },
+  "230": {
+   "heading": 3,
+   "start": 44107,
+   "seatedAt": 44138,
+   "end": 45226,
+   "x": 6528,
+   "y": 11147
+  }
+ },
+ "sittingNow": []
+}

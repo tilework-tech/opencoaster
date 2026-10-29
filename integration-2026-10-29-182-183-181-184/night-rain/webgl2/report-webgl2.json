@@ -1,0 +1,99 @@
+{
+  "backend": "webgl2",
+  "mobile": false,
+  "baseUrl": "http://127.0.0.1:4173/",
+  "viewport": {
+    "width": 1000,
+    "height": 700
+  },
+  "setup": {
+    "backend": "webgl2",
+    "categories": [
+      "coaster-wood",
+      "people",
+      "vehicles",
+      "world"
+    ],
+    "map": [
+      48,
+      48
+    ],
+    "guests": 12,
+    "rides": 1,
+    "tracks": 14,
+    "pathLamps": 19,
+    "renderersInstantiated": [
+      "webgl2"
+    ]
+  },
+  "conditions": {
+    "clear-night": {
+      "checks": {
+        "canvas": {
+          "uniqueColours": 524,
+          "meanLuma": 70.2,
+          "lumaStdDev": 20.8,
+          "litFraction": 0.994
+        },
+        "coveredBy": null,
+        "contextAlive": true,
+        "contextLosses": 0,
+        "spritesLoaded": true
+      },
+      "screenshotStats": {
+        "uniqueColours": 524,
+        "meanLuma": 70.2,
+        "lumaStdDev": 20.8,
+        "litFraction": 0.994
+      },
+      "timing": null,
+      "problems": []
+    },
+    "rainy-night": {
+      "checks": {
+        "canvas": {
+          "uniqueColours": 524,
+          "meanLuma": 70.2,
+          "lumaStdDev": 20.8,
+          "litFraction": 0.994
+        },
+        "coveredBy": null,
+        "contextAlive": true,
+        "contextLosses": 0,
+        "spritesLoaded": true
+      },
+      "screenshotStats": {
+        "uniqueColours": 793,
+        "meanLuma": 68.9,
+        "lumaStdDev": 21.6,
+        "litFraction": 0.994
+      },
+      "timing": null,
+      "problems": []
+    },
+    "storm-night": {
+      "checks": {
+        "canvas": {
+          "uniqueColours": 524,
+          "meanLuma": 70.2,
+          "lumaStdDev": 20.8,
+          "litFraction": 0.994
+        },
+        "coveredBy": null,
+        "contextAlive": true,
+        "contextLosses": 0,
+        "spritesLoaded": true
+      },
+      "screenshotStats": {
+        "uniqueColours": 813,
+        "meanLuma": 66.7,
+        "lumaStdDev": 24.2,
+        "litFraction": 0.994
+      },
+      "timing": null,
+      "problems": []
+    }
+  },
+  "pageProblems": [],
+  "valid": true
+}
