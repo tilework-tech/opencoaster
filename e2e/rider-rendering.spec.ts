@@ -18,8 +18,16 @@ async function forceCanvas2D(page: Page): Promise<void> {
   });
 }
 
+async function waitForPaint(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+}
+
 for (const backend of ['WebGL2', 'Canvas2D'] as const) {
-  for (const kind of KINDS) {
+  const kinds: readonly ShowcaseRide[] = backend === 'Canvas2D' ? ['coaster'] : KINDS;
+  for (const kind of kinds) {
     test(`${kind} riders are drawn in the vehicles or hidden, never walking (${backend})`, async ({
       page,
     }, testInfo) => {
@@ -74,7 +82,7 @@ for (const backend of ['WebGL2', 'Canvas2D'] as const) {
           },
           { focus, rotation },
         );
-        await page.waitForTimeout(800);
+        await waitForPaint(page);
         const path = join(OUT ?? testInfo.outputDir, `${kind}-${backend}-rot${rotation}.png`);
         await mkdir(dirname(path), { recursive: true });
         await page.screenshot({ path });

@@ -27,7 +27,7 @@ const CANVAS2D = process.env.WATER_FRAMES_RENDERER === 'canvas2d';
 const only = process.env.WATER_FRAMES_SCENES?.split(',');
 
 for (const profile of ['desktop', 'pixel-8'] as const) {
-  test(`water frames ${profile}`, async ({ browser }) => {
+  test(`water frames ${profile}`, async ({ freshBrowser: browser }) => {
     test.skip(!OUT, 'set WATER_FRAMES_DIR to capture frames');
     test.setTimeout(900_000);
     const mobile = profile === 'pixel-8';

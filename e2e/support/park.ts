@@ -47,6 +47,16 @@ export async function openPage(browser: Browser, mobile: boolean): Promise<Page>
   return page;
 }
 
+export async function forceCanvas2D(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
+      if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') return null;
+      return originalGetContext.call(this, type as '2d', ...(args as []));
+    } as typeof HTMLCanvasElement.prototype.getContext;
+  });
+}
+
 export async function startScenario(page: Page, name: string): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'New game' }).click();
@@ -187,6 +197,29 @@ export async function hudCash(page: Page): Promise<number> {
     }
   }
   throw new Error('HUD cash readout is missing');
+}
+
+export async function hudTick(page: Page): Promise<number> {
+  const hud = await page.locator('.hud').innerText();
+  const tick = hud.match(/\btick (\d+)\b/);
+  if (!tick) throw new Error('Simulation tick is missing from the HUD');
+  return Number(tick[1]);
+}
+
+export async function waitForSimulationTicks(
+  page: Page,
+  afterTick: number,
+  tickCount: number,
+): Promise<void> {
+  await page.waitForFunction(
+    ({ after, count }) => {
+      const tick = (window as unknown as { __sim?: { latest?: { tick?: number } } }).__sim?.latest
+        ?.tick;
+      return typeof tick === 'number' && tick >= after + count;
+    },
+    { after: afterTick, count: tickCount },
+    { timeout: 30_000 },
+  );
 }
 
 export async function savedWorld(page: Page): Promise<World> {

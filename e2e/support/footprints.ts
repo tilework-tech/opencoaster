@@ -167,7 +167,16 @@ export async function toolbarAction(page: Page, name: string, mobile = false): P
 export async function centerMapOnTile(page: Page, [x, y]: Tile, mobile = false): Promise<void> {
   await toolbarAction(page, 'Map', mobile);
   const minimap = page.locator('.minimap');
-  await expect.poll(() => minimap.evaluate((canvas) => canvas.width)).toBe(128);
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('.minimap');
+    const map = (window as unknown as { __map?: { width: number; height: number } }).__map;
+    return (
+      !!canvas &&
+      !!map &&
+      canvas.width === map.width + map.height &&
+      canvas.height === Math.ceil((map.width + map.height) / 2) + 1
+    );
+  });
   const bounds = await minimap.boundingBox();
   if (!bounds) throw new Error('Park map is missing');
   const size = await minimap.evaluate((canvas) => ({ width: canvas.width, height: canvas.height }));
@@ -191,7 +200,7 @@ export async function tileScreenPoint(page: Page, [x, y]: Tile): Promise<{ x: nu
   const dy = y - MAP_CENTER[1];
   return {
     x: bounds.x + bounds.width / 2 + (dx - dy) * TILE_HALF_WIDTH,
-    y: bounds.y + bounds.height / 2 + (dx + dy) * TILE_HALF_HEIGHT - 2 * TILE_HALF_HEIGHT,
+    y: bounds.y + bounds.height / 2 + (dx + dy) * TILE_HALF_HEIGHT - 4 * TILE_HALF_HEIGHT,
   };
 }
 

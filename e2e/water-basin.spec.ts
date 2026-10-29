@@ -8,6 +8,7 @@ import {
   expect,
   hoverUntil,
   hudCash,
+  hudTick,
   importWorld,
   openPage,
   PHONE_SHIFT,
@@ -96,7 +97,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
       return win;
     }
 
-    test.beforeEach(async ({ browser }) => {
+    test.beforeEach(async ({ freshBrowser: browser }) => {
       test.setTimeout(300_000);
       setup = { page: await openPage(browser, mobile), mobile };
       await startStarterPark(setup.page);
@@ -137,9 +138,10 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await expect(tip(page)).toHaveText(/^Water would spill over the bank/, { timeout: 1500 });
       });
       const cash = await hudCash(page);
+      const tick = await hudTick(page);
       await tapAt(setup, aim);
-      await page.waitForTimeout(1_000);
-      expect(await hudCash(page)).toBe(cash);
+      await expect.poll(() => hudTick(page)).toBeGreaterThan(tick);
+      await expect.poll(() => hudCash(page)).toBe(cash);
 
       const filled = (await savedWorld(page)).map;
       const wet = lake(filled);

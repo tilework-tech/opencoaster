@@ -1,6 +1,6 @@
 import { expect, test } from './support/test';
 import type { Page } from './support/test';
-import { importWorld, openPage } from './support/park';
+import { importWorld, openPage, waitForSimulationTicks } from './support/park';
 import { toolbarTool } from './footpath-helpers';
 import { project } from '../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
@@ -72,8 +72,8 @@ async function frame(page: Page, tile: { x: number; y: number }, zoom: number): 
 }
 
 test('a crowd on the footpath beside a ride exit never steps onto the hut', async ({
-  browser,
-}, testInfo) => {
+  freshBrowser: browser,
+}) => {
   test.setTimeout(240_000);
   const page = await openPage(browser, false);
   await page.goto('/');
@@ -91,7 +91,7 @@ test('a crowd on the footpath beside a ride exit never steps onto the hut', asyn
   for (let sample = 0; sample < 90; sample++) {
     const seen = await occupancy(page);
     if (seen.tick === lastTick) {
-      await page.waitForTimeout(100);
+      await waitForSimulationTicks(page, lastTick, 32);
       continue;
     }
     lastTick = seen.tick;
@@ -102,12 +102,7 @@ test('a crowd on the footpath beside a ride exit never steps onto the hut', asyn
     if (process.env.EXIT_PROOF_DIR && (sample === 10 || sample === 30 || sample === 50)) {
       await page.screenshot({ path: `${process.env.EXIT_PROOF_DIR}/crowd-${sample}.png` });
     }
-    if (sample === 30) {
-      const path = testInfo.outputPath('exit-crowd.png');
-      await page.screenshot({ path });
-      await testInfo.attach('exit-crowd', { path, contentType: 'image/png' });
-    }
-    await page.waitForTimeout(200);
+    await waitForSimulationTicks(page, seen.tick, 32);
   }
 
   if (process.env.EXIT_PROOF_DIR)

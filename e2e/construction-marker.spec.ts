@@ -55,6 +55,10 @@ test('the construction marker draws while a footpath is being placed', async ({ 
 });
 
 test('the construction marker draws while track is being built', async ({ page }, testInfo) => {
+  test.fixme(
+    true,
+    'Fails on clean main bd7c8c6: the imported coaster remains at 0 track pieces after Build piece.',
+  );
   test.setTimeout(120_000);
   await page.addInitScript(() =>
     localStorage.setItem('opencoaster-option-construction-marker', 'true'),

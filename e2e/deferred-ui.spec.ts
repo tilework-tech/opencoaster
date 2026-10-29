@@ -8,9 +8,17 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
   await expect(page.getByRole('tab', { name: 'Beginner Parks' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Challenging Parks' })).toBeVisible();
   await expect(
-    page.locator('.scenario-map-preview[alt="Starter Park scenario preview"]'),
+    page
+      .locator('.scenario-card')
+      .filter({ hasText: 'Starter Park' })
+      .getByRole('img', { name: 'Starter Park scenario preview' }),
   ).toBeVisible();
-  await expect(page.locator('.scenario-objective').first()).toContainText('guests');
+  await expect(
+    page
+      .locator('.scenario-card')
+      .filter({ hasText: 'Starter Park' })
+      .locator('.scenario-objective'),
+  ).toContainText('guests');
   await page
     .locator('.scenario-card')
     .filter({ hasText: 'Starter Park' })

@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
-import { test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { test } from './support/test';
+import type { Page } from './support/test';
 import {
   SNAKE_QUEUE,
   buildQueuedRide,
@@ -35,7 +35,7 @@ async function frame(page: Page, canvas2d: boolean): Promise<Buffer> {
 }
 
 for (const renderer of ['webgl2', 'canvas2d'] as const) {
-  test(`${LABEL} ${renderer}`, async ({ browser }, testInfo) => {
+  test(`${LABEL} ${renderer}`, async ({ freshBrowser: browser }, testInfo) => {
     test.skip(!LABEL, 'proof capture only');
     test.setTimeout(900_000);
     await mkdir(OUT, { recursive: true });

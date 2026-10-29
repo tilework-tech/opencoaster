@@ -6,6 +6,7 @@ import { createTestContext } from './support/test-contexts';
 import { project } from '../src/render/projection';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { createScenarioWorld, dragThrough, tileScreenPoint, toolbarTool } from './footpath-helpers';
+import { forceCanvas2D } from './support/park';
 import type { Tile } from './footpath-helpers';
 
 /**
@@ -244,21 +245,14 @@ export async function openPage(
 ): Promise<Page> {
   const { defaultBrowserType: _browserType, ...device } = mobile ? devices['Pixel 8'] : {};
   void _browserType;
+  const scale = options.scale ?? (mobile ? 1 : undefined);
   const context = await createTestContext(browser, {
     ...device,
+    ...(scale !== undefined ? { deviceScaleFactor: scale } : {}),
     baseURL: options.baseURL ?? 'http://127.0.0.1:4173',
-    ...(options.scale ? { deviceScaleFactor: options.scale } : {}),
   });
   const page = await context.newPage();
-  if (options.canvas2d) {
-    await page.addInitScript(() => {
-      const originalGetContext = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
-        if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') return null;
-        return originalGetContext.call(this, type as '2d', ...(args as []));
-      } as typeof HTMLCanvasElement.prototype.getContext;
-    });
-  }
+  if (options.canvas2d) await forceCanvas2D(page);
   return page;
 }
 
@@ -280,6 +274,7 @@ export async function startOpenGrounds(page: Page): Promise<void> {
       },
     )
     .not.toBe(0);
+  await expect(page.locator('#game')).toBeVisible({ timeout: 30_000 });
 }
 
 /**
@@ -304,12 +299,16 @@ export async function pressAndDrag(
     type: 'touchStart',
     touchPoints: await point(tiles[0]!),
   });
-  for (const tile of tiles.slice(1)) {
+  for (const [index, tile] of tiles.slice(1).entries()) {
     await cdp.send('Input.dispatchTouchEvent', {
       type: 'touchMove',
       touchPoints: await point(tile),
     });
-    await page.waitForTimeout(40);
+    const expectedTiles = index + 2;
+    await expect(page.locator('.path-ghost-label')).toContainText(
+      new RegExp(`^${expectedTiles} tiles? ·`),
+      { timeout: 15_000 },
+    );
   }
   return async () => {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -341,9 +340,12 @@ export async function buildQueuedRide(
   mobile: boolean,
   options: { crowds?: number; queueLimit?: number; legacy?: boolean } = {},
 ): Promise<void> {
+  const expectStatus = (text: string | RegExp) =>
+    expect(page.locator('.tool-status')).toContainText(text, { timeout: mobile ? 60_000 : 20_000 });
+
   await toolbarTool(page, 'Footpaths');
   await dragRun(page, WALKWAY, lift, mobile);
-  await expect(page.locator('.tool-status')).toContainText('Laid');
+  await expectStatus('Laid');
 
   await toolbarTool(page, 'New ride');
   await page.getByRole('tab', { name: 'Gentle rides' }).click();
@@ -354,12 +356,12 @@ export async function buildQueuedRide(
   const [rx, ry] = await tileScreenPoint(page, world, layout.ride);
   if (mobile) await page.touchscreen.tap(rx, ry);
   else await page.mouse.click(rx, ry);
-  await expect(page.locator('.tool-status')).toContainText('Place entrance');
+  await expectStatus('Place entrance');
   const { entrance, exit } = layout;
   const [entranceX, entranceY] = await tileScreenPoint(page, world, entrance);
   if (mobile) await page.touchscreen.tap(entranceX, entranceY);
   else await page.mouse.click(entranceX, entranceY);
-  await expect(page.locator('.tool-status')).toContainText('Place exit');
+  await expectStatus('Place exit');
   const [exitX, exitY] = await tileScreenPoint(page, world, exit);
   if (mobile) await page.touchscreen.tap(exitX, exitY);
   else await page.mouse.click(exitX, exitY);
@@ -368,47 +370,45 @@ export async function buildQueuedRide(
   const legacy = options.legacy === true;
   if (legacy) {
     // The previous build has no queue prompt: the player opens Footpaths and ticks Queue line.
-    await expect(page.locator('.tool-status')).toContainText('Ride setup complete');
+    await expectStatus('Ride setup complete');
     await toolbarTool(page, 'Footpaths');
     await page.getByRole('button', { name: 'Queue line', exact: true }).first().click();
   } else if (layout.queue.length === 0) {
-    await expect(page.locator('.tool-status')).toContainText('Ride setup complete');
+    await expectStatus('Ride setup complete');
   } else {
-    await expect(page.locator('.tool-status')).toContainText('Build the queue');
+    await expectStatus('Build the queue');
     await expect(
       page.getByRole('button', { name: 'Queue line', exact: true }).first(),
     ).toHaveAttribute('aria-pressed', 'true');
-    await page.waitForTimeout(400);
-    await screenshot(page, testInfo, 'queue-prompt');
-    await expect(rideWindow.locator('.ride-checklist')).toContainText('Entrance has no queue');
+    await expect(rideWindow.locator('.ride-checklist')).toContainText('Entrance has no queue', {
+      timeout: 20_000,
+    });
   }
 
   if (layout.queue.length > 0) {
     await focus(page, layout.queue[Math.floor(layout.queue.length / 2)]!, lift);
     const drags = layout.queueDrags ?? [layout.queue];
-    for (const [k, tiles] of drags.entries()) {
+    for (const tiles of drags) {
       const release = await pressAndDrag(page, tiles, mobile);
       if (drags.length === 1) {
         if (!legacy) {
           const label = page.locator('.path-ghost-label');
           await expect(label).toContainText('links to a ride entrance');
           await expect(label).toContainText('open end joins the path');
-        } else await page.waitForTimeout(500);
-        if (!legacy) await screenshot(page, testInfo, 'queue-ghost');
-      } else if (k === drags.length - 1) await screenshot(page, testInfo, 'queue-ghost');
+        } else await expect(page.locator('.path-ghost-label')).toBeVisible();
+      }
       await release();
-      await expect(page.locator('.tool-status')).toContainText(/Laid|Queue connected/);
+      await expectStatus(/Laid|Queue connected/);
     }
   }
   if (layout.exitRun.length > 0) {
     if (layout.queue.length === 0) await toolbarTool(page, 'Footpaths');
     else await page.getByRole('button', { name: 'Queue line', exact: true }).first().click();
     await dragRun(page, layout.exitRun, lift, mobile);
-    await expect(page.locator('.tool-status')).toContainText(/Laid|already/);
+    await expectStatus(/Laid|already/);
   }
   if (!legacy) await expect(rideWindow.locator('.ride-checklist')).toBeEmpty();
   await focus(page, entrance, lift);
-  if (!legacy) await screenshot(page, testInfo, 'queue-built');
 
   const open = rideWindow.getByRole('button', { name: 'Open', exact: true });
   await toolbarTool(page, 'Rides');
@@ -422,15 +422,13 @@ export async function buildQueuedRide(
 
   if (options.queueLimit !== undefined) {
     const value = rideWindow.locator('.ride-queue-limit .stat-value');
-    for (
-      let guard = 0;
-      guard < 40 && (await value.innerText()) !== `${options.queueLimit} guests`;
-      guard++
-    ) {
+    for (let guard = 0; guard < 40; guard++) {
+      const current = await value.innerText();
+      if (current === `${options.queueLimit} guests`) break;
       await rideWindow.getByRole('button', { name: 'Shorten queue limit' }).click();
-      await page.waitForTimeout(250);
+      await expect(value).not.toHaveText(current, { timeout: 30_000 });
     }
-    await expect(value).toHaveText(`${options.queueLimit} guests`);
+    await expect(value).toHaveText(`${options.queueLimit} guests`, { timeout: 30_000 });
   }
 
   await toolbarTool(page, 'Game options');

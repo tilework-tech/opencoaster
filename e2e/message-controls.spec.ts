@@ -106,13 +106,13 @@ async function exerciseMessages(browser: Browser, mobile: boolean): Promise<void
 }
 
 test('desktop message queue supports dismiss, history, clearing and category filters', async ({
-  browser,
+  freshBrowser: browser,
 }) => {
   await exerciseMessages(browser, false);
 });
 
 test('Pixel 8 message queue supports dismiss, swipe, history, clearing and category filters', async ({
-  browser,
+  freshBrowser: browser,
 }) => {
   await exerciseMessages(browser, true);
 });

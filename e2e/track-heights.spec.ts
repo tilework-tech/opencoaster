@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Locator, Page } from './support/test';
 import { TILE_UNITS, Z_STEP } from '../src/sim/core/constants';
 import { World } from '../src/sim/core/world';
 import { OWNED } from '../src/sim/map/tile-map';

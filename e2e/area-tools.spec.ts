@@ -9,6 +9,7 @@ import {
   expect,
   hoverUntil,
   hudCash,
+  hudTick,
   openPage,
   PHONE_SHIFT,
   point,
@@ -103,7 +104,7 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
   test.describe(`area tools on ${profile}`, () => {
     let setup: Setup;
 
-    test.beforeEach(async ({ browser }) => {
+    test.beforeEach(async ({ freshBrowser: browser }) => {
       test.setTimeout(300_000);
       setup = { page: await openPage(browser, mobile), mobile };
       await startStarterPark(setup.page);
@@ -175,10 +176,11 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await expect(overlay(page, 'area-bad').first()).toBeVisible({ timeout: 1500 });
       });
       const before = await hudCash(page);
+      const tick = await hudTick(page);
       await tapAt(setup, target);
       await expect(page.locator('.tool-status')).toContainText('Clearing scenery at');
-      await page.waitForTimeout(1_000);
-      expect(await hudCash(page)).toBe(before);
+      await expect.poll(() => hudTick(page)).toBeGreaterThan(tick);
+      await expect.poll(() => hudCash(page)).toBe(before);
     });
 
     test('water refuses to cover a footpath', async () => {
@@ -189,10 +191,11 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         await expect(tip(page)).toHaveText('Footpath in the way.', { timeout: 1500 });
       });
       const before = await hudCash(page);
+      const tick = await hudTick(page);
       await tapAt(setup, target);
       await expect(page.locator('.tool-status')).toContainText('Raising water at');
-      await page.waitForTimeout(1_000);
-      expect(await hudCash(page)).toBe(before);
+      await expect.poll(() => hudTick(page)).toBeGreaterThan(tick);
+      await expect.poll(() => hudCash(page)).toBe(before);
     });
   });
 }

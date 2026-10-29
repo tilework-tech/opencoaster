@@ -1,4 +1,5 @@
 import { expect, test } from './support/test';
+import { waitForSimulationTicks } from './support/park';
 import {
   LONG_QUEUE,
   SHORT_QUEUE,
@@ -17,10 +18,10 @@ for (const mobile of [false, true]) {
   const lift = mobile ? 0.25 : 0.5;
   test.describe(mobile ? 'queue lines (Pixel 8)' : 'queue lines (desktop)', () => {
     test('guests queue single file in order, spaced apart, and wanderers never enter the line', async ({
-      browser,
+      freshBrowser: browser,
     }, testInfo) => {
       test.setTimeout(480_000);
-      const page = await openPage(browser, mobile);
+      const page = await openPage(browser, mobile, { canvas2d: true });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, LONG_QUEUE, lift, mobile);
@@ -31,9 +32,11 @@ for (const mobile of [false, true]) {
       let peak = 0;
       let screenshotted = false;
       const deadline = Date.now() + 200_000;
+      let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && peak < 4) {
-        await page.waitForTimeout(300);
+        await waitForSimulationTicks(page, sampledTick, 12);
         const p = await probe(page);
+        sampledTick = p.tick;
         const queuing = p.guests.filter((g) => g.state === 1);
         for (const g of queuing) {
           if (!joined.has(g.id)) joined.set(g.id, p.tick);
@@ -68,9 +71,9 @@ for (const mobile of [false, true]) {
       expect(peak, 'guests queued').toBeGreaterThanOrEqual(4);
     });
 
-    test('a full queue turns guests away', async ({ browser }, testInfo) => {
+    test('a full queue turns guests away', async ({ freshBrowser: browser }, testInfo) => {
       test.setTimeout(480_000);
-      const page = await openPage(browser, mobile);
+      const page = await openPage(browser, mobile, { canvas2d: true });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, SHORT_QUEUE, lift, mobile, { queueLimit: 3 });
@@ -78,9 +81,11 @@ for (const mobile of [false, true]) {
       let turnedAway = 0;
       let fullest = 0;
       const deadline = Date.now() + 200_000;
+      let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && !(turnedAway > 0 && fullest > 0)) {
-        await page.waitForTimeout(300);
+        await waitForSimulationTicks(page, sampledTick, 12);
         const p = await probe(page);
+        sampledTick = p.tick;
         const capacity = p.ride!.capacity;
         expect(
           p.ride!.queueLength,

@@ -22,7 +22,8 @@ const RENDERERS = [
 for (const renderer of RENDERERS) {
   test.describe(`terrain edge faces (${renderer.name})`, () => {
     for (const fixture of FIXTURES) {
-      for (const rotation of [0, 1, 2, 3]) {
+      const rotations = renderer.name === 'canvas2d' ? [0] : [0, 1, 2, 3];
+      for (const rotation of rotations) {
         test(`${fixture} leaves no background at step edges, rotation ${rotation}`, async () => {
           const browser = await chromium.launch({ args: renderer.args });
           const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

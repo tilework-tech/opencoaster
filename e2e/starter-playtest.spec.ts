@@ -185,7 +185,7 @@ test('plays the starter park shell and exercises save file round trips', async (
     await expect(rideRow).toBeVisible();
     const rideId = await rideRow.getAttribute('data-ride-id');
     if (!rideId) throw new Error('Merry-Go-Round row is missing its ride id');
-    await rideRow.click();
+    await rideRow.click({ position: { x: 10, y: 10 } });
     const rideWindow = page.locator(`[data-panel="ride-${rideId}"]`);
     await expect(rideWindow).toBeVisible();
     await expect(rideWindow.locator('.ride-status')).toHaveText('Closed');

@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
-import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page, TestInfo } from './support/test';
 import sharp from 'sharp';
 import { project, rotateOffset } from '../src/render/projection';
 import type { Rotation } from '../src/render/projection';

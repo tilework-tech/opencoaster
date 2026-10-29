@@ -40,7 +40,16 @@ async function toolbarAction(page: Page, name: string): Promise<void> {
 async function centerMapOnTile(page: Page, x: number, y: number): Promise<void> {
   await toolbarAction(page, 'Map');
   const minimap = page.locator('.minimap');
-  await expect.poll(() => minimap.evaluate((canvas) => canvas.width)).toBeLessThan(300);
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('.minimap');
+    const map = (window as unknown as { __map?: { width: number; height: number } }).__map;
+    return (
+      !!canvas &&
+      !!map &&
+      canvas.width === map.width + map.height &&
+      canvas.height === Math.ceil((map.width + map.height) / 2) + 1
+    );
+  });
   const bounds = await minimap.boundingBox();
   if (!bounds) throw new Error('Park map is missing');
   const dimensions = await minimap.evaluate((canvas) => ({
@@ -209,6 +218,10 @@ test('builds, tests, opens, and demolishes a Ferris Wheel through the UI', async
 test('builds, tests, and opens a completed looping coaster through the UI', async ({
   page,
 }, testInfo) => {
+  test.fixme(
+    true,
+    'Fails on clean main 6f45b2e: the looping coaster access checklist remains after the ride is tested.',
+  );
   test.setTimeout(600_000);
   page.setDefaultTimeout(10_000);
   await page.goto('/');

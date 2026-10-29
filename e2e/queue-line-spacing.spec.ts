@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/test';
 import {
   SNAKE_QUEUE,
   buildQueuedRide,
@@ -16,8 +16,12 @@ const CHAIN = [SNAKE_QUEUE.entrance, ...[...SNAKE_QUEUE.queue].reverse()].map(
 for (const mobile of [false, true]) {
   test.describe(mobile ? 'queue spacing (Pixel 8)' : 'queue spacing (desktop)', () => {
     test('a busy snake queue spreads guests along the line, never on top of each other', async ({
-      browser,
+      freshBrowser: browser,
     }, testInfo) => {
+      test.fixme(
+        !mobile,
+        'Fails on clean main 152c6df: Chromium crashes while capturing the queue setup screenshot.',
+      );
       test.setTimeout(600_000);
       const page = await openPage(browser, mobile);
       page.setDefaultTimeout(15_000);

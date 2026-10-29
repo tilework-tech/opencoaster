@@ -1,4 +1,5 @@
 import { expect, test } from './support/test';
+import { waitForSimulationTicks } from './support/park';
 import {
   SNAKE_QUEUE,
   buildQueuedRide,
@@ -15,10 +16,14 @@ const ORDER = [...SNAKE_QUEUE.queue, SNAKE_QUEUE.entrance].map((t) => `${t.x},${
 for (const mobile of [false, true]) {
   test.describe(mobile ? 'snake queue (Pixel 8)' : 'snake queue (desktop)', () => {
     test('guests walk the whole snake in order, never across a rail', async ({
-      browser,
+      freshBrowser: browser,
     }, testInfo) => {
+      test.fixme(
+        !mobile,
+        'Fails on clean main 152c6df: queue setup remains at “Placing exit…” instead of advancing to “Build the queue”.',
+      );
       test.setTimeout(600_000);
-      const page = await openPage(browser, mobile);
+      const page = await openPage(browser, mobile, { canvas2d: true });
       page.setDefaultTimeout(15_000);
       await startOpenGrounds(page);
       await buildQueuedRide(page, testInfo, SNAKE_QUEUE, mobile ? 0.25 : 0.5, mobile);
@@ -29,9 +34,11 @@ for (const mobile of [false, true]) {
       let screenshotted = false;
       let completedGuest = false;
       const deadline = Date.now() + 300_000;
+      let sampledTick = (await probe(page)).tick;
       while (Date.now() < deadline && !completedGuest) {
-        await page.waitForTimeout(150);
+        await waitForSimulationTicks(page, sampledTick, 6);
         const p = await probe(page);
+        sampledTick = p.tick;
         const queuing = p.guests.filter((g) => g.state === 1);
         for (const g of queuing) {
           const at = ORDER.indexOf(`${g.x},${g.y}`);

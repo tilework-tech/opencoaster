@@ -53,7 +53,7 @@ async function grab(page: Page, mobile: boolean, name: string, tight = false): P
 for (const renderer of ['webgl2', 'canvas2d'] as const) {
   for (const mobile of [false, true]) {
     const device = mobile ? 'pixel8' : 'desktop';
-    test(`${MODE} ${renderer} ${device}`, async ({ browser }, testInfo) => {
+    test(`${MODE} ${renderer} ${device}`, async ({ freshBrowser: browser }, testInfo) => {
       test.skip(!MODE, 'proof capture only');
       test.setTimeout(1_200_000);
       await mkdir(OUT, { recursive: true });

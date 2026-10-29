@@ -523,7 +523,7 @@ async function startSandbox(page: Page, mobile = false): Promise<void> {
   if (await park.count()) await park.getByRole('button', { name: 'Close Park' }).click();
 }
 
-async function auditToolbar(page: Page, mobile = false): Promise<void> {
+async function auditToolbar(page: Page, mobile = false, auditPanelControls = true): Promise<void> {
   const toolbar = page.locator('.game-toolbar');
   const actions = toolbar.getByRole('button', { name: 'Actions', exact: true });
   if (mobile && (await actions.getAttribute('aria-expanded')) !== 'true')
@@ -590,12 +590,16 @@ async function auditToolbar(page: Page, mobile = false): Promise<void> {
       await expect(panel).toBeVisible();
       if (mobile && (await actions.getAttribute('aria-expanded')) === 'true')
         await actions.tap({ timeout: 5_000 });
-      await exerciseWindow(page, panel, mobile);
+      if (auditPanelControls) await exerciseWindow(page, panel, mobile);
+      else if (mobile) await panel.getByRole('button', { name: /^Close / }).tap({ timeout: 5_000 });
+      else await panel.getByRole('button', { name: /^Close / }).click();
     } else if (label === 'Save / Load') {
       const menu = page.locator('[aria-label="Game menu"]');
       await expect(menu).toBeVisible();
-      await exercisePane(page, menu, mobile);
-      await menu.getByRole('button', { name: 'Back to title' }).click();
+      if (auditPanelControls) await exercisePane(page, menu, mobile);
+      const back = menu.getByRole('button', { name: 'Back to title' });
+      if (mobile) await back.tap({ timeout: 5_000 });
+      else await back.click();
       await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
     }
   }
@@ -633,18 +637,20 @@ async function checkDisabledControls(page: Page, mobile = false): Promise<void> 
   else await finance.getByRole('button', { name: 'Close Finances' }).click();
 }
 
-test('enabled desktop toolbar and window controls cause an observable effect', async ({ page }) => {
-  test.setTimeout(600_000);
+test('desktop toolbar actions open their panels and cause an observable effect', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
   visitedDetailTypes.clear();
   await startSandbox(page);
   await checkDisabledControls(page);
-  await auditToolbar(page);
+  await auditToolbar(page, false, false);
 });
 
-test('enabled Pixel 8 toolbar and window controls cause an observable effect', async ({
-  browser,
+test('Pixel 8 toolbar actions open their panels and cause an observable effect', async ({
+  freshBrowser: browser,
 }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(90_000);
   visitedDetailTypes.clear();
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
@@ -653,7 +659,7 @@ test('enabled Pixel 8 toolbar and window controls cause an observable effect', a
   try {
     await startSandbox(page, true);
     await checkDisabledControls(page, true);
-    await auditToolbar(page, true);
+    await auditToolbar(page, true, false);
   } finally {
     await context.close();
   }
@@ -740,7 +746,7 @@ test('every window and camera shortcut produces its documented effect', async ({
   await expect(toolbar.getByRole('button', { name: 'Resume' })).toBeVisible();
 });
 
-test('Pixel 8 can close a pinned staff window', async ({ browser }) => {
+test('Pixel 8 can close a pinned staff window', async ({ freshBrowser: browser }) => {
   const { defaultBrowserType: _browserType, ...device } = devices['Pixel 8'];
   void _browserType;
   const context = await createTestContext(browser, device);

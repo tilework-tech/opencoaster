@@ -1,7 +1,7 @@
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
-import type { Page, Request } from '@playwright/test';
+import { expect, test } from './support/test';
+import type { Page, Request } from './support/test';
 import sharp from 'sharp';
 import { project } from '../src/render/projection';
 import { PieceId } from '../src/sim/track/catalog';
