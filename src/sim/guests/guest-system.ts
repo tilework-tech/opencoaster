@@ -572,7 +572,12 @@ function joinTileHasEarlierGuest(world: World, slot: number, tile: number): bool
   const g = world.guests.cols;
   const guestId = world.guests.slotToId[slot];
   for (let other = 0; other < world.guests.count; other++) {
-    if (other === slot || world.guests.slotToId[other]! >= guestId) continue;
+    if (
+      other === slot ||
+      g.state[other] === GuestState.Sitting ||
+      world.guests.slotToId[other]! >= guestId
+    )
+      continue;
     if (world.map.index(g.x[other]! >> 8, g.y[other]! >> 8) === tile) return true;
   }
   return false;
