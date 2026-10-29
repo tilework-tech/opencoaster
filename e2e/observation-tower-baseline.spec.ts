@@ -43,6 +43,9 @@ test('the previous tower at 1x: phases and recorded video', async ({ page }, tes
   await panel.getByRole('button', { name: 'Test', exact: true }).click();
   await page.keyboard.press('Shift+Backspace');
   await expect
+    .poll(async () => (await rideRow(page, id)).state, { timeout: 60_000 })
+    .toBe(RideState.Testing);
+  await expect
     .poll(async () => (await rideRow(page, id)).state, { timeout: 300_000, intervals: [1000] })
     .toBe(RideState.Closed);
   const again = await rideWindow(page, id);

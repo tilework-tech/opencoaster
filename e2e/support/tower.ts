@@ -45,8 +45,8 @@ export interface TowerPlan {
 }
 
 export const SHORT: TowerPlan = { name: 'short', height: MIN_TOWER_HEIGHT, x: 25 };
-export const MEDIUM: TowerPlan = { name: 'medium', height: 20, x: 21 };
-export const TALL: TowerPlan = { name: 'tall', height: 34, x: 17 };
+export const MEDIUM: TowerPlan = { name: 'medium', height: 16, x: 21 };
+export const TALL: TowerPlan = { name: 'tall', height: 26, x: 17 };
 
 /**
  * Footpaths laid before the towers are built. Each tower stands on row 43 with its entrance on the
@@ -301,7 +301,7 @@ export async function installOverlay(page: Page, ids: readonly number[]): Promis
       box.style.cssText =
         'position:fixed;left:8px;bottom:84px;z-index:99999;padding:6px 10px;background:#000c;color:#9f9;font:13px monospace;white-space:pre;pointer-events:none';
       document.body.append(box);
-      const names = ['closed', 'waiting', 'loading', 'running', 'unloading', 'broken'];
+      const names = ['closed', 'waiting', 'running', 'unloading', 'broken', 'loading'];
       const started = performance.now();
       const tick0 = (window as unknown as { __sim: { latest: { tick: number } } }).__sim.latest
         .tick;

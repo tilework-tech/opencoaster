@@ -174,10 +174,10 @@ async function marks(page: Page): Promise<Array<{ label: string; t: number; tick
 }
 
 /** Raises the camera so the tall tower's top stays on screen at the default zoom. */
-async function frameTall(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    (window as unknown as { __camera: { y: number } }).__camera.y -= 110;
-  });
+async function frameTall(page: Page, shift = 110): Promise<void> {
+  await page.evaluate((dy) => {
+    (window as unknown as { __camera: { y: number } }).__camera.y -= dy;
+  }, shift);
   await page.waitForTimeout(800);
 }
 
@@ -226,7 +226,7 @@ test.describe('proof: WebGL2 at 1x', () => {
     await save(testInfo, 'webgl2-built-closed.png', await page.screenshot());
     await closeWindows(page);
     await centerMapOnTile(page, [21, 43]);
-    await frameTall(page);
+    await frameTall(page, 215);
     await save(testInfo, 'webgl2-built-framed.png', await page.screenshot());
 
     await startSampler(page);
@@ -245,8 +245,11 @@ test.describe('proof: WebGL2 at 1x', () => {
     await save(testInfo, 'webgl2-test-run-cabin-at-top.png', await page.screenshot());
     for (const id of ids)
       await expect
-        .poll(async () => (await rideRow(page, id)).state, { timeout: 300_000, intervals: [1000] })
-        .toBe(RideState.Closed);
+        .poll(async () => (await rideRow(page, id)).state, { timeout: 60_000 })
+        .toBe(RideState.Testing);
+    await expect
+      .poll(async () => (await rideRow(page, id)).state, { timeout: 300_000, intervals: [1000] })
+      .toBe(RideState.Closed);
     await expect
       .poll(async () => (await rideRow(page, ids[2])).phase, {
         timeout: 300_000,
@@ -308,6 +311,7 @@ test.describe('proof: WebGL2 at 1x', () => {
     ];
     for (const [label, apply] of speeds) {
       await apply();
+      await page.waitForTimeout(1000);
       await mark(page, `${label}-start`);
       await page.waitForTimeout(4000);
       await mark(page, `${label}-end`);
@@ -378,21 +382,23 @@ test.describe('proof: Canvas2D', () => {
     const ids = await buildSite(page, PLANS);
     await closeWindows(page);
     await centerMapOnTile(page, [21, 43]);
-    await frameTall(page);
+    await frameTall(page, 215);
     await save(testInfo, 'canvas2d-built-framed.png', await page.screenshot());
     await testRun(page, ids);
     await closeWindows(page);
     await expect
       .poll(async () => (await rideRow(page, ids[2])).cabinMilli, { timeout: 180_000 })
       .toBeGreaterThan(10_000);
-    await shootRotations(page, testInfo, 'canvas2d-test-run-cabin-ascending');
     await expect
       .poll(async () => (await rideRow(page, ids[2])).cabinMilli, {
         timeout: 240_000,
-        intervals: [500],
+        intervals: [250],
       })
       .toBeGreaterThan((TALL.height - 5) * 1000);
-    await save(testInfo, 'canvas2d-test-run-cabin-at-top.png', await page.screenshot());
+    const toolbar = page.locator('.game-toolbar');
+    await toolbar.getByRole('button', { name: 'Pause', exact: true }).click();
+    await shootRotations(page, testInfo, 'canvas2d-paused-cabin-aloft');
+    await toolbar.getByRole('button', { name: 'Resume', exact: true }).click();
     expectNoPageErrors(page);
   });
 });
@@ -415,6 +421,9 @@ test.describe('proof: video at 1x', () => {
     const panel = await rideWindow(page, id);
     await panel.getByRole('button', { name: 'Test', exact: true }).click();
     await closeWindows(page);
+    await expect
+      .poll(async () => (await rideRow(page, id)).state, { timeout: 60_000 })
+      .toBe(RideState.Testing);
     await expect
       .poll(async () => (await rideRow(page, id)).state, { timeout: 300_000, intervals: [1000] })
       .toBe(RideState.Closed);

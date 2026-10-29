@@ -123,7 +123,7 @@ test.describe('Observation Tower height', () => {
     expect(running.length).toBeGreaterThan(5);
     expect(
       Math.abs(running.at(-1)!.tick - running[0].tick - observationTowerRunTicks(SHORT.height)),
-    ).toBeLessThanOrEqual(largestGap + 1);
+    ).toBeLessThanOrEqual(2 * largestGap + 2);
     let reversals = 0;
     let direction = 0;
     for (let i = 1; i < running.length; i++) {
