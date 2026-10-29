@@ -5,8 +5,36 @@ import { PriceMode } from '../sim/economy/ledger';
 import { ObjectiveKind } from '../sim/scenario/scenario';
 import { STARTER_ID, findScenario } from '../sim/scenario/catalog';
 import { OWNED } from '../sim/map/tile-map';
+import { RIDE_CATALOG } from '../sim/rides/ride-types';
 
 describe('SimRunner', () => {
+  it('makes every ride and stall buildable in sandbox mode', () => {
+    const out: FromWorker[] = [];
+    let now = 0;
+    const runner = new SimRunner({ post: (message) => out.push(message) }, () => now);
+    runner.handle({
+      type: 'init',
+      seed: 1,
+      width: 16,
+      height: 16,
+      initialGuests: 0,
+      maxGuests: 10,
+    });
+    runner.pump();
+    now = 100;
+    runner.pump();
+
+    const snapshot = out.find((message) => message.type === 'snapshot');
+    expect(snapshot?.type).toBe('snapshot');
+    if (snapshot?.type !== 'snapshot') throw new Error('Sandbox did not publish a snapshot');
+    for (const id of Object.keys(RIDE_CATALOG).map(Number)) {
+      expect(
+        snapshot.snapshot.research.unlockedRides[id],
+        RIDE_CATALOG[id as keyof typeof RIDE_CATALOG].name,
+      ).toBe(1);
+    }
+  });
+
   it('assigns a new revision whenever a pooled snapshot is published', () => {
     const revisions: number[] = [];
     let now = 0;

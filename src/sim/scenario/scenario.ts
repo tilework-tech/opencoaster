@@ -1,6 +1,7 @@
 import type { World } from '../core/world';
 import type { LedgerCategory, PriceMode } from '../economy/ledger';
 import type { ResearchInvention } from '../research/research';
+import { Funding } from '../research/research';
 import { DEFAULT_CLIMATE } from '../weather/weather';
 import type { Climate } from '../weather/weather';
 
@@ -206,6 +207,13 @@ export function applyScenario(world: World, def: ScenarioDef): void {
   const r = world.research;
   r.inventions = def.inventions.map((inv) => ({ ...inv }));
   r.unlocked = new Set(def.availableItemIds);
+  const researchable = r.inventions.filter((invention) => !r.unlocked.has(invention.itemId));
+  r.funding = researchable.length > 0 ? Funding.Normal : Funding.None;
+  r.enabledCategoryMask = researchable.reduce(
+    (mask, invention) => mask | (1 << invention.category),
+    0,
+  );
+  r.priority = [];
   r.currentIndex = -1;
   r.progress = 0;
 
