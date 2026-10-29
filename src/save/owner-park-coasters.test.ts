@@ -66,7 +66,7 @@ describe("the player's Bramblewood Hollow park", () => {
     sim.step();
     for (const rideId of [wood, steel])
       expect(world.rides.cols.state[slotOf(rideId)]).toBe(RideState.Open);
-    queueGuests(sim, steel, 24);
+    for (const rideId of [wood, steel]) queueGuests(sim, rideId, 24);
     run(sim, 12_000);
 
     for (const rideId of [wood, steel]) {

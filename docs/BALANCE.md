@@ -14,6 +14,8 @@ Flags: `--profile minimal|sensible|modest|ambitious` (default `modest`), `--seed
 
 The park is scripted in [bench/balance-park.ts](../bench/balance-park.ts) on flat terrain (the generated terrain is flattened so layout does not depend on the lake): a footpath spine north from the gate with rides on both sides, each with a queue and an exit path.
 
+`tsx bench/bench-use.ts` reuses this park to measure bench use rather than balance: benches are placed at month 3 on every third eligible path tile. Guests are rarely nauseous enough to rest, so use comes from tired guests; a six-month run had about 11-12% of guests sit at least once, for about 1,080 ticks (about 27 s) on average, with at most 6 seated at once. Treat these as one-seed measurements of OpenCoaster's tuning, not reference-game figures.
+
 | Profile   | What is built                                                                                                                                                   |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | minimal   | Month 0 only: merry-go-round, Ferris wheel, food and drink stall, toilets. No staff.                                                                            |

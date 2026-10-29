@@ -417,7 +417,7 @@ describe('Observation Tower saves', () => {
     const loaded = deserialize(serialize(sim.world));
     const slot = loaded.rides.idToSlot[rideId]!;
 
-    expect(SAVE_VERSION).toBeGreaterThanOrEqual(35);
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(36);
     expect(loaded.rides.cols.towerHeight[slot]).toBe(30);
     expect(loaded.rides.cols.runTicks[slot]).toBe(observationTowerRunTicks(30));
   });
@@ -434,11 +434,11 @@ describe('Observation Tower saves', () => {
     ride.maxWaitTicks[slot] = 320;
     ride.runTicks[slot] = 400;
     configure(sim, slot);
-    const bytes = withoutColumns(serialize(sim.world), 34, allWorldViews(sim.world), []);
+    const bytes = withoutColumns(serialize(sim.world), 35, allWorldViews(sim.world), []);
     return deserialize(bytes);
   }
 
-  it('loads a v34 tower at its historical height with the new cycle', () => {
+  it('loads a v35 tower at its historical height with the new cycle', () => {
     const world = legacySave(() => undefined);
     const ride = world.rides.cols;
 
@@ -448,7 +448,7 @@ describe('Observation Tower saves', () => {
     expect(ride.unloadTicks[0]).toBe(TOWER_UNLOAD_TICKS);
   });
 
-  it('continues a v34 trip at the same fraction of the longer run', () => {
+  it('continues a v35 trip at the same fraction of the longer run', () => {
     const world = legacySave((sim, slot) => {
       const ride = sim.world.rides.cols;
       ride.phase[slot] = RidePhase.Running;
@@ -463,7 +463,7 @@ describe('Observation Tower saves', () => {
     expect(ride.phaseTicks[0]).toBeLessThanOrEqual(ride.runTicks[0]);
   });
 
-  it('rests a v34 broken tower cabin at the station', () => {
+  it('rests a v35 broken tower cabin at the station', () => {
     const world = legacySave((sim, slot) => {
       const ride = sim.world.rides.cols;
       ride.state[slot] = RideState.Broken;

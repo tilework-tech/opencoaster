@@ -8,9 +8,19 @@ export interface BenchScenarioOptions {
   guests: number;
   staff: number;
   litter: number;
+  /** Park benches placed on spaced path tiles; zero leaves the paths bare. */
+  benches?: number;
+  /** Starts every guest tired enough to look for a bench. */
+  tired?: boolean;
 }
 
-export function createBenchScenario({ guests, staff, litter }: BenchScenarioOptions): Simulation {
+export function createBenchScenario({
+  guests,
+  staff,
+  litter,
+  benches = 0,
+  tired = false,
+}: BenchScenarioOptions): Simulation {
   const sim = new Simulation({ seed: 1, width: DEFAULT_MAP_SIZE, height: DEFAULT_MAP_SIZE });
   const map = sim.world.map;
   map.waterLevel.fill(0);
@@ -36,12 +46,21 @@ export function createBenchScenario({ guests, staff, litter }: BenchScenarioOpti
       }
     }
   }
+  for (let placed = 0; placed < benches; placed++) {
+    const tile = pathTiles[Math.floor(((placed + 0.25) * pathTiles.length) / benches)];
+    setPathAddition(map, tile % map.width, Math.floor(tile / map.width), PathAddition.Bench);
+  }
   sim.enqueue({ type: 'setParkEntrance', x: min, y: min });
   sim.enqueue({ type: 'spawnGuests', count: guests });
   const counts = [0.6, 0.1, 0.1, 0.2].map((share) => Math.floor(staff * share));
   counts[0] += staff - counts.reduce((sum, count) => sum + count, 0);
   for (let kind = StaffKind.Handyman; kind <= StaffKind.Entertainer; kind++) {
     if (counts[kind] > 0) sim.enqueue({ type: 'spawnStaff', count: counts[kind], kind });
+  }
+
+  if (tired) {
+    sim.step();
+    sim.world.guests.cols.energy.fill(60, 0, sim.world.guests.count);
   }
 
   for (let index = 0; index < litter; index++) {

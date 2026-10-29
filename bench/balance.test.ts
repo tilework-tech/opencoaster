@@ -142,4 +142,12 @@ describe('scripted starter park', () => {
     },
     LONG_RUN_TIMEOUT_MS,
   );
+
+  it.each([1, 2, 3])(
+    'also meets the objective by the year-end check with seed %i',
+    (seed) => {
+      expect(run(FULL_YEAR, seed).world.scenario.status).toBe(ScenarioStatus.Won);
+    },
+    LONG_RUN_TIMEOUT_MS,
+  );
 });

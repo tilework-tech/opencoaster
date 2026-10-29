@@ -357,9 +357,17 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       const y = Math.floor((snapshot.guests.data[layer + 1] ?? 0) / TILE_UNITS);
       location = { x, y };
       const state =
-        (['walking', 'queueing', 'riding', 'leaving', 'shopping', 'waiting to board'] as const)[
-          guestRowState(snapshot.guests.data[layer + 3]!)
-        ] ?? 'unknown';
+        (
+          [
+            'walking',
+            'queueing',
+            'riding',
+            'leaving',
+            'shopping',
+            'waiting to board',
+            'sitting, resting',
+          ] as const
+        )[guestRowState(snapshot.guests.data[layer + 3]!)] ?? 'unknown';
       win.setTitle(`Guest ${guestId}`);
       setText(where.value, `tile ${x}, ${y} · ${state}`);
       gauges.happiness.set((data[offset] ?? 0) / NEED_MAX, String(data[offset] ?? 0));

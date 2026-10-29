@@ -41,6 +41,7 @@ import { parkInputsSystem } from '../economy/park-inputs';
 import { charge } from '../economy/api';
 import { rideQueueSystem } from '../rides/queue-system';
 import { setParkEntrance } from '../guests/park';
+import { purgeExteriorMess } from '../guests/park-interior';
 import { weatherSystem } from '../weather/weather-system';
 import { researchSystem } from '../research/research-system';
 import { scenarioSystem } from '../scenario/scenario-system';
@@ -152,7 +153,7 @@ export class Simulation {
         for (let i = 0; i < c.count; i++) if (!spawnStaff(w, c.kind)) break;
         break;
       case 'setParkEntrance':
-        setParkEntrance(w, c.x, c.y);
+        if (setParkEntrance(w, c.x, c.y)) purgeExteriorMess(w);
         break;
       case 'hireStaff':
         hireStaff(w, c.kind);

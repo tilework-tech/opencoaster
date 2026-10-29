@@ -2,6 +2,7 @@ import { TILE_UNITS } from './constants';
 import type { World } from './world';
 import { OWNED } from '../map/tile-map';
 import { GuestState, HEADING_NONE } from '../guests/guest-store';
+import { releaseSeat } from '../guests/benches';
 
 export type PersonKind = 'guest' | 'staff';
 
@@ -31,6 +32,9 @@ export function setPersonPosition(
     const state = guests.state[slot];
     if (state === GuestState.Queuing || state === GuestState.Waiting || state === GuestState.Riding)
       return false;
+    releaseSeat(world, slot);
+    if (state === GuestState.Sitting) guests.activityTicks[slot] = 0;
+    guests.benchGoal[slot] = 0;
     guests.x[slot] = x;
     guests.y[slot] = y;
     guests.z[slot] = z;

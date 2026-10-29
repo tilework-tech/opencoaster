@@ -1,9 +1,11 @@
+import { tileHasSeatedGuest } from './benches';
 import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
 import { isPathElementBroken, markPathElementBroken, PathFlag } from '../map/tile-map';
 import { StaffKind, StaffOrder } from '../staff/staff-store';
 import { GuestState } from './guest-store';
+import { isParkInterior } from './park-interior';
 
 const CHECK_INTERVAL = 32;
 /** Guests at or below this happiness are angry enough to vandalise. */
@@ -67,7 +69,7 @@ export function createVandalismSystem(): System {
         const angry = guests.angriness[slot] > 0;
         const tileX = guests.x[slot] >> 8;
         const tileY = guests.y[slot] >> 8;
-        if (!map.inBounds(tileX, tileY)) continue;
+        if (!isParkInterior(world, tileX, tileY)) continue;
         const tile = map.index(tileX, tileY);
         if (litterCountByTile[tile] > 0) guests.litterMemory[slot] = GUEST_LITTER_MEMORY_TICKS;
         if (
@@ -84,6 +86,7 @@ export function createVandalismSystem(): System {
           isPathElementBroken(map, element)
         )
           continue;
+        if (tileHasSeatedGuest(world, tile)) continue;
         if (world.rng.int(0x10000) > VANDAL_SUCCESS_ROLL) continue;
         const guard = securityGuardNearby(world, guests.x[slot], guests.y[slot]);
         if (guard >= 0) {

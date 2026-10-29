@@ -4,16 +4,17 @@ import { DIR_DX, DIR_DY } from './directions';
 import { isWallScenery, type SceneryItem } from '../map/scenery';
 
 /**
- * The footpath graph as the pathfinder sees it. Tiles are row-major (`y * width + x`). Edges must
- * be symmetric: if tile A exposes an exit towards B, B exposes the opposite exit towards A.
+ * The footpath graph as the pathfinder sees it. Tiles are row-major (`y * width + x`); layered
+ * graphs include the layer in each node ID. Edge masks describe exits from that node and may be
+ * directional, as with ride exits.
  */
 export interface PathGraph {
   readonly width: number;
   readonly height: number;
   /** Bumped whenever any path tile or edge changes; cached derived data is rebuilt when it moves. */
   readonly pathVersion: number;
-  /** Bits 0..3 = open exits E, S, W, N (see directions.ts). 0 for non-path tiles. */
-  edgeMask(tile: number): number;
+  /** Bits 0..3 = open exits E, S, W, N (see directions.ts); 0 for nodes without a path. */
+  edgeMask(node: number): number;
   /**
    * Number of nodes. A graph with stacked layers (bridges) numbers a node `layer * tiles + tile`;
    * without it every tile is one node.

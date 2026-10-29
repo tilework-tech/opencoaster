@@ -14,6 +14,7 @@ import { observationTowerCabinMilli } from '../sim/rides/observation-tower';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { GuestState } from '../sim/guests/guest-store';
 import { recountRideLines } from '../sim/guests/ride-lines';
+import { isSeated } from '../sim/guests/resting';
 import { circuitStatus, getConstructionCursor } from '../sim/track/construction';
 import { MAX_TRACK_PIECES, MAX_TRACK_RIDES } from '../sim/track/track-store';
 import { ScenarioStatus } from '../sim/scenario/scenario';
@@ -57,6 +58,12 @@ export function guestRowHeading(word: number): number {
 }
 
 const GUEST_IDLE_BIT = 1 << 10;
+const GUEST_SEATED_BIT = 1 << 11;
+
+/** True once a guest sits on its bench seat (not while walking to or rising from it). */
+export function guestRowSeated(word: number): boolean {
+  return (word & GUEST_SEATED_BIT) !== 0;
+}
 
 /** True while a guest stands still (waiting at a ride or stall, or paused in a queue). */
 export function guestRowIdle(word: number): boolean {
@@ -555,6 +562,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
       (state << GUEST_STATE_SHIFT) |
       (guests.heading[i]! << GUEST_HEADING_SHIFT) |
       (idle ? GUEST_IDLE_BIT : 0) |
+      (state === GuestState.Sitting && isSeated(world, i) ? GUEST_SEATED_BIT : 0) |
       (out.guests.data[i * SNAPSHOT_STRIDE + 3]! & 0x3ff);
   }
   const guestCount = Math.min(world.guests.count, out.guestDetails.length / GUEST_DETAIL_STRIDE);

@@ -8,7 +8,7 @@ import { spawnPoints } from '../sim/guests/park';
 import { placeTrack } from '../sim/track/construction';
 import { PieceMode, TrackResult } from '../sim/track/track-types';
 import { SAVE_VERSION, deserialize, serialize } from './save';
-import { allWorldViews, withoutColumns } from './legacy-save-fixtures';
+import { allWorldViews, restVersionColumns, withoutColumns } from './legacy-save-fixtures';
 import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RidePhase, RideState } from '../sim/rides/ride-store';
@@ -20,7 +20,7 @@ import {
   updateRideMaintenance,
 } from '../sim/rides';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
-import { HEADING_NONE, spawnGuest } from '../sim/guests/guest-store';
+import { GuestState, HEADING_NONE, spawnGuest } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
 import { addSpawnAtCorner, flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
@@ -35,7 +35,8 @@ import {
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
 import { ElementType, PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
-import { placePath } from '../sim/map/paths';
+import { PathAddition, placePath, setPathAddition } from '../sim/map/paths';
+import { createGuestSystem } from '../sim/guests/guest-system';
 import { worldOccupancies } from '../sim/map/occupancy';
 import { placeScenery, SceneryItem } from '../sim/map/scenery';
 import { refreshQueueIndex } from '../sim/rides/queue-lines';
@@ -80,12 +81,20 @@ function ambientTreePlacements(world: World): Array<[number, number]> {
   return placements;
 }
 
-/** Re-writes a current save as `version` wrote it: its header and column layout, and optionally no spawn points. */
-function withSaveVersion(world: World, version: number, omitSpawnPoints = false): Uint8Array {
-  const bytes = withoutColumns(serialize(world), version, allWorldViews(world), []);
+/** A current save rewritten as a version 33 or 34 save: those wrote no bench-rest columns. */
+function withSaveVersion(world: World, version: number): Uint8Array {
+  return withoutColumns(serialize(world), version, allWorldViews(world), restVersionColumns(world));
+}
+
+function withHeaderVersion(
+  bytes: Uint8Array,
+  version: number,
+  omitSpawnPoints = false,
+): Uint8Array {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const headerEnd = 8 + view.getUint32(4, true);
   const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, headerEnd)));
+  header.version = version;
   if (omitSpawnPoints && header.park) delete header.park.spawns;
   const encoded = new TextEncoder().encode(JSON.stringify(header));
   const result = new Uint8Array(8 + encoded.length + bytes.length - headerEnd);
@@ -193,11 +202,32 @@ describe('save', () => {
     const reloadedIntermediate = deserialize(withSaveVersion(migrated, 33));
     expect(ambientTreePlacements(reloadedIntermediate)).toEqual(placements);
     expect(hashWorld(reloadedIntermediate)).toBe(hashWorld(migrated));
-    expect(SAVE_VERSION).toBe(35);
+    expect(SAVE_VERSION).toBe(36);
+  });
+
+  it('loads a version 34 save and lets its tired guests use benches afterwards', () => {
+    const world = flatWorld(16, 9);
+    layPath(world, row(6, 4, 8));
+    setPathAddition(world.map, 6, 6, PathAddition.Bench);
+    const guest = guestAt(world, 6, 6);
+    world.guests.cols.energy[guest] = 60;
+    world.guests.cols.happiness[guest] = 200;
+    world.guests.cols.happinessTarget[guest] = 200;
+
+    const loaded = deserialize(withSaveVersion(world, 34));
+
+    expect(loaded.guests.count).toBe(1);
+    expect(loaded.guests.cols.state[0]).toBe(GuestState.Wandering);
+    const system = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));
+    for (let i = 0; i < 3000 && loaded.guests.cols.state[0] !== GuestState.Sitting; i++) {
+      system.update(loaded);
+      loaded.tick++;
+    }
+    expect(loaded.guests.cols.state[0]).toBe(GuestState.Sitting);
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(35);
+    expect(SAVE_VERSION).toBe(36);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -205,7 +235,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(35);
+    expect(header.version).toBe(36);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -238,7 +268,7 @@ describe('save', () => {
     expect(occupiedKinds.has('path')).toBe(true);
     expect(occupiedKinds.has('flatRide')).toBe(true);
     expect(occupiedKinds.has('track') || occupiedKinds.has('station')).toBe(true);
-    const legacy = withSaveVersion(sim.world, 32, true);
+    const legacy = withHeaderVersion(withSaveVersion(sim.world, 32), 32, true);
 
     const loaded = deserialize(legacy);
     expect(loaded.track.pieces.count).toBeGreaterThan(0);
