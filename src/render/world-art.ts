@@ -15,15 +15,6 @@ export const LITTER_SPRITE_SIZE = { width: 6, height: 3 } as const;
 export const TICKS_PER_ANIMATION_FRAME = 8;
 /** Full scale of `RideInfo.PhaseProgress`. */
 export const PHASE_PROGRESS_MAX = 1000;
-const GRASS_AMBIENT_TREES = [
-  'tree-oak',
-  'tree-conifer',
-  'tree-birch',
-  'tree-blossom',
-  'tree-autumn',
-  'tree-topiary',
-] as const;
-
 /** Category and stable slug used by generated ride sprite pages. */
 export function rideSpriteName(type: RideType): string {
   const definition = RIDE_CATALOG[type];
@@ -36,14 +27,6 @@ export function rideSpriteName(type: RideType): string {
         ? 'transport'
         : 'stalls';
   return `${group}/${slug}`;
-}
-
-/** Deterministic ambient tree species for grass and sandy ground. */
-export function ambientTreeName(surface: number, x: number, y: number): string | null {
-  if ((x * 17 + y * 31) % 23 !== 7) return null;
-  if (surface === 1) return (x * 3 + y * 5) % 2 === 0 ? 'tree-palm' : 'tree-cactus';
-  if (surface !== 0) return null;
-  return GRASS_AMBIENT_TREES[(x * 3 + y * 5) % GRASS_AMBIENT_TREES.length]!;
 }
 
 export function facilityFacingFromPaths(x: number, y: number, map: MapData): number {

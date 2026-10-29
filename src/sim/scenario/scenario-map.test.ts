@@ -7,7 +7,7 @@ import { RideState } from '../rides/ride-store';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { project } from '../../render/projection';
 import { SCENARIOS } from './catalog';
-import { buildApron, ownedBounds } from './scenario-map';
+import { buildApron, generateScenarioMap, ownedBounds } from './scenario-map';
 import { parseScenarioFile } from './scenario-file';
 import { prepareScenario } from './scenario-layout';
 import type { ScenarioDef } from './scenario';
@@ -46,6 +46,12 @@ function recipe(overrides: Record<string, unknown> = {}): ScenarioDef {
 function world(def: ScenarioDef, seed = def.seed): World {
   const w = new World({ seed, width: def.mapWidth, height: def.mapHeight });
   prepareScenario(w, def);
+  return w;
+}
+
+function scenarioMap(def: ScenarioDef, seed = def.seed): World {
+  const w = new World({ seed, width: def.mapWidth, height: def.mapHeight });
+  generateScenarioMap(w.map, def, w.seed);
   return w;
 }
 
@@ -94,7 +100,7 @@ describe('scenario terrain generation', () => {
 
   it('owns an inset rectangle and sells the rest up to the unsellable margin', () => {
     const def = recipe({ land: { ownedMarginPercent: 20, saleMarginPercent: 5 } });
-    const m = world(def).map;
+    const m = scenarioMap(def).map;
     const o = ownedBounds(80, 80, def.land);
     expect(o).toEqual({ x0: 16, y0: 16, x1: 63, y1: 63 });
     expect(m.ownership[m.index(40, 40)] & OWNED).toBe(OWNED);
@@ -211,7 +217,7 @@ describe('scenario ground and trees', () => {
     const def = recipe({
       terrain: { ...recipe().terrain!, highland: { surface: 'dirt', level: 7 } },
     });
-    const m = world(def).map;
+    const m = scenarioMap(def).map;
     let upland = 0;
     for (let i = 0; i < m.width * m.height; i++) {
       if (m.heights[i] >= 7) {
@@ -229,7 +235,7 @@ describe('scenario ground and trees', () => {
       terrain: { ...recipe().terrain!, surface: 'sand' },
       trees: { count: 60, groves: 4, species: ['palm'] },
     });
-    const m = world(def).map;
+    const m = scenarioMap(def).map;
     const placed = trees(m);
     expect(placed.length).toBe(60);
     for (const t of placed) {
@@ -242,7 +248,7 @@ describe('scenario ground and trees', () => {
 
   it('places the configured count in mixed species on grass, clear of the gate margin', () => {
     const def = recipe({ trees: { count: 90, groves: 6 } });
-    const m = world(def).map;
+    const m = scenarioMap(def).map;
     const apron = buildApron(80, 80, 'south', def.terrain!);
     const placed = trees(m);
     expect(placed.length).toBe(90);
@@ -258,7 +264,7 @@ describe('scenario ground and trees', () => {
   it('gives Starter Park its configured groves and shrubs without filling the entrance apron', () => {
     const starter = SCENARIOS.find((scenario) => scenario.id === 'starter');
     if (!starter?.trees) throw new Error('Starter Park tree recipe missing');
-    const m = world(starter).map;
+    const m = scenarioMap(starter).map;
     const placed = trees(m);
     const treeItems = placed.filter(
       (item) => item.item !== SceneryItem.Shrub && item.item !== SceneryItem.FlowerBed,

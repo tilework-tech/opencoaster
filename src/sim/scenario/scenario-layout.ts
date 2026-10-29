@@ -2,7 +2,8 @@ import type { World } from '../core/world';
 import { placePath } from '../map/paths';
 import type { TileMap } from '../map/tile-map';
 import { applyScenario } from './scenario';
-import { DEFAULT_LAND, generateScenarioMap, ownedBounds } from './scenario-map';
+import { materializeAmbientTrees } from '../map/ambient-trees';
+import { buildApron, DEFAULT_LAND, generateScenarioMap, ownedBounds } from './scenario-map';
 import type { TileRect } from './scenario-map';
 import { placePrebuilt } from './scenario-prebuilt';
 import type { ScenarioDef, ScenarioEntrance } from './scenario';
@@ -99,6 +100,14 @@ export function prepareScenario(world: World, def: ScenarioDef): void {
  */
 export function prepareScenarioPark(world: World, def: ScenarioDef): void {
   prepareScenario(world, def);
-  if (!def.entrance || world.park.entranceX < 0) return;
-  layOutApproach(world, def.entrance.side, world.park.entranceX, world.park.entranceY);
+  if (def.entrance && world.park.entranceX >= 0)
+    layOutApproach(world, def.entrance.side, world.park.entranceX, world.park.entranceY);
+  const apron = buildApron(
+    world.map.width,
+    world.map.height,
+    def.entrance?.side ?? 'south',
+    def.terrain ?? { buildLength: 10, buildWidth: 18 },
+    def.land,
+  );
+  materializeAmbientTrees(world, [apron]);
 }
