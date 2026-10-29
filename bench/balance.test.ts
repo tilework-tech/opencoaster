@@ -135,10 +135,18 @@ describe('scripted starter park', () => {
     expect(beside.some((tile) => isReachable(world, entrance, tile))).toBe(true);
   });
 
-  it.fails(
-    'KNOWN FAILURE: default starter seed 2026 misses the year-end objective after exterior cleanup',
+  it(
+    'can meet the starter scenario objective by the year-end check',
     () => {
       expect(run(FULL_YEAR).world.scenario.status).toBe(ScenarioStatus.Won);
+    },
+    LONG_RUN_TIMEOUT_MS,
+  );
+
+  it.each([1, 2, 3])(
+    'also meets the objective by the year-end check with seed %i',
+    (seed) => {
+      expect(run(FULL_YEAR, seed).world.scenario.status).toBe(ScenarioStatus.Won);
     },
     LONG_RUN_TIMEOUT_MS,
   );

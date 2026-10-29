@@ -6,6 +6,7 @@ import { SCENARIOS } from '../scenario/catalog';
 import { prepareSandbox } from '../scenario/sandbox';
 import { prepareScenario } from '../scenario/scenario-layout';
 import { prepareScenarioPark } from '../scenario/scenario-layout';
+import { setTileHeight } from '../map/land';
 import { PathAddition, placePath, setPathAddition } from '../map/paths';
 import { isPathElementBroken, markPathElementBroken, OWNED, RIGHTS_OWNED } from '../map/tile-map';
 import { deserialize, serialize } from '../../save/save';
@@ -13,8 +14,13 @@ import { GuestState } from './guest-store';
 import { LitterKind } from './litter-store';
 import { litterSystem } from './litter-system';
 import { createVandalismSystem } from './vandalism';
-import { setParkEntrance, spawnPoints } from './park';
-import { isGateApproach, isParkInterior, purgeExteriorMess } from './park-interior';
+import { addPeepSpawn, setParkEntrance, spawnPoints } from './park';
+import {
+  gateApproachMask,
+  isGateApproach,
+  isParkInterior,
+  purgeExteriorMess,
+} from './park-interior';
 
 function sandbox(): World {
   const world = new World({ seed: 1, width: DEFAULT_MAP_SIZE, height: DEFAULT_MAP_SIZE });
@@ -307,14 +313,157 @@ describe('loading a contaminated park', () => {
     expect(world.park.entranceY).toBe(iy - 1);
     expect(litterTiles(world)).toEqual([[ix, iy - 2]]);
   });
+});
 
-  it.fails('KNOWN FAILURE: a bent spawn route stays outside after the gate moves off-axis', () => {
+describe('a bent approach after the gate moves off-axis', () => {
+  /** Sandbox gate (63,95) with its spawn at the edge; the gate then moves to a side tile of a bend. */
+  function bent(): { world: World; bendX: number; bendY: number; gateX: number; gateY: number } {
     const world = sandbox();
     const oldX = world.park.entranceX;
     const oldY = world.park.entranceY;
     expect(placePath(world.map, { x: oldX, y: oldY - 1 })).toBe(true);
     expect(placePath(world.map, { x: oldX + 1, y: oldY - 1 })).toBe(true);
     expect(setParkEntrance(world, oldX + 1, oldY - 1)).toBe(true);
-    expect(isGateApproach(world, oldX, oldY - 1)).toBe(true);
+    return { world, bendX: oldX, bendY: oldY - 1, gateX: oldX + 1, gateY: oldY - 1 };
+  }
+
+  it('keeps the whole spawn-to-gate route outside, including the bend', () => {
+    const { world, bendX, bendY, gateX, gateY } = bent();
+    const spawn = spawnPoints(world)[0]!;
+    expect(isGateApproach(world, bendX, bendY)).toBe(true);
+    expect(isGateApproach(world, gateX, gateY)).toBe(true);
+    for (let y = bendY; y <= spawn.y; y++) {
+      expect(isGateApproach(world, bendX, y), `${bendX},${y}`).toBe(true);
+      expect(isParkInterior(world, bendX, y), `${bendX},${y}`).toBe(false);
+    }
+  });
+
+  it('still treats connected path beside the route as the park', () => {
+    const { world, bendX, bendY } = bent();
+    expect(placePath(world.map, { x: bendX - 1, y: bendY })).toBe(true);
+    expect(placePath(world.map, { x: bendX, y: bendY - 1 })).toBe(true);
+    for (const [x, y] of [
+      [bendX - 1, bendY],
+      [bendX, bendY - 1],
+    ] as const)
+      expect(isParkInterior(world, x, y), `${x},${y}`).toBe(true);
+  });
+
+  it('guests on the bend drop nothing while guests on interior path beside it do', () => {
+    const { world, bendX, bendY, gateX, gateY } = bent();
+    expect(placePath(world.map, { x: bendX - 1, y: bendY })).toBe(true);
+    placeGuest(world, bendX, bendY);
+    placeGuest(world, gateX, gateY);
+    litterCheck(world);
+    expect(world.litter.count).toBe(0);
+    placeGuest(world, bendX - 1, bendY);
+    litterCheck(world);
+    expect(litterTiles(world)).toEqual([[bendX - 1, bendY]]);
+  });
+
+  it('does not let angry guests break a bench on the bend, but breaks one beside it', () => {
+    const { world, bendX, bendY } = bent();
+    expect(placePath(world.map, { x: bendX - 1, y: bendY })).toBe(true);
+    const benchAt = (x: number, y: number): number => {
+      const tile = world.map.index(x, y);
+      const owner = world.map.ownership[tile]!;
+      world.map.ownership[tile] = OWNED;
+      expect(setPathAddition(world.map, x, y, PathAddition.Bench)).toBe(true);
+      world.map.ownership[tile] = owner;
+      return world.map.pathElement(tile, -1);
+    };
+    const onBend = benchAt(bendX, bendY);
+    const beside = benchAt(bendX - 1, bendY);
+    for (const [x, y] of [
+      [bendX, bendY],
+      [bendX - 1, bendY],
+    ] as const) {
+      const slot = placeGuest(world, x, y);
+      world.guests.cols.happiness[slot] = 10;
+      world.guests.cols.energy[slot] = 200;
+      world.guests.cols.angriness[slot] = 512;
+    }
+    const system = createVandalismSystem();
+    for (let i = 0; i < 600; i++) {
+      world.tick = i * 32;
+      for (let slot = 0; slot < world.guests.count; slot++) world.guests.cols.angriness[slot] = 512;
+      system.update(world);
+    }
+    expect(isPathElementBroken(world.map, beside)).toBe(true);
+    expect(isPathElementBroken(world.map, onBend)).toBe(false);
+  });
+
+  it('purges litter the bent route covers when the gate moves, keeping interior litter', () => {
+    const world = sandbox();
+    const oldX = world.park.entranceX;
+    const oldY = world.park.entranceY;
+    placePath(world.map, { x: oldX, y: oldY - 1 });
+    placePath(world.map, { x: oldX + 1, y: oldY - 1 });
+    placePath(world.map, { x: oldX - 1, y: oldY - 1 });
+    plantLitter(world, oldX, oldY - 1);
+    plantLitter(world, oldX + 1, oldY - 1);
+    plantLitter(world, oldX - 1, oldY - 1);
+    const sim = new Simulation(world);
+    sim.enqueue({ type: 'setParkEntrance', x: oldX + 1, y: oldY - 1 });
+    sim.step();
+    expect(litterTiles(world)).toEqual([[oldX - 1, oldY - 1]]);
+  });
+
+  it('survives a save and load', () => {
+    const { world, bendX, bendY } = bent();
+    const loaded = deserialize(serialize(world));
+    expect(isParkInterior(loaded, bendX, bendY)).toBe(false);
+  });
+
+  it('keeps the route from each of two spawn points outside', () => {
+    const { world, bendX, bendY } = bent();
+    const edge = world.map.height - 1;
+    for (let y = bendY; y <= edge; y++) {
+      world.map.ownership[world.map.index(bendX - 1, y)] = OWNED;
+      setTileHeight(world.map, bendX - 1, y, world.map.heights[world.map.index(bendX, bendY)]!);
+      expect(placePath(world.map, { x: bendX - 1, y }), `${bendX - 1},${y}`).toBe(true);
+    }
+    expect(addPeepSpawn(world, bendX - 1, edge)).toBe(true);
+    expect(placePath(world.map, { x: bendX, y: bendY - 1 })).toBe(true);
+    expect(isParkInterior(world, bendX - 1, edge)).toBe(false);
+    expect(isParkInterior(world, bendX, edge)).toBe(false);
+    for (let y = bendY + 1; y <= edge; y++) {
+      const outside = !isParkInterior(world, bendX - 1, y) || !isParkInterior(world, bendX, y);
+      expect(outside, `row ${y}`).toBe(true);
+    }
+    expect(isParkInterior(world, bendX, bendY - 1)).toBe(true);
+  });
+
+  it('recomputes the route when paths change, and only then', () => {
+    const { world, bendX, bendY, gateX, gateY } = bent();
+    const first = gateApproachMask(world);
+    expect(gateApproachMask(world)).toBe(first);
+    for (let i = 0; i < 100; i++) isParkInterior(world, bendX, bendY);
+    expect(gateApproachMask(world)).toBe(first);
+
+    expect(placePath(world.map, { x: bendX - 1, y: bendY })).toBe(true);
+    const second = gateApproachMask(world);
+    expect(second).not.toBe(first);
+    expect(isParkInterior(world, bendX - 1, bendY)).toBe(true);
+
+    expect(setParkEntrance(world, bendX - 1, bendY)).toBe(true);
+    expect(gateApproachMask(world)).not.toBe(second);
+    expect(isGateApproach(world, bendX - 1, bendY)).toBe(true);
+    expect(isGateApproach(world, bendX, bendY)).toBe(true);
+    expect(isParkInterior(world, gateX, gateY)).toBe(true);
+  });
+
+  it('falls back to the straight span when the route is cut', () => {
+    const world = sandbox();
+    const spawn = spawnPoints(world)[0]!;
+    const gx = world.park.entranceX;
+    const gy = world.park.entranceY;
+    const cut = Math.floor((gy + spawn.y) / 2);
+    world.map.removeElement(
+      world.map.index(gx, cut),
+      world.map.pathElement(world.map.index(gx, cut), -1),
+    );
+    expect(isGateApproach(world, gx, cut + 1)).toBe(true);
+    expect(isGateApproach(world, gx, gy)).toBe(true);
   });
 });
