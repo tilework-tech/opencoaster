@@ -1,13 +1,20 @@
 import { Simulation } from '../sim/core/simulation';
 import type { World } from '../sim/core/world';
+import { GUEST_REST_COLUMNS } from '../sim/guests/guest-store';
 import { STAFF_STAT_COLUMNS } from '../sim/staff/staff-store';
 
 /** Guest sight-memory and staff activity columns that saves before version 32 did not store. */
 export function statsVersionColumns(world: World): ArrayBufferView[] {
   return [
     world.guests.cols.sightMemory,
+    ...restVersionColumns(world),
     ...STAFF_STAT_COLUMNS.map((name) => world.staff.cols[name]),
   ];
+}
+
+/** Guest bench-rest columns that saves before version 35 did not store. */
+export function restVersionColumns(world: World): ArrayBufferView[] {
+  return GUEST_REST_COLUMNS.map((name) => world.guests.cols[name]);
 }
 
 export function allWorldViews(world: World): ArrayBufferView[] {

@@ -14,9 +14,11 @@ const ticks = arg('ticks', 400);
 const warmup = arg('warmup', 150);
 const staff = arg('staff', 100);
 const litter = arg('litter', 1000);
+const benches = arg('benches', 0);
+const tired = process.argv.includes('--tired');
 const strict = process.argv.includes('--strict');
 
-const sim = createBenchScenario({ guests, staff, litter });
+const sim = createBenchScenario({ guests, staff, litter, benches, tired });
 
 for (let i = 0; i < warmup; i++) sim.step();
 

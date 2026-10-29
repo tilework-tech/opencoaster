@@ -9,12 +9,7 @@ import type {
 import { LampLightBuffer, collectLitLamps, darknessAt, lampsLit } from './night-lighting';
 import { CanvasNightPass } from './night-pass-canvas';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
-import {
-  SNAPSHOT_STRIDE,
-  guestRowHeading,
-  guestRowIdle,
-  isRidingGuestRow,
-} from '../worker/snapshot';
+import { SNAPSHOT_STRIDE, isRidingGuestRow } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, SALE_LAND, SALE_RIGHTS } from '../sim/map/tile-map';
@@ -69,7 +64,7 @@ import type { ObjectIdCapture } from './webgl2-renderer';
 import type { TerrainSurface } from './world-art';
 import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picking';
 import type { ObjectPickTarget } from '../input/object-picking';
-import { guestFrame, guestSpriteIndex, staffSpriteName } from './webgl2-renderer';
+import { guestSpriteName, staffSpriteName } from './webgl2-renderer';
 import { anchorKey } from './depth-key';
 import { peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
@@ -1986,7 +1981,7 @@ export class Canvas2DRenderer implements Renderer {
       this.enqueue(map, cam, x, y, z, () => {
         this.anchor(x, y, z, map.width, map.height, cam.rotation, t);
         if (!this.isVisible(t[0]!, t[1]!, cam, GUEST_BOX.height)) return;
-        const sprite = `people/guest-walk#${guestSpriteIndex(metadata & 0xff, guestRowHeading(metadata), guestFrame(tick, guestRowIdle(metadata)), cam.rotation) - 40}`;
+        const sprite = guestSpriteName(metadata, tick, cam.rotation);
         if (!this.atlas || !drawAnchoredSprite(ctx, this.atlas, sprite, t[0]!, t[1]!)) {
           ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
           ctx.fillRect(t[0]! - 1.5, t[1]! - 1.5, 3, 3);

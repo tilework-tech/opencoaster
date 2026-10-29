@@ -97,6 +97,7 @@ export function availableSpriteKeys(): ReadonlySet<string> {
   keys.add('people/guest-walk');
   keys.add('people/staff-costumes');
   keys.add('people/rider-seated');
+  keys.add('people/guest-sit');
   cachedAvailable = keys;
   return cachedAvailable;
 }
@@ -349,6 +350,12 @@ export function buildArtCoverage(): ArtCoverageRow[] {
     'walking sheet and palette variants',
     ['people/guest-walk'],
     'Prepared original character sheet.',
+  );
+  add(
+    'Guests',
+    'bench sitters',
+    ['people/guest-sit'],
+    'Generated four-direction figure sitting on a path bench seat, one per guest tint.',
   );
   add(
     'Guests',

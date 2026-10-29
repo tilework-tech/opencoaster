@@ -3,6 +3,7 @@ import {
   SNAPSHOT_STRIDE,
   guestRowHeading,
   guestRowIdle,
+  guestRowSeated,
   isRidingGuestRow,
 } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
@@ -243,6 +244,20 @@ export function guestSpriteIndex(
       : 0;
   const animationFrame = ((frame % 4) + 4) % 4;
   return 40 + palette * 16 + direction * 4 + animationFrame;
+}
+
+/**
+ * Atlas sprite of a guest row: the walking sheet, or the bench-sitting figure once the guest is on
+ * its seat. A sitter faces `heading` (toward the path), shown as seen at `rotation`.
+ */
+export function guestSpriteName(metadata: number, tick: number, rotation: Rotation = 0): string {
+  const tint = metadata & 0xff;
+  const heading = guestRowHeading(metadata);
+  if (guestRowSeated(metadata)) {
+    const direction = heading < 4 ? rotateDirection(heading, rotation) : 0;
+    return `people/guest-sit#${(tint % 8) * 4 + direction}`;
+  }
+  return `people/guest-walk#${guestSpriteIndex(tint, heading, guestFrame(tick, guestRowIdle(metadata)), rotation) - 40}`;
 }
 
 /** Object-ID image of one frame, drawn with the same instances and order as `draw`. */
@@ -2878,8 +2893,6 @@ export class WebGL2Renderer implements Renderer {
     for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
       const metadata = layer.data[offset + 3];
       if (isRidingGuestRow(metadata) || i === this.heldGuestSlot) continue;
-      const tint = metadata & 0xff;
-      const heading = guestRowHeading(metadata);
       const depth = anchorKey(
         map,
         camera.rotation,
@@ -2890,7 +2903,7 @@ export class WebGL2Renderer implements Renderer {
       this.appendLayerSprite(
         layer,
         offset,
-        `people/guest-walk#${guestSpriteIndex(tint, heading, guestFrame(tick, guestRowIdle(metadata)), camera.rotation) - 40}`,
+        guestSpriteName(metadata, tick, camera.rotation),
         map,
         camera,
         viewportWidth,
@@ -3294,6 +3307,8 @@ export class WebGL2Renderer implements Renderer {
           else if (sprite.includes('/flower-bed')) fallbackIndex = 0;
           else if (sprite.startsWith('people/guest-walk'))
             fallbackIndex = 11 + Math.floor(frameIndex / 16);
+          else if (sprite.startsWith('people/guest-sit'))
+            fallbackIndex = 11 + Math.floor(frameIndex / 4);
           else if (sprite.startsWith('people/staff-costumes'))
             fallbackIndex = 19 + Math.floor(frameIndex / 4);
         }

@@ -37,7 +37,7 @@ import { shrubMesh } from './models/shrub';
 import { wallMesh } from './models/walls';
 import { LOG_FLUME_MODEL } from './models/log-flume';
 import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
-import { personMesh, seatedRiderMesh } from './models/people';
+import { benchSitterMesh, personMesh, seatedRiderMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
 import {
@@ -457,6 +457,13 @@ function peopleSprites(): SpriteDef[] {
         const frame = index % 4;
         return renderMesh(personMesh(tint, direction, frame));
       }),
+      footprint: ONE_TILE,
+    },
+    {
+      key: 'people/guest-sit',
+      frames: Array.from({ length: 8 * 4 }, (_, index) =>
+        renderMesh(benchSitterMesh(Math.floor(index / 4), index % 4)),
+      ),
       footprint: ONE_TILE,
     },
     {

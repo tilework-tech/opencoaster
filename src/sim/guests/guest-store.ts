@@ -11,7 +11,12 @@ export const enum GuestState {
   Shopping = 4,
   /** At the head of a ride queue, counted in the ride's `queueLength`. */
   Waiting = 5,
+  /** Walking to, resting on, or rising from a bench seat; see `benches.ts`. */
+  Sitting = 6,
 }
+
+/** Ticks between a guest's updates: each guest is updated on every fourth tick. */
+export const GUEST_UPDATE_STRIDE = 4;
 
 /** `heading` value while a guest has not yet moved (or has just been placed). */
 export const HEADING_NONE = 4;
@@ -105,10 +110,19 @@ export const GUEST_SCHEMA = {
    * among the last six (one bit each, with a two-bit complaint cooldown on top).
    */
   sightMemory: Uint32Array,
+  /** Bench seat code (`seatCode` in benches.ts) while the guest holds a seat; 0 otherwise. */
+  seat: Uint8Array,
+  /** Tile (plus one; 0 = none) of the bench the guest is walking to for a rest. */
+  benchGoal: Int32Array,
+  /** Ticks before the guest looks for a bench again after resting or finding none. */
+  restCooldown: Uint16Array,
 } as const;
 
 /** Guest columns added in save version 32. */
 export const GUEST_SIGHT_COLUMNS = ['sightMemory'] as const;
+
+/** Guest columns added in save version 35. */
+export const GUEST_REST_COLUMNS = ['seat', 'benchGoal', 'restCooldown'] as const;
 
 export function recordRideHistory(w: World, slot: number, rideId: number): void {
   const guests = w.guests.cols;

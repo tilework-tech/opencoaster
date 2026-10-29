@@ -48,7 +48,22 @@ import {
 } from './willingness';
 import { ticketPriceCents } from '../rides/queue-system';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
-import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
+import {
+  GUEST_UPDATE_STRIDE,
+  GuestState,
+  GuestThought,
+  HEADING_NONE,
+  recordThought,
+  spawnGuest,
+} from './guest-store';
+import { benchHasFreeSeat, nearestFreeBench } from './benches';
+import {
+  beginSitting,
+  BENCH_RETRY_TICKS,
+  BENCH_SEEK_RADIUS,
+  updateSitting,
+  wantsRest,
+} from './resting';
 import { noteTileSights } from './path-sights';
 import { guestPriceCents, spendVoucher } from './vouchers';
 import {
@@ -68,7 +83,7 @@ import { WeatherKind } from '../weather/weather';
 import { awardAttractionBps } from '../economy/awards';
 import { updateGuestSurroundings } from './surroundings';
 
-const UPDATE_STRIDE = 4;
+const UPDATE_STRIDE = GUEST_UPDATE_STRIDE;
 const GUEST_SPEED = 12;
 const TILE_CENTRE = TILE_UNITS >> 1;
 /** Needs change once every 128 world ticks. */
@@ -449,8 +464,46 @@ function chooseDestination(world: World, slot: number, tile: number): number {
       if (other >= 0) return other;
     }
   }
+  if (g.restCooldown[slot] === 0 && wantsRest(world, slot) && seekBench(world, slot, tile))
+    return -1;
   if (g.activityTicks[slot] === 0) return chooseRide(world, slot, tile);
   return -1;
+}
+
+/** Sets a tired or nauseous guest walking to the nearest reachable bench with a free seat. */
+function seekBench(world: World, slot: number, tile: number): boolean {
+  const g = world.guests.cols;
+  const bench = nearestFreeBench(world, tile, BENCH_SEEK_RADIUS, guestNode(world, slot, tile));
+  if (bench < 0) {
+    g.restCooldown[slot] = BENCH_RETRY_TICKS;
+    return false;
+  }
+  g.benchGoal[slot] = bench + 1;
+  g.patience[slot] = APPROACH_PATIENCE;
+  return true;
+}
+
+function abandonBench(world: World, slot: number): void {
+  const g = world.guests.cols;
+  g.benchGoal[slot] = 0;
+  g.restCooldown[slot] = BENCH_RETRY_TICKS;
+}
+
+/**
+ * One step of a guest's walk to the bench it chose. The walk ends in a seat, or is dropped when the
+ * guest no longer needs rest, the bench fills up or goes away, the way is lost or time runs out.
+ */
+function walkToBench(world: World, slot: number, tile: number, nav: NavOptions): void {
+  const g = world.guests.cols;
+  const goal = g.benchGoal[slot] - 1;
+  g.patience[slot] = Math.max(0, g.patience[slot] - UPDATE_STRIDE);
+  if (!wantsRest(world, slot) || g.patience[slot] === 0 || !benchHasFreeSeat(world, goal))
+    return abandonBench(world, slot);
+  if (tile === goal && guestNode(world, slot, tile) === tile) {
+    if (!beginSitting(world, slot, tile)) abandonBench(world, slot);
+    return;
+  }
+  if (!stepToward(world, slot, tile, goal, nav)) abandonBench(world, slot);
 }
 
 function setDestination(world: World, slot: number, ride: number): void {
@@ -1096,6 +1149,11 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     return false;
   }
 
+  if (state === GuestState.Sitting) {
+    updateSitting(world, slot, guestTick);
+    return false;
+  }
+
   if (state === GuestState.Waiting) {
     const ride = targetRideSlot(world, slot);
     if (ride < 0 || world.rides.cols.state[ride] !== RideState.Open) {
@@ -1159,9 +1217,24 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   }
   if (g.activityTicks[slot] > 0)
     g.activityTicks[slot] = Math.max(0, g.activityTicks[slot] - UPDATE_STRIDE);
+  if (g.restCooldown[slot] > 0)
+    g.restCooldown[slot] = Math.max(0, g.restCooldown[slot] - UPDATE_STRIDE);
 
   if (!atTileCentre(world, slot)) {
     walkOn(world, slot);
+    return false;
+  }
+
+  if (
+    g.restCooldown[slot] === 0 &&
+    wantsRest(world, slot) &&
+    guestNode(world, slot, tile) === tile &&
+    beginSitting(world, slot, tile)
+  ) {
+    return false;
+  }
+  if (g.benchGoal[slot] > 0) {
+    walkToBench(world, slot, tile, nav);
     return false;
   }
 
@@ -1173,6 +1246,10 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
   if (ride < 0) {
     ride = chooseDestination(world, slot, tile);
     if (ride >= 0) setDestination(world, slot, ride);
+    else if (g.benchGoal[slot] > 0) {
+      walkToBench(world, slot, tile, nav);
+      return false;
+    }
   }
 
   if (ride >= 0) {
