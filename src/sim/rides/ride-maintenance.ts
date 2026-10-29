@@ -129,7 +129,9 @@ function pickReason(world: World, slot: number): BreakdownReason {
 
 /**
  * Takes the ride out of service for `reason`. Riders get off at once unless the failure locks
- * restraints or doors shut, in which case they stay aboard until a mechanic repairs it.
+ * restraints or doors shut, in which case they stay aboard until a mechanic repairs it. An
+ * Observation Tower always keeps its riders aboard: the cabin stops where it is and returns to the
+ * station after the repair (see `observationTowerCabinMilli`).
  */
 export function breakRide(world: World, slot: number, reason: BreakdownReason): void {
   const ride = world.rides.cols;

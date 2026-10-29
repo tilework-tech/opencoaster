@@ -22,6 +22,7 @@ import {
   observationTowerCabinMilli,
   observationTowerCost,
   observationTowerParts,
+  observationTowerReturnTicks,
   observationTowerRunTicks,
 } from './observation-tower';
 import { breakRide, serviceRide } from './ride-maintenance';
@@ -132,6 +133,13 @@ describe('Observation Tower height and travel time', () => {
     expect(DEFAULT_TOWER_HEIGHT).toBe(11);
     expect(MIN_TOWER_HEIGHT).toBeLessThan(DEFAULT_TOWER_HEIGHT);
     expect(MAX_TOWER_HEIGHT).toBeGreaterThan(DEFAULT_TOWER_HEIGHT);
+  });
+
+  it('keeps every encoded cabin height and return countdown within the 16-bit phase counter', () => {
+    const top = Math.round((MAX_TOWER_HEIGHT - 4) * 1_000);
+    expect(top).toBeLessThanOrEqual(0xffff);
+    expect(TOWER_UNLOAD_TICKS + observationTowerReturnTicks(top)).toBeLessThanOrEqual(0xffff);
+    expect(observationTowerRunTicks(MAX_TOWER_HEIGHT)).toBeLessThanOrEqual(0xffff);
   });
 
   it('lengthens the trip in proportion to the distance without raising the cabin speed', () => {

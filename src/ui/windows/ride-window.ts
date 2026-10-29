@@ -1,7 +1,7 @@
 import { circuitLabel } from '../coaster-panel';
 import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
 import { RideMode } from '../../sim/rides/ride-modes';
-import { RideState } from '../../sim/rides/ride-store';
+import { RidePhase, RideState } from '../../sim/rides/ride-store';
 import {
   DEFAULT_TOWER_HEIGHT,
   MAX_TOWER_HEIGHT,
@@ -335,7 +335,8 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       towerHeightNote.hidden = !isTower;
       if (isTower) {
         towerHeight = info[o + RideInfo.TowerHeight] || DEFAULT_TOWER_HEIGHT;
-        const editable = state === RideState.Closed;
+        const editable =
+          state === RideState.Closed && info[o + RideInfo.Phase] === RidePhase.Closed;
         towerHeightValue.textContent = `${towerHeight} levels (${MIN_TOWER_HEIGHT}–${MAX_TOWER_HEIGHT})`;
         towerHeightNote.textContent = editable
           ? `Tower value ${formatMoney(observationTowerCost(def?.cost ?? 0, towerHeight))}. Each section costs ${formatMoney(TOWER_SECTION_COST)} to add and refunds ${formatMoney(Math.floor((TOWER_SECTION_COST * TOWER_SECTION_REFUND_PERCENT) / 100))} to remove.`
