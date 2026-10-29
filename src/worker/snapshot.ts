@@ -10,11 +10,7 @@ import {
   getRideMinutesSinceInspection,
 } from '../sim/rides/ride-maintenance';
 import { RidePhase } from '../sim/rides/ride-store';
-import {
-  decodeObservationTowerCabinLevel,
-  observationTowerCabinLevel,
-  TOWER_TRAVEL_TICKS_PER_LEVEL,
-} from '../sim/rides/observation-tower';
+import { observationTowerCabinMilli } from '../sim/rides/observation-tower';
 import type { CommandFeedback } from '../sim/core/feedback';
 import { GuestState } from '../sim/guests/guest-store';
 import { recountRideLines } from '../sim/guests/ride-lines';
@@ -502,24 +498,16 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
     ? blockSectionsForRide(world, rideId)
     : 0;
   info[o + RideInfo.TowerHeight] = r.towerHeight[slot];
-  if (r.typeId[slot] === RideType.ObservationTower) {
-    if (r.phase[slot] === RidePhase.Running) {
-      info[o + RideInfo.TowerCabinLevel] = Math.round(
-        observationTowerCabinLevel(r.towerHeight[slot], r.phase[slot], phaseProgress(r, slot)) * 1_000,
-      );
-    } else if (r.phase[slot] === RidePhase.Broken) {
-      info[o + RideInfo.TowerCabinLevel] = Math.round(
-        decodeObservationTowerCabinLevel(r.phaseTicks[slot]) * 1_000,
-      );
-    } else if (r.phase[slot] === RidePhase.Unloading && r.phaseTicks[slot] > r.unloadTicks[slot]) {
-      info[o + RideInfo.TowerCabinLevel] = Math.round(
-        (0.5 + (r.phaseTicks[slot] - r.unloadTicks[slot]) / TOWER_TRAVEL_TICKS_PER_LEVEL) *
-          1_000,
-      );
-    } else {
-      info[o + RideInfo.TowerCabinLevel] = 500;
-    }
-  } else info[o + RideInfo.TowerCabinLevel] = 0;
+  info[o + RideInfo.TowerCabinLevel] =
+    r.typeId[slot] === RideType.ObservationTower
+      ? observationTowerCabinMilli(
+          r.towerHeight[slot],
+          r.phase[slot],
+          r.phaseTicks[slot],
+          r.runTicks[slot],
+          r.unloadTicks[slot],
+        )
+      : 0;
   if (!definition?.usesTrack) {
     info[o + RideInfo.CursorX] = 0;
     info[o + RideInfo.CursorY] = 0;

@@ -17,10 +17,17 @@ import { RideResult } from './ride-results';
 import { charge, earn } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
 import { Z_STEP } from '../core/constants';
-import { firstOccupancyBlocker, ridePlacementOccupancies, worldOccupancies } from '../map/occupancy';
+import {
+  firstOccupancyBlocker,
+  ridePlacementOccupancies,
+  worldOccupancies,
+} from '../map/occupancy';
 import {
   DEFAULT_TOWER_HEIGHT,
+  TOWER_LOAD_TICKS,
   TOWER_SECTION_COST,
+  TOWER_SECTION_REFUND_PERCENT,
+  TOWER_UNLOAD_TICKS,
   isValidObservationTowerHeight,
   observationTowerRunTicks,
 } from './observation-tower';
@@ -115,14 +122,13 @@ export function createRide(
   ride.rideY[slot] = y;
   ride.dir[slot] = dir & 3;
   ride.capacity[slot] = definition.capacity;
-  ride.loadTicks[slot] = definition.loadTicks;
-  ride.runTicks[slot] =
-    type === RideTypeId.ObservationTower
-      ? observationTowerRunTicks(towerHeight)
-      : definition.runTicks;
-  ride.unloadTicks[slot] = definition.unloadTicks;
-  ride.minWaitTicks[slot] = definition.loadTicks;
-  ride.maxWaitTicks[slot] = Math.max(definition.loadTicks, definition.loadTicks * 4);
+  const tower = type === RideTypeId.ObservationTower;
+  const loadTicks = tower ? TOWER_LOAD_TICKS : definition.loadTicks;
+  ride.loadTicks[slot] = loadTicks;
+  ride.runTicks[slot] = tower ? observationTowerRunTicks(towerHeight) : definition.runTicks;
+  ride.unloadTicks[slot] = tower ? TOWER_UNLOAD_TICKS : definition.unloadTicks;
+  ride.minWaitTicks[slot] = loadTicks;
+  ride.maxWaitTicks[slot] = Math.max(loadTicks, loadTicks * 4);
   ride.loadThreshold[slot] = LOAD_TARGET_THRESHOLD[LoadTarget.Half];
   ride.mode[slot] = definition.modes[0].mode;
   applyRideModeRatings(world, slot);
@@ -158,13 +164,8 @@ export function setObservationTowerHeight(
   if (!world.map.canBuild(tile)) return RideResult.NotOwned;
 
   const base =
-    rideBaseLevel(
-      world.map,
-      RIDE_CATALOG[RideTypeId.ObservationTower],
-      x,
-      y,
-      rides.dir[slot],
-    ) * Z_STEP;
+    rideBaseLevel(world.map, RIDE_CATALOG[RideTypeId.ObservationTower], x, y, rides.dir[slot]) *
+    Z_STEP;
   const candidates = ridePlacementOccupancies(
     RideTypeId.ObservationTower,
     x,
@@ -181,7 +182,12 @@ export function setObservationTowerHeight(
   const amount = Math.abs(delta) * TOWER_SECTION_COST;
   if (delta > 0 && world.economy.cash < amount) return RideResult.InsufficientFunds;
   if (delta > 0) charge(world, LedgerCategory.RideConstruction, amount);
-  else if (delta < 0) earn(world, LedgerCategory.RideConstruction, Math.floor(amount * 0.7));
+  else if (delta < 0)
+    earn(
+      world,
+      LedgerCategory.RideConstruction,
+      Math.floor((amount * TOWER_SECTION_REFUND_PERCENT) / 100),
+    );
   rides.towerHeight[slot] = height;
   rides.runTicks[slot] = observationTowerRunTicks(height);
   rides.phaseTicks[slot] = 0;

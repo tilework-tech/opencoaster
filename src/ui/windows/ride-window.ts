@@ -2,7 +2,6 @@ import { circuitLabel } from '../coaster-panel';
 import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
 import { RideMode } from '../../sim/rides/ride-modes';
 import { RideState } from '../../sim/rides/ride-store';
-import { RideType } from '../../sim/rides/ride-types';
 import {
   DEFAULT_TOWER_HEIGHT,
   MAX_TOWER_HEIGHT,

@@ -8,11 +8,7 @@ import { RidePhase, RideState } from './ride-store';
 import { INSPECTION_MINUTE_TICKS, RIDE_CATALOG, RideType } from './ride-types';
 import { RideMode } from './ride-modes';
 import { rideTrainSlots } from '../vehicles/ride-trains';
-import {
-  TOWER_TRAVEL_TICKS_PER_LEVEL,
-  encodeObservationTowerCabinLevel,
-  observationTowerCabinLevel,
-} from './observation-tower';
+import { observationTowerCabinMilli, observationTowerReturnTicks } from './observation-tower';
 
 /** Full reliability (100%) and the top of the scale, which keeps the byte below the percent. */
 export const RELIABILITY_FULL = 100 * 256;
@@ -147,17 +143,13 @@ export function breakRide(world: World, slot: number, reason: BreakdownReason): 
   }
   const occupied = isActiveCycle(ride.phase[slot]) && ride.boarded[slot] > 0;
   if (ride.typeId[slot] === RideType.ObservationTower) {
-    if (ride.phase[slot] === RidePhase.Running && ride.runTicks[slot] > 0) {
-      const progress = Math.min(
-        1_000,
-        Math.round(((ride.runTicks[slot] - ride.phaseTicks[slot]) * 1_000) / ride.runTicks[slot]),
-      );
-      ride.phaseTicks[slot] = encodeObservationTowerCabinLevel(
-        observationTowerCabinLevel(ride.towerHeight[slot], ride.phase[slot], progress),
-      );
-    } else {
-      ride.phaseTicks[slot] = 500;
-    }
+    ride.phaseTicks[slot] = observationTowerCabinMilli(
+      ride.towerHeight[slot],
+      ride.phase[slot],
+      ride.phaseTicks[slot],
+      ride.runTicks[slot],
+      ride.unloadTicks[slot],
+    );
     ride.state[slot] = RideState.Broken;
     ride.phase[slot] = RidePhase.Broken;
     ride.waitTicks[slot] = 0;
@@ -282,11 +274,9 @@ function repair(world: World, slot: number): void {
   restoreReliabilityAfterRepair(world, slot);
   if (RIDE_CATALOG[ride.typeId[slot] as RideType].usesTrack) releaseHeldTrains(world, slot);
   else if (ride.typeId[slot] === RideType.ObservationTower && ride.boarded[slot] > 0) {
-    const cabinLevel = ride.phaseTicks[slot] / 1_000;
     ride.phase[slot] = RidePhase.Unloading;
     ride.phaseTicks[slot] =
-      ride.unloadTicks[slot] +
-      Math.max(0, Math.ceil((cabinLevel - 0.5) * TOWER_TRAVEL_TICKS_PER_LEVEL));
+      ride.unloadTicks[slot] + observationTowerReturnTicks(ride.phaseTicks[slot]);
   } else if (ride.boarded[slot] > 0) releaseRiders(world, slot);
   ride.breakdownReason[slot] = BreakdownReason.None;
   ride.state[slot] = ride.queueConnected[slot] ? RideState.Open : RideState.Closed;

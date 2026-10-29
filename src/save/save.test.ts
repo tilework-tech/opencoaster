@@ -80,6 +80,22 @@ function ambientTreePlacements(world: World): Array<[number, number]> {
   return placements;
 }
 
+/** Re-writes a current save as `version` wrote it: its header and column layout, and optionally no spawn points. */
+function withSaveVersion(world: World, version: number, omitSpawnPoints = false): Uint8Array {
+  const bytes = withoutColumns(serialize(world), version, allWorldViews(world), []);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const headerEnd = 8 + view.getUint32(4, true);
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, headerEnd)));
+  if (omitSpawnPoints && header.park) delete header.park.spawns;
+  const encoded = new TextEncoder().encode(JSON.stringify(header));
+  const result = new Uint8Array(8 + encoded.length + bytes.length - headerEnd);
+  result.set(bytes.subarray(0, 8));
+  new DataView(result.buffer).setUint32(4, encoded.length, true);
+  result.set(encoded, 8);
+  result.set(bytes.subarray(headerEnd), 8 + encoded.length);
+  return result;
+}
+
 describe('save', () => {
   it('repairs a serialized station-last test train so it completes testing and serves guests', () => {
     const sim = flatOwnedSim(1);
@@ -161,9 +177,7 @@ describe('save', () => {
     const entrance = [sim.world.park.entranceX, sim.world.park.entranceY];
     const spawns = sim.world.park.spawns.map((spawn) => ({ ...spawn }));
 
-    const intermediate = withoutColumns(serialize(sim.world), 33, allWorldViews(sim.world), [
-      sim.world.rides.cols.towerHeight,
-    ]);
+    const intermediate = withSaveVersion(sim.world, 33);
     const migrated = deserialize(intermediate);
     const placements = ambientTreePlacements(migrated);
     expect(placements.length).toBeGreaterThan(0);
@@ -176,11 +190,7 @@ describe('save', () => {
     expect(ambientTreePlacements(repeatedMigration)).toEqual(placements);
     expect(hashWorld(repeatedMigration)).toBe(hashWorld(migrated));
 
-    const reloadedIntermediate = deserialize(
-      withoutColumns(serialize(migrated), 33, allWorldViews(migrated), [
-        migrated.rides.cols.towerHeight,
-      ]),
-    );
+    const reloadedIntermediate = deserialize(withSaveVersion(migrated, 33));
     expect(ambientTreePlacements(reloadedIntermediate)).toEqual(placements);
     expect(hashWorld(reloadedIntermediate)).toBe(hashWorld(migrated));
     expect(SAVE_VERSION).toBe(35);
@@ -228,22 +238,7 @@ describe('save', () => {
     expect(occupiedKinds.has('path')).toBe(true);
     expect(occupiedKinds.has('flatRide')).toBe(true);
     expect(occupiedKinds.has('track') || occupiedKinds.has('station')).toBe(true);
-    const legacyWithoutSpawnPoints = withoutColumns(serialize(sim.world), 32, allWorldViews(sim.world), [
-      sim.world.rides.cols.towerHeight,
-    ]);
-    const legacyHeaderLength = new DataView(legacyWithoutSpawnPoints.buffer).getUint32(4, true);
-    const legacyHeader = JSON.parse(
-      new TextDecoder().decode(legacyWithoutSpawnPoints.subarray(8, 8 + legacyHeaderLength)),
-    );
-    delete legacyHeader.park.spawns;
-    const legacyHeaderBytes = new TextEncoder().encode(JSON.stringify(legacyHeader));
-    const legacy = new Uint8Array(
-      8 + legacyHeaderBytes.length + legacyWithoutSpawnPoints.length - 8 - legacyHeaderLength,
-    );
-    legacy.set(legacyWithoutSpawnPoints.subarray(0, 4));
-    new DataView(legacy.buffer).setUint32(4, legacyHeaderBytes.length, true);
-    legacy.set(legacyHeaderBytes, 8);
-    legacy.set(legacyWithoutSpawnPoints.subarray(8 + legacyHeaderLength), 8 + legacyHeaderBytes.length);
+    const legacy = withSaveVersion(sim.world, 32, true);
 
     const loaded = deserialize(legacy);
     expect(loaded.track.pieces.count).toBeGreaterThan(0);

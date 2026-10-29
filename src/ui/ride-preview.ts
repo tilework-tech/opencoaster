@@ -23,7 +23,12 @@ import {
   rideSpriteKey,
   observationTowerPartSpriteKey,
 } from '../render/world-art';
-import { DEFAULT_TOWER_HEIGHT, observationTowerCabinLevel } from '../sim/rides/observation-tower';
+import {
+  DEFAULT_TOWER_HEIGHT,
+  TOWER_CABIN_REST_LEVEL,
+  observationTowerParts,
+} from '../sim/rides/observation-tower';
+import type { ObservationTowerPart } from '../sim/rides/observation-tower';
 
 /** Largest magnification of a preview, in CSS pixels per sprite pixel. */
 export const PREVIEW_MAX_SCALE = 3;
@@ -269,15 +274,12 @@ export function ridePreviewItems(req: RidePreviewRequest): PreviewItem[] {
   }
   if (req.type === RideType.ObservationTower) {
     const height = req.towerHeight ?? DEFAULT_TOWER_HEIGHT;
-    const cabinLevel =
-      req.towerCabinLevel ?? observationTowerCabinLevel(height, req.phase, req.phaseProgress ?? 0);
-    const parts: Array<['base' | 'shaft' | 'top' | 'cabin', number]> = [
-      ['base', 0],
-      ...Array.from({ length: Math.max(0, height - 4) }, (_, section) =>
-        ['shaft', section + 1] as ['shaft', number],
-      ),
-      ['top', height - 3],
-      ['cabin', cabinLevel],
+    const parts: Array<[ObservationTowerPart, number]> = [
+      ...observationTowerParts(height).map(({ part, level }): [ObservationTowerPart, number] => [
+        part,
+        level,
+      ]),
+      ['cabin', req.towerCabinLevel ?? TOWER_CABIN_REST_LEVEL],
     ];
     return parts.map(([part, level], order) => ({
       key: observationTowerPartSpriteKey(part, req.rotation),

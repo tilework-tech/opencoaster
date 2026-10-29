@@ -2,10 +2,6 @@ import { Z_STEP } from '../sim/core/constants';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { RidePhase } from '../sim/rides/ride-store';
-import {
-  DEFAULT_TOWER_HEIGHT,
-  observationTowerCabinLevel,
-} from '../sim/rides/observation-tower';
 import { PathFlag, PATH_ADDITION_BROKEN, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { MapData } from './renderer';
 import { Z_PIXELS, rotateDirection } from './projection';

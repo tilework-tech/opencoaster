@@ -85,6 +85,7 @@ export function withoutColumns(
           newWorld.rides.cols.mechanicHeadingTick,
         ]
       : []),
+    ...(version < 35 ? [newWorld.rides.cols.towerHeight] : []),
     ...(version < 23
       ? [
           newWorld.guests.cols.queueSeq,

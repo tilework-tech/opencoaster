@@ -26,11 +26,11 @@ import { coasterSystem } from '../rides/coaster-system';
 import { applyRideCommand, refreshRideQueueConnections } from '../rides/ride-commands';
 import { createRide } from '../rides/ride-operations';
 import { validateRidePlacement } from '../rides/ride-footprint';
-import { RIDE_CATALOG, type RideType } from '../rides/ride-types';
+import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import {
   DEFAULT_TOWER_HEIGHT,
-  TOWER_SECTION_COST,
   isValidObservationTowerHeight,
+  observationTowerCost,
 } from '../rides/observation-tower';
 import { trackSystem } from '../track/track-system';
 import { applyTrackCommand } from '../track/track-commands';
@@ -80,16 +80,10 @@ function applyCreateRide(
     reportFeedback(w.feedback, FeedbackDomain.Ride, code, rideId);
   const definition = RIDE_CATALOG[type];
   const cost =
-    (definition?.cost ?? 0) +
-    (type === RideType.ObservationTower
-      ? (towerHeight - DEFAULT_TOWER_HEIGHT) * TOWER_SECTION_COST
-      : 0);
-  if (
-    !definition ||
-    !Number.isInteger(x) ||
-    !Number.isInteger(y) ||
-    !Number.isInteger(dir)
-  )
+    type === RideType.ObservationTower
+      ? observationTowerCost(definition?.cost ?? 0, towerHeight)
+      : (definition?.cost ?? 0);
+  if (!definition || !Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(dir))
     return report(RideResult.OutOfBounds);
   if (type === RideType.ObservationTower && !isValidObservationTowerHeight(towerHeight))
     return report(RideResult.Blocked);

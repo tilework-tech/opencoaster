@@ -8,6 +8,7 @@ import { project } from './projection';
 import type { Rotation } from './projection';
 import { isSlicedRide, RideCellScene } from './ride-scene';
 import { rideCellSpriteKey } from './world-art';
+import { observationTowerParts } from '../sim/rides/observation-tower';
 import type { MapData } from './renderer';
 
 const SIZE = 30;
@@ -33,6 +34,7 @@ function snapshotWith(
     towerHeight?: number;
     phase?: number;
     phaseProgress?: number;
+    towerCabinMilli?: number;
   }>,
 ): Snapshot {
   const snapshot = createSnapshot({ guests: 0, staff: 0, vehicles: 0, litter: 0 });
@@ -46,6 +48,8 @@ function snapshotWith(
     snapshot.rideInfo[o + RideInfo.BaseLevel] = ride.base;
     if (ride.towerHeight !== undefined)
       snapshot.rideInfo[o + RideInfo.TowerHeight] = ride.towerHeight;
+    if (ride.towerCabinMilli !== undefined)
+      snapshot.rideInfo[o + RideInfo.TowerCabinLevel] = ride.towerCabinMilli;
     if (ride.phase !== undefined) snapshot.rideInfo[o + RideInfo.Phase] = ride.phase;
     if (ride.phaseProgress !== undefined)
       snapshot.rideInfo[o + RideInfo.PhaseProgress] = ride.phaseProgress;
@@ -58,8 +62,8 @@ describe('RideCellScene', () => {
   it('retains ride identity and a unique slice for every tile of every flat ride', () => {
     const scene = new RideCellScene();
     const m = map();
-    const flatRides = Object.values(RIDE_CATALOG).filter((definition) =>
-      isSlicedRide(definition.id),
+    const flatRides = Object.values(RIDE_CATALOG).filter(
+      (definition) => isSlicedRide(definition.id) && definition.id !== RideType.ObservationTower,
     );
 
     expect(flatRides.length).toBeGreaterThan(0);
@@ -142,34 +146,41 @@ describe('RideCellScene', () => {
     expect(scene.length).toBe(0);
   });
 
-  it('renders a variable tower as reusable sections with a cabin following ride progress', () => {
+  it('stacks one base, a shaft per level, a top and the cabin at the height the ride reports', () => {
     const scene = new RideCellScene();
     const m = map();
     for (let rotation = 0 as Rotation; rotation < 4; rotation = (rotation + 1) as Rotation) {
-      scene.build(
-        snapshotWith([
-          {
-            type: RideType.ObservationTower,
-            x: 12,
-            y: 14,
-            dir: 0,
-            base: 3,
-            towerHeight: 16,
-            phase: 2,
-            phaseProgress: 400,
-          },
-        ]),
-        m,
-        rotation,
-      );
-      expect(scene.length).toBe(15);
-      expect(scene.items.slice(0, scene.length).filter(({ key }) => key.includes('/shaft/')))
-        .toHaveLength(12);
-      const cabin = scene.items.slice(0, scene.length).find(({ key }) => key.includes('/cabin/'))!;
-      expect(cabin.z).toBeGreaterThan(3 * Z_STEP);
-      expect(cabin.z).toBeLessThan((3 + 16) * Z_STEP);
-      expect(new Set(scene.items.slice(0, scene.length).map(({ key }) => key)).size).toBe(4);
-      scene.reset();
+      for (const towerHeight of [8, 16, 40]) {
+        scene.build(
+          snapshotWith([
+            {
+              type: RideType.ObservationTower,
+              x: 12,
+              y: 14,
+              dir: 0,
+              base: 3,
+              towerHeight,
+              phase: 2,
+              towerCabinMilli: 7_250,
+            },
+          ]),
+          m,
+          rotation,
+        );
+        const items = scene.items.slice(0, scene.length);
+        expect(items).toHaveLength(observationTowerParts(towerHeight).length + 1);
+        expect(items.filter(({ key }) => key.includes('/shaft/'))).toHaveLength(towerHeight - 4);
+        expect(new Set(items.map(({ key }) => key)).size).toBe(4);
+        expect(items.every((item) => item.x === 12 * TILE_UNITS + TILE_UNITS / 2)).toBe(true);
+        expect(items.every((item) => item.y === 14 * TILE_UNITS + TILE_UNITS / 2)).toBe(true);
+        expect(items.every((item) => item.depth === items[0].depth)).toBe(true);
+        for (const [index, { level }] of observationTowerParts(towerHeight).entries())
+          expect(items[index].z).toBe((3 + level) * Z_STEP);
+        const cabin = items.at(-1)!;
+        expect(cabin.key).toContain('/cabin/');
+        expect(cabin.z).toBeCloseTo((3 + 7.25) * Z_STEP);
+        scene.reset();
+      }
     }
   });
 });

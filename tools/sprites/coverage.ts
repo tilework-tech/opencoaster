@@ -16,6 +16,7 @@ import {
 } from '../../src/render/coaster-art';
 import {
   facilitySpriteKey,
+  observationTowerPartSpriteKey,
   rideHutSpriteKey,
   rideSpriteKey,
   rideSpriteName,
@@ -162,6 +163,10 @@ export function buildArtCoverage(): ArtCoverageRow[] {
         for (let pitch = -2; pitch <= 2; pitch++)
           for (let rotation = 0; rotation < 4; rotation++)
             keys.push(transportCarSpriteKey(transport, heading, pitch, rotation));
+    } else if (ride.id === RideType.ObservationTower) {
+      for (const part of ['base', 'shaft', 'top', 'cabin'] as const)
+        for (let rotation = 0; rotation < 4; rotation++)
+          keys.push(observationTowerPartSpriteKey(part, rotation));
     } else if (isSlicedRide(ride.id as RideType))
       keys.push(...flatRideSliceKeys(ride.id as RideType));
     else if (ride.category === 'gentle' || ride.category === 'thrill')

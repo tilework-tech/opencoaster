@@ -16,11 +16,12 @@ import {
   rideSpriteKey,
   observationTowerPartSpriteKey,
 } from '../render/world-art';
-import { RidePhase } from '../sim/rides/ride-store';
 import {
   DEFAULT_TOWER_HEIGHT,
-  observationTowerCabinLevel,
+  TOWER_CABIN_REST_LEVEL,
+  observationTowerParts,
 } from '../sim/rides/observation-tower';
+import type { ObservationTowerPart } from '../sim/rides/observation-tower';
 import { isSlicedRide } from '../render/ride-scene';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { trackPreviewSprites } from './track-preview-art';
@@ -60,23 +61,18 @@ export function rideGhostSprites(
   if (isSlicedRide(ghost.type)) {
     if (ghost.type === RideType.ObservationTower) {
       const height = ghost.towerHeight ?? DEFAULT_TOWER_HEIGHT;
-      const parts: Array<[string, number]> = [
-        ['base', ghost.baseLevel],
-        ...Array.from({ length: Math.max(0, height - 4) }, (_, section) => [
-          'shaft',
-          ghost.baseLevel + section + 1,
-        ] as [string, number]),
-        ['top', ghost.baseLevel + height - 3],
-        ['cabin', ghost.baseLevel + observationTowerCabinLevel(height, RidePhase.Closed, 0)],
+      const parts: Array<[ObservationTowerPart, number]> = [
+        ...observationTowerParts(height).map(({ part, level }): [ObservationTowerPart, number] => [
+          part,
+          ghost.baseLevel + level,
+        ]),
+        ['cabin', ghost.baseLevel + TOWER_CABIN_REST_LEVEL],
       ];
       return parts.map(([part, level]) => ({
         x: ghost.x,
         y: ghost.y,
         level,
-        sprite: observationTowerPartSpriteKey(
-          part as 'base' | 'shaft' | 'top' | 'cabin',
-          rotation,
-        ),
+        sprite: observationTowerPartSpriteKey(part, rotation),
         kind: 'ride',
         tone,
       }));

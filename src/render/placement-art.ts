@@ -3,13 +3,10 @@ import { rotateTile } from '../sim/track/construction';
 import { Surface } from '../sim/map/tile-map';
 import { DEFAULT_SUPPORT_LEVELS, RIDE_CATALOG } from '../sim/rides/ride-types';
 import { RideType } from '../sim/rides/ride-types';
-import {
-  DEFAULT_TOWER_HEIGHT,
-  TOWER_SECTION_COST,
-} from '../sim/rides/observation-tower';
+import { DEFAULT_TOWER_HEIGHT, TOWER_SECTION_COST } from '../sim/rides/observation-tower';
 import { occupancyConflict, ridePlacementOccupancies } from '../sim/map/occupancy';
 import { rideFootprintContains, rideFootprintTiles } from '../sim/rides/ride-footprint';
-import { TILE_UNITS } from '../sim/core/constants';
+import { TILE_UNITS, Z_STEP } from '../sim/core/constants';
 import { SNAPSHOT_STRIDE, RIDE_INFO_STRIDE, RideInfo } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import type { MapData } from './renderer';

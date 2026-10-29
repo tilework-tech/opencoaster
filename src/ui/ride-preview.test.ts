@@ -29,9 +29,7 @@ describe('ride preview items', () => {
     });
     expect(short).toHaveLength(7);
     expect(tall).toHaveLength(15);
-    expect(Math.min(...tall.map(({ y }) => y))).toBeLessThan(
-      Math.min(...short.map(({ y }) => y)),
-    );
+    expect(Math.min(...tall.map(({ y }) => y))).toBeLessThan(Math.min(...short.map(({ y }) => y)));
     expect(tall.at(-1)?.key).toContain('/cabin/');
   });
 

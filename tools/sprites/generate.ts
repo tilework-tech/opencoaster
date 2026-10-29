@@ -253,36 +253,36 @@ export function flatRidePreviewSprites(ride: RideTypeDef, model: RideModel): Spr
 function rideSprites(): SpriteDef[] {
   return [
     ...RIDE_MODELS.flatMap((baseModel) => {
-    const model = baseModel.key === 'rides/go-karts' ? GO_KARTS_MODEL : baseModel;
-    const ride = Object.values(RIDE_CATALOG).find(
-      (definition) =>
-        `rides/${definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` === model.key,
-    );
-    if (ride?.id === RideType.ObservationTower) return [];
-    if (
-      ride &&
-      (['shop', 'stall', 'facility', 'water'].includes(ride.category) ||
-        ride.category === 'coaster')
-    )
-      return [];
-    if (ride && isFlatRide(ride))
-      return [...flatRideCellSprites(ride, model), ...flatRidePreviewSprites(ride, model)];
-    const spriteName = ride ? rideSpriteName(ride.id) : model.key;
-    const fit = rideFitScale(
-      Array.from({ length: model.frames }, (_, frame) => rideMesh(model, frame)),
-    );
-    return Array.from({ length: 4 }, (_, view): SpriteDef => ({
-      key: `${spriteName}/view-${view}`,
-      frames: Array.from({ length: model.frames }, (_, frame) =>
-        renderMesh(
-          rotateMesh(
-            mapMesh(rideMesh(model, frame), (p) => [p[0] * fit, p[1] * fit, p[2] * fit]),
-            view,
+      const model = baseModel.key === 'rides/go-karts' ? GO_KARTS_MODEL : baseModel;
+      const ride = Object.values(RIDE_CATALOG).find(
+        (definition) =>
+          `rides/${definition.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` === model.key,
+      );
+      if (ride?.id === RideType.ObservationTower) return [];
+      if (
+        ride &&
+        (['shop', 'stall', 'facility', 'water'].includes(ride.category) ||
+          ride.category === 'coaster')
+      )
+        return [];
+      if (ride && isFlatRide(ride))
+        return [...flatRideCellSprites(ride, model), ...flatRidePreviewSprites(ride, model)];
+      const spriteName = ride ? rideSpriteName(ride.id) : model.key;
+      const fit = rideFitScale(
+        Array.from({ length: model.frames }, (_, frame) => rideMesh(model, frame)),
+      );
+      return Array.from({ length: 4 }, (_, view): SpriteDef => ({
+        key: `${spriteName}/view-${view}`,
+        frames: Array.from({ length: model.frames }, (_, frame) =>
+          renderMesh(
+            rotateMesh(
+              mapMesh(rideMesh(model, frame), (p) => [p[0] * fit, p[1] * fit, p[2] * fit]),
+              view,
+            ),
           ),
         ),
-      ),
-      footprint: ONE_TILE,
-    }));
+        footprint: ONE_TILE,
+      }));
     }),
     ...observationTowerPartSprites(),
   ];

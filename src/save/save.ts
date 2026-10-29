@@ -46,6 +46,10 @@ import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 import { migrateLegacyAmbientTrees } from '../sim/map/ambient-trees';
 import {
   DEFAULT_TOWER_HEIGHT,
+  LEGACY_TOWER_LOAD_TICKS,
+  TOWER_CABIN_REST_MILLI,
+  TOWER_LOAD_TICKS,
+  TOWER_UNLOAD_TICKS,
   observationTowerRunTicks,
 } from '../sim/rides/observation-tower';
 
@@ -570,6 +574,7 @@ export function deserialize(bytes: Uint8Array): World {
     PRE_STAFF_STATS_SAVE_VERSION,
     SANDBOX_SPAWN_SAVE_VERSION,
     AMBIENT_TREES_SAVE_VERSION,
+    OBSERVATION_TOWER_HEIGHT_SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
     throw new Error(`Unsupported save version ${header.version}`);
@@ -738,29 +743,41 @@ export function deserialize(bytes: Uint8Array): World {
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
   if (header.version < AMBIENT_TREES_SAVE_VERSION) migrateLegacyAmbientTrees(world);
-  if (header.version < OBSERVATION_TOWER_HEIGHT_SAVE_VERSION)
-    migrateObservationTowerHeights(world);
+  if (header.version < OBSERVATION_TOWER_HEIGHT_SAVE_VERSION) migrateObservationTowerHeights(world);
   closeInvalidOpenRides(world);
   repairSavedRideTrains(world);
   return world;
 }
 
+/**
+ * Towers saved before v35 keep their historical height. They adopt the distance-based cycle, so a
+ * trip in progress continues at the same fraction of the (longer) run and a stranded cabin rests
+ * at the station.
+ */
 function migrateObservationTowerHeights(world: World): void {
   const rides = world.rides.cols;
   for (let slot = 0; slot < world.rides.count; slot++) {
-    if (rides.typeId[slot] === RideType.ObservationTower) {
-      const previousRunTicks = rides.runTicks[slot];
-      const previousRemainingTicks = rides.phaseTicks[slot];
-      rides.towerHeight[slot] = DEFAULT_TOWER_HEIGHT;
-      rides.runTicks[slot] = observationTowerRunTicks(DEFAULT_TOWER_HEIGHT);
-      if (rides.phase[slot] === RidePhase.Running && previousRunTicks > 0) {
-        rides.phaseTicks[slot] = Math.max(
-          1,
-          Math.round((rides.runTicks[slot] * previousRemainingTicks) / previousRunTicks),
-        );
-      } else if (rides.phase[slot] === RidePhase.Broken) {
-        rides.phaseTicks[slot] = 500;
-      }
+    if (rides.typeId[slot] !== RideType.ObservationTower) continue;
+    const previousRunTicks = rides.runTicks[slot];
+    const previousRemainingTicks = rides.phaseTicks[slot];
+    rides.towerHeight[slot] = DEFAULT_TOWER_HEIGHT;
+    rides.runTicks[slot] = observationTowerRunTicks(DEFAULT_TOWER_HEIGHT);
+    if (rides.loadTicks[slot] === LEGACY_TOWER_LOAD_TICKS) {
+      rides.loadTicks[slot] = TOWER_LOAD_TICKS;
+      if (rides.minWaitTicks[slot] === LEGACY_TOWER_LOAD_TICKS)
+        rides.minWaitTicks[slot] = TOWER_LOAD_TICKS;
+      if (rides.maxWaitTicks[slot] === LEGACY_TOWER_LOAD_TICKS * 4)
+        rides.maxWaitTicks[slot] = TOWER_LOAD_TICKS * 4;
+    }
+    if (rides.unloadTicks[slot] === LEGACY_TOWER_LOAD_TICKS)
+      rides.unloadTicks[slot] = TOWER_UNLOAD_TICKS;
+    if (rides.phase[slot] === RidePhase.Running && previousRunTicks > 0) {
+      rides.phaseTicks[slot] = Math.max(
+        1,
+        Math.round((rides.runTicks[slot] * previousRemainingTicks) / previousRunTicks),
+      );
+    } else if (rides.phase[slot] === RidePhase.Broken) {
+      rides.phaseTicks[slot] = TOWER_CABIN_REST_MILLI;
     }
   }
 }

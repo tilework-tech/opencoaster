@@ -861,9 +861,7 @@ export function observationTowerBase(): Mesh {
 /** A repeatable one-level tower shaft segment, authored in physical tile units. */
 export function observationTowerShaftSection(): Mesh {
   const top = 1 / (39.19 / 16);
-  const mesh: Mesh = [
-    ...cylinder(0, 0, 0, top, 0.11, 0.09, 12, WHITE),
-  ];
+  const mesh: Mesh = [...cylinder(0, 0, 0, top, 0.11, 0.09, 12, WHITE)];
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * TAU + Math.PI / 4;
     mesh.push(
