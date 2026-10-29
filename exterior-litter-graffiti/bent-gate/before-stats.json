@@ -1,0 +1,72 @@
+{
+ "loaded": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 241,
+  "guests": 1,
+  "tick": 96207
+ },
+ "t0": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 242,
+  "guests": 151,
+  "tick": 97175
+ },
+ "t1": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 242,
+  "guests": 151,
+  "tick": 97983
+ },
+ "t2": {
+  "outsideRoute": 108,
+  "onBendAndGate": 59,
+  "interior": 134,
+  "guests": 151,
+  "tick": 98792
+ },
+ "t3": {
+  "outsideRoute": 109,
+  "onBendAndGate": 59,
+  "interior": 135,
+  "guests": 151,
+  "tick": 99600
+ },
+ "t4": {
+  "outsideRoute": 111,
+  "onBendAndGate": 61,
+  "interior": 135,
+  "guests": 151,
+  "tick": 100404
+ },
+ "t5": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 246,
+  "guests": 151,
+  "tick": 101206
+ },
+ "t6": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 246,
+  "guests": 151,
+  "tick": 102010
+ },
+ "t7": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 246,
+  "guests": 151,
+  "tick": 102819
+ },
+ "final": {
+  "outsideRoute": 111,
+  "onBendAndGate": 61,
+  "interior": 135,
+  "guests": 151,
+  "tick": 103003
+ }
+}

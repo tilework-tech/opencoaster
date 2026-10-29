@@ -1,0 +1,72 @@
+{
+ "loaded": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 134,
+  "guests": 1,
+  "tick": 96193
+ },
+ "t0": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 135,
+  "guests": 151,
+  "tick": 97155
+ },
+ "t1": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 135,
+  "guests": 151,
+  "tick": 97963
+ },
+ "t2": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 135,
+  "guests": 151,
+  "tick": 98766
+ },
+ "t3": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 137,
+  "guests": 151,
+  "tick": 99572
+ },
+ "t4": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 137,
+  "guests": 151,
+  "tick": 100375
+ },
+ "t5": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 138,
+  "guests": 151,
+  "tick": 101178
+ },
+ "t6": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 139,
+  "guests": 151,
+  "tick": 101983
+ },
+ "t7": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 139,
+  "guests": 151,
+  "tick": 102788
+ },
+ "final": {
+  "outsideRoute": 0,
+  "onBendAndGate": 0,
+  "interior": 139,
+  "guests": 151,
+  "tick": 102976
+ }
+}
