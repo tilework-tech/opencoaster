@@ -106,6 +106,11 @@ console.log(
       ticks: total,
       benches,
       guestsSeen: seen.size,
+      guestsInParkAtEnd: world.guests.count,
+      parkRating: world.economy.parkRating,
+      ridesTakenByGuestsInPark: Array.from(
+        world.guests.cols.ridesTaken.subarray(0, world.guests.count),
+      ).reduce((a, b) => a + b, 0),
       sittingSessions: sessions,
       distinctSitters: sitters.size,
       sitterShare: Number((sitters.size / Math.max(1, seen.size)).toFixed(4)),
