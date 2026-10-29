@@ -168,12 +168,10 @@ describe('save', () => {
     prepareSandbox(sim.world);
     expect(spawnGuest(sim.world)).toBe(true);
     const occupiedBefore = new Set(
-      worldOccupancies(sim.world).map((volume) => volume.tileY * sim.world.map.width + volume.tileX),
+      worldOccupancies(sim.world).map(
+        (volume) => volume.tileY * sim.world.map.width + volume.tileX,
+      ),
     );
-    const occupiedKinds = new Set(worldOccupancies(sim.world).map((volume) => volume.kind));
-    expect(occupiedKinds.has('path')).toBe(true);
-    expect(occupiedKinds.has('flatRide')).toBe(true);
-    expect(occupiedKinds.has('track') || occupiedKinds.has('station')).toBe(true);
     const guestPosition = [sim.world.guests.cols.x[0], sim.world.guests.cols.y[0]];
     const entrance = [sim.world.park.entranceX, sim.world.park.entranceY];
     const spawns = sim.world.park.spawns.map((spawn) => ({ ...spawn }));
@@ -231,8 +229,14 @@ describe('save', () => {
     ).toBe(TrackResult.Ok);
     expect(sim.world.track.pieces.count).toBeGreaterThan(0);
     const occupiedBefore = new Set(
-      worldOccupancies(sim.world).map((volume) => volume.tileY * sim.world.map.width + volume.tileX),
+      worldOccupancies(sim.world).map(
+        (volume) => volume.tileY * sim.world.map.width + volume.tileX,
+      ),
     );
+    const occupiedKinds = new Set(worldOccupancies(sim.world).map((volume) => volume.kind));
+    expect(occupiedKinds.has('path')).toBe(true);
+    expect(occupiedKinds.has('flatRide')).toBe(true);
+    expect(occupiedKinds.has('track') || occupiedKinds.has('station')).toBe(true);
     const legacy = withSaveVersion(serialize(sim.world), 32, true);
 
     const loaded = deserialize(legacy);
