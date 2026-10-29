@@ -1,0 +1,37 @@
+{
+  "renderer": "canvas2d",
+  "fixture": "balance park seed 1, sensible profile (four flat rides, stalls, toilets, three staff), 2 months in",
+  "benchesRequested": 10,
+  "benchesPlacedThroughUi": 10,
+  "tickWhenPlaced": 33505,
+  "tickWhenPaused": 63214,
+  "elapsedSimTicks": 29709,
+  "elapsedSimMinutes": 12.4,
+  "guestsInParkWhenPaused": 249,
+  "sittingSessionsObserved": 6,
+  "completedSessions": 5,
+  "distinctSitters": 6,
+  "meanSecondsSeated": 22.1,
+  "sequenceFrames": 10,
+  "closeUpGuest": {
+    "id": 82,
+    "tile": {
+      "x": 30,
+      "y": 43
+    },
+    "heading": 1,
+    "seat": 7
+  },
+  "seatedWhenPaused": [
+    {
+      "id": 82,
+      "tile": {
+        "x": 30,
+        "y": 43
+      },
+      "heading": 1,
+      "seat": 7
+    }
+  ],
+  "wallSeconds": 332
+}

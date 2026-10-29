@@ -1,0 +1,17 @@
+# pnpm bench -- --guests 5000 (400 ticks, 150 warmup), 3 runs each
+## main bd724614 (worktree ../opencoaster-base)
+ms/tick  mean 0.451  p50 0.375  p95 1.032  p99 1.537  max 2.112
+ms/tick  mean 0.505  p50 0.381  p95 1.059  p99 3.742  max 8.228
+ms/tick  mean 0.470  p50 0.375  p95 1.146  p99 2.192  max 2.730
+## branch 930c39c1
+ms/tick  mean 0.603  p50 0.402  p95 1.445  p99 3.199  max 6.840
+ms/tick  mean 0.534  p50 0.402  p95 1.205  p99 3.113  max 5.220
+ms/tick  mean 0.475  p50 0.385  p95 1.135  p99 1.872  max 2.475
+## branch, 600 benches, 5000 tired guests, warmup 800 / 3000
+entities: 5002 guests, 100 staff, 487 litter | 400 ticks
+ms/tick  mean 0.442  p50 0.412  p95 0.675  p99 0.942  max 1.820
+entities: 4998 guests, 100 staff, 496 litter | 400 ticks
+ms/tick  mean 0.510  p50 0.463  p95 0.795  p99 1.248  max 3.475
+## first 800 ticks incl. arrival spike: main vs branch(600 benches, tired)
+ms/tick  mean 0.791  p50 0.393  p95 1.919  p99 5.948  max 72.666
+ms/tick  mean 0.826  p50 0.421  p95 2.244  p99 6.276  max 51.275

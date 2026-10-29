@@ -1,0 +1,6 @@
+== --every 0 modest
+{"months":8,"ticks":131072,"benches":0,"guestsSeen":364,"guestsInParkAtEnd":348,"parkRating":653,"ridesTakenByGuestsInPark":4309,"sittingSessions":0,"distinctSitters":0,"sitterShare":0,"completedSessions":0,"meanSessionTicks":0,"seatedGuestTicks":0,"peakSeated":0,"startedTired":0,"startedNauseous":0,"startedBoth":0}
+== --every 3 modest
+{"months":8,"ticks":131072,"benches":31,"guestsSeen":376,"guestsInParkAtEnd":371,"parkRating":621,"ridesTakenByGuestsInPark":4440,"sittingSessions":103,"distinctSitters":66,"sitterShare":0.1755,"completedSessions":102,"meanSessionTicks":1075,"seatedGuestTicks":109621,"peakSeated":6,"startedTired":103,"startedNauseous":0,"startedBoth":0}
+== --every 1 modest
+{"months":8,"ticks":131072,"benches":91,"guestsSeen":384,"guestsInParkAtEnd":384,"parkRating":684,"ridesTakenByGuestsInPark":4434,"sittingSessions":121,"distinctSitters":86,"sitterShare":0.224,"completedSessions":119,"meanSessionTicks":1071,"seatedGuestTicks":127579,"peakSeated":7,"startedTired":121,"startedNauseous":0,"startedBoth":0}

@@ -1,0 +1,12 @@
+import sharp from 'sharp';
+import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import os from 'node:os';
+const [,, dir, out, fps] = process.argv;
+const ff = join(os.homedir(), '.cache/ms-playwright/ffmpeg-1013/ffmpeg-linux');
+const files = (await readdir(dir)).filter((f) => f.endsWith('.png')).sort();
+const p = spawn(ff, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-c:v', 'mjpeg', '-framerate', fps, '-i', 'pipe:0', '-c:v', 'vp8', '-b:v', '2M', '-pix_fmt', 'yuv420p', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+for (const f of files) p.stdin.write(await sharp(join(dir, f)).resize({ width: 840, height: 660, kernel: 'nearest' }).jpeg({ quality: 95 }).toBuffer());
+p.stdin.end();
+p.on('close', (c) => console.log('ffmpeg exit', c, out));

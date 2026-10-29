@@ -1,0 +1,6 @@
+main(mean p99) 0.438 1.203 | branch 0.448 1.237
+main(mean p99) 0.440 1.205 | branch 0.470 1.693
+main(mean p99) 0.433 1.228 | branch 0.455 1.248
+main(mean p99) 0.465 2.178 | branch 0.476 1.630
+main(mean p99) 0.462 1.740 | branch 0.482 1.740
+main(mean p99) 0.474 1.841 | branch 0.503 2.000

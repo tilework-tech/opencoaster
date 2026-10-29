@@ -1,0 +1,37 @@
+{
+  "renderer": "webgl2",
+  "fixture": "balance park seed 1, sensible profile with the flat rides demolished (stalls and toilets only), 2 months in",
+  "benchesRequested": 10,
+  "benchesPlacedThroughUi": 10,
+  "tickWhenPlaced": 33053,
+  "tickWhenPaused": 65014,
+  "elapsedSimTicks": 31961,
+  "elapsedSimMinutes": 13.3,
+  "guestsInParkWhenPaused": 5,
+  "sittingSessionsObserved": 5,
+  "completedSessions": 5,
+  "distinctSitters": 5,
+  "meanSecondsSeated": 27,
+  "sequenceFrames": 12,
+  "closeUpGuest": {
+    "id": 9,
+    "tile": {
+      "x": 30,
+      "y": 43
+    },
+    "heading": 1,
+    "seat": 7
+  },
+  "seatedWhenPaused": [
+    {
+      "id": 9,
+      "tile": {
+        "x": 30,
+        "y": 43
+      },
+      "heading": 1,
+      "seat": 7
+    }
+  ],
+  "wallSeconds": 344
+}
