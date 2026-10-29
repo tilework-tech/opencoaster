@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ambientTreeName,
-  flowerBedSpriteName,
-  pathElementSprite,
-  queueRailSprites,
-} from './world-art';
+import { flowerBedSpriteName, pathElementSprite, queueRailSprites } from './world-art';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
+import { legacyAmbientTreeItem } from '../sim/map/ambient-trees';
+import { SceneryItem } from '../sim/map/scenery';
 import { RideType } from '../sim/rides/ride-types';
 import { RidePhase } from '../sim/rides/ride-store';
 import {
@@ -61,10 +58,10 @@ describe('world art sprite selection', () => {
     }
   });
   it('chooses desert trees on sand and temperate trees on grass', () => {
-    expect(ambientTreeName(1, 4, 1)).toBe('tree-cactus');
-    expect(ambientTreeName(1, 27, 1)).toBe('tree-palm');
-    expect(ambientTreeName(0, 4, 1)).toBe('tree-topiary');
-    expect(ambientTreeName(4, 4, 1)).toBeNull();
+    expect(legacyAmbientTreeItem(1, 4, 1)).toBe(SceneryItem.CactusTree);
+    expect(legacyAmbientTreeItem(1, 27, 1)).toBe(SceneryItem.PalmTree);
+    expect(legacyAmbientTreeItem(0, 4, 1)).toBe(SceneryItem.TopiaryTree);
+    expect(legacyAmbientTreeItem(4, 4, 1)).toBeNull();
   });
 
   it('selects a camera-facing view for palms and cacti in every map rotation', () => {

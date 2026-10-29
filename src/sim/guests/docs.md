@@ -43,7 +43,7 @@ Path: @/src/sim/guests
 - A guest whose tile is not a footpath (for example after the path under it is removed) cannot move; it eventually leaves when it is stranded and counts as lost for the park rating. Guest creation requires an edge spawn point or legacy park gate.
 - `queueLength` counts only the guests at the head of the line who can board; the ride window and the wait estimate use the whole line (`rideLines.queued`). Capacity is enforced when a guest joins the line.
 - Stalls serve any number of guests at once; `capacity` is not enforced. The Information Kiosk is selected for umbrellas in rain and also sells them to nearby wandering guests.
-- Current saves use version 33. Version 33 stores map-edge guest spawn points in the park header; older saves retain their gate as the arrival location. Other fields absent from older layouts receive defaults during load. Versions 3 and 4 also migrate guests with `HEADING_NONE`. See [save format and migrations](../../save/docs.md) for the full history.
+- Current saves use version 34. Version 33 added map-edge guest spawn points to the park header; v32 saves and older fall back to the park gate, while v33 spawn points and existing guest positions are preserved when v34 materializes legacy ambient trees. New sandbox and scenario parks establish a walkable gate-to-edge approach before initial guests are queued. Other fields absent from older layouts receive defaults during load. Versions 3 and 4 also migrate guests with `HEADING_NONE`. See [save format and migrations](../../save/docs.md) for the full history.
 
 ### Vandalism
 

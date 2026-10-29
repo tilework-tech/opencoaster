@@ -5,6 +5,8 @@ import { hashWorld } from '../sim/core/hash';
 import { PieceId } from '../sim/track/catalog';
 import { prepareSandbox } from '../sim/scenario/sandbox';
 import { spawnPoints } from '../sim/guests/park';
+import { placeTrack } from '../sim/track/construction';
+import { PieceMode, TrackResult } from '../sim/track/track-types';
 import { SAVE_VERSION, deserialize, serialize } from './save';
 import { allWorldViews, withoutColumns } from './legacy-save-fixtures';
 import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
@@ -18,7 +20,7 @@ import {
   updateRideMaintenance,
 } from '../sim/rides';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
-import { HEADING_NONE } from '../sim/guests/guest-store';
+import { HEADING_NONE, spawnGuest } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
 import { addSpawnAtCorner, flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
@@ -32,7 +34,9 @@ import {
 } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
-import { PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
+import { ElementType, PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
+import { placePath } from '../sim/map/paths';
+import { worldOccupancies } from '../sim/map/occupancy';
 import { placeScenery, SceneryItem } from '../sim/map/scenery';
 import { refreshQueueIndex } from '../sim/rides/queue-lines';
 import { createRide, placeRideEntranceExit } from '../sim/rides/ride-operations';
@@ -46,6 +50,50 @@ import {
 } from '../sim/rides/coaster-fixtures';
 import { syncVehicleTracks, VehicleTrackRegistry } from '../sim/vehicles/vehicle-track';
 import { rideTrainSlots } from '../sim/vehicles/ride-trains';
+
+const AMBIENT_TREE_ITEMS = new Set<SceneryItem>([
+  SceneryItem.OakTree,
+  SceneryItem.Conifer,
+  SceneryItem.BirchTree,
+  SceneryItem.BlossomTree,
+  SceneryItem.AutumnTree,
+  SceneryItem.TopiaryTree,
+  SceneryItem.PalmTree,
+  SceneryItem.CactusTree,
+]);
+
+function ambientTreePlacements(world: World): Array<[number, number]> {
+  const placements: Array<[number, number]> = [];
+  for (let tile = 0; tile < world.map.width * world.map.height; tile++) {
+    for (
+      let element = world.map.firstElement(tile);
+      element >= 0;
+      element = world.map.nextElement(element)
+    ) {
+      if (
+        world.map.elType[element] === ElementType.SmallScenery &&
+        AMBIENT_TREE_ITEMS.has(world.map.elData[element] as SceneryItem)
+      )
+        placements.push([tile, world.map.elData[element]!]);
+    }
+  }
+  return placements;
+}
+
+function withSaveVersion(bytes: Uint8Array, version: number, omitSpawnPoints = false): Uint8Array {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const headerEnd = 8 + view.getUint32(4, true);
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, headerEnd)));
+  header.version = version;
+  if (omitSpawnPoints && header.park) delete header.park.spawns;
+  const encoded = new TextEncoder().encode(JSON.stringify(header));
+  const result = new Uint8Array(8 + encoded.length + bytes.length - headerEnd);
+  result.set(bytes.subarray(0, 8));
+  new DataView(result.buffer).setUint32(4, encoded.length, true);
+  result.set(encoded, 8);
+  result.set(bytes.subarray(headerEnd), 8 + encoded.length);
+  return result;
+}
 
 describe('save', () => {
   it('repairs a serialized station-last test train so it completes testing and serves guests', () => {
@@ -115,8 +163,40 @@ describe('save', () => {
     expect(spawnPoints(old)).toEqual([{ x: old.park.entranceX, y: old.park.entranceY }]);
   });
 
+  it('migrates a v33 sandbox save without changing its entrance or guests, and stays idempotent', () => {
+    const sim = new Simulation({ seed: 19, width: 32, height: 32 });
+    prepareSandbox(sim.world);
+    expect(spawnGuest(sim.world)).toBe(true);
+    const occupiedBefore = new Set(
+      worldOccupancies(sim.world).map(
+        (volume) => volume.tileY * sim.world.map.width + volume.tileX,
+      ),
+    );
+    const guestPosition = [sim.world.guests.cols.x[0], sim.world.guests.cols.y[0]];
+    const entrance = [sim.world.park.entranceX, sim.world.park.entranceY];
+    const spawns = sim.world.park.spawns.map((spawn) => ({ ...spawn }));
+
+    const intermediate = withSaveVersion(serialize(sim.world), 33);
+    const migrated = deserialize(intermediate);
+    const placements = ambientTreePlacements(migrated);
+    expect(placements.length).toBeGreaterThan(0);
+    expect(placements.every(([tile]) => !occupiedBefore.has(tile))).toBe(true);
+    expect([migrated.park.entranceX, migrated.park.entranceY]).toEqual(entrance);
+    expect(migrated.park.spawns).toEqual(spawns);
+    expect([migrated.guests.cols.x[0], migrated.guests.cols.y[0]]).toEqual(guestPosition);
+
+    const repeatedMigration = deserialize(intermediate);
+    expect(ambientTreePlacements(repeatedMigration)).toEqual(placements);
+    expect(hashWorld(repeatedMigration)).toBe(hashWorld(migrated));
+
+    const reloadedIntermediate = deserialize(withSaveVersion(serialize(migrated), 33));
+    expect(ambientTreePlacements(reloadedIntermediate)).toEqual(placements);
+    expect(hashWorld(reloadedIntermediate)).toBe(hashWorld(migrated));
+    expect(SAVE_VERSION).toBe(34);
+  });
+
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(33);
+    expect(SAVE_VERSION).toBe(34);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -124,11 +204,45 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(33);
+    expect(header.version).toBe(34);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
     expect(restored.staff.cols.vandalsStopped[0]).toBe(27);
+  });
+
+  it('materializes legacy ambient trees except where the saved park is occupied', () => {
+    const sim = flatOwnedSim(1);
+    const rideId = createCoaster(sim, RideType.WoodenCoaster);
+    expect(createRide(sim.world, RideType.MerryGoRound, 8, 8)).toBeGreaterThanOrEqual(0);
+    expect(placePath(sim.world.map, { x: 7, y: 7 })).toBe(true);
+    expect(
+      placeTrack(sim.world, {
+        rideId,
+        pieceType: PieceId.Flat,
+        x: 13,
+        y: 2,
+        z: 4,
+        dir: 0,
+        mode: PieceMode.Normal,
+      }),
+    ).toBe(TrackResult.Ok);
+    expect(sim.world.track.pieces.count).toBeGreaterThan(0);
+    const occupiedBefore = new Set(
+      worldOccupancies(sim.world).map(
+        (volume) => volume.tileY * sim.world.map.width + volume.tileX,
+      ),
+    );
+    const occupiedKinds = new Set(worldOccupancies(sim.world).map((volume) => volume.kind));
+    expect(occupiedKinds.has('path')).toBe(true);
+    expect(occupiedKinds.has('flatRide')).toBe(true);
+    expect(occupiedKinds.has('track') || occupiedKinds.has('station')).toBe(true);
+    const legacy = withSaveVersion(serialize(sim.world), 32, true);
+
+    const loaded = deserialize(legacy);
+    expect(loaded.track.pieces.count).toBeGreaterThan(0);
+    expect(ambientTreePlacements(loaded).length).toBeGreaterThan(0);
+    expect(ambientTreePlacements(loaded).every(([tile]) => !occupiedBefore.has(tile))).toBe(true);
   });
 
   it('preserves the scenario guest cash average and defaults older saves', () => {

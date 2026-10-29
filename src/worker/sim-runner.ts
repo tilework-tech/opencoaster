@@ -3,6 +3,7 @@ import type { World } from '../sim/core/world';
 import { MAX_GUESTS, MAX_LITTER, MAX_STAFF, MAX_VEHICLES } from '../sim/core/constants';
 import { prepareScenarioPark } from '../sim/scenario/scenario-layout';
 import { prepareSandbox } from '../sim/scenario/sandbox';
+import { materializeAmbientTrees } from '../sim/map/ambient-trees';
 import { deserialize, serialize } from '../save/save';
 import { FixedStepScheduler } from './scheduler';
 import { createSnapshot, SNAPSHOT_RIDE_CAPACITY, snapshotBuffers, writeSnapshot } from './snapshot';
@@ -155,7 +156,10 @@ export class SimRunner {
       maxGuests: msg.maxGuests,
     });
     if (msg.scenario) prepareScenarioPark(sim.world, msg.scenario);
-    else prepareSandbox(sim.world);
+    else {
+      prepareSandbox(sim.world);
+      materializeAmbientTrees(sim.world);
+    }
     sim.enqueue({ type: 'spawnGuests', count: msg.initialGuests });
     this.start(sim);
     this.port.post({ type: 'ready' });
