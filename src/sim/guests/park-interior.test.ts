@@ -6,14 +6,14 @@ import { SCENARIOS } from '../scenario/catalog';
 import { prepareSandbox } from '../scenario/sandbox';
 import { prepareScenario } from '../scenario/scenario-layout';
 import { prepareScenarioPark } from '../scenario/scenario-layout';
-import { PathAddition, setPathAddition } from '../map/paths';
+import { PathAddition, placePath, setPathAddition } from '../map/paths';
 import { isPathElementBroken, markPathElementBroken, OWNED, RIGHTS_OWNED } from '../map/tile-map';
 import { deserialize, serialize } from '../../save/save';
 import { GuestState } from './guest-store';
 import { LitterKind } from './litter-store';
 import { litterSystem } from './litter-system';
 import { createVandalismSystem } from './vandalism';
-import { spawnPoints } from './park';
+import { setParkEntrance, spawnPoints } from './park';
 import { isGateApproach, isParkInterior, purgeExteriorMess } from './park-interior';
 
 function sandbox(): World {
@@ -306,5 +306,15 @@ describe('loading a contaminated park', () => {
     expect(world.park.entranceX).toBe(ix);
     expect(world.park.entranceY).toBe(iy - 1);
     expect(litterTiles(world)).toEqual([[ix, iy - 2]]);
+  });
+
+  it.fails('KNOWN FAILURE: a bent spawn route stays outside after the gate moves off-axis', () => {
+    const world = sandbox();
+    const oldX = world.park.entranceX;
+    const oldY = world.park.entranceY;
+    expect(placePath(world.map, { x: oldX, y: oldY - 1 })).toBe(true);
+    expect(placePath(world.map, { x: oldX + 1, y: oldY - 1 })).toBe(true);
+    expect(setParkEntrance(world, oldX + 1, oldY - 1)).toBe(true);
+    expect(isGateApproach(world, oldX, oldY - 1)).toBe(true);
   });
 });
