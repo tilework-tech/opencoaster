@@ -27,7 +27,7 @@ export const POOL_BANDS: ReadonlyArray<readonly [number, number]> = [
 ];
 export const LAMP_LIGHT_COLOUR: readonly [number, number, number] = [255, 190, 100];
 export const LAMP_HEAD_COLOUR: readonly [number, number, number] = [255, 236, 170];
-const NIGHT_TINT: readonly [number, number, number] = [92, 106, 170];
+const NIGHT_TINT: readonly [number, number, number] = [164, 178, 224];
 
 function smoothstep(from: number, to: number, value: number): number {
   const t = Math.max(0, Math.min(1, (value - from) / (to - from)));

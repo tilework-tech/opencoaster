@@ -1,5 +1,6 @@
 import { test } from './support/test';
 import type { Locator, Page } from './support/test';
+import { deserialize } from '../src/save/save';
 import {
   calibrate,
   centreOnTile,
@@ -11,7 +12,6 @@ import {
   point,
   savedWorld,
   startStarterPark,
-  starterWorld,
   toolbarAction,
 } from './support/park';
 import type { Calibration } from './support/park';
@@ -65,6 +65,15 @@ async function readPreview(page: Page): Promise<Preview> {
 
 function tip(page: Page): Locator {
   return page.locator('.land-tip');
+}
+
+async function currentWorld(page: Page): Promise<World> {
+  const bytes = await page.evaluate(async () => {
+    const sim = (window as unknown as { __sim?: { save(): Promise<Uint8Array> } }).__sim;
+    if (!sim) throw new Error('Simulation client is not available');
+    return Array.from(await sim.save());
+  });
+  return deserialize(Uint8Array.from(bytes));
 }
 
 async function touchDrag(page: Page, from: [number, number], to: [number, number]): Promise<void> {
@@ -187,18 +196,18 @@ for (const profile of ['desktop', 'pixel-8'] as const) {
         preview = await readPreview(page);
         expect(preview.vertices.size).toBeGreaterThan(0);
       });
+      const beforeWorld = await currentWorld(page);
       const before = await hudCash(page);
       if (mobile) await page.touchscreen.tap(x, y);
       else await page.mouse.click(x, y);
       await expect
         .poll(() => hudCash(page))
         .toBe(before - 500 * [...preview.vertices.values()].reduce((a, d) => a + Math.abs(d), 0));
-      const world = await savedWorld(page);
-      const reference = starterWorld();
+      const world = await currentWorld(page);
       for (const [vertex, delta] of preview.vertices)
-        expect(world.map.vertexHeights[vertex]).toBe(reference.map.vertexHeights[vertex] + delta);
+        expect(world.map.vertexHeights[vertex]).toBe(beforeWorld.map.vertexHeights[vertex] + delta);
       const changed = world.map.vertexHeights.filter(
-        (h, v) => h !== reference.map.vertexHeights[v],
+        (h, v) => h !== beforeWorld.map.vertexHeights[v],
       );
       expect(changed.length).toBe(preview.vertices.size);
     });
