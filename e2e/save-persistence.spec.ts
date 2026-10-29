@@ -1,6 +1,6 @@
 import { expect, test } from './support/test';
 import type { Page } from '@playwright/test';
-import { deserialize } from '../src/save/save';
+import { SAVE_VERSION, deserialize } from '../src/save/save';
 import { SceneryCategory, SCENERY_CATALOG } from '../src/sim/map/scenery';
 import { ElementType } from '../src/sim/map/tile-map';
 
@@ -20,7 +20,7 @@ test('saves and restores a sandbox when randomUUID is unavailable', async ({ pag
   await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   await expect(page.locator('.hud')).toBeVisible();
   const beforeSave = await readRunningWorld(page);
-  const expectedParkData = parkData(beforeSave);
+  const expectedParkData = parkData(beforeSave.world);
   await page.getByRole('button', { name: 'Game options' }).click();
   await page.getByRole('button', { name: 'Save, load and quit…' }).click();
 
@@ -40,8 +40,8 @@ test('saves and restores a sandbox when randomUUID is unavailable', async ({ pag
   await expect(page.locator('.game-toolbar')).toBeVisible();
 
   const restoredWorld = await readRunningWorld(page);
-  expect(parkData(restoredWorld)).toEqual(expectedParkData);
-  expect(restoredWorld.saveVersion).toBe(34);
+  expect(parkData(restoredWorld.world)).toEqual(expectedParkData);
+  expect(restoredWorld.savedVersion).toBe(SAVE_VERSION);
 });
 
 async function readRunningWorld(page: Page) {
@@ -55,11 +55,16 @@ async function readRunningWorld(page: Page) {
     return btoa(binary);
   });
 
-  return deserialize(new Uint8Array(Buffer.from(encodedSave, 'base64')));
+  const bytes = new Uint8Array(Buffer.from(encodedSave, 'base64'));
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const header = JSON.parse(
+    new TextDecoder().decode(bytes.subarray(8, 8 + view.getUint32(4, true))),
+  ) as { version: number };
+  return { world: deserialize(bytes), savedVersion: header.version };
 }
 
 function parkData(world: ReturnType<typeof deserialize>) {
-  const treeTiles = world.map.elType.flatMap((type, element) =>
+  const treeTiles = Array.from(world.map.elType).flatMap((type, element) =>
     type === ElementType.SmallScenery &&
     SCENERY_CATALOG[world.map.elData[element]]?.category === SceneryCategory.Trees
       ? [element]
