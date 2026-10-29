@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>OpenCoaster lighting and weather proof</title>
+    <style>
+      :root { color-scheme: dark; font: 16px/1.45 system-ui, sans-serif; background: #141920; color: #edf2f8; }
+      body { margin: 0 auto; max-width: 1500px; padding: 24px; }
+      h1 { margin: 0 0 4px; font-size: 1.5rem; }
+      .sub { margin: 0 0 20px; color: #b4c0ce; }
+      .controls { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 14px; margin-bottom: 16px; background: #202833; border-radius: 10px; }
+      label { display: grid; gap: 5px; font-size: .9rem; color: #d9e1ea; }
+      select, input { font: inherit; }
+      select { min-width: 150px; padding: 7px; border-radius: 5px; color: #101820; background: white; }
+      input[type=range] { width: 170px; }
+      .views { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+      figure { margin: 0; min-width: 0; padding: 10px; background: #202833; border-radius: 9px; overflow: auto; }
+      figcaption { margin-bottom: 8px; font-weight: 650; }
+      img { display: block; width: var(--image-width, 100%); max-width: none; height: auto; image-rendering: pixelated; }
+      .mobile-only { display: none; }
+      .meta { margin: 14px 0 0; color: #b4c0ce; font-size: .92rem; }
+      .links { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+      a { color: #93c5fd; }
+      @media (max-width: 800px) { body { padding: 14px; } .views { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <h1>Night visibility and weather cadence</h1>
+    <p class="sub">Before/after views use the same developed inspection park. Switch renderer, condition, display size, or the mobile spot check.</p>
+    <div class="controls">
+      <label>View
+        <select id="mode"><option value="desktop">Before and after</option><option value="mobile">Mobile spot check</option></select>
+      </label>
+      <label>Renderer
+        <select id="backend"><option value="canvas2d">Canvas2D</option><option value="webgl2">WebGL2</option></select>
+      </label>
+      <label>Condition
+        <select id="condition">
+          <option value="clear-day">Clear day</option><option value="rainy-day">Rainy day</option>
+          <option value="clear-night">Clear night</option><option value="rainy-night">Rainy night</option>
+          <option value="storm-night">Storm night</option>
+        </select>
+      </label>
+      <label>Image width <output id="zoom-value">100%</output>
+        <input id="zoom" type="range" min="55" max="180" value="100" />
+      </label>
+    </div>
+    <section id="desktop" class="views">
+      <figure><figcaption>Before</figcaption><img id="before" alt="Before comparison screenshot" /></figure>
+      <figure><figcaption>After</figcaption><img id="after" alt="After comparison screenshot" /></figure>
+    </section>
+    <section id="mobile" class="views mobile-only">
+      <figure><figcaption id="mobile-caption">After · 390 × 844</figcaption><img id="mobile-image" alt="Mobile readability screenshot" /></figure>
+    </section>
+    <p class="meta" id="description"></p>
+    <div class="links"><a href="README.md">Methods and findings</a><a href="weather-metrics.json">Weather measurements (JSON)</a><a href="render-benchmark.json">Renderer timings (JSON)</a></div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const conditions = {
+        'clear-day': 'Clear daytime lighting', 'rainy-day': 'Rain during daylight',
+        'clear-night': 'Clear midnight lighting', 'rainy-night': 'Rain at midnight',
+        'storm-night': 'Storm at midnight'
+      };
+      function update() {
+        const mode = $('mode').value, backend = $('backend').value, condition = $('condition').value;
+        const zoom = Number($('zoom').value);
+        $('zoom-value').value = `${zoom}%`;
+        document.documentElement.style.setProperty('--image-width', `${zoom}%`);
+        $('desktop').style.display = mode === 'desktop' ? '' : 'none';
+        $('mobile').style.display = mode === 'mobile' ? '' : 'none';
+        if (mode === 'desktop') {
+          $('before').src = `before/${backend}-${condition}.png`;
+          $('after').src = `after/${backend}-${condition}.png`;
+          $('description').textContent = `${backend === 'canvas2d' ? 'Canvas2D' : 'WebGL2'} · ${conditions[condition]} · 1000 × 700.`;
+        } else {
+          $('mobile-image').src = `mobile/mobile-${backend}-rainy-night.png`;
+          $('mobile-caption').textContent = `After · ${backend === 'canvas2d' ? 'Canvas2D' : 'WebGL2'} · 390 × 844`;
+          $('description').textContent = 'Rainy midnight spot check at a mobile viewport. The coaster, paths, guests, lamps, terrain and rain remain visible.';
+        }
+      }
+      for (const control of ['mode','backend','condition','zoom']) $(control).addEventListener('input', update);
+      update();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "method": "For each climate, aggregate 12 seeds (1\u201312), 1,000,000 simulation ticks per seed at 40 ticks/s (1x). Durations are measured in real seconds; wet fraction includes rain and storm.",
+  "climates": [
+    "Cold",
+    "CoolAndWet",
+    "HotAndDry",
+    "Warm"
+  ],
+  "before": {
+    "wetPercent": 49.16,
+    "stormPercent": 24.6,
+    "weatherStateTransitionsPerHour": 39.92,
+    "wetSpellStartsPerHour": 13.26,
+    "meanWetSpellSeconds": 133.5,
+    "meanClearSpellSeconds": 137.3
+  },
+  "after": {
+    "wetPercent": 24.8,
+    "stormPercent": 12.43,
+    "weatherStateTransitionsPerHour": 39.92,
+    "wetSpellStartsPerHour": 6.64,
+    "meanWetSpellSeconds": 134.5,
+    "meanClearSpellSeconds": 402.2
+  },
+  "climateBehavior": "All four climates produced the same weather cadence before and after; climate continues to affect monthly base temperature only.",
+  "durationRangeSeconds": [
+    60,
+    119.975
+  ],
+  "cycle": "36 in-game days \u2248 475 seconds (7m55s) at 1x; dawn and dusk each \u224839.6 seconds.",
+  "determinism": "State transition still invokes the seeded RNG once for the next kind and once for the duration. Weather state and save schema are unchanged."
+}
