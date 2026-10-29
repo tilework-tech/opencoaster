@@ -1,3 +1,4 @@
+import { setParkEntrance } from './park';
 import { describe, expect, it } from 'vitest';
 import { createGuestSystem } from './guest-system';
 import { GuestState } from './guest-store';
@@ -248,6 +249,7 @@ describe('resting and the rest of a visit', () => {
         seatGuest(w, sitter);
       }
       const vandal = guestAt(w, 6, 6);
+      setParkEntrance(w, 4, 6);
       w.guests.cols.happiness[vandal] = 20;
       w.guests.cols.energy[vandal] = 120;
       dropLitter(w, 6, 6, LitterKind.Trash);
