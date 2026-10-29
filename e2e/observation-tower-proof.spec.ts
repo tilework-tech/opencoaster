@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile } from 'node:fs/promises';
 import { devices, expect, test } from './support/test';
 import type { Page, TestInfo } from './support/test';
 import { chooseRide, startStarterPark, toolbarAction, unlockRides } from './support/footprints';
@@ -19,6 +19,9 @@ import {
   TALL,
   TICKS_PER_SECOND,
   buildSite,
+  captureFrames,
+  encodeFrames,
+  installOverlay,
   expectNoPageErrors,
   rideRow,
   rideWindow,
@@ -36,7 +39,16 @@ import type { Sample } from './support/tower';
  */
 test.skip(!PROOF_DIR, 'set TOWER_PROOF_DIR to capture the proof');
 
-test.use({ video: { mode: 'on', size: { width: 1280, height: 800 } } });
+test.use({ actionTimeout: 60_000 });
+
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status !== testInfo.expectedStatus)
+    await save(
+      testInfo,
+      `failure-${testInfo.title.replace(/\W+/g, '-')}.png`,
+      await page.screenshot(),
+    );
+});
 
 const PLANS = [SHORT, MEDIUM, TALL];
 
@@ -135,6 +147,14 @@ function timingFor(samples: Sample[], id: number, name: string, height: number):
   return { id, name, height, expectedRunTicks: observationTowerRunTicks(height), cycles };
 }
 
+async function guestCount(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      (window as unknown as { __sim: { latest: { guests: { count: number } } } }).__sim.latest
+        .guests.count,
+  );
+}
+
 async function mark(page: Page, label: string): Promise<void> {
   await page.evaluate((text) => {
     const w = window as unknown as {
@@ -153,15 +173,12 @@ async function marks(page: Page): Promise<Array<{ label: string; t: number; tick
   );
 }
 
-async function zoomOutToFit(page: Page): Promise<void> {
-  for (let step = 0; step < 4; step++) {
-    const zoom = await page.evaluate(
-      () => (window as unknown as { __camera: { zoom: number } }).__camera.zoom,
-    );
-    if (zoom <= 0.55) return;
-    await page.keyboard.press('PageDown');
-    await page.waitForTimeout(400);
-  }
+/** Raises the camera so the tall tower's top stays on screen at the default zoom. */
+async function frameTall(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (window as unknown as { __camera: { y: number } }).__camera.y -= 110;
+  });
+  await page.waitForTimeout(800);
 }
 
 async function closeWindows(page: Page): Promise<void> {
@@ -191,14 +208,6 @@ async function shootRotations(page: Page, testInfo: TestInfo, prefix: string): P
   }
 }
 
-async function copyVideo(page: Page, name: string): Promise<void> {
-  const video = page.video();
-  if (!video || !PROOF_DIR) return;
-  await page.close();
-  await mkdir(PROOF_DIR, { recursive: true });
-  await copyFile(await video.path(), `${PROOF_DIR}/${name}`);
-}
-
 async function testRun(page: Page, ids: readonly number[]): Promise<void> {
   for (const id of ids) {
     const panel = await rideWindow(page, id);
@@ -217,8 +226,8 @@ test.describe('proof: WebGL2 at 1x', () => {
     await save(testInfo, 'webgl2-built-closed.png', await page.screenshot());
     await closeWindows(page);
     await centerMapOnTile(page, [21, 43]);
-    await zoomOutToFit(page);
-    await save(testInfo, 'webgl2-built-zoomed-out.png', await page.screenshot());
+    await frameTall(page);
+    await save(testInfo, 'webgl2-built-framed.png', await page.screenshot());
 
     await startSampler(page);
     await testRun(page, ids);
@@ -350,7 +359,6 @@ test.describe('proof: WebGL2 at 1x', () => {
     );
     await save(testInfo, 'webgl2-samples.json', JSON.stringify(samples));
     expectNoPageErrors(page);
-    await copyVideo(page, 'webgl2-after-1x.webm');
   });
 });
 
@@ -370,8 +378,8 @@ test.describe('proof: Canvas2D', () => {
     const ids = await buildSite(page, PLANS);
     await closeWindows(page);
     await centerMapOnTile(page, [21, 43]);
-    await zoomOutToFit(page);
-    await save(testInfo, 'canvas2d-built-zoomed-out.png', await page.screenshot());
+    await frameTall(page);
+    await save(testInfo, 'canvas2d-built-framed.png', await page.screenshot());
     await testRun(page, ids);
     await closeWindows(page);
     await expect
@@ -386,7 +394,53 @@ test.describe('proof: Canvas2D', () => {
       .toBeGreaterThan((TALL.height - 5) * 1000);
     await save(testInfo, 'canvas2d-test-run-cabin-at-top.png', await page.screenshot());
     expectNoPageErrors(page);
-    await copyVideo(page, 'canvas2d-test-run.webm');
+  });
+});
+
+test.describe('proof: video at 1x', () => {
+  test.use({ viewport: { width: 960, height: 600 } });
+  test.setTimeout(1_800_000);
+
+  test('a medium tower tested, opened with guests and run through a full cycle', async ({
+    page,
+  }, testInfo) => {
+    await startSite(page, testInfo, [MEDIUM]);
+    const [id] = await buildSite(page, [MEDIUM]);
+    await closeWindows(page);
+    await centerMapOnTile(page, [21, 43]);
+    await frameTall(page);
+    await startSampler(page);
+    await installOverlay(page, [id]);
+    const capture = await captureFrames(page, testInfo.outputPath('frames'));
+    const panel = await rideWindow(page, id);
+    await panel.getByRole('button', { name: 'Test', exact: true }).click();
+    await closeWindows(page);
+    await expect
+      .poll(async () => (await rideRow(page, id)).state, { timeout: 300_000, intervals: [1000] })
+      .toBe(RideState.Closed);
+    const again = await rideWindow(page, id);
+    await again.getByRole('button', { name: 'Open', exact: true }).click();
+    await toolbarAction(page, 'Game options');
+    await page.getByRole('button', { name: 'Guests +1,000' }).click();
+    await page.getByRole('button', { name: 'Close Options' }).click();
+    await closeWindows(page);
+    await expect.poll(async () => (await guestCount(page)) > 100, { timeout: 60_000 }).toBe(true);
+    await expect
+      .poll(
+        async () => timingFor(await takeSamples(page), id, 'medium', MEDIUM.height).cycles.length,
+        { timeout: 900_000, intervals: [5000] },
+      )
+      .toBeGreaterThan(0);
+    const frames = await capture.stop();
+    const samples = await takeSamples(page);
+    await save(
+      testInfo,
+      'after-medium-timing.json',
+      JSON.stringify(timingFor(samples, id, 'medium', MEDIUM.height), null, 2),
+    );
+    const video = testInfo.outputPath('after-medium-cycle-1x.webm');
+    await encodeFrames(frames, video);
+    if (PROOF_DIR) await copyFile(video, `${PROOF_DIR}/after-medium-cycle-1x.webm`);
   });
 });
 
