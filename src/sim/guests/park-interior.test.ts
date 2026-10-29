@@ -6,9 +6,16 @@ import { SCENARIOS } from '../scenario/catalog';
 import { prepareSandbox } from '../scenario/sandbox';
 import { prepareScenario } from '../scenario/scenario-layout';
 import { prepareScenarioPark } from '../scenario/scenario-layout';
+import { placeScenery, SceneryItem } from '../map/scenery';
 import { setTileHeight } from '../map/land';
 import { PathAddition, placePath, setPathAddition } from '../map/paths';
-import { isPathElementBroken, markPathElementBroken, OWNED, RIGHTS_OWNED } from '../map/tile-map';
+import {
+  ElementType,
+  isPathElementBroken,
+  markPathElementBroken,
+  OWNED,
+  RIGHTS_OWNED,
+} from '../map/tile-map';
 import { deserialize, serialize } from '../../save/save';
 import { GuestState } from './guest-store';
 import { LitterKind } from './litter-store';
@@ -407,6 +414,28 @@ describe('a bent approach after the gate moves off-axis', () => {
     sim.enqueue({ type: 'setParkEntrance', x: oldX + 1, y: oldY - 1 });
     sim.step();
     expect(litterTiles(world)).toEqual([[oldX - 1, oldY - 1]]);
+  });
+
+  it('leaves scenery beside the route alone when purging', () => {
+    const world = sandbox();
+    const oldX = world.park.entranceX;
+    const oldY = world.park.entranceY;
+    placePath(world.map, { x: oldX + 1, y: oldY - 1 });
+    expect(placeScenery(world.map, oldX - 1, oldY - 1, SceneryItem.OakTree)).toBe(true);
+    expect(placeScenery(world.map, oldX - 1, oldY, SceneryItem.OakTree)).toBe(true);
+    const trees = (): number => {
+      let count = 0;
+      for (let tile = 0; tile < world.map.width * world.map.height; tile++)
+        for (let e = world.map.firstElement(tile); e >= 0; e = world.map.nextElement(e))
+          if (world.map.elType[e] === ElementType.SmallScenery) count++;
+      return count;
+    };
+    const before = trees();
+    const sim = new Simulation(world);
+    sim.enqueue({ type: 'setParkEntrance', x: oldX + 1, y: oldY - 1 });
+    sim.step();
+    expect(purgeExteriorMess(deserialize(serialize(world))).litter).toBe(0);
+    expect(trees()).toBe(before);
   });
 
   it('survives a save and load', () => {
