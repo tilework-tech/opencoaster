@@ -90,4 +90,75 @@ describe('weather', () => {
       );
     }
   });
+
+  it('keeps wet weather occasional and clear spells substantially longer across seeds', () => {
+    const seedCount = 16;
+    const ticksPerSeed = 400_000;
+    let wetTicks = 0;
+    let totalTicks = 0;
+    let wetStarts = 0;
+    let wetSpellTicks = 0;
+    let clearSpellTicks = 0;
+    let wetSpellCount = 0;
+    let clearSpellCount = 0;
+
+    for (let seed = 1; seed <= seedCount; seed++) {
+      const world = new World({ seed, width: 16, height: 16 });
+      let wasWet = world.weather.kind >= WeatherKind.Rain;
+      let wetRun = 0;
+      let clearRun = 0;
+
+      for (let tick = 0; tick < ticksPerSeed; tick++) {
+        weatherSystem.update(world);
+        const isWet = world.weather.kind >= WeatherKind.Rain;
+        totalTicks++;
+        if (isWet) {
+          wetTicks++;
+          wetRun++;
+          if (!wasWet) {
+            wetStarts++;
+            clearSpellTicks += clearRun;
+            clearSpellCount++;
+            clearRun = 0;
+          }
+        } else {
+          clearRun++;
+          if (wasWet) {
+            wetSpellTicks += wetRun;
+            wetSpellCount++;
+            wetRun = 0;
+          }
+        }
+        wasWet = isWet;
+      }
+    }
+
+    const hours = totalTicks / 40 / 3600;
+    expect(wetTicks / totalTicks).toBeGreaterThanOrEqual(0.21);
+    expect(wetTicks / totalTicks).toBeLessThanOrEqual(0.29);
+    expect(wetStarts / hours).toBeGreaterThanOrEqual(5);
+    expect(wetStarts / hours).toBeLessThanOrEqual(8);
+    expect(wetSpellTicks / wetSpellCount / 40).toBeGreaterThanOrEqual(110);
+    expect(wetSpellTicks / wetSpellCount / 40).toBeLessThanOrEqual(160);
+    expect(clearSpellTicks / clearSpellCount / 40).toBeGreaterThanOrEqual(330);
+    expect(clearSpellTicks / clearSpellCount / 40).toBeLessThanOrEqual(480);
+  });
+
+  it('produces the same multi-transition weather trace from the same seed', () => {
+    const trace = (seed: number) => {
+      const world = new World({ seed, width: 16, height: 16 });
+      const changes: Array<[WeatherKind, number]> = [];
+      let previous = world.weather.kind;
+      for (let tick = 0; tick < 300_000 && changes.length < 120; tick++) {
+        weatherSystem.update(world);
+        if (world.weather.kind !== previous) {
+          changes.push([world.weather.kind, world.weather.ticksUntilChange]);
+          previous = world.weather.kind;
+        }
+      }
+      return changes;
+    };
+
+    expect(trace(817)).toEqual(trace(817));
+  });
 });

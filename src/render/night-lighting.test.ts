@@ -4,6 +4,7 @@ import {
   LAMP_ON_DARKNESS,
   TICKS_PER_NIGHT_CYCLE,
   LampLightBuffer,
+  ambientTint,
   collectLitLamps,
   darknessAt,
   lampsLit,
@@ -39,6 +40,14 @@ function lampMap(lamps: Array<{ x: number; y: number; data: number }>): MapData 
 const camera: Camera = { x: 0, y: 256, zoom: 1, rotation: 0 };
 
 describe('darkness', () => {
+  it('keeps full-night ambient light above a readable minimum while retaining a cool tint', () => {
+    const [red, green, blue] = ambientTint(1);
+    expect(red).toBeGreaterThanOrEqual(150);
+    expect(green).toBeGreaterThanOrEqual(160);
+    expect(blue).toBeGreaterThanOrEqual(200);
+    expect(blue).toBeGreaterThan(red);
+  });
+
   it('is zero at noon and full at midnight, repeating after the longer in-game cycle', () => {
     expect(darknessAt(NOON)).toBe(0);
     expect(darknessAt(MORNING)).toBe(0);

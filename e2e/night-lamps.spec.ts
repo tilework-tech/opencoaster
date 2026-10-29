@@ -69,10 +69,14 @@ test('Canvas2D lamp lighting follows lamps as their positions change', async ({ 
   expect(colors.moved).toBeGreaterThan(0);
 });
 
-async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
+async function setUp(
+  page: Page,
+  only: 'webgl2' | 'canvas2d',
+  requiredCategories?: readonly string[],
+): Promise<void> {
   await page.goto('/');
   await page.evaluate(
-    async ({ cell, noGuests, only, skip }) => {
+    async ({ cell, noGuests, only, requiredCategories, skip }) => {
       const [
         { Canvas2DRenderer },
         { WebGL2Renderer },
@@ -99,8 +103,13 @@ async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
       spritePages.start();
       const manifest = await fetch('/sprites/manifest.json').then((response) => response.json());
       while (spritePages.pageInfos.length === 0) await new Promise((r) => setTimeout(r, 25));
-      const categories = Object.keys(manifest.categories).filter(
-        (category) => !skip.includes(category),
+      const missingCategories = (requiredCategories ?? []).filter(
+        (category) => !manifest.categories[category],
+      );
+      if (missingCategories.length > 0)
+        throw new Error(`required sprite categories are missing: ${missingCategories.join(', ')}`);
+      const categories = Object.keys(manifest.categories).filter((category) =>
+        requiredCategories ? requiredCategories.includes(category) : !skip.includes(category),
       );
       for (const category of categories) spritePages.requestCategory(category);
 
@@ -249,12 +258,85 @@ async function setUp(page: Page, only: 'webgl2' | 'canvas2d'): Promise<void> {
       cell: CELL,
       noGuests: false,
       only,
+      requiredCategories,
       skip: (process.env.NIGHT_SKIP_CATEGORIES ?? '').split(',').filter(Boolean),
     },
   );
 }
 
 for (const backend of BACKENDS) {
+  test(`night and weather remain readable together: ${backend}`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await setUp(page, backend, ['people', 'world']);
+    const overlays = await page.evaluate(() => {
+      const overlay = document.createElement('div');
+      overlay.className = 'weather-overlay weather-sunny';
+      overlay.style.zIndex = '1000001';
+      document.body.append(overlay);
+      return ['sunny', 'rain', 'storm'] as const;
+    });
+    const brightness: Record<string, number> = {};
+    const pathAndGuestBrightness: Record<string, number> = {};
+    for (const weather of overlays) {
+      await page.evaluate(
+        ([b, h, state]) => {
+          (window as unknown as { __night: { draw: DrawFn } }).__night.draw(b, h, 0, 1, true);
+          const overlay = document.querySelector('.weather-overlay')!;
+          overlay.className = `weather-overlay weather-${state}`;
+        },
+        [backend, 12, weather] as const,
+      );
+      const screenshot = await page.screenshot({
+        clip: { x: 0, y: 0, width: CELL.width, height: CELL.height },
+        animations: 'disabled',
+      });
+      brightness[`${weather}-day`] =
+        (await sharp(screenshot).stats()).channels
+          .slice(0, 3)
+          .reduce((sum, channel) => sum + channel.mean, 0) / 3;
+      pathAndGuestBrightness[`${weather}-day`] =
+        (
+          await sharp(screenshot).extract({ left: 376, top: 128, width: 56, height: 64 }).stats()
+        ).channels
+          .slice(0, 3)
+          .reduce((sum, channel) => sum + channel.mean, 0) / 3;
+    }
+    for (const weather of ['sunny', 'rain', 'storm'] as const) {
+      await page.evaluate(
+        ([b, state]) => {
+          (window as unknown as { __night: { draw: DrawFn } }).__night.draw(b, 0, 0, 1, true);
+          document.querySelector('.weather-overlay')!.className =
+            `weather-overlay weather-${state}`;
+        },
+        [backend, weather] as const,
+      );
+      const screenshot = await page.screenshot({
+        clip: { x: 0, y: 0, width: CELL.width, height: CELL.height },
+        animations: 'disabled',
+      });
+      brightness[`${weather}-night`] =
+        (await sharp(screenshot).stats()).channels
+          .slice(0, 3)
+          .reduce((sum, channel) => sum + channel.mean, 0) / 3;
+      pathAndGuestBrightness[`${weather}-night`] =
+        (
+          await sharp(screenshot).extract({ left: 376, top: 128, width: 56, height: 64 }).stats()
+        ).channels
+          .slice(0, 3)
+          .reduce((sum, channel) => sum + channel.mean, 0) / 3;
+    }
+    expect(brightness['rain-day']!).toBeGreaterThan(brightness['sunny-day']! * 0.88);
+    expect(brightness['sunny-night']!).toBeGreaterThan(brightness['sunny-day']! * 0.55);
+    expect(brightness['rain-night']!).toBeGreaterThan(brightness['sunny-day']! * 0.55);
+    expect(brightness['storm-night']!).toBeGreaterThan(brightness['sunny-day']! * 0.5);
+    expect(pathAndGuestBrightness['rain-night']!).toBeGreaterThan(
+      pathAndGuestBrightness['sunny-day']! * 0.55,
+    );
+    expect(pathAndGuestBrightness['storm-night']!).toBeGreaterThan(
+      pathAndGuestBrightness['sunny-day']! * 0.5,
+    );
+  });
+
   test(`night lamps proof: ${backend}`, async ({ page }) => {
     test.skip(!proofDir || bench, 'set NIGHT_PROOF_DIR to render proof images');
     test.setTimeout(900_000);
