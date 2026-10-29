@@ -1,0 +1,162 @@
+{
+  "method": "Chrome system browser with SwiftShader; 50 warm frames per condition, synchronous 1-pixel readback per sample; same synthetic 48x48 inspection park and capture harness before/after.",
+  "scene": {
+    "map": "48x48",
+    "guests": 12,
+    "rides": 1,
+    "tracks": 14,
+    "pathLamps": 19,
+    "spriteCategories": [
+      "coaster-wood",
+      "people",
+      "vehicles",
+      "world"
+    ]
+  },
+  "timings": [
+    {
+      "backend": "canvas2d",
+      "condition": "clear-day",
+      "beforeMs": {
+        "median": 42.175,
+        "p95": 78.62
+      },
+      "afterMs": {
+        "median": 41.29,
+        "p95": 68.405
+      },
+      "medianChangePercent": -2.1,
+      "p95ChangePercent": -12.99
+    },
+    {
+      "backend": "canvas2d",
+      "condition": "rainy-day",
+      "beforeMs": {
+        "median": 40.345,
+        "p95": 66.085
+      },
+      "afterMs": {
+        "median": 40.775,
+        "p95": 73.055
+      },
+      "medianChangePercent": 1.07,
+      "p95ChangePercent": 10.55
+    },
+    {
+      "backend": "canvas2d",
+      "condition": "clear-night",
+      "beforeMs": {
+        "median": 41.27,
+        "p95": 88.355
+      },
+      "afterMs": {
+        "median": 42.105,
+        "p95": 101.005
+      },
+      "medianChangePercent": 2.02,
+      "p95ChangePercent": 14.32
+    },
+    {
+      "backend": "canvas2d",
+      "condition": "rainy-night",
+      "beforeMs": {
+        "median": 41.535,
+        "p95": 82.82
+      },
+      "afterMs": {
+        "median": 42.425,
+        "p95": 89.76
+      },
+      "medianChangePercent": 2.14,
+      "p95ChangePercent": 8.38
+    },
+    {
+      "backend": "canvas2d",
+      "condition": "storm-night",
+      "beforeMs": {
+        "median": 44.14,
+        "p95": 87.725
+      },
+      "afterMs": {
+        "median": 42.56,
+        "p95": 83.1
+      },
+      "medianChangePercent": -3.58,
+      "p95ChangePercent": -5.27
+    },
+    {
+      "backend": "webgl2",
+      "condition": "clear-day",
+      "beforeMs": {
+        "median": 98.055,
+        "p95": 130.155
+      },
+      "afterMs": {
+        "median": 91.525,
+        "p95": 113.875
+      },
+      "medianChangePercent": -6.66,
+      "p95ChangePercent": -12.51
+    },
+    {
+      "backend": "webgl2",
+      "condition": "rainy-day",
+      "beforeMs": {
+        "median": 95.15,
+        "p95": 127.63
+      },
+      "afterMs": {
+        "median": 93.515,
+        "p95": 115.275
+      },
+      "medianChangePercent": -1.72,
+      "p95ChangePercent": -9.68
+    },
+    {
+      "backend": "webgl2",
+      "condition": "clear-night",
+      "beforeMs": {
+        "median": 108.145,
+        "p95": 156.895
+      },
+      "afterMs": {
+        "median": 111.03,
+        "p95": 149.19
+      },
+      "medianChangePercent": 2.67,
+      "p95ChangePercent": -4.91
+    },
+    {
+      "backend": "webgl2",
+      "condition": "rainy-night",
+      "beforeMs": {
+        "median": 114.405,
+        "p95": 168.065
+      },
+      "afterMs": {
+        "median": 111.23,
+        "p95": 158.745
+      },
+      "medianChangePercent": -2.78,
+      "p95ChangePercent": -5.55
+    },
+    {
+      "backend": "webgl2",
+      "condition": "storm-night",
+      "beforeMs": {
+        "median": 114.985,
+        "p95": 163.505
+      },
+      "afterMs": {
+        "median": 107.53,
+        "p95": 174.985
+      },
+      "medianChangePercent": -6.48,
+      "p95ChangePercent": 7.02
+    }
+  ],
+  "limitations": [
+    "Software-rendered SwiftShader timings are not representative of a physical GPU.",
+    "Frame timing includes the synchronization cost of a 1-pixel readback; p95 is noisy across runs."
+  ]
+}

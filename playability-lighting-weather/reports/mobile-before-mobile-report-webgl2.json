@@ -1,0 +1,55 @@
+{
+  "backend": "webgl2",
+  "mobile": true,
+  "baseUrl": "http://127.0.0.1:5174/",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "setup": {
+    "backend": "webgl2",
+    "categories": [
+      "coaster-wood",
+      "people",
+      "vehicles",
+      "world"
+    ],
+    "map": [
+      48,
+      48
+    ],
+    "guests": 12,
+    "rides": 1,
+    "tracks": 14,
+    "pathLamps": 19,
+    "renderersInstantiated": [
+      "webgl2"
+    ]
+  },
+  "conditions": {
+    "rainy-night": {
+      "checks": {
+        "canvas": {
+          "uniqueColours": 327,
+          "meanLuma": 42.1,
+          "lumaStdDev": 15.1,
+          "litFraction": 0.28
+        },
+        "coveredBy": null,
+        "contextAlive": true,
+        "contextLosses": 0,
+        "spritesLoaded": true
+      },
+      "screenshotStats": {
+        "uniqueColours": 450,
+        "meanLuma": 43.5,
+        "lumaStdDev": 17.6,
+        "litFraction": 0.183
+      },
+      "timing": null,
+      "problems": []
+    }
+  },
+  "pageProblems": [],
+  "valid": true
+}

@@ -70,13 +70,13 @@
         $('desktop').style.display = mode === 'desktop' ? '' : 'none';
         $('mobile').style.display = mode === 'mobile' ? '' : 'none';
         if (mode === 'desktop') {
-          $('before').src = `before/${backend}-${condition}.png`;
-          $('after').src = `after/${backend}-${condition}.png`;
+          $('before').src = `before/${backend}-${condition}.png?v=2`;
+          $('after').src = `after/${backend}-${condition}.png?v=2`;
           $('description').textContent = `${backend === 'canvas2d' ? 'Canvas2D' : 'WebGL2'} · ${conditions[condition]} · 1000 × 700.`;
         } else {
-          $('mobile-image').src = `mobile/mobile-${backend}-rainy-night.png`;
+          $('mobile-image').src = `mobile/mobile-${backend}-rainy-night.png?v=2`;
           $('mobile-caption').textContent = `After · ${backend === 'canvas2d' ? 'Canvas2D' : 'WebGL2'} · 390 × 844`;
-          $('description').textContent = 'Rainy midnight spot check at a mobile viewport. The coaster, paths, guests, lamps, terrain and rain remain visible.';
+          $('description').textContent = 'Rainy midnight spot check at a mobile viewport. The coaster, paths, lamps, terrain, scenery and rain remain visible; guests are small and only at the lower-left edge in this crop.';
         }
       }
       for (const control of ['mode','backend','condition','zoom']) $(control).addEventListener('input', update);
