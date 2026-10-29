@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { isParkInterior } from './park-interior';
 import { TILE_UNITS } from '../core/constants';
 import {
   isPathElementBroken,
@@ -45,7 +46,7 @@ function assignBirthOrder(w: World, slot: number): void {
 }
 
 export function dropLitter(w: World, x: number, y: number, kind: LitterKind): boolean {
-  if (!w.map.inBounds(x, y)) return false;
+  if (!isParkInterior(w, x, y)) return false;
   const tile = w.map.index(x, y);
   if (!w.map.isWalkable(tile) || w.map.isQueue(tile)) return false;
   const element = w.map.pathElement(tile, -1);

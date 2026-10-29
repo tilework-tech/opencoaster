@@ -8,6 +8,7 @@ import { setStaffOrder, StaffKind, spawnStaff } from '../staff/staff-store';
 import { TILE_UNITS } from '../core/constants';
 import { dropLitter, LitterKind } from './litter-store';
 import { hashWorld } from '../core/hash';
+import { setParkEntrance } from './park';
 
 const CHECK_INTERVAL = 32;
 
@@ -16,6 +17,7 @@ function benchWorld(guestHappiness: number) {
   layPath(w, row(6, 4, 10));
   setPathAddition(w.map, 7, 6, PathAddition.Bench);
   const guest = guestAt(w, 7, 6);
+  setParkEntrance(w, 4, 6);
   w.guests.cols.happiness[guest] = guestHappiness;
   dropLitter(w, 7, 6, LitterKind.Trash);
   return w;

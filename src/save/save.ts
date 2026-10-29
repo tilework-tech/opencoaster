@@ -44,6 +44,7 @@ import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
 import { repairSavedRideTrains } from '../sim/vehicles/ride-trains';
 import { migrateLegacyAmbientTrees } from '../sim/map/ambient-trees';
+import { purgeExteriorMess } from '../sim/guests/park-interior';
 
 /** Staff activity totals and guest sight memory are stored from this version. */
 const STAFF_STATS_SAVE_VERSION = 32;
@@ -731,6 +732,7 @@ export function deserialize(bytes: Uint8Array): World {
   Object.assign(world.scenario, header.scenario);
   if (header.park) Object.assign(world.park, header.park);
   if (header.version < AMBIENT_TREES_SAVE_VERSION) migrateLegacyAmbientTrees(world);
+  purgeExteriorMess(world);
   closeInvalidOpenRides(world);
   repairSavedRideTrains(world);
   return world;
