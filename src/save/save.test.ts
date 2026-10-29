@@ -18,7 +18,7 @@ import {
   updateRideMaintenance,
 } from '../sim/rides';
 import { legacyGuestArrays } from '../sim/integration/fixtures';
-import { HEADING_NONE } from '../sim/guests/guest-store';
+import { HEADING_NONE, spawnGuest } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
 import { addSpawnAtCorner, flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
@@ -32,7 +32,7 @@ import {
 } from '../sim/staff/staff-store';
 import { dropLitter, LitterKind } from '../sim/guests/litter-store';
 import { Climate, DEFAULT_CLIMATE, WeatherKind } from '../sim/weather/weather';
-import { PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
+import { ElementType, PATH_BOARDING_MARKS, PathStyle, OWNED } from '../sim/map/tile-map';
 import { placeScenery, SceneryItem } from '../sim/map/scenery';
 import { refreshQueueIndex } from '../sim/rides/queue-lines';
 import { createRide, placeRideEntranceExit } from '../sim/rides/ride-operations';
@@ -115,8 +115,59 @@ describe('save', () => {
     expect(spawnPoints(old)).toEqual([{ x: old.park.entranceX, y: old.park.entranceY }]);
   });
 
+  it('migrates a v33 sandbox save without changing its entrance or guests, and stays idempotent', () => {
+    const sim = new Simulation({ seed: 19, width: 32, height: 32 });
+    prepareSandbox(sim.world);
+    expect(spawnGuest(sim.world)).toBe(true);
+    const guestPosition = [sim.world.guests.cols.x[0], sim.world.guests.cols.y[0]];
+    const entrance = [sim.world.park.entranceX, sim.world.park.entranceY];
+    const spawns = sim.world.park.spawns.map((spawn) => ({ ...spawn }));
+
+    const current = serialize(sim.world);
+    const view = new DataView(current.buffer, current.byteOffset, current.byteLength);
+    const headerEnd = 8 + view.getUint32(4, true);
+    const header = JSON.parse(new TextDecoder().decode(current.subarray(8, headerEnd)));
+    header.version = 33;
+    const encoded = new TextEncoder().encode(JSON.stringify(header));
+    const intermediate = new Uint8Array(8 + encoded.length + current.length - headerEnd);
+    intermediate.set(current.subarray(0, 8));
+    new DataView(intermediate.buffer).setUint32(4, encoded.length, true);
+    intermediate.set(encoded, 8);
+    intermediate.set(current.subarray(headerEnd), 8 + encoded.length);
+
+    const migrated = deserialize(intermediate);
+    const countTrees = (world: World) => {
+      let count = 0;
+      for (let tile = 0; tile < world.map.width * world.map.height; tile++) {
+        for (
+          let element = world.map.firstElement(tile);
+          element >= 0;
+          element = world.map.nextElement(element)
+        ) {
+          if (
+            world.map.elType[element] === ElementType.SmallScenery &&
+            [SceneryItem.OakTree, SceneryItem.Conifer, SceneryItem.BirchTree, SceneryItem.BlossomTree,
+              SceneryItem.AutumnTree, SceneryItem.TopiaryTree, SceneryItem.PalmTree, SceneryItem.CactusTree]
+              .includes(world.map.elData[element] as SceneryItem)
+          ) count++;
+        }
+      }
+      return count;
+    };
+    const firstTreeCount = countTrees(migrated);
+    expect(firstTreeCount).toBeGreaterThan(0);
+    expect([migrated.park.entranceX, migrated.park.entranceY]).toEqual(entrance);
+    expect(migrated.park.spawns).toEqual(spawns);
+    expect([migrated.guests.cols.x[0], migrated.guests.cols.y[0]]).toEqual(guestPosition);
+
+    const roundTripped = deserialize(serialize(migrated));
+    expect(countTrees(roundTripped)).toBe(firstTreeCount);
+    expect(hashWorld(roundTripped)).toBe(hashWorld(migrated));
+    expect(SAVE_VERSION).toBe(34);
+  });
+
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(33);
+    expect(SAVE_VERSION).toBe(34);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -124,7 +175,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(33);
+    expect(header.version).toBe(34);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
