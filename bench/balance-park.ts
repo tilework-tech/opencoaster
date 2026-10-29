@@ -17,6 +17,12 @@ const COASTER_STATION = { x: 20, y: 20 };
 /** Last row beside the spine the coaster's track and paths reach on the west side. */
 const COASTER_CLEARANCE_BOTTOM = 27;
 const COASTER_TEST_TICKS = 6000;
+/**
+ * Handymen hired with the coaster. Once three hundred guests are in the park, six handymen leave
+ * litter standing in the dozens between sweeps, which pulls the park rating down; two more keep
+ * it in the teens and twenties.
+ */
+const COASTER_HANDYMEN = 4;
 
 type Side = 'east' | 'west';
 
@@ -278,8 +284,8 @@ export function createBalancePark(options: BalanceOptions = {}): BalancePark {
         done.coaster = true;
         for (const p of THIRD_WAVE) place(sim, p);
         coasterId = buildCoaster(sim);
-        sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
-        sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
+        for (let i = 0; i < COASTER_HANDYMEN; i++)
+          sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
         sim.enqueue({ type: 'setRideStatus', rideId: coasterId, status: 'test' });
         coasterTestAt = sim.world.tick + COASTER_TEST_TICKS;
       }
