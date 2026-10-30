@@ -328,9 +328,9 @@ Implemented behaviour (see `src/sim/rides/stall-front.ts`):
 |---|---|---|
 | Facing | Stored per stall (`dir`), chosen before building, kept until the player turns it | sources above |
 | Automatic facing | Current facing if it serves, else first serving side in +x, +y, -x, -y order, until the player rotates | OpenRCT2 #7411 |
-| Serving piece | Path piece on the front tile whose edge toward the stall is level with the stall floor: flat at floor level, or a ramp whose low or high end meets it | #17566, #11758 |
+| Serving piece | Path piece on the front tile whose edge toward the stall is level with the stall floor (tile height, one level up on sloped ground): flat at floor level, or a ramp whose low or high end meets it | #17566, #11758 |
 | Refused fronts | Queue line, ride exit, ramp running across the front, wrong height, unowned land, map edge, no path — each reported with its own reason | tuning (reasons are OpenCoaster wording) |
-| Open state | Opens when built; losing access never closes it, guests just ignore it; a player's close is respected | OpenCoaster tuning: keeps the existing auto-open after placement and lets a path built later serve without reopening |
+| Open state | Opens when built; losing access never closes it, guests just ignore it and it does not count toward value for money, guest capacity or awards (upkeep is still charged); a player's close is respected | OpenCoaster tuning: keeps the existing auto-open after placement and lets a path built later serve without reopening |
 | Shared path tile | Two stalls may face the same path tile | inferred; RCT2 places no object on the front tile |
 
 Known difference: the Information Kiosk is front-only in OpenCoaster, although RCT2 serves it from all sides. This is deliberate for now, so that side access cannot hide a wrong facing.
