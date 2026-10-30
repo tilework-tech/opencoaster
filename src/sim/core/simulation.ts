@@ -23,8 +23,12 @@ import { rideSystem } from '../rides/ride-system';
 import { FeedbackDomain, reportFeedback } from './feedback';
 import { RideResult } from '../rides/ride-results';
 import { coasterSystem } from '../rides/coaster-system';
-import { applyRideCommand, refreshRideQueueConnections } from '../rides/ride-commands';
-import { createRide } from '../rides/ride-operations';
+import {
+  applyRideCommand,
+  refreshRideQueueConnections,
+  refreshStallFronts,
+} from '../rides/ride-commands';
+import { createRide, isShopCategory, setRideOpen } from '../rides/ride-operations';
 import { validateRidePlacement } from '../rides/ride-footprint';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import {
@@ -95,6 +99,7 @@ function applyCreateRide(
 
   const rideId = createRide(w, type, x, y, dir & 3, towerHeight);
   if (rideId < 0) return report(RideResult.Blocked);
+  if (isShopCategory(definition.category)) setRideOpen(w, rideId, true);
   charge(w, LedgerCategory.RideConstruction, cost);
   report(RideResult.Ok, rideId);
 }
@@ -198,6 +203,7 @@ export class Simulation {
         applyMapCommand(w, c);
         if (c.type === 'placePath' || c.type === 'placePathRun' || c.type === 'removePath')
           refreshRideQueueConnections(w);
+        else refreshStallFronts(w);
         break;
       case 'economy':
         reportFeedback(w.feedback, FeedbackDomain.Economy, applyEconomyCommand(w, c.action));

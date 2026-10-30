@@ -29,7 +29,12 @@ import type { ScenarioObjective } from '../sim/scenario/scenario';
 import { objectiveMetric } from '../sim/scenario/scenario-system';
 import { TILE_UNITS, TRACK_Z_STEP } from '../sim/core/constants';
 import { demolitionRefund } from '../sim/rides/ride-refund';
-import { estimatedWaitTicks, rideQueueCapacity } from '../sim/rides/ride-operations';
+import {
+  estimatedWaitTicks,
+  isShopCategory,
+  rideQueueCapacity,
+} from '../sim/rides/ride-operations';
+import { stallSlotProblem } from '../sim/rides/stall-front';
 import { worldOccupancies } from '../sim/map/occupancy';
 import type { OccupancyVolume } from '../sim/map/occupancy';
 import {
@@ -44,7 +49,7 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 45;
+export const RIDE_INFO_STRIDE = 46;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
 export const GUEST_DETAIL_STRIDE = 19;
@@ -150,6 +155,8 @@ export const enum RideInfo {
   MinutesSinceInspection = 41,
   /** `MechanicStatus` of the ride. */
   MechanicStatus = 42,
+  /** `RideResult` explaining why guests cannot buy from a stall's front; `Ok` when they can or for other rides. */
+  StallFront = 45,
 }
 
 export const enum RideFlag {
@@ -504,6 +511,8 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.BlockSections] = definition?.usesTrack
     ? blockSectionsForRide(world, rideId)
     : 0;
+  info[o + RideInfo.StallFront] =
+    definition && isShopCategory(definition.category) ? stallSlotProblem(world, slot) : 0;
   info[o + RideInfo.TowerHeight] = r.towerHeight[slot];
   info[o + RideInfo.TowerCabinLevel] =
     r.typeId[slot] === RideType.ObservationTower

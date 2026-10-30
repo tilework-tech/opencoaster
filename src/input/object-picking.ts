@@ -23,7 +23,6 @@ import {
   pathAdditionPlacements,
 } from '../render/ground-anchor';
 import {
-  facilityFacingFromPaths,
   facilitySpriteKey,
   pathAdditionSpriteName,
   rideHutFacing,
@@ -192,7 +191,7 @@ export function buildObjectPickTargets(
       if (!definition || x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
       if (!definition.usesTrack && !isSlicedRide(type)) {
         const key = ['shop', 'stall', 'facility'].includes(definition.category)
-          ? facilitySpriteKey(type, facilityFacingFromPaths(x, y, map), camera.rotation)
+          ? facilitySpriteKey(type, snapshot.rideInfo[offset + RideInfo.Dir]!, camera.rotation)
           : rideSpriteKey(type, camera.rotation);
         add(
           `${key}#${rideSpriteFrame(snapshot.rideInfo[offset + RideInfo.Phase]!, snapshot.tick, atlas.resolve(key)?.frames.length ?? 1, snapshot.rideInfo[offset + RideInfo.PhaseProgress]!)}`,

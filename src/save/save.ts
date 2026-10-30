@@ -40,6 +40,7 @@ import { closeInvalidOpenRides } from '../sim/rides/ride-commands';
 import { migrateQueueLinks } from '../sim/map/queue-link-migration';
 import { migrateTrackHeights } from '../sim/track/track-height-migration';
 import { migrateSingleTileRides } from '../sim/rides/ride-footprint-migration';
+import { normalizeStallFronts } from '../sim/rides/stall-front';
 import { migrateBoardingFronts } from '../sim/rides/boarding-front';
 import { ElementType } from '../sim/map/tile-map';
 import { isWallScenery, type SceneryItem } from '../sim/map/scenery';
@@ -754,6 +755,7 @@ export function deserialize(bytes: Uint8Array): World {
   purgeExteriorMess(world);
   rebuildSeatOwners(world);
   if (header.version < OBSERVATION_TOWER_HEIGHT_SAVE_VERSION) migrateObservationTowerHeights(world);
+  normalizeStallFronts(world);
   closeInvalidOpenRides(world);
   repairSavedRideTrains(world);
   return world;

@@ -7,9 +7,10 @@ import { awardAttractionBps, AWARDS, AWARD_DURATION_MONTHS, evaluateMonthlyAward
 import { marketingAttraction } from './api';
 import { spawnGuest } from '../guests/guest-store';
 import { GuestState } from '../guests/guest-store';
-import { RideState } from '../rides/ride-store';
 import { RideType } from '../rides/ride-types';
-import { addSpawnAtCorner } from '../integration/fixtures';
+import { addSpawnAtCorner, prepareFlat } from '../integration/fixtures';
+import { placePath } from '../map/paths';
+import { createRide, setRideOpen } from '../rides/ride-operations';
 
 function advanceTo(s: Simulation, tick: number): void {
   while (s.world.tick < tick) s.step();
@@ -121,10 +122,11 @@ describe('monthly park awards', () => {
         sim.world.guests.cols.hunger[slot] = satiation;
         sim.world.guests.cols.state[slot] = GuestState.Riding;
       }
+      prepareFlat(sim.world);
       for (let i = 0; i < 3; i++) {
-        const slot = sim.world.rides.spawn();
-        sim.world.rides.cols.typeId[slot] = RideType.FoodStall;
-        sim.world.rides.cols.state[slot] = RideState.Open;
+        placePath(sim.world.map, { x: 2 + i * 2, y: 3 });
+        const id = createRide(sim.world, RideType.FoodStall, 2 + i * 2, 2, 1);
+        setRideOpen(sim.world, id, true);
       }
       evaluateMonthlyAward(sim.world, TICKS_PER_MONTH);
     };

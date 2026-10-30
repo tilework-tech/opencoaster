@@ -50,12 +50,9 @@ describe('weather guest behaviour', () => {
     const world = flatWorld(16, 7);
     layPath(world, row(8, 4, 10));
     const guest = guestAt(world, 4, 8);
-    const kioskId = createRide(world, RideType.InformationKiosk, 10, 7);
+    const kioskId = createRide(world, RideType.InformationKiosk, 10, 7, 1);
     const kiosk = world.rides.idToSlot[kioskId];
     world.rides.cols.state[kiosk] = RideState.Open;
-    world.rides.cols.entrancePlaced[kiosk] = 1;
-    world.rides.cols.entranceX[kiosk] = 10;
-    world.rides.cols.entranceY[kiosk] = 8;
     world.rides.cols.price[kiosk] = 75;
     world.weather.kind = WeatherKind.Rain;
     const cash = world.guests.cols.cash[guest];

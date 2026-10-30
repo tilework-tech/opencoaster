@@ -46,7 +46,6 @@ import {
   wallSpriteName,
   rideSpriteFrame,
   rideSpriteKey,
-  facilityFacingFromPaths,
   facilitySpriteKey,
   LITTER_SPRITE_SIZE,
   rideHutFacingForFootprint,
@@ -1801,7 +1800,7 @@ export class Canvas2DRenderer implements Renderer {
         this.anchor(worldX, worldY, z, map.width, map.height, cam.rotation, this.tmp);
         const isFacility = ['shop', 'stall', 'facility'].includes(definition.category);
         const key = isFacility
-          ? facilitySpriteKey(type, facilityFacingFromPaths(tileX, tileY, map), cam.rotation)
+          ? facilitySpriteKey(type, snapshot.rideInfo[offset + RideInfo.Dir]!, cam.rotation)
           : rideSpriteKey(type, cam.rotation);
         const entry = this.atlas?.resolve(key);
         const frameIndex = rideSpriteFrame(

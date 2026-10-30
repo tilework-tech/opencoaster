@@ -3,6 +3,8 @@ import { hashWorld } from '../core/hash';
 import { Simulation } from '../core/simulation';
 import { World } from '../core/world';
 import { Surface } from '../map/tile-map';
+import { placePath } from '../map/paths';
+import { isShopCategory } from './ride-operations';
 import { createRideAtCorner } from '../integration/fixtures';
 import { WeatherKind } from '../weather/weather';
 import { StaffKind, spawnStaff } from '../staff/staff-store';
@@ -55,6 +57,11 @@ function world(seed = 17): World {
 
 function preparedRide(w: World, type = RideType.MerryGoRound, x = 4, y = 4): number {
   const id = createRideAtCorner(w, type, [x, y]);
+  if (isShopCategory(RIDE_CATALOG[type].category)) {
+    expect(placePath(w.map, { x, y: y + 1 })).toBe(true);
+    expect(placeRideEntranceExit(w, id, { x, y: y + 1 }, { x: x + 1, y })).toBe(true);
+    return id;
+  }
   expect(placeRideEntranceExit(w, id, { x, y: y + 1 }, { x: x + 1, y })).toBe(true);
   for (const [px, py] of [
     [x - 1, y + 1],

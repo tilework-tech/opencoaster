@@ -107,7 +107,6 @@ import {
   litterSpriteName,
   rideSpriteFrame,
   rideSpriteKey,
-  facilityFacingFromPaths,
   facilitySpriteKey,
   LITTER_SPRITE_SIZE,
   rideHutFacingForFootprint,
@@ -3072,7 +3071,7 @@ export class WebGL2Renderer implements Renderer {
       const z = map.heights[tileY * map.width + tileX] * Z_STEP;
       const isFacility = ['shop', 'stall', 'facility'].includes(definition.category);
       const key = isFacility
-        ? facilitySpriteKey(type, facilityFacingFromPaths(tileX, tileY, map), camera.rotation)
+        ? facilitySpriteKey(type, snapshot.rideInfo[offset + RideInfo.Dir], camera.rotation)
         : rideSpriteKey(type, camera.rotation);
       const entry = spritePages.resolve(key);
       const frameIndex = rideSpriteFrame(
