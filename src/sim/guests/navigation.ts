@@ -22,6 +22,9 @@ export const EXIT_HAPPINESS_LOSS = 30;
 
 function tileGap(world: World, a: number, b: number): number {
   const w = world.map.width;
+  const tiles = w * world.map.height;
+  a %= tiles;
+  b %= tiles;
   return Math.abs((a % w) - (b % w)) + Math.abs(((a / w) | 0) - ((b / w) | 0));
 }
 

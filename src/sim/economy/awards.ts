@@ -1,6 +1,6 @@
 import type { World } from '../core/world';
 import { GuestState } from '../guests/guest-store';
-import { RideState } from '../rides/ride-store';
+import { isServingGuests } from '../rides/ride-operations';
 import { RIDE_CATALOG, RideType } from '../rides/ride-types';
 import type { ActiveAward, Ledger } from './ledger';
 
@@ -41,7 +41,7 @@ function openRideCount(world: World, predicate: (type: RideType) => boolean): nu
   let count = 0;
   for (let slot = 0; slot < world.rides.count; slot++) {
     const type = world.rides.cols.typeId[slot] as RideType;
-    if (world.rides.cols.state[slot] === RideState.Open && predicate(type)) count++;
+    if (isServingGuests(world, slot) && predicate(type)) count++;
   }
   return count;
 }

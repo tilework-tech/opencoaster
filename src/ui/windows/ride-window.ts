@@ -115,6 +115,10 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     'ui-button danger',
     'Demolish',
   );
+  const turnStall = element('div', 'button-row');
+  turnStall.append(
+    button('Turn stall', () => ctx.actions.placeRidePart(rideId, 'entrance'), 'ui-button'),
+  );
   const partButtons = element('div', 'button-row');
   partButtons.append(
     button('Place entrance', () => ctx.actions.placeRidePart(rideId, 'entrance'), 'ui-button'),
@@ -278,6 +282,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       mainFacts.setup.row,
       checklist,
       partButtons,
+      turnStall,
       buildTrack,
       locate,
     );
@@ -410,7 +415,10 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       setText(mainFacts.served.value, String(info[o + RideInfo.GuestsServed]));
       const blockers: { label: string; action: string; onClick: () => void }[] = [];
       const serviceRide = def?.category === 'stall' || def?.category === 'facility';
-      if (!(flags & RideFlag.EntrancePlaced)) {
+      const blocked = serviceRide
+        ? info[o + RideInfo.StallFront] !== RideResult.Ok
+        : !(flags & RideFlag.EntrancePlaced);
+      if (blocked) {
         blockers.push(
           serviceRide
             ? {
@@ -473,6 +481,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       buildTrack.hidden = !def?.usesTrack;
       trainsRow.hidden = !def?.usesTrack;
       partButtons.hidden = serviceRide;
+      turnStall.hidden = !serviceRide;
 
       setText(vehicle.type.value, def?.name ?? 'Ride');
       setText(vehicle.capacity.value, String(info[o + RideInfo.Capacity]));

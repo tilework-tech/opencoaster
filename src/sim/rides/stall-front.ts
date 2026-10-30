@@ -9,7 +9,6 @@ import {
   WALK_LAYERS,
   pathEdgeLevel,
 } from '../map/tile-map';
-import { rideBaseLevel } from './ride-footprint';
 import { RideResult } from './ride-results';
 import { RIDE_CATALOG } from './ride-types';
 import type { RideType } from './ride-types';
@@ -88,10 +87,21 @@ function frontAccess(
   return { result: verdict.result, element: verdict.piece };
 }
 
+/**
+ * Height level of a stall's floor on a tile whose lowest corner is at `height` with slope mask
+ * `slope`: the tile height, one level up on sloped ground. Both the park and the placement preview
+ * use this, so they always agree on which footpath height meets the window.
+ */
+export function stallFloorLevel(height: number, slope: number): number {
+  return height + (slope !== 0 ? 1 : 0);
+}
+
 function stallFloor(world: World, slot: number): number {
   const ride = world.rides.cols;
-  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-  return rideBaseLevel(world.map, def, ride.rideX[slot]!, ride.rideY[slot]!, ride.dir[slot]!);
+  const map = world.map;
+  if (!map.inBounds(ride.rideX[slot]!, ride.rideY[slot]!)) return 0;
+  const tile = map.index(ride.rideX[slot]!, ride.rideY[slot]!);
+  return stallFloorLevel(map.heights[tile]!, map.slope[tile]!);
 }
 
 /** Why guests cannot buy from the stall in `slot` (`RideResult.Ok` when they can). */
@@ -146,6 +156,15 @@ export function syncStallFront(world: World, slot: number): void {
   ride.entranceX[slot] = fx;
   ride.entranceY[slot] = fy;
   ride.entrancePlaced[slot] = stallSlotProblem(world, slot) === RideResult.Ok ? 1 : 0;
+}
+
+/** Re-reads every stall's front, after the map or the rides' boarding marks changed. */
+export function syncAllStallFronts(world: World): void {
+  const ride = world.rides.cols;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    const category = RIDE_CATALOG[ride.typeId[slot] as RideType]?.category;
+    if (category === 'stall' || category === 'facility') syncStallFront(world, slot);
+  }
 }
 
 /**

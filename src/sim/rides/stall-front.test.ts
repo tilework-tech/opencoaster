@@ -7,7 +7,9 @@ import { DIR_DX, DIR_DY } from '../map/tile-map';
 import { RideType } from './ride-types';
 import { RideResult } from './ride-results';
 import { RideState } from './ride-store';
-import { stallFrontProblem } from './stall-front';
+import { stallFloorLevel, stallFrontProblem, stallFrontProblemInMap } from './stall-front';
+import { extractMapData } from '../../worker/map-data';
+import { isServingGuests } from './ride-operations';
 
 const STALL: readonly [number, number] = [10, 10];
 
@@ -345,4 +347,67 @@ describe('stall storefronts', () => {
 
     expect(sim.world.rides.cols.state[sim.world.rides.idToSlot[rideId]!]).toBe(RideState.Closed);
   });
+
+  it('serves from a front path that was a ride exit once that ride is demolished', () => {
+    const sim = park();
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
+    pathAway(sim, 0);
+    const [fx, fy] = along(0, 1);
+    expect(
+      command(sim, { type: 'createRide', rideType: RideType.MerryGoRound, x: fx + 1, y: fy - 2 }),
+    ).toBe(RideResult.Ok);
+    const ride = sim.world.feedback.subject;
+    expect(command(sim, { type: 'placeRideExit', rideId: ride, x: fx, y: fy })).toBe(RideResult.Ok);
+    sim.step();
+    const stall = buildStall(sim, 0);
+    expect(stallFrontProblem(sim.world, stall)).toBe(RideResult.StallGate);
+    expect(isServingGuests(sim.world, sim.world.rides.idToSlot[stall]!)).toBe(false);
+
+    command(sim, { type: 'demolishRide', rideId: ride });
+    sim.step();
+
+    expect(stallFrontProblem(sim.world, stall)).toBe(RideResult.Ok);
+    expect(isServingGuests(sim.world, sim.world.rides.idToSlot[stall]!)).toBe(true);
+    expect(servesHungryGuest(sim, stall, 0)).toBe(true);
+  });
+
+  it.each([
+    ['flat ground and a flat path', [4, 4, 4, 4], {}],
+    ['a raised floor and a ramp up to it', [5, 5, 5, 5], { slope: 2 }],
+    ['a sloped tile beside a flat path', [5, 4, 4, 5], {}],
+    ['a steep tile beside a flat path', [6, 4, 4, 4], {}],
+    ['a raised footpath', [4, 4, 4, 4], { z: 7 }],
+    ['a queue line', [4, 4, 4, 4], { queue: true }],
+  ] as const)(
+    'gives the placement preview the same verdict as the park on %s',
+    (_label, corners, extra) => {
+      const sim = park();
+      const map = sim.world.map;
+      const [sx, sy] = STALL;
+      const vertices = [
+        [sx, sy],
+        [sx + 1, sy],
+        [sx + 1, sy + 1],
+        [sx, sy + 1],
+      ] as const;
+      vertices.forEach(([vx, vy], corner) => {
+        map.vertexHeights[vy * (map.width + 1) + vx] = corners[corner]!;
+      });
+      for (let y = sy - 1; y <= sy + 1; y++)
+        for (let x = sx - 1; x <= sx + 1; x++) map.refreshTile(map.index(x, y));
+      const [fx, fy] = along(0, 1);
+      command(sim, { type: 'placePath', x: fx, y: fy, ...extra });
+      const tile = map.index(sx, sy);
+      const preview = stallFrontProblemInMap(
+        extractMapData(map),
+        sx,
+        sy,
+        0,
+        stallFloorLevel(map.heights[tile]!, map.slope[tile]!),
+        (index) => map.canBuild(index),
+      );
+      const rideId = buildStall(sim, 0);
+      expect(preview).toBe(stallFrontProblem(sim.world, rideId));
+    },
+  );
 });

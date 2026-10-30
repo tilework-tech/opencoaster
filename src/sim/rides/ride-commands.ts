@@ -11,7 +11,7 @@ import { circuitStatus } from '../track/construction';
 import { abortCycle, abortRideTest, isTrackRide, startRideTest } from './coaster';
 import { GuestState, HEADING_NONE } from '../guests/guest-store';
 import { removeRideTrains } from '../vehicles/ride-trains';
-import { faceStallToward, syncStallFront } from './stall-front';
+import { faceStallToward, syncAllStallFronts, syncStallFront } from './stall-front';
 import {
   isShopCategory,
   setRideInspectionInterval,
@@ -88,11 +88,7 @@ export function refreshRideQueueConnections(world: World): void {
 
 /** Re-reads every stall's front after the map changed under it. */
 export function refreshStallFronts(world: World): void {
-  const ride = world.rides.cols;
-  for (let slot = 0; slot < world.rides.count; slot++) {
-    const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-    if (def && isShopCategory(def.category)) syncStallFront(world, slot);
-  }
+  syncAllStallFronts(world);
 }
 
 function findDisembarkTile(world: World, slot: number): [number, number] | null {

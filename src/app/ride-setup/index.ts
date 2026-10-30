@@ -29,6 +29,7 @@ import { isShopCategory } from '../../sim/rides/ride-operations';
 import { RideResult } from '../../sim/rides/ride-results';
 import {
   autoStallFacing,
+  stallFloorLevel,
   stallFrontProblemInMap,
   stallFrontTile,
 } from '../../sim/rides/stall-front';
@@ -81,8 +82,8 @@ export function createRideSetup(deps: RideSetupDependencies) {
   let ridePlacementFeedbackSeq = -1;
   let ridePlacementFeedbackMessage: string | null = null;
   let pendingRideCreation: PendingRideCreation | null = null;
-  /** Front tile of the stall just built, highlighted until the player moves on. */
-  let builtStallFront: [number, number] | null = null;
+  /** The stall just built, whose front stays highlighted until the player moves on. */
+  let builtStallRideId: number | null = null;
   /** Tile of the stall just built; hovering it keeps showing what was built rather than a new preview. */
   let builtStallTile: string | null = null;
   /** The stall preview under the cursor this frame: where its window looks and what it finds there. */
@@ -148,7 +149,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     rideSetupNotice = null;
     placementDir = 0;
     placementDirChosen = false;
-    builtStallFront = null;
+    builtStallRideId = null;
     builtStallTile = null;
     placementTowerHeight = DEFAULT_TOWER_HEIGHT;
     gameUi.selectTool('ride');
@@ -199,7 +200,8 @@ export function createRideSetup(deps: RideSetupDependencies) {
     const snapshot = sim.latest;
     const def = RIDE_CATALOG[coasterPanel.rideType];
     if (!map || !snapshot || !def || !isShopCategory(def.category)) return null;
-    const floor = ridePlacementLevel(coasterPanel.rideType, x, y, 0, map);
+    const tile = y * map.width + x;
+    const floor = stallFloorLevel(map.heights[tile] ?? 0, map.slope[tile] ?? 0);
     const buildable = (tile: number) => snapshot.buildable[tile] === 1;
     const facing = placementDirChosen
       ? placementDir
@@ -223,7 +225,19 @@ export function createRideSetup(deps: RideSetupDependencies) {
     ridePlacementCommandPending = false;
     ridePlacementFeedbackMessage = null;
     gameUi.selectTool('ride');
-    gameUi.setToolStatus(`Click a tile next to ride ${rideId} to place its ${part}.`);
+    const snapshot = sim.latest;
+    const row = snapshot ? rideRow(snapshot, undefined, rideId) : null;
+    const def =
+      row === null
+        ? undefined
+        : RIDE_CATALOG[
+            snapshot!.rideInfo[row * RIDE_INFO_STRIDE + RideInfo.Type] as keyof typeof RIDE_CATALOG
+          ];
+    gameUi.setToolStatus(
+      def && isShopCategory(def.category)
+        ? `Click the side the ${def.name}'s window should face.`
+        : `Click a tile next to ride ${rideId} to place its ${part}.`,
+    );
   }
 
   /** Opens Footpaths with Queue line on and highlights the ride's entrance until its queue is built. */
@@ -359,7 +373,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
             const y = snapshot.rideInfo[offset + RideInfo.RideY];
             const [fx, fy] = stallFrontTile(x, y, snapshot.rideInfo[offset + RideInfo.Dir]);
             const problem = snapshot.rideInfo[offset + RideInfo.StallFront];
-            builtStallFront = [fx, fy];
+            builtStallRideId = rideId;
             builtStallTile = `${x},${y}`;
             rideSetupNotice =
               problem === RideResult.Ok
@@ -399,18 +413,32 @@ export function createRideSetup(deps: RideSetupDependencies) {
         gameUi.setToolStatus(ridePlacementFeedbackMessage);
         return;
       }
+      if (def && isShopCategory(def.category)) {
+        const [fx, fy] = stallFrontTile(
+          snapshot.rideInfo[offset + RideInfo.RideX],
+          snapshot.rideInfo[offset + RideInfo.RideY],
+          snapshot.rideInfo[offset + RideInfo.Dir],
+        );
+        gameUi.openRide(ridePlacement.rideId);
+        ridePlacement = null;
+        gameUi.setToolStatus(
+          `${def.name} turned: it now serves from the footpath at ${fx}, ${fy}.`,
+        );
+        return;
+      }
+    }
+    if (def && isShopCategory(def.category)) {
+      if (!ridePlacementCommandPending)
+        gameUi.setToolStatus(
+          ridePlacementFeedbackMessage ?? `Click the side the ${def.name}'s window should face.`,
+        );
+      return;
     }
     if (ridePlacement.part === 'entrance' && flags & RideFlag.EntrancePlaced) {
       ridePlacementCommandPending = false;
-      if (def && isShopCategory(def.category)) {
-        gameUi.openRide(ridePlacement.rideId);
-        ridePlacement = null;
-        gameUi.setToolStatus(`${def.name} now faces its footpath.`);
-      } else {
-        ridePlacement = { rideId: ridePlacement.rideId, part: 'exit' };
-        ridePlacementFeedbackMessage = null;
-        gameUi.setToolStatus('Place exit next to the ride.');
-      }
+      ridePlacement = { rideId: ridePlacement.rideId, part: 'exit' };
+      ridePlacementFeedbackMessage = null;
+      gameUi.setToolStatus('Place exit next to the ride.');
     } else if (ridePlacement.part === 'exit' && flags & RideFlag.ExitPlaced) {
       const rideId = ridePlacement.rideId;
       gameUi.openRide(rideId);
@@ -484,7 +512,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     }
     stallGhostFresh = false;
     if (deps.selectedTool() !== 'ride') {
-      builtStallFront = null;
+      builtStallRideId = null;
       builtStallTile = null;
     }
     let stallFrontShown = false;
@@ -500,8 +528,8 @@ export function createRideSetup(deps: RideSetupDependencies) {
       );
       stallFrontShown = true;
       announceStallGhost(ghost);
-    } else if (snapshot && map && builtStallFront && deps.selectedTool() === 'ride') {
-      const row = rideRowAt(snapshot, builtStallFront);
+    } else if (snapshot && map && builtStallRideId !== null && deps.selectedTool() === 'ride') {
+      const row = rideRow(snapshot, undefined, builtStallRideId);
       if (row !== null) {
         const offset = row * RIDE_INFO_STRIDE;
         drawStallFront(
@@ -510,7 +538,16 @@ export function createRideSetup(deps: RideSetupDependencies) {
           snapshot.rideInfo[offset + RideInfo.RideX],
           snapshot.rideInfo[offset + RideInfo.RideY],
           snapshot.rideInfo[offset + RideInfo.Dir],
-          snapshot.rideInfo[offset + RideInfo.BaseLevel],
+          stallFloorLevel(
+            map.heights[
+              snapshot.rideInfo[offset + RideInfo.RideY] * map.width +
+                snapshot.rideInfo[offset + RideInfo.RideX]
+            ] ?? 0,
+            map.slope[
+              snapshot.rideInfo[offset + RideInfo.RideY] * map.width +
+                snapshot.rideInfo[offset + RideInfo.RideX]
+            ] ?? 0,
+          ),
           snapshot.rideInfo[offset + RideInfo.StallFront],
         );
         stallFrontShown = true;
@@ -674,21 +711,32 @@ export function createRideSetup(deps: RideSetupDependencies) {
           const side = map.surface[ny * map.width + nx];
           return side === Surface.Path || side === Surface.Queue;
         }).length >= 2;
-      const invalidReason = !level
-        ? 'You need to own the land or its construction rights.'
-        : occupiedBoardingTile
-          ? 'An entrance or exit is already placed here.'
-          : cutsPath
-            ? 'An entrance here would cut the footpath in two.'
-            : occupiedByTrack
-              ? 'Track occupies this tile.'
-              : occupiedRideTiles.has(index)
-                ? 'Another ride occupies this tile.'
-                : !existingPath && !dryAndLevel
-                  ? map.surface[index] === Surface.Water
-                    ? 'This tile is under open water.'
-                    : 'The ground must be level and dry.'
-                  : null;
+      const placementDef = placement
+        ? RIDE_CATALOG[snapshot.rideInfo[infoOffset + RideInfo.Type] as keyof typeof RIDE_CATALOG]
+        : undefined;
+      const turningStall = placementDef !== undefined && isShopCategory(placementDef.category);
+      const stallProblem = turningStall
+        ? stallTurnProblem(snapshot, map, infoOffset, candidate.x, candidate.y)
+        : RideResult.Ok;
+      const invalidReason = turningStall
+        ? stallProblem === RideResult.Ok
+          ? null
+          : feedbackMessage(FeedbackDomain.Ride, stallProblem).text
+        : !level
+          ? 'You need to own the land or its construction rights.'
+          : occupiedBoardingTile
+            ? 'An entrance or exit is already placed here.'
+            : cutsPath
+              ? 'An entrance here would cut the footpath in two.'
+              : occupiedByTrack
+                ? 'Track occupies this tile.'
+                : occupiedRideTiles.has(index)
+                  ? 'Another ride occupies this tile.'
+                  : !existingPath && !dryAndLevel
+                    ? map.surface[index] === Surface.Water
+                      ? 'This tile is under open water.'
+                      : 'The ground must be level and dry.'
+                    : null;
       const valid = invalidReason === null;
       context.fillStyle = valid ? 'rgba(70, 225, 115, .48)' : 'rgba(230, 70, 65, .46)';
       context.strokeStyle = 'rgba(255,255,220,.9)';
@@ -728,9 +776,13 @@ export function createRideSetup(deps: RideSetupDependencies) {
         const candidateLabel = `tile ${candidate.x}, ${candidate.y}`;
         target.setAttribute(
           'aria-label',
-          valid
-            ? `Place ${placement.part} at ${candidateLabel}`
-            : `${placement.part[0]!.toUpperCase()}${placement.part.slice(1)} unavailable at ${candidateLabel}: ${invalidReason}`,
+          turningStall
+            ? valid
+              ? `Turn the window to face ${candidateLabel}`
+              : `Window cannot face ${candidateLabel}: ${invalidReason}`
+            : valid
+              ? `Place ${placement.part} at ${candidateLabel}`
+              : `${placement.part[0]!.toUpperCase()}${placement.part.slice(1)} unavailable at ${candidateLabel}: ${invalidReason}`,
         );
         const place = () => {
           if (!valid) {
@@ -774,24 +826,28 @@ export function createRideSetup(deps: RideSetupDependencies) {
     }
   }
 
-  /** Row of the stall whose front tile is `front`, built by this tool. */
-  function rideRowAt(
+  /** Why the stall at `offset` could not serve if turned toward the adjacent tile (`x`, `y`). */
+  function stallTurnProblem(
     snapshot: NonNullable<typeof sim.latest>,
-    front: readonly [number, number],
-  ): number | null {
-    for (let row = 0; row < snapshot.rides.count; row++) {
-      const offset = row * RIDE_INFO_STRIDE;
-      const def =
-        RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type] as keyof typeof RIDE_CATALOG];
-      if (!def || !isShopCategory(def.category)) continue;
-      const [fx, fy] = stallFrontTile(
-        snapshot.rideInfo[offset + RideInfo.RideX],
-        snapshot.rideInfo[offset + RideInfo.RideY],
-        snapshot.rideInfo[offset + RideInfo.Dir],
-      );
-      if (fx === front[0] && fy === front[1]) return row;
-    }
-    return null;
+    map: NonNullable<typeof sim.map>,
+    offset: number,
+    x: number,
+    y: number,
+  ): RideResult {
+    const rideX = snapshot.rideInfo[offset + RideInfo.RideX];
+    const rideY = snapshot.rideInfo[offset + RideInfo.RideY];
+    let dir = -1;
+    for (let d = 0; d < 4; d++) if (rideX + DIR_DX[d]! === x && rideY + DIR_DY[d]! === y) dir = d;
+    if (dir < 0) return RideResult.NotAdjacentToStation;
+    const tile = rideY * map.width + rideX;
+    return stallFrontProblemInMap(
+      map,
+      rideX,
+      rideY,
+      dir,
+      stallFloorLevel(map.heights[tile] ?? 0, map.slope[tile] ?? 0),
+      (index) => snapshot.buildable[index] === 1,
+    );
   }
 
   /**
@@ -828,7 +884,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     };
     const inside = fx >= 0 && fy >= 0 && fx < map.width && fy < map.height;
     if (inside) {
-      const level = map.heights[fy * map.width + fx] ?? floor;
+      const level = floor;
       context.beginPath();
       for (const [dx, dy, first] of [
         [0, 0, true],

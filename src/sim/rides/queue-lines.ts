@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { syncAllStallFronts } from './stall-front';
 import {
   boardingFront,
   PATH_BOARDING_MARKS,
@@ -247,7 +248,10 @@ function rebuild(world: World): void {
 export function refreshQueueIndex(world: World): void {
   const q = world.queues;
   const changed = syncBoardingMarks(world);
-  if (changed || q.pathVersion !== world.map.pathVersion) rebuild(world);
+  if (changed || q.pathVersion !== world.map.pathVersion) {
+    rebuild(world);
+    syncAllStallFronts(world);
+  }
 }
 
 /** Direction (0..3) from tile `from` to the adjacent tile `to`. */

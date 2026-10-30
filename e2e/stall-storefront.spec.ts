@@ -32,16 +32,32 @@ interface Site {
   tile: Tile;
   /** Facing the stall must end up with, 0 = +x, 1 = +y, 2 = -x, 3 = -y. */
   dir: number;
-  /** Quarter turns pressed before building, from the stall's automatic facing. */
-  turns: number;
+  /** Quarter turns given before building, from the stall's automatic facing: T key or Rotate button. */
+  turns: ReadonlyArray<'key' | 'button'>;
 }
+
+/** `RideResult` values the snapshot publishes in `RideInfo.StallFront`. */
+const FRONT_OK = 0;
+const FRONT_NO_PATH = 22;
+/** `RideState.Open`. */
+const OPEN = 1;
 
 /** One stall per facing; the corner site also has a path on its +x side it must turn away from. */
 const SITES: Site[] = [
-  { label: 'facing +x', tile: { x: 30, y: 39 }, dir: 0, turns: 0 },
-  { label: 'facing -x', tile: { x: 32, y: 39 }, dir: 2, turns: 0 },
-  { label: 'facing -y', tile: { x: 28, y: 42 }, dir: 3, turns: 0 },
-  { label: 'turned to face +y at a corner', tile: { x: 30, y: 40 }, dir: 1, turns: 1 },
+  {
+    label: 'facing +x after a full turn by key',
+    tile: { x: 30, y: 39 },
+    dir: 0,
+    turns: ['key', 'key', 'key', 'key'],
+  },
+  { label: 'facing -x', tile: { x: 32, y: 39 }, dir: 2, turns: [] },
+  { label: 'facing -y', tile: { x: 28, y: 42 }, dir: 3, turns: [] },
+  {
+    label: 'turned by button to face +y at a corner',
+    tile: { x: 30, y: 40 },
+    dir: 1,
+    turns: ['button'],
+  },
 ];
 
 function parkWorld(): World {
@@ -63,7 +79,7 @@ interface StallRow {
 
 async function stallAt(page: Page, tile: Tile): Promise<StallRow | null> {
   return page.evaluate(
-    async ([x, y]) => {
+    async ([x, y, open]) => {
       const { RideInfo, RIDE_INFO_STRIDE } = await import(
         /* @vite-ignore */ '/src/worker/snapshot.ts'
       );
@@ -80,12 +96,12 @@ async function stallAt(page: Page, tile: Tile): Promise<StallRow | null> {
           state: s.rideInfo[o + RideInfo.State],
           served: s.rideInfo[o + RideInfo.GuestsServed],
           front: s.rideInfo[o + RideInfo.StallFront],
-          open: s.rideInfo[o + RideInfo.State] === 1,
+          open: s.rideInfo[o + RideInfo.State] === open,
         };
       }
       return null;
     },
-    [tile.x, tile.y] as const,
+    [tile.x, tile.y, OPEN] as const,
   );
 }
 
@@ -177,8 +193,8 @@ test.describe('stall storefronts', () => {
       await expect(rotate).toBeVisible();
       await hoverGameTile(page, world, site.tile);
       await expect(page.locator('.tool-status')).toContainText('window faces');
-      for (let turn = 0; turn < site.turns; turn++) {
-        if (turn % 2 === 0) await page.keyboard.press('t');
+      for (const turn of site.turns) {
+        if (turn === 'key') await page.keyboard.press('t');
         else await rotate.click();
         await hoverGameTile(page, world, site.tile);
       }
@@ -189,7 +205,7 @@ test.describe('stall storefronts', () => {
       await expect(page.locator('.tool-status')).toContainText('is open', { timeout: 10_000 });
       await expect
         .poll(() => stallAt(page, site.tile))
-        .toMatchObject({ dir: site.dir, open: true, front: 0 });
+        .toMatchObject({ dir: site.dir, open: true, front: FRONT_OK });
       await page.keyboard.press('Escape');
     }
 
@@ -219,7 +235,7 @@ test.describe('stall storefronts', () => {
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.mouse.move(640, 20);
-    for (let rotation = 0; rotation < 4; rotation++) {
+    for (let rotation = 0; proofDir && rotation < 4; rotation++) {
       await centerCameraOn(page, world, { x: 31, y: 40 }, 2);
       await overlayCleared(page);
       await shot(page, `built-rotation-${rotation}`);
@@ -246,10 +262,10 @@ test.describe('stall storefronts', () => {
     for (const site of SITES)
       await expect
         .poll(() => stallAt(page, site.tile))
-        .toMatchObject({ dir: site.dir, open: true, front: 0 });
+        .toMatchObject({ dir: site.dir, open: true, front: FRONT_OK });
   });
 
-  test('explains a stall whose window faces no footpath and serves once one is built', async ({
+  test('explains a stall whose window faces no footpath, then turns it toward a new path', async ({
     page,
   }) => {
     test.setTimeout(240_000);
@@ -268,7 +284,9 @@ test.describe('stall storefronts', () => {
     await expect(page.locator('.tool-status')).toContainText(
       'No footpath in front of the service window',
     );
-    await expect.poll(() => stallAt(page, site)).toMatchObject({ open: true, front: 22 });
+    await expect
+      .poll(() => stallAt(page, site))
+      .toMatchObject({ dir: 0, open: true, front: FRONT_NO_PATH });
 
     await page.locator('.game-toolbar').getByRole('button', { name: 'Rides', exact: true }).click();
     await page.getByRole('tab', { name: 'Shops and stalls', exact: true }).click();
@@ -283,14 +301,34 @@ test.describe('stall storefronts', () => {
     const closeButtons = page.locator('.ui-window button[aria-label^="Close"]');
     while (await closeButtons.count()) await closeButtons.first().click();
 
-    const dir = (await stallAt(page, site))!.dir;
-    const front = { x: site.x + [1, 0, -1, 0][dir]!, y: site.y + [0, 1, 0, -1][dir]! };
+    const south: Tile = { x: site.x, y: site.y + 1 };
     await page
       .locator('.game-toolbar')
       .getByRole('button', { name: 'Footpaths', exact: true })
       .click();
-    for (const tile of [front, { x: front.x, y: 40 }]) await clickGameTile(page, world, tile);
-    await expect.poll(() => stallAt(page, site)).toMatchObject({ front: 0, open: true });
+    await clickGameTile(page, world, south);
+    await expect(page.locator('.tool-status')).toContainText('34, 40');
+    await expect.poll(() => stallAt(page, site)).toMatchObject({ dir: 0, front: FRONT_NO_PATH });
+
+    await page.locator('.game-toolbar').getByRole('button', { name: 'Rides', exact: true }).click();
+    await page.getByRole('tab', { name: 'Shops and stalls', exact: true }).click();
+    await page
+      .locator('[data-panel="ride-list"] .list-row')
+      .filter({ hasText: 'Drink Stall' })
+      .click();
+    await page.getByRole('button', { name: 'Turn stall' }).click();
+    while (await closeButtons.count()) await closeButtons.first().click();
+    await expect(
+      page.getByRole('button', { name: /Window cannot face tile 33, 39: No footpath/ }),
+    ).toBeAttached();
+    await shot(page, 'turn-built-stall');
+    await page.getByRole('button', { name: 'Turn the window to face tile 34, 40' }).click();
+    await expect(page.locator('.tool-status')).toContainText(
+      'turned: it now serves from the footpath at 34, 40',
+    );
+    await expect
+      .poll(() => stallAt(page, site))
+      .toMatchObject({ dir: 1, open: true, front: FRONT_OK });
     await page.evaluate(() => {
       const sim = (
         window as unknown as { __sim: { command(c: unknown): void; setSpeed(n: number): void } }
@@ -320,7 +358,7 @@ test.describe('stall storefronts', () => {
     await expect(page.locator('.tool-status')).toContainText('is open', { timeout: 10_000 });
     await expect
       .poll(() => stallAt(page, corner.tile))
-      .toMatchObject({ dir: corner.dir, open: true, front: 0 });
+      .toMatchObject({ dir: corner.dir, open: true, front: FRONT_OK });
     await waitForStallArt(page);
     await shot(page, 'phone-rotate');
   });

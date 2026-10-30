@@ -23,6 +23,7 @@ import type { NavOptions } from '../pathfinding';
 import {
   addRideIncome,
   getRideValueCents,
+  isServingGuests,
   isShopCategory,
   rideQueueCapacity,
 } from '../rides/ride-operations';
@@ -199,7 +200,7 @@ function totalRideValueForMoneyCents(world: World): number {
 
   let totalCents = 0;
   for (let slot = 0; slot < world.rides.count; slot++) {
-    if (rides.state[slot] !== RideState.Open) continue;
+    if (!isServingGuests(world, slot)) continue;
     const rideValue = values[slot].valueCents;
     const ridePrice = world.economy.priceMode === PriceMode.PerRide ? rides.price[slot] : 0;
     totalCents += Math.max(0, rideValue - ridePrice) * 2;
@@ -1125,7 +1126,8 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
         world.rides.cols.state[ride] !== RideState.Open ||
         world.rides.cols.entrancePlaced[ride] === 0 ||
         Math.abs(world.rides.cols.entranceX[ride] - guestX) > 1 ||
-        Math.abs(world.rides.cols.entranceY[ride] - guestY) > 1
+        Math.abs(world.rides.cols.entranceY[ride] - guestY) > 1 ||
+        guestNode(world, slot, world.map.index(guestX, guestY)) !== stallServiceNode(world, ride)
       )
         continue;
       const price = world.rides.cols.price[ride];
@@ -1293,7 +1295,7 @@ function comfortableGuests(world: World): number {
   const r = world.rides.cols;
   let total = 0;
   for (let ride = 0; ride < world.rides.count; ride++) {
-    if (r.state[ride] !== RideState.Open) continue;
+    if (!isServingGuests(world, ride)) continue;
     const definition = RIDE_CATALOG[r.typeId[ride] as RideType];
     total +=
       definition?.guestGenerationBonus ?? (isThrillCategory(rideCategory(world, ride)) ? 40 : 8);

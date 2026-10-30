@@ -87,6 +87,17 @@ export function isShopCategory(category: string): boolean {
   return category === 'stall' || category === 'facility';
 }
 
+/**
+ * True when the ride in `slot` is open and guests can get to it: an open stall whose window faces
+ * no usable footpath counts as open but serves no one.
+ */
+export function isServingGuests(world: World, slot: number): boolean {
+  const ride = world.rides.cols;
+  if (ride.state[slot] !== RideState.Open) return false;
+  const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  return !definition || !isShopCategory(definition.category) || ride.entrancePlaced[slot] === 1;
+}
+
 function slotForRide(world: World, rideId: number): number {
   return world.rides.idToSlot[rideId] ?? -1;
 }
