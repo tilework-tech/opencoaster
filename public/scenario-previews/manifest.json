@@ -2,77 +2,77 @@
   "rendererVersion": 1,
   "scenarios": {
     "bramblewood-hollow": {
-      "sourceHash": "39851406d6479e1cb57a17a3633485b0d06e0c5cc2a2c729b6cf0291305a7a24",
+      "sourceHash": "5386d80ed0f050cd6be776aae5c92360d8529d3a080f0b07f78083371789d62a",
       "oneX": "bramblewood-hollow@1x.png",
       "twoX": "bramblewood-hollow@2x.png",
       "width": 72,
       "height": 72
     },
     "copper-ridge": {
-      "sourceHash": "f98ecc8a9ec068fce2373f1c83e5bcc35825bc908c89f3fbb4b5f60cc2f2bae1",
+      "sourceHash": "42fb9eb0fcabfa97e0cf24cc2dacc1bbf700775b37fccefa181cbbdf56c61285",
       "oneX": "copper-ridge@1x.png",
       "twoX": "copper-ridge@2x.png",
       "width": 96,
       "height": 96
     },
     "glacier-point": {
-      "sourceHash": "9507cfb668005967678eda3aba961f9f36552caf16d257f41fbb16566b9da69c",
+      "sourceHash": "e3acd27c02edcdce61380fc65c9c5faa771c6b87fe97ee6a11a42a2f1e2915ad",
       "oneX": "glacier-point@1x.png",
       "twoX": "glacier-point@2x.png",
       "width": 96,
       "height": 96
     },
     "lantern-bay": {
-      "sourceHash": "f75b13002d547516abe57a30d7a868ac0f9a09bfff3f90e37afb334814d936d7",
+      "sourceHash": "b1e1e01281650ae864338b0dba6b0a41b48bc1177b49e7e0db0d94df2612bed1",
       "oneX": "lantern-bay@1x.png",
       "twoX": "lantern-bay@2x.png",
       "width": 80,
       "height": 80
     },
     "meadowbrook": {
-      "sourceHash": "19f28569affc7fd1dd9fb5331540ab0945b346dd26f560027e782d963bac77ae",
+      "sourceHash": "f4c7192d7df0f8de3a00c92357a101a45251293beba4c935a21d3cf117ebb7b7",
       "oneX": "meadowbrook@1x.png",
       "twoX": "meadowbrook@2x.png",
       "width": 72,
       "height": 72
     },
     "open-grounds": {
-      "sourceHash": "b1409bbfdb5521d6440eb694d329b40d474ab53b672b6c26e0a61a4e901362c9",
+      "sourceHash": "20ec1daaddb4f22255aee4fa35287de70519b7689b2808ed948a00bfef2416e9",
       "oneX": "open-grounds@1x.png",
       "twoX": "open-grounds@2x.png",
       "width": 96,
       "height": 96
     },
     "riverside-fairground": {
-      "sourceHash": "387c7288d046147c4076c28f4d63f1162096428b368169e0d7eaf9200cc30065",
+      "sourceHash": "8b138ff77adaee11e3e1bb542d8c331825dc3fb155ff0be7d4eeaac639c51164",
       "oneX": "riverside-fairground@1x.png",
       "twoX": "riverside-fairground@2x.png",
       "width": 88,
       "height": 88
     },
     "seaside-promenade": {
-      "sourceHash": "f5d30a8cd79c9fd28e9cd73741035934f5a501a4d1bcd46d3f8c01ec802ba124",
+      "sourceHash": "3c49d35a763d71f6d44f16e50523b227b12ec738180ed6ae01e3a2106f0d4bae",
       "oneX": "seaside-promenade@1x.png",
       "twoX": "seaside-promenade@2x.png",
       "width": 80,
       "height": 80
     },
     "starter": {
-      "sourceHash": "e4ebc943ac41e747594a5f8e659d0d6544bba4572bc49fa88b91771c9db11647",
+      "sourceHash": "7ce80f353fc3b19c4d90f8feb6ff1dfaba2bff65340140bf5e5f5a87dd12b386",
       "oneX": "starter@1x.png",
       "twoX": "starter@2x.png",
       "width": 64,
       "height": 64
     },
     "thunderhead-mesa": {
-      "sourceHash": "a9a7a7e40154aece80daf1204433b01a822efbc11fafc5a8c9b462be05fda89e",
+      "sourceHash": "3245b0bd8ca7aeb7bd132ba1a7169f127946d13cc7b13d35e1b9d6337de98fde",
       "oneX": "thunderhead-mesa@1x.png",
       "twoX": "thunderhead-mesa@2x.png",
       "width": 96,
       "height": 96
     },
     "tidewater-docks": {
-      "sourceHash": "89bd75557165519866edb5b4018bd44399ff397efa96fd7c24677f687c50b067",
+      "sourceHash": "7da3a904fe067077f0b8f4ada0a5e7b79c2714d6b5b452e1bb1530c66f586586",
       "oneX": "tidewater-docks@1x.png",
       "twoX": "tidewater-docks@2x.png",
       "width": 80,

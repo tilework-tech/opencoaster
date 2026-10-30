@@ -1,11 +1,25 @@
 import type { System } from '../core/system';
 import type { World } from '../core/world';
+import { Container } from '../rides/shop-items';
 import { LitterKind, dropLitter } from './litter-store';
 
 /** A guest drops trash at roughly one in this many litter checks (every 160 ticks). */
 const TRASH_ONE_IN = 128;
+/**
+ * A guest holding an empty container drops it at roughly one in this many litter checks: RCT2
+ * guests drop theirs about once per 8,192 ticks on a footpath, and a check comes every 160.
+ */
+const CONTAINER_ONE_IN = 51;
 export const VOMIT_NAUSEA_THRESHOLD = 140;
 export const VOMIT_NAUSEA_REDUCTION = 30;
+
+export function containerLitter(container: number): LitterKind {
+  return container === Container.Can
+    ? LitterKind.Can
+    : container === Container.BurgerBox
+      ? LitterKind.BurgerBox
+      : LitterKind.Trash;
+}
 
 export function createLitterSystem(): System {
   return {
@@ -24,6 +38,12 @@ export function createLitterSystem(): System {
             guests.nausea[i] = Math.max(0, guests.nausea[i] - VOMIT_NAUSEA_REDUCTION);
             guests.hunger[i] = Math.floor(guests.hunger[i] / 2);
           }
+        } else if (guests.container[i] !== Container.None) {
+          if (
+            world.rng.int(CONTAINER_ONE_IN) === 0 &&
+            dropLitter(world, x, y, containerLitter(guests.container[i]))
+          )
+            guests.container[i] = Container.None;
         } else if (world.rng.int(TRASH_ONE_IN) === 0) dropLitter(world, x, y, LitterKind.Trash);
       }
       world.economy.inputs.litter = Math.min(100, litter.count);

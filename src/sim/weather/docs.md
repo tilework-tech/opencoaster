@@ -11,7 +11,7 @@ Path: @/src/sim/weather
 ### How it fits into the larger codebase
 
 - [World](../core/world.ts) owns the serializable weather state; [Simulation](../core/simulation.ts) runs the weather system first in the fixed system order.
-- [Guest behavior](../guests/guest-system.ts) reads the state when scoring rides and when a wandering guest in rain or storm is adjacent to an open information kiosk and may buy an umbrella.
+- [Guest behavior](../guests/guest-system.ts) reads the state when scoring rides and when a wandering guest in rain or storm is adjacent to an open information kiosk and may buy an umbrella at the kiosk's second price. Temperature also decides what guests think a stall item is worth (hot at 21 C and above, cold at 11 C and below; see [shop-items.ts](../rides/shop-items.ts)).
 - Weather scalars are included in [world hashing](../core/hash.ts) and serialized by [save/load](../../save/save.ts), so continuing a save keeps the remaining transition countdown.
 - The broader researched behavior and source confidence are tracked in [world mechanics](../../../docs/mechanics/world.md); implementation values are game tuning rather than claims about an original game's schedule.
 

@@ -79,7 +79,8 @@ export interface GameUIActions {
   renameStaff(staffId: number, name: string): void;
   fireStaff(staffId: number): void;
   pickUpPerson(person: 'guest' | 'staff', personId: number): void;
-  setRidePrice(rideId: number, priceCents: number): void;
+  /** `item` 1 prices a stall's second item. */
+  setRidePrice(rideId: number, priceCents: number, item?: number): void;
   setRideQueueLimit(rideId: number, limit: number): void;
   setRideTrains(rideId: number, trains: number, cars: number): void;
   setRideMode(rideId: number, mode: number): void;

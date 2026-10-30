@@ -45,7 +45,7 @@ import { shrubMesh } from './models/shrub';
 import { wallMesh } from './models/walls';
 import { LOG_FLUME_MODEL } from './models/log-flume';
 import { RIVER_RAPIDS_MODEL } from './models/river-rapids';
-import { benchSitterMesh, personMesh, seatedRiderMesh } from './models/people';
+import { benchSitterMesh, carriedItemMesh, personMesh, seatedRiderMesh } from './models/people';
 import { rideMesh as transportRideMesh } from './models/ride-model';
 import { GO_KARTS_MODEL } from './models/go-karts';
 import {
@@ -57,7 +57,7 @@ import {
   lampMesh,
   shelterMesh,
 } from './models/path-additions';
-import { trashMesh, vomitMesh } from './models/litter';
+import { burgerBoxMesh, canMesh, trashMesh, vomitMesh } from './models/litter';
 import { TRANSPORT_PIECES, TRANSPORT_STYLES } from './models/transport';
 import {
   WATER_CAR_PITCHES,
@@ -464,6 +464,8 @@ function litterSprites(): SpriteDef[] {
   const models: readonly (readonly [string, () => Mesh])[] = [
     ['litter/trash', trashMesh],
     ['litter/vomit', vomitMesh],
+    ['litter/can', canMesh],
+    ['litter/burger-box', burgerBoxMesh],
   ];
   return models.flatMap(([key, build]) =>
     Array.from({ length: 4 }, (_, view) => ({
@@ -503,6 +505,11 @@ function peopleSprites(): SpriteDef[] {
       frames: Array.from({ length: 8 * 4 }, (_, index) =>
         renderMesh(benchSitterMesh(Math.floor(index / 4), index % 4)),
       ),
+      footprint: ONE_TILE,
+    },
+    {
+      key: 'people/carried',
+      frames: [0, 1, 2].map((item) => renderMesh(carriedItemMesh(item))),
       footprint: ONE_TILE,
     },
     {

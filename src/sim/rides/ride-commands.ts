@@ -36,7 +36,7 @@ export type RideCommand =
   | { type: 'placeRideEntrance'; rideId: number; x: number; y: number }
   | { type: 'placeRideExit'; rideId: number; x: number; y: number }
   | { type: 'setRideStatus'; rideId: number; status: 'open' | 'close' | 'test' }
-  | { type: 'setRidePrice'; rideId: number; priceCents: number }
+  | { type: 'setRidePrice'; rideId: number; priceCents: number; item?: number }
   | { type: 'setRideQueueLimit'; rideId: number; limit: number }
   | { type: 'setRideTrains'; rideId: number; trains: number; cars: number }
   | { type: 'setRideMode'; rideId: number; mode: RideMode }
@@ -312,7 +312,9 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
               : startFlatRideTest(world, c.rideId);
       break;
     case 'setRidePrice':
-      result = setRidePrice(world, c.rideId, c.priceCents) ? RideResult.Ok : RideResult.Blocked;
+      result = setRidePrice(world, c.rideId, c.priceCents, c.item ?? 0)
+        ? RideResult.Ok
+        : RideResult.Blocked;
       break;
     case 'setRideQueueLimit':
       result = setRideQueueLimit(world, c.rideId, c.limit) ? RideResult.Ok : RideResult.Blocked;

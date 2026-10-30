@@ -22,3 +22,18 @@ export function vomitMesh(): Mesh {
     ...cylinder(0.035, -0.012, 0, 0.012, 0.025, 0.015, 8, GREEN, { capBottom: true }),
   ];
 }
+
+export function canMesh(): Mesh {
+  return [
+    ...cylinder(0, 0, 0, 0.05, 0.03, 0.03, 8, material(ramp('steel')), { capBottom: true }),
+    ...cylinder(0, 0, 0.05, 0.055, 0.022, 0.022, 8, RED),
+  ];
+}
+
+export function burgerBoxMesh(): Mesh {
+  return [
+    ...box([-0.05, -0.04, 0], [0.05, 0.04, 0.035], PAPER),
+    ...box([-0.05, -0.04, 0.035], [0.05, -0.01, 0.045], YELLOW),
+    ...box([-0.04, 0.0, 0.035], [0.03, 0.035, 0.04], RED),
+  ];
+}

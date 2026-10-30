@@ -8,8 +8,12 @@ import { spawnPoints } from '../sim/guests/park';
 import { placeTrack } from '../sim/track/construction';
 import { PieceMode, TrackResult } from '../sim/track/track-types';
 import { SAVE_VERSION, deserialize, serialize } from './save';
-import { allWorldViews, restVersionColumns, withoutColumns } from './legacy-save-fixtures';
-import { RIDER_HISTORY_WINDOWS, RIDE_COLUMNS_ADDED_IN_V10 } from '../sim/rides/ride-store';
+import { allWorldViews, withoutColumns } from './legacy-save-fixtures';
+import {
+  RIDER_HISTORY_WINDOWS,
+  RIDE_COLUMNS_ADDED_IN_V10,
+  RIDE_COLUMNS_ADDED_IN_V37,
+} from '../sim/rides/ride-store';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { RidePhase, RideState } from '../sim/rides/ride-store';
 import { RideResult } from '../sim/rides/ride-results';
@@ -23,7 +27,7 @@ import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { GuestState, HEADING_NONE, spawnGuest } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
-import { addSpawnAtCorner, flatWorld, guestAt, layPath, row } from '../sim/integration/fixtures';
+import { addSpawnAtCorner, flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/fixtures';
 import {
   StaffKind,
   StaffOrder,
@@ -81,9 +85,9 @@ function ambientTreePlacements(world: World): Array<[number, number]> {
   return placements;
 }
 
-/** A current save rewritten as a version 33 or 34 save: those wrote no bench-rest columns. */
+/** A current save rewritten as an older save without columns introduced after its format. */
 function withSaveVersion(world: World, version: number): Uint8Array {
-  return withoutColumns(serialize(world), version, allWorldViews(world), restVersionColumns(world));
+  return withoutColumns(serialize(world), version, allWorldViews(world), []);
 }
 
 function withHeaderVersion(
@@ -202,7 +206,7 @@ describe('save', () => {
     const reloadedIntermediate = deserialize(withSaveVersion(migrated, 33));
     expect(ambientTreePlacements(reloadedIntermediate)).toEqual(placements);
     expect(hashWorld(reloadedIntermediate)).toBe(hashWorld(migrated));
-    expect(SAVE_VERSION).toBe(36);
+    expect(SAVE_VERSION).toBe(37);
   });
 
   it('loads a version 34 save and lets its tired guests use benches afterwards', () => {
@@ -227,7 +231,7 @@ describe('save', () => {
   });
 
   it('writes the current version with climate metadata', () => {
-    expect(SAVE_VERSION).toBe(36);
+    expect(SAVE_VERSION).toBe(37);
     const sim = new Simulation({ seed: 1, width: 8, height: 8 });
     sim.world.weather.climate = Climate.Cold;
     expect(spawnStaff(sim.world, StaffKind.Security)).toBe(true);
@@ -235,7 +239,7 @@ describe('save', () => {
     const bytes = serialize(sim.world);
     const headerLength = new DataView(bytes.buffer).getUint32(4, true);
     const header = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + headerLength)));
-    expect(header.version).toBe(36);
+    expect(header.version).toBe(37);
     expect(header.weather.climate).toBe(Climate.Cold);
     const restored = deserialize(bytes);
     expect(restored.weather.climate).toBe(Climate.Cold);
@@ -438,6 +442,44 @@ describe('save', () => {
     expect(loaded.lawnsMown[0]).toBe(0);
     expect(loaded.orderFlags[0] & (1 << StaffOrder.MowGrass)).not.toBe(0);
     expect(loaded.orderFlags[1] & (1 << StaffOrder.MowGrass)).toBe(0);
+  });
+
+  it("loads a version 32 save, moving a kiosk's umbrella price to its second item", () => {
+    const w = flatWorld(16);
+    layPath(w, row(5, 2, 8));
+    const kiosk = openRide(w, RideType.InformationKiosk, [5, 4], [5, 5], [6, 4]);
+    const stall = openRide(w, RideType.IceCreamStall, [8, 4], [8, 5], [9, 4]);
+    w.rides.cols.price[kiosk] = 275;
+    w.rides.cols.price[stall] = 120;
+    const legacy = withoutColumns(serialize(w), 32, allWorldViews(w), []);
+
+    const loaded = deserialize(legacy);
+
+    expect(loaded.rides.cols.price2[kiosk]).toBe(275);
+    expect(loaded.rides.cols.price[kiosk]).toBe(
+      RIDE_CATALOG[RideType.InformationKiosk].defaultPriceCents,
+    );
+    expect(loaded.rides.cols.price[stall]).toBe(120);
+    expect(loaded.rides.cols.price2[stall]).toBe(0);
+    expect(loaded.rides.cols.itemSold0[kiosk]).toBe(0);
+  });
+
+  it('round-trips guest souvenirs and per-item sales', () => {
+    const w = flatWorld(16);
+    layPath(w, row(5, 2, 8));
+    const stall = openRide(w, RideType.BalloonStall, [5, 4], [5, 5], [6, 4]);
+    const slot = guestAt(w, 3, 5);
+    w.guests.cols.souvenirs[slot] = 3;
+    w.guests.cols.container[slot] = 2;
+    w.rides.cols.itemSold0[stall] = 7;
+    w.rides.cols.itemRevenue0[stall] = 630;
+
+    const loaded = deserialize(serialize(w));
+
+    expect(loaded.guests.cols.souvenirs[slot]).toBe(3);
+    expect(loaded.guests.cols.container[slot]).toBe(2);
+    expect(loaded.rides.cols.itemSold0[stall]).toBe(7);
+    expect(loaded.rides.cols.itemRevenue0[stall]).toBe(630);
   });
 
   it('round-trips the selected path style and defaults older saves to tarmac', () => {
@@ -1096,7 +1138,16 @@ describe('save: version 4 migration', () => {
         world.staff.arrays().slice(0, -1),
         world.vehicles.arrays(),
         world.litter.arrays(),
-        world.rides.arrays().slice(0, -5 - RIDE_COLUMNS_ADDED_IN_V10 - RIDER_HISTORY_WINDOWS),
+        world.rides
+          .arrays()
+          .slice(
+            0,
+            -5 -
+              RIDE_COLUMNS_ADDED_IN_V10 -
+              RIDER_HISTORY_WINDOWS -
+              RIDE_COLUMNS_ADDED_IN_V37 -
+              1,
+          ),
         world.track.pieces.arrays(),
         world.track.rideTables(),
       );

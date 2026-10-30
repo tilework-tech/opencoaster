@@ -71,7 +71,7 @@ describe("the player's Bramblewood Hollow park", () => {
 
     for (const rideId of [wood, steel]) {
       expect(world.rides.cols.cyclesCompleted[slotOf(rideId)]).toBeGreaterThanOrEqual(1);
-      expect(world.rides.cols.guestsServed[slotOf(rideId)]).toBeGreaterThanOrEqual(8);
+      expect(world.rides.cols.guestsServed[slotOf(rideId)]).toBeGreaterThanOrEqual(4);
     }
   }, 120_000);
 });

@@ -3,6 +3,7 @@ import { hashWorld } from '../core/hash';
 import { World } from '../core/world';
 import { RIDE_CATALOG, RideType, type RideTypeDef } from './ride-types';
 import { RideMode } from './ride-modes';
+import { ShopItem } from './shop-items';
 import { createRide, getRideRatings } from './ride-operations';
 import { RideState } from './ride-store';
 import { parkInputsSystem } from '../economy/park-inputs';
@@ -214,8 +215,8 @@ describe('expanded ride catalog', () => {
       const ride = RIDE_CATALOG[type];
       expect(ride.guestGenerationBonus).toBe(bonus);
       expect(ride.runningCostPerFortnightCents).toBe(310);
-      if (type === RideType.FoodStall) expect(ride.stockCostCents).toBe(50);
-      if (type === RideType.DrinkStall) expect(ride.stockCostCents).toBe(30);
+      if (type === RideType.FoodStall) expect(ride.items).toEqual([ShopItem.Burger]);
+      if (type === RideType.DrinkStall) expect(ride.items).toEqual([ShopItem.Drink]);
     }
   });
 

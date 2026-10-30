@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { VoucherKind } from '../../sim/economy/vouchers';
+import { CarriedItem } from '../../worker/snapshot';
 import {
+  carriedItemsText,
   energyFraction,
   filterGuestSummary,
   guestDetailsText,
@@ -20,6 +22,18 @@ describe('guest vouchers', () => {
 
   it('says so when the guest carries no voucher', () => {
     expect(voucherText(VoucherKind.None, 'nothing')).toBe('Carrying no vouchers.');
+  });
+});
+
+describe('carried items', () => {
+  it('lists everything the guest carries', () => {
+    expect(carriedItemsText(CarriedItem.Balloon | CarriedItem.Umbrella | CarriedItem.Map)).toBe(
+      'Carrying: Balloon, Umbrella, Park Map',
+    );
+  });
+
+  it('says so when the guest carries nothing', () => {
+    expect(carriedItemsText(0)).toBe('Carrying no items.');
   });
 });
 

@@ -11,6 +11,8 @@ import {
 export const enum LitterKind {
   Trash = 0,
   Vomit = 1,
+  Can = 2,
+  BurgerBox = 3,
 }
 
 export const LITTER_LIMIT = 500;
@@ -45,13 +47,33 @@ function assignBirthOrder(w: World, slot: number): void {
   litter.cols.birthOrder[slot] = litter.count + 1;
 }
 
+/** A guest drops an empty container in the working bin on the tile, if one has room on any side. */
+export function useBin(w: World, x: number, y: number): boolean {
+  if (!w.map.inBounds(x, y)) return false;
+  const element = w.map.pathElement(w.map.index(x, y), -1);
+  if (
+    element < 0 ||
+    (w.map.elFlags[element] & PathFlag.Bin) === 0 ||
+    isPathElementBroken(w.map, element)
+  )
+    return false;
+  const data = w.map.elData[element];
+  for (let corner = 0; corner < 4; corner++) {
+    const shift = corner * 2;
+    if (((data >> shift) & 3) === 0) continue;
+    w.map.elData[element] = data - (1 << shift);
+    return true;
+  }
+  return false;
+}
+
 export function dropLitter(w: World, x: number, y: number, kind: LitterKind): boolean {
   if (!isParkInterior(w, x, y)) return false;
   const tile = w.map.index(x, y);
   if (!w.map.isWalkable(tile) || w.map.isQueue(tile)) return false;
   const element = w.map.pathElement(tile, -1);
   if (
-    kind === LitterKind.Trash &&
+    kind !== LitterKind.Vomit &&
     element >= 0 &&
     (w.map.elFlags[element] & PathFlag.Bin) !== 0 &&
     !isPathElementBroken(w.map, element)

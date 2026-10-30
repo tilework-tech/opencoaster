@@ -2,6 +2,7 @@ import type { World } from '../core/world';
 import { getRideValueCents } from '../rides/ride-operations';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
+import { itemValueAtTemperature } from '../rides/shop-items';
 
 /**
  * Guests pay up to twice a ride's value for a ticket (the same threshold the ride window calls
@@ -20,10 +21,13 @@ export function maxRidePriceCents(world: World, rideSlot: number): number {
   return Math.max(RIDE_PRICE_FLOOR_CENTS, 2 * value);
 }
 
-/** What a stall's item is worth to guests: the catalog item value, or its starting price when none is set. */
-export function itemValueCents(world: World, rideSlot: number): number {
+/** What a stall's `itemIndex`th item is worth to guests at today's temperature, or its starting price when it sells no item. */
+export function itemValueCents(world: World, rideSlot: number, itemIndex = 0): number {
   const def = RIDE_CATALOG[world.rides.cols.typeId[rideSlot] as RideType];
-  return def.itemValueCents ?? def.defaultPriceCents;
+  const item = def.items?.[itemIndex];
+  return item === undefined
+    ? def.defaultPriceCents
+    : itemValueAtTemperature(item, world.weather.temperature);
 }
 
 function overpriceDivisor(happiness: number): number {
@@ -42,9 +46,14 @@ export function acceptsItemPrice(
 }
 
 /** The highest price this guest could ever accept, however well they roll. */
-export function maxItemPriceCents(world: World, rideSlot: number, happiness: number): number {
+export function maxItemPriceCents(
+  world: World,
+  rideSlot: number,
+  happiness: number,
+  itemIndex = 0,
+): number {
   return (
-    itemValueCents(world, rideSlot) +
+    itemValueCents(world, rideSlot, itemIndex) +
     (ITEM_TOLERANCE_ROLLS - 1) * ITEM_TOLERANCE_STEP_CENTS * overpriceDivisor(happiness) +
     (overpriceDivisor(happiness) - 1)
   );

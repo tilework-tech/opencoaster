@@ -19,6 +19,8 @@ import type { TabSpec } from '../window-manager';
 import type { UiContext, WindowController } from '../ui-types';
 import { RIDE_STATE_NAMES } from './ride-list';
 import { priceControl } from './price-control';
+import type { PriceControl } from './price-control';
+import { stallItemRows } from './stall-items';
 import { spritePages } from '../../render/sprite-pages';
 import { drawRidePreview } from '../ride-preview';
 import { liveViewport } from '../live-viewport';
@@ -239,6 +241,17 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
   servedChart.width = 300;
   servedChart.height = 90;
   const price = priceControl('Ride price', (cents) => ctx.actions.setRidePrice(rideId, cents));
+  const ticketPriceLabel = element('p', 'ui-help', 'Ticket price');
+  const stallPanel = element('div', 'stall-items');
+  stallPanel.setAttribute('aria-label', 'Items for sale');
+  let stallPanelType = -1;
+  let stallRows: Array<{
+    price: PriceControl;
+    worth: ReturnType<typeof statRow>;
+    sold: ReturnType<typeof statRow>;
+    sales: ReturnType<typeof statRow>;
+    profit: ReturnType<typeof statRow>;
+  }> = [];
   const income = { total: statRow('Total income'), perGuest: statRow('Income per guest') };
   const customers = { served: statRow('Guests served'), waiting: statRow('Waiting in queue') };
   let towerHeight = DEFAULT_TOWER_HEIGHT;
@@ -329,8 +342,9 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       servedChart,
     );
     p('income').append(
-      element('p', 'ui-help', 'Ticket price'),
+      ticketPriceLabel,
       price.root,
+      stallPanel,
       income.total.row,
       income.perGuest.row,
     );
@@ -592,6 +606,49 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         drawChart(servedChart, servedSeries.values(), '#8fd3ff');
       }
       price.show(info[o + RideInfo.Price]);
+      const rows = stallItemRows(type as RideType, info, o, snapshot.weather.temperature);
+      ticketPriceLabel.hidden = rows.length > 0;
+      price.root.hidden = rows.length > 0;
+      stallPanel.hidden = rows.length === 0;
+      if (rows.length > 0 && stallPanelType !== type) {
+        stallPanelType = type;
+        stallRows = rows.map((row, index) => {
+          const entry = {
+            price: priceControl(`Price of ${row.name}`, (cents) =>
+              ctx.actions.setRidePrice(rideId, cents, index),
+            ),
+            worth: statRow('Worth to guests today'),
+            sold: statRow('Sold'),
+            sales: statRow('Sales'),
+            profit: statRow('Profit'),
+          };
+          const section = element('div', 'stall-item');
+          section.append(
+            element('p', 'ui-help', row.name),
+            entry.price.root,
+            entry.worth.row,
+            entry.sold.row,
+            entry.sales.row,
+            entry.profit.row,
+          );
+          stallPanel.append(section);
+          return entry;
+        });
+      }
+      if (rows.length === 0 && stallPanelType !== -1) {
+        stallPanelType = -1;
+        stallPanel.replaceChildren();
+        stallRows = [];
+      }
+      rows.forEach((row, index) => {
+        const entry = stallRows[index];
+        if (!entry) return;
+        entry.price.show(row.priceCents);
+        setText(entry.worth.value, formatMoney(row.valueCents));
+        setText(entry.sold.value, String(row.sold));
+        setText(entry.sales.value, formatMoney(row.revenueCents));
+        setText(entry.profit.value, formatMoney(row.profitCents));
+      });
       const served = info[o + RideInfo.GuestsServed];
       const total = info[o + RideInfo.IncomeCents];
       setText(income.total.value, formatMoney(total));

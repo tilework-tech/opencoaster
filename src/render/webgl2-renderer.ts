@@ -4,6 +4,7 @@ import {
   guestRowHeading,
   guestRowIdle,
   guestRowSeated,
+  guestRowDrawnItems,
   isRidingGuestRow,
 } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
@@ -65,7 +66,7 @@ import type { OracleSprite } from './occlusion-oracle';
 import { HEIGHT_OFFSET, HEIGHT_RESOLUTION } from './height-encoding';
 import { spritePages } from './sprite-pages';
 import { PARK_FENCE, landOverlayTiles, parkBoundaryEdges } from './park-boundary';
-import { peopleSpriteKey, walkingFrame } from './people-art';
+import { CARRIED_SPRITES, peopleSpriteKey, walkingFrame } from './people-art';
 import type { PageFrame, SpriteEntry } from './sprite-pages';
 import { CoasterScene } from './coaster-scene';
 import { TrenchIndex } from './trench-index';
@@ -2885,6 +2886,7 @@ export class WebGL2Renderer implements Renderer {
     viewportWidth: number,
     viewportHeight: number,
   ): void {
+    const carriedReady = spritePages.resolve('people/carried') !== undefined;
     for (let i = 0, offset = 0; i < layer.count; i++, offset += SNAPSHOT_STRIDE) {
       const metadata = layer.data[offset + 3];
       if (isRidingGuestRow(metadata) || i === this.heldGuestSlot) continue;
@@ -2908,6 +2910,23 @@ export class WebGL2Renderer implements Renderer {
         depth,
         PATH_SURFACE_Z,
       );
+      const drawn = carriedReady ? guestRowDrawnItems(metadata) : 0;
+      for (let item = 0; item < CARRIED_SPRITES.length; item++) {
+        if ((drawn & (1 << item)) === 0) continue;
+        this.appendLayerSprite(
+          layer,
+          offset,
+          CARRIED_SPRITES[item],
+          map,
+          camera,
+          viewportWidth,
+          viewportHeight,
+          GUEST_BOX.width,
+          GUEST_BOX.height,
+          depth,
+          PATH_SURFACE_Z,
+        );
+      }
     }
   }
 

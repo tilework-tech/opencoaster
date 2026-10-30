@@ -4,6 +4,7 @@ import { EntityStore } from '../sim/core/entity-store';
 import type { Schema } from '../sim/core/entity-store';
 import {
   GUEST_SCHEMA,
+  GUEST_ITEM_COLUMNS,
   GUEST_SIGHT_COLUMNS,
   GUEST_REST_COLUMNS,
   GuestState,
@@ -28,6 +29,7 @@ import { LITTER_SCHEMA } from '../sim/guests/litter-store';
 import {
   RIDE_COLUMNS_ADDED_IN_V10,
   RIDE_COLUMNS_ADDED_IN_V30,
+  RIDE_COLUMNS_ADDED_IN_V37,
   RIDER_HISTORY_WINDOWS,
   RidePhase,
   RideState,
@@ -59,6 +61,8 @@ import { rebuildSeatOwners } from '../sim/guests/benches';
 
 /** Staff activity totals and guest sight memory are stored from this version. */
 const STAFF_STATS_SAVE_VERSION = 32;
+/** Guests carry souvenirs and containers, and stalls a second price and per-item sales, from this version. */
+const SHOP_ITEMS_SAVE_VERSION = 37;
 const PRE_STAFF_STATS_SAVE_VERSION = 31;
 /** v33: park header gains `spawns`, the map-edge points where guests arrive; older saves keep spawning at the gate. */
 const SANDBOX_SPAWN_SAVE_VERSION = 33;
@@ -67,7 +71,7 @@ const AMBIENT_TREES_SAVE_VERSION = 34;
 const BENCH_SEATS_SAVE_VERSION = 35;
 /** v36: Observation Towers store their height as a ride column. */
 const OBSERVATION_TOWER_HEIGHT_SAVE_VERSION = 36;
-export const SAVE_VERSION = OBSERVATION_TOWER_HEIGHT_SAVE_VERSION;
+export const SAVE_VERSION = SHOP_ITEMS_SAVE_VERSION;
 /** Ride entrances and exits carry a stored front edge from this version. */
 const BOARDING_FRONT_SAVE_VERSION = 28;
 /** Rides with block brakes run block-sectioned from this version; before it brakes alone separated trains. */
@@ -140,6 +144,7 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
         'angriness',
         ...GUEST_SIGHT_COLUMNS,
         ...GUEST_REST_COLUMNS,
+        ...GUEST_ITEM_COLUMNS,
       ].includes(name),
   ),
 ) as Omit<
@@ -147,6 +152,7 @@ const LEGACY_GUEST_SCHEMA = Object.fromEntries(
   | 'heading'
   | (typeof GUEST_SIGHT_COLUMNS)[number]
   | (typeof GUEST_REST_COLUMNS)[number]
+  | (typeof GUEST_ITEM_COLUMNS)[number]
   | 'approachGap'
   | 'navGoal'
   | 'navGap'
@@ -425,6 +431,16 @@ function migrateStaffStats(world: World): void {
   }
 }
 
+/** Before save version 37 a kiosk's one price was for umbrellas; maps now have their own. */
+function migrateShopItems(world: World): void {
+  const rides = world.rides.cols;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    if (rides.typeId[slot] !== RideType.InformationKiosk) continue;
+    rides.price2[slot] = rides.price[slot];
+    rides.price[slot] = RIDE_CATALOG[RideType.InformationKiosk].defaultPriceCents;
+  }
+}
+
 function migrateLegacyLitter(world: World, legacy: EntityStore<typeof LEGACY_LITTER_SCHEMA>): void {
   copyStoreIndexArrays(world.litter, legacy as EntityStore<Schema>);
   for (const key of Object.keys(LEGACY_LITTER_SCHEMA) as (keyof typeof LEGACY_LITTER_SCHEMA)[]) {
@@ -525,7 +541,8 @@ function guestColumnsAbsent(version: number): number {
     (version <= PRE_QUEUE_ORDER_SAVE_VERSION ? 1 : 0) +
     (version < HAPPINESS_TARGET_SAVE_VERSION ? 1 : 0) +
     (version < STAFF_STATS_SAVE_VERSION ? GUEST_SIGHT_COLUMNS.length : 0) +
-    (version < BENCH_SEATS_SAVE_VERSION ? GUEST_REST_COLUMNS.length : 0)
+    (version < BENCH_SEATS_SAVE_VERSION ? GUEST_REST_COLUMNS.length : 0) +
+    (version < SHOP_ITEMS_SAVE_VERSION ? GUEST_ITEM_COLUMNS.length : 0)
   );
 }
 
@@ -540,6 +557,7 @@ function rideColumnsAbsent(version: number): number {
   if (version <= PRE_QUEUE_ORDER_SAVE_VERSION) absent += 2;
   if (version < DOWNTIME_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V30;
   if (version < OBSERVATION_TOWER_HEIGHT_SAVE_VERSION) absent += 1;
+  if (version < SHOP_ITEMS_SAVE_VERSION) absent += RIDE_COLUMNS_ADDED_IN_V37;
   return absent;
 }
 
@@ -584,6 +602,7 @@ export function deserialize(bytes: Uint8Array): World {
     AMBIENT_TREES_SAVE_VERSION,
     BENCH_SEATS_SAVE_VERSION,
     OBSERVATION_TOWER_HEIGHT_SAVE_VERSION,
+    SHOP_ITEMS_SAVE_VERSION,
   ];
   if (!supported.includes(header.version)) {
     throw new Error(`Unsupported save version ${header.version}`);
@@ -733,6 +752,7 @@ export function deserialize(bytes: Uint8Array): World {
   if (header.version <= PRE_APPROACH_SAVE_VERSION)
     migrateMissingApproachGap(world, header.stores.guests.count);
   if (header.version < STAFF_STATS_SAVE_VERSION) migrateStaffStats(world);
+  if (header.version < SHOP_ITEMS_SAVE_VERSION) migrateShopItems(world);
   if (header.version < VOUCHER_SAVE_VERSION)
     migrateVoucherlessGuests(world, header.stores.guests.count);
   if (header.version < PRE_TRACKED_WATER_RIDES_SAVE_VERSION) migrateFlatWaterRides(world);

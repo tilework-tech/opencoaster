@@ -105,3 +105,28 @@ export function benchSitterMesh(kind: number, direction: number): Mesh {
     ((direction & 3) * Math.PI) / 2,
   );
 }
+
+/** Held or worn items drawn over a walking guest, in `Carried` order: balloon, hat, umbrella. */
+export function carriedItemMesh(item: number): Mesh {
+  const red = material(ramp('red'));
+  const blue = material(ramp('blue'));
+  const purple = material(ramp('purple'));
+  const white = material(ramp('white'));
+  const mesh: Mesh =
+    item === 0
+      ? [
+          ...cylinder(0.04, -0.03, 0.22, 0.5, 0.008, 0.008, 6, white),
+          ...cylinder(0.04, -0.03, 0.5, 0.56, 0.05, 0.07, 8, red),
+          ...cylinder(0.04, -0.03, 0.56, 0.64, 0.07, 0.02, 8, red),
+        ]
+      : item === 1
+        ? [
+            ...cylinder(0, 0, 0.372, 0.384, 0.056, 0.056, 10, blue, { capBottom: true }),
+            ...cylinder(0, 0, 0.384, 0.44, 0.042, 0.036, 10, blue),
+          ]
+        : [
+            ...cylinder(0.035, -0.03, 0.2, 0.46, 0.008, 0.008, 6, white),
+            ...cylinder(0.035, -0.03, 0.46, 0.52, 0.15, 0.02, 10, purple, { capBottom: true }),
+          ];
+  return physicalToLevels(mesh);
+}

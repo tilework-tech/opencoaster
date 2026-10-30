@@ -3,7 +3,6 @@ import type { World } from '../core/world';
 import { TILE_UNITS } from '../core/constants';
 import {
   arrivalVoucher,
-  charge,
   earn,
   gateAdmissionCents,
   marketingAttraction,
@@ -66,14 +65,28 @@ import {
   updateSitting,
   wantsRest,
 } from './resting';
+import { Container, ShopItem, shopItemDef } from '../rides/shop-items';
+import {
+  DRINK_THIRST_LIMIT,
+  FOOD_HUNGER_LIMIT,
+  SOUVENIR_MIN_RIDES,
+  SOUVENIR_ROLLS,
+  chooseStallItem,
+  completeSale,
+  ignoresPrice,
+  itemPriceCents,
+  passesSouvenirRoll,
+  wantedItemIndex,
+} from './shopping';
+import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
 import { noteTileSights } from './path-sights';
-import { guestPriceCents, spendVoucher } from './vouchers';
+import { useBin } from './litter-store';
+import { carriesVoucherFor, guestPriceCents, spendVoucher } from './vouchers';
 import {
   applyGuestBudget,
   EXIT_HAPPINESS_LOSS,
   EXIT_PENALTY_TICKS,
   isLost,
-  MAP_PRICE,
   noteNavigation,
   noteStranded,
   tickLost,
@@ -121,13 +134,13 @@ const RIDE_COOLDOWN = 640;
 const HUNGER_THOUGHT = 10;
 const THIRST_THOUGHT = 25;
 const TOILET_THOUGHT = 160;
-const HUNGER_SEEK = 128;
-const THIRST_SEEK = 128;
+const HUNGER_SEEK = FOOD_HUNGER_LIMIT;
+const THIRST_SEEK = DRINK_THIRST_LIMIT;
+/** A wandering guest at a tile centre considers a souvenir stall at about one in this many steps. */
+const SOUVENIR_URGE_ONE_IN = 64;
 const TOILET_SEEK = 128;
 /** How far (Chebyshev tiles) a guest notices a stall or toilets. */
 const SIGHT_TILES = 10;
-const MEAL_RELIEF = 176;
-const MEAL_THIRST = 32;
 const SHOP_HAPPINESS = 8;
 const ARRIVAL_RANDOM_RANGE = 65_536;
 const ARRIVAL_INPUT_REFRESH_TICKS = 512;
@@ -333,6 +346,15 @@ function toleranceRoll(world: World, slot: number, ride: number): number {
   return (Math.imul(mix ^ (mix >>> 15), 0x2c1b3c6d) >>> 8) % ITEM_TOLERANCE_ROLLS;
 }
 
+/** The guest's 0-127 draw for the souvenir mood check, a stable hash like the price tolerance. */
+function souvenirRoll(world: World, slot: number, ride: number): number {
+  const mix =
+    Math.imul(world.guests.slotToId[slot] + 1, 0x85ebca6b) ^
+    Math.imul(world.rides.slotToId[ride] + 1, 0xc2b2ae35) ^
+    Math.imul((world.tick >> TASTE_EPOCH_SHIFT) + 1, 0x27d4eb2f);
+  return (Math.imul(mix ^ (mix >>> 15), 0x2c1b3c6d) >>> 8) % SOUVENIR_ROLLS;
+}
+
 function allowsRepeatRide(world: World, slot: number, ride: number): boolean {
   const g = world.guests.cols;
   const r = world.rides.cols;
@@ -386,37 +408,49 @@ function chooseRide(world: World, slot: number, tile: number): number {
 
 /**
  * Nearest open, affordable, visible and reachable stall that is either of type `want` or, for
- * `'food'` and `'drink'`, sells that; -1 when there is none.
+ * `'food'`, `'drink'` and `'souvenir'`, sells something of that kind the guest wants (for `item`,
+ * that item only); -1 when there is none.
  */
 function nearestStall(
   world: World,
   slot: number,
   tile: number,
-  want: RideType | 'food' | 'drink',
+  want: RideType | 'food' | 'drink' | 'souvenir',
+  item?: ShopItem,
 ): number {
   const r = world.rides.cols;
   const cash = world.guests.cols.cash[slot];
   let selected = -1;
   let best = SIGHT_TILES + 1;
   let overpriced = false;
-  const buyingMap = isLost(world, slot);
   for (let ride = 0; ride < world.rides.count; ride++) {
     const type = r.typeId[ride] as RideType;
-    const matches = typeof want === 'number' ? type === want : RIDE_CATALOG[type]?.serves === want;
-    if (!matches || r.state[ride] !== RideState.Open) continue;
-    if (r.entrancePlaced[ride] === 0) continue;
+    const def = RIDE_CATALOG[type];
+    if (r.state[ride] !== RideState.Open || r.entrancePlaced[ride] === 0) continue;
+    let index = 0;
+    if (typeof want === 'number') {
+      if (type !== want) continue;
+      if (def.items) index = wantedItemIndex(world, slot, ride, { item });
+    } else {
+      if (!def.items) continue;
+      index = wantedItemIndex(world, slot, ride, { kind: want, item });
+    }
+    if (index < 0) continue;
     const fare = guestPriceCents(
       world,
       slot,
       world.rides.slotToId[ride],
-      r.price[ride],
+      def.items ? itemPriceCents(world, ride, index) : r.price[ride],
       VoucherKind.FreeFoodOrDrink,
     );
     if (fare > cash) continue;
+    const bought = def.items?.[index];
     if (
-      !buyingMap &&
-      type !== RideType.InformationKiosk &&
-      !priceIsAcceptable(fare, maxItemPriceCents(world, ride, world.guests.cols.happiness[slot]))
+      !(bought !== undefined && ignoresPrice(world, slot, bought)) &&
+      !priceIsAcceptable(
+        fare,
+        maxItemPriceCents(world, ride, world.guests.cols.happiness[slot], index),
+      )
     ) {
       overpriced = true;
       continue;
@@ -435,12 +469,20 @@ function nearestStall(
   return selected;
 }
 
+/** Whether a guest with a few rides behind them fancies a souvenir at this step; a stable hash, not the shared PRNG. */
+function feelsLikeSouvenir(world: World, slot: number): boolean {
+  if (world.guests.cols.ridesTaken[slot] < SOUVENIR_MIN_RIDES) return false;
+  const mix =
+    Math.imul(world.guests.slotToId[slot] + 1, 0x7feb352d) ^ Math.imul(world.tick + 1, 0x846ca68b);
+  return (Math.imul(mix ^ (mix >>> 16), 0x45d9f3b) >>> 8) % SOUVENIR_URGE_ONE_IN === 0;
+}
+
 /** Picks what a wandering guest heads for next: a need first, then a ride. */
 function chooseDestination(world: World, slot: number, tile: number): number {
   const g = world.guests.cols;
   if (isLost(world, slot)) {
-    return g.hasMap[slot] === 0 && g.cash[slot] >= MAP_PRICE
-      ? nearestStall(world, slot, tile, RideType.InformationKiosk)
+    return g.hasMap[slot] === 0
+      ? nearestStall(world, slot, tile, RideType.InformationKiosk, ShopItem.Map)
       : -1;
   }
   if (g.toilet[slot] >= TOILET_SEEK) {
@@ -451,7 +493,7 @@ function chooseDestination(world: World, slot: number, tile: number): number {
     world.weather.kind >= WeatherKind.Rain &&
     world.umbrellas[world.guests.slotToId[slot]] === 0
   ) {
-    const kiosk = nearestStall(world, slot, tile, RideType.InformationKiosk);
+    const kiosk = nearestStall(world, slot, tile, RideType.InformationKiosk, ShopItem.Umbrella);
     if (kiosk >= 0) return kiosk;
   }
   const hungry = g.hunger[slot] <= HUNGER_SEEK;
@@ -469,7 +511,13 @@ function chooseDestination(world: World, slot: number, tile: number): number {
   }
   if (g.restCooldown[slot] === 0 && wantsRest(world, slot) && seekBench(world, slot, tile))
     return -1;
-  if (g.activityTicks[slot] === 0) return chooseRide(world, slot, tile);
+  if (g.activityTicks[slot] === 0) {
+    if (feelsLikeSouvenir(world, slot)) {
+      const stall = nearestStall(world, slot, tile, 'souvenir');
+      if (stall >= 0) return stall;
+    }
+    return chooseRide(world, slot, tile);
+  }
   return -1;
 }
 
@@ -678,16 +726,6 @@ function finishRide(world: World, slot: number, ride: number): void {
   g.state[slot] = GuestState.Wandering;
 }
 
-/** A lost guest without a map buys one, rather than an umbrella, at an information kiosk. */
-function isMapSale(world: World, slot: number, ride: number): boolean {
-  const g = world.guests.cols;
-  return (
-    world.rides.cols.typeId[ride] === RideType.InformationKiosk &&
-    g.lostTicks[slot] > 0 &&
-    g.hasMap[slot] === 0
-  );
-}
-
 function finishShopping(world: World, slot: number, ride: number): void {
   const g = world.guests.cols;
   g.targetRide[slot] = -1;
@@ -695,41 +733,37 @@ function finishShopping(world: World, slot: number, ride: number): void {
   g.state[slot] = GuestState.Wandering;
   if (ride < 0) return;
   const r = world.rides.cols;
-  const type = r.typeId[ride] as RideType;
-  const mapSale = isMapSale(world, slot, ride);
-  const voucherUsed =
-    !mapSale && spendVoucher(world, slot, world.rides.slotToId[ride], VoucherKind.FreeFoodOrDrink);
-  const listPrice = mapSale ? MAP_PRICE : voucherUsed ? 0 : r.price[ride];
-  const price = Math.min(listPrice, g.cash[slot]);
+  if (RIDE_CATALOG[r.typeId[ride] as RideType].items) {
+    const index = chooseStallItem(world, slot, ride);
+    if (index < 0) return;
+    const voucherUsed = spendVoucher(
+      world,
+      slot,
+      world.rides.slotToId[ride],
+      VoucherKind.FreeFoodOrDrink,
+    );
+    completeSale(
+      world,
+      slot,
+      ride,
+      index,
+      voucherUsed ? 0 : itemPriceCents(world, ride, index),
+      voucherUsed,
+    );
+    return;
+  }
+  const voucherUsed = spendVoucher(
+    world,
+    slot,
+    world.rides.slotToId[ride],
+    VoucherKind.FreeFoodOrDrink,
+  );
+  const price = Math.min(voucherUsed ? 0 : r.price[ride], g.cash[slot]);
   g.cash[slot] -= price;
-  if (type === RideType.Toilets) {
-    g.toilet[slot] = 0;
-    if (price > 0) {
-      earn(world, LedgerCategory.ShopSales, price);
-      addRideIncome(world, ride, price);
-    }
-  } else if (type === RideType.InformationKiosk) {
-    if (mapSale) {
-      g.hasMap[slot] = 1;
-      g.lostTicks[slot] = 0;
-      g.navGoal[slot] = 0;
-    } else {
-      world.umbrellas[world.guests.slotToId[slot]] = 1;
-    }
-    if (price > 0) {
-      earn(world, LedgerCategory.ShopSales, price);
-      addRideIncome(world, ride, price);
-    }
-  } else {
-    if (RIDE_CATALOG[type].serves === 'food') {
-      g.hunger[slot] = Math.min(255, g.hunger[slot] + MEAL_RELIEF);
-      g.thirst[slot] = Math.max(0, g.thirst[slot] - MEAL_THIRST);
-    } else {
-      g.thirst[slot] = Math.min(255, g.thirst[slot] + MEAL_RELIEF);
-    }
-    earn(world, LedgerCategory.FoodDrinkSales, price);
+  g.toilet[slot] = 0;
+  if (price > 0) {
+    earn(world, LedgerCategory.ShopSales, price);
     addRideIncome(world, ride, price);
-    charge(world, LedgerCategory.FoodDrinkStock, RIDE_CATALOG[type].stockCostCents ?? 0);
   }
   g.happinessTarget[slot] = Math.min(255, g.happinessTarget[slot] + SHOP_HAPPINESS);
   r.guestsServed[ride]++;
@@ -753,20 +787,20 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
   const r = world.rides.cols;
   const category = rideCategory(world, ride);
   const rideId = world.rides.slotToId[ride];
+  const items = RIDE_CATALOG[r.typeId[ride] as RideType].items;
+  const stallIndex = !items || isThrillCategory(category) ? -1 : chooseStallItem(world, slot, ride);
+  const item = stallIndex >= 0 ? items![stallIndex] : undefined;
   const price = isThrillCategory(category)
     ? guestPriceCents(world, slot, rideId, ticketPriceCents(world, ride), VoucherKind.FreeRide)
-    : guestPriceCents(world, slot, rideId, r.price[ride], VoucherKind.FreeFoodOrDrink);
+    : guestPriceCents(
+        world,
+        slot,
+        rideId,
+        item === undefined ? r.price[ride] : itemPriceCents(world, ride, stallIndex),
+        VoucherKind.FreeFoodOrDrink,
+      );
   const lines = world.rideLines;
-  const mapSale = isMapSale(world, slot, ride);
-  const unwanted =
-    world.umbrellas[world.guests.slotToId[slot]] === 1 &&
-    r.typeId[ride] === RideType.InformationKiosk &&
-    !mapSale;
-  if (
-    r.state[ride] !== RideState.Open ||
-    (mapSale ? MAP_PRICE : price) > g.cash[slot] ||
-    unwanted
-  ) {
+  if (r.state[ride] !== RideState.Open || price > g.cash[slot] || (items && item === undefined)) {
     clearDestination(world, slot);
     return;
   }
@@ -776,13 +810,31 @@ function arriveAtDestination(world: World, slot: number, ride: number): void {
       clearDestination(world, slot);
       return;
     }
-  } else if (!mapSale && r.typeId[ride] !== RideType.InformationKiosk && price > 0) {
-    const roll = toleranceRoll(world, slot, ride);
-    if (!acceptsItemPrice(price, itemValueCents(world, ride), g.happiness[slot], roll)) {
-      recordThought(world, slot, GuestThought.BadValue);
-      clearDestination(world, slot);
-      return;
+  } else if (price > 0) {
+    if (item === undefined || !ignoresPrice(world, slot, item)) {
+      const roll = toleranceRoll(world, slot, ride);
+      if (
+        !acceptsItemPrice(
+          price,
+          itemValueCents(world, ride, Math.max(0, stallIndex)),
+          g.happiness[slot],
+          roll,
+        )
+      ) {
+        recordThought(world, slot, GuestThought.BadValue);
+        clearDestination(world, slot);
+        return;
+      }
     }
+  }
+  if (
+    item !== undefined &&
+    shopItemDef(item).kind === 'souvenir' &&
+    !carriesVoucherFor(world, slot, rideId, VoucherKind.FreeFoodOrDrink) &&
+    !passesSouvenirRoll(world, slot, item, souvenirRoll(world, slot, ride))
+  ) {
+    clearDestination(world, slot);
+    return;
   }
   if (isThrillCategory(category)) {
     if (lines.queued[ride] + lines.approaching[ride] > rideQueueCapacity(world, ride)) {
@@ -1122,7 +1174,6 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     const guestY = g.y[slot] >> 8;
     for (let ride = 0; ride < world.rides.count; ride++) {
       if (
-        world.rides.cols.typeId[ride] !== RideType.InformationKiosk ||
         world.rides.cols.state[ride] !== RideState.Open ||
         world.rides.cols.entrancePlaced[ride] === 0 ||
         Math.abs(world.rides.cols.entranceX[ride] - guestX) > 1 ||
@@ -1130,13 +1181,11 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
         guestNode(world, slot, world.map.index(guestX, guestY)) !== stallServiceNode(world, ride)
       )
         continue;
-      const price = world.rides.cols.price[ride];
+      const index = wantedItemIndex(world, slot, ride, { item: ShopItem.Umbrella });
+      if (index < 0) continue;
+      const price = itemPriceCents(world, ride, index);
       if (price <= g.cash[slot]) {
-        world.umbrellas[world.guests.slotToId[slot]] = 1;
-        g.cash[slot] -= price;
-        earn(world, LedgerCategory.ShopSales, price);
-        addRideIncome(world, ride, price);
-        world.rides.cols.guestsServed[ride]++;
+        completeSale(world, slot, ride, index, price, false);
         break;
       }
     }
@@ -1233,6 +1282,9 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     walkOn(world, slot);
     return false;
   }
+
+  if (g.container[slot] !== Container.None && useBin(world, g.x[slot] >> 8, g.y[slot] >> 8))
+    g.container[slot] = Container.None;
 
   if (
     g.restCooldown[slot] === 0 &&

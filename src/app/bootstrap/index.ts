@@ -257,8 +257,8 @@ export async function bootstrap(): Promise<void> {
     setRideQueueLimit(rideId, limit) {
       sim.command({ type: 'setRideQueueLimit', rideId, limit });
     },
-    setRidePrice(rideId, priceCents) {
-      sim.command({ type: 'setRidePrice', rideId, priceCents });
+    setRidePrice(rideId, priceCents, item = 0) {
+      sim.command({ type: 'setRidePrice', rideId, priceCents, item });
     },
     setRideTrains(rideId, trains, cars) {
       sim.command({ type: 'setRideTrains', rideId, trains, cars });
