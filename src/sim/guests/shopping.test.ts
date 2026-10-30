@@ -9,6 +9,7 @@ import { WeatherKind } from '../weather/weather';
 import { guestSystem } from './guest-system';
 import { LitterKind } from './litter-store';
 import { litterSystem } from './litter-system';
+import { PathAddition, setPathAddition } from '../map/paths';
 import { Souvenir } from './guest-store';
 import { goodDealHappiness } from './shopping';
 import { itemValueCents } from './willingness';
@@ -187,6 +188,32 @@ describe('good-deal happiness', () => {
     expect(goodDealHappiness(200, 50)).toBe(60);
     expect(goodDealHappiness(350, 250)).toBe(40);
     expect(goodDealHappiness(100, 100)).toBe(32);
+  });
+});
+
+describe('using bins', () => {
+  it('puts an empty container in the bin on the tile the guest stands at instead of dropping it', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 20));
+    setPathAddition(w.map, 8, 5, PathAddition.Bin);
+    const slot = guestAt(w, 8, 5);
+    w.guests.cols.container[slot] = 3;
+    run(w, 8);
+    const bin = w.map.pathElement(w.map.index(8, 5), -1);
+    expect(w.guests.cols.container[slot]).toBe(0);
+    expect(w.map.elData[bin] & 0xff).toBe(0xfe);
+    expect(w.litter.count).toBe(0);
+  });
+
+  it('keeps the container when the bin is full', () => {
+    const w = flatWorld();
+    layPath(w, row(5, 2, 20));
+    setPathAddition(w.map, 8, 5, PathAddition.Bin);
+    w.map.elData[w.map.pathElement(w.map.index(8, 5), -1)] = 0;
+    const slot = guestAt(w, 8, 5);
+    w.guests.cols.container[slot] = 3;
+    run(w, 8);
+    expect(w.guests.cols.container[slot]).toBe(3);
   });
 });
 

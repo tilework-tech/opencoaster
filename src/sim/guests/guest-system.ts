@@ -78,7 +78,8 @@ import {
   passesSouvenirRoll,
   wantedItemIndex,
 } from './shopping';
-import { GuestState, GuestThought, HEADING_NONE, recordThought, spawnGuest } from './guest-store';
+import { useBin } from './litter-store';
+import { useBin } from './litter-store';
 import { noteTileSights } from './path-sights';
 import { useBin } from './litter-store';
 import { carriesVoucherFor, guestPriceCents, spendVoucher } from './vouchers';
@@ -1298,7 +1299,6 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
     walkToBench(world, slot, tile, nav);
     return false;
   }
-
   let ride = targetRideSlot(world, slot);
   if (g.targetRide[slot] >= 0 && (ride < 0 || world.rides.cols.state[ride] !== RideState.Open)) {
     clearDestination(world, slot);
