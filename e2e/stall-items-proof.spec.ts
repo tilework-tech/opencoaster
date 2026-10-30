@@ -13,6 +13,7 @@ import { centerCameraOn, createStarterWorld, startStarterPark } from './footpath
  * stall's price, sales and profit rows. Frames go to PROOF_DIR when it is set.
  */
 const PROOF_DIR = process.env.PROOF_DIR;
+const SCENE_CATEGORIES = ['people', 'stalls', 'world', 'litter'];
 
 async function forceCanvas2D(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -24,21 +25,27 @@ async function forceCanvas2D(page: Page): Promise<void> {
   });
 }
 
-/** Loads every sprite category so nothing in the frame falls back to placeholder art. */
-async function loadAllSprites(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+/**
+ * Loads the sprite categories the scene draws (every category when `only` is absent) so nothing
+ * in the frame falls back to placeholder art. WebGL2 keeps each loaded page as a texture, so the
+ * software-rendered sandbox runs out of memory if it loads all of them.
+ */
+async function loadSprites(page: Page, only?: readonly string[]): Promise<void> {
+  await page.evaluate(async (only) => {
     const { spritePages } = await import('/src/render/sprite-pages.ts');
     const manifest = (await (await fetch('/sprites/manifest.json')).json()) as {
       categories: Record<string, unknown>;
     };
-    const categories = Object.keys(manifest.categories);
+    const categories = Object.keys(manifest.categories).filter(
+      (category) => !only || only.includes(category),
+    );
     for (const category of categories) spritePages.requestCategory(category);
     const deadline = Date.now() + 60_000;
     while (!categories.every((category) => spritePages.isLoaded(category))) {
       if (Date.now() > deadline) throw new Error('sprite categories did not finish loading');
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-  });
+  }, only);
 }
 
 async function save(path: string, bytes: Buffer, testInfo: TestInfo, name: string): Promise<void> {
@@ -48,10 +55,7 @@ async function save(path: string, bytes: Buffer, testInfo: TestInfo, name: strin
 }
 
 async function canvasPng(page: Page): Promise<Buffer> {
-  const url = await page.evaluate(() =>
-    document.querySelector<HTMLCanvasElement>('#game')!.toDataURL('image/png'),
-  );
-  return Buffer.from(url.split(',')[1]!, 'base64');
+  return page.locator('#game').screenshot();
 }
 
 async function openScene(page: Page, path: string, canvas2d: boolean): Promise<void> {
@@ -64,7 +68,7 @@ async function openScene(page: Page, path: string, canvas2d: boolean): Promise<v
   await expect(page.locator('.hud')).toContainText('tick');
   const pause = toolbar.getByRole('button', { name: 'Pause', exact: true });
   if (await pause.isVisible()) await pause.click();
-  await loadAllSprites(page);
+  await loadSprites(page, canvas2d ? undefined : SCENE_CATEGORIES);
   await page.waitForTimeout(2_000);
   await centerCameraOn(page, createStarterWorld(), STALL_CENTRE, 3);
   await page.waitForTimeout(1_500);
@@ -102,44 +106,60 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
   }
 }
 
-test('a stall window lists each item with its price, sales and profit', async ({
+test('a kiosk window lists map and umbrella with price, sales and profit after a rainy spell', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(300_000);
+  const scene = stallScene(WeatherKind.Rain);
+  const world = scene.sim.world;
+  const path = testInfo.outputPath('stalls-kiosk.park');
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, serialize(world));
+  const dir = PROOF_DIR ?? testInfo.outputPath('proof');
+  await openScene(page, path, true);
+
+  await page.locator('.game-toolbar').getByRole('button', { name: 'Rides', exact: true }).click();
+  const list = page.locator('[data-panel="ride-list"]');
+  await list.getByRole('tab', { name: 'Shops and stalls' }).click();
+  await list.locator('.list-row').filter({ hasText: 'Information Kiosk' }).click();
+  const kioskId = scene.stalls.get(RideType.InformationKiosk)!;
+  const win = page.locator(`[data-panel="ride-${kioskId}"]`);
+  await win.getByRole('tab', { name: 'Financial data', exact: true }).click();
+  await expect(win.getByRole('textbox', { name: 'Price of Park Map' })).toHaveValue('0.60');
+  await expect(win.getByRole('textbox', { name: 'Price of Umbrella' })).toHaveValue('2.50');
+  await expect(win).toContainText('Worth to guests today');
+  const umbrellas = win
+    .locator('.stat-row')
+    .filter({ hasText: 'Sold' })
+    .nth(1)
+    .locator('.stat-value');
+  await expect(umbrellas).not.toHaveText('0');
+  await save(`${dir}/stall-window-kiosk.png`, await win.screenshot(), testInfo, 'kiosk');
+});
+
+test('a balloon stall window lists the item, and its price can be changed', async ({
   page,
 }, testInfo) => {
   test.setTimeout(300_000);
   const scene = stallScene(WeatherKind.Sunny);
   const world = scene.sim.world;
-  const path = testInfo.outputPath('stalls-window.park');
+  const path = testInfo.outputPath('stalls-balloon.park');
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, serialize(world));
   const dir = PROOF_DIR ?? testInfo.outputPath('proof');
-  await openScene(page, path, false);
+  await openScene(page, path, true);
 
   await page.locator('.game-toolbar').getByRole('button', { name: 'Rides', exact: true }).click();
-  await page
-    .locator('[data-panel="ride-list"] .list-row')
-    .filter({ hasText: 'Information Kiosk' })
-    .click();
-  const kioskId = scene.stalls.get(RideType.InformationKiosk)!;
-  const win = page.locator(`[data-panel="ride-${kioskId}"]`);
-  await win.getByRole('tab', { name: 'Financial data', exact: true }).click();
-  await expect(win.getByLabel('Price of Park Map')).toHaveValue('0.60');
-  await expect(win.getByLabel('Price of Umbrella')).toHaveValue('2.50');
-  await expect(win).toContainText('Worth to guests today');
-  await save(`${dir}/stall-window-kiosk.png`, await win.screenshot(), testInfo, 'kiosk');
-
-  await win.getByRole('button', { name: /^Close/ }).click();
-  await page.locator('.game-toolbar').getByRole('button', { name: 'Rides', exact: true }).click();
-  await page
-    .locator('[data-panel="ride-list"] .list-row')
-    .filter({ hasText: 'Balloon Stall' })
-    .click();
+  const list = page.locator('[data-panel="ride-list"]');
+  await list.getByRole('tab', { name: 'Shops and stalls' }).click();
+  await list.locator('.list-row').filter({ hasText: 'Balloon Stall' }).click();
   const balloonId = scene.stalls.get(RideType.BalloonStall)!;
   const balloon = page.locator(`[data-panel="ride-${balloonId}"]`);
   await balloon.getByRole('tab', { name: 'Financial data', exact: true }).click();
-  const price = balloon.getByLabel('Price of Balloon');
+  const price = balloon.getByRole('textbox', { name: 'Price of Balloon' });
   await expect(price).toHaveValue('0.90');
+  await save(`${dir}/stall-window-balloon.png`, await balloon.screenshot(), testInfo, 'balloon');
   await price.fill('1.10');
   await price.press('Enter');
   await expect(price).toHaveValue('1.10');
-  await save(`${dir}/stall-window-balloon.png`, await balloon.screenshot(), testInfo, 'balloon');
 });

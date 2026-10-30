@@ -126,7 +126,7 @@ export function carriedItemMesh(item: number): Mesh {
           ]
         : [
             ...cylinder(0.035, -0.03, 0.2, 0.46, 0.008, 0.008, 6, white),
-            ...cylinder(0.035, -0.03, 0.46, 0.52, 0.15, 0.02, 10, purple, { capBottom: true }),
+            ...cylinder(0.035, -0.03, 0.46, 0.52, 0.12, 0.02, 10, purple, { capBottom: true }),
           ];
   return physicalToLevels(mesh);
 }

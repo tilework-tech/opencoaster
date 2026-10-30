@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { TILE_UNITS } from '../../src/sim/core/constants';
 import { Simulation } from '../../src/sim/core/simulation';
 import { spawnGuest } from '../../src/sim/guests/guest-store';
+import { setParkEntrance } from '../../src/sim/guests/park';
 import { layPath, openRide, row } from '../../src/sim/integration/fixtures';
 import { RideType } from '../../src/sim/rides/ride-types';
 import { parseScenarioFile } from '../../src/sim/scenario/scenario-file';
@@ -30,7 +31,7 @@ export interface StallScene {
 
 /**
  * A strip of footpath lined with balloon, hat, ice cream and burger stalls and an information
- * kiosk, walked by guests who have ridden, are happy and have cash. After 12,000 ticks of the
+ * kiosk, walked by guests who have ridden, are happy and have cash. After 8,000 ticks of the
  * real simulation they carry what the stalls sold them.
  */
 export function stallScene(weather: WeatherKind): StallScene {
@@ -50,6 +51,7 @@ export function stallScene(weather: WeatherKind): StallScene {
   const world = sim.world;
   prepareScenario(world, scenario);
   layPath(world, row(PATH_Y, PATH_FROM, PATH_TO));
+  if (!setParkEntrance(world, PATH_TO, PATH_Y)) throw new Error('setParkEntrance');
   const stalls = new Map<RideType, number>();
   for (const [type, x] of STALLS) {
     const slot = openRide(world, type, [x, PATH_Y - 1], [x, PATH_Y], [x + 1, PATH_Y - 1]);
@@ -74,6 +76,19 @@ export function stallScene(weather: WeatherKind): StallScene {
     g.hunger[slot] = 40 + (n % 5) * 10;
     g.thirst[slot] = 255;
   }
-  for (let tick = 0; tick < 12_000; tick++) sim.step();
+  for (let tick = 0; tick < 8_000; tick++) {
+    sim.step();
+    // Keep the strollers content and in funds so they stay in the park and keep shopping.
+    if (tick % 100 !== 0) continue;
+    const g = world.guests.cols;
+    for (let slot = 0; slot < world.guests.count; slot++) {
+      g.energy[slot] = 128;
+      g.happiness[slot] = Math.max(g.happiness[slot], 230);
+      g.happinessTarget[slot] = Math.max(g.happinessTarget[slot], 230);
+      g.ridesTaken[slot] = Math.max(g.ridesTaken[slot], 6);
+      g.cash[slot] = Math.max(g.cash[slot], 5_000);
+      g.patience[slot] = Math.max(g.patience[slot], 600);
+    }
+  }
   return { sim, stalls };
 }
