@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { flowerBedSpriteName, pathElementSprite, queueRailSprites } from './world-art';
 import { PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import { legacyAmbientTreeItem } from '../sim/map/ambient-trees';
-import { SceneryItem } from '../sim/map/scenery';
+import { SCENERY_CATALOG, SceneryItem } from '../sim/map/scenery';
 import { RideType } from '../sim/rides/ride-types';
 import { RidePhase } from '../sim/rides/ride-store';
 import {
@@ -18,6 +18,7 @@ import {
   terrainSurfaceSpriteName,
   WATER_BANK,
   nativeSpriteWorldOffset,
+  placedSceneryKey,
   rideSpriteFrame,
   rideSpriteKey,
   rideSpriteName,
@@ -233,5 +234,31 @@ describe('footpath element sprites', () => {
 
   it('turns the connections with the camera rotation', () => {
     expect(pathElementSprite(0b0001, 0, 1)).toBe('paths/tarmac/connection-02');
+  });
+});
+
+describe('placed scenery sprite selection', () => {
+  const key = (item: SceneryItem, facing: number, rotation: number): string =>
+    placedSceneryKey(SCENERY_CATALOG[item]!, 3, 4, facing, 0, rotation);
+
+  it('keeps the legacy sprite keys of the original items', () => {
+    expect(key(SceneryItem.OakTree, 2, 3)).toBe('trees/tree-oak');
+    expect(key(SceneryItem.PalmTree, 0, 1)).toBe('trees/tree-palm/view-1');
+    expect(key(SceneryItem.Shrub, 0, 2)).toBe(shrubSpriteName(3, 4, 2));
+    expect(key(SceneryItem.FlowerBed, 0, 2)).toBe(flowerBedSpriteName(3, 4, 2));
+  });
+
+  it('shows a symmetric decoration from the camera view whatever its facing', () => {
+    for (let rotation = 0; rotation < 4; rotation++)
+      for (let facing = 0; facing < 4; facing++)
+        expect(key(SceneryItem.Boulder, facing, rotation)).toBe(`scenery/boulder/view-${rotation}`);
+  });
+
+  it('turns a directional decoration by its facing and the camera together', () => {
+    for (let rotation = 0; rotation < 4; rotation++)
+      for (let facing = 0; facing < 4; facing++)
+        expect(key(SceneryItem.GardenStatue, facing, rotation)).toBe(
+          `scenery/garden-statue/view-${(facing + rotation) & 3}`,
+        );
   });
 });

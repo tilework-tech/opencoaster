@@ -15,3 +15,5 @@ export const GUEST_BOX: SpriteBox = { width: 20, height: 24 };
 export const STAFF_BOX: SpriteBox = { width: 11, height: 13 };
 /** Placeable scenery is drawn this many pixels tall per catalog height unit. */
 export const SCENERY_PIXELS_PER_HEIGHT = 12;
+/** Scenery drawn from its own model reaches this many pixels per catalog height unit (one clearance level). */
+export const NATIVE_PIXELS_PER_HEIGHT = 16;

@@ -136,8 +136,8 @@ async function scenery(page: Page): Promise<SceneryRecord[]> {
 
 async function chooseWall(page: Page): Promise<void> {
   await toolbarTool(page, 'Scenery');
-  await page.getByLabel('Scenery category').selectOption({ label: 'Fences and walls' });
-  await page.getByLabel('Scenery item').selectOption({ label: 'Wooden fence · $0.60' });
+  await page.getByRole('button', { name: 'Fences and walls', exact: true }).click();
+  await page.getByRole('button', { name: 'Wooden fence, $0.60', exact: true }).click();
 }
 
 test.describe('wall edge placement', () => {

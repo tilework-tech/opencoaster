@@ -581,6 +581,46 @@
 .ride-card.has-thumbnail .ui-icon {
   display: none;
 }
+.scenery-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.scenery-group {
+  min-height: 28px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.scenery-group[aria-pressed='true'],
+.scenery-card[aria-pressed='true'] {
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+  background: #c2d6a8;
+}
+.scenery-grid {
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  margin-bottom: 6px;
+}
+.scenery-card {
+  min-height: 92px;
+}
+.scenery-thumbnail {
+  width: 56px;
+  height: 56px;
+  image-rendering: pixelated;
+}
+.scenery-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.scenery-footer .scenery-detail {
+  flex: 1;
+  margin: 0;
+}
+.scenery-detail {
+  min-height: 3.2em;
+}
 .ride-card-cost {
   font-size: 11px;
   color: #3d5a2a;
@@ -1393,6 +1433,39 @@
 
 /* Phones and narrow windows */
 @media (max-width: 699px) {
+  .scenery-groups {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-bottom: 2px;
+  }
+  .scenery-group {
+    flex: none;
+  }
+  .scenery-pane > .ui-help:not(.scenery-detail) {
+    display: none;
+  }
+  .scenery-grid {
+    max-height: 76px;
+    overflow-y: auto;
+    margin-bottom: 2px;
+  }
+  .scenery-card {
+    min-height: 66px;
+    padding: 1px;
+  }
+  .scenery-thumbnail {
+    width: 40px;
+    height: 40px;
+  }
+  .scenery-detail {
+    min-height: 0;
+    font-size: 11px;
+  }
+  .scenery-footer .ui-button {
+    flex: none;
+    width: auto;
+    padding: 2px 8px;
+  }
   .ride-rotate-button {
     top: 216px;
     right: 12px;
