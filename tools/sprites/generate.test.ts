@@ -513,6 +513,14 @@ describe('generated sprite catalogue', () => {
       'burger-stall',
       'information-kiosk',
       'toilets',
+      'chips-stall',
+      'ice-cream-stall',
+      'candyfloss-stall',
+      'balloon-stall',
+      'pizza-stall',
+      'popcorn-stall',
+      'hat-stall',
+      'souvenir-stall',
     ])
       for (let facing = 0; facing < 4; facing++)
         for (let view = 0; view < 4; view++)
@@ -559,6 +567,14 @@ describe('generated sprite catalogue', () => {
       'burger-stall',
       'information-kiosk',
       'toilets',
+      'chips-stall',
+      'ice-cream-stall',
+      'candyfloss-stall',
+      'balloon-stall',
+      'pizza-stall',
+      'popcorn-stall',
+      'hat-stall',
+      'souvenir-stall',
     ])
       for (let facing = 0; facing < 4; facing++)
         for (let view = 0; view < 4; view++) {

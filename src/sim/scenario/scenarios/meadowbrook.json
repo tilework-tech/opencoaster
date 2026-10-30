@@ -21,7 +21,7 @@
     "admissionPrice": 300
   },
   "research": {
-    "availableItemIds": [1, 2, 3, 5, 6, 7, 8, 9, 12],
+    "availableItemIds": [1, 2, 3, 5, 6, 7, 8, 9, 12, 25, 26, 27, 28],
     "inventions": [
       {
         "itemId": 4,
@@ -97,6 +97,26 @@
         "itemId": 24,
         "category": 5,
         "workUnits": 1260
+      },
+      {
+        "itemId": 29,
+        "category": 5,
+        "workUnits": 1485
+      },
+      {
+        "itemId": 30,
+        "category": 5,
+        "workUnits": 1530
+      },
+      {
+        "itemId": 31,
+        "category": 5,
+        "workUnits": 1575
+      },
+      {
+        "itemId": 32,
+        "category": 5,
+        "workUnits": 1620
       }
     ]
   },

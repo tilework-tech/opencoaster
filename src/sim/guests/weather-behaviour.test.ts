@@ -53,7 +53,10 @@ describe('weather guest behaviour', () => {
     const kioskId = createRide(world, RideType.InformationKiosk, 10, 7, 1);
     const kiosk = world.rides.idToSlot[kioskId];
     world.rides.cols.state[kiosk] = RideState.Open;
-    world.rides.cols.price[kiosk] = 75;
+    world.rides.cols.entrancePlaced[kiosk] = 1;
+    world.rides.cols.entranceX[kiosk] = 10;
+    world.rides.cols.entranceY[kiosk] = 8;
+    world.rides.cols.price2[kiosk] = 75;
     world.weather.kind = WeatherKind.Rain;
     const cash = world.guests.cols.cash[guest];
     const update = createGuestSystem(() => ({ parkRating: 0, entranceFee: 0 }));
@@ -83,7 +86,7 @@ describe('weather guest behaviour', () => {
       world.rides.cols.entrancePlaced[kiosk] = 1;
       world.rides.cols.entranceX[kiosk] = 8;
       world.rides.cols.entranceY[kiosk] = 8;
-      world.rides.cols.price[kiosk] = state === RideState.Open ? 100_000 : 0;
+      world.rides.cols.price2[kiosk] = state === RideState.Open ? 100_000 : 0;
       world.weather.kind = WeatherKind.Rain;
       const cash = world.guests.cols.cash[guest];
 

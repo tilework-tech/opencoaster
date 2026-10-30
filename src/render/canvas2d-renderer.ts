@@ -9,7 +9,7 @@ import type {
 import { LampLightBuffer, collectLitLamps, darknessAt, lampsLit } from './night-lighting';
 import { CanvasNightPass } from './night-pass-canvas';
 import { TILE_H, TILE_W, Z_PIXELS, project, unrotateTile, viewSize } from './projection';
-import { SNAPSHOT_STRIDE, isRidingGuestRow } from '../worker/snapshot';
+import { SNAPSHOT_STRIDE, guestRowDrawnItems, isRidingGuestRow } from '../worker/snapshot';
 import type { Snapshot, SnapshotLayer } from '../worker/snapshot';
 import { RideFlag, RideInfo, RIDE_INFO_STRIDE } from '../worker/snapshot';
 import { PathFlag, SALE_LAND, SALE_RIGHTS } from '../sim/map/tile-map';
@@ -64,7 +64,7 @@ import { buildObjectPickTargets, pickTopmostObject } from '../input/object-picki
 import type { ObjectPickTarget } from '../input/object-picking';
 import { guestSpriteName, staffSpriteName } from './webgl2-renderer';
 import { anchorKey } from './depth-key';
-import { peopleSpriteKey, walkingFrame } from './people-art';
+import { CARRIED_SPRITES, peopleSpriteKey, walkingFrame } from './people-art';
 import { FLOWER_BED } from '../sim/staff/grounds';
 import { FLOWER_BED_BOX, GUEST_BOX, STAFF_BOX } from './sprite-layout';
 import {
@@ -1984,6 +1984,11 @@ export class Canvas2DRenderer implements Renderer {
           ctx.fillStyle = GUEST_TINTS[(metadata & 0xff) % GUEST_TINTS.length];
           ctx.fillRect(t[0]! - 1.5, t[1]! - 1.5, 3, 3);
         }
+        const drawn = guestRowDrawnItems(metadata);
+        if (this.atlas)
+          for (let item = 0; item < CARRIED_SPRITES.length; item++)
+            if ((drawn & (1 << item)) !== 0)
+              drawAnchoredSprite(ctx, this.atlas, CARRIED_SPRITES[item], t[0]!, t[1]!);
         this.visibleCount++;
       });
     }

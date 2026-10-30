@@ -1,9 +1,21 @@
 import { Simulation } from '../sim/core/simulation';
 import type { World } from '../sim/core/world';
-import { GUEST_REST_COLUMNS } from '../sim/guests/guest-store';
+import { GUEST_ITEM_COLUMNS, GUEST_REST_COLUMNS } from '../sim/guests/guest-store';
 import { STAFF_STAT_COLUMNS } from '../sim/staff/staff-store';
 
-/** Guest sight-memory and staff activity columns that saves before version 32 did not store. */
+/** Guest souvenir and container columns and the stall item columns absent before version 37. */
+export function shopItemsVersionColumns(world: World): ArrayBufferView[] {
+  return [
+    ...GUEST_ITEM_COLUMNS.map((name) => world.guests.cols[name]),
+    world.rides.cols.price2,
+    world.rides.cols.itemSold0,
+    world.rides.cols.itemSold1,
+    world.rides.cols.itemRevenue0,
+    world.rides.cols.itemRevenue1,
+  ];
+}
+
+/** Columns that saves before version 32 did not store: guest sight memory and staff activity, plus everything newer. */
 export function statsVersionColumns(world: World): ArrayBufferView[] {
   return [
     world.guests.cols.sightMemory,
@@ -76,6 +88,8 @@ export function withoutColumns(
     ...(version < 16 ? [newWorld.staff.cols.vandalsStopped] : []),
     ...(version < 17 ? [newWorld.map.pathStyle] : []),
     ...(version < 32 ? statsVersionColumns(newWorld) : []),
+    ...(version < 35 ? restVersionColumns(newWorld) : []),
+    ...(version < 37 ? shopItemsVersionColumns(newWorld) : []),
     ...(version < 18 ? [newWorld.guests.cols.voucherKind, newWorld.guests.cols.voucherTarget] : []),
     ...(version < 29 ? [newWorld.guests.cols.happinessTarget] : []),
     ...(version < 30

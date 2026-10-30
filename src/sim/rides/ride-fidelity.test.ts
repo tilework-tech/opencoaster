@@ -49,7 +49,7 @@ import {
   getRidePriceReaction,
   updateRideMaintenance,
 } from './index';
-import { statsVersionColumns } from '../../save/legacy-save-fixtures';
+import { shopItemsVersionColumns, statsVersionColumns } from '../../save/legacy-save-fixtures';
 
 function world(seed = 17): World {
   return new World({ seed, width: 16, height: 16 });
@@ -686,6 +686,7 @@ function downgradeToVersion9(w: World): Uint8Array {
     w.staff.cols.vandalsStopped,
     w.litter.cols.birthOrder,
     ...statsVersionColumns(w),
+    ...shopItemsVersionColumns(w),
   ]);
   const head = current.subarray(headerEnd);
   const sections: Uint8Array[] = [];

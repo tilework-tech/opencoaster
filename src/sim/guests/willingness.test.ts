@@ -44,8 +44,9 @@ describe('price willingness limits', () => {
     expect(maxRidePriceCents(w, slot)).toBe(RIDE_PRICE_FLOOR_CENTS);
   });
 
-  it('values a stall item at its catalog base price', () => {
+  it('values a stall item at its catalog base price in mild weather', () => {
     const { w, slot } = parkWith(RideType.DrinkStall);
+    w.weather.temperature = 16;
     expect(itemValueCents(w, slot)).toBe(120);
   });
 
@@ -55,6 +56,7 @@ describe('price willingness limits', () => {
       expect(w.rides.cols.price[slot]).toBeLessThanOrEqual(itemValueCents(w, slot));
     }
     const { w, slot } = parkWith(RideType.FoodStall);
+    w.weather.temperature = 16;
     expect(itemValueCents(w, slot)).toBe(190);
   });
 
@@ -77,6 +79,7 @@ describe('price willingness limits', () => {
 
   it('bounds the price a guest could ever accept by happiness', () => {
     const { w, slot } = parkWith(RideType.DrinkStall);
+    w.weather.temperature = 16;
     expect(maxItemPriceCents(w, slot, 100)).toBe(190);
     expect(maxItemPriceCents(w, slot, 150)).toBe(120 + 141);
     expect(maxItemPriceCents(w, slot, 255)).toBe(120 + 283);

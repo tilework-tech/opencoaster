@@ -5,6 +5,7 @@ import {
   RideInfo,
   RIDE_INFO_STRIDE,
   GUEST_DETAIL_STRIDE,
+  CarriedItem,
   guestRowState,
 } from '../../worker/snapshot';
 import type { Snapshot } from '../../worker/snapshot';
@@ -106,6 +107,19 @@ export function voucherText(kind: number, targetName: string): string {
   if (kind === VoucherKind.FreeRide) return `Voucher: free ride on ${targetName}`;
   if (kind === VoucherKind.FreeFoodOrDrink) return `Voucher: free food or drink at ${targetName}`;
   return 'Carrying no vouchers.';
+}
+
+/** Lists the souvenirs and other items a guest carries, from the snapshot's carried-items word. */
+export function carriedItemsText(mask: number): string {
+  const names = [
+    [CarriedItem.Balloon, 'Balloon'],
+    [CarriedItem.Hat, 'Hat'],
+    [CarriedItem.TShirt, 'T-Shirt'],
+    [CarriedItem.Umbrella, 'Umbrella'],
+    [CarriedItem.Map, 'Park Map'],
+  ] as const;
+  const held = names.filter(([bit]) => (mask & bit) !== 0).map(([, name]) => name);
+  return held.length ? `Carrying: ${held.join(', ')}` : 'Carrying no items.';
 }
 
 export function guestSelectionText(details: string, tick: number): string {
@@ -319,6 +333,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
   };
   const cash = statRow('Cash');
   const voucher = element('p', 'ui-help', 'Carrying no vouchers.');
+  const carried = element('p', 'ui-help guest-carried', 'Carrying no items.');
   const thoughts = element('ul', 'thought-list');
   thoughts.setAttribute('aria-label', 'Guest thoughts');
   const rides = element('ul', 'guest-ride-history');
@@ -338,7 +353,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
     win.pane('rides').append(rides);
     win.pane('cash').append(cash.row);
     win.pane('thoughts').append(thoughts);
-    win.pane('items').append(voucher);
+    win.pane('items').append(carried, voucher);
   }
   let signature = '';
   return {
@@ -377,6 +392,7 @@ export function openIndividualGuestWindow(ctx: UiContext, guestId: number): Wind
       gauges.nausea.set((data[offset + 4] ?? 0) / NEED_MAX, String(data[offset + 4] ?? 0));
       gauges.energy.set(energyFraction(data[offset + 5] ?? 0), String(data[offset + 5] ?? 0));
       setText(cash.value, formatMoney(data[offset + 6] ?? 0));
+      setText(carried, carriedItemsText(data[offset + 19] ?? 0));
       const voucherKind = data[offset + 17] ?? 0;
       const voucherTarget = data[offset + 18] ?? -1;
       setText(

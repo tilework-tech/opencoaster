@@ -341,9 +341,11 @@ export function pathAdditionSpriteName(flags: number, rotation: number, data: nu
   return '';
 }
 
+const LITTER_SPRITE_NAMES = ['trash', 'vomit', 'can', 'burger-box'] as const;
+
 export function litterSpriteName(kind: number, rotation: number): string {
   const view = Number.isInteger(rotation) && rotation >= 0 && rotation <= 3 ? rotation : 0;
-  return `litter/${kind === 1 ? 'vomit' : 'trash'}/view-${view}`;
+  return `litter/${LITTER_SPRITE_NAMES[kind] ?? 'trash'}/view-${view}`;
 }
 
 export function spriteAnchorWorldOffset(

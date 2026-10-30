@@ -116,7 +116,20 @@ export const GUEST_SCHEMA = {
   benchGoal: Int32Array,
   /** Ticks before the guest looks for a bench again after resting or finding none. */
   restCooldown: Uint16Array,
+  /** `Souvenir` bits for the balloon, hat and T-shirt the guest carries. */
+  souvenirs: Uint8Array,
+  /** `Container` the guest holds after finishing food or a drink, to drop as litter. */
+  container: Uint8Array,
 } as const;
+
+/** Guest columns added for stall items in save version 37. */
+export const GUEST_ITEM_COLUMNS = ['souvenirs', 'container'] as const;
+
+export const enum Souvenir {
+  Balloon = 1,
+  Hat = 2,
+  TShirt = 4,
+}
 
 /** Guest columns added in save version 32. */
 export const GUEST_SIGHT_COLUMNS = ['sightMemory'] as const;

@@ -43,7 +43,7 @@ Stat list: happiness, energy, hunger, thirst, toilet (bathroom need), nausea, na
 
 - S-1 Each guest's happiness, hunger and thirst are initialised individually on spawn. Users report problems when park-wide starting values are set outside about 11–89%, where values overflow or underflow. [S] (forum thread on cheat-menu park parameters, snippet only)
 - S-2 Hunger and thirst rise over time and with walking. Riding intense rides raises thirst and hunger. [S] (https://forums.openrct2.org/topic/4757-when-do-guests-get-hungrythirsty-rct1/ , snippet)
-- S-3 Eating makes guests thirsty. Drink stalls handle thirst. Food stalls handle hunger. Fries and popcorn increase thirst. Ice cream reduces hunger and doesn't affect thirst. Drinks raise the toilet need significantly. [S] (strategywiki stall data, snippet)
+- S-3 Eating makes guests thirsty. Drink stalls handle thirst. Food stalls handle hunger. Fries and popcorn increase thirst. Ice cream reduces hunger and doesn't affect thirst. Drinks raise the toilet need significantly. [S] (strategywiki stall data, snippet). OpenCoaster follows the OpenRCT2 consumption routine instead for the numbers: every food step adds hunger and toilet need and removes thirst, ice cream included; a drink step adds thirst (see [shops-stalls.md](shops-stalls.md#what-a-purchase-does)).
 - S-4 Toilet need rises after eating and drinking. Bathrooms must be reachable. A shortage of bathrooms gives very unhappy guests. [S] (Giant Bomb wiki, snippet)
 - S-5 Energy falls when guests walk for a long time without riding. Riding enough rides restores it. Low energy makes guests walk slowly and prone to leaving. [S] (Fandom Guests and Staff, snippet; the page itself returned HTTP 402 and was not read)
 - S-6 Nausea rises from rides. It rises more when the guest is not hungry and less when hungry. A guest whose nausea is too high stops and vomits, then feels better. Vomit left on paths lowers the park rating if it stays a long time. [S] (Fandom snippet)
@@ -90,7 +90,7 @@ Conflict to preserve: P-1's junction budget (16) and P-9's junction lookahead (1
 
 ### 2.6 Umbrellas, balloons, items
 
-- U-1 No verified rules captured. Umbrellas, balloons and other carried items are a recorded gap. [I] Design default: a carried item is a cosmetic plus a visible flag, with no gameplay effect until a rule is confirmed.
+- U-1 Balloons, hats, T-shirts, umbrellas and maps are bought once per guest from stalls and carried; balloons and hats are drawn on the guest, an umbrella while it rains. Buying them follows the OpenRCT2 purchase routine (souvenir mood roll, three rides, rain and cold refusals, value check); an umbrella in the rain is bought at any price, and a good-value sale lifts happiness. See [shops-stalls.md](shops-stalls.md). [S] ([`Guest.cpp` `GuestDecideAndBuyItem`](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/entity/Guest.cpp), [`ShopItem.cpp`](https://github.com/OpenRCT2/OpenRCT2/blob/develop/src/openrct2/ride/ShopItem.cpp))
 
 ### 2.7 Leaving the park
 

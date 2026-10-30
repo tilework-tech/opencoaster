@@ -3,9 +3,56 @@ import { World } from '../core/world';
 import { spawnStaff, StaffKind } from '../staff/staff-store';
 import { staffSystem } from '../staff/staff-system';
 import { PathAddition, placePath, setPathAddition } from '../map/paths';
-import { LitterKind, dropLitter } from './litter-store';
+import { LitterKind, dropLitter, useBin } from './litter-store';
 import { litterSystem } from './litter-system';
 import { OWNED } from '../map/tile-map';
+
+describe('bins and empty containers', () => {
+  function binWorld(): { world: World; element: number } {
+    const world = new World({ seed: 4, width: 16, height: 16 });
+    world.map.fillFlat(2);
+    expect(placePath(world.map, { x: 8, y: 8, z: 2 })).toBe(true);
+    expect(setPathAddition(world.map, 8, 8, PathAddition.Bin)).toBe(true);
+    return { world, element: world.map.pathElement(world.map.index(8, 8), -1) };
+  }
+
+  it('takes an empty container into a side of the bin that has room', () => {
+    const { world, element } = binWorld();
+    expect(useBin(world, 8, 8)).toBe(true);
+    // the first side drops from empty (3) to 2
+    expect(world.map.elData[element] & 0xff).toBe(0b11111110);
+    expect(world.litter.count).toBe(0);
+  });
+
+  it('refuses a full bin', () => {
+    const { world, element } = binWorld();
+    world.map.elData[element] = 0;
+    expect(useBin(world, 8, 8)).toBe(false);
+  });
+
+  it('refuses a tile with no bin', () => {
+    const world = new World({ seed: 4, width: 16, height: 16 });
+    world.map.fillFlat(2);
+    expect(placePath(world.map, { x: 8, y: 8, z: 2 })).toBe(true);
+    expect(useBin(world, 8, 8)).toBe(false);
+  });
+
+  it('drops a held can on the path as litter when no bin is near', () => {
+    const world = new World({ seed: 9, width: 16, height: 16 });
+    world.map.fillFlat(2);
+    expect(placePath(world.map, { x: 8, y: 8, z: 2 })).toBe(true);
+    const guest = world.guests.spawn();
+    world.guests.cols.x[guest] = 8 * 256 + 128;
+    world.guests.cols.y[guest] = 8 * 256 + 128;
+    world.guests.cols.container[guest] = 2;
+    for (let tick = 0; tick < 160 * 600 && world.guests.cols.container[guest] !== 0; tick += 160) {
+      world.tick = tick;
+      litterSystem.update(world);
+    }
+    expect(world.guests.cols.container[guest]).toBe(0);
+    expect(world.litter.cols.kind[0]).toBe(LitterKind.Can);
+  });
+});
 
 describe('park litter', () => {
   it('keeps litter until a handyman removes it instead of aging it out', () => {

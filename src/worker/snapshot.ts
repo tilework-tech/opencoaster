@@ -12,7 +12,8 @@ import {
 import { RidePhase } from '../sim/rides/ride-store';
 import { observationTowerCabinMilli } from '../sim/rides/observation-tower';
 import type { CommandFeedback } from '../sim/core/feedback';
-import { GuestState } from '../sim/guests/guest-store';
+import { WeatherKind } from '../sim/weather/weather';
+import { GuestState, Souvenir } from '../sim/guests/guest-store';
 import { recountRideLines } from '../sim/guests/ride-lines';
 import { isSeated } from '../sim/guests/resting';
 import { circuitStatus, getConstructionCursor } from '../sim/track/construction';
@@ -49,10 +50,19 @@ export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
-export const RIDE_INFO_STRIDE = 46;
+export const RIDE_INFO_STRIDE = 51;
 /** One slot per ride type id, plus slot 0 which no type uses. */
 export const RIDE_TYPE_SLOTS = Math.max(...Object.keys(RIDE_CATALOG).map(Number)) + 1;
-export const GUEST_DETAIL_STRIDE = 19;
+export const GUEST_DETAIL_STRIDE = 20;
+
+/** Bits of the carried-items word at the end of each guest detail row. */
+export const enum CarriedItem {
+  Balloon = 1,
+  Hat = 2,
+  TShirt = 4,
+  Umbrella = 8,
+  Map = 16,
+}
 
 const GUEST_HEADING_SHIFT = 16;
 const GUEST_STATE_SHIFT = 24;
@@ -63,11 +73,18 @@ export function guestRowHeading(word: number): number {
 }
 
 const GUEST_IDLE_BIT = 1 << 10;
-const GUEST_SEATED_BIT = 1 << 11;
+const GUEST_SEATED_BIT = 1 << 14;
 
 /** True once a guest sits on its bench seat (not while walking to or rising from it). */
 export function guestRowSeated(word: number): boolean {
   return (word & GUEST_SEATED_BIT) !== 0;
+}
+
+const GUEST_DRAWN_SHIFT = 11;
+
+/** Carried items drawn over a walking guest: bit 0 balloon, bit 1 hat, bit 2 umbrella (only while it rains). */
+export function guestRowDrawnItems(word: number): number {
+  return (word >>> GUEST_DRAWN_SHIFT) & 7;
 }
 
 /** True while a guest stands still (waiting at a ride or stall, or paused in a queue). */
@@ -157,6 +174,13 @@ export const enum RideInfo {
   MechanicStatus = 42,
   /** `RideResult` explaining why guests cannot buy from a stall's front; `Ok` when they can or for other rides. */
   StallFront = 45,
+  /** Price of a stall's second item, in cents. */
+  Price2 = 46,
+  /** Items sold and takings (cents) for the stall's first and second item. */
+  ItemSold0 = 47,
+  ItemSold1 = 48,
+  ItemRevenue0 = 49,
+  ItemRevenue1 = 50,
 }
 
 export const enum RideFlag {
@@ -476,6 +500,11 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
     (trackRide && circuitStatus(world, rideId).complete ? RideFlag.CircuitComplete : 0);
   info[o + RideInfo.GuestsServed] = r.guestsServed[slot];
   info[o + RideInfo.Price] = r.price[slot];
+  info[o + RideInfo.Price2] = r.price2[slot];
+  info[o + RideInfo.ItemSold0] = r.itemSold0[slot];
+  info[o + RideInfo.ItemSold1] = r.itemSold1[slot];
+  info[o + RideInfo.ItemRevenue0] = r.itemRevenue0[slot];
+  info[o + RideInfo.ItemRevenue1] = r.itemRevenue1[slot];
   info[o + RideInfo.TrackPieces] = trackRide ? world.track.count[rideId] : 0;
   info[o + RideInfo.EntranceX] = r.entranceX[slot];
   info[o + RideInfo.EntranceY] = r.entranceY[slot];
@@ -538,6 +567,27 @@ function writeRideInfo(world: World, info: Int32Array, slot: number): void {
   info[o + RideInfo.Cursor] = encodeCursor(cursor.hasTrack, cursor.dir, cursor.slope, cursor.bank);
 }
 
+function carriedItems(world: World, slot: number): number {
+  const g = world.guests.cols;
+  return (
+    ((g.souvenirs[slot] & Souvenir.Balloon) !== 0 ? CarriedItem.Balloon : 0) |
+    ((g.souvenirs[slot] & Souvenir.Hat) !== 0 ? CarriedItem.Hat : 0) |
+    ((g.souvenirs[slot] & Souvenir.TShirt) !== 0 ? CarriedItem.TShirt : 0) |
+    (world.umbrellas[world.guests.slotToId[slot]] === 1 ? CarriedItem.Umbrella : 0) |
+    (g.hasMap[slot] === 1 ? CarriedItem.Map : 0)
+  );
+}
+
+function drawnItems(world: World, slot: number): number {
+  const carried = carriedItems(world, slot);
+  const raining = world.weather.kind >= WeatherKind.Rain;
+  return (
+    ((carried & CarriedItem.Balloon) !== 0 ? 1 : 0) |
+    ((carried & CarriedItem.Hat) !== 0 ? 2 : 0) |
+    (raining && (carried & CarriedItem.Umbrella) !== 0 ? 4 : 0)
+  );
+}
+
 export function writeSnapshot(world: World, out: Snapshot): void {
   out.tick = world.tick;
   out.occupancies = worldOccupancies(world);
@@ -572,6 +622,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
       (guests.heading[i]! << GUEST_HEADING_SHIFT) |
       (idle ? GUEST_IDLE_BIT : 0) |
       (state === GuestState.Sitting && isSeated(world, i) ? GUEST_SEATED_BIT : 0) |
+      (drawnItems(world, i) << GUEST_DRAWN_SHIFT) |
       (out.guests.data[i * SNAPSHOT_STRIDE + 3]! & 0x3ff);
   }
   const guestCount = Math.min(world.guests.count, out.guestDetails.length / GUEST_DETAIL_STRIDE);
@@ -597,6 +648,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
     out.guestDetails[o + 16] = guests.rideHistory3[i];
     out.guestDetails[o + 17] = guests.voucherKind[i];
     out.guestDetails[o + 18] = guests.voucherTarget[i];
+    out.guestDetails[o + 19] = carriedItems(world, i);
   }
   writePeopleLayer(
     out.staff,

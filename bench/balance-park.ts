@@ -284,6 +284,7 @@ export function createBalancePark(options: BalanceOptions = {}): BalancePark {
         done.coaster = true;
         for (const p of THIRD_WAVE) place(sim, p);
         coasterId = buildCoaster(sim);
+        sim.enqueue({ type: 'hireStaff', kind: StaffKind.Mechanic });
         for (let i = 0; i < COASTER_HANDYMEN; i++)
           sim.enqueue({ type: 'hireStaff', kind: StaffKind.Handyman });
         sim.enqueue({ type: 'setRideStatus', rideId: coasterId, status: 'test' });

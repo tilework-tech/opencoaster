@@ -14,6 +14,7 @@ import {
   type RideType,
 } from './ride-types';
 import { RidePhase, RideState } from './ride-store';
+import { shopItemDef } from './shop-items';
 import { RideResult } from './ride-results';
 import { charge, earn } from '../economy/api';
 import { LedgerCategory } from '../economy/ledger';
@@ -145,6 +146,8 @@ export function createRide(
   ride.mode[slot] = definition.modes[0].mode;
   applyRideModeRatings(world, slot);
   ride.price[slot] = definition.defaultPriceCents;
+  if (definition.items && definition.items.length > 1)
+    ride.price2[slot] = shopItemDef(definition.items[1]).defaultPriceCents;
   ride.reliabilityRaw[slot] = RELIABILITY_MAX;
   ride.reliability[slot] = 100;
   ride.inspectionIntervalTicks[slot] = definition.inspectionIntervalTicks;
@@ -447,10 +450,17 @@ export function setTrainLayout(
   return RideResult.Ok;
 }
 
-export function setRidePrice(world: World, rideId: number, priceCents: number): boolean {
+/** Sets the price of a ride's ticket or, with `item` 1, of a stall's second item. */
+export function setRidePrice(world: World, rideId: number, priceCents: number, item = 0): boolean {
   const slot = slotForRide(world, rideId);
   if (slot < 0 || !inRangeInteger(priceCents, 0, 0xffff)) return false;
-  world.rides.cols.price[slot] = priceCents;
+  if (item === 0) world.rides.cols.price[slot] = priceCents;
+  else if (
+    item === 1 &&
+    RIDE_CATALOG[world.rides.cols.typeId[slot] as RideType].items?.length === 2
+  )
+    world.rides.cols.price2[slot] = priceCents;
+  else return false;
   return true;
 }
 

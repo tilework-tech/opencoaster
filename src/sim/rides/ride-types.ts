@@ -2,6 +2,7 @@ import { BreakdownReason } from './breakdown-reasons';
 import type { BreakdownWeight } from './breakdown-reasons';
 import { FERRIS_BACKWARD_EXCITEMENT, RideMode, modeDef } from './ride-modes';
 import type { RideModeDef } from './ride-modes';
+import { SHOP_ITEMS, ShopItem, shopItemDef } from './shop-items';
 import { kmhToSpeedQ8 } from '../vehicles/speed-units';
 import type { RatingProfile } from '../vehicles/vehicle-ratings';
 import { TRANSPORT_PIECES } from '../track/catalog';
@@ -32,6 +33,14 @@ export enum RideType {
   WildMouseCoaster,
   ObservationTower,
   BurgerStall,
+  ChipsStall,
+  IceCreamStall,
+  CandyflossStall,
+  BalloonStall,
+  PizzaStall,
+  PopcornStall,
+  HatStall,
+  SouvenirStall,
 }
 
 export type RideCategory =
@@ -99,10 +108,8 @@ export interface RideTypeDef {
   breakdowns: readonly BreakdownWeight[];
   /** Price a new ride or stall starts at, in cents. */
   defaultPriceCents: number;
-  /** What guests think the item sold here is worth, in cents; the price they tolerate is measured from it. Defaults to `defaultPriceCents`. */
-  itemValueCents?: number;
-  /** Per-item stock cost in cents for food and drink stalls. */
-  stockCostCents?: number;
+  /** What a stall sells: the first item is priced by the ride price, the second by the secondary price. */
+  items?: readonly ShopItem[];
   inspectionIntervalTicks: number;
   /** What a food or drink stall sells, which decides which guest needs it meets. */
   serves?: 'food' | 'drink';
@@ -184,6 +191,43 @@ const TRACK_MODES = [
   ...COASTER_MODES,
   modeDef(RideMode.ContinuousCircuitBlockSectioned, 'Continuous circuit block sectioned'),
 ];
+
+/** A single-item shop stall: one-tile, serves one guest at a time, no breakdowns. */
+function shopStall(
+  id: RideType,
+  name: string,
+  cost: number,
+  researchOrder: number,
+  items: readonly ShopItem[],
+  runningCostPerFortnightCents = 310,
+): RideTypeDef {
+  return {
+    id,
+    name,
+    category: 'stall',
+    cost,
+    footprint: [[0, 0]],
+    usesTrack: false,
+    capacity: 1,
+    loadTicks: 0,
+    runTicks: 60,
+    unloadTicks: 0,
+    baseExcitement: 0,
+    baseIntensity: 0,
+    baseNausea: 0,
+    valueWeights: NO_VALUE,
+    modes: SHOP_MODES,
+    unreliability: 0,
+    breakdowns: [],
+    defaultPriceCents: SHOP_ITEMS[items[0]].defaultPriceCents,
+    runningCostPerFortnightCents,
+    guestGenerationBonus: 15,
+    inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
+    researchCategory: 5,
+    researchOrder,
+    items,
+  };
+}
 
 function addedRide(
   id: RideType,
@@ -432,8 +476,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     defaultPriceCents: 150,
     runningCostPerFortnightCents: 310,
     guestGenerationBonus: 15,
-    itemValueCents: 190,
-    stockCostCents: 50,
+    items: [ShopItem.Burger],
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     serves: 'food',
   },
@@ -458,8 +501,7 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     defaultPriceCents: 120,
     runningCostPerFortnightCents: 310,
     guestGenerationBonus: 15,
-    itemValueCents: 120,
-    stockCostCents: 30,
+    items: [ShopItem.Drink],
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
     serves: 'drink',
   },
@@ -481,7 +523,8 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     modes: SHOP_MODES,
     unreliability: 0,
     breakdowns: [],
-    defaultPriceCents: 100,
+    defaultPriceCents: 60,
+    items: [ShopItem.Map, ShopItem.Umbrella],
     inspectionIntervalTicks: INSPECTION_INTERVAL_TICKS,
   },
   [RideType.Toilets]: {
@@ -821,22 +864,36 @@ const RIDE_CATALOG_SOURCE: Record<RideType, RideTypeDef> = {
     15,
     { breakdowns: CUT_OUT_AND_VEHICLE },
   ),
-  [RideType.BurgerStall]: {
-    ...addedRide(
-      RideType.BurgerStall,
-      'Burger Stall',
-      'stall',
-      25_000,
-      1,
-      [0, 0, 0],
-      SHOP_MODES,
-      2_500,
-      5,
-      24,
-      0,
-    ),
-    serves: 'food',
-  },
+  [RideType.BurgerStall]: shopStall(
+    RideType.BurgerStall,
+    'Burger Stall',
+    25_000,
+    24,
+    [ShopItem.Burger],
+    2_500,
+  ),
+  [RideType.ChipsStall]: shopStall(RideType.ChipsStall, 'Chips Stall', 22_000, 25, [
+    ShopItem.Chips,
+  ]),
+  [RideType.IceCreamStall]: shopStall(RideType.IceCreamStall, 'Ice Cream Stall', 22_000, 26, [
+    ShopItem.IceCream,
+  ]),
+  [RideType.CandyflossStall]: shopStall(RideType.CandyflossStall, 'Candyfloss Stall', 20_000, 27, [
+    ShopItem.Candyfloss,
+  ]),
+  [RideType.BalloonStall]: shopStall(RideType.BalloonStall, 'Balloon Stall', 20_000, 28, [
+    ShopItem.Balloon,
+  ]),
+  [RideType.PizzaStall]: shopStall(RideType.PizzaStall, 'Pizza Stall', 26_000, 29, [
+    ShopItem.Pizza,
+  ]),
+  [RideType.PopcornStall]: shopStall(RideType.PopcornStall, 'Popcorn Stall', 22_000, 30, [
+    ShopItem.Popcorn,
+  ]),
+  [RideType.HatStall]: shopStall(RideType.HatStall, 'Hat Stall', 24_000, 31, [ShopItem.Hat]),
+  [RideType.SouvenirStall]: shopStall(RideType.SouvenirStall, 'Souvenir Stall', 28_000, 32, [
+    ShopItem.TShirt,
+  ]),
 };
 
 const RESEARCH_CATEGORIES: Readonly<Record<RideCategory, number>> = {
@@ -867,6 +924,11 @@ const FLAT_RIDE_SIZES: Partial<
   [RideType.Enterprise]: { width: 4, length: 4 },
 };
 
+function servesOf(items: readonly ShopItem[]): 'food' | 'drink' | undefined {
+  const kind = shopItemDef(items[0]).kind;
+  return kind === 'souvenir' ? undefined : kind;
+}
+
 export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = Object.fromEntries(
   Object.values(RIDE_CATALOG_SOURCE).map((def) => [
     def.id,
@@ -880,6 +942,12 @@ export const RIDE_CATALOG: Readonly<Record<RideType, RideTypeDef>> = Object.from
               FLAT_RIDE_SIZES[def.id]!.length,
             ),
             supportLevels: FLAT_RIDE_SIZES[def.id]!.supportLevels,
+          }
+        : {}),
+      ...(def.items
+        ? {
+            defaultPriceCents: shopItemDef(def.items[0]).defaultPriceCents,
+            serves: servesOf(def.items),
           }
         : {}),
       researchOrder: def.researchOrder ?? def.id,

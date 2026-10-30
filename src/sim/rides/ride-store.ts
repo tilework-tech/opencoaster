@@ -120,7 +120,17 @@ export const RIDE_SCHEMA = {
   mechanicHeadingTick: Uint32Array,
   /** Observation Tower height in whole land levels (introduced in save version 36). */
   towerHeight: Uint8Array,
+  /** Price of a stall's second item in cents; zero when it sells only one. */
+  price2: Uint16Array,
+  /** Items sold and takings in cents, for each of the stall's two items. */
+  itemSold0: Uint32Array,
+  itemSold1: Uint32Array,
+  itemRevenue0: Uint32Array,
+  itemRevenue1: Uint32Array,
 } as const;
+
+/** Columns `RIDE_SCHEMA` gained in save version 37: the second price and per-item sales. */
+export const RIDE_COLUMNS_ADDED_IN_V37 = 5;
 
 /** Columns `RIDE_SCHEMA` gained in save version 30: eight downtime buckets, the percent, a tick. */
 export const RIDE_COLUMNS_ADDED_IN_V30 = 10;

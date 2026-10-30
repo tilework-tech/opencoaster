@@ -3,7 +3,8 @@ import { hashWorld } from '../core/hash';
 import { LedgerCategory, PriceMode } from '../economy/ledger';
 import { VoucherKind } from '../economy/vouchers';
 import { flatWorld, guestAt, layPath, openRide, row } from '../integration/fixtures';
-import { RIDE_CATALOG, RideType } from '../rides/ride-types';
+import { RideType } from '../rides/ride-types';
+import { SHOP_ITEMS, ShopItem } from '../rides/shop-items';
 import { RideState } from '../rides/ride-store';
 import { getRideValueCents } from '../rides/ride-operations';
 import { RIDE_PRICE_FLOOR_CENTS } from './willingness';
@@ -463,7 +464,7 @@ describe('stalls and toilets', () => {
     expect(g.cash[slot]).toBe(cash - price);
     expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkSales]).toBe(price);
     expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkStock]).toBe(
-      -RIDE_CATALOG[RideType.FoodStall].stockCostCents!,
+      -SHOP_ITEMS[ShopItem.Burger].costCents,
     );
     expect(w.rides.cols.guestsServed[stall]).toBe(1);
   });
@@ -477,7 +478,7 @@ describe('stalls and toilets', () => {
     runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
     expect(g.thirst[slot]).toBeGreaterThan(180);
     expect(w.economy.monthlyTotals[LedgerCategory.FoodDrinkStock]).toBe(
-      -RIDE_CATALOG[RideType.DrinkStall].stockCostCents!,
+      -SHOP_ITEMS[ShopItem.Drink].costCents,
     );
   });
 
@@ -883,7 +884,8 @@ describe('campaign vouchers', () => {
     g.thirst[slot] = 200;
     runUntil(w, () => w.rides.cols.guestsServed[stall] === 1);
     expect(g.hunger[slot]).toBeGreaterThan(170);
-    expect(g.thirst[slot]).toBeGreaterThan(150);
+    // a burger takes 150 ticks to eat: 50 steps of -3 thirst
+    expect(g.thirst[slot]).toBeLessThan(80);
   });
 });
 

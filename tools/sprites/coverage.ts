@@ -99,6 +99,7 @@ export function availableSpriteKeys(): ReadonlySet<string> {
   keys.add('people/staff-costumes');
   keys.add('people/rider-seated');
   keys.add('people/guest-sit');
+  keys.add('people/carried');
   cachedAvailable = keys;
   return cachedAvailable;
 }
@@ -347,7 +348,7 @@ export function buildArtCoverage(): ArtCoverageRow[] {
       [`water/surface#${frame}`],
       'Eight-frame animated surface texture.',
     );
-  for (const item of ['trash', 'vomit'])
+  for (const item of ['trash', 'vomit', 'can', 'burger-box'])
     add(
       'Litter',
       item,
@@ -365,6 +366,12 @@ export function buildArtCoverage(): ArtCoverageRow[] {
     'bench sitters',
     ['people/guest-sit'],
     'Generated four-direction figure sitting on a path bench seat, one per guest tint.',
+  );
+  add(
+    'Guests',
+    'carried balloon, hat and umbrella',
+    ['people/carried'],
+    'Generated overlay drawn over the walking guest.',
   );
   add(
     'Guests',

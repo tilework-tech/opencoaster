@@ -31,6 +31,10 @@ describe('ride research catalog', () => {
         [22, 2, 1170],
         [23, 1, 1215],
         [24, 5, 1260],
+        [29, 5, 1485],
+        [30, 5, 1530],
+        [31, 5, 1575],
+        [32, 5, 1620],
       ];
     expect(
       starter.inventions.map(({ itemId, category, workUnits }) => [itemId, category, workUnits]),
