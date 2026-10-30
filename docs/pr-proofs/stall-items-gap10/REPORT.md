@@ -21,10 +21,11 @@ Behavior choices were checked against the primary [OpenRCT2 guest behavior imple
 ## Verification
 
 - `pnpm check`: lint, format check, and typecheck passed; 2,590 Vitest tests passed. The remaining year-end seed-1 test hit its existing 30-second timeout. The same test times out on current `main` under this runtime; the direct seed-1 balance command passes on both revisions. No scenario objective, seed, assertion, or timeout was changed.
-- TypeScript and production bundle: `pnpm exec tsc --noEmit` and `pnpm exec vite build` passed against the generated atlases. The full `pnpm build` prebuild hook was also attempted; its second atlas pack was killed with exit 137 while the session browser was resident, after the same art preparation and atlas pack had completed successfully for the proof run.
+- GitHub Actions CI passed on the rebased PR branch: the complete Vitest suite, `pnpm build` including art preparation and atlas packing, the 5,000-guest benchmark, and the smoke job all completed successfully. The smoke job is configured as non-blocking in the repository workflow.
+- TypeScript and production bundle: `pnpm exec tsc --noEmit` and `pnpm exec vite build` passed against the generated atlases. A separate local `pnpm build` attempt was killed with exit 137 during its second atlas pack while the session browser was resident; the hosted CI build passed the full prebuild path.
 - Stall gameplay proof on the rebased tree: `pnpm exec playwright test --config=playwright.e2e.config.ts e2e/stall-items-proof.spec.ts` — 8 passed. The run used the generated atlas and SwiftShader-enabled Chromium; the test config's temporary server override was reverted.
 - Same-seed starter balance, seed 3, modest profile: current `main` won with 345 guests at rating 629; the feature won with 318 guests at rating 591 (target 100 guests / 450 rating). Both meet the unchanged objective.
-- 5,000 guests, 100 staff, 498 measured entities including litter created during warmup, 400 measured ticks after 150 warmup ticks; three sequential samples per revision. Median main mean was 1.404 ms/tick and median feature mean was 1.413 ms/tick (+0.6%). Median p99 was 8.193 ms/tick on main and 6.626 ms/tick on the feature (19.1% lower). All feature samples remain within 10% of main on mean and improve p99.
+- 5,000 guests, 100 staff, 498 measured entities including litter created during warmup, 400 measured ticks after 150 warmup ticks; three sequential samples per revision. Median main mean was 1.404 ms/tick and median feature mean was 1.413 ms/tick (+0.6%). Median p99 was 8.193 ms/tick on main and 7.335 ms/tick on the feature (10.5% lower). All feature samples remain within 10% of main on mean and improve p99.
 
 ## Screenshots
 
@@ -39,4 +40,6 @@ The PNGs in this directory cover the desktop and mobile Sandbox build menu, an o
 ## Merges and deployment
 
 - PR #177 was merged first as `e946b2a79a90477ad1444c2ace8088b831c12b3c`.
-- PR #175 merge SHA and the GitHub Actions deployment run will be added after merge and live verification.
+- PR #175 was squash-merged as `f457ebe3f1d9c00972a4af91817bd64a45376b73`.
+- PR CI passed: [run 40995492959](https://github.com/tilework-tech/opencoaster/actions/runs/40995492959). The post-merge Pages build and deployment passed: [run 40996903038](https://github.com/tilework-tech/opencoaster/actions/runs/40996903038).
+- The deployed game at https://opencoaster.noriagentic.com/ returned HTTP 200. Browser verification started Sandbox and confirmed the live shops menu contains Chips, Ice Cream, Candyfloss, Pizza, Popcorn, Balloon, Hat, and Souvenir stalls, alongside the existing Food Stall, Drink Stall, Information Kiosk, and Toilets.
