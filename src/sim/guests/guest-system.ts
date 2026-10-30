@@ -26,6 +26,7 @@ import {
   isShopCategory,
   rideQueueCapacity,
 } from '../rides/ride-operations';
+import { stallServiceNode } from '../rides/stall-front';
 import { RideState } from '../rides/ride-store';
 import {
   directionBetween,
@@ -239,23 +240,23 @@ function tileDistance(world: World, a: number, b: number): number {
   return dx > dy ? dx : dy;
 }
 
-function entranceTile(world: World, ride: number): number {
-  return world.map.index(world.rides.cols.entranceX[ride], world.rides.cols.entranceY[ride]);
-}
-
 /** True when the ride is entered through a built queue line rather than straight from a path. */
 function hasQueueLine(world: World, ride: number): boolean {
   return world.queues.hasQueue[ride] === 1;
 }
 
 /**
- * Ordinary path tile a guest walks to for the ride: where the queue's open end joins the main
- * path, the entrance itself for stalls and rides entered straight from a path, or -1 when the
- * ride has no way in.
+ * Walk node a guest walks to for the ride: the ordinary path tile where the queue's open end joins
+ * the main path, the footpath piece in front of a stall's window, or -1 when the ride has no way in.
  */
 function approachTile(world: World, ride: number): number {
-  if (isShopCategory(rideCategory(world, ride))) return entranceTile(world, ride);
+  if (isShopCategory(rideCategory(world, ride))) return stallServiceNode(world, ride);
   return world.queues.joinTile[ride];
+}
+
+/** Map tile of a walk node: the node itself on the lowest layer, or the tile under a raised one. */
+function nodeTile(world: World, node: number): number {
+  return node % (world.map.width * world.map.height);
 }
 
 const NOT_OFFERED = -1;
@@ -422,9 +423,10 @@ function nearestStall(
     if (world.rideLines.queued[ride] + world.rideLines.approaching[ride] >= STALL_LINE_LIMIT) {
       continue;
     }
-    const entrance = entranceTile(world, ride);
-    const distance = tileDistance(world, tile, entrance);
-    if (distance >= best || !isReachable(world, guestNode(world, slot, tile), entrance)) continue;
+    const service = stallServiceNode(world, ride);
+    if (service < 0) continue;
+    const distance = tileDistance(world, tile, nodeTile(world, service));
+    if (distance >= best || !isReachable(world, guestNode(world, slot, tile), service)) continue;
     best = distance;
     selected = ride;
   }
@@ -524,7 +526,7 @@ function noteApproachProgress(world: World, slot: number, tile: number): void {
   if (!world.rides.isAlive(id)) return;
   const approach = approachTile(world, world.rides.idToSlot[id]);
   if (approach < 0) return;
-  const gap = tileDistance(world, tile, approach);
+  const gap = tileDistance(world, tile, nodeTile(world, approach));
   if (gap >= g.approachGap[slot]) return;
   g.approachGap[slot] = gap;
   g.patience[slot] = APPROACH_PATIENCE;
@@ -1259,7 +1261,8 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
 
   if (ride >= 0) {
     const approach = approachTile(world, ride);
-    if (tile === approach) {
+    const here = isShopCategory(rideCategory(world, ride)) ? guestNode(world, slot, tile) : tile;
+    if (here === approach) {
       if (hasQueueLine(world, ride)) joinQueueLine(world, slot, ride);
       else arriveAtDestination(world, slot, ride);
       return false;

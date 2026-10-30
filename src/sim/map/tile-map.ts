@@ -115,6 +115,19 @@ export const PATH_QUEUE_LINKS = 0xf << PATH_QUEUE_LINK_SHIFT;
 /** Bits of a path element's `elData` that survive addition changes and repairs. */
 export const PATH_KEPT_BITS = PATH_BOARDING_BITS | PATH_QUEUE_LINKS;
 
+/**
+ * Height level at which a path piece with base `base` and PathFlag bits `flags` meets its edge
+ * toward `dir`: the base for a flat piece, the high or low end of a ramp along its slope, or -1 for
+ * a ramp's sides, which join nothing.
+ */
+export function pathEdgeLevel(base: number, flags: number, dir: number): number {
+  if (!(flags & PathFlag.Sloped)) return base;
+  const rise = (flags & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT;
+  if (dir === rise) return base + 1;
+  if (dir === ((rise + 2) & 3)) return base;
+  return -1;
+}
+
 /** True for a ride exit, or a ride entrance (always a queue piece): tiles only their front edge joins. */
 export function isBoardingGate(map: TileMap, e: number): boolean {
   const data = map.elData[e];
@@ -495,12 +508,7 @@ export class TileMap {
 
   /** Height level of path element `e` along edge `dir`, or -1 when that side cannot connect. */
   pathEdgeHeight(e: number, dir: number): number {
-    const s = this.pathSlopeDir(e);
-    const base = this.elBase[e];
-    if (s < 0) return base;
-    if (dir === s) return base + 1;
-    if (dir === ((s + 2) & 3)) return base;
-    return -1;
+    return pathEdgeLevel(this.elBase[e], this.elFlags[e], dir);
   }
 
   /** Path element of the neighbour of tile `i` toward `dir` whose height meets element `e`'s edge there, or -1. */

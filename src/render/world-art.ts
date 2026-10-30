@@ -29,20 +29,6 @@ export function rideSpriteName(type: RideType): string {
   return `${group}/${slug}`;
 }
 
-export function facilityFacingFromPaths(x: number, y: number, map: MapData): number {
-  const adjacent = [false, false, false, false];
-  const count = Math.min(map.pathCount ?? 0, Math.floor((map.pathElements?.length ?? 0) / 6));
-  for (let index = 0; index < count; index++) {
-    const offset = index * 6;
-    if ((map.pathElements![offset + 3] & PathFlag.Queue) !== 0) continue;
-    const dx = map.pathElements![offset] - x;
-    const dy = map.pathElements![offset + 1] - y;
-    if (Math.abs(dx) + Math.abs(dy) !== 1) continue;
-    adjacent[dx === 1 ? 0 : dy === 1 ? 1 : dx === -1 ? 2 : 3] = true;
-  }
-  return adjacent.findIndex(Boolean) < 0 ? 1 : adjacent.findIndex(Boolean);
-}
-
 export function facilitySpriteKey(type: RideType, facing: number, rotation: number): string {
   const def = RIDE_CATALOG[type];
   const slug = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');

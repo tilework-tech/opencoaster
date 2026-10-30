@@ -11,7 +11,9 @@ import { circuitStatus } from '../track/construction';
 import { abortCycle, abortRideTest, isTrackRide, startRideTest } from './coaster';
 import { GuestState, HEADING_NONE } from '../guests/guest-store';
 import { removeRideTrains } from '../vehicles/ride-trains';
+import { faceStallToward, syncStallFront } from './stall-front';
 import {
+  isShopCategory,
   setRideInspectionInterval,
   setRideMode,
   setRideOpen,
@@ -77,20 +79,19 @@ export function refreshRideQueueConnections(world: World): void {
   for (let slot = 0; slot < world.rides.count; slot++) {
     const ride = world.rides.cols;
     const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-    if (def?.category === 'stall' || def?.category === 'facility') {
-      const access = findAdjacentPath(world, slot, def.footprint);
-      if (access) {
-        ride.entranceX[slot] = access[0];
-        ride.entranceY[slot] = access[1];
-        ride.entrancePlaced[slot] = 1;
-      } else if (ride.entrancePlaced[slot]) {
-        ride.entrancePlaced[slot] = 0;
-        if (ride.state[slot] === RideState.Open)
-          setRideOpen(world, world.rides.slotToId[slot], false);
-      }
-    } else if (ride.entrancePlaced[slot]) {
+    if (def && isShopCategory(def.category)) syncStallFront(world, slot);
+    else if (ride.entrancePlaced[slot]) {
       connectQueueFromEntrance(world, slot);
     }
+  }
+}
+
+/** Re-reads every stall's front after the map changed under it. */
+export function refreshStallFronts(world: World): void {
+  const ride = world.rides.cols;
+  for (let slot = 0; slot < world.rides.count; slot++) {
+    const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
+    if (def && isShopCategory(def.category)) syncStallFront(world, slot);
   }
 }
 
@@ -118,30 +119,6 @@ function findDisembarkTile(world: World, slot: number): [number, number] | null 
   return nearest;
 }
 
-function findAdjacentPath(
-  world: World,
-  slot: number,
-  footprint: readonly (readonly [number, number])[],
-): [number, number] | null {
-  const ride = world.rides.cols;
-  for (const [dx, dy] of footprint) {
-    const x = ride.rideX[slot] + dx;
-    const y = ride.rideY[slot] + dy;
-    for (const [ox, oy] of [
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-      [0, -1],
-    ] as const) {
-      const px = x + ox;
-      const py = y + oy;
-      if (world.map.inBounds(px, py) && world.map.surface[world.map.index(px, py)] === Surface.Path)
-        return [px, py];
-    }
-  }
-  return null;
-}
-
 function placeBoardingTile(
   world: World,
   rideId: number,
@@ -151,6 +128,13 @@ function placeBoardingTile(
 ): RideResult {
   if (!world.rides.isAlive(rideId)) return RideResult.NoSuchRide;
   const slot = world.rides.idToSlot[rideId];
+  const ride = world.rides.cols;
+  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  if (isShopCategory(def.category)) {
+    if (kind !== 'entrance') return RideResult.Blocked;
+    if (!Number.isInteger(x) || !Number.isInteger(y)) return RideResult.OutOfBounds;
+    return faceStallToward(world, slot, x, y);
+  }
   if (isBusy(world, slot)) return RideResult.Busy;
   if (!Number.isInteger(x) || !Number.isInteger(y) || !world.map.inBounds(x, y)) {
     return RideResult.OutOfBounds;
@@ -159,9 +143,6 @@ function placeBoardingTile(
     ([bx, by]) => Math.abs(bx - x) + Math.abs(by - y) === 1,
   );
   if (!adjacent) return RideResult.NotAdjacentToStation;
-  const ride = world.rides.cols;
-  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
-  const directAccess = def.category === 'stall' || def.category === 'facility';
   const tile = world.map.index(x, y);
   const name = `${def.name} ${rideId + 1}`;
   const base = world.map.heights[tile] * Z_STEP;
@@ -180,18 +161,6 @@ function placeBoardingTile(
     name,
   );
   if (obstruction) return RideResult.Blocked;
-  if (directAccess) {
-    if (
-      kind !== 'entrance' ||
-      world.map.surface[tile] !== Surface.Path ||
-      !world.map.canBuild(tile)
-    )
-      return RideResult.Blocked;
-    ride.entranceX[slot] = x;
-    ride.entranceY[slot] = y;
-    ride.entrancePlaced[slot] = 1;
-    return RideResult.Ok;
-  }
   const otherPlaced = kind === 'entrance' ? ride.exitPlaced[slot] : ride.entrancePlaced[slot];
   const otherX = kind === 'entrance' ? ride.exitX[slot] : ride.entranceX[slot];
   const otherY = kind === 'entrance' ? ride.exitY[slot] : ride.entranceY[slot];
@@ -238,10 +207,9 @@ function openRide(world: World, rideId: number): RideResult {
   const tracked = isTrackRide(world, rideId);
   if (tracked && !circuitStatus(world, rideId).complete) return RideResult.TrackIncomplete;
   if (tracked && !ride.tested[slot]) return RideResult.NotTested;
-  if (!ride.entrancePlaced[slot]) return RideResult.NoEntrance;
-  if (def.category !== 'stall' && def.category !== 'facility' && !ride.exitPlaced[slot])
-    return RideResult.NoExit;
-  if (def.category !== 'stall' && def.category !== 'facility') {
+  if (!isShopCategory(def.category)) {
+    if (!ride.entrancePlaced[slot]) return RideResult.NoEntrance;
+    if (!ride.exitPlaced[slot]) return RideResult.NoExit;
     connectQueueFromEntrance(world, slot);
     if (!ride.queueConnected[slot]) return RideResult.NoQueue;
   }
@@ -263,7 +231,9 @@ export function closeInvalidOpenRides(world: World): void {
       if (!circuitStatus(world, rideId).complete) reason = RideResult.TrackIncomplete;
       else if (!ride.tested[slot]) reason = RideResult.NotTested;
     }
-    if (reason === RideResult.Ok && !ride.entrancePlaced[slot]) reason = RideResult.NoEntrance;
+    const shop = isShopCategory(RIDE_CATALOG[ride.typeId[slot] as RideType]?.category ?? '');
+    if (reason === RideResult.Ok && !shop && !ride.entrancePlaced[slot])
+      reason = RideResult.NoEntrance;
     if (reason === RideResult.Ok) continue;
     ride.state[slot] = RideState.Closed;
     abortCycle(world, slot);

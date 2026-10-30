@@ -724,6 +724,11 @@ export class GameUI {
           'ui-help',
           'Space pauses or resumes · 1 / 2 / 4 set game speed · + / - go faster or slower.',
         ),
+        element(
+          'p',
+          'ui-help',
+          'T rotates the ride, stall, wall or scenery being placed (or tap its Rotate button); a stall serves only from its window side.',
+        ),
         element('p', 'ui-help', 'Q dismisses the current message.'),
       );
     }

@@ -1,6 +1,7 @@
 import { circuitLabel } from '../coaster-panel';
 import { INSPECTION_INTERVAL_MINUTES, RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
 import { RideMode } from '../../sim/rides/ride-modes';
+import { RideResult } from '../../sim/rides/ride-results';
 import { RidePhase, RideState } from '../../sim/rides/ride-store';
 import {
   DEFAULT_TOWER_HEIGHT,
@@ -44,6 +45,26 @@ const MECHANIC_STATUS_LABELS = [
   'Working on it',
 ] as const;
 const GRAPH_INTERVAL_TICKS = 40;
+
+/** Short blocker label for why guests cannot reach a stall's service window. */
+function stallFrontLabel(problem: number): string {
+  switch (problem) {
+    case RideResult.StallQueue:
+      return 'Window faces a queue line';
+    case RideResult.StallHeight:
+      return 'Path not level with the stall';
+    case RideResult.StallSlope:
+      return 'Ramp runs across the window';
+    case RideResult.StallGate:
+      return 'Window faces a ride exit';
+    case RideResult.NotOwned:
+      return 'Path in front is not park land';
+    case RideResult.OutOfBounds:
+      return 'Window faces the map edge';
+    default:
+      return 'No path in front of the window';
+  }
+}
 
 function seconds(ticks: number): string {
   return `${(ticks / TICKS_PER_SECOND).toFixed(1)} s`;
@@ -393,7 +414,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
         blockers.push(
           serviceRide
             ? {
-                label: 'No path access',
+                label: stallFrontLabel(info[o + RideInfo.StallFront]!),
                 action: 'Build path',
                 onClick: () => {
                   ctx.actions.footpath.setQueue(false);

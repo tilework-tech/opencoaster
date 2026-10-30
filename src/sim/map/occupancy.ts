@@ -194,6 +194,8 @@ export function worldOccupancies(world: World): OccupancyVolume[] {
         });
       }
     }
+    // A stall's service tile is the ordinary footpath in front of it; nothing is built there.
+    if (def.category === 'stall' || def.category === 'facility') continue;
     for (const [placed, x, y, kind] of [
       [rc.entrancePlaced[slot], rc.entranceX[slot], rc.entranceY[slot], 'rideEntrance'],
       [rc.exitPlaced[slot], rc.exitX[slot], rc.exitY[slot], 'rideExit'],

@@ -5,6 +5,7 @@ import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
 import { RideMode } from './ride-modes';
 import { RELIABILITY_MAX, isRideInspectionDueAt } from './ride-maintenance';
 import { rideBaseLevel, rideFootprintTiles } from './ride-footprint';
+import { syncStallFront } from './stall-front';
 import { inferBoardingFronts } from './boarding-front';
 import {
   INSPECTION_INTERVAL_MINUTES,
@@ -141,6 +142,7 @@ export function createRide(
   ride.ageMonths[slot] = 0;
   ride.entranceX[slot] = x;
   ride.entranceY[slot] = y;
+  if (isShopCategory(definition.category)) syncStallFront(world, slot);
   return world.rides.slotToId[slot];
 }
 
@@ -201,20 +203,23 @@ export function placeRideEntranceExit(
   exit: TilePosition,
 ): boolean {
   const slot = slotForRide(world, rideId);
-  if (
-    slot < 0 ||
-    world.rides.cols.state[slot] === RideState.Open ||
-    isRideInActiveCycle(world.rides.cols.phase[slot])
-  ) {
-    return false;
+  if (slot < 0) return false;
+  const ride = world.rides.cols;
+  const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  if (isShopCategory(definition.category)) {
+    const dx = entrance.x - ride.rideX[slot];
+    const dy = entrance.y - ride.rideY[slot];
+    if (Math.abs(dx) + Math.abs(dy) !== 1) return false;
+    ride.dir[slot] = dx === 1 ? 0 : dy === 1 ? 1 : dx === -1 ? 2 : 3;
+    syncStallFront(world, slot);
+    return true;
   }
+  if (ride.state[slot] === RideState.Open || isRideInActiveCycle(ride.phase[slot])) return false;
   if (!world.map.inBounds(entrance.x, entrance.y) || !world.map.inBounds(exit.x, exit.y)) {
     return false;
   }
   if (entrance.x === exit.x && entrance.y === exit.y) return false;
 
-  const ride = world.rides.cols;
-  const definition = RIDE_CATALOG[ride.typeId[slot] as RideType];
   const tiles = rideFootprintTiles(definition, ride.rideX[slot], ride.rideY[slot], ride.dir[slot]);
   const adjacentToFootprint = (position: TilePosition): boolean =>
     tiles.some(([x, y]) => Math.abs(position.x - x) + Math.abs(position.y - y) === 1) &&
@@ -299,8 +304,10 @@ export function setRideOpen(world: World, rideId: number, open: boolean): boolea
     ride.state[slot] === RideState.Broken ||
     ride.phase[slot] === RidePhase.Broken ||
     isRideInActiveCycle(ride.phase[slot]) ||
-    ride.entrancePlaced[slot] === 0 ||
-    (!shop && (ride.exitPlaced[slot] === 0 || ride.queueConnected[slot] === 0)) ||
+    (!shop &&
+      (ride.entrancePlaced[slot] === 0 ||
+        ride.exitPlaced[slot] === 0 ||
+        ride.queueConnected[slot] === 0)) ||
     (definition.usesTrack && ride.tested[slot] === 0)
   ) {
     return false;

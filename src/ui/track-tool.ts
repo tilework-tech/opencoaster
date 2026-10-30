@@ -263,6 +263,16 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.TestPassed]: 'Test complete: ratings updated.',
   [RideResult.TooSteep]: 'The ground under the ride is too uneven for its supports.',
   [RideResult.Underwater]: 'Part of the ride would be under water.',
+  [RideResult.StallNoPath]:
+    'No footpath in front of the service window. Build one on the highlighted tile, or rotate the stall (T).',
+  [RideResult.StallQueue]:
+    'The service window faces a queue line. Guests only buy from an ordinary footpath.',
+  [RideResult.StallHeight]:
+    'The footpath in front of the service window is not level with the stall floor.',
+  [RideResult.StallSlope]:
+    'The footpath ramp runs across the service window. A ramp must climb toward or away from the stall.',
+  [RideResult.StallGate]:
+    'The service window faces a ride exit. Guests only buy from an ordinary footpath.',
 };
 
 /** Player-facing text for a command outcome from the simulation. */

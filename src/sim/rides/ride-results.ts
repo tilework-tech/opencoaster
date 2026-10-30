@@ -29,4 +29,14 @@ export const enum RideResult {
   Underwater = 20,
   /** An entrance on a walkway tile would cut the footpath in two. */
   CutsPath = 21,
+  /** No footpath on the tile in front of a stall's service window. */
+  StallNoPath = 22,
+  /** The tile in front of a stall's service window is a queue line, which guests cannot leave to buy. */
+  StallQueue = 23,
+  /** The footpath in front of a stall's service window is not level with the stall's floor. */
+  StallHeight = 24,
+  /** The footpath in front of a stall's service window is a ramp running across the front. */
+  StallSlope = 25,
+  /** The tile in front of a stall's service window is a ride exit. */
+  StallGate = 26,
 }

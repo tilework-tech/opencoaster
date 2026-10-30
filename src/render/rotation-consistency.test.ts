@@ -596,6 +596,26 @@ describe('rotation consistency', () => {
     );
   });
 
+  describe.each(Object.entries(PROBES))('%s stall storefront', (_backend, probe) => {
+    it.each(ROTATIONS.flatMap((rotation) => [0, 1, 2, 3].map((dir) => [dir, rotation] as const)))(
+      'draws a stall facing its stored front %i, not its nearest path, at rotation %i',
+      (dir, rotation) => {
+        const map = fixtureMap();
+        const snapshot = fixtureSnapshot(map);
+        const [sx, sy] = STALL.tile;
+        map.pathElements = Int32Array.from([
+          ...map.pathElements!,
+          ...[sx, sy - 1, heightAt(sx, sy - 1), 0, 0, PathStyle.Tarmac],
+        ]);
+        map.pathCount = map.pathElements.length / 6;
+        snapshot.rideInfo[1 * RIDE_INFO_STRIDE + RideInfo.Dir] = dir;
+        const stall = probe(map, snapshot, rotation).find((p) => p.key.startsWith('stalls/'));
+        expect(stall, 'stall sprite is drawn').toBeDefined();
+        expect(stall!.key.split('#')[0]).toBe(`stalls/food-stall/facing-${dir}/view-${rotation}`);
+      },
+    );
+  });
+
   describe.each(Object.entries(PROBES))('%s rotation invariance', (_backend, probe) => {
     it('offsets every object from its world anchor by the same screen vector at every rotation', () => {
       const map = fixtureMap();

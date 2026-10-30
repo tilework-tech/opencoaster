@@ -6,7 +6,6 @@ import type { RidePlacementGhost } from '../../ui/track-preview';
 import type { PlacementHover } from '../input';
 import type { CoasterPanel } from '../../ui/coaster-panel';
 import { ridePlacementLevel, ridePlacementValid } from '../../render/placement-art';
-import { facilityFacingFromPaths } from '../../render/world-art';
 import { RIDE_CATALOG, RideType } from '../../sim/rides/ride-types';
 import {
   DEFAULT_TOWER_HEIGHT,
@@ -17,7 +16,7 @@ import {
 import { formatMoney } from '../../ui/format';
 import { FeedbackDomain } from '../../sim/core/feedback';
 import { rideFootprintTiles } from '../../sim/rides/ride-footprint';
-import { Surface } from '../../sim/map/tile-map';
+import { DIR_DX, DIR_DY, Surface } from '../../sim/map/tile-map';
 import { RIDE_INFO_STRIDE, RideFlag, RideInfo } from '../../worker/snapshot';
 import type { SimClient } from '../../worker/sim-client';
 import { PIECES } from '../../sim/track/catalog';
@@ -26,11 +25,29 @@ import { rotateTile } from '../../sim/track/construction';
 import { TILE_UNITS, Z_STEP } from '../../sim/core/constants';
 import { capDevicePixelRatio } from '../../input/camera-controls';
 import { feedbackMessage } from '../../ui/track-tool';
+import { isShopCategory } from '../../sim/rides/ride-operations';
+import { RideResult } from '../../sim/rides/ride-results';
+import {
+  autoStallFacing,
+  stallFrontProblemInMap,
+  stallFrontTile,
+} from '../../sim/rides/stall-front';
 import type { FootpathControls } from '../../ui/ui-types';
 
 interface RidePlacement {
   rideId: number;
   part: 'entrance' | 'exit';
+}
+
+interface StallGhost {
+  x: number;
+  y: number;
+  /** Direction the window faces: 0 = +x, 1 = +y, 2 = -x, 3 = -y. */
+  facing: number;
+  /** Height level of the stall floor. */
+  floor: number;
+  /** `RideResult` for what the window finds in front; `Ok` when guests could buy there. */
+  problem: number;
 }
 
 interface PendingRideCreation {
@@ -62,8 +79,15 @@ export function createRideSetup(deps: RideSetupDependencies) {
   let ridePlacementFeedbackSeq = -1;
   let ridePlacementFeedbackMessage: string | null = null;
   let pendingRideCreation: PendingRideCreation | null = null;
-  let openingStallRideId: number | null = null;
-  let stallFrontTile: [number, number] | null = null;
+  /** Front tile of the stall just built, highlighted until the player moves on. */
+  let builtStallFront: [number, number] | null = null;
+  /** The stall preview under the cursor this frame: where its window looks and what it finds there. */
+  let stallGhost: StallGhost | null = null;
+  /** Whether `stallGhost` was measured for the frame being drawn. */
+  let stallGhostFresh = false;
+  let stallGhostSignature = '';
+  /** True once the player turns the stall being placed; until then it faces a usable path itself. */
+  let placementDirChosen = false;
   let rideSetupNotice: string | null = null;
   let ridePlacementTargetSignature = '';
   /** Quarter turns the ride being placed is rotated by. */
@@ -75,6 +99,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
   rotateButton.className = 'ride-rotate-button';
   rotateButton.textContent = 'Rotate ride';
   rotateButton.setAttribute('aria-label', 'Rotate ride (T)');
+  rotateButton.setAttribute('aria-keyshortcuts', 'T');
   rotateButton.hidden = true;
   rotateButton.addEventListener('click', () => rotatePlacement());
   ridePlacementPreview.parentElement?.append(rotateButton);
@@ -118,13 +143,17 @@ export function createRideSetup(deps: RideSetupDependencies) {
     pendingRideCreation = null;
     rideSetupNotice = null;
     placementDir = 0;
+    placementDirChosen = false;
+    builtStallFront = null;
     placementTowerHeight = DEFAULT_TOWER_HEIGHT;
     gameUi.selectTool('ride');
     const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
     gameUi.setToolStatus(
-      `${def.name} selected. Tap a tile you own to build it${
-        def.footprint.length > 1 ? '; press T to rotate it' : ''
-      }.`,
+      isShopCategory(def.category)
+        ? `${def.name} selected. Its service window faces the highlighted edge; press T or Rotate to turn it, then tap a tile you own.`
+        : `${def.name} selected. Tap a tile you own to build it${
+            def.footprint.length > 1 ? '; press T to rotate it' : ''
+          }.`,
     );
   }
 
@@ -132,10 +161,51 @@ export function createRideSetup(deps: RideSetupDependencies) {
   function rotatePlacement(): boolean {
     if (ridePlacement || deps.selectedTool() !== 'ride') return false;
     const def = RIDE_CATALOG[coasterPanel.rideType];
-    if (def.footprint.length <= 1) return false;
+    const stall = isShopCategory(def.category);
+    if (!stall && def.footprint.length <= 1) return false;
+    if (stall && !placementDirChosen && stallGhost) placementDir = stallGhost.facing;
     placementDir = (placementDir + 1) & 3;
-    gameUi.setToolStatus(`${def.name} rotated.`);
+    placementDirChosen = true;
+    stallGhostSignature = '';
+    gameUi.setToolStatus(
+      stall
+        ? `${def.name} turned: its window faces ${screenDirectionName(placementDir)}.`
+        : `${def.name} rotated.`,
+    );
     return true;
+  }
+
+  /** Screen direction, in the current view, of world direction `dir` (0 = +x … 3 = -y). */
+  function screenDirectionName(dir: number): string {
+    const map = sim.map;
+    const width = map?.width ?? 1;
+    const height = map?.height ?? 1;
+    const from = new Float64Array(2);
+    const to = new Float64Array(2);
+    const rotation = camera.rotation as Rotation;
+    project(0, 0, 0, width, height, rotation, from);
+    project(DIR_DX[dir]! * TILE_UNITS, DIR_DY[dir]! * TILE_UNITS, 0, width, height, rotation, to);
+    return `${to[1]! < from[1]! ? 'up' : 'down'}-${to[0]! < from[0]! ? 'left' : 'right'}`;
+  }
+
+  /** Facing the stall being placed would take on (`x`, `y`) and what its window finds there. */
+  function stallPlacement(x: number, y: number): StallGhost | null {
+    const map = sim.map;
+    const snapshot = sim.latest;
+    const def = RIDE_CATALOG[coasterPanel.rideType];
+    if (!map || !snapshot || !def || !isShopCategory(def.category)) return null;
+    const floor = ridePlacementLevel(coasterPanel.rideType, x, y, 0, map);
+    const buildable = (tile: number) => snapshot.buildable[tile] === 1;
+    const facing = placementDirChosen
+      ? placementDir
+      : autoStallFacing(map, x, y, floor, placementDir, buildable);
+    return {
+      x,
+      y,
+      facing,
+      floor,
+      problem: stallFrontProblemInMap(map, x, y, facing, floor, buildable),
+    };
   }
 
   function rideHoverClear(): void {
@@ -247,11 +317,12 @@ export function createRideSetup(deps: RideSetupDependencies) {
           : [],
         rideType: coasterPanel.rideType,
       };
+      const stall = stallPlacement(x, y);
       gameUi.setToolStatus(
         coasterPanel.createRideAt(
           x,
           y,
-          placementDir,
+          stall ? stall.facing : placementDir,
           coasterPanel.rideType === RideType.ObservationTower ? placementTowerHeight : undefined,
         ),
       );
@@ -273,21 +344,23 @@ export function createRideSetup(deps: RideSetupDependencies) {
         const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
         if (!def?.usesTrack) {
           const rideId = snapshot.rideInfo[created * RIDE_INFO_STRIDE + RideInfo.Id];
-          if (def.category === 'stall' || def.category === 'facility') {
-            const front = findStallFront(snapshot, created, def.footprint);
-            if (front) {
-              ridePlacement = { rideId, part: 'entrance' };
-              stallFrontTile = [front.entrance.x, front.entrance.y];
-              openingStallRideId = rideId;
-              ridePlacementCommandPending = true;
-              sim.command({ type: 'placeRideEntrance', rideId, ...front.entrance });
-              gameUi.setToolStatus(`${def.name} front faces the path; opening…`);
-            } else {
-              ridePlacement = null;
-              ridePlacementCommandPending = false;
-              gameUi.selectTool('ride');
-              gameUi.setToolStatus(`Build a path directly beside the ${def.name.toLowerCase()}.`);
-            }
+          if (isShopCategory(def.category)) {
+            ridePlacement = null;
+            ridePlacementCommandPending = false;
+            gameUi.selectTool('ride');
+            const offset = created * RIDE_INFO_STRIDE;
+            const x = snapshot.rideInfo[offset + RideInfo.RideX];
+            const y = snapshot.rideInfo[offset + RideInfo.RideY];
+            const [fx, fy] = stallFrontTile(x, y, snapshot.rideInfo[offset + RideInfo.Dir]);
+            const problem = snapshot.rideInfo[offset + RideInfo.StallFront];
+            builtStallFront = [fx, fy];
+            rideSetupNotice =
+              problem === RideResult.Ok
+                ? `${def.name} is open, serving from the footpath at ${fx}, ${fy}.`
+                : `${def.name} is open but guests cannot reach it: ${
+                    feedbackMessage(FeedbackDomain.Ride, problem).text
+                  }`;
+            gameUi.setToolStatus(rideSetupNotice);
           } else {
             ridePlacement = { rideId, part: 'entrance' };
             ridePlacementCommandPending = false;
@@ -322,19 +395,10 @@ export function createRideSetup(deps: RideSetupDependencies) {
     }
     if (ridePlacement.part === 'entrance' && flags & RideFlag.EntrancePlaced) {
       ridePlacementCommandPending = false;
-      if (openingStallRideId === ridePlacement.rideId) {
-        sim.command({ type: 'setRideStatus', rideId: ridePlacement.rideId, status: 'open' });
-        openingStallRideId = null;
-        ridePlacement = null;
-        ridePlacementFeedbackMessage = null;
-        stallFrontTile = null;
-        rideSetupNotice = `${def?.name ?? 'Stall'} is open.`;
-        gameUi.setToolStatus(rideSetupNotice);
-      } else if (def?.category === 'stall' || def?.category === 'facility') {
-        sim.command({ type: 'setRideStatus', rideId: ridePlacement.rideId, status: 'open' });
+      if (def && isShopCategory(def.category)) {
         gameUi.openRide(ridePlacement.rideId);
         ridePlacement = null;
-        gameUi.setToolStatus(`${def.name} entrance placed.`);
+        gameUi.setToolStatus(`${def.name} now faces its footpath.`);
       } else {
         ridePlacement = { rideId: ridePlacement.rideId, part: 'exit' };
         ridePlacementFeedbackMessage = null;
@@ -377,37 +441,6 @@ export function createRideSetup(deps: RideSetupDependencies) {
     return null;
   }
 
-  function findStallFront(
-    snapshot: NonNullable<typeof sim.latest>,
-    row: number,
-    footprint: readonly (readonly [number, number])[],
-  ): { entrance: { x: number; y: number } } | null {
-    const offset = row * RIDE_INFO_STRIDE;
-    const x = snapshot.rideInfo[offset + RideInfo.RideX];
-    const y = snapshot.rideInfo[offset + RideInfo.RideY];
-    const map = sim.map;
-    if (!map) return null;
-    for (const [fx, fy] of footprint) {
-      for (const [dx, dy] of [
-        [1, 0],
-        [0, 1],
-        [-1, 0],
-        [0, -1],
-      ] as const) {
-        const entrance = { x: x + fx + dx, y: y + fy + dy };
-        if (
-          entrance.x >= 0 &&
-          entrance.y >= 0 &&
-          entrance.x < map.width &&
-          entrance.y < map.height &&
-          map.surface[entrance.y * map.width + entrance.x] === Surface.Path
-        )
-          return { entrance };
-      }
-    }
-    return null;
-  }
-
   function drawRidePlacementPreview(width: number, height: number): void {
     const canvas = ridePlacementPreview;
     const ratio = capDevicePixelRatio(window.devicePixelRatio || 1);
@@ -425,10 +458,43 @@ export function createRideSetup(deps: RideSetupDependencies) {
     drawQueuePrompt(context);
     const snapshot = sim.latest;
     const map = sim.map;
+    const selectedDef = RIDE_CATALOG[coasterPanel.rideType];
+    const placingStall = isShopCategory(selectedDef.category);
     rotateButton.hidden =
       ridePlacement !== null ||
       deps.selectedTool() !== 'ride' ||
-      RIDE_CATALOG[coasterPanel.rideType].footprint.length <= 1;
+      (!placingStall && selectedDef.footprint.length <= 1);
+    const rotateLabel = placingStall ? 'Rotate stall (T)' : 'Rotate ride (T)';
+    if (rotateButton.getAttribute('aria-label') !== rotateLabel) {
+      rotateButton.setAttribute('aria-label', rotateLabel);
+      rotateButton.textContent = placingStall ? 'Rotate stall' : 'Rotate ride';
+    }
+    const ghost =
+      deps.selectedTool() === 'ride' && !ridePlacement && stallGhostFresh ? stallGhost : null;
+    stallGhostFresh = false;
+    if (deps.selectedTool() !== 'ride') builtStallFront = null;
+    let stallFrontShown = false;
+    if (snapshot && map && ghost) {
+      drawStallFront(context, map, ghost.x, ghost.y, ghost.facing, ghost.floor, ghost.problem);
+      stallFrontShown = true;
+      announceStallGhost(ghost);
+    } else if (snapshot && map && builtStallFront && deps.selectedTool() === 'ride') {
+      const row = rideRowAt(snapshot, builtStallFront);
+      if (row !== null) {
+        const offset = row * RIDE_INFO_STRIDE;
+        drawStallFront(
+          context,
+          map,
+          snapshot.rideInfo[offset + RideInfo.RideX],
+          snapshot.rideInfo[offset + RideInfo.RideY],
+          snapshot.rideInfo[offset + RideInfo.Dir],
+          snapshot.rideInfo[offset + RideInfo.BaseLevel],
+          snapshot.rideInfo[offset + RideInfo.StallFront],
+        );
+        stallFrontShown = true;
+      }
+    }
+    canvas.classList.toggle('ride-stall-front-preview', stallFrontShown);
     const selectedTower = coasterPanel.rideType === RideType.ObservationTower;
     towerHeightControl.hidden =
       !selectedTower || ridePlacement !== null || deps.selectedTool() !== 'ride';
@@ -444,7 +510,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     ridePlacementTargets.setAttribute('height', String(height));
     const placement =
       ridePlacement ?? (deps.selectedTool() === 'track' ? coasterPanel.boardingPlacement() : null);
-    if ((!placement && !stallFrontTile) || !snapshot || !map) {
+    if (!placement || !snapshot || !map) {
       if (ridePlacementTargetSignature) {
         ridePlacementTargets.replaceChildren();
         ridePlacementTargetSignature = '';
@@ -503,13 +569,6 @@ export function createRideSetup(deps: RideSetupDependencies) {
         }
       }
     }
-    if (
-      stallFrontTile &&
-      !allCandidates.some(
-        (cell) => cell.x === stallFrontTile?.[0] && cell.y === stallFrontTile?.[1],
-      )
-    )
-      allCandidates.push({ x: stallFrontTile[0], y: stallFrontTile[1] });
     const occupiedRideTiles = new Set<number>();
     for (let rideIndex = 0; rideIndex < snapshot.rides.count; rideIndex++) {
       const offset = rideIndex * RIDE_INFO_STRIDE;
@@ -691,7 +750,131 @@ export function createRideSetup(deps: RideSetupDependencies) {
       ridePlacementTargets.replaceChildren(...targetNodes);
       ridePlacementTargetSignature = signature;
     }
-    canvas.classList.toggle('ride-stall-front-preview', stallFrontTile !== null);
+  }
+
+  /** Row of the stall whose front tile is `front`, built by this tool. */
+  function rideRowAt(
+    snapshot: NonNullable<typeof sim.latest>,
+    front: readonly [number, number],
+  ): number | null {
+    for (let row = 0; row < snapshot.rides.count; row++) {
+      const offset = row * RIDE_INFO_STRIDE;
+      const def =
+        RIDE_CATALOG[snapshot.rideInfo[offset + RideInfo.Type] as keyof typeof RIDE_CATALOG];
+      if (!def || !isShopCategory(def.category)) continue;
+      const [fx, fy] = stallFrontTile(
+        snapshot.rideInfo[offset + RideInfo.RideX],
+        snapshot.rideInfo[offset + RideInfo.RideY],
+        snapshot.rideInfo[offset + RideInfo.Dir],
+      );
+      if (fx === front[0] && fy === front[1]) return row;
+    }
+    return null;
+  }
+
+  /**
+   * Outlines the tile in front of a stall's window and draws an arrow from the stall out through
+   * its window edge: green when the window meets a usable footpath, red when it does not.
+   */
+  function drawStallFront(
+    context: CanvasRenderingContext2D,
+    map: NonNullable<typeof sim.map>,
+    x: number,
+    y: number,
+    dir: number,
+    floor: number,
+    problem: number,
+  ): void {
+    const ok = problem === RideResult.Ok;
+    const [fx, fy] = stallFrontTile(x, y, dir);
+    const point = new Float64Array(2);
+    const rotation = camera.rotation as Rotation;
+    const screen = (wx: number, wy: number, level: number): [number, number] => {
+      project(
+        wx * TILE_UNITS,
+        wy * TILE_UNITS,
+        level * Z_STEP,
+        map.width,
+        map.height,
+        rotation,
+        point,
+      );
+      return [
+        context.canvas.clientWidth / 2 + (point[0] - camera.x) * camera.zoom,
+        context.canvas.clientHeight / 2 + (point[1] - camera.y) * camera.zoom,
+      ];
+    };
+    const inside = fx >= 0 && fy >= 0 && fx < map.width && fy < map.height;
+    if (inside) {
+      const level = map.heights[fy * map.width + fx] ?? floor;
+      context.beginPath();
+      for (const [dx, dy, first] of [
+        [0, 0, true],
+        [1, 0, false],
+        [1, 1, false],
+        [0, 1, false],
+      ] as const) {
+        const [px, py] = screen(fx + dx, fy + dy, level);
+        if (first) context.moveTo(px, py);
+        else context.lineTo(px, py);
+      }
+      context.closePath();
+      context.fillStyle = ok ? 'rgba(70, 225, 115, .42)' : 'rgba(230, 70, 65, .42)';
+      context.strokeStyle = ok ? 'rgba(200, 255, 210, .95)' : 'rgba(255, 210, 200, .95)';
+      context.lineWidth = 2;
+      context.fill();
+      context.stroke();
+    }
+    const ex = x + 0.5 + DIR_DX[dir]! * 0.5;
+    const ey = y + 0.5 + DIR_DY[dir]! * 0.5;
+    const sx = DIR_DY[dir]! * 0.5;
+    const sy = -DIR_DX[dir]! * 0.5;
+    const [e0x, e0y] = screen(ex - sx, ey - sy, floor);
+    const [e1x, e1y] = screen(ex + sx, ey + sy, floor);
+    const [cx, cy] = screen(x + 0.5, y + 0.5, floor);
+    const [tx, ty] = screen(x + 0.5 + DIR_DX[dir]! * 0.95, y + 0.5 + DIR_DY[dir]! * 0.95, floor);
+    context.lineCap = 'round';
+    context.strokeStyle = 'rgba(20, 20, 20, .85)';
+    context.lineWidth = 7;
+    context.beginPath();
+    context.moveTo(e0x, e0y);
+    context.lineTo(e1x, e1y);
+    context.moveTo(cx, cy);
+    context.lineTo(tx, ty);
+    context.stroke();
+    context.strokeStyle = ok ? 'rgb(120, 255, 150)' : 'rgb(255, 110, 95)';
+    context.lineWidth = 4;
+    context.beginPath();
+    context.moveTo(e0x, e0y);
+    context.lineTo(e1x, e1y);
+    context.moveTo(cx, cy);
+    context.lineTo(tx, ty);
+    context.stroke();
+    const angle = Math.atan2(ty - cy, tx - cx);
+    const head = 9;
+    context.fillStyle = ok ? 'rgb(120, 255, 150)' : 'rgb(255, 110, 95)';
+    context.beginPath();
+    context.moveTo(tx + Math.cos(angle) * 3, ty + Math.sin(angle) * 3);
+    context.lineTo(tx - Math.cos(angle - 0.5) * head, ty - Math.sin(angle - 0.5) * head);
+    context.lineTo(tx - Math.cos(angle + 0.5) * head, ty - Math.sin(angle + 0.5) * head);
+    context.closePath();
+    context.fill();
+    context.lineCap = 'butt';
+  }
+
+  /** Describes the hovered stall preview in the tool status when it changes. */
+  function announceStallGhost(ghost: StallGhost): void {
+    const signature = `${ghost.x},${ghost.y},${ghost.facing},${ghost.problem},${camera.rotation}`;
+    if (signature === stallGhostSignature) return;
+    stallGhostSignature = signature;
+    const def = RIDE_CATALOG[coasterPanel.rideType];
+    const [fx, fy] = stallFrontTile(ghost.x, ghost.y, ghost.facing);
+    const facing = `${def.name} at ${ghost.x}, ${ghost.y}: window faces ${screenDirectionName(ghost.facing)}`;
+    gameUi.setToolStatus(
+      ghost.problem === RideResult.Ok
+        ? `${facing} onto the footpath at ${fx}, ${fy}. T rotates.`
+        : `${facing}. ${feedbackMessage(FeedbackDomain.Ride, ghost.problem).text}`,
+    );
   }
   return {
     chooseRideType,
@@ -708,11 +891,13 @@ export function createRideSetup(deps: RideSetupDependencies) {
       const map = sim.map;
       const snapshot = sim.latest;
       if (!map || !snapshot) throw new Error('Ride placement requires a current map snapshot.');
+      stallGhost = stallPlacement(x, y);
+      stallGhostFresh = true;
       return {
         type: coasterPanel.rideType,
         x,
         y,
-        facing: facilityFacingFromPaths(x, y, map),
+        facing: stallGhost?.facing ?? placementDir,
         dir: placementDir,
         baseLevel: ridePlacementLevel(coasterPanel.rideType, x, y, placementDir, map),
         valid: ridePlacementValid(

@@ -77,12 +77,13 @@ describe('ride commands', () => {
   });
 
   it.each([RideType.Toilets, RideType.FoodStall])(
-    'opens a shop or toilet directly from an adjacent path (%s)',
+    'opens a shop or toilet directly from the path its front faces (%s)',
     (type) => {
       const world = flatWorld(16, 17);
-      const rideId = createRide(world, type, 4, 4);
+      const rideId = createRide(world, type, 4, 4, 1);
       expect(placePath(world.map, { x: 4, y: 5 })).toBe(true);
       refreshRideQueueConnections(world);
+      expect(world.rides.cols.entrancePlaced[world.rides.idToSlot[rideId]]).toBe(1);
 
       expect(applyRideCommand(world, { type: 'setRideStatus', rideId, status: 'open' })).toBe(
         RideResult.Ok,
@@ -172,12 +173,13 @@ describe('ride commands', () => {
     expect(world.guests.cols.y[guest]).toBe(5 * TILE_UNITS + TILE_UNITS / 2);
   });
 
-  it('clears removed direct access and closes a shop or facility without another path', () => {
+  it('clears removed direct access but leaves a shop or facility open, as built', () => {
     const world = flatWorld(16, 17);
-    const rideId = createRide(world, RideType.Toilets, 4, 4);
+    const rideId = createRide(world, RideType.Toilets, 4, 4, 1);
     const slot = world.rides.idToSlot[rideId];
     expect(placePath(world.map, { x: 4, y: 5 })).toBe(true);
     refreshRideQueueConnections(world);
+    expect(world.rides.cols.entrancePlaced[slot]).toBe(1);
     expect(applyRideCommand(world, { type: 'setRideStatus', rideId, status: 'open' })).toBe(
       RideResult.Ok,
     );
@@ -186,7 +188,7 @@ describe('ride commands', () => {
     refreshRideQueueConnections(world);
 
     expect(world.rides.cols.entrancePlaced[slot]).toBe(0);
-    expect(world.rides.cols.state[slot]).toBe(RideState.Closed);
+    expect(world.rides.cols.state[slot]).toBe(RideState.Open);
   });
 
   it('demolishes a coaster, refunds its track and ride cost, and removes its track', () => {
