@@ -7,7 +7,7 @@ import { PATH_BOARDING_BITS } from '../sim/map/tile-map';
 import { DIR_E, DIR_W } from '../sim/pathfinding';
 import type { World } from '../sim/core/world';
 import { deserialize, serialize } from './save';
-import { statsVersionColumns } from './legacy-save-fixtures';
+import { shopItemsVersionColumns, statsVersionColumns } from './legacy-save-fixtures';
 
 /** Encodes a world as the last version before entrances and exits had a front edge. */
 function asPreviousVersion(world: World): Uint8Array {
@@ -30,6 +30,7 @@ function asPreviousVersion(world: World): Uint8Array {
   const dropped = new Set<ArrayBufferView>([
     world.guests.cols.happinessTarget,
     ...statsVersionColumns(world),
+    ...shopItemsVersionColumns(world),
   ]);
   const body = bytes.subarray(8 + headerLen);
   const kept: Uint8Array[] = [];

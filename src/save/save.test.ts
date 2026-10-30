@@ -27,7 +27,14 @@ import { legacyGuestArrays } from '../sim/integration/fixtures';
 import { GuestState, HEADING_NONE, spawnGuest } from '../sim/guests/guest-store';
 import { VoucherKind } from '../sim/economy/vouchers';
 import type { World } from '../sim/core/world';
-import { addSpawnAtCorner, flatWorld, guestAt, layPath, openRide, row } from '../sim/integration/fixtures';
+import {
+  addSpawnAtCorner,
+  flatWorld,
+  guestAt,
+  layPath,
+  openRide,
+  row,
+} from '../sim/integration/fixtures';
 import {
   StaffKind,
   StaffOrder,
@@ -1150,11 +1157,7 @@ describe('save: version 4 migration', () => {
           .arrays()
           .slice(
             0,
-            -5 -
-              RIDE_COLUMNS_ADDED_IN_V10 -
-              RIDER_HISTORY_WINDOWS -
-              RIDE_COLUMNS_ADDED_IN_V37 -
-              1,
+            -5 - RIDE_COLUMNS_ADDED_IN_V10 - RIDER_HISTORY_WINDOWS - RIDE_COLUMNS_ADDED_IN_V37 - 1,
           ),
         world.track.pieces.arrays(),
         world.track.rideTables(),

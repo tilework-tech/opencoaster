@@ -104,6 +104,39 @@ for (const renderer of ['webgl2', 'canvas2d'] as const) {
       );
     });
   }
+
+  test(`shopfronts remain readable at all camera rotations: ${renderer}`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    const scene = stallScene(WeatherKind.Sunny);
+    const path = testInfo.outputPath('stalls-rotation.park');
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, serialize(scene.sim.world));
+    const dir = PROOF_DIR ?? testInfo.outputPath('proof');
+    await openScene(page, path, renderer === 'canvas2d');
+    await expect(page.locator('.hud')).toContainText(renderer === 'webgl2' ? 'WebGL2' : 'Canvas2D');
+
+    for (let turn = 0; turn < 4; turn++) {
+      const rotation = await page.evaluate(
+        () => (window as unknown as { __camera: { rotation: number } }).__camera.rotation,
+      );
+      await save(
+        `${dir}/shopfronts-${renderer}-rot${rotation}.png`,
+        await canvasPng(page),
+        testInfo,
+        `${renderer}-rotation-${rotation}`,
+      );
+      await page.keyboard.press('z');
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => (window as unknown as { __camera: { rotation: number } }).__camera.rotation,
+          ),
+        )
+        .toBe((rotation + 1) % 4);
+    }
+  });
 }
 
 test('a kiosk window lists map and umbrella with price, sales and profit after a rainy spell', async ({

@@ -79,9 +79,7 @@ import {
   wantedItemIndex,
 } from './shopping';
 import { useBin } from './litter-store';
-import { useBin } from './litter-store';
 import { noteTileSights } from './path-sights';
-import { useBin } from './litter-store';
 import { carriesVoucherFor, guestPriceCents, spendVoucher } from './vouchers';
 import {
   applyGuestBudget,

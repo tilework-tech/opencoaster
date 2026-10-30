@@ -20,21 +20,7 @@
     "mode": "perRide"
   },
   "research": {
-    "availableItemIds": [
-      1,
-      2,
-      3,
-      5,
-      6,
-      7,
-      8,
-      9,
-      12,
-      25,
-      26,
-      27,
-      28
-    ],
+    "availableItemIds": [1, 2, 3, 5, 6, 7, 8, 9, 12, 25, 26, 27, 28],
     "inventions": [
       {
         "itemId": 4,
@@ -178,9 +164,7 @@
   "trees": {
     "count": 70,
     "groves": 4,
-    "species": [
-      "palm"
-    ]
+    "species": ["palm"]
   },
   "prebuilt": [
     {
