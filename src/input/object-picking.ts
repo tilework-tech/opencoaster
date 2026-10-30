@@ -25,13 +25,12 @@ import {
 import {
   facilityFacingFromPaths,
   facilitySpriteKey,
-  flowerBedSpriteName,
   pathAdditionSpriteName,
   rideHutFacing,
   rideHutSpriteKey,
   rideSpriteFrame,
   rideSpriteKey,
-  scenerySpriteName,
+  placedSceneryKey,
   wallSpriteName,
 } from '../render/world-art';
 import { project, rotateDirection, rotateTile } from '../render/projection';
@@ -362,9 +361,7 @@ export function buildObjectPickTargets(
     const box = sceneryBox(definition);
     const key = wall
       ? wallSpriteName(definition.sprite, flags, map.slope[tile]!, camera.rotation)
-      : definition.sprite === 'flower-bed'
-        ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
-        : scenerySpriteName(definition.sprite);
+      : placedSceneryKey(definition, x, y, flags, map.slope[tile]!, camera.rotation);
     add(
       key,
       x * TILE_UNITS + 128,
@@ -376,7 +373,7 @@ export function buildObjectPickTargets(
       y,
       depth(x, y, z / Z_STEP),
       { sceneryIndex: i, state: 'Placed' },
-      box,
+      definition.native ? undefined : box,
     );
   }
   const paths = map.pathElements ?? [];

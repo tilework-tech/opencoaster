@@ -2,7 +2,11 @@ import { DIR_DX, DIR_DY, PathFlag, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
 import type { SceneryDefinition } from '../sim/map/scenery';
 import { Z_STEP } from '../sim/core/constants';
 import { terrainMeshTriangles } from './terrain-geometry';
-import { FLOWER_BED_BOX, SCENERY_PIXELS_PER_HEIGHT } from './sprite-layout';
+import {
+  FLOWER_BED_BOX,
+  NATIVE_PIXELS_PER_HEIGHT,
+  SCENERY_PIXELS_PER_HEIGHT,
+} from './sprite-layout';
 
 export interface GroundBox {
   width: number;
@@ -82,6 +86,8 @@ export function flowerBedGroundZ(baseHeight: number, slopeMask: number, rotation
 
 export function sceneryBox(definition: SceneryDefinition): GroundBox {
   if (definition.sprite === 'flower-bed') return FLOWER_BED_BOX;
+  if (definition.native)
+    return { width: definition.width, height: definition.height * NATIVE_PIXELS_PER_HEIGHT };
   return {
     width: definition.width,
     height: definition.height * SCENERY_PIXELS_PER_HEIGHT,

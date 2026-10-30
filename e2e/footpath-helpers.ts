@@ -45,7 +45,7 @@ export function adjacentPathTiles(entrance: Tile): Tile[] {
 
 /** The HUD cash readout in the bottom-left corner. */
 export async function hudCash(page: Page): Promise<string> {
-  const readouts = page.getByText(/^\$[\d,]+\.\d\d$/);
+  const readouts = page.locator('.status-bar').getByText(/^\$[\d,]+\.\d\d$/);
   const count = await readouts.count();
   for (let i = 0; i < count; i++) {
     const box = await readouts.nth(i).boundingBox();

@@ -310,10 +310,14 @@ export function buildArtCoverage(): ArtCoverageRow[] {
               ),
             ),
           ).flat()
-        : [...new Set([0, 1, 2, 3].map((rotation) => scenerySpriteName(item.sprite, rotation)))],
+        : item.native
+          ? [0, 1, 2, 3].map((view) => `scenery/${item.sprite}/view-${view}`)
+          : [...new Set([0, 1, 2, 3].map((rotation) => scenerySpriteName(item.sprite, rotation)))],
       item.sprite === 'flower-bed'
         ? `${item.category}; generated raised flowerbed with four colour variants, four camera views, and all 16 slope masks.`
-        : `${item.category}; prepared original prop sprite.`,
+        : item.native
+          ? `${item.category}; generated from an original 3D model, four camera views${item.directional ? ' (turns with its placement facing)' : ''}.`
+          : `${item.category}; prepared original prop sprite.`,
     );
   for (const item of ['rain shelter', 'lamp', 'bench', 'bin']) {
     const base = item === 'rain shelter' ? 'scenery/shelter' : `scenery/${item}`;

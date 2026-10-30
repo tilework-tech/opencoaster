@@ -1,8 +1,7 @@
 import { button, element } from '../dom';
 import type { IconName } from '../icons';
 import type { ToolMode, UiContext, WindowController } from '../ui-types';
-import { SCENERY_CATALOG, SceneryCategory } from '../../sim/map/scenery';
-import type { SceneryItem } from '../../sim/map/scenery';
+import { buildSceneryPicker } from './scenery-picker';
 
 interface ToolTab {
   id: string;
@@ -30,7 +29,7 @@ export const SCENERY_WINDOW: ToolWindowSpec = {
       label: 'Place scenery',
       icon: 'scenery',
       tool: 'scenery',
-      help: 'Choose a scenery category and item, then place it on land you own.',
+      help: 'Choose a group and a piece, then place it on land you own. These are decorations only; benches, bins, shelters and lamps have their own tabs.',
       scenery: true,
     },
     {
@@ -72,6 +71,9 @@ export const SCENERY_WINDOW: ToolWindowSpec = {
   ],
 };
 
+/** The scenery picker built into a window, found again when the window is reopened. */
+const pickersByWindow = new WeakMap<HTMLElement, { update(): void }>();
+
 /** A window of build-tool tabs: choosing a tab picks its map tool; closing the window returns to Select. */
 export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowController {
   const byId = new Map(spec.tabs.map((tab) => [tab.id, tab]));
@@ -112,45 +114,13 @@ export function openToolWindow(ctx: UiContext, spec: ToolWindowSpec): WindowCont
         toggle.setAttribute('aria-pressed', 'false');
         pane.append(toggle);
       }
-      if (tab.scenery) {
-        const category = element('select', 'scenery-category');
-        category.setAttribute('aria-label', 'Scenery category');
-        const item = element('select', 'scenery-item');
-        item.setAttribute('aria-label', 'Scenery item');
-        const categories = [
-          [SceneryCategory.Trees, 'Trees'],
-          [SceneryCategory.Shrubs, 'Shrubs and ornaments'],
-          [SceneryCategory.Gardens, 'Gardens'],
-          [SceneryCategory.Fences, 'Fences and walls'],
-        ] as const;
-        for (const [value, label] of categories) category.append(new Option(label, value));
-        const updateItems = (): void => {
-          const definitions = SCENERY_CATALOG.map((definition, index) => ({
-            definition,
-            index,
-          })).filter(({ definition }) => definition.category === category.value);
-          item.replaceChildren(
-            ...definitions.map(
-              ({ definition, index }) =>
-                new Option(
-                  `${definition.name} · $${(definition.priceCents / 100).toFixed(2)}`,
-                  String(index),
-                ),
-            ),
-          );
-          ctx.actions.setSceneryItem(Number(item.value) as SceneryItem);
-        };
-        category.addEventListener('change', updateItems);
-        item.addEventListener('change', () =>
-          ctx.actions.setSceneryItem(Number(item.value) as SceneryItem),
-        );
-        updateItems();
-        const rotate = button('Rotate piece', () => ctx.actions.rotatePiece(), 'ui-button');
-        rotate.setAttribute('aria-label', 'Rotate scenery piece');
-        pane.append(category, item, rotate);
-      }
+      if (tab.scenery) pickersByWindow.set(win.root, buildSceneryPicker(ctx, pane));
     }
     if (spec.tabs.length === 1) select(spec.tabs[0]);
   }
-  return { update() {} };
+  return {
+    update() {
+      pickersByWindow.get(win.root)?.update();
+    },
+  };
 }

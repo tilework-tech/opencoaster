@@ -59,7 +59,9 @@ describe('art coverage inventory', () => {
       expect(available.has(key), key).toBe(true);
     for (const item of SCENERY_CATALOG) {
       for (const rotation of [0, 1, 2, 3]) {
-        const key = scenerySpriteName(item.sprite, rotation);
+        const key = item.native
+          ? `scenery/${item.sprite}/view-${rotation}`
+          : scenerySpriteName(item.sprite, rotation);
         expect(available.has(key), `${item.name}: ${key}`).toBe(true);
       }
     }

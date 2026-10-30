@@ -115,8 +115,8 @@ import {
   spriteViewName,
   terrainCliffSpriteName,
   scenerySpriteName,
+  placedSceneryKey,
   wallSpriteName,
-  shrubSpriteName,
   spriteAnchorWorldOffset,
   terrainSurfaceSpriteName,
   WATER_BANK,
@@ -2772,11 +2772,7 @@ export class WebGL2Renderer implements Renderer {
         spriteHeight,
         wall
           ? wallSpriteName(item.sprite, flags, map.slope[tile]!, camera.rotation)
-          : item.sprite === 'flower-bed'
-            ? flowerBedSpriteName(x, y, camera.rotation, map.slope[tile]!)
-            : item.sprite === 'shrub'
-              ? shrubSpriteName(x, y, camera.rotation)
-              : scenerySpriteName(item.sprite, camera.rotation),
+          : placedSceneryKey(item, x, y, flags, map.slope[tile]!, camera.rotation),
         depth,
       );
     }

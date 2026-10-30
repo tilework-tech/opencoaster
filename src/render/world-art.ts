@@ -3,6 +3,7 @@ import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import { rideFootprintTiles } from '../sim/rides/ride-footprint';
 import { RidePhase } from '../sim/rides/ride-store';
 import { PathFlag, PATH_ADDITION_BROKEN, SLOPE_DIR_SHIFT } from '../sim/map/tile-map';
+import type { SceneryDefinition } from '../sim/map/scenery';
 import type { MapData } from './renderer';
 import { Z_PIXELS, rotateDirection } from './projection';
 import type { Rotation } from './projection';
@@ -290,6 +291,25 @@ export function scenerySpriteName(name: string, rotation = 0): string {
   if (name === 'tree-palm' || name === 'tree-cactus')
     return `trees/${name}/view-${((rotation % 4) + 4) % 4}`;
   return name.startsWith('tree-') ? `trees/${name}` : `scenery/${name}`;
+}
+
+/**
+ * Atlas key of a placed non-wall scenery piece. `facing` is the stored placement rotation;
+ * directional models turn with it, the rest only follow the camera.
+ */
+export function placedSceneryKey(
+  definition: SceneryDefinition,
+  x: number,
+  y: number,
+  facing: number,
+  slopeMask: number,
+  rotation: number,
+): string {
+  if (definition.sprite === 'flower-bed') return flowerBedSpriteName(x, y, rotation, slopeMask);
+  if (definition.sprite === 'shrub') return shrubSpriteName(x, y, rotation);
+  if (definition.native)
+    return `scenery/${definition.sprite}/view-${(((definition.directional ? facing + rotation : rotation) % 4) + 4) % 4}`;
+  return scenerySpriteName(definition.sprite, rotation);
 }
 
 export function wallSpriteName(

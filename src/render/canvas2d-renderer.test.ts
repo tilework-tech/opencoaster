@@ -9,7 +9,7 @@ import type { CanvasAtlas } from './canvas-atlas';
 import { RideInfo, createSnapshot } from '../worker/snapshot';
 import { TILE_UNITS } from '../sim/core/constants';
 import { RideType } from '../sim/rides/ride-types';
-import { rideCellSpriteKey } from './world-art';
+import { placedSceneryKey, rideCellSpriteKey } from './world-art';
 import type { Snapshot } from '../worker/snapshot';
 import type { MapData } from './renderer';
 import { SpritePages } from './sprite-pages';
@@ -18,12 +18,7 @@ import { ScenerySpotPreview } from '../app/tools/scenery-preview';
 import { flowerbedPreviewGhost } from '../app/tools/flowerbed-preview';
 import { pathAdditionPreviewGhosts } from '../app/tools/path-addition-preview';
 import { FLOWER_BED } from '../sim/staff/grounds';
-import {
-  flowerBedSpriteName,
-  scenerySpriteName,
-  shrubSpriteName,
-  wallSpriteName,
-} from './world-art';
+import { flowerBedSpriteName, wallSpriteName } from './world-art';
 
 class RecordingContext {
   readonly canvas = { width: 1, height: 1 };
@@ -131,6 +126,9 @@ function installStubAtlas(names: string[], atlas: SpritePages): void {
       ],
       anchor: { x: 15, y: 20 },
       footprint: { width: 1, height: 1 },
+      ...(SCENERY_CATALOG.some((item) => item.native && name.startsWith(`scenery/${item.sprite}/`))
+        ? { native: true }
+        : {}),
     };
   atlas.install(
     {
@@ -470,17 +468,14 @@ describe('Canvas2D fallback map art', () => {
           const map = flatMap();
           map.heights.fill(2);
           map.slope[tile] = 0b0110;
-          map.sceneryElements = Int32Array.of(tileX, tileY, 0, 0, item);
+          const facing = isWallScenery(item as SceneryItem) ? 0 : (rotation + 1) % 4;
+          map.sceneryElements = Int32Array.of(tileX, tileY, 0, facing, item);
           map.sceneryCount = 1;
           const definition = SCENERY_CATALOG[item]!;
           const wall = isWallScenery(item as SceneryItem);
           const key = wall
             ? wallSpriteName(definition.sprite, 0, map.slope[tile]!, rotation)
-            : definition.sprite === 'flower-bed'
-              ? flowerBedSpriteName(tileX, tileY, rotation, map.slope[tile]!)
-              : definition.sprite === 'shrub'
-                ? shrubSpriteName(tileX, tileY, rotation)
-                : scenerySpriteName(definition.sprite, rotation);
+            : placedSceneryKey(definition, tileX, tileY, facing, map.slope[tile]!, rotation);
           const placed = await renderWithAtlas(map, [key], null, {
             x: 0,
             y: 0,
@@ -500,7 +495,7 @@ describe('Canvas2D fallback map art', () => {
             level: 2,
             slopeMask: map.slope[tile]!,
             item: item as SceneryItem,
-            rotation: wall ? 0 : (rotation + 1) % 4,
+            rotation: facing,
             viewRotation: rotation,
             clientX: 0,
             clientY: 0,
@@ -520,7 +515,9 @@ describe('Canvas2D fallback map art', () => {
             [ghost],
           );
           const { width: boxWidth, height: boxHeight } =
-            definition.sprite === 'flower-bed' || wall ? STUB_FRAME : sceneryBox(definition);
+            definition.sprite === 'flower-bed' || definition.native || wall
+              ? STUB_FRAME
+              : sceneryBox(definition);
           const placedRect = screenRect(placed, boxWidth, boxHeight);
           const ghostRect = screenRect(previewDraw, boxWidth, boxHeight);
           expect(placedRect, `placed ${key} rotation=${rotation} zoom=${zoom}`).toBeDefined();

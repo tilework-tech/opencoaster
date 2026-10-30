@@ -1,3 +1,4 @@
+import { SCENERY_CATALOG } from '../../src/sim/map/scenery';
 import { FLOWER_BED_LIFT_PX } from './models/flower-bed';
 import { describe, expect, it } from 'vitest';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
@@ -102,7 +103,10 @@ describe('generated sprite catalogue', () => {
         expect(frame.anchor.y, `${key} bush ground pivot`).toBeLessThanOrEqual(frame.height * 0.8);
       } else if (key.includes('/edge-')) {
         expect(frame.anchor.y, `${key} wall ground pivot`).toBeGreaterThan(frame.height * 0.3);
-      } else if (!key.startsWith('scenery/flower-bed/'))
+      } else if (
+        !key.startsWith('scenery/flower-bed/') &&
+        !SCENERY_CATALOG.some((item) => item.native && key.startsWith(`scenery/${item.sprite}/`))
+      )
         expect(frame.anchor.y, `${key} ground pivot`).toBeGreaterThan(frame.height * 0.6);
       if (!key.includes('/edge-'))
         expect(frame.anchor.y, `${key} ground pivot`).toBeLessThanOrEqual(frame.height);

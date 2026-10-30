@@ -365,8 +365,8 @@ async function exercisePane(page: Page, pane: Locator, mobile: boolean): Promise
       }
       await setSimulationPaused(page, mobile, true);
     } else if (item.label === 'Rotate scenery piece') {
-      await pane.getByLabel('Scenery category').selectOption({ label: 'Fences and walls' });
-      await pane.getByLabel('Scenery item').selectOption('6');
+      await pane.getByRole('button', { name: 'Fences and walls', exact: true }).click();
+      await pane.getByRole('button', { name: 'Wooden fence, $0.60', exact: true }).click();
       const target = await page.evaluate(() => {
         const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
         const rect = canvas.getBoundingClientRect();

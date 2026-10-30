@@ -42,9 +42,8 @@ import {
   queueRailSprites,
   pathAdditionSpriteName,
   litterSpriteName,
-  scenerySpriteName,
+  placedSceneryKey,
   wallSpriteName,
-  shrubSpriteName,
   rideSpriteFrame,
   rideSpriteKey,
   facilityFacingFromPaths,
@@ -1496,7 +1495,11 @@ export class Canvas2DRenderer implements Renderer {
       this.pathLow,
     );
     if (!this.isVisible(this.pathLow[0]!, this.pathLow[1]!, cam, 40)) return;
-    if (ghost.sprite.startsWith('scenery/flower-bed/') || ghost.sprite.includes('/edge-'))
+    if (
+      ghost.sprite.startsWith('scenery/flower-bed/') ||
+      ghost.sprite.includes('/edge-') ||
+      this.atlas.resolve(ghost.sprite.split('#')[0]!)?.native
+    )
       drawGhostSprite(
         ctx,
         this.atlas,
@@ -1635,14 +1638,10 @@ export class Canvas2DRenderer implements Renderer {
       if (!this.isVisible(this.tmp[0], this.tmp[1], cam, Math.max(box.width, box.height))) continue;
       const sprite = wall
         ? wallSpriteName(definition.sprite, flags, map.slope[tile]!, cam.rotation)
-        : definition.sprite === 'flower-bed'
-          ? flowerBedSpriteName(x, y, cam.rotation, map.slope[tile]!)
-          : definition.sprite === 'shrub'
-            ? shrubSpriteName(x, y, cam.rotation)
-            : scenerySpriteName(definition.sprite, cam.rotation);
+        : placedSceneryKey(definition, x, y, flags, map.slope[tile]!, cam.rotation);
       const drewSprite =
         this.atlas &&
-        (wall || definition.sprite === 'flower-bed'
+        (wall || definition.native || definition.sprite === 'flower-bed'
           ? drawAnchoredSprite(ctx, this.atlas, sprite, this.tmp[0]!, this.tmp[1]!)
           : drawBoxedSprite(
               ctx,

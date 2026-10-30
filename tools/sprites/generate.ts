@@ -39,6 +39,8 @@ import { parkEntranceMesh } from './models/park-entrance';
 import { STATION_CATEGORIES, stationHutMesh } from './models/stations';
 import { cactusTreeMesh, palmTreeMesh } from './models/trees';
 import { flowerBedMesh } from './models/flower-bed';
+import { SCENERY_MODELS } from './models/scenery';
+import { SCENERY_CATALOG } from '../../src/sim/map/scenery';
 import { shrubMesh } from './models/shrub';
 import { wallMesh } from './models/walls';
 import { LOG_FLUME_MODEL } from './models/log-flume';
@@ -399,6 +401,16 @@ function shrubSprites(): SpriteDef[] {
   ).flat();
 }
 
+function decorationSprites(): SpriteDef[] {
+  return SCENERY_CATALOG.filter((item) => item.native).flatMap((item) =>
+    Array.from({ length: 4 }, (_, view) => ({
+      key: `scenery/${item.sprite}/view-${view}`,
+      frames: [renderMesh(rotateMesh(physicalToLevels(SCENERY_MODELS[item.sprite]!()), view))],
+      footprint: ONE_TILE,
+    })),
+  );
+}
+
 function wallSprites(): SpriteDef[] {
   return (['hedge', 'wooden-fence', 'stone-fence', 'park-fence'] as const)
     .flatMap((wall) =>
@@ -617,6 +629,7 @@ export function buildSprites(): SpriteDef[] {
     ...treeSprites(),
     ...wallSprites(),
     ...shrubSprites(),
+    ...decorationSprites(),
     ...flowerBedSprites(),
     ...coasterSprites(),
     ...waterTrackSprites(),
