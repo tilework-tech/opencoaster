@@ -119,8 +119,35 @@ async function chooseStall(page: Page, type: RideType): Promise<void> {
   await page.locator(`.ride-card[data-ride-type="${type}"]`).click();
 }
 
+/** Lets two animation frames run so every canvas shows the current camera and tool. */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+
+/** Waits until the frame loop has caught up with the camera and cleared the placement overlay. */
+async function overlayCleared(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const canvas = document.querySelector<HTMLCanvasElement>('canvas.ride-placement-preview')!;
+        const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+        for (let i = 3; i < data.length; i += 4) if (data[i]) return false;
+        return true;
+      }),
+    )
+    .toBe(true);
+  await page.waitForTimeout(500);
+  await settle(page);
+}
+
 async function shot(page: Page, name: string): Promise<void> {
   if (!proofDir) return;
+  await settle(page);
   await mkdir(proofDir, { recursive: true });
   await page.screenshot({ path: `${proofDir}/${useCanvas2d ? 'canvas2d' : 'webgl2'}-${name}.png` });
 }
@@ -189,10 +216,28 @@ test.describe('stall storefronts', () => {
       (window as unknown as { __sim: { setSpeed(n: number): void } }).__sim.setSpeed(1),
     );
     await waitForStallArt(page);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await page.mouse.move(640, 20);
     for (let rotation = 0; rotation < 4; rotation++) {
       await centerCameraOn(page, world, { x: 31, y: 40 }, 2);
-      await page.waitForTimeout(400);
+      await overlayCleared(page);
       await shot(page, `built-rotation-${rotation}`);
+      if (proofDir)
+        for (const site of SITES) {
+          await centerCameraOn(page, world, site.tile, 4);
+          await overlayCleared(page);
+          const box = await page.locator('#game').boundingBox();
+          await page.screenshot({
+            path: `${proofDir}/${useCanvas2d ? 'canvas2d' : 'webgl2'}-stall-${site.dir}-rotation-${rotation}.png`,
+            clip: {
+              x: box!.x + box!.width / 2 - 170,
+              y: box!.y + box!.height / 2 - 170,
+              width: 340,
+              height: 280,
+            },
+          });
+        }
       await page.keyboard.press('z');
     }
 

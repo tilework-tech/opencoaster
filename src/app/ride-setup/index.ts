@@ -48,6 +48,8 @@ interface StallGhost {
   floor: number;
   /** `RideResult` for what the window finds in front; `Ok` when guests could buy there. */
   problem: number;
+  /** Whether the stall itself may be built on the tile. */
+  buildable: boolean;
 }
 
 interface PendingRideCreation {
@@ -81,6 +83,8 @@ export function createRideSetup(deps: RideSetupDependencies) {
   let pendingRideCreation: PendingRideCreation | null = null;
   /** Front tile of the stall just built, highlighted until the player moves on. */
   let builtStallFront: [number, number] | null = null;
+  /** Tile of the stall just built; hovering it keeps showing what was built rather than a new preview. */
+  let builtStallTile: string | null = null;
   /** The stall preview under the cursor this frame: where its window looks and what it finds there. */
   let stallGhost: StallGhost | null = null;
   /** Whether `stallGhost` was measured for the frame being drawn. */
@@ -145,6 +149,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
     placementDir = 0;
     placementDirChosen = false;
     builtStallFront = null;
+    builtStallTile = null;
     placementTowerHeight = DEFAULT_TOWER_HEIGHT;
     gameUi.selectTool('ride');
     const def = RIDE_CATALOG[type as keyof typeof RIDE_CATALOG];
@@ -205,6 +210,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
       facing,
       floor,
       problem: stallFrontProblemInMap(map, x, y, facing, floor, buildable),
+      buildable: ridePlacementValid(coasterPanel.rideType, x, y, 0, map, snapshot),
     };
   }
 
@@ -354,6 +360,7 @@ export function createRideSetup(deps: RideSetupDependencies) {
             const [fx, fy] = stallFrontTile(x, y, snapshot.rideInfo[offset + RideInfo.Dir]);
             const problem = snapshot.rideInfo[offset + RideInfo.StallFront];
             builtStallFront = [fx, fy];
+            builtStallTile = `${x},${y}`;
             rideSetupNotice =
               problem === RideResult.Ok
                 ? `${def.name} is open, serving from the footpath at ${fx}, ${fy}.`
@@ -469,13 +476,28 @@ export function createRideSetup(deps: RideSetupDependencies) {
       rotateButton.setAttribute('aria-label', rotateLabel);
       rotateButton.textContent = placingStall ? 'Rotate stall' : 'Rotate ride';
     }
-    const ghost =
+    let ghost =
       deps.selectedTool() === 'ride' && !ridePlacement && stallGhostFresh ? stallGhost : null;
+    if (ghost && builtStallTile !== null) {
+      if (builtStallTile === `${ghost.x},${ghost.y}`) ghost = null;
+      else builtStallTile = null;
+    }
     stallGhostFresh = false;
-    if (deps.selectedTool() !== 'ride') builtStallFront = null;
+    if (deps.selectedTool() !== 'ride') {
+      builtStallFront = null;
+      builtStallTile = null;
+    }
     let stallFrontShown = false;
     if (snapshot && map && ghost) {
-      drawStallFront(context, map, ghost.x, ghost.y, ghost.facing, ghost.floor, ghost.problem);
+      drawStallFront(
+        context,
+        map,
+        ghost.x,
+        ghost.y,
+        ghost.facing,
+        ghost.floor,
+        ghost.buildable ? ghost.problem : RideResult.Blocked,
+      );
       stallFrontShown = true;
       announceStallGhost(ghost);
     } else if (snapshot && map && builtStallFront && deps.selectedTool() === 'ride') {
@@ -827,53 +849,59 @@ export function createRideSetup(deps: RideSetupDependencies) {
     }
     const ex = x + 0.5 + DIR_DX[dir]! * 0.5;
     const ey = y + 0.5 + DIR_DY[dir]! * 0.5;
-    const sx = DIR_DY[dir]! * 0.5;
-    const sy = -DIR_DX[dir]! * 0.5;
+    const sx = DIR_DY[dir]! * 0.42;
+    const sy = -DIR_DX[dir]! * 0.42;
     const [e0x, e0y] = screen(ex - sx, ey - sy, floor);
     const [e1x, e1y] = screen(ex + sx, ey + sy, floor);
-    const [cx, cy] = screen(x + 0.5, y + 0.5, floor);
-    const [tx, ty] = screen(x + 0.5 + DIR_DX[dir]! * 0.95, y + 0.5 + DIR_DY[dir]! * 0.95, floor);
+    const [mx, my] = screen(ex, ey, floor);
+    const [tx, ty] = screen(x + 0.5 + DIR_DX[dir]! * 1.05, y + 0.5 + DIR_DY[dir]! * 1.05, floor);
+    const colour = ok ? 'rgb(120, 255, 150)' : 'rgb(255, 110, 95)';
+    const angle = Math.atan2(ty - my, tx - mx);
+    const head = 10;
+    const stroke = (lineWidth: number, style: string) => {
+      context.strokeStyle = style;
+      context.lineWidth = lineWidth;
+      context.beginPath();
+      context.moveTo(e0x, e0y);
+      context.lineTo(e1x, e1y);
+      context.moveTo(mx, my);
+      context.lineTo(tx - Math.cos(angle) * head * 0.6, ty - Math.sin(angle) * head * 0.6);
+      context.stroke();
+    };
     context.lineCap = 'round';
-    context.strokeStyle = 'rgba(20, 20, 20, .85)';
-    context.lineWidth = 7;
+    stroke(8, 'rgba(20, 20, 20, .85)');
+    stroke(4, colour);
     context.beginPath();
-    context.moveTo(e0x, e0y);
-    context.lineTo(e1x, e1y);
-    context.moveTo(cx, cy);
-    context.lineTo(tx, ty);
-    context.stroke();
-    context.strokeStyle = ok ? 'rgb(120, 255, 150)' : 'rgb(255, 110, 95)';
-    context.lineWidth = 4;
-    context.beginPath();
-    context.moveTo(e0x, e0y);
-    context.lineTo(e1x, e1y);
-    context.moveTo(cx, cy);
-    context.lineTo(tx, ty);
-    context.stroke();
-    const angle = Math.atan2(ty - cy, tx - cx);
-    const head = 9;
-    context.fillStyle = ok ? 'rgb(120, 255, 150)' : 'rgb(255, 110, 95)';
-    context.beginPath();
-    context.moveTo(tx + Math.cos(angle) * 3, ty + Math.sin(angle) * 3);
-    context.lineTo(tx - Math.cos(angle - 0.5) * head, ty - Math.sin(angle - 0.5) * head);
-    context.lineTo(tx - Math.cos(angle + 0.5) * head, ty - Math.sin(angle + 0.5) * head);
+    context.moveTo(tx + Math.cos(angle) * 2, ty + Math.sin(angle) * 2);
+    context.lineTo(tx - Math.cos(angle - 0.55) * head, ty - Math.sin(angle - 0.55) * head);
+    context.lineTo(tx - Math.cos(angle + 0.55) * head, ty - Math.sin(angle + 0.55) * head);
     context.closePath();
+    context.fillStyle = colour;
+    context.strokeStyle = 'rgba(20, 20, 20, .85)';
+    context.lineWidth = 2;
+    context.stroke();
     context.fill();
     context.lineCap = 'butt';
   }
 
   /** Describes the hovered stall preview in the tool status when it changes. */
   function announceStallGhost(ghost: StallGhost): void {
-    const signature = `${ghost.x},${ghost.y},${ghost.facing},${ghost.problem},${camera.rotation}`;
+    const signature = `${ghost.x},${ghost.y},${ghost.facing},${ghost.problem},${ghost.buildable},${camera.rotation}`;
     if (signature === stallGhostSignature) return;
     stallGhostSignature = signature;
     const def = RIDE_CATALOG[coasterPanel.rideType];
     const [fx, fy] = stallFrontTile(ghost.x, ghost.y, ghost.facing);
     const facing = `${def.name} at ${ghost.x}, ${ghost.y}: window faces ${screenDirectionName(ghost.facing)}`;
     gameUi.setToolStatus(
-      ghost.problem === RideResult.Ok
-        ? `${facing} onto the footpath at ${fx}, ${fy}. T rotates.`
-        : `${facing}. ${feedbackMessage(FeedbackDomain.Ride, ghost.problem).text}`,
+      !ghost.buildable
+        ? `${def.name} cannot be built at ${ghost.x}, ${ghost.y}: ${
+            (sim.latest?.park.cash ?? 0) < def.cost
+              ? 'not enough cash'
+              : 'it needs clear, dry land you own'
+          }.`
+        : ghost.problem === RideResult.Ok
+          ? `${facing} onto the footpath at ${fx}, ${fy}. T rotates.`
+          : `${facing}. ${feedbackMessage(FeedbackDomain.Ride, ghost.problem).text}`,
     );
   }
   return {
