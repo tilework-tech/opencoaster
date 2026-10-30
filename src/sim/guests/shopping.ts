@@ -113,20 +113,21 @@ export function passesSouvenirRoll(
 }
 
 /**
- * Index of the first of the stall's items the guest wants right now, or -1. The filter narrows
- * the search to what drew the guest to the stall.
+ * Index of the first of the stall's items the guest wants right now, or -1. `kind` and `only`
+ * narrow the search to what drew the guest to the stall.
  */
 export function wantedItemIndex(
   world: World,
   slot: number,
   ride: number,
-  filter: { kind?: 'food' | 'drink' | 'souvenir'; item?: ShopItem } = {},
+  kind?: 'food' | 'drink' | 'souvenir',
+  only: ShopItem = ShopItem.None,
 ): number {
   const items = stallItems(world, ride);
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
-    if (filter.item !== undefined && item !== filter.item) continue;
-    if (filter.kind !== undefined && shopItemDef(item).kind !== filter.kind) continue;
+    if (only !== ShopItem.None && item !== only) continue;
+    if (kind !== undefined && shopItemDef(item).kind !== kind) continue;
     if (!itemAllowed(world, slot, item)) continue;
     return index;
   }
@@ -136,11 +137,11 @@ export function wantedItemIndex(
 /** The item a guest at the stall buys: a lost guest's map, a wet guest's umbrella, else the first they want; -1 for none. */
 export function chooseStallItem(world: World, slot: number, ride: number): number {
   if (isLostWithoutMap(world, slot)) {
-    const map = wantedItemIndex(world, slot, ride, { item: ShopItem.Map });
+    const map = wantedItemIndex(world, slot, ride, undefined, ShopItem.Map);
     if (map >= 0) return map;
   }
   if (raining(world)) {
-    const umbrella = wantedItemIndex(world, slot, ride, { item: ShopItem.Umbrella });
+    const umbrella = wantedItemIndex(world, slot, ride, undefined, ShopItem.Umbrella);
     if (umbrella >= 0) return umbrella;
   }
   return wantedItemIndex(world, slot, ride);

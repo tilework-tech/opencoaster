@@ -431,12 +431,17 @@ function nearestStall(
     let index = 0;
     if (typeof want === 'number') {
       if (type !== want) continue;
-      if (def.items) index = wantedItemIndex(world, slot, ride, { item });
+      if (def.items) index = wantedItemIndex(world, slot, ride, undefined, item);
     } else {
       if (!def.items) continue;
-      index = wantedItemIndex(world, slot, ride, { kind: want, item });
+      index = wantedItemIndex(world, slot, ride, want, item);
     }
     if (index < 0) continue;
+    if (
+      want === 'souvenir' &&
+      !passesSouvenirRoll(world, slot, def.items![index], souvenirRoll(world, slot, ride))
+    )
+      continue;
     const fare = guestPriceCents(
       world,
       slot,
@@ -1182,7 +1187,7 @@ function updateGuest(world: World, slot: number, nav: NavOptions): boolean {
         guestNode(world, slot, world.map.index(guestX, guestY)) !== stallServiceNode(world, ride)
       )
         continue;
-      const index = wantedItemIndex(world, slot, ride, { item: ShopItem.Umbrella });
+      const index = wantedItemIndex(world, slot, ride, undefined, ShopItem.Umbrella);
       if (index < 0) continue;
       const price = itemPriceCents(world, ride, index);
       if (price <= g.cash[slot]) {

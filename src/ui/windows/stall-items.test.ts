@@ -56,6 +56,27 @@ describe('stallItemRows', () => {
     expect(rows[1].valueCents).toBe(350);
   });
 
+  it('reports a loss when an item sells below its stock cost', () => {
+    // umbrellas cost $2.00 to stock: 2 sold at $1.50 take $3.00 against $4.00 of stock
+    const rows = stallItemRows(
+      RideType.InformationKiosk,
+      info({ [RideInfo.Price2]: 150, [RideInfo.ItemSold1]: 2, [RideInfo.ItemRevenue1]: 300 }),
+      0,
+      16,
+    );
+    expect(rows[1].profitCents).toBe(-100);
+  });
+
+  it.each([
+    [RideType.BalloonStall, 'Balloon'],
+    [RideType.HatStall, 'Hat'],
+    [RideType.SouvenirStall, 'T-Shirt'],
+    [RideType.PizzaStall, 'Pizza'],
+  ])('lists the %i stall as a single %s row', (type, name) => {
+    const rows = stallItemRows(type, info({}), 0, 16);
+    expect(rows.map((row) => row.name)).toEqual([name]);
+  });
+
   it('shows what guests think the item is worth at the current temperature', () => {
     const drink = info({ [RideInfo.Price]: 120 });
     expect(stallItemRows(RideType.DrinkStall, drink, 0, 25)[0].valueCents).toBe(200);

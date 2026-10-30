@@ -65,7 +65,9 @@ The checks follow `GuestDecideAndBuyItem`, in this order. Any failure means no s
 7. **Cash.** The price must not exceed the guest's cash.
 8. **Value.** With `value` the hot, mild or cold value for today's temperature: if the price is above the value, the excess (in tenths of a dollar) is halved for happiness 128 or more and halved again for 180 or more, and the guest refuses when it exceeds a draw of 0 to 7. An umbrella in the rain skips this check, as does a map for a lost guest.
 
-A sale at or below value lifts happiness and its target by four per tenth of a dollar saved, counting at least eight tenths: `4 * max(8, floor((value - price) / 10))`, so 32 at least. A voucher skips checks 6 to 8 and the happiness lift.
+A sale at or below value lifts happiness and its target by four per tenth of a dollar saved, counting at least eight tenths: `4 * max(8, floor((value - price) / 10))`, so 32 at least. A voucher skips checks 6 to 8 and the happiness lift. The flat happiness bump every shop sale used to give is gone for items: only a sale at or below value lifts the mood, as in the source. Toilets keep it.
+
+A guest also checks the souvenir mood roll when choosing a souvenir stall, so a guest who would be refused on arrival does not walk there.
 
 Guests choose a stall to walk to in this order: toilets, an umbrella from a kiosk in the rain, food or drink at the hunger or thirst threshold, a souvenir stall, then a ride. A guest with three rides behind them considers a souvenir stall at about one in 64 steps (an OpenCoaster choice; RCT2 guests decide as they pass an entrance). Only lost guests buy maps.
 

@@ -462,24 +462,32 @@ describe('save', () => {
     expect(loaded.rides.cols.price[stall]).toBe(120);
     expect(loaded.rides.cols.price2[stall]).toBe(0);
     expect(loaded.rides.cols.itemSold0[kiosk]).toBe(0);
+    expect(loaded.rides.cols.itemSold1[kiosk]).toBe(0);
+    expect(loaded.rides.cols.itemRevenue0[stall]).toBe(0);
   });
 
   it('round-trips guest souvenirs and per-item sales', () => {
     const w = flatWorld(16);
     layPath(w, row(5, 2, 8));
-    const stall = openRide(w, RideType.BalloonStall, [5, 4], [5, 5], [6, 4]);
+    const stall = openRide(w, RideType.InformationKiosk, [5, 4], [5, 5], [6, 4]);
     const slot = guestAt(w, 3, 5);
     w.guests.cols.souvenirs[slot] = 3;
     w.guests.cols.container[slot] = 2;
+    w.rides.cols.price2[stall] = 275;
     w.rides.cols.itemSold0[stall] = 7;
-    w.rides.cols.itemRevenue0[stall] = 630;
+    w.rides.cols.itemRevenue0[stall] = 420;
+    w.rides.cols.itemSold1[stall] = 3;
+    w.rides.cols.itemRevenue1[stall] = 825;
 
     const loaded = deserialize(serialize(w));
 
     expect(loaded.guests.cols.souvenirs[slot]).toBe(3);
     expect(loaded.guests.cols.container[slot]).toBe(2);
+    expect(loaded.rides.cols.price2[stall]).toBe(275);
     expect(loaded.rides.cols.itemSold0[stall]).toBe(7);
-    expect(loaded.rides.cols.itemRevenue0[stall]).toBe(630);
+    expect(loaded.rides.cols.itemRevenue0[stall]).toBe(420);
+    expect(loaded.rides.cols.itemSold1[stall]).toBe(3);
+    expect(loaded.rides.cols.itemRevenue1[stall]).toBe(825);
   });
 
   it('round-trips the selected path style and defaults older saves to tarmac', () => {

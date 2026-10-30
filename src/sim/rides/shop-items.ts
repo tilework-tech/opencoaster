@@ -171,8 +171,7 @@ export interface ConsumptionRelief {
   toilet: number;
 }
 
-/** Total change to hunger, thirst and toilet needs from finishing the item, before capping at 0..255. */
-export function consumptionRelief(id: ShopItem): ConsumptionRelief {
+function reliefFor(id: ShopItem): ConsumptionRelief {
   const def = shopItemDef(id);
   const steps = Math.ceil(def.consumeTicks / CONSUME_STEP_TICKS);
   if (def.kind === 'food') {
@@ -184,4 +183,13 @@ export function consumptionRelief(id: ShopItem): ConsumptionRelief {
   }
   if (def.kind === 'drink') return { hunger: 0, thirst: steps * DRINK_THIRST_PER_STEP, toilet: 0 };
   return { hunger: 0, thirst: 0, toilet: 0 };
+}
+
+const RELIEF: Readonly<Record<ShopItem, ConsumptionRelief>> = Object.fromEntries(
+  (Object.values(SHOP_ITEMS) as ShopItemDef[]).map((def) => [def.id, reliefFor(def.id)]),
+) as Record<ShopItem, ConsumptionRelief>;
+
+/** Total change to hunger, thirst and toilet needs from finishing the item, before capping at 0..255. */
+export function consumptionRelief(id: ShopItem): ConsumptionRelief {
+  return RELIEF[id];
 }
