@@ -5,7 +5,7 @@ These research specs describe player-visible mechanics and proposed implementati
 ## Specs
 
 - [Guests](guests.md) — guest needs, decisions, pathfinding, park entry and exit, and guest state.
-- [Rides](rides.md) — ride operations, capacity, ratings, pricing, queues, reliability, and breakdowns.
+- [Rides](rides.md) — ride operations, capacity, ratings, pricing, queues, reliability, breakdowns, and stall storefronts.
 - [Track](track.md) — track construction, train motion, ride testing, ratings, and operating behavior.
 - [World](world.md) — staff, litter, weather, land, paths, scenery, and park upkeep.
 - [Staff](staff.md) — staff energy and speed, handyman, mechanic, security and entertainer behaviour, guest litter, vomit and vandalism thoughts, and the staff window statistics.

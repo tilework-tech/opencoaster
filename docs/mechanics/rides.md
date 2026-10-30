@@ -310,3 +310,27 @@ Implemented behaviour (see `src/sim/rides/observation-tower.ts`):
 | Cycle at 1x (40 ticks/s) | Loading + 2 × travel + dwell + Unloading; 8 levels: 673 ticks (16.8 s); 11 levels: 907 ticks (22.7 s) | derived |
 
 Before this change a tower ran a fixed 400-tick Running phase regardless of height inside an 80 + 400 + 80 tick cycle (14 s), and its art looped an eight-pose cabin animation every 64 ticks, so the cabin bobbed about six times per trip.
+
+## Shops and stalls: storefront
+
+Reference facts (public sources, restated in our own words; confidence in parentheses):
+
+- A stall serves guests from one side only and must be built with that side toward a footpath; the game marks the buying side with an arrow during placement (high). [OpenRCT2 forum, "How do I play"](https://forums.openrct2.org/topic/1668-hi-how-do-i-play/); [Toilets wiki](https://rct.fandom.com/wiki/Toilets) (toilets are front-only in RCT2).
+- The Information Kiosk is the exception in RCT2: guests can use it from every side (single source). [Information Kiosk wiki](https://rct.fandom.com/wiki/Information_Kiosk)
+- OpenRCT2 turns a stall being placed to face an adjacent footpath automatically; once the player rotates it manually, the manual facing is kept (high). [OpenRCT2 PR #7411](https://github.com/OpenRCT2/OpenRCT2/pull/7411) and the OpenRCT2 changelog entry for it.
+- The footpath must meet the stall at the stall's own height; a stall and a path at mismatched heights do not connect (multiple sources). [OpenRCT2 issue #17566](https://github.com/OpenRCT2/OpenRCT2/issues/17566); [forum, changing a shop's height](https://forums.openrct2.org/topic/5178-shop-stallride-construction-question-changing-height/)
+- A sloped path can serve a stall when its end meets the stall floor (single source). [OpenRCT2 PR #11758](https://github.com/OpenRCT2/OpenRCT2/pull/11758)
+- No public source found on whether a newly built stall starts open; the searched OpenRCT2 docs and forums do not say ([Shops & Stalls docs](https://docs.openrct2.io/en/latest/playing/shops_and_stalls/index.html)).
+
+Implemented behaviour (see `src/sim/rides/stall-front.ts`):
+
+| Rule | OpenCoaster | Basis |
+|---|---|---|
+| Facing | Stored per stall (`dir`), chosen before building, kept until the player turns it | sources above |
+| Automatic facing | Current facing if it serves, else first serving side in +x, +y, -x, -y order, until the player rotates | OpenRCT2 #7411 |
+| Serving piece | Path piece on the front tile whose edge toward the stall is level with the stall floor: flat at floor level, or a ramp whose low or high end meets it | #17566, #11758 |
+| Refused fronts | Queue line, ride exit, ramp running across the front, wrong height, unowned land, map edge, no path — each reported with its own reason | tuning (reasons are OpenCoaster wording) |
+| Open state | Opens when built; losing access never closes it, guests just ignore it; a player's close is respected | OpenCoaster tuning: keeps the existing auto-open after placement and lets a path built later serve without reopening |
+| Shared path tile | Two stalls may face the same path tile | inferred; RCT2 places no object on the front tile |
+
+Known difference: the Information Kiosk is front-only in OpenCoaster, although RCT2 serves it from all sides. This is deliberate for now, so that side access cannot hide a wrong facing.
