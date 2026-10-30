@@ -1,0 +1,14 @@
+{"baseUrl":"http://127.0.0.1:4174/","renderer":"webgl2","extra":false,"frames":40,"meanWorkMs":3.0002499999012797,"p95WorkMs":4.935000000521541,"meanGapMs":196.87549999998882,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"webgl2","extra":false,"frames":41,"meanWorkMs":3.0524390243538995,"p95WorkMs":4.429999999701977,"meanGapMs":202.0328048780197,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4174/","renderer":"canvas2d","extra":false,"frames":93,"meanWorkMs":64.0903225808094,"p95WorkMs":98.00999999977648,"meanGapMs":87.4966666666811,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"canvas2d","extra":false,"frames":92,"meanWorkMs":64.09217391300784,"p95WorkMs":103.49000000022352,"meanGapMs":87.66864130435431,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4174/","renderer":"webgl2","extra":false,"frames":45,"meanWorkMs":3.4786666666054065,"p95WorkMs":5.939999999478459,"meanGapMs":177.76088888889385,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"webgl2","extra":false,"frames":41,"meanWorkMs":3.2268292683562856,"p95WorkMs":4.894999999552965,"meanGapMs":195.27329268292866,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4174/","renderer":"canvas2d","extra":false,"frames":92,"meanWorkMs":65.23483695646586,"p95WorkMs":93.91500000096858,"meanGapMs":87.82668478260545,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"canvas2d","extra":false,"frames":95,"meanWorkMs":63.33005263166208,"p95WorkMs":87.36500000022352,"meanGapMs":85.38089473682798,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4174/","renderer":"webgl2","extra":false,"frames":46,"meanWorkMs":3.457826086886875,"p95WorkMs":6.0400000009685755,"meanGapMs":178.46380434784552,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"webgl2","extra":false,"frames":44,"meanWorkMs":3.594431818166578,"p95WorkMs":5.519999999552965,"meanGapMs":181.61068181820553,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4174/","renderer":"canvas2d","extra":false,"frames":95,"meanWorkMs":63.931526315722024,"p95WorkMs":98.625,"meanGapMs":85.66684210525924,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"canvas2d","extra":false,"frames":91,"meanWorkMs":65.46324175821393,"p95WorkMs":100.83999999985099,"meanGapMs":87.86131868130722,"scenery":1609,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"webgl2","extra":true,"frames":32,"meanWorkMs":3.7814062498509884,"p95WorkMs":5.314999999478459,"meanGapMs":247.35031250002794,"scenery":2037,"visible":0}
+{"baseUrl":"http://127.0.0.1:4173/","renderer":"canvas2d","extra":true,"frames":90,"meanWorkMs":67.39777777766189,"p95WorkMs":107.4550000000745,"meanGapMs":89.62722222221394,"scenery":2037,"visible":0}
