@@ -1,6 +1,6 @@
 import { test } from './support/test';
-import { docsScreenshot } from './support/docs-screenshot';
 import type { Locator, Page } from './support/test';
+import { docsScreenshot } from './support/docs-screenshot';
 import { ElementType, PathFlag } from '../src/sim/map/tile-map';
 import type { TileMap } from '../src/sim/map/tile-map';
 import {

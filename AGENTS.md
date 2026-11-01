@@ -35,7 +35,7 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
 - `predev` and `prebuild` run `tools/art/prepare.ts` and `tools/art/pack-cli.ts`. The smoke and e2e Playwright servers use `pnpm dev`; CI and GitHub Pages use `pnpm build`, so these paths prepare sprites automatically. `pnpm smoke:subpath` also builds before serving the generated output.
 - Vite excludes `public/sprites/**` from its dev watcher because generation writes many files. The files remain available to the server and production build.
 - See [tools/art/README.md](tools/art/README.md) for the art pipeline and regeneration details.
-- Runtime sprites, atlases and manifests exist only in ignored paths; the only committed generated files are the review sheets and coverage tables under `docs/art/`. PR proof captures go to the PR or the `nori/pr-proofs` branch, not `main`. E2e specs save screenshots with `docsScreenshot` ([e2e/support/docs-screenshot.ts](e2e/support/docs-screenshot.ts)): test output by default, committed docs images with `UPDATE_SCREENSHOTS=1`. See "Where files go" in CONTRIBUTING.md.
+- Runtime sprites, atlases and manifests exist only in ignored paths. The committed generated files are the scenario previews in `public/scenario-previews/` (rewritten by `predev`/`prebuild` only when they change) and the documentation images and coverage tables listed in CONTRIBUTING.md. PR proof captures go to the PR or the `nori/pr-proofs` branch, not `main`. E2e specs save screenshots with `docsScreenshot` ([e2e/support/docs-screenshot.ts](e2e/support/docs-screenshot.ts)): test output by default, committed docs images with `UPDATE_SCREENSHOTS=1`. See "Where files go" in CONTRIBUTING.md.
 
 ## Conventions
 
