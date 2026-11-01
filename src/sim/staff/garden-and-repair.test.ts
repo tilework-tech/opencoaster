@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../core/simulation';
+import { TILE_UNITS } from '../core/constants';
 import { Surface } from '../map/tile-map';
 import { placePath, setPathAddition, PathAddition } from '../map/paths';
 import { RidePhase, RideState } from '../rides/ride-store';
@@ -173,6 +174,66 @@ describe('mechanic response', () => {
 
     expect(w.rides.cols.state[w.rides.idToSlot[brokenId]]).toBe(RideState.Open);
     expect(w.rides.cols.lastInspectionTick[w.rides.idToSlot[dueId]]).toBe(0);
+  });
+
+  it('sends a second mechanic to a second breakdown instead of the one already answered', () => {
+    const w = flatWorld(40, 5);
+    layPath(w, row(7, 2, 37));
+    const nearId = createRide(w, RideType.MerryGoRound, 6, 8);
+    const farId = createRide(w, RideType.MerryGoRound, 32, 8);
+    for (const id of [nearId, farId]) {
+      const slot = w.rides.idToSlot[id];
+      w.rides.cols.state[slot] = RideState.Open;
+      w.rides.cols.phase[slot] = RidePhase.Waiting;
+      w.rides.cols.queueConnected[slot] = 1;
+      triggerRideBreakdown(w, id);
+    }
+    for (let i = 0; i < 2; i++) {
+      spawnStaff(w, StaffKind.Mechanic);
+      w.staff.cols.x[i] = (15 + i) * TILE_UNITS + TILE_UNITS / 2;
+      w.staff.cols.y[i] = 7 * TILE_UNITS + TILE_UNITS / 2;
+    }
+    const near = w.rides.idToSlot[nearId];
+    const far = w.rides.idToSlot[farId];
+    let nearFixedAt = -1;
+    let farFixedAt = -1;
+
+    for (let i = 0; i < 8000 && farFixedAt < 0; i++) {
+      w.tick++;
+      staffSystem.update(w);
+      if (nearFixedAt < 0 && w.rides.cols.state[near] === RideState.Open) nearFixedAt = w.tick;
+      if (w.rides.cols.state[far] === RideState.Open) farFixedAt = w.tick;
+    }
+
+    // The 26 tiles from the near ride to the far one take about three times the 9-tile walk to
+    // the near ride, so a mechanic who set out only after the near repair would finish far later.
+    expect(nearFixedAt).toBeGreaterThan(0);
+    expect(farFixedAt).toBeGreaterThan(0);
+    expect(farFixedAt - nearFixedAt).toBeLessThan(nearFixedAt);
+  });
+
+  it('joins the park network rather than a cut-off path when placed off the paths', () => {
+    const w = flatWorld(30, 6);
+    layPath(w, row(7, 2, 20));
+    w.park.entranceX = 2;
+    w.park.entranceY = 7;
+    layPath(w, [...row(20, 22, 27), ...row(21, 22, 27)]);
+    const rideId = createRide(w, RideType.MerryGoRound, 6, 8);
+    const slot = w.rides.idToSlot[rideId];
+    w.rides.cols.state[slot] = RideState.Open;
+    w.rides.cols.phase[slot] = RidePhase.Waiting;
+    w.rides.cols.queueConnected[slot] = 1;
+    triggerRideBreakdown(w, rideId);
+    spawnStaff(w, StaffKind.Mechanic);
+    w.staff.cols.x[0] = 24 * TILE_UNITS + TILE_UNITS / 2;
+    w.staff.cols.y[0] = 18 * TILE_UNITS + TILE_UNITS / 2;
+
+    for (let i = 0; i < 6000 && w.rides.cols.state[slot] !== RideState.Open; i++) {
+      w.tick++;
+      staffSystem.update(w);
+    }
+
+    expect(w.rides.cols.state[slot]).toBe(RideState.Open);
   });
 
   it('leaves a broken ride for later when repair orders are disabled', () => {

@@ -4,6 +4,7 @@ import { hashWorld } from '../core/hash';
 import { LedgerCategory } from '../economy/ledger';
 import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
+import { TILE_UNITS } from '../core/constants';
 import { FLOWER_BED, FLOWER_BED_COST_CENTS, GROUNDS_GROW_INTERVAL } from './grounds';
 import {
   MAX_STAFF_NAME_LENGTH,
@@ -140,6 +141,35 @@ describe('security guards', () => {
 
     expect(w.staff.cols.x[0] !== startX || w.staff.cols.y[0] !== startY).toBe(true);
   });
+});
+
+/** Long enough for a wandering handyman to have picked a queue tile as a destination. */
+const WANDER_WARM_UP_TICKS = 6000;
+
+describe('handymen wandering beside queues', () => {
+  it.each([1, 2, 3, 4, 5, 6])(
+    'keep walking instead of freezing on a queue line they cannot enter (seed %i)',
+    (seed) => {
+      const sim = grassSim(seed, 24);
+      const map = sim.world.map;
+      for (let x = 2; x <= 21; x++) placePath(map, { x, y: 12, z: 2 });
+      for (let y = 2; y <= 10; y++)
+        for (let x = 2; x <= 21; x++) placePath(map, { x, y, z: 2, queue: true });
+      hire(sim, StaffKind.Handyman);
+      const w = sim.world;
+      for (let tick = 0; tick < WANDER_WARM_UP_TICKS; tick++) sim.step();
+
+      const visited = new Set<number>();
+      for (let tick = 0; tick < 2000; tick++) {
+        sim.step();
+        visited.add(
+          map.index((w.staff.cols.x[0] / TILE_UNITS) | 0, (w.staff.cols.y[0] / TILE_UNITS) | 0),
+        );
+      }
+
+      expect(visited.size).toBeGreaterThan(3);
+    },
+  );
 });
 
 describe('patrol masks', () => {
