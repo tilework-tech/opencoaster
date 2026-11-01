@@ -98,6 +98,7 @@ for (const park of PARKS) {
     test.setTimeout(600_000);
     mkdirSync(proofDir!, { recursive: true });
     await useRenderer(page);
+    if (process.env.SMALL === '1') await page.setViewportSize({ width: 960, height: 640 });
     const idle = spriteIdleTracker(page);
 
     await page.goto('/');
