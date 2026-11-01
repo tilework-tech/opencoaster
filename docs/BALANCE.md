@@ -391,6 +391,31 @@ Flat rides now occupy their real footprints (Merry-Go-Round 3x3, Ship 1x5, Ferri
 
 Scenario sweep after the retune (`pnpm balance -- --scenario all --seeds 12`): the table above. Bramblewood Hollow 11/12 (one miss), Riverside Fairground 12/12 (was 5/12, the wider apron now fits 31 rides), Thunderhead Mesa 7/12 and Glacier Point 6/12 stay inside the Expert band.
 
+### Hard park remixes
+
+The Challenging and Expert parks were rebuilt on irregular, rough ground ([scenario-remixes.md](scenario-remixes.md)), and Mossgrove Isle was added. The old scripts assume a long flat apron and cannot fit rides on the new ground: run unchanged on the remixed maps, the Copper Ridge and Glacier Point scripts stop because no coaster closes, and Thunderhead Mesa, Tidewater Docks and Mossgrove Isle each build only 5 to 6 items and win 0/12. The hard parks are now played by **site plans** ([bench/strategy/site-plan.ts](../bench/strategy/site-plan.ts), plans in [bench/strategy/plans](../bench/strategy/plans)): fixed placements chosen for each map, built in order when affordable through ordinary commands, so ownership, terrain and park rules all apply. They lay trails with ramps and bridges, buy only the land a step needs, clear only the tiles track needs, plant scenery round coaster stations (Copper Ridge and Glacier Point), and give handymen patrol areas because the parks are long.
+
+The harness now prepares parks with `prepareScenarioPark`, the same path as a new game, so ambient trees are present. Ambient trees matter for coasters because scenery near a station adds up to 2.35 excitement.
+
+Before is `main` before the remix (12 seeds, old flat-apron scripts, old maps). After is this branch's full sweep (`pnpm balance -- --scenario all --seeds 12 --jobs 3`).
+
+| Park                 | Objective now                                                   | Before                         | After | After, range over seeds                                                           |
+| -------------------- | --------------------------------------------------------------- | ------------------------------ | ----- | --------------------------------------------------------------------------------- |
+| Copper Ridge         | 5 coasters ≥ 4.60 by end of year 2 (was year 1)                 | 0/12 (no coaster reached 4.60) | 11/12 | 4–5 qualifying coasters; parks hold 5–25 guests, rating 0–92                      |
+| Glacier Point        | 5 coasters ≥ 4.70 by end of year 2 (was 6 ≥ 4.90 in 1.4 months) | 0/12                           | 6/12  | 4–5 qualifying coasters (ratings 5.98–6.68 when they open)                        |
+| Tidewater Docks      | repay loan, park value $5,500 by end of year 4                  | 12/12                          | 0/12  | value $2,888–$5,302, rating 504–852, loan never repaid (cash ends −$10k to −$15k) |
+| Thunderhead Mesa     | 460 guests, rating 700 by end of year 4                         | 12/12                          | 0/12  | 11–330 guests, rating 0–623                                                       |
+| Mossgrove Isle (new) | $350 a month ride income by end of year 3                       | –                              | 2/12  | $247–$373 a month, 14–15 rides, no tree removed                                   |
+
+Unchanged parks under the new harness: Bramblewood Hollow, Lantern Bay, Meadowbrook Green, Open Grounds, Riverside Fairground and Seaside Promenade all win 12/12.
+
+Notes on reading the table:
+
+- **Copper Ridge and Glacier Point show the goals can be met legally.** Their scripts only chase the coaster count: they build the opening stalls and then coasters, so the parks themselves run down. A player who also runs the park wins more easily. Glacier Point's misses are seeds where one coaster rates below 4.70 or opens late.
+- **Tidewater Docks and Thunderhead Mesa keep their goals but no script wins them.** These are reported, not hidden. The hard part is upkeep in a long park: wages, breakdowns and litter outrun ride income in the scripted play. The best Tidewater seed reaches 96% of the park-value target, and Thunderhead's best seed holds 330 guests. Both are plausible for a player who prices and staffs actively, but this has not been demonstrated.
+- **Mossgrove Isle's target was set from scripted play.** Its first draft target was $900 a month, while the best scripted seed made $373, so the target is $350. No tree is removed: the rule forbids it and the play test checks it.
+- Each park's legal construction path (gate, stalls, first ride and the park's defining move) is checked separately in [bench/hard-parks.test.ts](../bench/hard-parks.test.ts).
+
 ## Known gaps
 
 - Far rides still cost a long walk: after the change the wooden coaster (a 35-tile walk, open for the last two thirds of the year) serves 362 guests against 905 for the merry-go-round next to the gate, and it is capped by what its single train carries. Energy is a placeholder until the target-based needs model lands ([fidelity/guests.md](fidelity/guests.md) F2).
