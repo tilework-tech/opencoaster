@@ -17,7 +17,7 @@ import {
 import { PathAddition, PathResult, planPathPlacement } from '../../src/sim/map/paths';
 import { COASTER_TEMPLATES, mirrored } from './coasters';
 import { RideState } from '../../src/sim/rides/ride-store';
-import { validateRidePlacement } from '../../src/sim/rides/ride-footprint';
+import { rideFootprintTiles, validateRidePlacement } from '../../src/sim/rides/ride-footprint';
 import { RideResult } from '../../src/sim/rides/ride-results';
 import { PREBUILT_TYPES } from '../../src/sim/scenario/scenario-prebuilt';
 import { rideFrontage } from '../../src/sim/scenario/park-grid';
@@ -459,6 +459,25 @@ export function openFlatRide(
     state: world.rides.cols.state[slot],
     excitement: world.rides.cols.excitement[slot],
   };
+}
+
+/**
+ * Tiles a flat ride or stall at (`row`, `lateral`) of `grid` uses: the spine from the grid origin
+ * to `row`, its queue, entrance, exit path and footprint.
+ */
+export function flatRideTiles(
+  grid: ParkGrid,
+  row: number,
+  lateral: number,
+  name: string,
+): Array<[number, number]> {
+  const type = PREBUILT_TYPES[name];
+  const frontage = rideFrontage(grid, row, lateral, RIDE_CATALOG[type].footprint);
+  const tiles: Array<[number, number]> = [];
+  for (let r = 0; r <= row; r++) tiles.push(grid.tile(r, 0));
+  tiles.push(...frontage.queue, ...frontage.exitPath, frontage.entrance, frontage.exit);
+  tiles.push(...rideFootprintTiles(RIDE_CATALOG[type], ...frontage.ride, frontage.dir));
+  return tiles;
 }
 
 /**

@@ -2,6 +2,7 @@ import type { System } from '../core/system';
 import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { resolveGraph } from '../pathfinding/graph';
+import { networkFor } from '../pathfinding/network';
 import { isReachable, nextDirection, DEFAULT_STAFF_OPTS } from '../pathfinding/navigate';
 import type { PatrolMask } from '../pathfinding/navigate';
 import type { NavOptions } from '../pathfinding/navigate';
@@ -75,14 +76,26 @@ function moveStaff(
   navOptions.patrol = navPatrol;
   const dir = nextDirection(world, from, target, world.rng, navOptions);
   if (dir < 0) {
+    // A worker off the paths is put on the network guests enter by when it can be, never on a
+    // cut-off stretch of path; one already on a path stays on its own network.
+    const graph = resolveGraph(map);
+    const net = networkFor(graph);
+    const gate =
+      world.park.entranceX >= 0 ? map.index(world.park.entranceX, world.park.entranceY) : -1;
+    const gateComponent =
+      graph.edgeMask(from) === 0 && gate >= 0 && map.isWalkable(gate) ? net.component(gate) : -1;
     let best = -1;
+    let bestJoined = false;
     let distance = 0x7fffffff;
     for (let i = 0; i < walkableCount; i++) {
       const tile = walkableTiles[i];
       if (!patrolAllows(patrol, tile)) continue;
+      const joined = gateComponent >= 0 && net.component(tile) === gateComponent;
+      if (bestJoined && !joined) continue;
       const d = Math.abs((tile % map.width) - x) + Math.abs(((tile / map.width) | 0) - y);
-      if (d < distance) {
+      if (d < distance || (joined && !bestJoined)) {
         best = tile;
+        bestJoined = joined;
         distance = d;
       }
     }
@@ -359,6 +372,7 @@ export function createStaffSystem(): System {
             if (!broken && !inspectionDue) continue;
             const rideX = rideServiceX(world, i);
             const rideY = rideServiceY(world, i);
+            if (answeredByNearerMechanic(world, slot, rideX, rideY)) continue;
             let serviceTile = -1;
             for (let dir = 0; dir < 4; dir++) {
               const tileX = rideX + DIR_DX[dir];
@@ -542,28 +556,56 @@ function binHasFullSide(data: number): boolean {
 }
 
 /**
- * Sends an idle worker to a nearby walkable tile when it has arrived or its target is unusable.
+ * True when another mechanic already heads for the tile beside this ride's service point and is
+ * nearer to it (or as near, with the earlier slot), so one breakdown calls one mechanic.
+ */
+function answeredByNearerMechanic(
+  world: World,
+  slot: number,
+  rideX: number,
+  rideY: number,
+): boolean {
+  const staff = world.staff.cols;
+  const own =
+    Math.abs(((staff.x[slot] / TILE_UNITS) | 0) - rideX) +
+    Math.abs(((staff.y[slot] / TILE_UNITS) | 0) - rideY);
+  for (let other = 0; other < world.staff.count; other++) {
+    if (other === slot || staff.kind[other] !== StaffKind.Mechanic) continue;
+    if (Math.abs(staff.targetX[other] - rideX) + Math.abs(staff.targetY[other] - rideY) !== 1)
+      continue;
+    const theirs =
+      Math.abs(((staff.x[other] / TILE_UNITS) | 0) - rideX) +
+      Math.abs(((staff.y[other] / TILE_UNITS) | 0) - rideY);
+    if (theirs < own || (theirs === own && other < slot)) return true;
+  }
+  return false;
+}
+
+/** Queue lines are walkable but sit outside the walk graph, so only reachable tiles qualify. */
+function wanderable(world: World, patrol: PatrolMask, from: number, tile: number): boolean {
+  return patrolAllows(patrol, tile) && world.map.isWalkable(tile) && isReachable(world, from, tile);
+}
+
+/**
+ * Sends an idle worker to a nearby reachable tile when it has arrived or its target is unusable.
  * Staying within a few tiles keeps the route search short; a worker with nowhere close falls
- * back to any walkable tile in its patrol.
+ * back to any reachable tile in its patrol.
  */
 function wander(world: World, slot: number, patrol: PatrolMask, mapSize: number): void {
   const staff = world.staff.cols;
   const map = world.map;
   const x = (staff.x[slot] / TILE_UNITS) | 0;
   const y = (staff.y[slot] / TILE_UNITS) | 0;
+  const here = map.index(x, y);
   const target = mapIndex(world, staff.targetX[slot], staff.targetY[slot]);
   const arrived = staff.targetX[slot] === x && staff.targetY[slot] === y;
-  if (!arrived && target >= 0 && patrolAllows(patrol, target) && map.isWalkable(target)) return;
+  if (!arrived && target >= 0 && wanderable(world, patrol, here, target)) return;
   for (let attempt = 0; attempt < WANDER_NEAR_ATTEMPTS; attempt++) {
     const tx = x + world.rng.int(2 * WANDER_RADIUS_TILES + 1) - WANDER_RADIUS_TILES;
     const ty = y + world.rng.int(2 * WANDER_RADIUS_TILES + 1) - WANDER_RADIUS_TILES;
     if (!map.inBounds(tx, ty)) continue;
     const candidate = map.index(tx, ty);
-    if (
-      candidate !== map.index(x, y) &&
-      patrolAllows(patrol, candidate) &&
-      map.isWalkable(candidate)
-    ) {
+    if (candidate !== here && wanderable(world, patrol, here, candidate)) {
       staff.targetX[slot] = tx;
       staff.targetY[slot] = ty;
       return;
@@ -571,7 +613,7 @@ function wander(world: World, slot: number, patrol: PatrolMask, mapSize: number)
   }
   for (let attempt = 0; attempt < 24; attempt++) {
     const candidate = world.rng.int(mapSize);
-    if (patrolAllows(patrol, candidate) && map.isWalkable(candidate)) {
+    if (wanderable(world, patrol, here, candidate)) {
       staff.targetX[slot] = candidate % map.width;
       staff.targetY[slot] = (candidate / map.width) | 0;
       return;

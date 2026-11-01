@@ -4,6 +4,7 @@ import { hashWorld } from '../core/hash';
 import { LedgerCategory } from '../economy/ledger';
 import { placePath } from '../map/paths';
 import { Surface } from '../map/tile-map';
+import { TILE_UNITS } from '../core/constants';
 import { FLOWER_BED, FLOWER_BED_COST_CENTS, GROUNDS_GROW_INTERVAL } from './grounds';
 import {
   MAX_STAFF_NAME_LENGTH,
@@ -140,6 +141,43 @@ describe('security guards', () => {
 
     expect(w.staff.cols.x[0] !== startX || w.staff.cols.y[0] !== startY).toBe(true);
   });
+});
+
+/** Long enough for a wandering handyman to have picked a queue tile as a destination. */
+const WANDER_WARM_UP_TICKS = 6000;
+/** A walking handyman crosses a tile in well under this; a frozen one never leaves it. */
+const LONGEST_STAY_TICKS = 600;
+
+describe('handymen wandering beside queues', () => {
+  it.each([1, 2])(
+    'keep walking instead of freezing on a queue line they cannot enter (seed %i)',
+    (seed) => {
+      const sim = grassSim(seed, 24);
+      const map = sim.world.map;
+      for (let x = 2; x <= 21; x++) placePath(map, { x, y: 12, z: 2 });
+      for (let y = 2; y <= 10; y++)
+        for (let x = 2; x <= 21; x++) placePath(map, { x, y, z: 2, queue: true });
+      hire(sim, StaffKind.Handyman);
+      const w = sim.world;
+      for (let tick = 0; tick < WANDER_WARM_UP_TICKS; tick++) sim.step();
+
+      let tile = -1;
+      let stay = 0;
+      let longestStay = 0;
+      for (let tick = 0; tick < 2000; tick++) {
+        sim.step();
+        const now = map.index(
+          (w.staff.cols.x[0] / TILE_UNITS) | 0,
+          (w.staff.cols.y[0] / TILE_UNITS) | 0,
+        );
+        stay = now === tile ? stay + 1 : 0;
+        tile = now;
+        longestStay = Math.max(longestStay, stay);
+      }
+
+      expect(longestStay).toBeLessThan(LONGEST_STAY_TICKS);
+    },
+  );
 });
 
 describe('patrol masks', () => {

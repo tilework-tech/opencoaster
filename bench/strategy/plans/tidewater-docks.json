@@ -1,36 +1,208 @@
 [
-  { "kind": "item", "name": "foodStall" },
-  { "kind": "item", "name": "drinkStall" },
-  { "kind": "item", "name": "toilets" },
-  { "kind": "item", "name": "merryGoRound" },
-  { "kind": "buy", "x": 37, "y": 43, "width": 6, "height": 3, "rights": true },
+  {
+    "kind": "flat",
+    "grid": [15, 47, "south"],
+    "row": 2,
+    "lateral": 4,
+    "name": "merryGoRound",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [15, 47, "south"],
+    "row": 4,
+    "lateral": -5,
+    "name": "swingingShip",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [11, 47, "north"],
+    "row": 2,
+    "lateral": -2,
+    "name": "drinkStall",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [11, 47, "north"],
+    "row": 5,
+    "lateral": -3,
+    "name": "ferrisWheel",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [11, 47, "north"],
+    "row": 9,
+    "lateral": 5,
+    "name": "merryGoRound",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [11, 47, "north"],
+    "row": 11,
+    "lateral": -2,
+    "name": "toilets",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [8, 47, "west"],
+    "row": 8,
+    "lateral": 5,
+    "name": "swingingShip",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [11, 57, "west"],
+    "row": 4,
+    "lateral": 5,
+    "name": "ferrisWheel",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [8, 47, "west"],
+    "row": 2,
+    "lateral": -2,
+    "name": "foodStall",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [8, 47, "west"],
+    "row": 6,
+    "lateral": -2,
+    "name": "drinkStall",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [8, 47, "west"],
+    "row": 14,
+    "lateral": -2,
+    "name": "informationKiosk",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [19, 47, "north"],
+    "row": 3,
+    "lateral": 3,
+    "name": "ferrisWheel",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [19, 47, "north"],
+    "row": 2,
+    "lateral": -2,
+    "name": "toilets",
+    "clear": true
+  },
+  { "kind": "bins", "x": 8, "y": 30, "width": 16, "height": 34 },
+  { "kind": "repay" },
+  { "kind": "wait", "month": 20 },
   {
     "kind": "route",
     "points": [
-      [19, 47],
-      [19, 61],
-      [34, 61],
-      [34, 44],
-      [45, 44],
-      [45, 52]
+      [22, 54],
+      [22, 59],
+      [56, 59]
     ],
+    "clear": true,
+    "from": [11, 54]
+  },
+  {
+    "kind": "flat",
+    "grid": [34, 59, "south"],
+    "row": 2,
+    "lateral": 2,
+    "name": "swingingShip",
     "clear": true
   },
-  { "kind": "flat", "grid": [34, 61, "south"], "row": 3, "lateral": 2, "name": "swingingShip" },
-  { "kind": "flat", "grid": [34, 61, "south"], "row": 9, "lateral": 2, "name": "ferrisWheel" },
-  { "kind": "flat", "grid": [34, 61, "south"], "row": 9, "lateral": -2, "name": "swingingShip" },
-  { "kind": "flat", "grid": [34, 61, "south"], "row": 13, "lateral": 2, "name": "toilets" },
-  { "kind": "flat", "grid": [34, 61, "south"], "row": 15, "lateral": -2, "name": "swingingShip" },
-  { "kind": "flat", "grid": [45, 52, "north"], "row": 2, "lateral": 2, "name": "ferrisWheel" },
-  { "kind": "flat", "grid": [45, 52, "north"], "row": 2, "lateral": -2, "name": "swingingShip" },
-  { "kind": "flat", "grid": [45, 52, "north"], "row": 6, "lateral": 2, "name": "toilets" },
-  { "kind": "flat", "grid": [45, 52, "north"], "row": 8, "lateral": 2, "name": "merryGoRound" },
-  { "kind": "flat", "grid": [45, 52, "north"], "row": 8, "lateral": -2, "name": "swingingShip" },
-  { "kind": "flat", "grid": [19, 47, "north"], "row": 2, "lateral": -2, "name": "ferrisWheel" },
-  { "kind": "flat", "grid": [19, 47, "north"], "row": 4, "lateral": 2, "name": "informationKiosk" },
-  { "kind": "flat", "grid": [19, 47, "north"], "row": 7, "lateral": 2, "name": "swingingShip" },
-  { "kind": "flat", "grid": [19, 47, "north"], "row": 9, "lateral": -6, "name": "ferrisWheel" },
-  { "kind": "flat", "grid": [19, 61, "west"], "row": 4, "lateral": 2, "name": "swingingShip" },
-  { "kind": "flat", "grid": [19, 61, "west"], "row": 4, "lateral": -2, "name": "toilets" },
-  { "kind": "flat", "grid": [19, 61, "west"], "row": 10, "lateral": 2, "name": "swingingShip" }
+  {
+    "kind": "flat",
+    "grid": [34, 59, "south"],
+    "row": 2,
+    "lateral": -2,
+    "name": "ferrisWheel",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [34, 59, "south"],
+    "row": 8,
+    "lateral": -2,
+    "name": "toilets",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [34, 59, "south"],
+    "row": 9,
+    "lateral": 2,
+    "name": "swingingShip",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [34, 59, "south"],
+    "row": 11,
+    "lateral": -2,
+    "name": "ferrisWheel",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [34, 59, "south"],
+    "row": 16,
+    "lateral": 2,
+    "name": "drinkStall",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [45, 59, "south"],
+    "row": 2,
+    "lateral": 2,
+    "name": "swingingShip",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [45, 59, "south"],
+    "row": 2,
+    "lateral": -2,
+    "name": "ferrisWheel",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [34, 59, "south"],
+    "row": 17,
+    "lateral": -2,
+    "name": "foodStall",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [45, 59, "south"],
+    "row": 8,
+    "lateral": -2,
+    "name": "swingingShip",
+    "clear": true
+  },
+  {
+    "kind": "flat",
+    "grid": [45, 59, "south"],
+    "row": 9,
+    "lateral": 2,
+    "name": "ferrisWheel",
+    "clear": true
+  },
+  { "kind": "bins", "x": 8, "y": 36, "width": 52, "height": 28 }
 ]

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { devices, expect, test } from '@playwright/test';
 import type { Page, Request } from '@playwright/test';
@@ -156,5 +156,46 @@ for (const park of PARKS) {
     await look(page, meta.focus, 0.5);
     await idle();
     await shot(page, `${park.id}-built-wide`);
+  });
+}
+
+/** Parks played to a win by bench/hard-park-wins.ts (run with HARD_PROOF_SAVES). */
+const WON = ['tidewater-docks', 'thunderhead-mesa'] as const;
+
+for (const id of WON) {
+  test(`${id}: won park at its deadline`, async ({ page }) => {
+    test.skip(!proofDir || !savesDir, 'set HARD_PROOF_DIR and HARD_PROOF_SAVES');
+    test.skip(
+      !existsSync(join(savesDir!, `${id}-won.ocsave`)),
+      `no ${id}-won.ocsave: run the hard-park-wins bench tests with HARD_PROOF_SAVES first`,
+    );
+    test.setTimeout(600_000);
+    mkdirSync(proofDir!, { recursive: true });
+    await useRenderer(page);
+    const idle = spriteIdleTracker(page);
+    const meta = JSON.parse(readFileSync(join(savesDir!, `${id}-won.json`), 'utf8')) as {
+      views: Array<[number, number, number]>;
+    };
+    await page.goto('/');
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(join(savesDir!, `${id}-won.ocsave`));
+    await expect(page.locator('.hud')).toContainText('tick');
+    await page.evaluate(() => (window as unknown as ProofWindow).__sim.setPaused(true));
+    for (const [k, view] of meta.views.entries()) {
+      await look(page, view, 1);
+      await idle();
+      await shot(page, `${id}-won-view${k + 1}`);
+    }
+    await look(page, meta.views[0], 0.5);
+    await idle();
+    await shot(page, `${id}-won-wide`);
+    await page.getByRole('button', { name: 'Park', exact: true }).click();
+    await expect(page.locator('body')).toContainText('Objective met');
+    await shot(page, `${id}-won-park`);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Finances', exact: true }).click();
+    await shot(page, `${id}-won-finance`);
   });
 }

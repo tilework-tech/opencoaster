@@ -33,6 +33,8 @@ export interface RunOptions {
   seed: number;
   /** Ticks to simulate for open-ended objectives. */
   horizonTicks?: number;
+  /** Keep the scenario's own research state instead of unlocking every ride before play. */
+  realResearch?: boolean;
   /** Called at each month boundary, for tracing a run. */
   onMonth?: (month: number, world: Simulation['world']) => void;
 }
@@ -44,8 +46,9 @@ export function runScenario(
 ): RunResult {
   const sim = new Simulation({ seed: opts.seed, width: def.mapWidth, height: def.mapHeight });
   prepareScenarioPark(sim.world, def);
-  // The strategy suite isolates park and economy balance from research pacing.
-  sim.world.research.unlocked = new Set(Object.keys(RIDE_CATALOG).map(Number));
+  // The strategy suite isolates park and economy balance from research pacing unless asked not to.
+  if (!opts.realResearch)
+    sim.world.research.unlocked = new Set(Object.keys(RIDE_CATALOG).map(Number));
   const builder = new ParkBuilder(sim, def);
   const strategy = factory(def);
   const world = sim.world;
