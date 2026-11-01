@@ -1,0 +1,129 @@
+diff --git a/.gitignore b/.gitignore
+index 9b4806f7..57547df2 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,3 +6,4 @@ coverage
+ .local
+ /public/sprites/
+ /docs/art/review/*.png
++/tools/sprites/.build/
+diff --git a/AGENTS.md b/AGENTS.md
+index e24ca0be..a8ba0d3e 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -35,6 +35,7 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
+ - `predev` and `prebuild` run `tools/art/prepare.ts` and `tools/art/pack-cli.ts`. The smoke and e2e Playwright servers use `pnpm dev`; CI and GitHub Pages use `pnpm build`, so these paths prepare sprites automatically. `pnpm smoke:subpath` also builds before serving the generated output.
+ - Vite excludes `public/sprites/**` from its dev watcher because generation writes many files. The files remain available to the server and production build.
+ - See [tools/art/README.md](tools/art/README.md) for the art pipeline and regeneration details.
++- Runtime sprites, atlases and manifests exist only in ignored paths; the only committed generated files are the review sheets and coverage tables under `docs/art/`. PR proof captures go to the PR or the `nori/pr-proofs` branch, not `main`. E2e specs save screenshots with `docsScreenshot` ([e2e/support/docs-screenshot.ts](e2e/support/docs-screenshot.ts)): test output by default, committed docs images with `UPDATE_SCREENSHOTS=1`. See "Where files go" in CONTRIBUTING.md.
+ 
+ ## Conventions
+ 
+@@ -44,4 +45,4 @@ OpenCoaster: browser-based, clean-room theme-park management game. Read CONTRIBU
+ - Renderers read `Snapshot`/`MapData` only, never sim state.
+ - Comments describe the code, not its history. Prefer third-party libraries to hand-rolled ones (ask before adding a dependency).
+ - Never push to `main`; PRs only. Never commit original game assets or copied OpenRCT2 code.
+-- GitHub session tokens cannot push `.github/workflows/`; ask an admin-elevated session to change CI (`.github/workflows/ci.yml`).
++- Changes under `.github/workflows/` need a maintainer with workflow permission; automation tokens without the `workflows` scope cannot push them.
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 11a6259a..91be4c4f 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -14,6 +14,16 @@ OpenCoaster re-implements the _gameplay ideas_ of 1999–2004 era roller-coaster
+ 
+ If unsure whether something is allowed, ask in the PR before merging.
+ 
++## Where files go
++
++| Kind                 | Examples                                                                                        | Rule                                                                                                                                 |
++| -------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
++| Source art           | `tools/art/source/` sheets, `tools/art/prompts/`, `tools/sprites/` models and generators        | Commit. Never original game assets.                                                                                                  |
++| Generated output     | `public/sprites/`, `dist/`, `tools/sprites/.build/`, `.local/`                                  | Ignored; `pnpm dev` and `pnpm build` regenerate it. Never commit.                                                                    |
++| Test fixtures        | root `*-fixture.html` pages loaded by e2e/smoke on the dev server, `e2e/support/` save builders | Commit. Keep fixture URLs stable.                                                                                                    |
++| Documentation images | `docs/screenshots/`, `docs/playtest/assets/`, `docs/art/` contact sheets                        | Commit only when a doc links them. Refresh with `UPDATE_SCREENSHOTS=1` or the documented `pnpm sprites:*` / `art:coverage` commands. |
++| Review artifacts     | PR before/after proof captures                                                                  | Attach to the PR or push to the `nori/pr-proofs` branch, never `main`. Specs write to Playwright output under `.local/`.             |
++
+ ## Workflow
+ 
+ - Never push to `main`; branch and open a PR. CI must pass: lint, format, typecheck, test, build.
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index bb278e44..3c380f5c 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -82,4 +82,4 @@ Source: [fidelity/rides.md](fidelity/rides.md). All of these are named constants
+ 
+ - Each workstream owns its module directory under `src/sim/<module>` (or `src/render`, `src/ui`). Edits to `src/sim/core` (World, Command union, constants, `SYSTEM_ORDER`) must be small and additive; rebase on `main` before opening a PR.
+ - Every PR keeps `pnpm lint`, `format:check`, `typecheck`, `test`, `build` and `bench --guests 5000` green, and adds determinism tests (same seed, same `hashWorld`).
+-- Sessions cannot push `.github/workflows/`; ask the coordinator for CI changes.
++- Changes under `.github/workflows/` need a maintainer with workflow permission; automation tokens without the `workflows` scope cannot push them, so propose CI changes in the PR description.
+diff --git a/docs/mechanics/rides.md b/docs/mechanics/rides.md
+index aa0297f3..1ba6710d 100644
+--- a/docs/mechanics/rides.md
++++ b/docs/mechanics/rides.md
+@@ -141,7 +141,7 @@ Suggested dispatch state machine (design, not a claimed engine formula): `Closed
+ - Common documented failure names include safety cut-out/emergency stop, restraints stuck open/closed, vehicle malfunction, brakes failure, and control failure; some rides have a subset, and some do not break down. RCT1 labels the station-brake failure differently; RCT2 calls it brakes failure. **Confidence: single fan wiki.**
+ - Crash reports describe high-speed collisions and track/design failures; one fan wiki gives a combined collision speed threshold of 30 mph / 48 km/h. Treat this number as unverified. Station/brakes failure can remove normal stopping behavior and cause a collision. **Confidence: single source; exact threshold open.**
+ - Crashes can kill/remove riders, close the ride, and create a lasting safety/reputation consequence; repair/reopen behavior and guest fear should be modeled as distinct from ordinary breakdown recovery. **Confidence: single fan wiki.**
+-- The implemented model (gap 4 in [gap-audit.md](gap-audit.md)) follows OpenRCT2 `src/openrct2/ride/Ride.cpp`, `ride/rtd/*` and `entity/Staff.cpp` for behaviour only: reliability on a 0-25,855 scale checked every 256 ticks for open rides, per-type unreliability plus an age penalty, a `25,857 - reliability` roll out of 2^21, per-type breakdown sets, a repair that restores reliability, and downtime kept as eight 8192-tick windows. The sim runs 40 ticks/s like RCT2, so RCT2 tick counts apply unconverted (an inspection minute is 2048 ticks). Constants are in [DECISIONS.md](DECISIONS.md). Repair durations, explosion/crash behaviour, and RCT2's extra unreliability terms are not sourced or not modelled; do not claim exact RCT probabilities until measured. **Confidence: behaviour read from public source; not verified against vanilla RCT2.**
++- The implemented model (gap 4 in [gap-audit.md](gap-audit.md)) follows OpenRCT2 `src/openrct2/ride/Ride.cpp`, `ride/rtd/*` and `entity/Staff.cpp` for behaviour only: reliability on a 0-25,855 scale checked every 256 ticks for open rides, per-type unreliability plus an age penalty, a `25,857 - reliability` roll out of 2^21, per-type breakdown sets, a repair that restores reliability, and downtime kept as eight 8192-tick windows. The sim runs 40 ticks/s like RCT2, so RCT2 tick counts apply unconverted (an inspection minute is 2048 ticks). Constants are in [DECISIONS.md](../DECISIONS.md). Repair durations, explosion/crash behaviour, and RCT2's extra unreliability terms are not sourced or not modelled; do not claim exact RCT probabilities until measured. **Confidence: behaviour read from public source; not verified against vanilla RCT2.**
+ 
+ ### 2.6 Ride catalog and capacity
+ 
+diff --git a/e2e/docs.md b/e2e/docs.md
+index ae238f5e..061c23c1 100644
+--- a/e2e/docs.md
++++ b/e2e/docs.md
+@@ -51,7 +51,7 @@ Path: @/e2e
+ - When enabled with `E2E_RUN_YEAR=1`, the final stage runs at 4× speed until the year-one outcome dialog appears and captures whether the objective was met or missed.
+ - Scenario startup centers the camera on the park gate and up to three contiguous inward entrance-path tiles; when entrance coordinates are unavailable, it falls back to the map center. The playtest derives the Starter Park continuation tile from its scenario definition so the path action stays aligned with the configured entrance.
+ - [land-tool.spec.ts](land-tool.spec.ts) drives the Land window on desktop and emulated Pixel 8 through the UI only: hover previews (corner, edge, tile, 3×3), price tooltip, refusals with reasons, tap, drag up and down, flatten, smooth, and checks the saved game against what the preview announced. Tiles are located by calibrating on the overlay diamond under the pointer rather than reading the camera; phones centre the camera below the target because the tool sheets cover the lower half of the full-screen canvas.
+-- [area-tools.spec.ts](area-tools.spec.ts) drives the Clear scenery and Water windows on desktop and emulated Pixel 8 through the UI only: a Clear sweep previews and removes trees and path additions for the tooltip's price, Clear refuses unowned land, and Water refuses to cover a footpath. Results are checked against the saved game and HUD cash, and before/after screenshots are written to [docs/screenshots/area-tools](../docs/screenshots/area-tools).
++- [area-tools.spec.ts](area-tools.spec.ts) drives the Clear scenery and Water windows on desktop and emulated Pixel 8 through the UI only: a Clear sweep previews and removes trees and path additions for the tooltip's price, Clear refuses unowned land, and Water refuses to cover a footpath. Results are checked against the saved game and HUD cash, and before/after screenshots refresh the committed copies in [docs/screenshots/area-tools](../docs/screenshots/area-tools) only with `UPDATE_SCREENSHOTS=1`.
+ - [water-basin.spec.ts](water-basin.spec.ts) imports the staged terrain of [support/water-scenes.ts](support/water-scenes.ts) and, on desktop and Pixel 8, fills a dug-out basin into a flat lake up to its rim, checks the spill refusal, drains it with Lower, and drives drag-to-repeat. [water-frames.spec.ts](water-frames.spec.ts) is a capture tool for review frames (flat land, dip, lake bank, shore with paths and trees, slope, map edge, all four rotations); it only runs with `WATER_FRAMES_DIR` set and its output is never committed.
+ - [context-menu.spec.ts](context-menu.spec.ts) right-clicks Meadowbrook Green's prebuilt rides: in Select the browser menu is suppressed (`defaultPrevented`) and the ride window opens, and with the Patrol tool a right-click removes the patrol tile.
+ - [support/park.ts](support/park.ts) holds helpers shared by the Land and area tool specs and the context-menu spec: starting a scenario, building a local copy of the scenario's world to find tiles, centring the camera on a tile, calibrating tile positions from the overlay diamond, hovering until a preview appears, reading HUD cash, and loading the exported save.
+@@ -66,7 +66,7 @@ Path: @/e2e
+ - Scenario startup centers the camera on the park gate and up to three contiguous inward entrance-path tiles; when entrance coordinates are unavailable, it falls back to the map center. The playtest derives the Starter Park continuation tile from its scenario definition so the path action stays aligned with the configured entrance.
+ - `pnpm e2e` runs against the Vite development server and does not build the app. The Starter Park save round-trip completes without advancing a full year; set `E2E_RUN_YEAR=1` to opt into the longer year-one objective outcome run.
+ - Manual browser contexts must use `createTestContext`; the shared auto fixture closes registered contexts between tests. This prevents contexts and their WebGL resources from accumulating across the single-worker suite.
+-- Repository screenshots captured by the UI flow are stored in [docs/screenshots](../docs/screenshots). The Starter Park ride-access runs attach their screenshots to the Playwright report; those attachment files are test artifacts rather than committed repository assets. P1 construction and ride-window before/after images are committed in [docs/playtest/assets](../docs/playtest/assets).
++- Specs that keep committed documentation images (area tools, deferred UI, P1 UI fidelity, land ownership) capture through `docsScreenshot` in [support/docs-screenshot.ts](support/docs-screenshot.ts). It writes to the test output directory by default, so ordinary runs leave the working tree unchanged; `UPDATE_SCREENSHOTS=1` instead writes the committed copies under [docs/screenshots](../docs/screenshots) and [docs/playtest/assets](../docs/playtest/assets). Other captures, such as the Starter Park ride-access report attachments and the placement-ghost screenshots, are test artifacts only.
+ - The README screenshot spec launches Chromium with `--disable-accelerated-2d-canvas` and `--disable-gpu-rasterization`: a developed park loads every flat-ride sprite page, which otherwise exhausts browser memory.
+ - WebGL2 under headless SwiftShader can crash the page on whole-map views of the larger parks (remixed or not), so hard-park proof shots of built parks are taken with `CANVAS2D=1`.
+ - Mobile profiles and SwiftShader are browser emulation; their screenshots and FPS samples verify the browser integration path but do not characterize physical phone GPU performance.
+diff --git a/src/sim/core/docs.md b/src/sim/core/docs.md
+index 94b80e28..e7fc09b7 100644
+--- a/src/sim/core/docs.md
++++ b/src/sim/core/docs.md
+@@ -22,7 +22,7 @@ Path: @/src/sim/core
+ - [feedback.ts](feedback.ts) holds `world.feedback` (`seq`, `domain`, `code`, `subject`). `reportFeedback` is called by command handlers with a `FeedbackDomain` naming which result enum the code belongs to (for example `Track` -> `TrackResult`, `Path` -> `PathResult`, `Land` -> `LandResult`) so the UI learns the outcome through snapshots. Several domains can share one enum: the Water and Clear scenery tools report `LandResult` codes under their own `Water` and `Clear` domains so each tool's client only reacts to its own refusals. `seq` increments on every report so repeated identical outcomes are distinguishable. It is neither hashed nor saved.
+ - `Simulation.enqueue` appends commands to a pending queue. `applyPendingCommands` drains it without advancing time; `step` calls the same operation before systems update and increments the tick afterward. Each command is dispatched to the owning domain operation.
+ - `setPersonPosition` ([person-position.ts](person-position.ts)) accepts map tile coordinates and moves a stable guest or staff ID to the tile centre at terrain height. The destination must be a path or owned tile and must be dry. Guests in queueing, waiting-to-board, or riding states, and IDs that no longer exist, are rejected without moving an entity. An accepted guest resumes Wandering with navigation state cleared; staff receive the new position and target tile. The command uses the same deterministic queue and world state as other simulation commands, so normal save/load and state hashing include the result.
+-- The additive `createRide` command carries a ride type, anchor tile coordinates and an optional orientation `dir` (quarter turns, default 0). Core checks that the catalog type is unlocked by research before affordability, then `validateRidePlacement` ([rides/ride-footprint.ts](../ride-footprint.ts)), which covers every tile of the rotated footprint: map bounds, build rights, supported surfaces, water, paths, scenery, other rides, track and the ground-height spread the ride's supports allow. A locked type reports `RideResult.ResearchRequired` through simulation feedback. It charges the catalog cost to `RideConstruction` only when ride creation succeeds.
++- The additive `createRide` command carries a ride type, anchor tile coordinates and an optional orientation `dir` (quarter turns, default 0). Core checks that the catalog type is unlocked by research before affordability, then `validateRidePlacement` ([rides/ride-footprint.ts](../rides/ride-footprint.ts)), which covers every tile of the rotated footprint: map bounds, build rights, supported surfaces, water, paths, scenery, other rides, track and the ground-height spread the ride's supports allow. A locked type reports `RideResult.ResearchRequired` through simulation feedback. It charges the catalog cost to `RideConstruction` only when ride creation succeeds.
+ - `placeTrack` and `removeTrack` are handled entirely by `applyTrackCommand` in the [track command handler](../track/track-commands.ts), including ride-type rules, ownership, funds and charging. A successful `createRide` also reports the new ride id as the feedback subject.
+ - [EntityStore](entity-store.ts) stores entities in typed-array columns with stable IDs and dense slot reuse. World schemas supply the domain fields, and [hash.ts](hash.ts) incorporates store arrays into the state hash.
+ - [constants.ts](constants.ts) centralizes simulation scale, tick rate, and capacities (vertical scale: `Z_STEP` per land level, and `TRACK_Z_STEP`, half of it, per track height step); [prng.ts](prng.ts) provides seeded random values used by simulation systems.
+diff --git a/src/sim/rides/docs.md b/src/sim/rides/docs.md
+index 3759255e..92677688 100644
+--- a/src/sim/rides/docs.md
++++ b/src/sim/rides/docs.md
+@@ -17,7 +17,7 @@ Path: @/src/sim/rides
+ - Ride-associated ticket, stall, food/drink, toilet, and kiosk receipts accumulate in the ride's lifetime `incomeCents` field; [save/save.ts](../../save/save.ts) persists it from version 8 and defaults older versions to zero. Version 11 appends `reliabilityRaw`, `mode`, `breakdownReason`, `serviceTicks` and `serviceLastTick`; version 12 appends the rolling rider-history columns after them; version 30 appends the downtime buckets, `downtimePercent` and `mechanicHeadingTick`. Older saves initialize absent fields from the legacy reliability percent/default mode, zero rider history and empty downtime windows.
+ - Stalls use the `items` list in [ride-types.ts](ride-types.ts) to define up to two products, their needs and stock costs; [shop-items.ts](shop-items.ts) defines product behavior. `price2` and each item's sold/revenue totals travel through the worker snapshot to the stall window. Save version 37 persists those columns and migrates the kiosk's former umbrella price.
+ - Placement accepts tile coordinates from callers and checks them against [map/tile-map.ts](../map/tile-map.ts). Queue lines are derived by [queue-lines.ts](queue-lines.ts) (see below); [core/simulation.ts](../core/simulation.ts) refreshes that derived state after path placement, path-run placement, or removal. [Guest behavior](../guests/docs.md) walks guests to the entrance over the footpath network (queue tiles are ordinary path elements with the queue flag, accepted as `Surface.Path` or `Surface.Queue`).
+-- The track workstream owns layouts ([track](../track/docs.md)) and [vehicles](../vehicles/docs.md) own train physics and test-run metrics. [coaster-system.ts](coaster-system.ts) (ordered right after `vehicles` in `SYSTEM_ORDER`) bridges them for rides whose type has `usesTrack`, including Log Flume and River Rapids; [ride-system.ts](../ride-system.ts) skips those rides. Water rides use the same test, queue, train dispatch, and measured-rating path as coasters, with water-specific vehicle controls described in [vehicles](../vehicles/docs.md); [ride-operations.ts](../ride-operations.ts) exposes the validated measured-stat interface.
++- The track workstream owns layouts ([track](../track/docs.md)) and [vehicles](../vehicles/docs.md) own train physics and test-run metrics. [coaster-system.ts](coaster-system.ts) (ordered right after `vehicles` in `SYSTEM_ORDER`) bridges them for rides whose type has `usesTrack`, including Log Flume and River Rapids; [ride-system.ts](ride-system.ts) skips those rides. Water rides use the same test, queue, train dispatch, and measured-rating path as coasters, with water-specific vehicle controls described in [vehicles](../vehicles/docs.md); [ride-operations.ts](ride-operations.ts) exposes the validated measured-stat interface.
+ - Ride setup and status commands (`placeRideEntrance`, `placeRideExit`, `setRideStatus` with `open` / `close` / `test`) are routed from [core/simulation.ts](../core/simulation.ts) to [ride-commands.ts](ride-commands.ts). `createRide` and these commands report a `RideResult` ([ride-results.ts](ride-results.ts)) through `world.feedback`; core rejects ride types that are not yet research-unlocked with `ResearchRequired`. For a stall, `placeRideEntrance` does not build anything: it turns the stall to face that adjacent tile if that front would serve guests, and otherwise returns the reason and keeps the current facing (see Stall storefronts). Core opens a stall or facility as soon as its `createRide` command succeeds.
+ - [staff](../staff/docs.md) owns staff entities and movement. A mechanic walks to a broken ride, or to one whose inspection is due, and calls `serviceRide` every staff update while standing at it; `rideServiceX/Y` give the tile to walk to: the ride's exit once placed (a footprint's own tiles are not walkable), otherwise its own tile (stalls).
+ - Ride trips record completed riders into rolling ride history in [ride-store.ts](ride-store.ts). [Economy park inputs](../economy/park-inputs.ts) reads that five-minute total and values every non-shop ride, including closed rides, for park value.
+diff --git a/tools/art/README.md b/tools/art/README.md
+index 3036afe4..007fc5da 100644
+--- a/tools/art/README.md
++++ b/tools/art/README.md
+@@ -16,4 +16,4 @@ People art has two inputs. Guest figures and staff walking sprites are generated
+ 
+ Run `pnpm art:prepare` to regenerate sprite PNG/JSON inputs, then `pnpm art:pack` to build the atlas pages and manifest. `prepare.ts` also runs the model-based renderer in [tools/sprites](../sprites/docs.md). The `predev` and `prebuild` package hooks run both steps automatically, so a fresh checkout prepares the assets before `pnpm dev` or `pnpm build`. The smoke and e2e Playwright configs start their server with `pnpm dev`, so they use the same preparation hook; `pnpm smoke:subpath` builds first. CI and the GitHub Pages workflow invoke `pnpm build`, which prepares assets through `prebuild` before bundling. The Pages workflow's additional `vite build --base /opencoaster/` runs after that generated output exists.
+ 
+-Vite's dev-server watcher ignores `public/sprites/**`; regenerating the large tree therefore does not consume the Linux file-watcher limit or trigger app reloads. The browser still serves and bundles the generated files normally. UI icon sources and their mesh-rendered object models live in [tools/sprites/ui-icons.ts](../sprites/ui-icons.ts). The `art:prepare` lifecycle hook regenerates both icon sizes alongside the world sprites. Make art changes in committed sources, prompts, or generators, then let the package lifecycle hooks recreate the ignored output.
++Vite's dev-server watcher ignores `public/sprites/**`; regenerating the large tree therefore does not consume the Linux file-watcher limit or trigger app reloads. The browser still serves and bundles the generated files normally. UI icon sources and their mesh-rendered object models live in [tools/sprites/ui-icons.ts](../sprites/ui-icons.ts). The `art:prepare` lifecycle hook regenerates both icon sizes alongside the world sprites. Make art changes in committed sources, prompts, or generators, then let the package lifecycle hooks recreate the ignored output. Nothing under `tools/` keeps generated sprites; `tools/sprites/.build/` is ignored scratch.
