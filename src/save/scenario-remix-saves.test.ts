@@ -1,64 +1,59 @@
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { World } from '../sim/core/world';
 import { OWNED } from '../sim/map/tile-map';
+import type { TileMap } from '../sim/map/tile-map';
 import { SCENARIOS } from '../sim/scenario/catalog';
-import { parseScenarioFile } from '../sim/scenario/scenario-file';
 import { prepareScenarioPark } from '../sim/scenario/scenario-layout';
 import { deserialize, serialize } from './save';
 
-/** Copper Ridge's map recipe before the hard-park remix: an inset owned rectangle. */
-const LEGACY_COPPER_RIDGE = parseScenarioFile({
-  id: 'copper-ridge',
-  name: 'Copper Ridge',
-  category: 'challenging',
-  seed: 2101,
-  map: { width: 96, height: 96 },
-  finance: {
-    startingCash: 3_000_000,
-    startingLoan: 2_500_000,
-    maxLoan: 9_000_000,
-    annualInterestBps: 900,
-  },
-  pricing: { mode: 'perRide' },
-  objective: { kind: 'completeCoasters', target: 5, minimumExcitement: 460, byYear: 1 },
-  entrance: { side: 'south', length: 4 },
-  land: { ownedMarginPercent: 22, saleMarginPercent: 3 },
-  terrain: {
-    seaLevel: 3,
-    baseLevel: 8,
-    relief: 5,
-    cell: 10,
-    surface: 'grass',
-    buildLevel: 9,
-    buildLength: 48,
-    buildWidth: 35,
-    lakes: [{ x: 15, y: 20, rx: 9, ry: 7, depth: 2 }],
-    hills: [
-      { x: 80, y: 25, radius: 12, height: 5 },
-      { x: 20, y: 70, radius: 10, height: 4 },
-    ],
-    highland: { surface: 'dirt', level: 10 },
-  },
-  trees: { count: 150, groves: 8 },
-});
+/** A Copper Ridge park saved by the game before the hard-park remix: an inset owned rectangle. */
+function legacySave(): Uint8Array {
+  return new Uint8Array(
+    gunzipSync(
+      readFileSync(new URL('./fixtures/copper-ridge-pre-remix.ocsave.gz', import.meta.url)),
+    ),
+  );
+}
 
-function newGame(def: typeof LEGACY_COPPER_RIDGE): World {
-  const w = new World({ seed: def.seed, width: def.mapWidth, height: def.mapHeight });
-  prepareScenarioPark(w, def);
-  return w;
+function ownedBox(m: TileMap): { count: number; area: number } {
+  let count = 0;
+  let x0 = m.width;
+  let y0 = m.height;
+  let x1 = -1;
+  let y1 = -1;
+  for (let i = 0; i < m.width * m.height; i++) {
+    if (!(m.ownership[i] & OWNED)) continue;
+    count++;
+    const x = i % m.width;
+    const y = Math.floor(i / m.width);
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x);
+    y1 = Math.max(y1, y);
+  }
+  return { count, area: (x1 - x0 + 1) * (y1 - y0 + 1) };
 }
 
 describe('saves from before the hard-park remix', () => {
-  it('load with their own land, terrain and scenery rather than the remixed map', () => {
-    const legacy = newGame(LEGACY_COPPER_RIDGE);
-    const loaded = deserialize(serialize(legacy));
-    expect(Array.from(loaded.map.ownership)).toEqual(Array.from(legacy.map.ownership));
-    expect(Array.from(loaded.map.vertexHeights)).toEqual(Array.from(legacy.map.vertexHeights));
-    expect(Array.from(loaded.map.waterLevel)).toEqual(Array.from(legacy.map.waterLevel));
-    expect(Array.from(loaded.map.elData)).toEqual(Array.from(legacy.map.elData));
+  it('load with their own rectangular land and rules, not the remixed map', () => {
+    const loaded = deserialize(legacySave());
+    const box = ownedBox(loaded.map);
+    expect(box.count).toBe(box.area);
+    expect(loaded.scenario.restrictions).toEqual({});
 
-    const remix = newGame(SCENARIOS.find((s) => s.id === 'copper-ridge')!);
-    const ownedCount = (w: World) => w.map.ownership.reduce((n, o) => n + (o & OWNED ? 1 : 0), 0);
-    expect(ownedCount(loaded)).not.toBe(ownedCount(remix));
+    const def = SCENARIOS.find((s) => s.id === 'copper-ridge')!;
+    const remix = new World({ seed: def.seed, width: def.mapWidth, height: def.mapHeight });
+    prepareScenarioPark(remix, def);
+    expect(ownedBox(remix.map).count).toBeLessThan(box.count / 2);
+  });
+
+  it('keep their land, terrain and scenery through another save', () => {
+    const loaded = deserialize(legacySave());
+    const again = deserialize(serialize(loaded));
+    expect(Array.from(again.map.ownership)).toEqual(Array.from(loaded.map.ownership));
+    expect(Array.from(again.map.vertexHeights)).toEqual(Array.from(loaded.map.vertexHeights));
+    expect(Array.from(again.map.elData)).toEqual(Array.from(loaded.map.elData));
   });
 });

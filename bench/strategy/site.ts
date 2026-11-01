@@ -65,8 +65,19 @@ export function buildCircuit(sim: Simulation, site: CoasterSite): SiteBuild {
     const [rx, ry] = rotateTile(i, j, site.dir);
     return [site.x + rx, site.y + ry];
   };
+  const before = world.rides.count;
   sim.enqueue({ type: 'createRide', rideType: RideType.WoodenCoaster, x: site.x, y: site.y });
   sim.step();
+  if (world.rides.count === before)
+    return {
+      rideId: -1,
+      closed: false,
+      entrance: at(0, -sigma),
+      exit: at(0, sigma),
+      entranceFront: at(0, -2 * sigma),
+      exitFront: at(0, 2 * sigma),
+      level,
+    };
   const rideId = world.rides.slotToId[world.rides.count - 1];
   for (const [name, mode] of pieces) {
     const cursor = getConstructionCursor(world, rideId);
@@ -120,6 +131,7 @@ export function layRoute(
   floor[0] = Math.max(floor[0], startLevel);
   const step = (k: number): number => {
     const [x, y] = tiles[k];
+    if (k === 0 && n === 1) return -1;
     const [px, py] = k > 0 ? tiles[k - 1] : [x - (tiles[1][0] - x), y - (tiles[1][1] - y)];
     return [0, 1, 2, 3].find((d) => DIR_DX[d] === x - px && DIR_DY[d] === y - py)!;
   };
@@ -280,8 +292,10 @@ export function startCoaster(
   const world = sim.world;
   const c = buildCircuit(sim, site);
   const abandon = (): null => {
-    sim.enqueue({ type: 'demolishRide', rideId: c.rideId });
-    sim.step();
+    if (c.rideId >= 0) {
+      sim.enqueue({ type: 'demolishRide', rideId: c.rideId });
+      sim.step();
+    }
     return null;
   };
   if (!c.closed) return abandon();

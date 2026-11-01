@@ -118,19 +118,35 @@ for (const park of PARKS) {
     await look(page, [size.width / 2, size.height / 2, 6], fit * 0.95);
     await idle();
     await shot(page, `${park.id}-overview`);
+    await page.getByRole('button', { name: 'Land rights', exact: true }).click();
+    await page.getByRole('button', { name: 'Buy land', exact: true }).click();
+    await page.mouse.move(2, 2);
+    await page.waitForTimeout(800);
+    await shot(page, `${park.id}-ownership`);
+    await page.keyboard.press('Escape');
 
     await look(page, park.gate, mobile ? 0.5 : 1);
     await idle();
     await shot(page, `${park.id}-gate`);
-    if (!savesDir) return;
-    const meta = JSON.parse(readFileSync(join(savesDir, `${park.id}.json`), 'utf8')) as {
+  });
+}
+
+for (const park of PARKS) {
+  test(`${park.name}: built proof park`, async ({ page }) => {
+    test.skip(!proofDir || !savesDir, 'set HARD_PROOF_DIR and HARD_PROOF_SAVES');
+    test.setTimeout(600_000);
+    mkdirSync(proofDir!, { recursive: true });
+    await useRenderer(page);
+    if (!mobile && !useCanvas2d) await page.setViewportSize({ width: 960, height: 640 });
+    const idle = spriteIdleTracker(page);
+    const meta = JSON.parse(readFileSync(join(savesDir!, `${park.id}.json`), 'utf8')) as {
       focus: [number, number, number];
     };
     await page.goto('/');
     await page
       .locator('input[type="file"]')
       .first()
-      .setInputFiles(join(savesDir, `${park.id}.ocsave`));
+      .setInputFiles(join(savesDir!, `${park.id}.ocsave`));
     await expect(page.locator('.hud')).toContainText('tick');
     await page.evaluate(() => (window as unknown as ProofWindow).__sim.setPaused(true));
     await look(page, meta.focus, 1);

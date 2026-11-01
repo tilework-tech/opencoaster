@@ -183,7 +183,7 @@ export function generateScenarioMap(map: TileMap, def: ScenarioDef, seed: number
     relaxTerrain(map);
     paintTiles(map, terrain, land);
   }
-  if (def.trees) scatterTrees(map, def.trees, apron, rng, side, land);
+  if (def.trees) scatterTrees(map, def.trees, apron, rng, side, land, terrain?.apronOffset ?? 0);
 }
 
 function shapeHeights(map: TileMap, t: ScenarioTerrain, apron: TileRect, rng: Prng): void {
@@ -320,12 +320,14 @@ function scatterTrees(
   rng: Prng,
   side: EntranceSide,
   land: ScenarioLand,
+  offset: number,
 ): void {
   const pool = trees.species ?? [];
   const clearings = trees.clearings ?? [];
+  const corridor = clearCorridor(map, side, land, trees, offset);
   const keepClear = (x: number, y: number): boolean =>
     nearApron(x, y, apron) ||
-    insideClearCorridor(x, y, map, side, land, trees.clearWidth ?? 0, trees.clearLength ?? 0) ||
+    insideClearCorridor(x, y, corridor) ||
     clearings.some((c) => shapeContains(c, x, y));
   for (const stand of trees.stands ?? []) fillStand(map, stand, pool, rng, keepClear);
 
@@ -425,28 +427,46 @@ export function treeClearAreas(def: ScenarioDef, width: number, height: number):
   return [apron, ...(def.trees?.clearings ?? []).map((c: ScenarioShape) => shapeBounds(c))];
 }
 
-function insideClearCorridor(
-  x: number,
-  y: number,
+/** The straight strip kept clear inward from the gate: owned edge, gate midpoint and size. */
+interface ClearCorridor {
+  owned: TileRect;
+  midX: number;
+  midY: number;
+  side: EntranceSide;
+  width: number;
+  length: number;
+}
+
+function clearCorridor(
   map: TileMap,
   side: EntranceSide,
   land: ScenarioLand,
-  width: number,
-  length: number,
-): boolean {
-  if (width === 0 || length === 0) return false;
+  trees: ScenarioTrees,
+  offset: number,
+): ClearCorridor {
   const owned = ownedBounds(map.width, map.height, land);
-  const midX = (owned.x0 + owned.x1) >> 1;
-  const midY = (owned.y0 + owned.y1) >> 1;
+  return {
+    owned,
+    midX: ((owned.x0 + owned.x1) >> 1) + offset,
+    midY: ((owned.y0 + owned.y1) >> 1) + offset,
+    side,
+    width: trees.clearWidth ?? 0,
+    length: trees.clearLength ?? 0,
+  };
+}
+
+function insideClearCorridor(x: number, y: number, c: ClearCorridor): boolean {
+  if (c.width === 0 || c.length === 0) return false;
+  const { owned, midX, midY } = c;
   const [row, across] =
-    side === 'south'
+    c.side === 'south'
       ? [owned.y1 - y, Math.abs(x - midX)]
-      : side === 'north'
+      : c.side === 'north'
         ? [y - owned.y0, Math.abs(x - midX)]
-        : side === 'east'
+        : c.side === 'east'
           ? [owned.x1 - x, Math.abs(y - midY)]
           : [x - owned.x0, Math.abs(y - midY)];
-  return row >= 0 && row < length && across <= width;
+  return row >= 0 && row < c.length && across <= c.width;
 }
 
 function scatterGroundScenery(

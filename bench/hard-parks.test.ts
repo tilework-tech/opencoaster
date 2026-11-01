@@ -266,65 +266,76 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
 });
 
 describe('each hard park enforces the rules it advertises', () => {
-  function fresh(id: string): Simulation {
-    const def = SCENARIOS.find((s) => s.id === id)!;
+  /** The park as shipped, or with its rules removed for a control run. */
+  function fresh(id: string, rules = true): Simulation {
+    const shipped = SCENARIOS.find((s) => s.id === id)!;
+    const def = rules ? shipped : { ...shipped, restrictions: undefined };
     const sim = new Simulation({ seed: def.seed, width: def.mapWidth, height: def.mapHeight });
     prepareScenarioPark(sim.world, def);
     return sim;
   }
 
-  it('Copper Ridge refuses to reshape its ridges', () => {
-    const sim = fresh('copper-ridge');
+  function raisedBench(sim: Simulation): boolean {
     const m = sim.world.map;
-    const before = Array.from(m.vertexHeights);
-    sim.enqueue({
-      type: 'flattenLand',
-      x: 30,
-      y: 60,
-      width: 8,
-      height: 12,
-      anchorX: 32,
-      anchorY: 75,
-    });
+    const before = m.vertexHeights[m.vertexIndex(52, 80)];
+    sim.enqueue({ type: 'raiseLand', x: 50, y: 78, width: 4, height: 4 });
     sim.step();
-    expect(Array.from(m.vertexHeights)).toEqual(before);
+    return m.vertexHeights[m.vertexIndex(52, 80)] !== before;
+  }
+
+  it('Copper Ridge refuses to reshape its owned land', () => {
+    expect(raisedBench(fresh('copper-ridge', false))).toBe(true);
+    expect(raisedBench(fresh('copper-ridge'))).toBe(false);
   });
 
   it('Mossgrove Isle keeps every tree when the player tries to clear the woods', () => {
-    const sim = fresh('mossgrove-isle');
-    const m = sim.world.map;
-    const count = () => {
+    const count = (sim: Simulation) => {
+      const m = sim.world.map;
       let n = 0;
       for (let e = 0; e < m.elementCapacity; e++)
         if (m.elType[e] === ElementType.SmallScenery && TREES.has(m.elData[e])) n++;
       return n;
     };
-    const before = count();
-    sim.enqueue({ type: 'clearScenery', x: 20, y: 18, width: 30, height: 20 });
-    sim.step();
-    expect(before).toBeGreaterThan(400);
-    expect(count()).toBe(before);
+    const clear = (sim: Simulation) => {
+      const before = count(sim);
+      sim.enqueue({ type: 'clearScenery', x: 20, y: 18, width: 30, height: 20 });
+      sim.step();
+      return before - count(sim);
+    };
+    expect(clear(fresh('mossgrove-isle', false))).toBeGreaterThan(100);
+    expect(clear(fresh('mossgrove-isle'))).toBe(0);
   });
 
   it('Glacier Point builds no flat rides', () => {
-    const sim = fresh('glacier-point');
-    sim.world.research.unlocked.add(RideType.MerryGoRound);
-    const rides = sim.world.rides.count;
-    sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 80, y: 50 });
-    sim.step();
-    expect(sim.world.rides.count).toBe(rides);
+    const attempt = (sim: Simulation, x: number, y: number) => {
+      sim.world.research.unlocked.add(RideType.MerryGoRound);
+      const rides = sim.world.rides.count;
+      sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x, y });
+      sim.step();
+      return sim.world.rides.count > rides;
+    };
+    const spot = [
+      [80, 50],
+      [78, 54],
+      [76, 48],
+      [84, 56],
+    ].find(([x, y]) => attempt(fresh('glacier-point', false), x, y));
+    expect(spot).toBeDefined();
+    expect(attempt(fresh('glacier-point'), spot![0], spot![1])).toBe(false);
   });
 
   it('Thunderhead Mesa refuses marketing and tall construction', () => {
-    const sim = fresh('thunderhead-mesa');
-    const l = sim.world.economy;
-    const campaign = l.campaignId;
-    sim.enqueue({ type: 'economy', action: { type: 'startCampaign', campaignId: 1, weeks: 2 } });
-    const m = sim.world.map;
-    const ground = m.heights[m.index(44, 14)];
-    sim.enqueue({ type: 'placePath', x: 44, y: 14, z: ground + 8 });
-    sim.step();
-    expect(l.campaignId).toBe(campaign);
-    expect(m.pathElement(m.index(44, 14), -1)).toBeLessThan(0);
+    const tryBoth = (sim: Simulation) => {
+      const l = sim.world.economy;
+      const campaign = l.campaignId;
+      sim.enqueue({ type: 'economy', action: { type: 'startCampaign', campaignId: 1, weeks: 2 } });
+      const m = sim.world.map;
+      const ground = m.heights[m.index(44, 14)];
+      sim.enqueue({ type: 'placePath', x: 44, y: 14, z: ground + 8 });
+      sim.step();
+      return { marketed: l.campaignId !== campaign, tall: m.pathElement(m.index(44, 14), -1) >= 0 };
+    };
+    expect(tryBoth(fresh('thunderhead-mesa', false))).toEqual({ marketed: true, tall: true });
+    expect(tryBoth(fresh('thunderhead-mesa'))).toEqual({ marketed: false, tall: false });
   });
 });

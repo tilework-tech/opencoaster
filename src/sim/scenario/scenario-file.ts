@@ -229,6 +229,7 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
   if (root.land !== undefined) def.land = check(() => land(root.land, def));
   if (root.terrain !== undefined) def.terrain = check(() => terrain(root.terrain, def));
   if (root.trees !== undefined) def.trees = check(() => trees(root.trees, def));
+  if (def.land?.parcels && !def.terrain) fail('land.parcels needs a terrain recipe to paint them');
   if (root.prebuilt !== undefined) def.prebuilt = check(() => prebuilt(root.prebuilt, def));
   if (root.restrictions !== undefined) {
     def.restrictions = check(() => parseRestrictions(root.restrictions));
@@ -343,15 +344,15 @@ function land(v: unknown, def: ScenarioDef): ScenarioLand {
     };
   });
   const flags = landOwnership(def.mapWidth, def.mapHeight, out);
+  if (!flags.some((f) => (f & OWNED) !== 0)) throw new Error('land.parcels owns no land');
   if (!connectedOwnership(flags, def.mapWidth))
     throw new Error('owned land must be one connected piece');
   return out;
 }
 
-/** True when the owned tiles exist and join through edge-sharing neighbours. */
+/** True when the owned tiles join through edge-sharing neighbours. */
 function connectedOwnership(flags: Uint8Array, width: number): boolean {
   const start = flags.findIndex((f) => (f & OWNED) !== 0);
-  if (start < 0) return false;
   const seen = new Uint8Array(flags.length);
   const queue = [start];
   seen[start] = 1;
@@ -390,7 +391,19 @@ function shape(o: Json, path: string, def: ScenarioDef): ScenarioShape {
     return { ellipse: [at(0, w), at(1, h), at(2, MAX_MAP_SIZE, 1), at(3, MAX_MAP_SIZE, 1)] };
   }
   if (values.length !== 5) throw new Error(`${path}.band must list x0, y0, x1, y1, halfWidth`);
-  return { band: [at(0, w), at(1, h), at(2, w), at(3, h), at(4, MAX_BAND_HALF_WIDTH)] };
+  const band: [number, number, number, number, number] = [
+    at(0, w),
+    at(1, h),
+    at(2, w),
+    at(3, h),
+    at(4, MAX_BAND_HALF_WIDTH),
+  ];
+  const [x0, y0, x1, y1, half] = band;
+  if (half === 0 && x0 !== x1 && y0 !== y1)
+    throw new Error(
+      `${path}.band needs a halfWidth of at least 1 unless it runs along a row or column`,
+    );
+  return { band };
 }
 
 function list(v: unknown, path: string): unknown[] {

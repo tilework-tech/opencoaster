@@ -156,6 +156,27 @@ describe('land parcels', () => {
     ).toThrow(/land.parcels\[0\].kind/);
   });
 
+  it('rejects land parcels with no terrain recipe to place them on', () => {
+    expect(() => parseScenarioFile({ ...BASE, land: { parcels: L_PARCELS } })).toThrow(
+      /land.parcels needs a terrain recipe/,
+    );
+  });
+
+  it('rejects a parcel list that owns nothing', () => {
+    expect(() => recipe({ land: { parcels: [{ kind: 'land', rect: [10, 10, 50, 50] }] } })).toThrow(
+      /owns no land/,
+    );
+  });
+
+  it('rejects zero-width diagonal bands, which leave gaps between tiles', () => {
+    expect(() =>
+      recipe({ trees: { count: 0, groves: 1, clearings: [{ band: [10, 10, 30, 20, 0] }] } }),
+    ).toThrow(/trees.clearings\[0\].band/);
+    expect(() =>
+      recipe({ trees: { count: 0, groves: 1, clearings: [{ band: [10, 10, 30, 10, 0] }] } }),
+    ).not.toThrow();
+  });
+
   it('accepts ellipses and bands as parcel shapes', () => {
     const w = parkWorld(
       recipe({
@@ -243,6 +264,23 @@ describe('tree stands and clearings', () => {
     let beside = 0;
     for (let y = 30; y <= 43; y++) for (let x = 10; x <= 21; x++) if (scenery(w, x, y)) beside++;
     expect(beside).toBeGreaterThan(30);
+  });
+
+  it('keeps the gate corridor clear in front of an offset gate', () => {
+    const w = parkWorld(
+      recipe({
+        terrain: { ...TERRAIN, apronOffset: -12 },
+        trees: {
+          count: 0,
+          groves: 1,
+          clearWidth: 2,
+          clearLength: 40,
+          stands: [{ density: 100, rect: [10, 10, 53, 53] }],
+        },
+      }),
+    );
+    for (let y = 30; y <= 43; y++)
+      for (let x = 17; x <= 21; x++) expect(scenery(w, x, y), `${x},${y}`).toBeNull();
   });
 
   it('mixes boulders into a stand when asked', () => {
