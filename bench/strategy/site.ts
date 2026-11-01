@@ -1,0 +1,330 @@
+import { TRACK_STEPS_PER_LEVEL } from '../../src/sim/core/constants';
+import type { Simulation } from '../../src/sim/core/simulation';
+import { pieceByName } from '../../src/sim/track/catalog';
+import { getConstructionCursor, rotateTile } from '../../src/sim/track/construction';
+import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
+import { DIR_DX, DIR_DY, ElementType, PathFlag, SLOPE_DIR_SHIFT } from '../../src/sim/map/tile-map';
+import { PathResult, planPathPlacement } from '../../src/sim/map/paths';
+import { COASTER_TEMPLATES, mirrored } from './coasters';
+import { RideState } from '../../src/sim/rides/ride-store';
+import { validateRidePlacement } from '../../src/sim/rides/ride-footprint';
+import { RideResult } from '../../src/sim/rides/ride-results';
+import { PREBUILT_TYPES } from '../../src/sim/scenario/scenario-prebuilt';
+import { rideFrontage } from '../../src/sim/scenario/park-grid';
+import type { ParkGrid } from '../../src/sim/scenario/park-grid';
+
+/**
+ * A coaster circuit pinned to the map: the station tile, the heading of its first piece, the
+ * station's height level, and whether the template is mirrored so it turns the other way.
+ */
+export interface CoasterSite {
+  template: string;
+  x: number;
+  y: number;
+  dir: 0 | 1 | 2 | 3;
+  mirror: boolean;
+  /** Station height level; defaults to the ground under the station. */
+  level?: number;
+}
+
+export interface SiteBuild {
+  rideId: number;
+  closed: boolean;
+  /** Tiles beside the station for the entrance and the exit. */
+  entrance: [number, number];
+  exit: [number, number];
+  /** The tiles in front of the entrance and the exit, where their paths begin. */
+  entranceFront: [number, number];
+  exitFront: [number, number];
+  level: number;
+}
+
+/**
+ * Creates a wooden coaster at `site` and lays its template through player commands. The circuit
+ * may climb over slopes on supports or run into the ground as a tunnel; a piece the game refuses
+ * leaves the circuit open, which `closed` reports.
+ */
+export function buildCircuit(sim: Simulation, site: CoasterSite): SiteBuild {
+  const world = sim.world;
+  const map = world.map;
+  const template = COASTER_TEMPLATES[site.template];
+  const pieces = site.mirror ? mirrored(template.pieces) : template.pieces;
+  const level = site.level ?? map.heights[map.index(site.x, site.y)];
+  const sigma = site.mirror ? -1 : 1;
+  const at = (i: number, j: number): [number, number] => {
+    const [rx, ry] = rotateTile(i, j, site.dir);
+    return [site.x + rx, site.y + ry];
+  };
+  sim.enqueue({ type: 'createRide', rideType: RideType.WoodenCoaster, x: site.x, y: site.y });
+  sim.step();
+  const rideId = world.rides.slotToId[world.rides.count - 1];
+  for (const [name, mode] of pieces) {
+    const cursor = getConstructionCursor(world, rideId);
+    const from = cursor.hasTrack
+      ? cursor
+      : { x: site.x, y: site.y, z: level * TRACK_STEPS_PER_LEVEL, dir: site.dir };
+    sim.enqueue({
+      type: 'placeTrack',
+      rideId,
+      pieceType: pieceByName(name)!.id,
+      x: from.x,
+      y: from.y,
+      z: from.z,
+      dir: from.dir,
+      mode,
+    });
+    sim.step();
+  }
+  return {
+    rideId,
+    closed: world.track.closed[rideId] === 1,
+    entrance: at(0, -sigma),
+    exit: at(0, sigma),
+    entranceFront: at(0, -2 * sigma),
+    exitFront: at(0, 2 * sigma),
+    level,
+  };
+}
+
+/**
+ * Lays a footpath along `tiles` (each edge-adjacent to the last), starting level with a path at
+ * `startLevel`. Each piece sits on or above its ground: the route keeps to the ground where it can
+ * and otherwise climbs, descends or bridges one level per tile, as a player's raised path would.
+ * Returns the levels of the pieces, or null when the route cannot start at `startLevel`.
+ */
+export function layRoute(
+  sim: Simulation,
+  tiles: ReadonlyArray<readonly [number, number]>,
+  startLevel: number,
+  queue = false,
+): number[] | null {
+  const map = sim.world.map;
+  const top = tiles.map(([x, y]) => {
+    const i = map.index(x, y);
+    return Math.max(map.heights[i] + (map.slope[i] !== 0 ? 1 : 0), map.waterLevel[i]);
+  });
+  const n = tiles.length;
+  const floor = Array.from({ length: n + 1 }, (_, k) =>
+    Math.max(k > 0 ? top[k - 1] : 0, k < n ? top[k] : 0),
+  );
+  floor[0] = Math.max(floor[0], startLevel);
+  const step = (k: number): number => {
+    const [x, y] = tiles[k];
+    const [px, py] = k > 0 ? tiles[k - 1] : [x - (tiles[1][0] - x), y - (tiles[1][1] - y)];
+    return [0, 1, 2, 3].find((d) => DIR_DX[d] === x - px && DIR_DY[d] === y - py)!;
+  };
+  // A ramp only joins along its slope, so a tile where the route turns stays level.
+  const corner = tiles.map((_, k) => k + 1 < n && step(k + 1) !== step(k));
+  let edge = floor;
+  for (let changed = true; changed;) {
+    edge = floor.map((_, k) => Math.max(...floor.map((f, j) => f - Math.abs(k - j))));
+    changed = false;
+    for (let k = 0; k < n; k++) {
+      if (!corner[k] || edge[k] === edge[k + 1]) continue;
+      const level = Math.max(edge[k], edge[k + 1]);
+      floor[k] = Math.max(floor[k], level);
+      floor[k + 1] = Math.max(floor[k + 1], level);
+      changed = true;
+    }
+  }
+  if (edge[0] !== startLevel) return null;
+  const levels: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const [x, y] = tiles[k];
+    const forward = step(k);
+    const rise = edge[k + 1] - edge[k];
+    const z = Math.min(edge[k], edge[k + 1]);
+    const slope = rise > 0 ? forward : rise < 0 ? (forward + 2) % 4 : -1;
+    sim.enqueue({ type: 'placePath', x, y, z, slope, queue });
+    levels.push(z);
+  }
+  sim.step();
+  return levels;
+}
+
+/**
+ * Lays the shortest ground-level footpath from `start` (included) to beside any tile `goal`
+ * accepts, through tiles where the game would accept a path piece. Returns the tiles laid,
+ * `start` first, or null.
+ */
+export function connectOnGround(
+  sim: Simulation,
+  start: readonly [number, number],
+  goal: (tile: number) => boolean,
+  queue = false,
+): Array<[number, number]> | null {
+  const map = sim.world.map;
+  const origin = map.index(start[0], start[1]);
+  /** Level of the piece's edge on `side`, or -1 where a ramp's flank cannot join. */
+  const edge = (tile: number, side: number): number => {
+    let z: number;
+    let rise: number;
+    const existing = map.pathElement(tile, map.heights[tile]);
+    if (existing >= 0) {
+      z = map.elBase[existing];
+      rise =
+        map.elFlags[existing] & PathFlag.Sloped
+          ? (map.elFlags[existing] & PathFlag.SlopeDir) >> SLOPE_DIR_SHIFT
+          : -1;
+    } else {
+      const plan = planPathPlacement(map, { x: tile % map.width, y: Math.floor(tile / map.width) });
+      if (plan.result !== PathResult.Ok || plan.existing >= 0) return -1;
+      z = plan.z;
+      rise = plan.dir;
+    }
+    if (rise < 0) return z;
+    return side === rise ? z + 1 : side === ((rise + 2) & 3) ? z : -1;
+  };
+  const from = new Map<number, number>([[origin, -1]]);
+  const frontier = [origin];
+  for (let head = 0; head < frontier.length; head++) {
+    const here = frontier[head];
+    if (here !== origin && goal(here)) {
+      const route: Array<[number, number]> = [];
+      for (let t = from.get(here)!; t >= 0; t = from.get(t)!)
+        route.push([t % map.width, Math.floor(t / map.width)]);
+      route.reverse();
+      for (const [x, y] of route) sim.enqueue({ type: 'placePath', x, y, queue });
+      sim.step();
+      return route;
+    }
+    if (here !== origin && map.pathElement(here, -1) >= 0) continue;
+    for (let d = 0; d < 4; d++) {
+      const n = map.neighbor(here, d);
+      if (n < 0 || from.has(n)) continue;
+      const out = edge(here, d);
+      if (out < 0 || out !== edge(n, (d + 2) & 3)) continue;
+      if (map.pathElement(n, -1) >= 0 && !goal(n)) continue;
+      from.set(n, here);
+      frontier.push(n);
+    }
+  }
+  return null;
+}
+
+/** Edge-adjacent tiles through `points`, moving along x then y between each pair. */
+export function waypoints(
+  points: ReadonlyArray<readonly [number, number]>,
+): Array<[number, number]> {
+  const out: Array<[number, number]> = [[points[0][0], points[0][1]]];
+  for (let k = 1; k < points.length; k++) {
+    let [x, y] = out[out.length - 1];
+    const [tx, ty] = points[k];
+    while (x !== tx) out.push([(x += Math.sign(tx - x)), y]);
+    while (y !== ty) out.push([x, (y += Math.sign(ty - y))]);
+  }
+  return out;
+}
+
+/** Removes the small scenery (trees, rocks) on `tiles` through the normal removal command. */
+export function clearScenery(
+  sim: Simulation,
+  tiles: ReadonlyArray<readonly [number, number]>,
+): void {
+  const map = sim.world.map;
+  for (const [x, y] of tiles) {
+    const i = map.index(x, y);
+    for (let e = map.firstElement(i); e >= 0; e = map.nextElement(e))
+      if (map.elType[e] === ElementType.SmallScenery) sim.enqueue({ type: 'removeScenery', x, y });
+  }
+  sim.step();
+}
+
+/** True when tile `i` holds a flat footpath piece lying on its ground, which paths can join from any side. */
+export function flatGroundPath(sim: Simulation, i: number): boolean {
+  const map = sim.world.map;
+  const e = map.pathElement(i, map.heights[i]);
+  return e >= 0 && !(map.elFlags[e] & PathFlag.Sloped) && !map.isQueue(i);
+}
+
+export interface OpenedRide {
+  rideId: number;
+  /** Ride state after the build: `RideState.Open` when it opened. */
+  state: number;
+  excitement: number;
+}
+
+/**
+ * Builds a coaster at `site`, lays its queue from the entrance and a path from the exit to tiles
+ * `joins` accepts, tests it and opens it. With `clear`, scenery on the entrance and exit tiles is
+ * removed first. Returns null when the circuit does not close or a path cannot be laid.
+ */
+export function openCoaster(
+  sim: Simulation,
+  site: CoasterSite,
+  joins: (tile: number) => boolean,
+  clear = true,
+): OpenedRide | null {
+  const world = sim.world;
+  const c = buildCircuit(sim, site);
+  if (!c.closed) return null;
+  if (clear) clearScenery(sim, [c.entrance, c.exit, c.entranceFront, c.exitFront]);
+  sim.enqueue({ type: 'placePath', x: c.entrance[0], y: c.entrance[1], queue: true });
+  sim.enqueue({ type: 'placePath', x: c.exit[0], y: c.exit[1] });
+  sim.step();
+  const exitTile = world.map.index(c.exit[0], c.exit[1]);
+  if (!connectOnGround(sim, c.entranceFront, (t) => t !== exitTile && joins(t), true)) return null;
+  if (!connectOnGround(sim, c.exitFront, joins)) return null;
+  sim.enqueue({ type: 'placeRideEntrance', rideId: c.rideId, x: c.entrance[0], y: c.entrance[1] });
+  sim.enqueue({ type: 'placeRideExit', rideId: c.rideId, x: c.exit[0], y: c.exit[1] });
+  sim.enqueue({ type: 'setRideStatus', rideId: c.rideId, status: 'test' });
+  sim.step();
+  const slot = () => world.rides.idToSlot[c.rideId];
+  for (let t = 0; t < 12_000 && world.rides.cols.tested[slot()] !== 1; t++) sim.step();
+  for (let t = 0; t < 4_000 && world.rides.cols.state[slot()] !== RideState.Open; t++) {
+    if (t % 50 === 0) sim.enqueue({ type: 'setRideStatus', rideId: c.rideId, status: 'open' });
+    sim.step();
+  }
+  return {
+    rideId: c.rideId,
+    state: world.rides.cols.state[slot()],
+    excitement: world.rides.cols.excitement[slot()],
+  };
+}
+
+/**
+ * Builds and opens a flat ride or stall beside a spine path the caller already laid, at
+ * (`row`, `lateral`) on `grid`, the way the scripted builder places rides along its spine.
+ */
+export function openFlatRide(
+  sim: Simulation,
+  grid: ParkGrid,
+  row: number,
+  lateral: number,
+  name: string,
+): OpenedRide | null {
+  const world = sim.world;
+  const type = PREBUILT_TYPES[name];
+  const frontage = rideFrontage(grid, row, lateral, RIDE_CATALOG[type].footprint);
+  if (validateRidePlacement(world, type, ...frontage.ride, frontage.dir) !== RideResult.Ok)
+    return null;
+  const service =
+    RIDE_CATALOG[type].category === 'stall' || RIDE_CATALOG[type].category === 'facility';
+  for (const [x, y] of frontage.queue) sim.enqueue({ type: 'placePath', x, y, queue: !service });
+  for (const [x, y] of frontage.exitPath) sim.enqueue({ type: 'placePath', x, y });
+  sim.enqueue({
+    type: 'createRide',
+    rideType: type,
+    x: frontage.ride[0],
+    y: frontage.ride[1],
+    dir: frontage.dir,
+  });
+  sim.step();
+  const rideId = world.rides.slotToId[world.rides.count - 1];
+  sim.enqueue({
+    type: 'placeRideEntrance',
+    rideId,
+    x: frontage.entrance[0],
+    y: frontage.entrance[1],
+  });
+  if (!service)
+    sim.enqueue({ type: 'placeRideExit', rideId, x: frontage.exit[0], y: frontage.exit[1] });
+  sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
+  sim.step();
+  const slot = world.rides.idToSlot[rideId];
+  return {
+    rideId,
+    state: world.rides.cols.state[slot],
+    excitement: world.rides.cols.excitement[slot],
+  };
+}
