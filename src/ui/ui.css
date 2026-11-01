@@ -1194,6 +1194,7 @@
 }
 #app .title-tagline,
 #app .scenario-description,
+#app .scenario-terrain,
 #app .scenario-meta,
 #app .scenario-objective,
 #app .scenario-rules,
@@ -1205,6 +1206,10 @@
 }
 #app .title-tagline {
   margin: 2px 0 12px;
+}
+#app .scenario-terrain {
+  color: #4a4130;
+  font-style: italic;
 }
 #app .title-message {
   color: #8a321e;

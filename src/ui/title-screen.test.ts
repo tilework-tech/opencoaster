@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LedgerCategory } from '../sim/economy/ledger';
 import { ObjectiveKind } from '../sim/scenario/scenario';
 import type { ScenarioDef } from '../sim/scenario/scenario';
-import { objectiveText, scenarioRulesText } from './title-screen';
+import { objectiveText, scenarioRulesText, scenarioTerrainLines } from './title-screen';
 
 function scenario(
   kind: ObjectiveKind,
@@ -88,5 +88,23 @@ describe('title screen park rules', () => {
     expect(scenarioRulesText(scenario(ObjectiveKind.HaveFun, 0, 0))).toBe(
       'Park rules: no restrictions.',
     );
+  });
+});
+
+describe('title screen terrain and challenge notes', () => {
+  it('names the terrain and the challenge when the scenario describes them', () => {
+    const def = {
+      ...scenario(ObjectiveKind.Guests, 100),
+      landscape: 'Narrow benches between red ridges.',
+      challenge: 'Landscaping is forbidden; follow the slopes.',
+    };
+    expect(scenarioTerrainLines(def)).toEqual([
+      'Terrain: Narrow benches between red ridges.',
+      'Challenge: Landscaping is forbidden; follow the slopes.',
+    ]);
+  });
+
+  it('adds nothing for scenarios without notes', () => {
+    expect(scenarioTerrainLines(scenario(ObjectiveKind.Guests, 100))).toEqual([]);
   });
 });
