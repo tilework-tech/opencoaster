@@ -1,6 +1,6 @@
 import { Simulation } from '../../src/sim/core/simulation';
 import { TICKS_PER_MONTH, TICKS_PER_YEAR } from '../../src/sim/economy/calendar';
-import { prepareScenario } from '../../src/sim/scenario/scenario-layout';
+import { prepareScenarioPark } from '../../src/sim/scenario/scenario-layout';
 import { ScenarioStatus } from '../../src/sim/scenario/scenario';
 import { objectiveMetric } from '../../src/sim/scenario/scenario-system';
 import type { ScenarioDef } from '../../src/sim/scenario/scenario';
@@ -43,7 +43,7 @@ export function runScenario(
   opts: RunOptions,
 ): RunResult {
   const sim = new Simulation({ seed: opts.seed, width: def.mapWidth, height: def.mapHeight });
-  prepareScenario(sim.world, def);
+  prepareScenarioPark(sim.world, def);
   // The strategy suite isolates park and economy balance from research pacing.
   sim.world.research.unlocked = new Set(Object.keys(RIDE_CATALOG).map(Number));
   const builder = new ParkBuilder(sim, def);

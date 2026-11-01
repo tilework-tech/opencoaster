@@ -1,17 +1,31 @@
 import { Prng } from '../core/prng';
 import { relaxTerrain } from '../map/land';
-import { ElementType, expansionOwnership, MAP_BORDER, MAX_HEIGHT, Surface } from '../map/tile-map';
+import {
+  ElementType,
+  expansionOwnership,
+  MAP_BORDER,
+  MAX_ELEMENT_BASE,
+  MAX_HEIGHT,
+  OWNED,
+  SALE_LAND,
+  SALE_RIGHTS,
+  Surface,
+} from '../map/tile-map';
 import type { TileMap } from '../map/tile-map';
-import { SceneryItem } from '../map/scenery';
+import { SCENERY_CATALOG, SceneryItem } from '../map/scenery';
 import type {
   EntranceSide,
+  ParcelKind,
   ScenarioDef,
   ScenarioLand,
+  ScenarioShape,
   ScenarioTerrain,
   ScenarioTrees,
   TerrainSurface,
   TreeSpecies,
+  TreeStand,
 } from './scenario';
+import { shapeBounds, shapeContains, shapeDistance } from './scenario-shapes';
 
 const SURFACES: Record<TerrainSurface, number> = {
   grass: Surface.Grass,
@@ -30,29 +44,89 @@ export interface TileRect {
   y1: number;
 }
 
-/** The land the player owns at the start: an inset rectangle of the map. */
-export function ownedBounds(
+const PARCEL_FLAGS: Record<ParcelKind, number> = {
+  owned: OWNED,
+  land: SALE_LAND,
+  rights: SALE_RIGHTS,
+  none: 0,
+};
+
+/**
+ * Starting ownership flags for every tile. Margin land owns an inset rectangle with a land-sale
+ * ring and rights beyond it; parcel land paints each parcel's kind in order. The map border is
+ * never owned or for sale.
+ */
+export function landOwnership(
   width: number,
   height: number,
   land: ScenarioLand = DEFAULT_LAND,
-): TileRect {
+): Uint8Array {
+  const out = new Uint8Array(width * height);
+  const parcels = land.parcels;
+  const owned = parcels ? null : marginBounds(width, height, land);
+  const saleX = Math.floor((width * land.saleMarginPercent) / 100);
+  const saleY = Math.floor((height * land.saleMarginPercent) / 100);
+  for (let y = MAP_BORDER; y < height - MAP_BORDER; y++) {
+    for (let x = MAP_BORDER; x < width - MAP_BORDER; x++) {
+      let flags = 0;
+      if (parcels) {
+        for (const parcel of parcels)
+          if (shapeContains(parcel, x, y)) flags = PARCEL_FLAGS[parcel.kind];
+      } else if (!(x < saleX || y < saleY || x >= width - saleX || y >= height - saleY)) {
+        flags = expansionOwnership(x, y, owned!);
+      }
+      out[y * width + x] = flags;
+    }
+  }
+  return out;
+}
+
+function marginBounds(width: number, height: number, land: ScenarioLand): TileRect {
   const mx = Math.floor((width * land.ownedMarginPercent) / 100);
   const my = Math.floor((height * land.ownedMarginPercent) / 100);
   return { x0: mx, y0: my, x1: width - mx - 1, y1: height - my - 1 };
 }
 
-/** The flat apron in front of the gate: `buildLength` tiles inward and `buildWidth` across, centred on the gate edge. */
+/**
+ * The rectangle around the land the player owns at the start: an inset of the map for margin
+ * land, or the bounds of the owned parcels.
+ */
+export function ownedBounds(
+  width: number,
+  height: number,
+  land: ScenarioLand = DEFAULT_LAND,
+): TileRect {
+  if (!land.parcels) return marginBounds(width, height, land);
+  const flags = landOwnership(width, height, land);
+  const out = { x0: width, y0: height, x1: -1, y1: -1 };
+  for (let i = 0; i < flags.length; i++) {
+    if (!(flags[i] & OWNED)) continue;
+    const x = i % width;
+    const y = (i / width) | 0;
+    out.x0 = Math.min(out.x0, x);
+    out.y0 = Math.min(out.y0, y);
+    out.x1 = Math.max(out.x1, x);
+    out.y1 = Math.max(out.y1, y);
+  }
+  return out;
+}
+
+/**
+ * The flat apron in front of the gate: `buildLength` tiles inward and `buildWidth` across, flush
+ * with the owned edge and centred `apronOffset` tiles from its midpoint.
+ */
 export function buildApron(
   width: number,
   height: number,
   side: EntranceSide,
-  terrain: Pick<ScenarioTerrain, 'buildLength' | 'buildWidth'>,
+  terrain: Pick<ScenarioTerrain, 'buildLength' | 'buildWidth' | 'apronOffset'>,
   land: ScenarioLand = DEFAULT_LAND,
 ): TileRect {
   const o = ownedBounds(width, height, land);
   const half = terrain.buildWidth >> 1;
-  const midX = (o.x0 + o.x1) >> 1;
-  const midY = (o.y0 + o.y1) >> 1;
+  const shift = terrain.apronOffset ?? 0;
+  const midX = ((o.x0 + o.x1) >> 1) + shift;
+  const midY = ((o.y0 + o.y1) >> 1) + shift;
   switch (side) {
     case 'south':
       return {
@@ -109,7 +183,7 @@ export function generateScenarioMap(map: TileMap, def: ScenarioDef, seed: number
     relaxTerrain(map);
     paintTiles(map, terrain, land);
   }
-  if (def.trees) scatterTrees(map, def.trees, apron, rng, side, land);
+  if (def.trees) scatterTrees(map, def.trees, apron, rng, side, land, terrain?.apronOffset ?? 0);
 }
 
 function shapeHeights(map: TileMap, t: ScenarioTerrain, apron: TileRect, rng: Prng): void {
@@ -148,6 +222,14 @@ function shapeHeights(map: TileMap, t: ScenarioTerrain, apron: TileRect, rng: Pr
         }
       }
 
+      for (const shape of t.shapes ?? []) {
+        const fall = Math.floor(shapeDistance(shape, vx, vy) / shape.run);
+        h =
+          shape.mode === 'raise'
+            ? Math.max(h, shape.level - fall)
+            : Math.min(h, shape.level + fall);
+      }
+
       const gap = Math.max(
         apron.x0 - vx,
         vx - (apron.x1 + 1),
@@ -163,23 +245,14 @@ function shapeHeights(map: TileMap, t: ScenarioTerrain, apron: TileRect, rng: Pr
 }
 
 function paintTiles(map: TileMap, t: ScenarioTerrain, land: ScenarioLand): void {
-  const owned = ownedBounds(map.width, map.height, land);
-  const saleX = Math.floor((map.width * land.saleMarginPercent) / 100);
-  const saleY = Math.floor((map.height * land.saleMarginPercent) / 100);
+  const ownership = landOwnership(map.width, map.height, land);
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       const i = map.index(x, y);
       const h = map.heights[i];
       map.terrain[i] = groundSurface(map, t, x, y);
       map.waterLevel[i] = h < t.seaLevel ? t.seaLevel : 0;
-      const border =
-        x < MAP_BORDER ||
-        y < MAP_BORDER ||
-        x >= map.width - MAP_BORDER ||
-        y >= map.height - MAP_BORDER;
-      const unsellable =
-        x < saleX || y < saleY || x >= map.width - saleX || y >= map.height - saleY;
-      map.ownership[i] = border || unsellable ? 0 : expansionOwnership(x, y, owned);
+      map.ownership[i] = ownership[i];
       map.refreshTile(i);
     }
   }
@@ -247,8 +320,17 @@ function scatterTrees(
   rng: Prng,
   side: EntranceSide,
   land: ScenarioLand,
+  offset: number,
 ): void {
   const pool = trees.species ?? [];
+  const clearings = trees.clearings ?? [];
+  const corridor = clearCorridor(map, side, land, trees, offset);
+  const keepClear = (x: number, y: number): boolean =>
+    nearApron(x, y, apron) ||
+    insideClearCorridor(x, y, corridor) ||
+    clearings.some((c) => shapeContains(c, x, y));
+  for (const stand of trees.stands ?? []) fillStand(map, stand, pool, rng, keepClear);
+
   const centres: Array<[number, number]> = [];
   for (let g = 0; g < trees.groves; g++) {
     centres.push([
@@ -271,12 +353,7 @@ function scatterTrees(
     const y = solitary ? cy : cy + rng.int(2 * TREE_RADIUS + 1) - TREE_RADIUS;
     if (!map.inBounds(x, y)) continue;
     const i = map.index(x, y);
-    if (
-      nearApron(x, y, apron) ||
-      insideClearCorridor(x, y, map, side, land, trees.clearWidth ?? 0, trees.clearLength ?? 0) ||
-      !isFreeGround(map, i)
-    )
-      continue;
+    if (keepClear(x, y) || !isFreeGround(map, i)) continue;
     const allowed = (GROUND_SPECIES[map.terrain[i]] ?? []).filter(
       (s) => pool.length === 0 || pool.includes(s),
     );
@@ -300,62 +377,110 @@ function scatterTrees(
       placed++;
   }
 
-  scatterGroundScenery(map, trees.shrubs ?? 0, SceneryItem.Shrub, apron, rng, side, land, trees);
-  scatterGroundScenery(
-    map,
-    trees.flowerBeds ?? 0,
-    SceneryItem.FlowerBed,
-    apron,
-    rng,
-    side,
-    land,
-    trees,
-  );
+  scatterGroundScenery(map, trees.shrubs ?? 0, SceneryItem.Shrub, rng, keepClear);
+  scatterGroundScenery(map, trees.flowerBeds ?? 0, SceneryItem.FlowerBed, rng, keepClear);
 }
 
-function insideClearCorridor(
-  x: number,
-  y: number,
+/**
+ * Fills a stand: every dry, empty tile in the shape, sloped or flat, gets a tree that suits its
+ * ground (or a rock) with the stand's percent chance.
+ */
+function fillStand(
+  map: TileMap,
+  stand: TreeStand,
+  pool: readonly TreeSpecies[],
+  rng: Prng,
+  keepClear: (x: number, y: number) => boolean,
+): void {
+  const b = shapeBounds(stand);
+  for (let y = Math.max(MAP_BORDER, b.y0); y <= Math.min(map.height - MAP_BORDER - 1, b.y1); y++) {
+    for (let x = Math.max(MAP_BORDER, b.x0); x <= Math.min(map.width - MAP_BORDER - 1, b.x1); x++) {
+      if (!shapeContains(stand, x, y) || rng.int(100) >= stand.density) continue;
+      const i = map.index(x, y);
+      if (keepClear(x, y) || !isOpenGround(map, i)) continue;
+      let item: SceneryItem;
+      if (rng.int(100) < stand.rocks) {
+        item = rng.int(2) === 0 ? SceneryItem.Boulder : SceneryItem.RockCluster;
+      } else {
+        const allowed = (GROUND_SPECIES[map.terrain[i]] ?? []).filter(
+          (s) => pool.length === 0 || pool.includes(s),
+        );
+        if (allowed.length === 0) continue;
+        item = SPECIES_ITEM[allowed[rng.int(allowed.length)]];
+      }
+      const base = map.heights[i] + (map.slope[i] !== 0 ? 1 : 0);
+      const top = Math.min(MAX_ELEMENT_BASE, base + Math.max(1, SCENERY_CATALOG[item].height));
+      map.addElement(i, ElementType.SmallScenery, base, top, 0, item);
+    }
+  }
+}
+
+/** Tiles kept free of generated scenery: the apron and gate margin plus the recipe's clearings. */
+export function treeClearAreas(def: ScenarioDef, width: number, height: number): TileRect[] {
+  const apron = buildApron(
+    width,
+    height,
+    def.entrance?.side ?? 'south',
+    def.terrain ?? { buildLength: 10, buildWidth: 18 },
+    def.land,
+  );
+  return [apron, ...(def.trees?.clearings ?? []).map((c: ScenarioShape) => shapeBounds(c))];
+}
+
+/** The straight strip kept clear inward from the gate: owned edge, gate midpoint and size. */
+interface ClearCorridor {
+  owned: TileRect;
+  midX: number;
+  midY: number;
+  side: EntranceSide;
+  width: number;
+  length: number;
+}
+
+function clearCorridor(
   map: TileMap,
   side: EntranceSide,
   land: ScenarioLand,
-  width: number,
-  length: number,
-): boolean {
-  if (width === 0 || length === 0) return false;
+  trees: ScenarioTrees,
+  offset: number,
+): ClearCorridor {
   const owned = ownedBounds(map.width, map.height, land);
-  const midX = (owned.x0 + owned.x1) >> 1;
-  const midY = (owned.y0 + owned.y1) >> 1;
+  return {
+    owned,
+    midX: ((owned.x0 + owned.x1) >> 1) + offset,
+    midY: ((owned.y0 + owned.y1) >> 1) + offset,
+    side,
+    width: trees.clearWidth ?? 0,
+    length: trees.clearLength ?? 0,
+  };
+}
+
+function insideClearCorridor(x: number, y: number, c: ClearCorridor): boolean {
+  if (c.width === 0 || c.length === 0) return false;
+  const { owned, midX, midY } = c;
   const [row, across] =
-    side === 'south'
+    c.side === 'south'
       ? [owned.y1 - y, Math.abs(x - midX)]
-      : side === 'north'
+      : c.side === 'north'
         ? [y - owned.y0, Math.abs(x - midX)]
-        : side === 'east'
+        : c.side === 'east'
           ? [owned.x1 - x, Math.abs(y - midY)]
           : [x - owned.x0, Math.abs(y - midY)];
-  return row >= 0 && row < length && across <= width;
+  return row >= 0 && row < c.length && across <= c.width;
 }
 
 function scatterGroundScenery(
   map: TileMap,
   count: number,
   item: SceneryItem,
-  apron: TileRect,
   rng: Prng,
-  side: EntranceSide,
-  land: ScenarioLand,
-  trees: ScenarioTrees,
+  keepClear: (x: number, y: number) => boolean,
 ): void {
   let placed = 0;
   for (let attempt = 0; attempt < count * 12 && placed < count; attempt++) {
     const x = MAP_BORDER + rng.int(map.width - 2 * MAP_BORDER);
     const y = MAP_BORDER + rng.int(map.height - 2 * MAP_BORDER);
-    if (
-      nearApron(x, y, apron) ||
-      insideClearCorridor(x, y, map, side, land, trees.clearWidth ?? 0, trees.clearLength ?? 0)
-    )
-      continue;
+    if (keepClear(x, y)) continue;
     const index = map.index(x, y);
     if (!isFreeGround(map, index) || map.terrain[index] !== Surface.Grass) continue;
     const base = map.heights[index];
@@ -373,10 +498,10 @@ function nearApron(x: number, y: number, apron: TileRect): boolean {
 }
 
 function isFreeGround(map: TileMap, i: number): boolean {
-  return (
-    map.ownership[i] !== 0 &&
-    map.waterLevel[i] === 0 &&
-    map.slope[i] === 0 &&
-    map.firstElement(i) < 0
-  );
+  return map.slope[i] === 0 && isOpenGround(map, i);
+}
+
+/** Dry, empty tile that is owned or for sale, flat or sloped. */
+function isOpenGround(map: TileMap, i: number): boolean {
+  return map.ownership[i] !== 0 && map.waterLevel[i] === 0 && map.firstElement(i) < 0;
 }

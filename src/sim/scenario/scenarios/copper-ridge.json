@@ -3,7 +3,9 @@
   "name": "Copper Ridge",
   "category": "challenging",
   "climate": "hotAndDry",
-  "description": "Dry red hills with a mine-cart past. Build five coasters rated 4.60 excitement or better before the end of the first year.",
+  "description": "Dry red ridges with a mine-cart past. Build five coasters rated 4.60 excitement or better before the end of the second year.",
+  "landscape": "Red ridges split by a dry gulch. The gate opens onto a narrow bench, with more benches higher up.",
+  "challenge": "Landscaping is forbidden, so the ridges stay. Run coasters along the slopes and through the rock, and buy rights over the gulch to bridge it.",
   "seed": 2101,
   "map": {
     "width": 96,
@@ -124,54 +126,122 @@
     "length": 4
   },
   "terrain": {
-    "seaLevel": 3,
-    "baseLevel": 8,
-    "relief": 5,
+    "seaLevel": 2,
+    "baseLevel": 14,
+    "relief": 4,
     "cell": 10,
-    "surface": "grass",
-    "buildLevel": 9,
-    "buildLength": 48,
-    "buildWidth": 35,
-    "lakes": [
+    "surface": "dirt",
+    "buildLevel": 8,
+    "buildLength": 12,
+    "buildWidth": 17,
+    "lakes": [],
+    "hills": [],
+    "highland": {
+      "surface": "rock",
+      "level": 17
+    },
+    "shapes": [
       {
-        "x": 15,
-        "y": 20,
-        "rx": 9,
-        "ry": 7,
-        "depth": 2
-      }
-    ],
-    "hills": [
-      {
-        "x": 80,
-        "y": 25,
-        "radius": 12,
-        "height": 5
+        "mode": "lower",
+        "level": 8,
+        "ellipse": [46, 80, 15, 6]
       },
       {
-        "x": 20,
-        "y": 70,
-        "radius": 10,
-        "height": 4
+        "mode": "lower",
+        "level": 8,
+        "rect": [37, 76, 55, 88]
+      },
+      {
+        "mode": "lower",
+        "level": 5,
+        "band": [10, 62, 88, 58, 1]
+      },
+      {
+        "mode": "lower",
+        "level": 11,
+        "ellipse": [30, 42, 14, 6]
+      },
+      {
+        "mode": "lower",
+        "level": 13,
+        "ellipse": [68, 34, 14, 6]
+      },
+      {
+        "mode": "lower",
+        "level": 16,
+        "ellipse": [46, 16, 16, 5]
+      },
+      {
+        "mode": "raise",
+        "level": 22,
+        "ellipse": [82, 14, 5, 4]
       }
     ],
-    "highland": {
-      "surface": "dirt",
-      "level": 10
-    }
+    "apronOffset": 8
   },
   "land": {
-    "ownedMarginPercent": 22,
-    "saleMarginPercent": 3
+    "parcels": [
+      {
+        "kind": "rights",
+        "band": [10, 62, 88, 58, 5]
+      },
+      {
+        "kind": "rights",
+        "band": [44, 40, 56, 36, 4]
+      },
+      {
+        "kind": "land",
+        "ellipse": [68, 34, 15, 7]
+      },
+      {
+        "kind": "land",
+        "band": [58, 74, 58, 40, 2]
+      },
+      {
+        "kind": "land",
+        "ellipse": [46, 16, 17, 6]
+      },
+      {
+        "kind": "land",
+        "band": [42, 36, 42, 20, 2]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [46, 80, 16, 7]
+      },
+      {
+        "kind": "owned",
+        "band": [34, 76, 34, 46, 2]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [30, 42, 15, 7]
+      },
+      {
+        "kind": "owned",
+        "rect": [37, 76, 55, 88]
+      }
+    ]
   },
   "trees": {
-    "count": 150,
-    "groves": 8
+    "count": 40,
+    "groves": 5,
+    "species": ["conifer", "oak"],
+    "stands": [
+      {
+        "density": 7,
+        "rocks": 80,
+        "rect": [8, 8, 88, 88]
+      }
+    ]
   },
   "objective": {
     "kind": "completeCoasters",
     "target": 5,
     "minimumExcitement": 460,
-    "byYear": 1
+    "byYear": 2
+  },
+  "restrictions": {
+    "forbidLandscaping": true
   }
 }

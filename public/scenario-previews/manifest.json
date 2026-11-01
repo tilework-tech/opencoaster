@@ -1,5 +1,5 @@
 {
-  "rendererVersion": 1,
+  "rendererVersion": 2,
   "scenarios": {
     "bramblewood-hollow": {
       "sourceHash": "eb0f4926a53fb8864702efeb662ad7794d3c4763c871dd7ea05b9e5438240daa",
@@ -9,14 +9,14 @@
       "height": 72
     },
     "copper-ridge": {
-      "sourceHash": "88dbd63ed7d4144bc1ba366ec50ea2a3fb53664e8866ba03837a95e4af3c9585",
+      "sourceHash": "c225c2224d25772dc78f03c86c49235636caa500d05e8bb563d3cdb50daffa85",
       "oneX": "copper-ridge@1x.png",
       "twoX": "copper-ridge@2x.png",
       "width": 96,
       "height": 96
     },
     "glacier-point": {
-      "sourceHash": "3273b068b7294cc77735afe33d157316ef4d0cbb2a96b133e89dce6ef4b5fd73",
+      "sourceHash": "5863dba5fd44051e61a4ae01ae2ac4714c57e8f86993d0a1ce5fa883e1631677",
       "oneX": "glacier-point@1x.png",
       "twoX": "glacier-point@2x.png",
       "width": 96,
@@ -33,6 +33,13 @@
       "sourceHash": "596414a7559a1a7d40c628adf975406edb927f680495fc419c00c831a5fe7862",
       "oneX": "meadowbrook@1x.png",
       "twoX": "meadowbrook@2x.png",
+      "width": 72,
+      "height": 72
+    },
+    "mossgrove-isle": {
+      "sourceHash": "69737960abc359897939e98d747c5c2904cfae2ed94c27aa68aaf39163dab41d",
+      "oneX": "mossgrove-isle@1x.png",
+      "twoX": "mossgrove-isle@2x.png",
       "width": 72,
       "height": 72
     },
@@ -65,14 +72,14 @@
       "height": 64
     },
     "thunderhead-mesa": {
-      "sourceHash": "ca675056243ba99b6d28eaf418ee6d36d4a16e5e7caa974a3cd081fc14321abd",
+      "sourceHash": "839255fdc885bf70c6cec9acef8cecbd2b91b6342247f559ff05feda9ce86732",
       "oneX": "thunderhead-mesa@1x.png",
       "twoX": "thunderhead-mesa@2x.png",
       "width": 96,
       "height": 96
     },
     "tidewater-docks": {
-      "sourceHash": "52274bddf82bfefdb4c379fac4eec68084fb111339a844dc73c6069343fc1c0d",
+      "sourceHash": "ea55308c76e78a0881755e82eac0c622fab371301d48715c2a5e4e6df882a0a7",
       "oneX": "tidewater-docks@1x.png",
       "twoX": "tidewater-docks@2x.png",
       "width": 80,

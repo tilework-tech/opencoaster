@@ -151,6 +151,9 @@ export class TitleScreen {
         element('p', 'scenario-rank', scenarioRankText(def)),
         element('p', 'scenario-map-size', `Map size: ${def.mapWidth} × ${def.mapHeight} tiles`),
         element('p', 'scenario-description', def.description ?? ''),
+        ...scenarioTerrainLines(def)
+          .slice(0, 1)
+          .map((line) => element('p', 'scenario-terrain', line)),
       );
       card.append(
         scenarioPreview(def, 'scenario-card-preview'),
@@ -168,6 +171,7 @@ export class TitleScreen {
         scenarioPreview(selected, 'scenario-map-preview'),
         element('h2', 'scenario-preview-name', selected.name),
         element('p', 'scenario-description', selected.description ?? ''),
+        ...scenarioTerrainLines(selected).map((line) => element('p', 'scenario-terrain', line)),
         element('p', 'scenario-objective', objectiveText(selected)),
         element('p', 'scenario-rules', scenarioRulesText(selected)),
         element('p', 'scenario-rank', scenarioRankText(selected)),
@@ -258,6 +262,14 @@ function scenarioPreview(scenario: ScenarioDef, className: string): HTMLImageEle
   image.alt = `${scenario.name} scenario preview`;
   image.draggable = false;
   return image;
+}
+
+/** The scenario's terrain and challenge notes, labelled for the scenario list. */
+export function scenarioTerrainLines(scenario: ScenarioDef): string[] {
+  return [
+    ...(scenario.landscape ? [`Terrain: ${scenario.landscape}`] : []),
+    ...(scenario.challenge ? [`Challenge: ${scenario.challenge}`] : []),
+  ];
 }
 
 function scenarioRankText(scenario: ScenarioDef): string {

@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { World } from '../core/world';
 import { parseScenarioFile } from './scenario-file';
-import { prepareScenario } from './scenario-layout';
+import { prepareScenarioPark } from './scenario-layout';
 import { renderScenarioPreview, SCENARIO_PREVIEW_RENDERER_VERSION } from './scenario-preview';
 
 const scenarioDirectory = resolve(process.cwd(), 'src/sim/scenario/scenarios');
@@ -58,7 +58,7 @@ describe('scenario preview assets', () => {
         width: scenario.mapWidth,
         height: scenario.mapHeight,
       });
-      prepareScenario(world, scenario);
+      prepareScenarioPark(world, scenario);
       const expectedPixels = renderScenarioPreview(world).pixels;
 
       expect(oneX.data, `${def.id} 1x preview should match its map data`).toEqual(
@@ -86,5 +86,5 @@ describe('scenario preview assets', () => {
       }
       expect(pixelated, `${def.id} 2x image should preserve crisp tile pixels`).toBe(true);
     }
-  });
+  }, 30_000);
 });

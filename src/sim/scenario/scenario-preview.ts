@@ -5,7 +5,7 @@ import { rideFootprintTiles } from '../rides/ride-footprint';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
 
-export const SCENARIO_PREVIEW_RENDERER_VERSION = 1;
+export const SCENARIO_PREVIEW_RENDERER_VERSION = 2;
 
 export interface ScenarioPreviewPixels {
   width: number;

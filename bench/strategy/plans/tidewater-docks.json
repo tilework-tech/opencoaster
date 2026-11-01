@@ -1,0 +1,36 @@
+[
+  { "kind": "item", "name": "foodStall" },
+  { "kind": "item", "name": "drinkStall" },
+  { "kind": "item", "name": "toilets" },
+  { "kind": "item", "name": "merryGoRound" },
+  { "kind": "buy", "x": 37, "y": 43, "width": 6, "height": 3, "rights": true },
+  {
+    "kind": "route",
+    "points": [
+      [19, 47],
+      [19, 61],
+      [34, 61],
+      [34, 44],
+      [45, 44],
+      [45, 52]
+    ],
+    "clear": true
+  },
+  { "kind": "flat", "grid": [34, 61, "south"], "row": 3, "lateral": 2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [34, 61, "south"], "row": 9, "lateral": 2, "name": "ferrisWheel" },
+  { "kind": "flat", "grid": [34, 61, "south"], "row": 9, "lateral": -2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [34, 61, "south"], "row": 13, "lateral": 2, "name": "toilets" },
+  { "kind": "flat", "grid": [34, 61, "south"], "row": 15, "lateral": -2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [45, 52, "north"], "row": 2, "lateral": 2, "name": "ferrisWheel" },
+  { "kind": "flat", "grid": [45, 52, "north"], "row": 2, "lateral": -2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [45, 52, "north"], "row": 6, "lateral": 2, "name": "toilets" },
+  { "kind": "flat", "grid": [45, 52, "north"], "row": 8, "lateral": 2, "name": "merryGoRound" },
+  { "kind": "flat", "grid": [45, 52, "north"], "row": 8, "lateral": -2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [19, 47, "north"], "row": 2, "lateral": -2, "name": "ferrisWheel" },
+  { "kind": "flat", "grid": [19, 47, "north"], "row": 4, "lateral": 2, "name": "informationKiosk" },
+  { "kind": "flat", "grid": [19, 47, "north"], "row": 7, "lateral": 2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [19, 47, "north"], "row": 9, "lateral": -6, "name": "ferrisWheel" },
+  { "kind": "flat", "grid": [19, 61, "west"], "row": 4, "lateral": 2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [19, 61, "west"], "row": 4, "lateral": -2, "name": "toilets" },
+  { "kind": "flat", "grid": [19, 61, "west"], "row": 10, "lateral": 2, "name": "swingingShip" }
+]

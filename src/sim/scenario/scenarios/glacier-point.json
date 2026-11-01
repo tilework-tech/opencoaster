@@ -3,7 +3,9 @@
   "name": "Glacier Point",
   "category": "expert",
   "climate": "cold",
-  "description": "A frozen shelf above the lake and almost no time. Have six coasters rated 4.90 excitement or better standing within a month and a half.",
+  "description": "A cold mountain resort where only roller coasters are allowed. Have five coasters rated 4.70 excitement or better by the end of the second year.",
+  "landscape": "Mountain shelves above a glacial lake, linked by steep trails, with conifers on the slopes.",
+  "challenge": "Only roller coasters may be built, along with stalls, toilets and the chairlift. Lay coasters on the mountainside and buy the higher shelves as you grow.",
   "seed": 3202,
   "map": {
     "width": 96,
@@ -20,58 +22,8 @@
     "mode": "perRide"
   },
   "research": {
-    "availableItemIds": [1, 3, 5, 6, 7, 8, 9, 10, 12, 25, 26, 27, 28],
+    "availableItemIds": [5, 6, 7, 8, 9, 10, 25, 26, 27, 28],
     "inventions": [
-      {
-        "itemId": 2,
-        "category": 0,
-        "workUnits": 180
-      },
-      {
-        "itemId": 4,
-        "category": 3,
-        "workUnits": 360
-      },
-      {
-        "itemId": 11,
-        "category": 3,
-        "workUnits": 675
-      },
-      {
-        "itemId": 13,
-        "category": 3,
-        "workUnits": 765
-      },
-      {
-        "itemId": 14,
-        "category": 3,
-        "workUnits": 810
-      },
-      {
-        "itemId": 15,
-        "category": 3,
-        "workUnits": 855
-      },
-      {
-        "itemId": 16,
-        "category": 4,
-        "workUnits": 900
-      },
-      {
-        "itemId": 17,
-        "category": 4,
-        "workUnits": 945
-      },
-      {
-        "itemId": 18,
-        "category": 0,
-        "workUnits": 990
-      },
-      {
-        "itemId": 19,
-        "category": 0,
-        "workUnits": 1035
-      },
       {
         "itemId": 20,
         "category": 0,
@@ -86,11 +38,6 @@
         "itemId": 22,
         "category": 2,
         "workUnits": 1170
-      },
-      {
-        "itemId": 23,
-        "category": 1,
-        "workUnits": 1215
       },
       {
         "itemId": 24,
@@ -124,49 +71,148 @@
     "length": 4
   },
   "terrain": {
-    "seaLevel": 3,
-    "baseLevel": 9,
+    "seaLevel": 4,
+    "baseLevel": 12,
     "relief": 5,
     "cell": 10,
     "surface": "grass",
-    "buildLevel": 10,
-    "buildLength": 52,
-    "buildWidth": 37,
-    "lakes": [
-      {
-        "x": 20,
-        "y": 65,
-        "rx": 14,
-        "ry": 10,
-        "depth": 3
-      }
-    ],
-    "hills": [
-      {
-        "x": 78,
-        "y": 30,
-        "radius": 12,
-        "height": 6
-      }
-    ],
+    "buildLevel": 12,
+    "buildLength": 8,
+    "buildWidth": 11,
+    "apronOffset": -9,
+    "lakes": [],
+    "hills": [],
     "highland": {
       "surface": "rock",
-      "level": 11
-    }
+      "level": 17
+    },
+    "shapes": [
+      {
+        "mode": "lower",
+        "level": 1,
+        "ellipse": [28, 60, 24, 20]
+      },
+      {
+        "mode": "raise",
+        "level": 25,
+        "ellipse": [56, 12, 14, 8]
+      },
+      {
+        "mode": "raise",
+        "level": 21,
+        "ellipse": [86, 26, 7, 9]
+      },
+      {
+        "mode": "raise",
+        "level": 19,
+        "band": [20, 30, 44, 18, 2]
+      },
+      {
+        "mode": "raise",
+        "level": 12,
+        "ellipse": [80, 52, 10, 7]
+      },
+      {
+        "mode": "lower",
+        "level": 12,
+        "ellipse": [80, 52, 10, 7]
+      },
+      {
+        "mode": "raise",
+        "level": 12,
+        "rect": [84, 46, 91, 58]
+      },
+      {
+        "mode": "lower",
+        "level": 12,
+        "rect": [84, 46, 91, 58]
+      },
+      {
+        "mode": "raise",
+        "level": 10,
+        "ellipse": [62, 52, 10, 5]
+      },
+      {
+        "mode": "lower",
+        "level": 10,
+        "ellipse": [62, 52, 10, 5]
+      },
+      {
+        "mode": "raise",
+        "level": 18,
+        "ellipse": [58, 30, 10, 4]
+      },
+      {
+        "mode": "lower",
+        "level": 18,
+        "ellipse": [58, 30, 10, 4]
+      },
+      {
+        "mode": "lower",
+        "level": 6,
+        "ellipse": [52, 72, 11, 5]
+      }
+    ]
   },
   "land": {
-    "ownedMarginPercent": 22,
-    "saleMarginPercent": 2
+    "parcels": [
+      {
+        "kind": "rights",
+        "ellipse": [70, 40, 18, 12]
+      },
+      {
+        "kind": "rights",
+        "band": [50, 70, 40, 80, 4]
+      },
+      {
+        "kind": "land",
+        "ellipse": [62, 52, 11, 6]
+      },
+      {
+        "kind": "land",
+        "ellipse": [58, 30, 11, 5]
+      },
+      {
+        "kind": "land",
+        "band": [64, 46, 60, 34, 2]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [80, 52, 11, 8]
+      },
+      {
+        "kind": "owned",
+        "rect": [84, 46, 91, 58]
+      },
+      {
+        "kind": "owned",
+        "band": [76, 58, 58, 70, 2]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [52, 72, 12, 6]
+      }
+    ]
   },
   "trees": {
-    "count": 200,
-    "groves": 9,
-    "species": ["conifer", "birch"]
+    "count": 120,
+    "groves": 8,
+    "species": ["conifer", "birch"],
+    "stands": [
+      {
+        "density": 14,
+        "rocks": 30,
+        "rect": [40, 20, 92, 86]
+      }
+    ]
   },
   "objective": {
     "kind": "completeCoasters",
-    "target": 6,
-    "minimumExcitement": 490,
-    "byTick": 22528
+    "target": 5,
+    "minimumExcitement": 470,
+    "byYear": 2
+  },
+  "restrictions": {
+    "forbiddenRideTypeIds": [1, 2, 3, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 23]
   }
 }

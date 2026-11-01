@@ -1,5 +1,13 @@
 import type { StrategyFactory } from './run';
 import { growthStrategy } from './growth';
+import { SceneryItem } from '../../src/sim/map/scenery';
+import { sitePlanStrategy } from './site-plan';
+import type { SiteStep } from './site-plan';
+import thunderheadPlan from './plans/thunderhead-mesa.json';
+import tidewaterPlan from './plans/tidewater-docks.json';
+import mossgrovePlan from './plans/mossgrove-isle.json';
+import glacierPlan from './plans/glacier-point.json';
+import copperPlan from './plans/copper-ridge.json';
 
 /** Build orders are written as space-separated names. */
 const list = (names: string): string[] => names.split(/\s+/).filter(Boolean);
@@ -50,65 +58,78 @@ STRATEGIES['bramblewood-hollow'] = growthStrategy({
   growth: LONG_GROWTH.slice(0, 14),
 });
 
-STRATEGIES['copper-ridge'] = growthStrategy({
-  ...BASE,
+STRATEGIES['mossgrove-isle'] = sitePlanStrategy({
+  steps: mossgrovePlan as SiteStep[],
+  reserveCents: 300_000,
+  patrols: [
+    [28, 34, 44, 50],
+    [16, 18, 36, 40],
+    [36, 18, 54, 40],
+  ],
+  prices: RIDE_PRICES,
+  itemsPerHandyman: 1,
+  attractionsPerMechanic: 3,
+});
+
+STRATEGIES['copper-ridge'] = sitePlanStrategy({
+  steps: copperPlan as SiteStep[],
   reserveCents: 150_000,
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 15, startDelayMonths: 1 },
-  opening: list('foodStall drinkStall toilets merryGoRound'),
-  growth: [
-    'coaster:compact:1',
-    ...list('ferrisWheel drinkStall'),
-    'coaster:compact:-1',
-    ...list('foodStall swingingShip'),
-    'coaster:riverRun:1',
-    ...list('twist toilets'),
-    'coaster:riverRun:-1',
-    ...list('merryGoRound informationKiosk'),
-    'coaster:compact:1',
+  itemsPerHandyman: 2,
+  attractionsPerMechanic: 2,
+  borrow: true,
+  decorate: { item: SceneryItem.Conifer, count: 30 },
+  patrols: [
+    [26, 72, 66, 88],
+    [14, 34, 46, 50],
+    [30, 44, 62, 76],
   ],
 });
 
-STRATEGIES['tidewater-docks'] = growthStrategy({
-  ...BASE,
-  itemsPerHandyman: 1.5,
-  reserveCents: 600_000,
+STRATEGIES['tidewater-docks'] = sitePlanStrategy({
+  steps: tidewaterPlan as SiteStep[],
+  reserveCents: 400_000,
+  patrols: [
+    [8, 38, 24, 56],
+    [8, 52, 24, 64],
+    [16, 56, 64, 64],
+    [30, 38, 50, 62],
+  ],
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 15, startDelayMonths: 2 },
-  opening: OPENING,
-  growth: LONG_GROWTH.slice(0, 18),
-  extra: (b) => {
-    const l = b.sim.world.economy;
-    if (l.loan > 0 && l.cash > l.loan + 150_000) b.repay(l.loan);
-  },
+  itemsPerHandyman: 1.5,
+  attractionsPerMechanic: 3,
+  repayAboveCents: 150_000,
 });
 
-STRATEGIES['thunderhead-mesa'] = growthStrategy({
-  ...BASE,
-  itemsPerHandyman: 1.5,
+STRATEGIES['thunderhead-mesa'] = sitePlanStrategy({
+  steps: thunderheadPlan as SiteStep[],
+  reserveCents: 200_000,
+  patrols: [
+    [30, 8, 62, 28],
+    [30, 8, 62, 28],
+    [8, 46, 40, 64],
+    [30, 8, 62, 28],
+    [18, 22, 38, 52],
+    [58, 50, 84, 64],
+    [56, 26, 74, 52],
+  ],
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 25, startDelayMonths: 3 },
-  opening: OPENING,
-  growth: LONG_GROWTH.slice(0, 16),
+  itemsPerHandyman: 2,
+  attractionsPerMechanic: 3,
 });
 
-STRATEGIES['glacier-point'] = growthStrategy({
-  ...BASE,
+STRATEGIES['glacier-point'] = sitePlanStrategy({
+  steps: glacierPlan as SiteStep[],
   reserveCents: 150_000,
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 20, startDelayMonths: 3 },
-  opening: list('foodStall drinkStall toilets merryGoRound'),
-  growth: [
-    'coaster:riverRun:1',
-    ...list('ferrisWheel drinkStall'),
-    'coaster:switchback:-1',
-    ...list('foodStall twist'),
-    'coaster:riverRun:1',
-    ...list('toilets swingingShip'),
-    'coaster:switchback:-1',
-    ...list('merryGoRound informationKiosk'),
-    'coaster:riverRun:1',
-    'coaster:switchback:-1',
+  itemsPerHandyman: 2,
+  attractionsPerMechanic: 2,
+  borrow: true,
+  decorate: { item: SceneryItem.Conifer, count: 30 },
+  patrols: [
+    [70, 42, 92, 60],
+    [50, 42, 74, 60],
+    [54, 56, 82, 78],
   ],
 });
 

@@ -86,6 +86,26 @@ export interface ScenarioHill {
 }
 
 /**
+ * A region of the map in tile coordinates. `rect` is inclusive `[x0, y0, x1, y1]`; `ellipse` is
+ * `[cx, cy, rx, ry]` around a tile centre; `band` is a thick line `[x0, y0, x1, y1, halfWidth]`
+ * between two tile centres.
+ */
+export type ScenarioShape =
+  | { rect: [number, number, number, number] }
+  | { ellipse: [number, number, number, number] }
+  | { band: [number, number, number, number, number] };
+
+/**
+ * Ground pushed up to (`raise`) or down to (`lower`) an absolute level inside the shape, falling
+ * away by one level every `run` tiles outside it, so ridges, shelves and channels keep legal slopes.
+ */
+export type TerrainShape = ScenarioShape & {
+  mode: 'raise' | 'lower';
+  level: number;
+  run: number;
+};
+
+/**
  * Hand-authored terrain recipe. The generator layers coarse seeded noise, hills and lakes over a
  * base level, then flattens a build apron in front of the gate.
  */
@@ -102,8 +122,12 @@ export interface ScenarioTerrain {
   /** Apron extent inward from the gate edge, and across it, in tiles. */
   buildLength: number;
   buildWidth: number;
+  /** Tiles the apron and gate shift along the gate edge from the owned land's midpoint. */
+  apronOffset?: number;
   lakes: ScenarioLake[];
   hills: ScenarioHill[];
+  /** Applied in order after noise, hills and lakes, before the apron is levelled. */
+  shapes?: TerrainShape[];
   /** Ground above `level` takes this surface instead of `surface`, for themed uplands. */
   highland?: ScenarioHighland;
 }
@@ -114,11 +138,21 @@ export interface ScenarioHighland {
   level: number;
 }
 
-/** Share of the map inset (percent per side) that is owned at the start, and how much of the rest is for sale. */
+export type ParcelKind = 'owned' | 'land' | 'rights' | 'none';
+
+/** One painted region of the ownership map: owned, land for sale, rights for sale, or not for sale. */
+export type LandParcel = ScenarioShape & { kind: ParcelKind };
+
+/**
+ * Share of the map inset (percent per side) that is owned at the start, and how much of the rest is
+ * for sale. When `parcels` is set it replaces the margins: each parcel paints its kind over the
+ * previous ones, and unpainted tiles are not for sale.
+ */
 export interface ScenarioLand {
   ownedMarginPercent: number;
   /** Percent of each side, from the border, that is not for sale. */
   saleMarginPercent: number;
+  parcels?: LandParcel[];
 }
 
 export const TREE_SPECIES = [
@@ -142,7 +176,14 @@ export interface ScenarioTrees {
   flowerBeds?: number;
   /** Species the trees may use. Defaults by ground: broadleaf and conifer on grass, cactus on sand. */
   species?: TreeSpecies[];
+  /** Woods filled at random: each dry, empty tile in the shape gets a tree with `density` percent chance. */
+  stands?: TreeStand[];
+  /** Shapes kept free of generated and ambient trees. */
+  clearings?: ScenarioShape[];
 }
+
+/** `rocks` percent of a stand's pieces are boulders or rock clusters instead of trees. */
+export type TreeStand = ScenarioShape & { density: number; rocks: number };
 
 /** A ride or stall already standing at the start, placed on the gate's park grid. */
 export interface PrebuiltRide {
@@ -158,6 +199,10 @@ export interface ScenarioDef {
   name: string;
   category?: ScenarioCategory;
   description?: string;
+  /** Short description of the park's terrain and land, for the scenario list. */
+  landscape?: string;
+  /** What makes the park hard and a way to approach it, for the scenario list. */
+  challenge?: string;
   seed: number;
   mapWidth: number;
   mapHeight: number;

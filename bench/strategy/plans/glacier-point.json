@@ -1,0 +1,47 @@
+[
+  { "kind": "item", "name": "foodStall" },
+  { "kind": "item", "name": "drinkStall" },
+  { "kind": "item", "name": "toilets" },
+  {
+    "kind": "route",
+    "points": [
+      [80, 52],
+      [80, 59],
+      [74, 59],
+      [74, 61],
+      [70, 61],
+      [70, 64],
+      [66, 64],
+      [66, 67],
+      [61, 67],
+      [61, 70]
+    ],
+    "clear": true
+  },
+  { "kind": "buy", "x": 50, "y": 42, "width": 24, "height": 18, "rights": false },
+  { "kind": "buy", "x": 50, "y": 42, "width": 24, "height": 18, "rights": true },
+  {
+    "kind": "coaster",
+    "site": { "template": "compact", "x": 82, "y": 56, "dir": 3, "mirror": false }
+  },
+  {
+    "kind": "coaster",
+    "site": { "template": "switchback", "x": 66, "y": 48, "dir": 1, "mirror": false }
+  },
+  {
+    "kind": "coaster",
+    "site": { "template": "compact", "x": 58, "y": 50, "dir": 2, "mirror": true }
+  },
+  {
+    "kind": "coaster",
+    "site": { "template": "switchback", "x": 82, "y": 46, "dir": 1, "mirror": false }
+  },
+  {
+    "kind": "coaster",
+    "site": { "template": "compact", "x": 70, "y": 54, "dir": 3, "mirror": true }
+  },
+  {
+    "kind": "coaster",
+    "site": { "template": "compact", "x": 59, "y": 71, "dir": 1, "mirror": false }
+  }
+]

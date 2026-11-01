@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { World } from '../../src/sim/core/world';
 import { parseScenarioFile } from '../../src/sim/scenario/scenario-file';
-import { prepareScenario } from '../../src/sim/scenario/scenario-layout';
+import { prepareScenarioPark } from '../../src/sim/scenario/scenario-layout';
 import {
   renderScenarioPreview,
   SCENARIO_PREVIEW_RENDERER_VERSION,
@@ -38,7 +38,7 @@ for (const filename of readdirSync(scenarioDirectory)
     width: scenario.mapWidth,
     height: scenario.mapHeight,
   });
-  prepareScenario(world, scenario);
+  prepareScenarioPark(world, scenario);
   const image = renderScenarioPreview(world);
   const raw = { raw: { width: image.width, height: image.height, channels: 4 as const } };
   const oneX = `${scenario.id}@1x.png`;

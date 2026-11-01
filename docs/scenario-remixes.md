@@ -1,0 +1,57 @@
+# Hard scenario remixes
+
+The Challenging and Expert parks are original OpenCoaster designs. Each borrows one idea from a
+RollerCoaster Tycoon 2 scenario and rebuilds it with OpenCoaster's map recipe: irregular owned land
+(`land.parcels`), shaped terrain (`terrain.shapes`), dense woods and clearings (`trees.stands`,
+`trees.clearings`), and the scenario rules in [scenario-restrictions.md](scenario-restrictions.md).
+No original map, layout, park name, sprite or scenario file is used. Where a park copies a rule the
+source scenario does not have, the matrix says so.
+
+## Sources
+
+- RCT2 manual, p. 23 ("Buy Land", "Buy Construction Rights") and pp. 57-62 (scenario editor:
+  "The land owned by the player is a single continuous piece of land", "A U-shaped park will
+  confuse your guests", forbidding tree removal, high construction and marketing):
+  <https://cdn.akamai.steamstatic.com/steam/apps/285330/manuals/manual.pdf>. Page numbers are the
+  manual's printed pages.
+- Scenario prohibitions (only Rainbow Summit uses them among the 15 original RCT2 scenarios; the
+  Wacky Worlds expansion forbids landscaping in Grand Canyon and others; Rainbow Valley and
+  Harmonic Hills are RCT1): <https://rct.fandom.com/wiki/Scenario_prohibitions>
+- Botany Breakers ("a small island overgrown with trees... the trees provide great scenery at the
+  expense of removal cost"; monthly ride income; no prohibitions):
+  <https://rct.fandom.com/wiki/Botany_Breakers>
+- Rainbow Summit ("Built on a hillside, this park is forbidden from building anything tall",
+  nothing above 10.5 m, marketing prohibited): <https://rct.fandom.com/wiki/Rainbow_Summit>
+- Gravity Gardens ("No other rides, just roller coasters!", stalls and shops still allowed; repay
+  loan and park value): <https://rct.fandom.com/wiki/Gravity_Gardens>
+- Alpine Adventures (small mountain ski resort with a lone chairlift; monthly ride income):
+  <https://rct.fandom.com/wiki/Alpine_Adventures>
+- Fungus Woods ("lots and lots of trees") and Infernal Views (lava channels through the park):
+  <https://rct.fandom.com/wiki/Fungus_Woods>, <https://rct.fandom.com/wiki/Infernal_Views>
+
+## Design matrix
+
+| Park                                   | RCT2 idea (cited above)                                                                                     | OpenCoaster design                                                                                                                                                                                                                                                         | Owned land at start                                                       | Woods and clearance                                                                  | Rules                                                                                                                                                                                                                                         | Objective                                                                                              | A route to the goal                                                                                                                                                                                                                           |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Copper Ridge (Challenging, 96²)        | Infernal Views' channels cutting a park apart; Grand Canyon's landscaping ban (Wacky Worlds, an expansion). | Red ridges with a dry gulch across the park. The gate bench (level 8) is reached from the south; a narrow owned trail crosses the gulch (level 5) to the west bench (level 11). East and summit benches are land for sale; the gulch and the ridge saddle are rights only. | 849 tiles: gate bench, trail and west bench (was a 2,916-tile rectangle). | Scattered boulders on the benches; no trees on the dirt ridges. Gate clearing 17×12. | No landscaping (our remix of the expansion rule).                                                                                                                                                                                             | Five coasters of 4.60+ excitement by the end of year 2 (was year 1).                                   | Follow the trail across the gulch and fit coasters on the benches; terrain and nearby rocks lift ratings (the west-bench compact circuit rates 4.98 against 4.67 on flat ground).                                                             |
+| Tidewater Docks (Challenging, 80²)     | Lucky Lake's waterfront; the manual's warning that a U-shaped park confuses guests; construction rights.    | An old harbour: a hook of quays round a basin with three finger piers. The basin and inlets are rights only, so they can be bridged but never filled; the third pier and the east breakwater are land for sale.                                                            | 966 tiles: west quay, south quay and two piers (was 3,136).               | Woods on the banks and beyond the quays; gate clearing 13×10.                        | None: the shape is the challenge.                                                                                                                                                                                                             | Repay the loan and reach $5,500 park value by the end of year 4 (unchanged).                           | Walk the south quay, buy rights over an inlet and bridge it, and stand narrow rides (a Ferris wheel fits a five-tile pier) along the piers.                                                                                                   |
+| Thunderhead Mesa (Expert, 96²)         | Rainbow Summit's height limit and marketing ban; Extreme Heights' desert.                                   | A scorched mesa top with buttes (level 16) above a dry canyon (level 4), with a narrow cliff trail down to the west shelf (11). East (13) and south (7) shelves are for sale behind steep corridors; the canyon is rights only.                                            | 1,023 tiles: mesa top, cliff trail and west shelf (was 4,356).            | Cacti and rock scatter; gate clearing 15×8.                                          | Nothing more than 6 levels above local ground; no marketing (Rainbow Summit's rules, with OpenCoaster's own cap).                                                                                                                             | 460 guests and rating 700 by the end of year 4 (unchanged).                                            | Build low on the mesa, take the cliff trail to the west shelf, and spread rides over the shelves; patrol handymen by area because the park is long.                                                                                           |
+| Glacier Point (Expert, 96²)            | Gravity Gardens' coaster-only roster; Alpine Adventures' mountain resort and chairlift.                     | Mountain shelves above a glacial lake. The gate shelf (12) sits on a saddle; a steep owned trail drops to a lake-shore shelf (6). A forested middle shelf (10) and a summit shelf (18) are for sale; the mountainside between them is rights only.                         | 589 tiles: gate shelf, trail and shore shelf (was 2,916).                 | Conifer and birch woods on the slopes and purchasable shelves; gate clearing 11×8.   | Only coasters, stalls, toilets and the chairlift: gentle, thrill, water, transport rides other than the chairlift and the observation tower are forbidden (Gravity Gardens' roster is a research list, not a prohibition; here it is a rule). | Five coasters of 4.70+ excitement by the end of year 2 (was six of 4.90+ in about a month and a half). | Keep the woods round each station (nearby scenery lifts excitement), buy the forested middle shelf and clear only the track, and take the trail down to the shore for the fifth coaster; the scripted plan's five coasters rate 5.98 to 6.68. |
+| Mossgrove Isle (Challenging, 72², new) | Botany Breakers' tree-covered island and monthly ride income; Fungus Woods' dense trees.                    | A wooded island reached by a causeway. A flat island core holds four small clearings joined by narrow trails; a protected grove on the knoll is not for sale; shallows to the south are rights only and a wooded islet is for sale.                                        | 1,151 tiles, ellipse with a hole (bounding-box fill 65%).                 | About half the owned dry land is wooded; clearings of roughly 10×8.                  | No tree removal (our remix: Botany Breakers has no prohibitions; its trees only cost money to clear).                                                                                                                                         | $350 a month in ride ticket income by the end of year 3 (set from scripted play; see BALANCE.md).      | Build in the clearings along the trails, lift track above the trees, and use the shallows for water rides.                                                                                                                                    |
+
+## How the parks are validated
+
+- `src/sim/scenario/hard-scenarios.test.ts` checks each park's identity on the generated map: one
+  connected, non-rectangular owned piece; parcels that stay unbuyable after buying every sale;
+  a small gate clearing; height variation; and the park's own feature (Copper's benches,
+  Tidewater's rights-only water, Thunderhead's shelves, Glacier's lake and mountains, Mossgrove's
+  woods and open trails).
+- `bench/hard-parks.test.ts` plays the start of every park with ordinary commands and the park's
+  real cash: the gate opens onto working stalls and a first ride, the park's defining move is
+  built and guests use it, and each park refuses the action its rules forbid.
+- `pnpm balance -- --scenario <id>` plays each park with a scripted strategy. The hard parks use
+  site plans (`bench/strategy/site-plan.ts`, plans in `bench/strategy/plans/`) because the old
+  flat-apron scripts cannot fit rides on the new ground. Results are in
+  [BALANCE.md](BALANCE.md#hard-park-remixes).
+- Saves keep their own map: a park saved before the remix loads with its old land, terrain and
+  scenery (`src/save/scenario-remix-saves.test.ts`).
