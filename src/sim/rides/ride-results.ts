@@ -39,4 +39,8 @@ export const enum RideResult {
   StallSlope = 25,
   /** The tile in front of a stall's service window is a ride exit. */
   StallGate = 26,
+  /** The ride would rise above the scenario's construction height cap. */
+  HeightLimit = 27,
+  /** The scenario forbids this ride type. */
+  RideTypeForbidden = 28,
 }

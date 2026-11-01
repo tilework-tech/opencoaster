@@ -1,4 +1,5 @@
 import { refreshQueueIndex } from './queue-lines';
+import { heightCapDetail } from '../scenario/restrictions';
 import { popcount4 } from '../pathfinding/directions';
 import type { World } from '../core/world';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
@@ -343,6 +344,7 @@ export function applyRideCommand(world: World, c: RideCommand): RideResult {
       result = demolishRide(world, c.rideId);
       break;
   }
-  reportFeedback(world.feedback, FeedbackDomain.Ride, result, c.rideId);
+  const detail = result === RideResult.HeightLimit ? heightCapDetail(world) : '';
+  reportFeedback(world.feedback, FeedbackDomain.Ride, result, c.rideId, detail);
   return result;
 }

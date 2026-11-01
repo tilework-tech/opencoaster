@@ -1,4 +1,5 @@
 import type { Command } from './commands';
+import { heightCapDetail, rideTypeForbidden } from '../scenario/restrictions';
 import type { System } from './system';
 import { World } from './world';
 import type { WorldOptions } from './world';
@@ -82,7 +83,13 @@ function applyCreateRide(
   towerHeight = DEFAULT_TOWER_HEIGHT,
 ): void {
   const report = (code: RideResult, rideId = -1): void =>
-    reportFeedback(w.feedback, FeedbackDomain.Ride, code, rideId);
+    reportFeedback(
+      w.feedback,
+      FeedbackDomain.Ride,
+      code,
+      rideId,
+      code === RideResult.HeightLimit ? heightCapDetail(w) : '',
+    );
   const definition = RIDE_CATALOG[type];
   const cost =
     type === RideType.ObservationTower
@@ -92,6 +99,7 @@ function applyCreateRide(
     return report(RideResult.OutOfBounds);
   if (type === RideType.ObservationTower && !isValidObservationTowerHeight(towerHeight))
     return report(RideResult.Blocked);
+  if (rideTypeForbidden(w, type)) return report(RideResult.RideTypeForbidden);
   if (!isUnlocked(w, type)) return report(RideResult.ResearchRequired);
   if (w.economy.cash < cost) return report(RideResult.InsufficientFunds);
   const placement = validateRidePlacement(w, type, x, y, dir & 3, towerHeight);

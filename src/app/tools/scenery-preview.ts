@@ -1,4 +1,5 @@
 import { formatMoney } from '../../ui/format';
+import { heightLimitRefusal } from '../../sim/scenario/restrictions';
 import type { SpriteGhost } from '../../render/renderer';
 import { placedSceneryKey, wallSpriteName } from '../../render/world-art';
 import { SCENERY_CATALOG, SceneryResult, isWallScenery } from '../../sim/map/scenery';
@@ -16,6 +17,7 @@ const REFUSAL_TEXT: Readonly<Record<number, string>> = {
   [SceneryResult.Underwater]: 'Under water.',
   [SceneryResult.Blocked]: 'Something is in the way.',
   [SceneryResult.InsufficientFunds]: 'Not enough cash.',
+  [SceneryResult.HeightLimit]: heightLimitRefusal(),
 };
 
 export interface SceneryHover {

@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { marketingForbidden } from '../scenario/restrictions';
 import { getRideType, isShopCategory } from '../rides/ride-operations';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import { borrow, repay } from './finance';
@@ -23,6 +24,8 @@ export const enum EconomyResult {
   NoSuchRide = 5,
   NotARide = 6,
   NotAFoodOrDrinkStall = 7,
+  /** The scenario forbids marketing campaigns. */
+  MarketingForbidden = 8,
 }
 
 /** Returns false when the action is rejected; rejected actions leave state untouched. */
@@ -60,6 +63,7 @@ function startCampaignCommand(
   world: World,
   action: Extract<EconomyAction, { type: 'startCampaign' }>,
 ): EconomyResult {
+  if (marketingForbidden(world)) return EconomyResult.MarketingForbidden;
   const def = CAMPAIGNS[action.campaignId];
   if (!def) return EconomyResult.BadCampaign;
   if (

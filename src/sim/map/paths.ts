@@ -30,6 +30,8 @@ export const enum PathResult {
   UnevenGround = 6,
   Blocked = 7,
   InsufficientFunds = 8,
+  /** The footpath would rise above the scenario's construction height cap. */
+  HeightLimit = 9,
 }
 
 export interface PathPlacement {

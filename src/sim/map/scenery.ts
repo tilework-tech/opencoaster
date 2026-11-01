@@ -434,6 +434,11 @@ export const SCENERY_CATALOG: readonly SceneryDefinition[] = [
   },
 ];
 
+/** Whether the item is a tree, which a scenario may forbid removing. */
+export function isTreeScenery(item: SceneryItem): boolean {
+  return SCENERY_CATALOG[item]?.category === SceneryCategory.Trees;
+}
+
 export function isWallScenery(item: SceneryItem): boolean {
   return (
     item === SceneryItem.Hedge ||
@@ -450,6 +455,8 @@ export const enum SceneryResult {
   Underwater = 3,
   Blocked = 4,
   InsufficientFunds = 5,
+  /** The item would rise above the scenario's construction height cap. */
+  HeightLimit = 6,
 }
 
 /** Checks a placement without changing the map: the same rules `placeScenery` applies. */
@@ -511,6 +518,7 @@ export function removeScenery(
   x: number,
   y: number,
   edge?: number,
+  keepTrees = false,
 ): SceneryItem | null {
   if (!map.inBounds(x, y)) return null;
   const tile = map.index(x, y);
@@ -518,6 +526,7 @@ export function removeScenery(
   for (let element = map.firstElement(tile); element >= 0; element = map.nextElement(element)) {
     if (map.elType[element] !== ElementType.SmallScenery) continue;
     const item = map.elData[element] as SceneryItem;
+    if (keepTrees && isTreeScenery(item)) continue;
     if (isWallScenery(item) && edge !== undefined && map.elFlags[element] !== edge) continue;
     if (!isWallScenery(item) && edge !== undefined) continue;
     map.removeElement(tile, element);

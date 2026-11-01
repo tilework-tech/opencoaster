@@ -1,4 +1,5 @@
 import type { ScenarioProgress } from '../save/scenario-progress';
+import { restrictionLines } from '../sim/scenario/restrictions';
 import type { SaveSlotMeta, SlotStore } from '../save/slot-store';
 import { LedgerCategory } from '../sim/economy/ledger';
 import { ObjectiveKind } from '../sim/scenario/scenario';
@@ -168,6 +169,7 @@ export class TitleScreen {
         element('h2', 'scenario-preview-name', selected.name),
         element('p', 'scenario-description', selected.description ?? ''),
         element('p', 'scenario-objective', objectiveText(selected)),
+        element('p', 'scenario-rules', scenarioRulesText(selected)),
         element('p', 'scenario-rank', scenarioRankText(selected)),
         element(
           'p',
@@ -318,6 +320,12 @@ function monthlyIncomeLabel(categoryMask: number): string {
     .filter(([category]) => (categoryMask & (1 << category)) !== 0)
     .map(([, label]) => label);
   return selected.length > 0 ? `monthly net from ${selected.join(', ')}` : 'monthly income';
+}
+
+/** The scenario's restrictions as the player reads them before starting. */
+export function scenarioRulesText(def: ScenarioDef): string {
+  const lines = restrictionLines(def.restrictions ?? {});
+  return lines.length === 0 ? 'Park rules: no restrictions.' : `Park rules: ${lines.join(' ')}`;
 }
 
 function sourceFooter(): HTMLElement {
