@@ -5,7 +5,7 @@ import { serialize } from '../src/save/save';
 import { Simulation } from '../src/sim/core/simulation';
 import { ElementType } from '../src/sim/map/tile-map';
 import { SceneryItem } from '../src/sim/map/scenery';
-import { RideState } from '../src/sim/rides/ride-store';
+import { RideState, ridersInRecentWindow } from '../src/sim/rides/ride-store';
 import { RideType } from '../src/sim/rides/ride-types';
 import { SCENARIOS } from '../src/sim/scenario/catalog';
 import { ParkGrid } from '../src/sim/scenario/park-grid';
@@ -90,11 +90,7 @@ function play(park: Park, ticks: number): void {
 /** Guests who rode in the ride's recent rider window. */
 function riders(park: Park, rideId: number): number {
   const w = park.sim.world;
-  const slot = w.rides.idToSlot[rideId];
-  const cols = w.rides.cols as unknown as Record<string, ArrayLike<number>>;
-  return Object.keys(cols)
-    .filter((k) => k.startsWith('ridersWindow'))
-    .reduce((sum, k) => sum + cols[k][slot], 0);
+  return ridersInRecentWindow(w, w.rides.idToSlot[rideId]);
 }
 
 function trees(park: Park): number {
@@ -151,6 +147,7 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     expect(Math.max(...trail.levels)).toBeGreaterThanOrEqual(11);
     const site: CoasterSite = { template: 'compact', x: 28, y: 40, dir: 0, mirror: true };
     const coaster = openCoaster(park.sim, site, joinsRoute(park, trail.tiles))!;
+    expect(coaster).not.toBeNull();
     expect(coaster.state).toBe(RideState.Open);
     expect(coaster.excitement).toBeGreaterThanOrEqual(park.def.objective.minimumExcitement!);
     play(park, MONTH);
@@ -256,7 +253,8 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     expect(trail).not.toBeNull();
     expect(trail!.length).toBeGreaterThan(4);
     const carousel = openFlatRide(sim, clearing, 3, 2, 'merryGoRound')!;
-    expect(carousel?.state).toBe(RideState.Open);
+    expect(carousel).not.toBeNull();
+    expect(carousel.state).toBe(RideState.Open);
     play(park, MONTH);
     expect(riders(park, carousel.rideId)).toBeGreaterThan(0);
     expect(trees(park)).toBe(before);
@@ -306,7 +304,7 @@ describe('each hard park enforces the rules it advertises', () => {
     expect(clear(fresh('mossgrove-isle'))).toBe(0);
   });
 
-  it('Glacier Point builds no flat rides', () => {
+  it('Glacier Point refuses a flat ride where one would otherwise fit', () => {
     const attempt = (sim: Simulation, x: number, y: number) => {
       sim.world.research.unlocked.add(RideType.MerryGoRound);
       const rides = sim.world.rides.count;

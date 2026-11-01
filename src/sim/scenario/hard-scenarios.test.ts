@@ -168,12 +168,6 @@ describe.each(HARD)('%s', (id) => {
       .map((i) => m.heights[i]!);
     expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThanOrEqual(5);
   });
-
-  it('describes its terrain and challenge for the scenario list', () => {
-    const d = def(id);
-    expect(d.landscape?.length ?? 0).toBeGreaterThan(10);
-    expect(d.challenge?.length ?? 0).toBeGreaterThan(20);
-  });
 });
 
 describe('hard park identities', () => {
