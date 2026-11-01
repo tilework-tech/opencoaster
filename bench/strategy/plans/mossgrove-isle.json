@@ -8,5 +8,11 @@
   { "kind": "flat", "grid": [35, 38, "west"], "row": 8, "lateral": -6, "name": "swingingShip" },
   { "kind": "flat", "grid": [35, 38, "west"], "row": 10, "lateral": 2, "name": "toilets" },
   { "kind": "flat", "grid": [35, 38, "east"], "row": 2, "lateral": 6, "name": "merryGoRound" },
-  { "kind": "flat", "grid": [35, 38, "east"], "row": 6, "lateral": -2, "name": "swingingShip" }
+  { "kind": "flat", "grid": [35, 38, "east"], "row": 6, "lateral": -2, "name": "swingingShip" },
+  { "kind": "flat", "grid": [25, 38, "south"], "row": 3, "lateral": -2, "name": "ferrisWheel" },
+  { "kind": "flat", "grid": [25, 38, "south"], "row": 4, "lateral": 2, "name": "informationKiosk" },
+  { "kind": "flat", "grid": [25, 38, "south"], "row": 16, "lateral": 6, "name": "ferrisWheel" },
+  { "kind": "flat", "grid": [45, 38, "south"], "row": 3, "lateral": 2, "name": "merryGoRound" },
+  { "kind": "flat", "grid": [45, 38, "south"], "row": 8, "lateral": 6, "name": "ferrisWheel" },
+  { "kind": "flat", "grid": [45, 38, "south"], "row": 9, "lateral": 2, "name": "informationKiosk" }
 ]

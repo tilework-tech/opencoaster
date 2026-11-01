@@ -3,7 +3,7 @@
   "name": "Mossgrove Isle",
   "category": "challenging",
   "climate": "coolAndWet",
-  "description": "A thickly wooded island where the old trees are protected. Reach $900 a month in ride ticket income by the end of year three.",
+  "description": "A thickly wooded island where the old trees are protected. Reach $350 a month in ride ticket income by the end of year three.",
   "landscape": "A thickly wooded island in a cold lake, with a few small clearings and a protected grove on the knoll.",
   "challenge": "Trees may not be removed. Build in the clearings, lift track above the treetops, and buy rights over the shallows for water rides.",
   "seed": 3307,
@@ -251,7 +251,7 @@
   },
   "objective": {
     "kind": "monthlyRideIncome",
-    "target": 90000,
+    "target": 35000,
     "byYear": 3
   },
   "restrictions": {
