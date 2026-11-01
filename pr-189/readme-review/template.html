@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenCoaster README review</title>
+<style>
+  :root { --bg:#f6f5f0; --ink:#1e1d1a; --muted:#6b675c; --add:#e3f4dc; --addbar:#3d8a2e; --del:#fbe3df; --line:#d8d4c6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, sans-serif; }
+  header { position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 12px 0 0; font-size:16px; }
+  .stats { color:var(--muted); }
+  .tabs { display:flex; gap:4px; margin-left:auto; }
+  button { font:inherit; padding:6px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; }
+  button[aria-selected="true"], button.primary { background:var(--ink); color:#fff; border-color:var(--ink); }
+  #status { color:var(--muted); min-width:12ch; }
+  main { max-width:1100px; margin:16px auto; padding:0 16px; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:8px; overflow:auto; }
+  #editor { padding:12px 0; font:13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre-wrap; outline:none; min-height:60vh; }
+  #editor .ln { padding:0 16px 0 14px; border-left:3px solid transparent; }
+  #editor .ln.add { background:var(--add); border-left-color:var(--addbar); }
+  #diff { padding:12px 0; font:12.5px/1.5 ui-monospace, monospace; white-space:pre-wrap; }
+  #diff div { padding:0 16px; }
+  .d-add { background:var(--add); } .d-del { background:var(--del); } .d-hunk { color:#3b5d8a; background:#eef3f9; }
+  .legend { margin:0 0 10px; color:var(--muted); }
+  .legend span { display:inline-block; padding:0 6px; border-left:3px solid var(--addbar); background:var(--add); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OpenCoaster README review</h1>
+  <span class="stats">{{STATS}}</span>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="edit">Edit</button>
+    <button role="tab" aria-selected="false" data-tab="diff">Diff vs main</button>
+  </div>
+  <button class="primary" id="save">Save edits</button>
+  <button id="download">Download .md</button>
+  <button id="reset">Reset</button>
+  <span id="status" aria-live="polite"></span>
+</header>
+<main>
+  <section id="tab-edit">
+    <p class="legend"><span>Highlighted</span> lines are new or changed compared with main. Edit directly; Save writes your version to the review machine.</p>
+    <div class="panel"><div id="editor" contenteditable="true" spellcheck="true" aria-label="README editor">{{LINES}}</div></div>
+  </section>
+  <section id="tab-diff" hidden>
+    <div class="panel"><div id="diff">{{DIFF}}</div></div>
+  </section>
+</main>
+<script>
+  const ORIGINAL = {{ORIGINAL}};
+  const editor = document.getElementById('editor');
+  const status = document.getElementById('status');
+  const text = () => [...editor.querySelectorAll('.ln')].length
+    ? [...editor.childNodes].map((n) => n.textContent).join('\n')
+    : editor.innerText;
+  const saved = localStorage.getItem('oc-readme-review');
+  if (saved && saved !== ORIGINAL) status.textContent = 'Local draft available — Reset to discard';
+  editor.addEventListener('input', () => { localStorage.setItem('oc-readme-review', text()); status.textContent = 'Unsaved changes'; });
+  document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    document.getElementById('tab-edit').hidden = b.dataset.tab !== 'edit';
+    document.getElementById('tab-diff').hidden = b.dataset.tab !== 'diff';
+  }));
+  document.getElementById('save').addEventListener('click', async () => {
+    try {
+      const res = await fetch('save', { method: 'POST', headers: { 'content-type': 'text/markdown' }, body: text() });
+      status.textContent = res.ok ? 'Saved ' + new Date().toLocaleTimeString() : 'Save failed (' + res.status + ') — use Download';
+    } catch { status.textContent = 'Save unavailable here — use Download'; }
+  });
+  document.getElementById('download').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text()], { type: 'text/markdown' }));
+    a.download = 'README.md'; a.click();
+  });
+  document.getElementById('reset').addEventListener('click', () => { localStorage.removeItem('oc-readme-review'); location.reload(); });
+</script>
+</body>
+</html>
