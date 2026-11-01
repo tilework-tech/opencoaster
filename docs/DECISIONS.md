@@ -82,4 +82,4 @@ Source: [fidelity/rides.md](fidelity/rides.md). All of these are named constants
 
 - Each workstream owns its module directory under `src/sim/<module>` (or `src/render`, `src/ui`). Edits to `src/sim/core` (World, Command union, constants, `SYSTEM_ORDER`) must be small and additive; rebase on `main` before opening a PR.
 - Every PR keeps `pnpm lint`, `format:check`, `typecheck`, `test`, `build` and `bench --guests 5000` green, and adds determinism tests (same seed, same `hashWorld`).
-- Sessions cannot push `.github/workflows/`; ask the coordinator for CI changes.
+- Changes under `.github/workflows/` need a maintainer with workflow permission; automation tokens without the `workflows` scope cannot push them, so propose CI changes in the PR description.
