@@ -142,7 +142,7 @@ describe('land parcels', () => {
 
   it('rejects an apron that leaves the owned shape', () => {
     expect(() => recipe({ terrain: { ...TERRAIN, apronOffset: 20 } })).toThrow(
-      /apron must fit inside the owned land/,
+      /apron .* must fit inside the owned land/,
     );
     expect(() => recipe({ terrain: { ...TERRAIN, apronOffset: 15 } })).not.toThrow();
   });
