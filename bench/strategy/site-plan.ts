@@ -14,12 +14,14 @@ import { PREBUILT_TYPES } from '../../src/sim/scenario/scenario-prebuilt';
 import type { EntranceSide } from '../../src/sim/scenario/scenario';
 import type { ParkBuilder } from './builder';
 import { StaffKind } from './builder';
+import type { Funding } from '../../src/sim/research/research';
 import type { Strategy, StrategyFactory } from './run';
 import { TICKS_PER_MONTH } from './run';
 import {
   circuitTiles,
   clearScenery,
   flatGroundPath,
+  flatRideTiles,
   layRoute,
   openFlatRide,
   siteBounds,
@@ -30,6 +32,8 @@ import type { CoasterSite } from './site';
 
 /** Loans move in $1,000 steps. */
 const LOAN_STEP_CENTS = 100_000;
+/** Cash set aside for clearing the scenery under a flat ride step. */
+const CLEAR_ALLOWANCE_CENTS = 30_000;
 
 /** One build decision of a site plan; see `sitePlanStrategy`. */
 export type SiteStep =
@@ -39,7 +43,14 @@ export type SiteStep =
    * A footpath through `points`, starting beside `from` (a tile already holding a flat path) or
    * the end of the gate spine, clearing scenery on the way when the park allows it.
    */
-  | { kind: 'route'; points: Array<[number, number]>; clear: boolean; from?: [number, number] }
+  | {
+      kind: 'route';
+      points: Array<[number, number]>;
+      clear: boolean;
+      from?: [number, number];
+      /** Put a bin on every other tile of the route. */
+      bins?: boolean;
+    }
   /** A coaster at a fixed site, buying the land and rights under it and clearing its track tiles first. */
   | { kind: 'coaster'; site: CoasterSite }
   /**
@@ -52,11 +63,19 @@ export type SiteStep =
       row: number;
       lateral: number;
       name: string;
+      /** Clear scenery from the spine, frontage and footprint first. */
+      clear?: boolean;
     }
   /** Buys land or rights in a rectangle. */
   | { kind: 'buy'; x: number; y: number; width: number; height: number; rights: boolean }
   /** Clears scenery from the owned part of a rectangle with the Clear tool. */
-  | { kind: 'clear'; x: number; y: number; width: number; height: number };
+  | { kind: 'clear'; x: number; y: number; width: number; height: number }
+  /** Puts a bin on every footpath tile (not queue lines) in a rectangle. */
+  | { kind: 'bins'; x: number; y: number; width: number; height: number }
+  /** Pays off the whole loan once the cash covers it on top of the reserve. */
+  | { kind: 'repay' }
+  /** Holds the remaining steps until the start of `month`. */
+  | { kind: 'wait'; month: number };
 
 export interface SitePlan {
   steps: SiteStep[];
@@ -75,9 +94,12 @@ export interface SitePlan {
   borrow?: boolean;
   /**
    * Patrol areas, inclusive tile rectangles [x0, y0, x1, y1], dealt to handymen in turn so a
-   * spread-out park is swept everywhere rather than only around the gate.
+   * spread-out park is swept everywhere rather than only around the gate. A null entry leaves
+   * that handyman free to roam.
    */
-  patrols?: Array<[number, number, number, number]>;
+  patrols?: Array<[number, number, number, number] | null>;
+  /** Research funding level set on the first tick; the scenario's own level when omitted. */
+  researchFunding?: Funding;
 }
 
 /**
@@ -94,7 +116,14 @@ export function sitePlanStrategy(plan: SitePlan): StrategyFactory {
     const strategy: Strategy = {
       step(b) {
         const tick = b.tick;
-        if (tick === 0) b.prices = plan.prices;
+        if (tick === 0) {
+          b.prices = plan.prices;
+          if (plan.researchFunding !== undefined)
+            b.sim.enqueue({
+              type: 'research',
+              action: { type: 'setFunding', level: plan.researchFunding },
+            });
+        }
         if (tick >= nextAdvance) {
           nextAdvance = tick + 64;
           b.advance();
@@ -103,6 +132,7 @@ export function sitePlanStrategy(plan: SitePlan): StrategyFactory {
         nextDecision = tick + TICKS_PER_MONTH / 8;
         while (next < plan.steps.length) {
           const step = plan.steps[next];
+          if (step.kind === 'wait' && tick < step.month * TICKS_PER_MONTH) break;
           const cost = costOf(b, step, plan);
           const l = b.sim.world.economy;
           if (plan.borrow && l.cash < cost + plan.reserveCents && l.loan < l.maxLoan) {
@@ -135,15 +165,17 @@ export function sitePlanStrategy(plan: SitePlan): StrategyFactory {
 
 function assignPatrols(
   b: ParkBuilder,
-  areas: Array<[number, number, number, number]>,
+  areas: Array<[number, number, number, number] | null>,
   patrolled: Set<number>,
 ): void {
   const staff = b.sim.world.staff;
   for (let slot = 0; slot < staff.count; slot++) {
     const id = staff.slotToId[slot];
     if (staff.cols.kind[slot] !== StaffKind.Handyman || patrolled.has(id)) continue;
-    const [x0, y0, x1, y1] = areas[patrolled.size % areas.length];
+    const area = areas[patrolled.size % areas.length];
     patrolled.add(id);
+    if (!area) continue;
+    const [x0, y0, x1, y1] = area;
     for (let y = y0; y <= y1; y += 4)
       for (let x = x0; x <= x1; x += 4)
         b.sim.enqueue({ type: 'setStaffPatrolTile', staffId: id, x, y, enabled: true });
@@ -179,11 +211,21 @@ function costOf(b: ParkBuilder, step: SiteStep, plan: SitePlan): number {
       return 350_000 + saleCost(b, area) + area.width * area.height * 1_000 + decor;
     }
     case 'flat':
-      return RIDE_CATALOG[PREBUILT_TYPES[step.name]].cost + (step.row + 12) * PATH_COST_CENTS;
+      return (
+        RIDE_CATALOG[PREBUILT_TYPES[step.name]].cost +
+        (step.row + 12) * PATH_COST_CENTS +
+        (step.clear ? CLEAR_ALLOWANCE_CENTS : 0)
+      );
     case 'buy':
       return saleCost(b, step);
     case 'clear':
       return step.width * step.height * 2_000;
+    case 'bins':
+      return 0;
+    case 'repay':
+      return b.sim.world.economy.loan;
+    case 'wait':
+      return 0;
   }
 }
 
@@ -206,6 +248,16 @@ function perform(b: ParkBuilder, step: SiteStep, plan: SitePlan): void {
       const tiles = waypoints([start, ...step.points]).slice(1);
       if (step.clear) clearScenery(sim, tiles);
       layRoute(sim, tiles, m.heights[m.index(start[0], start[1])]);
+      if (step.bins) {
+        for (let k = 1; k < tiles.length; k += 2)
+          sim.enqueue({
+            type: 'setPathAddition',
+            x: tiles[k][0],
+            y: tiles[k][1],
+            addition: PathAddition.Bin,
+          });
+        sim.step();
+      }
       return;
     }
     case 'coaster': {
@@ -229,6 +281,7 @@ function perform(b: ParkBuilder, step: SiteStep, plan: SitePlan): void {
     }
     case 'flat': {
       const grid = new ParkGrid(...step.grid);
+      if (step.clear) clearScenery(sim, flatRideTiles(grid, step.row, step.lateral, step.name));
       for (let row = 0; row <= step.row; row++) {
         const [x, y] = grid.tile(row, 0);
         if (m.pathElement(m.index(x, y), -1) >= 0) continue;
@@ -256,6 +309,21 @@ function perform(b: ParkBuilder, step: SiteStep, plan: SitePlan): void {
         height: step.height,
       });
       sim.step();
+      return;
+    case 'bins':
+      for (let y = Math.max(0, step.y); y < Math.min(m.height, step.y + step.height); y++)
+        for (let x = Math.max(0, step.x); x < Math.min(m.width, step.x + step.width); x++) {
+          const i = m.index(x, y);
+          if (m.pathElement(i, -1) >= 0 && !m.isQueue(i))
+            sim.enqueue({ type: 'setPathAddition', x, y, addition: PathAddition.Bin });
+        }
+      sim.step();
+      return;
+    case 'repay':
+      if (sim.world.economy.loan > 0) b.repay(sim.world.economy.loan);
+      sim.step();
+      return;
+    case 'wait':
       return;
   }
 }

@@ -2,6 +2,7 @@ import type { StrategyFactory } from './run';
 import { growthStrategy } from './growth';
 import { SceneryItem } from '../../src/sim/map/scenery';
 import { sitePlanStrategy } from './site-plan';
+import { Funding } from '../../src/sim/research/research';
 import type { SiteStep } from './site-plan';
 import thunderheadPlan from './plans/thunderhead-mesa.json';
 import tidewaterPlan from './plans/tidewater-docks.json';
@@ -86,36 +87,59 @@ STRATEGIES['copper-ridge'] = sitePlanStrategy({
   ],
 });
 
+/**
+ * Tidewater Docks: rides with real queues on the west quay, a bin on every footpath, the loan
+ * repaid as soon as the cash covers it, then (from month 20, so the new rides are still young at
+ * the deadline) a south-quay walk out to both finger piers lined with ships, wheels and stalls.
+ * Nothing needed is left to research, so research funding is switched off.
+ */
 STRATEGIES['tidewater-docks'] = sitePlanStrategy({
   steps: tidewaterPlan as SiteStep[],
-  reserveCents: 400_000,
+  reserveCents: 300_000,
+  researchFunding: Funding.None,
   patrols: [
-    [8, 38, 24, 56],
-    [8, 52, 24, 64],
-    [16, 56, 64, 64],
-    [30, 38, 50, 62],
+    [8, 38, 15, 46],
+    [8, 47, 15, 55],
+    [16, 38, 23, 46],
+    [16, 47, 23, 55],
+    [8, 56, 23, 63],
+    [30, 38, 38, 57],
+    [41, 40, 49, 57],
+    [22, 54, 56, 62],
+    [8, 30, 23, 37],
+    [30, 38, 38, 57],
+    [41, 40, 49, 57],
+    [22, 54, 56, 62],
   ],
   prices: RIDE_PRICES,
   itemsPerHandyman: 1.5,
-  attractionsPerMechanic: 3,
-  repayAboveCents: 150_000,
+  attractionsPerMechanic: 4,
 });
 
+/**
+ * Thunderhead Mesa: the cliff trail first, then rides with real queues on the mesa top by the
+ * gate, then the west shelf below the trail, with bins along the trail and on every footpath.
+ * Handymen patrol the trail and the shelf; the rest roam the mesa. Research funding is off.
+ */
 STRATEGIES['thunderhead-mesa'] = sitePlanStrategy({
   steps: thunderheadPlan as SiteStep[],
   reserveCents: 200_000,
+  researchFunding: Funding.None,
   patrols: [
-    [30, 8, 62, 28],
-    [30, 8, 62, 28],
-    [8, 46, 40, 64],
-    [30, 8, 62, 28],
-    [18, 22, 38, 52],
-    [58, 50, 84, 64],
-    [56, 26, 74, 52],
+    null,
+    [24, 24, 35, 47],
+    [10, 49, 36, 64],
+    null,
+    [10, 49, 36, 64],
+    null,
+    [38, 9, 56, 24],
+    [24, 24, 35, 47],
+    [10, 49, 36, 64],
+    null,
   ],
   prices: RIDE_PRICES,
-  itemsPerHandyman: 2,
-  attractionsPerMechanic: 3,
+  itemsPerHandyman: 1.5,
+  attractionsPerMechanic: 4,
 });
 
 STRATEGIES['glacier-point'] = sitePlanStrategy({
