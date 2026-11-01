@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TICKS_PER_MONTH, TICKS_PER_YEAR } from '../sim/economy/calendar';
 import { ObjectiveKind, ScenarioStatus } from '../sim/scenario/scenario';
 import type { SnapshotScenario } from '../worker/snapshot';
-import { RideType } from '../sim/rides/ride-types';
-import { deadlineLabel, objectiveLines, parkRulesSummary } from './objective';
+import { deadlineLabel, objectiveLines } from './objective';
 
 function scenario(
   overrides: Partial<SnapshotScenario> & { byTick?: number; kind?: ObjectiveKind } = {},
@@ -99,28 +98,5 @@ describe('objectiveLines', () => {
 
   it('is empty for sandbox games', () => {
     expect(objectiveLines({ ...scenario(), objective: null }, 0, 0)).toEqual([]);
-  });
-});
-
-describe('parkRulesSummary', () => {
-  it('names every active rule in one short line', () => {
-    expect(
-      parkRulesSummary({
-        forbidTreeRemoval: true,
-        forbidLandscaping: true,
-        maxConstructionHeight: 6,
-        forbiddenRideTypeIds: [RideType.TopSpin, RideType.Enterprise],
-        forbidMarketing: true,
-      }),
-    ).toBe(
-      'Park rules: no tree removal · no landscaping · build up to 6 levels above ground · 2 banned attractions · no marketing',
-    );
-    expect(parkRulesSummary({ forbiddenRideTypeIds: [RideType.TopSpin] })).toBe(
-      'Park rules: 1 banned attraction',
-    );
-  });
-
-  it('is empty for an unrestricted park', () => {
-    expect(parkRulesSummary({})).toBe('');
   });
 });

@@ -282,7 +282,7 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
       }
       lastFeedbackSeq = feedback.seq;
       if (snapshot.scenario.restrictions.forbidMarketing)
-        for (const line of feedbackLines) setText(line, RESTRICTION_REFUSALS.marketing);
+        setText(marketingFeedback, RESTRICTION_REFUSALS.marketing);
 
       setText(
         campaignInfo,

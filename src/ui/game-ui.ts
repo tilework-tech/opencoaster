@@ -8,7 +8,7 @@ import { NewsTracker } from './news';
 import type { NewsItem } from './news';
 import { MessageQueue, filterMessages } from './messages';
 import type { MessageCategory } from './messages';
-import { objectiveLines, parkRulesSummary } from './objective';
+import { objectiveLines } from './objective';
 import { StatusBar } from './status-bar';
 import { BUILD_SPEED_CAP, effectiveGameSpeed } from './window-layout';
 import { Toolbar } from './toolbar';
@@ -265,12 +265,8 @@ export class GameUI {
     const weatherClass = `weather-${['sunny', 'cloudy', 'rain', 'storm'][weather] ?? 'sunny'}`;
     if (!this.weatherOverlay.classList.contains(weatherClass))
       this.weatherOverlay.className = `weather-overlay ${weatherClass}`;
-    const rules = snapshot ? parkRulesSummary(snapshot.scenario.restrictions) : '';
     const lines = snapshot
-      ? [
-          ...objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick),
-          ...(rules ? [rules] : []),
-        ]
+      ? objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick)
       : [];
     this.objective.hidden = lines.length === 0;
     const objectiveText = lines.join('\n');
