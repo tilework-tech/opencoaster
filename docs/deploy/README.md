@@ -1,18 +1,17 @@
 # GitHub Pages deploy
 
-The game is served from a project-site subpath: https://tilework-tech.github.io/opencoaster/
+The game is served at https://opencoaster.noriagentic.com/ over HTTPS. `public/CNAME` names that domain, and GitHub Pages redirects both https://tilework-tech.github.io/opencoaster/ and plain HTTP to it.
 
-## What is ready
+## Workflow
 
-- `docs/deploy/pages.yml` is a ready-to-install workflow. It runs `pnpm build` and deploys `dist/` with `actions/upload-pages-artifact@v3` and `actions/deploy-pages@v4` on every push to `main`.
-- Production builds use a relative Vite base (`./`) by default, so `dist/` works at the site root or under `/opencoaster/`. Set `OC_BASE` (e.g. `OC_BASE=/opencoaster/ pnpm build`) to pin an absolute base instead.
-- `pnpm smoke:subpath` builds `dist/`, serves it under `/opencoaster/` with no cross-origin isolation headers (`tools/serve-subpath.mjs`), and runs the smoke suite against it. GitHub Pages sends no COOP/COEP headers, so this is the production configuration.
+- [.github/workflows/pages.yml](../../.github/workflows/pages.yml) is installed and deploys on every push to `main` and on manual `workflow_dispatch`. It runs `pnpm build`, uploads `dist/` with `actions/upload-pages-artifact`, and publishes it with `actions/deploy-pages`.
+- After deploying, an "Ensure custom domain" step sets the Pages custom domain back to `opencoaster.noriagentic.com` if it has been cleared. The step is allowed to fail without failing the deploy.
+- Pages Source in the repository settings is "GitHub Actions".
+- [pages.yml](pages.yml) in this folder is a historical copy from before the workflow was installed and has drifted from it. Edit the installed workflow, not this copy.
 
-## Installing the workflow
+## Base path
 
-The GitHub session token cannot push `.github/workflows/` files, so the workflow lives here until an admin installs it:
-
-1. Copy `docs/deploy/pages.yml` to `.github/workflows/pages.yml` and merge it.
-2. In the repository settings, open Pages and set Source to "GitHub Actions".
+- Production builds use a relative Vite base (`./`) by default, so `dist/` works at the domain root and under a subpath such as `/opencoaster/`. Set `OC_BASE` (e.g. `OC_BASE=/opencoaster/ pnpm build`) to pin an absolute base instead.
+- `pnpm smoke:subpath` builds `dist/`, serves it under `/opencoaster/` with no cross-origin isolation headers (`tools/serve-subpath.mjs`), and runs the smoke suite against it. GitHub Pages sends no COOP/COEP headers, so this matches production.
 
 Dev and preview builds keep the root base and the COOP/COEP headers the Vite dev server sends.

@@ -1208,6 +1208,40 @@
 #app .title-message {
   color: #8a321e;
 }
+#app .title-message:empty {
+  display: none;
+}
+#app .title-footer {
+  margin: 12px -10px -10px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--bevel-dark);
+  background: #bdb9a7;
+  color: #403c32;
+  font-size: 12px;
+  text-align: right;
+}
+#app .title-source-link {
+  display: inline-block;
+  padding: 6px 4px;
+  color: #23466e;
+  font-weight: 600;
+  text-decoration: underline;
+}
+#app .title-source-link:hover {
+  color: #13304f;
+}
+#app .title-source-link:focus-visible {
+  outline: 2px solid #23466e;
+  outline-offset: 1px;
+}
+#app .title-source-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 #app .title-panel > .menu-button {
   align-self: stretch;
   min-height: 42px;
