@@ -553,11 +553,6 @@ function binHasFullSide(data: number): boolean {
 }
 
 /**
- * Sends an idle worker to a nearby walkable tile when it has arrived or its target is unusable.
- * Staying within a few tiles keeps the route search short; a worker with nowhere close falls
- * back to any walkable tile in its patrol.
- */
-/**
  * True when another mechanic already heads for the tile beside this ride's service point and is
  * nearer to it (or as near, with the earlier slot), so one breakdown calls one mechanic.
  */
@@ -583,6 +578,11 @@ function answeredByNearerMechanic(
   return false;
 }
 
+/**
+ * Sends an idle worker to a nearby reachable tile when it has arrived or its target is unusable.
+ * Staying within a few tiles keeps the route search short; a worker with nowhere close falls
+ * back to any reachable tile in its patrol.
+ */
 function wander(world: World, slot: number, patrol: PatrolMask, mapSize: number): void {
   const staff = world.staff.cols;
   const map = world.map;

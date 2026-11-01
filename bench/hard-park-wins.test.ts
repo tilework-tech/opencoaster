@@ -25,10 +25,16 @@ const TIMEOUT_MS = 300_000;
 
 const QUEUED_CATEGORIES = new Set(['gentle', 'thrill', 'coaster', 'water', 'transport']);
 
-/** Tile the browser proof centres on: a busy part of each won park. */
-const FOCUS: Record<string, readonly [number, number]> = {
-  'tidewater-docks': [16, 47],
-  'thunderhead-mesa': [46, 16],
+/** Tiles the browser proof centres on: the busiest part of each won park, then its far end. */
+const VIEWS: Record<string, ReadonlyArray<readonly [number, number]>> = {
+  'tidewater-docks': [
+    [15, 48],
+    [40, 52],
+  ],
+  'thunderhead-mesa': [
+    [45, 16],
+    [22, 56],
+  ],
 };
 
 function startingResearch(id: string): number[] {
@@ -73,9 +79,8 @@ for (const id of ['tidewater-docks', 'thunderhead-mesa']) {
           const world: Simulation['world'] = finalWorld;
           mkdirSync(dir, { recursive: true });
           writeFileSync(join(dir, `${id}-won.ocsave`), serialize(world));
-          const [x, y] = FOCUS[id];
-          const z = world.map.heights[world.map.index(x, y)];
-          writeFileSync(join(dir, `${id}-won.json`), JSON.stringify({ focus: [x, y, z] }));
+          const views = VIEWS[id].map(([x, y]) => [x, y, world.map.heights[world.map.index(x, y)]]);
+          writeFileSync(join(dir, `${id}-won.json`), JSON.stringify({ views }));
         }
 
         expect(research, 'starts from the scenario research').toEqual(
