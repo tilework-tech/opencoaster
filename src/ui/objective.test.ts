@@ -13,6 +13,7 @@ function scenario(
     objective: { kind, target: 10, rating: 600, categoryMask: 0, byTick },
     metric: 4,
     parkRating: 512,
+    restrictions: {},
     ...rest,
   };
 }

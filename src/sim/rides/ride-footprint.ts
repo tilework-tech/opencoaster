@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { exceedsHeightCap } from '../scenario/restrictions';
 import { Z_STEP } from '../core/constants';
 import type { TileMap } from '../map/tile-map';
 import { Surface } from '../map/tile-map';
@@ -13,6 +14,7 @@ import {
   ridePlacementOccupancies,
   worldOccupancies,
 } from '../map/occupancy';
+import type { OccupancyVolume } from '../map/occupancy';
 
 /** Tiles a ride of this type covers when anchored at (`x`, `y`) and turned `dir` quarter turns. */
 export function rideFootprintTiles(
@@ -73,6 +75,13 @@ export function rideBaseLevel(
   return top;
 }
 
+/** Whether any tile of a ride's planned volume rises above the scenario's height cap. */
+export function occupanciesAboveCap(world: World, volumes: readonly OccupancyVolume[]): boolean {
+  return volumes.some((v) =>
+    exceedsHeightCap(world, world.map.index(v.tileX, v.tileY), v.clearance),
+  );
+}
+
 /**
  * Whether a ride of `type` may be built with its anchor on (`x`, `y`) turned `dir` quarter turns.
  * Every footprint tile must lie on the map, be owned or have construction rights, be dry, free of
@@ -115,6 +124,7 @@ export function validateRidePlacement(
   if (high - low > (def.supportLevels ?? DEFAULT_SUPPORT_LEVELS)) return RideResult.TooSteep;
 
   const candidates = ridePlacementOccupancies(type, x, y, dir, high * Z_STEP, towerHeight);
+  if (occupanciesAboveCap(world, candidates)) return RideResult.HeightLimit;
   return firstOccupancyBlocker(candidates, worldOccupancies(world))
     ? RideResult.Blocked
     : RideResult.Ok;

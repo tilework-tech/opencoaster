@@ -1,8 +1,9 @@
 import type { World } from '../core/world';
 import { ElementType, MAX_HEIGHT, OWNED, PathFlag, WATER_TILE_ACTION_COST_CENTS } from './tile-map';
 import type { TileMap } from './tile-map';
-import { LandResult, ownedSelection, structureConflict } from './land-tool';
-import { SCENERY_CATALOG } from './scenery';
+import { capBreachTile, LandResult, ownedSelection, structureConflict } from './land-tool';
+import { isTreeScenery, SCENERY_CATALOG } from './scenery';
+import { landscapingForbidden, treesProtected } from '../scenario/restrictions';
 import type { SceneryItem } from './scenery';
 
 const PATH_ADDITIONS = PathFlag.Bin | PathFlag.Bench | PathFlag.Shelter | PathFlag.Lamp;
@@ -47,10 +48,16 @@ function clearScenery(w: World, selected: Int32Array, commit: boolean): AreaPlan
   const paths: Array<[number, number]> = [];
   const tiles: number[] = [];
   let costCents = 0;
+  const keepTrees = treesProtected(w);
+  let keptTrees = 0;
   for (const tile of selected) {
     const before = scenery.length + paths.length;
     for (let e = m.firstElement(tile); e >= 0; e = m.nextElement(e)) {
       if (m.elType[e] === ElementType.SmallScenery) {
+        if (keepTrees && isTreeScenery(m.elData[e] as SceneryItem)) {
+          keptTrees++;
+          continue;
+        }
         scenery.push([tile, e]);
         costCents += SCENERY_CATALOG[m.elData[e] as SceneryItem]?.removalPriceCents ?? 0;
       } else if (m.elType[e] === ElementType.Path && (m.elFlags[e] & PATH_ADDITIONS) !== 0) {
@@ -59,7 +66,8 @@ function clearScenery(w: World, selected: Int32Array, commit: boolean): AreaPlan
     }
     if (scenery.length + paths.length > before) tiles.push(tile);
   }
-  if (tiles.length === 0) return refuse(LandResult.NoChange, -1, selected);
+  if (tiles.length === 0)
+    return refuse(keptTrees > 0 ? LandResult.TreesProtected : LandResult.NoChange, -1, selected);
   const plan: AreaPlan = {
     result: LandResult.Ok,
     subject: -1,
@@ -211,6 +219,10 @@ function moveWater(w: World, selected: Int32Array, lower: boolean, commit: boole
   if ('result' in step) return refuse(step.result, step.subject, selected);
   const changed = Int32Array.from(step.tiles);
   const target = step.level;
+  if (lower) {
+    const breach = capBreachTile(w, changed, (t) => Math.max(m.heights[t], target));
+    if (breach >= 0) return refuse(LandResult.HeightLimit, breach, selected);
+  }
   const plan: AreaPlan = {
     result: LandResult.Ok,
     subject: -1,
@@ -230,6 +242,7 @@ function moveWater(w: World, selected: Int32Array, lower: boolean, commit: boole
 }
 
 function evaluate(w: World, e: AreaEdit, commit: boolean): AreaPlan {
+  if (e.tool === 'water' && landscapingForbidden(w)) return refuse(LandResult.LandscapingForbidden);
   const selected = ownedSelection(w.map, e);
   if (typeof selected === 'number') return refuse(selected);
   return e.tool === 'clear'

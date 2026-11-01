@@ -4,7 +4,7 @@ import { maxCarsForRide, maxTrainsForRide, RIDERS_PER_CAR } from '../vehicles/ri
 import { LOAD_TARGET_THRESHOLD, LoadTarget } from './ride-modes';
 import { RideMode } from './ride-modes';
 import { RELIABILITY_MAX, isRideInspectionDueAt } from './ride-maintenance';
-import { rideBaseLevel, rideFootprintTiles } from './ride-footprint';
+import { occupanciesAboveCap, rideBaseLevel, rideFootprintTiles } from './ride-footprint';
 import { syncStallFront } from './stall-front';
 import { inferBoardingFronts } from './boarding-front';
 import {
@@ -190,6 +190,8 @@ export function setObservationTowerHeight(
     base,
     height,
   );
+  if (height > rides.towerHeight[slot] && occupanciesAboveCap(world, candidates))
+    return RideResult.HeightLimit;
   const currentRideName = `${RIDE_CATALOG[RideTypeId.ObservationTower].name} ${rideId + 1}`;
   const existing = worldOccupancies(world).filter((volume) => volume.name !== currentRideName);
   if (firstOccupancyBlocker(candidates, existing)) return RideResult.Blocked;

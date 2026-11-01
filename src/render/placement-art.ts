@@ -1,4 +1,5 @@
 import { PIECES } from '../sim/track/catalog';
+import { aboveHeightCap } from '../sim/scenario/restrictions';
 import { rotateTile } from '../sim/track/construction';
 import { Surface } from '../sim/map/tile-map';
 import { DEFAULT_SUPPORT_LEVELS, RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -70,8 +71,11 @@ export function ridePlacementValid(
   }
   if (high - low > (definition.supportLevels ?? DEFAULT_SUPPORT_LEVELS)) return false;
 
+  const occupied = ridePlacementOccupancies(type, x, y, dir, high * Z_STEP, towerHeight);
+  const cap = snapshot.scenario.restrictions.maxConstructionHeight;
+  if (occupied.some((v) => aboveHeightCap(cap, map, v.tileY * map.width + v.tileX, v.clearance)))
+    return false;
   if (type === RideType.ObservationTower) {
-    const occupied = ridePlacementOccupancies(type, x, y, dir, high * Z_STEP, towerHeight);
     if (
       occupied.some((candidate) =>
         snapshot.occupancies.some((existing) => occupancyConflict(candidate, existing)),

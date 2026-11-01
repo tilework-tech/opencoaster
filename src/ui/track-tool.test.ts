@@ -271,3 +271,33 @@ describe('previewStatus tunnel entries', () => {
     );
   });
 });
+
+describe('previewStatus under a scenario height cap', () => {
+  const buildable = new Uint8Array(16 * 16).fill(1);
+  const map = {
+    width: 16,
+    height: 16,
+    heights: new Uint8Array(16 * 16).fill(10),
+    slope: new Uint8Array(16 * 16),
+    waterLevel: new Uint8Array(16 * 16),
+  };
+  const piece = PIECES[PieceId.Flat];
+  const at = (level: number, cap?: number) =>
+    previewStatus(
+      map,
+      buildable,
+      piece,
+      { x: 4, y: 4, dir: 0 },
+      1_000_000,
+      level,
+      [],
+      undefined,
+      cap,
+    );
+
+  it('marks a piece above the cap over the local ground, as the simulation does', () => {
+    expect(at(16, 6)).toBe(TrackResult.Ok);
+    expect(at(17, 6)).toBe(TrackResult.HeightLimit);
+    expect(at(17)).toBe(TrackResult.Ok);
+  });
+});

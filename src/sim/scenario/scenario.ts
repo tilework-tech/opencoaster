@@ -4,6 +4,7 @@ import type { ResearchInvention } from '../research/research';
 import { Funding } from '../research/research';
 import { DEFAULT_CLIMATE } from '../weather/weather';
 import type { Climate } from '../weather/weather';
+import type { ScenarioRestrictions } from './restrictions';
 
 /** Save-slot ids for games that are not scenarios: the development sandbox, and imported files. */
 export const SANDBOX_ID = 'sandbox';
@@ -176,6 +177,7 @@ export interface ScenarioDef {
   land?: ScenarioLand;
   trees?: ScenarioTrees;
   prebuilt?: PrebuiltRide[];
+  restrictions?: ScenarioRestrictions;
   objective: ScenarioObjective;
 }
 
@@ -183,6 +185,8 @@ export interface ScenarioState {
   objective: ScenarioObjective | null;
   status: ScenarioStatus;
   averageGuestCashCents: number;
+  /** The rules the park started with; saves without them load unrestricted. */
+  restrictions: ScenarioRestrictions;
 }
 
 export function createScenarioState(): ScenarioState {
@@ -190,6 +194,7 @@ export function createScenarioState(): ScenarioState {
     objective: null,
     status: ScenarioStatus.Active,
     averageGuestCashCents: DEFAULT_AVERAGE_GUEST_CASH_CENTS,
+    restrictions: {},
   };
 }
 
@@ -220,6 +225,7 @@ export function applyScenario(world: World, def: ScenarioDef): void {
   world.scenario.objective = { ...def.objective };
   world.scenario.status = ScenarioStatus.Active;
   world.scenario.averageGuestCashCents = def.averageGuestCashCents;
+  world.scenario.restrictions = structuredClone(def.restrictions ?? {});
   world.weather.climate = def.climate ?? DEFAULT_CLIMATE;
 }
 

@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { exceedsHeightCap, heightCapDetail } from '../scenario/restrictions';
 import type { Command } from '../core/commands';
 import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
@@ -53,6 +54,15 @@ function checkRideRules(world: World, req: PlaceRequest): TrackResult {
   return TrackResult.Ok;
 }
 
+/** Whether the piece's structure rises above the scenario's height cap on any tile it covers. */
+function trackAboveCap(world: World, req: PlaceRequest): boolean {
+  const base = req.z * TRACK_Z_STEP;
+  return PIECES[req.pieceType].footprint.some((cell) => {
+    const [rx, ry] = rotateTile(cell.i, cell.j, req.dir);
+    return exceedsHeightCap(world, world.map.index(req.x + rx, req.y + ry), base + cell.zMax);
+  });
+}
+
 function ownsFootprint(world: World, req: PlaceRequest): boolean {
   const map = world.map;
   for (const cell of PIECES[req.pieceType].footprint) {
@@ -86,6 +96,7 @@ export function validatePlaceCommand(world: World, req: PlaceRequest): TrackResu
   if (rules !== TrackResult.Ok) return rules;
   const geometry = validatePlacement(world, req);
   if (geometry !== TrackResult.Ok) return geometry;
+  if (trackAboveCap(world, req)) return TrackResult.HeightLimit;
   const rideSlot = world.rides.idToSlot[req.rideId];
   const rideType = world.rides.cols.typeId[rideSlot] as RideType;
   if (!RIDE_CATALOG[rideType]?.allowsWater) {
@@ -132,6 +143,7 @@ function applyPlace(world: World, c: Extract<TrackCommand, { type: 'placeTrack' 
   };
   const result = validatePlaceCommand(world, req);
   if (result !== TrackResult.Ok) {
+    if (result === TrackResult.HeightLimit) world.track.lastBlockerName = heightCapDetail(world);
     world.track.lastResult = result;
     world.track.lastPiece = -1;
     return result;

@@ -63,6 +63,8 @@ export const enum TrackResult {
   TunnelBlocked = 17,
   /** A tunnel would enter or leave the ground through a corner, a diagonal slope or mid-tile. */
   TunnelEntry = 18,
+  /** The piece would rise above the scenario's construction height cap. */
+  HeightLimit = 19,
 }
 
 /**

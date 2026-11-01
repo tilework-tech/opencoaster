@@ -1,4 +1,5 @@
 import { isShopCategory } from '../../sim/rides/ride-operations';
+import { RESTRICTION_REFUSALS } from '../../sim/scenario/restrictions';
 import { RIDE_CATALOG } from '../../sim/rides/ride-types';
 import type { RideType } from '../../sim/rides/ride-types';
 import { EconomyResult } from '../../sim/economy/actions';
@@ -13,6 +14,7 @@ const ECONOMY_MESSAGES: Record<EconomyResult, string> = {
   [EconomyResult.NoSuchRide]: 'That ride no longer exists. Choose another.',
   [EconomyResult.NotARide]: 'Shops and facilities cannot be promoted as rides. Choose a ride.',
   [EconomyResult.NotAFoodOrDrinkStall]: 'Choose a food or drink stall for this offer.',
+  [EconomyResult.MarketingForbidden]: RESTRICTION_REFUSALS.marketing,
 };
 
 /** Player-facing text for the outcome of the latest economy command. */
