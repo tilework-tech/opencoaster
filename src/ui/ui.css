@@ -1212,7 +1212,7 @@
   display: none;
 }
 #app .title-footer {
-  margin: 12px -10px -10px;
+  margin: 10px -10px -10px;
   padding: 6px 10px;
   border-top: 1px solid var(--bevel-dark);
   background: #bdb9a7;
@@ -1226,6 +1226,22 @@
   color: #23466e;
   font-weight: 600;
   text-decoration: underline;
+}
+@media (max-width: 699px) {
+  #app .title-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    column-gap: 0.3em;
+    padding: 0 10px;
+  }
+  #app .title-source-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 4px;
+  }
 }
 #app .title-source-link:hover {
   color: #13304f;

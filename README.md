@@ -23,7 +23,7 @@ No install, no account. It runs on desktop and on phones, and works offline once
 - **Hire and manage staff.** Handymen sweep, mow, water and empty bins; mechanics inspect and repair rides as they wear down and break; security guards deter vandals; entertainers cheer guests up. Assign patrol areas and work orders.
 - **Shape the land.** Raise, lower, flatten and smooth terrain, raise and lower water, buy land and construction rights, lay footpaths, queues, ramps and raised bridges, and decorate with trees, flower beds, fountains, statues, fences, benches, bins and lamps.
 - **Balance the books.** Choose an entry fee or pay-per-ride, take and repay loans, fund research to unlock new ride types, and run marketing campaigns. Finance windows chart cash, park value and weekly profit, and your park can win (or lose) awards.
-- **Play scenarios or a sandbox.** Eleven original scenarios from beginner to expert, each with its own map, climate and goal (guests, park rating, park value, ride income, food profit, or excellent coasters), plus an unrestricted sandbox.
+- **Play scenarios or a sandbox.** Eleven original scenarios from beginner to expert, each with its own map and climate. Most set a deadline goal (guests and park rating, park value, repaying the loan, ride income, food profit, or a set of excellent coasters); one is just for fun. There is also an unrestricted sandbox.
 - **Live with the weather.** Sun, cloud, rain and storms change what guests want to do, and the park shifts from day to night with lamps that light up after dusk.
 - **Save anywhere.** Save to in-browser slots, or export and import `.ocsave` files.
 
@@ -37,7 +37,7 @@ OpenCoaster is a playable game, not a finished remake. The ride catalog is small
 
 OpenCoaster was built by AI coding agents running on [Nori](https://noriagentic.com), working as one Nori Project with people steering along the way.
 
-- **It started as a goal.** The owner gave the project one goal: an efficient, open-source browser game in the spirit of the classic coaster tycoon games, built by researching how each game mechanic works, parallelizing aggressively, and alternating between Claude and ChatGPT models.
+- **It started as a goal.** The owner gave the project one goal: an efficient, open-source browser game in the spirit of the classic coaster tycoon games, built by researching how each game mechanic works, parallelizing aggressively, and alternating between Anthropic and OpenAI models.
 - **A coordinator broke it up.** A persistent project coordinator kept the goal and shared context, split the work into mechanics research and implementation tasks, and handed each one to its own cloud subworker.
 - **Many agents worked in parallel.** Subworkers ran side by side on separate branches, mixing Anthropic Claude and OpenAI Codex models. Mechanics research was written up with public sources in [docs/mechanics/](docs/mechanics/) before code was written against it.
 - **Work was checked, not just merged.** Each change came in as a pull request with tests, and UI and art changes carried browser screenshots that were reviewed before merging. Proof captures live on the repository's `nori/pr-proofs` branch.
@@ -47,7 +47,7 @@ The commit history, pull requests and [docs/DECISIONS.md](docs/DECISIONS.md) rec
 
 ## Run it locally
 
-You need Node.js 20 or newer and pnpm 10 (`corepack enable` provides the pinned version).
+You need Node.js 20.19+ or 22.12+ and pnpm 10 (`corepack enable` provides the pinned version).
 
 ```sh
 git clone https://github.com/tilework-tech/opencoaster.git

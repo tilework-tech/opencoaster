@@ -120,7 +120,7 @@ test.use({
 });
 
 for (const [name, build] of Object.entries(README_PARKS)) {
-  test(`README screenshot: ${name}`, async ({ page }) => {
+  test(`README screenshot: ${name} @art-review`, async ({ page }) => {
     test.skip(!shotDir, 'set README_SHOT_DIR to capture the README screenshots');
     test.skip(only !== undefined && !only.includes(name), `${name} not in README_SHOTS`);
     test.setTimeout(600_000);

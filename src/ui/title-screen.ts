@@ -326,7 +326,9 @@ function sourceFooter(): HTMLElement {
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   link.append(element('span', 'title-source-hint', ' (opens in a new tab)'));
-  const footer = element('p', 'title-footer', 'Open source, MIT licensed · ');
-  footer.append(link);
+  const separator = element('span', undefined, ' · ');
+  separator.setAttribute('aria-hidden', 'true');
+  const footer = element('p', 'title-footer', 'Open source, MIT licensed');
+  footer.append(separator, link);
   return footer;
 }
