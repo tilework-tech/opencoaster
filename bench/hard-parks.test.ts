@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../src/sim/core/simulation';
 import { ElementType } from '../src/sim/map/tile-map';
+import { SceneryItem } from '../src/sim/map/scenery';
 import { RideState } from '../src/sim/rides/ride-store';
+import { RideType } from '../src/sim/rides/ride-types';
 import { SCENARIOS } from '../src/sim/scenario/catalog';
 import { ParkGrid } from '../src/sim/scenario/park-grid';
 import { prepareScenarioPark } from '../src/sim/scenario/scenario-layout';
@@ -106,6 +108,17 @@ function expectSolvent(park: Park): void {
 }
 
 const MONTH = 16_384;
+
+const TREES = new Set<number>([
+  SceneryItem.OakTree,
+  SceneryItem.Conifer,
+  SceneryItem.BlossomTree,
+  SceneryItem.BirchTree,
+  SceneryItem.AutumnTree,
+  SceneryItem.TopiaryTree,
+  SceneryItem.PalmTree,
+  SceneryItem.CactusTree,
+]);
 
 describe('hard parks are playable with legal construction', { timeout: 60_000 }, () => {
   it('Copper Ridge: cross the gulch on the trail and open a coaster on the west bench', () => {
@@ -230,5 +243,69 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     expect(riders(park, carousel.rideId)).toBeGreaterThan(0);
     expect(trees(park)).toBe(before);
     expectSolvent(park);
+  });
+});
+
+describe('each hard park enforces the rules it advertises', () => {
+  function fresh(id: string): Simulation {
+    const def = SCENARIOS.find((s) => s.id === id)!;
+    const sim = new Simulation({ seed: def.seed, width: def.mapWidth, height: def.mapHeight });
+    prepareScenarioPark(sim.world, def);
+    return sim;
+  }
+
+  it('Copper Ridge refuses to reshape its ridges', () => {
+    const sim = fresh('copper-ridge');
+    const m = sim.world.map;
+    const before = Array.from(m.vertexHeights);
+    sim.enqueue({
+      type: 'flattenLand',
+      x: 30,
+      y: 60,
+      width: 8,
+      height: 12,
+      anchorX: 32,
+      anchorY: 75,
+    });
+    sim.step();
+    expect(Array.from(m.vertexHeights)).toEqual(before);
+  });
+
+  it('Mossgrove Isle keeps every tree when the player tries to clear the woods', () => {
+    const sim = fresh('mossgrove-isle');
+    const m = sim.world.map;
+    const count = () => {
+      let n = 0;
+      for (let e = 0; e < m.elementCapacity; e++)
+        if (m.elType[e] === ElementType.SmallScenery && TREES.has(m.elData[e])) n++;
+      return n;
+    };
+    const before = count();
+    sim.enqueue({ type: 'clearScenery', x: 20, y: 18, width: 30, height: 20 });
+    sim.step();
+    expect(before).toBeGreaterThan(400);
+    expect(count()).toBe(before);
+  });
+
+  it('Glacier Point builds no flat rides', () => {
+    const sim = fresh('glacier-point');
+    sim.world.research.unlocked.add(RideType.MerryGoRound);
+    const rides = sim.world.rides.count;
+    sim.enqueue({ type: 'createRide', rideType: RideType.MerryGoRound, x: 80, y: 50 });
+    sim.step();
+    expect(sim.world.rides.count).toBe(rides);
+  });
+
+  it('Thunderhead Mesa refuses marketing and tall construction', () => {
+    const sim = fresh('thunderhead-mesa');
+    const l = sim.world.economy;
+    const campaign = l.campaignId;
+    sim.enqueue({ type: 'economy', action: { type: 'startCampaign', campaignId: 1, weeks: 2 } });
+    const m = sim.world.map;
+    const ground = m.heights[m.index(44, 14)];
+    sim.enqueue({ type: 'placePath', x: 44, y: 14, z: ground + 8 });
+    sim.step();
+    expect(l.campaignId).toBe(campaign);
+    expect(m.pathElement(m.index(44, 14), -1)).toBeLessThan(0);
   });
 });
