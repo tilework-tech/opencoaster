@@ -1,5 +1,5 @@
 import { expect, test } from './support/test';
-import { mkdir } from 'node:fs/promises';
+import { docsScreenshot } from './support/docs-screenshot';
 
 test('management windows, desktop resizing, options and screenshot shortcut', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -16,8 +16,7 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
     .filter({ hasText: 'Starter Park' })
     .getByRole('button', { name: 'Start', exact: true })
     .click();
-  await mkdir('docs/screenshots', { recursive: true });
-  await page.screenshot({ path: 'docs/screenshots/deferred-ui-before.png' });
+  await docsScreenshot(page, 'docs/screenshots/deferred-ui-before.png');
 
   const toolbar = page.locator('.game-toolbar');
   await toolbar.getByRole('button', { name: 'Staff', exact: true }).click();
@@ -64,7 +63,7 @@ test('management windows, desktop resizing, options and screenshot shortcut', as
   const afterWidth = await guestWindow.evaluate((el) => el.getBoundingClientRect().width);
   expect(afterWidth).toBeGreaterThan(beforeWidth);
 
-  await page.screenshot({ path: 'docs/screenshots/deferred-ui-after.png' });
+  await docsScreenshot(page, 'docs/screenshots/deferred-ui-after.png');
   const screenshot = page.waitForEvent('download');
   await page.keyboard.press('Control+s');
   const download = await screenshot;

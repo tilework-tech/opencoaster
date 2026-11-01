@@ -1,4 +1,5 @@
 import { devices, expect, test, type Page } from './support/test';
+import { docsScreenshot } from './support/docs-screenshot';
 import { createTestContext } from './support/test-contexts';
 
 async function startStarterPark(page: Page): Promise<void> {
@@ -63,7 +64,7 @@ test('shows land rights in Park information with purchase prices and distinct sa
   ).not.toBe(
     await rightsSwatch.evaluate((node) => getComputedStyle(node).getPropertyValue('--sale-color')),
   );
-  await page.screenshot({ path: 'docs/playtest/assets/p1-land-rights-after.png' });
+  await docsScreenshot(page, 'docs/playtest/assets/p1-land-rights-after.png');
 
   const buyLand = landRights.getByRole('button', { name: 'Buy land' });
   const landOffer = landRights.locator('.land-rights-count').nth(0);
@@ -131,7 +132,7 @@ test('shows an explanatory red build preview while hovering over unowned land', 
     return redPixels;
   });
   expect(redPreviewPixels).toBeGreaterThan(0);
-  await page.screenshot({ path: 'docs/playtest/assets/p1-unowned-hover-after.png' });
+  await docsScreenshot(page, 'docs/playtest/assets/p1-unowned-hover-after.png');
 
   await page.getByRole('button', { name: 'Land', exact: true }).click();
   await page.mouse.move(x, y);

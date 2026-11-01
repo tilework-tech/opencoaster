@@ -74,10 +74,10 @@ test.describe('scenery placement preview', () => {
     await expect(label).toHaveAttribute('data-tone', 'ok');
     await expect(label).toContainText('Oak tree');
     await expect(label).toContainText('$1.50');
-    await page.screenshot({ path: 'screenshots/placement-scenery-ok.png' });
+    await page.screenshot({ path: test.info().outputPath('placement-scenery-ok.png') });
     const [px, py] = await tileScreenPoint(page, world, tile);
     await page.screenshot({
-      path: 'screenshots/placement-scenery-ok-close.png',
+      path: test.info().outputPath('placement-scenery-ok-close.png'),
       clip: { x: px - 120, y: py - 120, width: 240, height: 240 },
     });
 
@@ -96,10 +96,10 @@ test.describe('scenery placement preview', () => {
     const label = page.locator('.placement-label');
     await expect(label).toHaveAttribute('data-tone', 'refused');
     await expect(label).toHaveText('Buy this land first.');
-    await page.screenshot({ path: 'screenshots/placement-scenery-refused.png' });
+    await page.screenshot({ path: test.info().outputPath('placement-scenery-refused.png') });
     const [px, py] = await tileScreenPoint(page, world, tile);
     await page.screenshot({
-      path: 'screenshots/placement-scenery-refused-close.png',
+      path: test.info().outputPath('placement-scenery-refused-close.png'),
       clip: { x: px - 120, y: py - 120, width: 240, height: 240 },
     });
 
@@ -121,6 +121,6 @@ test.describe('scenery placement preview on Pixel 8', () => {
     await openScenery(page);
     await hoverGameTile(page, world, tile);
     await expect(page.locator('.placement-label')).toHaveAttribute('data-tone', 'ok');
-    await page.screenshot({ path: 'screenshots/placement-scenery-pixel8.png' });
+    await page.screenshot({ path: test.info().outputPath('placement-scenery-pixel8.png') });
   });
 });

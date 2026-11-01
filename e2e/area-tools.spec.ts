@@ -1,6 +1,6 @@
-import { mkdir } from 'node:fs/promises';
 import { test } from './support/test';
 import type { Locator, Page } from './support/test';
+import { docsScreenshot } from './support/docs-screenshot';
 import { ElementType, PathFlag } from '../src/sim/map/tile-map';
 import type { TileMap } from '../src/sim/map/tile-map';
 import {
@@ -92,10 +92,7 @@ function benchAt(map: TileMap, x: number, y: number): boolean {
 /** Writes to the test output; set UPDATE_SCREENSHOTS=1 to refresh the committed copies. */
 async function shot(page: Page, name: string, mobile: boolean): Promise<void> {
   const file = `${mobile ? 'pixel-8' : 'desktop'}-${name}.png`;
-  if (process.env.UPDATE_SCREENSHOTS) {
-    await mkdir(SHOTS, { recursive: true });
-    await page.screenshot({ path: `${SHOTS}/${file}` });
-  } else await page.screenshot({ path: test.info().outputPath(file) });
+  await docsScreenshot(page, `${SHOTS}/${file}`);
 }
 
 for (const profile of ['desktop', 'pixel-8'] as const) {

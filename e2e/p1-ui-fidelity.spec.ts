@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page, type TestInfo } from './support/test';
+import { docsScreenshot } from './support/docs-screenshot';
 import { World } from '../src/sim/core/world';
 import { parseScenarioFile } from '../src/sim/scenario/scenario-file';
 import { prepareScenario } from '../src/sim/scenario/scenario-layout';
@@ -96,7 +97,7 @@ test('desktop construction controls fit above the fold', async ({ page }, testIn
   const build = await panel.getByRole('button', { name: 'Build piece' }).boundingBox();
   expect(build).not.toBeNull();
   expect(build!.y + build!.height).toBeLessThanOrEqual(800);
-  await page.screenshot({ path: 'docs/playtest/assets/p1-after-coaster-controls.png' });
+  await docsScreenshot(page, 'docs/playtest/assets/p1-after-coaster-controls.png');
 
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Build piece' })).toBeEnabled();
@@ -113,7 +114,7 @@ test('desktop construction controls fit above the fold', async ({ page }, testIn
   await page.locator('[data-panel="ride-list"] .list-row').first().click();
   await expect(page.locator('[data-panel="ride-0"] .ride-preview')).toBeVisible();
   await expect(page.locator('[data-panel="ride-0"] [role="tab"]')).toHaveCount(8);
-  await page.screenshot({ path: 'docs/playtest/assets/p1-after-ride-preview.png' });
+  await docsScreenshot(page, 'docs/playtest/assets/p1-after-ride-preview.png');
 });
 
 test('options controls stay above the status bar', async ({ page }) => {
