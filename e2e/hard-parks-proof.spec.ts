@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { devices, expect, test } from '@playwright/test';
 import type { Page, Request } from '@playwright/test';
@@ -159,12 +159,16 @@ for (const park of PARKS) {
   });
 }
 
-/** Parks played to a win by bench/hard-park-wins.test.ts (run with HARD_PROOF_SAVES). */
+/** Parks played to a win by bench/hard-park-wins.ts (run with HARD_PROOF_SAVES). */
 const WON = ['tidewater-docks', 'thunderhead-mesa'] as const;
 
 for (const id of WON) {
   test(`${id}: won park at its deadline`, async ({ page }) => {
     test.skip(!proofDir || !savesDir, 'set HARD_PROOF_DIR and HARD_PROOF_SAVES');
+    test.skip(
+      !existsSync(join(savesDir!, `${id}-won.ocsave`)),
+      `no ${id}-won.ocsave: run the hard-park-wins bench tests with HARD_PROOF_SAVES first`,
+    );
     test.setTimeout(600_000);
     mkdirSync(proofDir!, { recursive: true });
     await useRenderer(page);

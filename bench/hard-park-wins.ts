@@ -15,10 +15,10 @@ import { runScenario } from './strategy/run';
 import { STRATEGIES } from './strategy/strategies';
 
 /**
- * Plays Tidewater Docks and Thunderhead Mesa to their deadlines on the map a new game generates
- * (the scenario's own seed), with the scenario's own research, cash and loan, and only the
- * commands a player issues. Each must end in a win. With HARD_PROOF_SAVES set, the won park is
- * saved there for the browser screenshots.
+ * Plays a hard park to its deadline on the map a new game generates (the scenario's own seed),
+ * with the scenario's own research, cash and loan, and only the commands a player issues; it must
+ * end in a win. Each park has its own test file (hard-park-wins.<park>.test.ts) so the long runs
+ * go in parallel. With HARD_PROOF_SAVES set, the won park is saved there for the browser proof.
  */
 
 const TIMEOUT_MS = 300_000;
@@ -44,7 +44,7 @@ function startingResearch(id: string): number[] {
   return [...sim.world.research.unlocked].sort((a, b) => a - b);
 }
 
-for (const id of ['tidewater-docks', 'thunderhead-mesa']) {
+export function describeHardParkWin(id: 'tidewater-docks' | 'thunderhead-mesa'): void {
   describe(id, () => {
     const def = SCENARIOS.find((s) => s.id === id)!;
 

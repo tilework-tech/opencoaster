@@ -205,8 +205,9 @@ describe('mechanic response', () => {
       if (w.rides.cols.state[far] === RideState.Open) farFixedAt = w.tick;
     }
 
-    // The 26 tiles from the near ride to the far one take about three times the 9-tile walk to
-    // the near ride, so a mechanic who set out only after the near repair would finish far later.
+    // The mechanics start 9 tiles from the near ride and about 16 from the far one. A second
+    // mechanic sent straight to the far ride finishes soon after the near repair; one who set out
+    // only after it would still face the 26 tiles between the rides, about three times the walk.
     expect(nearFixedAt).toBeGreaterThan(0);
     expect(farFixedAt).toBeGreaterThan(0);
     expect(farFixedAt - nearFixedAt).toBeLessThan(nearFixedAt);
@@ -229,6 +230,30 @@ describe('mechanic response', () => {
     w.staff.cols.y[0] = 18 * TILE_UNITS + TILE_UNITS / 2;
 
     for (let i = 0; i < 6000 && w.rides.cols.state[slot] !== RideState.Open; i++) {
+      w.tick++;
+      staffSystem.update(w);
+    }
+
+    expect(w.rides.cols.state[slot]).toBe(RideState.Open);
+  });
+
+  it('repairs a ride on a separate stretch of path it is already standing on', () => {
+    const w = flatWorld(36, 7);
+    layPath(w, row(7, 2, 10));
+    w.park.entranceX = 2;
+    w.park.entranceY = 7;
+    layPath(w, row(7, 20, 32));
+    const rideId = createRide(w, RideType.MerryGoRound, 26, 8);
+    const slot = w.rides.idToSlot[rideId];
+    w.rides.cols.state[slot] = RideState.Open;
+    w.rides.cols.phase[slot] = RidePhase.Waiting;
+    w.rides.cols.queueConnected[slot] = 1;
+    triggerRideBreakdown(w, rideId);
+    spawnStaff(w, StaffKind.Mechanic);
+    w.staff.cols.x[0] = 22 * TILE_UNITS + TILE_UNITS / 2;
+    w.staff.cols.y[0] = 7 * TILE_UNITS + TILE_UNITS / 2;
+
+    for (let i = 0; i < 4000 && w.rides.cols.state[slot] !== RideState.Open; i++) {
       w.tick++;
       staffSystem.update(w);
     }

@@ -53,7 +53,7 @@ source scenario does not have, the matrix says so.
   site plans (`bench/strategy/site-plan.ts`, plans in `bench/strategy/plans/`) because the old
   flat-apron scripts cannot fit rides on the new ground. Results are in
   [BALANCE.md](BALANCE.md#hard-park-remixes).
-- `bench/hard-park-wins.test.ts` plays Tidewater Docks and Thunderhead Mesa to their deadlines on
+- `bench/hard-park-wins.ts` plays Tidewater Docks and Thunderhead Mesa to their deadlines on
   the new-game map with the scenario's own research, cash and loan, and asserts the win; with
   `HARD_PROOF_SAVES` set it saves the won parks for the browser proof
   (`e2e/hard-parks-proof.spec.ts`).

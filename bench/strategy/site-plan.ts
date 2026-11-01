@@ -135,7 +135,12 @@ export function sitePlanStrategy(plan: SitePlan): StrategyFactory {
           if (step.kind === 'wait' && tick < step.month * TICKS_PER_MONTH) break;
           const cost = costOf(b, step, plan);
           const l = b.sim.world.economy;
-          if (plan.borrow && l.cash < cost + plan.reserveCents && l.loan < l.maxLoan) {
+          if (
+            plan.borrow &&
+            step.kind !== 'repay' &&
+            l.cash < cost + plan.reserveCents &&
+            l.loan < l.maxLoan
+          ) {
             const short = cost + plan.reserveCents - l.cash;
             b.borrow(
               Math.min(l.maxLoan - l.loan, Math.ceil(short / LOAN_STEP_CENTS) * LOAN_STEP_CENTS),

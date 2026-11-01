@@ -76,11 +76,14 @@ function moveStaff(
   navOptions.patrol = navPatrol;
   const dir = nextDirection(world, from, target, world.rng, navOptions);
   if (dir < 0) {
-    // Prefer the network guests enter by, so a worker is never put on a cut-off stretch of path.
-    const net = networkFor(resolveGraph(map));
+    // A worker off the paths is put on the network guests enter by when it can be, never on a
+    // cut-off stretch of path; one already on a path stays on its own network.
+    const graph = resolveGraph(map);
+    const net = networkFor(graph);
     const gate =
       world.park.entranceX >= 0 ? map.index(world.park.entranceX, world.park.entranceY) : -1;
-    const gateComponent = gate >= 0 && map.isWalkable(gate) ? net.component(gate) : -1;
+    const gateComponent =
+      graph.edgeMask(from) === 0 && gate >= 0 && map.isWalkable(gate) ? net.component(gate) : -1;
     let best = -1;
     let bestJoined = false;
     let distance = 0x7fffffff;
@@ -578,6 +581,11 @@ function answeredByNearerMechanic(
   return false;
 }
 
+/** Queue lines are walkable but sit outside the walk graph, so only reachable tiles qualify. */
+function wanderable(world: World, patrol: PatrolMask, from: number, tile: number): boolean {
+  return patrolAllows(patrol, tile) && world.map.isWalkable(tile) && isReachable(world, from, tile);
+}
+
 /**
  * Sends an idle worker to a nearby reachable tile when it has arrived or its target is unusable.
  * Staying within a few tiles keeps the route search short; a worker with nowhere close falls
@@ -589,18 +597,15 @@ function wander(world: World, slot: number, patrol: PatrolMask, mapSize: number)
   const x = (staff.x[slot] / TILE_UNITS) | 0;
   const y = (staff.y[slot] / TILE_UNITS) | 0;
   const here = map.index(x, y);
-  // Queue lines are walkable but sit outside the walk graph, so only reachable tiles qualify.
-  const usable = (tile: number) =>
-    patrolAllows(patrol, tile) && map.isWalkable(tile) && isReachable(world, here, tile);
   const target = mapIndex(world, staff.targetX[slot], staff.targetY[slot]);
   const arrived = staff.targetX[slot] === x && staff.targetY[slot] === y;
-  if (!arrived && target >= 0 && usable(target)) return;
+  if (!arrived && target >= 0 && wanderable(world, patrol, here, target)) return;
   for (let attempt = 0; attempt < WANDER_NEAR_ATTEMPTS; attempt++) {
     const tx = x + world.rng.int(2 * WANDER_RADIUS_TILES + 1) - WANDER_RADIUS_TILES;
     const ty = y + world.rng.int(2 * WANDER_RADIUS_TILES + 1) - WANDER_RADIUS_TILES;
     if (!map.inBounds(tx, ty)) continue;
     const candidate = map.index(tx, ty);
-    if (candidate !== here && usable(candidate)) {
+    if (candidate !== here && wanderable(world, patrol, here, candidate)) {
       staff.targetX[slot] = tx;
       staff.targetY[slot] = ty;
       return;
@@ -608,7 +613,7 @@ function wander(world: World, slot: number, patrol: PatrolMask, mapSize: number)
   }
   for (let attempt = 0; attempt < 24; attempt++) {
     const candidate = world.rng.int(mapSize);
-    if (usable(candidate)) {
+    if (wanderable(world, patrol, here, candidate)) {
       staff.targetX[slot] = candidate % map.width;
       staff.targetY[slot] = (candidate / map.width) | 0;
       return;
