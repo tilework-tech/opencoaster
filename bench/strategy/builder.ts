@@ -405,6 +405,12 @@ export class ParkBuilder {
     throw new Error('no walkway from the coaster exit to its connector');
   }
 
+  /** Opens `rideId` once its test run, already started, finishes; see `advance`. */
+  watch(rideId: number): void {
+    this.testing.set(rideId, this.sim.world.tick);
+    this.rideIds.push(rideId);
+  }
+
   /** Opens each finished test run. Call regularly; it is cheap. */
   advance(): void {
     const world = this.sim.world;

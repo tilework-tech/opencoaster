@@ -1,4 +1,7 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { serialize } from '../src/save/save';
 import { Simulation } from '../src/sim/core/simulation';
 import { ElementType } from '../src/sim/map/tile-map';
 import { SceneryItem } from '../src/sim/map/scenery';
@@ -109,6 +112,17 @@ function expectSolvent(park: Park): void {
 
 const MONTH = 16_384;
 
+/** With HARD_PROOF_SAVES set, each proof park is saved there for the browser screenshots. */
+function keep(park: Park, focus: readonly [number, number]): void {
+  const dir = process.env.HARD_PROOF_SAVES;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${park.def.id}.ocsave`), serialize(park.sim.world));
+  const m = park.sim.world.map;
+  const z = m.heights[m.index(focus[0], focus[1])];
+  writeFileSync(join(dir, `${park.def.id}.json`), JSON.stringify({ focus: [...focus, z] }));
+}
+
 const TREES = new Set<number>([
   SceneryItem.OakTree,
   SceneryItem.Conifer,
@@ -142,6 +156,7 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     play(park, MONTH);
     expect(riders(park, coaster.rideId)).toBeGreaterThan(0);
     expectSolvent(park);
+    keep(park, [34, 60]);
   });
 
   it('Glacier Point: open stalls and a mountainside coaster above the 4.70 target', () => {
@@ -154,6 +169,7 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     play(park, MONTH);
     expect(riders(park, coaster.rideId)).toBeGreaterThan(0);
     expectSolvent(park);
+    keep(park, [80, 54]);
   });
 
   it('Tidewater Docks: buy rights over an inlet, bridge it and fit a ride on a narrow pier', () => {
@@ -192,6 +208,7 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     play(park, MONTH);
     expect(riders(park, wheel.rideId)).toBeGreaterThan(0);
     expectSolvent(park);
+    keep(park, [40, 46]);
   });
 
   it('Thunderhead Mesa: take the cliff trail down to the west shelf and open a ride there', () => {
@@ -217,6 +234,7 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     play(park, MONTH);
     expect(riders(park, carousel!.rideId)).toBeGreaterThan(0);
     expectSolvent(park);
+    keep(park, [28, 44]);
   });
 
   it('Mossgrove Isle: thread a path through the protected woods to a clearing without felling a tree', () => {
@@ -243,6 +261,7 @@ describe('hard parks are playable with legal construction', { timeout: 60_000 },
     expect(riders(park, carousel.rideId)).toBeGreaterThan(0);
     expect(trees(park)).toBe(before);
     expectSolvent(park);
+    keep(park, [42, 39]);
   });
 });
 

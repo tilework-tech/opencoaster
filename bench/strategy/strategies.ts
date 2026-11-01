@@ -1,5 +1,10 @@
 import type { StrategyFactory } from './run';
 import { growthStrategy } from './growth';
+import { sitePlanStrategy } from './site-plan';
+import type { SiteStep } from './site-plan';
+import thunderheadPlan from './plans/thunderhead-mesa.json';
+import tidewaterPlan from './plans/tidewater-docks.json';
+import mossgrovePlan from './plans/mossgrove-isle.json';
 
 /** Build orders are written as space-separated names. */
 const list = (names: string): string[] => names.split(/\s+/).filter(Boolean);
@@ -50,6 +55,19 @@ STRATEGIES['bramblewood-hollow'] = growthStrategy({
   growth: LONG_GROWTH.slice(0, 14),
 });
 
+STRATEGIES['mossgrove-isle'] = sitePlanStrategy({
+  steps: mossgrovePlan as SiteStep[],
+  reserveCents: 300_000,
+  patrols: [
+    [28, 34, 44, 50],
+    [16, 18, 36, 40],
+    [36, 18, 54, 40],
+  ],
+  prices: RIDE_PRICES,
+  itemsPerHandyman: 1,
+  attractionsPerMechanic: 3,
+});
+
 STRATEGIES['copper-ridge'] = growthStrategy({
   ...BASE,
   reserveCents: 150_000,
@@ -69,27 +87,36 @@ STRATEGIES['copper-ridge'] = growthStrategy({
   ],
 });
 
-STRATEGIES['tidewater-docks'] = growthStrategy({
-  ...BASE,
-  itemsPerHandyman: 1.5,
-  reserveCents: 600_000,
+STRATEGIES['tidewater-docks'] = sitePlanStrategy({
+  steps: tidewaterPlan as SiteStep[],
+  reserveCents: 400_000,
+  patrols: [
+    [8, 38, 24, 56],
+    [8, 52, 24, 64],
+    [16, 56, 64, 64],
+    [30, 38, 50, 62],
+  ],
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 15, startDelayMonths: 2 },
-  opening: OPENING,
-  growth: LONG_GROWTH.slice(0, 18),
-  extra: (b) => {
-    const l = b.sim.world.economy;
-    if (l.loan > 0 && l.cash > l.loan + 150_000) b.repay(l.loan);
-  },
+  itemsPerHandyman: 1.5,
+  attractionsPerMechanic: 3,
+  repayAboveCents: 150_000,
 });
 
-STRATEGIES['thunderhead-mesa'] = growthStrategy({
-  ...BASE,
-  itemsPerHandyman: 1.5,
+STRATEGIES['thunderhead-mesa'] = sitePlanStrategy({
+  steps: thunderheadPlan as SiteStep[],
+  reserveCents: 200_000,
+  patrols: [
+    [30, 8, 62, 28],
+    [30, 8, 62, 28],
+    [8, 46, 40, 64],
+    [30, 8, 62, 28],
+    [18, 22, 38, 52],
+    [58, 50, 84, 64],
+    [56, 26, 74, 52],
+  ],
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 25, startDelayMonths: 3 },
-  opening: OPENING,
-  growth: LONG_GROWTH.slice(0, 16),
+  itemsPerHandyman: 2,
+  attractionsPerMechanic: 3,
 });
 
 STRATEGIES['glacier-point'] = growthStrategy({

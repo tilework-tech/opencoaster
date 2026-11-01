@@ -4,7 +4,7 @@ import { pieceByName } from '../../src/sim/track/catalog';
 import { getConstructionCursor, rotateTile } from '../../src/sim/track/construction';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
 import { DIR_DX, DIR_DY, ElementType, PathFlag, SLOPE_DIR_SHIFT } from '../../src/sim/map/tile-map';
-import { PathResult, planPathPlacement } from '../../src/sim/map/paths';
+import { PathAddition, PathResult, planPathPlacement } from '../../src/sim/map/paths';
 import { COASTER_TEMPLATES, mirrored } from './coasters';
 import { RideState } from '../../src/sim/rides/ride-store';
 import { validateRidePlacement } from '../../src/sim/rides/ride-footprint';
@@ -136,6 +136,8 @@ export function layRoute(
     const z = Math.min(edge[k], edge[k + 1]);
     const slope = rise > 0 ? forward : rise < 0 ? (forward + 2) % 4 : -1;
     sim.enqueue({ type: 'placePath', x, y, z, slope, queue });
+    if (!queue && slope < 0 && k % 3 === 2)
+      sim.enqueue({ type: 'setPathAddition', x, y, addition: PathAddition.Bin });
     levels.push(z);
   }
   sim.step();
@@ -246,15 +248,16 @@ export interface OpenedRide {
 
 /**
  * Builds a coaster at `site`, lays its queue from the entrance and a path from the exit to tiles
- * `joins` accepts, tests it and opens it. With `clear`, scenery on the entrance and exit tiles is
- * removed first. Returns null when the circuit does not close or a path cannot be laid.
+ * `joins` accepts, and starts its test run. With `clear`, scenery on the entrance and exit tiles
+ * is removed first. Returns the ride id, or null when the circuit does not close or a path cannot
+ * be laid.
  */
-export function openCoaster(
+export function startCoaster(
   sim: Simulation,
   site: CoasterSite,
   joins: (tile: number) => boolean,
   clear = true,
-): OpenedRide | null {
+): number | null {
   const world = sim.world;
   const c = buildCircuit(sim, site);
   if (!c.closed) return null;
@@ -269,16 +272,59 @@ export function openCoaster(
   sim.enqueue({ type: 'placeRideExit', rideId: c.rideId, x: c.exit[0], y: c.exit[1] });
   sim.enqueue({ type: 'setRideStatus', rideId: c.rideId, status: 'test' });
   sim.step();
-  const slot = () => world.rides.idToSlot[c.rideId];
+  return c.rideId;
+}
+
+/** `startCoaster`, then waits for the test run and opens the coaster. */
+export function openCoaster(
+  sim: Simulation,
+  site: CoasterSite,
+  joins: (tile: number) => boolean,
+  clear = true,
+): OpenedRide | null {
+  const world = sim.world;
+  const rideId = startCoaster(sim, site, joins, clear);
+  if (rideId === null) return null;
+  const slot = () => world.rides.idToSlot[rideId];
   for (let t = 0; t < 12_000 && world.rides.cols.tested[slot()] !== 1; t++) sim.step();
   for (let t = 0; t < 4_000 && world.rides.cols.state[slot()] !== RideState.Open; t++) {
-    if (t % 50 === 0) sim.enqueue({ type: 'setRideStatus', rideId: c.rideId, status: 'open' });
+    if (t % 50 === 0) sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
     sim.step();
   }
   return {
-    rideId: c.rideId,
+    rideId,
     state: world.rides.cols.state[slot()],
     excitement: world.rides.cols.excitement[slot()],
+  };
+}
+
+/** Tile rectangle a coaster at `site` and its station paths can cover, with a margin. */
+export function siteBounds(
+  site: CoasterSite,
+  margin = 2,
+): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const t = COASTER_TEMPLATES[site.template];
+  const [y0, y1] = site.mirror ? [-t.maxY, 0] : [0, t.maxY];
+  const corners = [
+    [t.minX, y0 - 2],
+    [t.maxX, y0 - 2],
+    [t.minX, y1 + 2],
+    [t.maxX, y1 + 2],
+  ].map(([i, j]) => rotateTile(i, j, site.dir));
+  const xs = corners.map(([x]) => site.x + x);
+  const ys = corners.map(([, y]) => site.y + y);
+  const x = Math.min(...xs) - margin;
+  const y = Math.min(...ys) - margin;
+  return {
+    x,
+    y,
+    width: Math.max(...xs) + margin - x + 1,
+    height: Math.max(...ys) + margin - y + 1,
   };
 }
 
@@ -300,8 +346,11 @@ export function openFlatRide(
     return null;
   const service =
     RIDE_CATALOG[type].category === 'stall' || RIDE_CATALOG[type].category === 'facility';
-  for (const [x, y] of frontage.queue) sim.enqueue({ type: 'placePath', x, y, queue: !service });
-  for (const [x, y] of frontage.exitPath) sim.enqueue({ type: 'placePath', x, y });
+  for (const [x, y] of [...frontage.queue, ...frontage.exitPath]) {
+    const queue = frontage.queue.some(([qx, qy]) => qx === x && qy === y) && !service;
+    sim.enqueue({ type: 'placePath', x, y, queue });
+    sim.enqueue({ type: 'setPathAddition', x, y, addition: PathAddition.Bin });
+  }
   sim.enqueue({
     type: 'createRide',
     rideType: type,
