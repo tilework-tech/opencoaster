@@ -1,7 +1,6 @@
 import { expect, test } from './support/test';
 
-// Superseded by the universal occlusion work in run 473f4a2a:
-// https://demo.norisessions.com/chat/01a16c13-c814-7295-9955-b11ff875ed14
+// Superseded by the universal occlusion oracle in e2e/occlusion-oracle.spec.ts.
 test.fixme('the foreground tree wins its pixel overlap with a guest in every renderer orientation', async ({
   page,
 }) => {

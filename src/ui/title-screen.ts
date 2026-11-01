@@ -10,6 +10,8 @@ import { deadlineLabel } from './objective';
 import { formatMoney } from './format';
 import { slotRow } from './slot-list';
 
+export const SOURCE_REPOSITORY_URL = 'https://github.com/tilework-tech/opencoaster';
+
 const SCENARIO_CATEGORIES: ReadonlyArray<{ id: ScenarioCategory; label: string }> = [
   { id: 'beginner', label: 'Beginner Parks' },
   { id: 'challenging', label: 'Challenging Parks' },
@@ -81,6 +83,7 @@ export class TitleScreen {
       button('Load game', () => this.showSaves(saves.slice())),
       button('Import save file', () => this.chooser.click()),
       this.message,
+      sourceFooter(),
     );
   }
 
@@ -323,4 +326,17 @@ function monthlyIncomeLabel(categoryMask: number): string {
 export function scenarioRulesText(def: ScenarioDef): string {
   const lines = restrictionLines(def.restrictions ?? {});
   return lines.length === 0 ? 'Park rules: no restrictions.' : `Park rules: ${lines.join(' ')}`;
+}
+
+function sourceFooter(): HTMLElement {
+  const link = element('a', 'title-source-link', 'Source on GitHub');
+  link.href = SOURCE_REPOSITORY_URL;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.append(element('span', 'title-source-hint', ' (opens in a new tab)'));
+  const separator = element('span', undefined, ' · ');
+  separator.setAttribute('aria-hidden', 'true');
+  const footer = element('p', 'title-footer', 'Open source, MIT licensed');
+  footer.append(separator, link);
+  return footer;
 }
