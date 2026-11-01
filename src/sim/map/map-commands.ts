@@ -2,7 +2,7 @@ import type { World } from '../core/world';
 import { LedgerCategory, post } from '../economy/ledger';
 import { FeedbackDomain, reportFeedback } from '../core/feedback';
 import { paintLand, planSetTileHeight, setTileHeight, setWaterLevel } from './land';
-import { applyLand, LandAction, LandResult } from './land-tool';
+import { applyLand, capBreachTile, LandAction, LandResult } from './land-tool';
 import { applyArea } from './area-tools';
 import type { LandEdit } from './land-tool';
 import {
@@ -307,6 +307,16 @@ export function applyMapCommand(w: World, c: MapCommand): void {
             if (m.waterLevel[m.index(tx, ty)] !== boundedLevel) changed++;
       }
       const cost = changed * WATER_TILE_ACTION_COST_CENTS;
+      const rect: number[] = [];
+      if (changed > 0)
+        for (let ty = y; ty < y + height; ty++)
+          for (let tx = x; tx < x + width; tx++) rect.push(m.index(tx, ty));
+      const surface = Math.max(0, Math.min(31, level));
+      const breach = capBreachTile(w, rect, (t) => Math.max(m.heights[t], surface));
+      if (breach >= 0) {
+        reportFeedback(w.feedback, FeedbackDomain.Water, LandResult.HeightLimit, breach);
+        break;
+      }
       if (canAfford(w, cost)) {
         if (setWaterLevel(m, x, y, width, height, level)) {
           charge(w, LedgerCategory.Landscaping, cost);

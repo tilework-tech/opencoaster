@@ -44,6 +44,8 @@ export const enum LandResult {
   LandscapingForbidden = 14,
   /** The scenario forbids removing trees, and the edit would remove one. */
   TreesProtected = 15,
+  /** Lowering the ground would leave standing construction above the scenario's height cap. */
+  HeightLimit = 16,
 }
 
 export interface LandEdit {
@@ -327,6 +329,43 @@ function elementEffects(
   return { block: null, scenery, paths, sceneryCents };
 }
 
+/**
+ * First of `tiles` where a raised footpath or a track piece would stand more than the scenario's
+ * height cap above `groundAt(tile)`, or -1. `keepsPath` skips paths that follow the ground down.
+ */
+export function capBreachTile(
+  w: World,
+  tiles: ArrayLike<number>,
+  groundAt: (tile: number) => number,
+  keepsPath: (tile: number, element: number) => boolean = () => false,
+): number {
+  const cap = w.scenario.restrictions.maxConstructionHeight;
+  if (cap === undefined || tiles.length === 0) return -1;
+  const m = w.map;
+  const above = (tile: number, top: number) => top > (groundAt(tile) + cap) * Z_STEP;
+  const affected = new Set<number>();
+  for (let k = 0; k < tiles.length; k++) affected.add(tiles[k]);
+  for (const tile of affected)
+    for (let e = m.firstElement(tile); e >= 0; e = m.nextElement(e)) {
+      if (m.elType[e] !== ElementType.Path || keepsPath(tile, e)) continue;
+      const top = m.elBase[e] + ((m.elFlags[e] & PathFlag.Sloped) !== 0 ? 1 : 0);
+      if (above(tile, top * Z_STEP)) return tile;
+    }
+  const cols = w.track.pieces.cols;
+  for (let slot = 0; slot < w.track.pieces.count; slot++) {
+    const base = cols.z[slot] * TRACK_Z_STEP;
+    for (const cell of PIECES[cols.pieceType[slot]].footprint) {
+      const [rx, ry] = rotateTile(cell.i, cell.j, cols.dir[slot]);
+      const x = cols.x[slot] + rx;
+      const y = cols.y[slot] + ry;
+      if (!m.inBounds(x, y)) continue;
+      const tile = m.index(x, y);
+      if (affected.has(tile) && above(tile, base + cell.zMax)) return tile;
+    }
+  }
+  return -1;
+}
+
 function seatPath(m: TileMap, fix: PathFix): void {
   const e = fix.element;
   const ramp = fix.dir >= 0;
@@ -412,6 +451,14 @@ function evaluate(w: World, e: LandEdit, commit: boolean): LandPlan {
   }
   const effects = elementEffects(m, tiles, oldBase, treesProtected(w));
   if (effects.block) return fail(effects.block);
+  const reseated = new Set(effects.paths.map((fix) => fix.element));
+  const breach = capBreachTile(
+    w,
+    tiles,
+    (t) => Math.max(m.heights[t], m.waterLevel[t]),
+    (_t, element) => reseated.has(element),
+  );
+  if (breach >= 0) return fail(refuse(LandResult.HeightLimit, breach));
   let units = 0;
   edited.changed.forEach((v, k) => {
     units += Math.abs(m.vertexHeights[v] - edited.before[k]);

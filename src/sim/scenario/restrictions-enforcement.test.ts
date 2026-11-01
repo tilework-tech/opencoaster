@@ -348,28 +348,62 @@ describe('construction height cap', () => {
     expect(previewScenery(s.world, { x: 5, y: 5, item: SceneryItem.Flagpole, rotation: 0 })).toBe(
       SceneryResult.HeightLimit,
     );
+    const before = fingerprint(s);
     run(s, { type: 'placeScenery', x: 5, y: 5, item: SceneryItem.Flagpole });
     expect(sceneryAt(s, 5, 5)).toEqual([]);
+    expect(fingerprint(s)).toBe(before);
     run(s, { type: 'placeScenery', x: 6, y: 6, item: SceneryItem.Shrub });
     expect(sceneryAt(s, 6, 6)).toEqual([SceneryItem.Shrub]);
   });
 
+  /** A three-level-deep basin at (9..11, 9..11) holding two levels of water. */
+  function pond(p: Simulation): void {
+    for (let i = 0; i < 3; i++)
+      applyLand(p.world, { action: LandAction.Lower, x: 9, y: 9, width: 3, height: 3 });
+    for (let i = 0; i < 2; i++)
+      applyArea(p.world, { tool: 'water', lower: false, x: 10, y: 10, width: 1, height: 1 });
+  }
+
+  function pathAt(s: Simulation, x: number, y: number): boolean {
+    return s.world.map.pathElement(s.world.map.index(x, y), -1) >= 0;
+  }
+
   it('measures over water from the water surface', () => {
-    const s = park({ maxConstructionHeight: CAP }, GROUND, (p) => {
-      for (let i = 0; i < 3; i++)
-        applyLand(p.world, { action: LandAction.Lower, x: 9, y: 9, width: 3, height: 3 });
-      for (let i = 0; i < 2; i++)
-        applyArea(p.world, { tool: 'water', lower: false, x: 10, y: 10, width: 1, height: 1 });
-    });
+    const s = park({ maxConstructionHeight: CAP }, GROUND, pond);
     const tile = s.world.map.index(10, 10);
     const surface = s.world.map.waterLevel[tile];
     expect(surface).toBeGreaterThan(s.world.map.heights[tile]);
-    expect(previewPathRun(s.world, [{ x: 10, y: 10, z: surface + CAP }])[0].result).not.toBe(
-      PathResult.HeightLimit,
-    );
     expect(previewPathRun(s.world, [{ x: 10, y: 10, z: surface + CAP + 1 }])[0].result).toBe(
       PathResult.HeightLimit,
     );
+    run(s, { type: 'placePath', x: 10, y: 10, z: surface + CAP });
+    expect(pathAt(s, 10, 10)).toBe(true);
+  });
+
+  it('refuses lowering water that would leave a path above the cap', () => {
+    const s = park({ maxConstructionHeight: CAP }, GROUND, pond);
+    const surface = s.world.map.waterLevel[s.world.map.index(10, 10)];
+    run(s, { type: 'placePath', x: 10, y: 10, z: surface + CAP });
+    const before = fingerprint(s);
+    expect(
+      planArea(s.world, { tool: 'water', lower: true, x: 10, y: 10, width: 1, height: 1 }).result,
+    ).toBe(LandResult.HeightLimit);
+    run(s, { type: 'lowerWater', x: 10, y: 10, width: 1, height: 1 });
+    expect(fingerprint(s)).toBe(before);
+    expect(feedback(s)).toEqual([FeedbackDomain.Water, LandResult.HeightLimit]);
+  });
+
+  it('refuses lowering land under a raised path that would end up above the cap', () => {
+    const raised = GROUND + 2;
+    const s = park({ maxConstructionHeight: CAP }, GROUND, (p) => {
+      setTileHeight(p.world.map, 5, 5, raised);
+    });
+    run(s, { type: 'placePath', x: 5, y: 5, z: raised + CAP });
+    expect(pathAt(s, 5, 5)).toBe(true);
+    const before = fingerprint(s);
+    run(s, { type: 'lowerLand', x: 5, y: 5, width: 1, height: 1 });
+    expect(fingerprint(s)).toBe(before);
+    expect(feedback(s)).toEqual([FeedbackDomain.Land, LandResult.HeightLimit]);
   });
 
   it('places the same tall structures in an unrestricted park', () => {

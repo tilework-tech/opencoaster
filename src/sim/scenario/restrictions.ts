@@ -137,6 +137,7 @@ export const RESTRICTION_REFUSALS = {
   landscaping: 'Landscaping is not allowed in this park.',
   rideType: 'This attraction is banned in this park.',
   marketing: 'Marketing campaigns are not allowed in this park.',
+  groundDrop: "Lowering this ground would leave construction above the park's height limit.",
 } as const;
 
 /** Refusal for construction above the cap; `cap` is the feedback detail when the sim knows it. */

@@ -1,7 +1,7 @@
 import type { World } from '../core/world';
 import { ElementType, MAX_HEIGHT, OWNED, PathFlag, WATER_TILE_ACTION_COST_CENTS } from './tile-map';
 import type { TileMap } from './tile-map';
-import { LandResult, ownedSelection, structureConflict } from './land-tool';
+import { capBreachTile, LandResult, ownedSelection, structureConflict } from './land-tool';
 import { isTreeScenery, SCENERY_CATALOG } from './scenery';
 import { landscapingForbidden, treesProtected } from '../scenario/restrictions';
 import type { SceneryItem } from './scenery';
@@ -219,6 +219,10 @@ function moveWater(w: World, selected: Int32Array, lower: boolean, commit: boole
   if ('result' in step) return refuse(step.result, step.subject, selected);
   const changed = Int32Array.from(step.tiles);
   const target = step.level;
+  if (lower) {
+    const breach = capBreachTile(w, changed, (t) => Math.max(m.heights[t], target));
+    if (breach >= 0) return refuse(LandResult.HeightLimit, breach, selected);
+  }
   const plan: AreaPlan = {
     result: LandResult.Ok,
     subject: -1,

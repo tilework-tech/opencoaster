@@ -19,6 +19,7 @@ const REFUSAL_TEXT: Record<Exclude<LandResult, LandResult.Ok>, string> = {
   [LandResult.WaterLevelClash]: 'Water would meet a lake at a higher level.',
   [LandResult.LandscapingForbidden]: RESTRICTION_REFUSALS.landscaping,
   [LandResult.TreesProtected]: RESTRICTION_REFUSALS.trees,
+  [LandResult.HeightLimit]: RESTRICTION_REFUSALS.groundDrop,
 };
 
 export function landRefusalText(result: Exclude<LandResult, LandResult.Ok>): string {

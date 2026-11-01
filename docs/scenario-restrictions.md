@@ -59,6 +59,11 @@ rules it out.
 The same check runs in the simulation and in every build preview (track, ride ghost, path,
 scenery), so a ghost the preview shows as valid is accepted.
 
+The cap also holds after building: lowering land or water (land tool, Water tool or the set-water
+command) is refused with "Lowering this ground would leave construction above the park's height
+limit." when a raised footpath or track piece on an affected tile would end up above the cap.
+Ground-level paths that follow the land down are not affected.
+
 ## Saves
 
 The restrictions are copied into the park state when the scenario starts and saved with the
