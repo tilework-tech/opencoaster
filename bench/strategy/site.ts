@@ -176,6 +176,7 @@ export function connectOnGround(
   start: readonly [number, number],
   goal: (tile: number) => boolean,
   queue = false,
+  linkTo?: readonly [number, number],
 ): Array<[number, number]> | null {
   const map = sim.world.map;
   const origin = map.index(start[0], start[1]);
@@ -208,7 +209,14 @@ export function connectOnGround(
       for (let t = from.get(here)!; t >= 0; t = from.get(t)!)
         route.push([t % map.width, Math.floor(t / map.width)]);
       route.reverse();
-      for (const [x, y] of route) sim.enqueue({ type: 'placePath', x, y, queue });
+      const placements = route.map(([x, y], k) => {
+        const [px, py] = k > 0 ? route[k - 1] : (linkTo ?? [x, y]);
+        const linkFrom = queue
+          ? [0, 1, 2, 3].find((d) => DIR_DX[d] === px - x && DIR_DY[d] === py - y)
+          : undefined;
+        return { x, y, queue, linkFrom, linkEnd: queue && k === route.length - 1 };
+      });
+      if (placements.length > 0) sim.enqueue({ type: 'placePathRun', placements });
       sim.step();
       return route;
     }
@@ -313,7 +321,7 @@ export function startCoaster(
   const exitTile = tile(c.exit);
   if (
     !joinsAlready(c.entranceFront) &&
-    !connectOnGround(sim, c.entranceFront, (t) => t !== exitTile && joins(t), true)
+    !connectOnGround(sim, c.entranceFront, (t) => t !== exitTile && joins(t), true, c.entrance)
   )
     return abandon();
   if (!joinsAlready(c.exitFront) && !connectOnGround(sim, c.exitFront, joins)) return abandon();
