@@ -8,12 +8,14 @@ import {
   SANDBOX_ID,
   TREE_SPECIES,
 } from './scenario';
-import { MAX_HEIGHT } from '../map/tile-map';
-import { buildApron, DEFAULT_LAND, ownedBounds } from './scenario-map';
+import { MAX_HEIGHT, OWNED } from '../map/tile-map';
+import { buildApron, DEFAULT_LAND, landOwnership } from './scenario-map';
 import { PREBUILT_TYPES } from './scenario-prebuilt';
 import { parseRestrictions } from './restrictions';
 import type {
   EntranceSide,
+  LandParcel,
+  ParcelKind,
   PrebuiltRide,
   ScenarioCategory,
   ScenarioDef,
@@ -22,10 +24,13 @@ import type {
   ScenarioHill,
   ScenarioLake,
   ScenarioLand,
+  ScenarioShape,
   ScenarioTerrain,
   ScenarioTrees,
+  TerrainShape,
   TerrainSurface,
   TreeSpecies,
+  TreeStand,
 } from './scenario';
 
 type Json = Record<string, unknown>;
@@ -105,7 +110,22 @@ const TREE_SPECIES_BY_NAME = Object.fromEntries(TREE_SPECIES.map((s) => [s, s]))
   TreeSpecies
 >;
 
+const PARCEL_KINDS: Record<ParcelKind, ParcelKind> = {
+  owned: 'owned',
+  land: 'land',
+  rights: 'rights',
+  none: 'none',
+};
+
+const SHAPE_MODES: Record<TerrainShape['mode'], TerrainShape['mode']> = {
+  raise: 'raise',
+  lower: 'lower',
+};
+
 const MAX_TREES = 2000;
+const MAX_SHAPES = 64;
+const MAX_BAND_HALF_WIDTH = 32;
+const MAX_SHAPE_RUN = 8;
 const MAX_PREBUILT = 40;
 const MAX_PREBUILT_ROW = 60;
 const MIN_MAP_SIZE = 8;
@@ -140,6 +160,10 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
   const name = check(() => text(root.name, 'name'));
   const description =
     root.description === undefined ? undefined : check(() => text(root.description, 'description'));
+  const landscape =
+    root.landscape === undefined ? undefined : check(() => text(root.landscape, 'landscape'));
+  const challenge =
+    root.challenge === undefined ? undefined : check(() => text(root.challenge, 'challenge'));
 
   const map = check(() => object(root.map, 'map'));
   const finance = check(() => object(root.finance, 'finance'));
@@ -152,6 +176,8 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
     name,
     category: check(() => oneOf(root.category ?? 'beginner', 'category', SCENARIO_CATEGORIES)),
     ...(description === undefined ? {} : { description }),
+    ...(landscape === undefined ? {} : { landscape }),
+    ...(challenge === undefined ? {} : { challenge }),
     ...(root.climate === undefined
       ? {}
       : { climate: check(() => oneOf(root.climate, 'climate', CLIMATES)) }),
@@ -200,9 +226,9 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
   };
   if (def.startingLoan > def.maxLoan) fail('finance.startingLoan must not exceed finance.maxLoan');
   if (root.entrance !== undefined) def.entrance = check(() => entrance(root.entrance));
-  if (root.land !== undefined) def.land = check(() => land(root.land));
+  if (root.land !== undefined) def.land = check(() => land(root.land, def));
   if (root.terrain !== undefined) def.terrain = check(() => terrain(root.terrain, def));
-  if (root.trees !== undefined) def.trees = check(() => trees(root.trees));
+  if (root.trees !== undefined) def.trees = check(() => trees(root.trees, def));
   if (root.prebuilt !== undefined) def.prebuilt = check(() => prebuilt(root.prebuilt, def));
   if (root.restrictions !== undefined) {
     def.restrictions = check(() => parseRestrictions(root.restrictions));
@@ -291,9 +317,9 @@ function entrance(v: unknown): ScenarioEntrance {
   };
 }
 
-function land(v: unknown): ScenarioLand {
+function land(v: unknown, def: ScenarioDef): ScenarioLand {
   const l = object(v, 'land');
-  return {
+  const out: ScenarioLand = {
     ownedMarginPercent: integer(
       l.ownedMarginPercent ?? DEFAULT_LAND.ownedMarginPercent,
       'land.ownedMarginPercent',
@@ -307,6 +333,70 @@ function land(v: unknown): ScenarioLand {
       20,
     ),
   };
+  if (l.parcels === undefined) return out;
+  out.parcels = list(l.parcels, 'land.parcels').map((p, i): LandParcel => {
+    const path = `land.parcels[${i}]`;
+    const parcel = object(p, path);
+    return {
+      kind: oneOf(parcel.kind, `${path}.kind`, PARCEL_KINDS),
+      ...shape(parcel, path, def),
+    };
+  });
+  const flags = landOwnership(def.mapWidth, def.mapHeight, out);
+  if (!connectedOwnership(flags, def.mapWidth))
+    throw new Error('owned land must be one connected piece');
+  return out;
+}
+
+/** True when the owned tiles exist and join through edge-sharing neighbours. */
+function connectedOwnership(flags: Uint8Array, width: number): boolean {
+  const start = flags.findIndex((f) => (f & OWNED) !== 0);
+  if (start < 0) return false;
+  const seen = new Uint8Array(flags.length);
+  const queue = [start];
+  seen[start] = 1;
+  let reached = 0;
+  while (queue.length > 0) {
+    const i = queue.pop()!;
+    reached++;
+    const x = i % width;
+    for (const n of [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, i - width, i + width]) {
+      if (n < 0 || n >= flags.length || seen[n] || !(flags[n] & OWNED)) continue;
+      seen[n] = 1;
+      queue.push(n);
+    }
+  }
+  return reached === flags.reduce((count, f) => count + (f & OWNED ? 1 : 0), 0);
+}
+
+/** Reads the one shape key of `o` (rect, ellipse or band), in tiles inside the map. */
+function shape(o: Json, path: string, def: ScenarioDef): ScenarioShape {
+  const keys = ['rect', 'ellipse', 'band'].filter((k) => o[k] !== undefined);
+  if (keys.length !== 1) throw new Error(`${path} must set exactly one of rect, ellipse or band`);
+  const key = keys[0];
+  const values = array(o[key], `${path}.${key}`);
+  const at = (k: number, max: number, min = 0): number =>
+    integer(values[k], `${path}.${key}[${k}]`, min, max);
+  const w = def.mapWidth - 1;
+  const h = def.mapHeight - 1;
+  if (key === 'rect') {
+    if (values.length !== 4) throw new Error(`${path}.rect must list x0, y0, x1, y1`);
+    const x0 = at(0, w);
+    const y0 = at(1, h);
+    return { rect: [x0, y0, at(2, w, x0), at(3, h, y0)] };
+  }
+  if (key === 'ellipse') {
+    if (values.length !== 4) throw new Error(`${path}.ellipse must list cx, cy, rx, ry`);
+    return { ellipse: [at(0, w), at(1, h), at(2, MAX_MAP_SIZE, 1), at(3, MAX_MAP_SIZE, 1)] };
+  }
+  if (values.length !== 5) throw new Error(`${path}.band must list x0, y0, x1, y1, halfWidth`);
+  return { band: [at(0, w), at(1, h), at(2, w), at(3, h), at(4, MAX_BAND_HALF_WIDTH)] };
+}
+
+function list(v: unknown, path: string): unknown[] {
+  const items = array(v, path);
+  if (items.length > MAX_SHAPES) throw new Error(`${path} may list at most ${MAX_SHAPES} shapes`);
+  return items;
 }
 
 function terrain(v: unknown, def: ScenarioDef): ScenarioTerrain {
@@ -324,14 +414,36 @@ function terrain(v: unknown, def: ScenarioDef): ScenarioTerrain {
     lakes: array(t.lakes ?? [], 'terrain.lakes').map((l, i) => lake(l, `terrain.lakes[${i}]`)),
     hills: array(t.hills ?? [], 'terrain.hills').map((h, i) => hill(h, `terrain.hills[${i}]`)),
   };
+  if (t.apronOffset !== undefined)
+    out.apronOffset = integer(t.apronOffset, 'terrain.apronOffset', -MAX_MAP_SIZE, MAX_MAP_SIZE);
+  if (t.shapes !== undefined)
+    out.shapes = list(t.shapes, 'terrain.shapes').map((v, i): TerrainShape => {
+      const path = `terrain.shapes[${i}]`;
+      const o = object(v, path);
+      return {
+        mode: oneOf(o.mode, `${path}.mode`, SHAPE_MODES),
+        level: integer(o.level, `${path}.level`, 0, MAX_HEIGHT),
+        run: o.run === undefined ? 1 : integer(o.run, `${path}.run`, 1, MAX_SHAPE_RUN),
+        ...shape(o, path, def),
+      };
+    });
   if (t.highland !== undefined) out.highland = highland(t.highland);
   if (def.entrance === undefined)
     throw new Error('terrain needs an entrance to orient the build apron');
-  const owned = ownedBounds(def.mapWidth, def.mapHeight, def.land);
+  const flags = landOwnership(def.mapWidth, def.mapHeight, def.land);
   const apron = buildApron(def.mapWidth, def.mapHeight, def.entrance.side, out, def.land);
-  if (apron.x0 < owned.x0 || apron.x1 > owned.x1 || apron.y0 < owned.y0 || apron.y1 > owned.y1) {
-    throw new Error('terrain build apron must fit inside the owned land');
-  }
+  const owned = (x: number, y: number): boolean =>
+    x >= 0 &&
+    y >= 0 &&
+    x < def.mapWidth &&
+    y < def.mapHeight &&
+    (flags[y * def.mapWidth + x] & OWNED) !== 0;
+  for (let y = apron.y0; y <= apron.y1; y++)
+    for (let x = apron.x0; x <= apron.x1; x++)
+      if (!owned(x, y))
+        throw new Error(
+          `terrain build apron (${apron.x0},${apron.y0})-(${apron.x1},${apron.y1}) must fit inside the owned land; tile (${x},${y}) is not owned`,
+        );
   return out;
 }
 
@@ -364,7 +476,7 @@ function hill(v: unknown, path: string): ScenarioHill {
   };
 }
 
-function trees(v: unknown): ScenarioTrees {
+function trees(v: unknown, def: ScenarioDef): ScenarioTrees {
   const t = object(v, 'trees');
   const out: ScenarioTrees = {
     count: integer(t.count, 'trees.count', 0, MAX_TREES),
@@ -382,6 +494,20 @@ function trees(v: unknown): ScenarioTrees {
     if (species.length === 0) throw new Error('trees.species must list at least one species');
     out.species = species.map((s) => oneOf(s, 'trees.species', TREE_SPECIES_BY_NAME));
   }
+  if (t.stands !== undefined)
+    out.stands = list(t.stands, 'trees.stands').map((v, i): TreeStand => {
+      const path = `trees.stands[${i}]`;
+      const o = object(v, path);
+      return {
+        density: integer(o.density, `${path}.density`, 1, 100),
+        rocks: o.rocks === undefined ? 0 : integer(o.rocks, `${path}.rocks`, 0, 100),
+        ...shape(o, path, def),
+      };
+    });
+  if (t.clearings !== undefined)
+    out.clearings = list(t.clearings, 'trees.clearings').map((v, i) =>
+      shape(object(v, `trees.clearings[${i}]`), `trees.clearings[${i}]`, def),
+    );
   return out;
 }
 

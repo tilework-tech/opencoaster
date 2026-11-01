@@ -1,0 +1,254 @@
+{
+  "id": "mossgrove-isle",
+  "name": "Mossgrove Isle",
+  "category": "challenging",
+  "climate": "coolAndWet",
+  "description": "A thickly wooded island where the old trees are protected. Reach $900 a month in ride ticket income by the end of year three.",
+  "landscape": "A thickly wooded island in a cold lake, with a few small clearings and a protected grove on the knoll.",
+  "challenge": "Trees may not be removed. Build in the clearings, lift track above the treetops, and buy rights over the shallows for water rides.",
+  "seed": 3307,
+  "map": {
+    "width": 72,
+    "height": 72
+  },
+  "finance": {
+    "startingCash": 3500000,
+    "startingLoan": 2000000,
+    "maxLoan": 6000000,
+    "annualInterestBps": 900
+  },
+  "difficultRating": false,
+  "pricing": {
+    "mode": "perRide"
+  },
+  "research": {
+    "availableItemIds": [1, 2, 3, 5, 6, 7, 8, 9, 12, 25, 26, 27, 28],
+    "inventions": [
+      {
+        "itemId": 4,
+        "category": 3,
+        "workUnits": 360
+      },
+      {
+        "itemId": 10,
+        "category": 2,
+        "workUnits": 630
+      },
+      {
+        "itemId": 11,
+        "category": 3,
+        "workUnits": 675
+      },
+      {
+        "itemId": 13,
+        "category": 3,
+        "workUnits": 765
+      },
+      {
+        "itemId": 14,
+        "category": 3,
+        "workUnits": 810
+      },
+      {
+        "itemId": 15,
+        "category": 3,
+        "workUnits": 855
+      },
+      {
+        "itemId": 16,
+        "category": 4,
+        "workUnits": 900
+      },
+      {
+        "itemId": 17,
+        "category": 4,
+        "workUnits": 945
+      },
+      {
+        "itemId": 18,
+        "category": 0,
+        "workUnits": 990
+      },
+      {
+        "itemId": 19,
+        "category": 0,
+        "workUnits": 1035
+      },
+      {
+        "itemId": 20,
+        "category": 0,
+        "workUnits": 1080
+      },
+      {
+        "itemId": 21,
+        "category": 2,
+        "workUnits": 1125
+      },
+      {
+        "itemId": 22,
+        "category": 2,
+        "workUnits": 1170
+      },
+      {
+        "itemId": 23,
+        "category": 1,
+        "workUnits": 1215
+      },
+      {
+        "itemId": 24,
+        "category": 5,
+        "workUnits": 1260
+      },
+      {
+        "itemId": 29,
+        "category": 5,
+        "workUnits": 1485
+      },
+      {
+        "itemId": 30,
+        "category": 5,
+        "workUnits": 1530
+      },
+      {
+        "itemId": 31,
+        "category": 5,
+        "workUnits": 1575
+      },
+      {
+        "itemId": 32,
+        "category": 5,
+        "workUnits": 1620
+      }
+    ]
+  },
+  "entrance": {
+    "side": "south",
+    "length": 4
+  },
+  "terrain": {
+    "seaLevel": 4,
+    "baseLevel": 3,
+    "relief": 0,
+    "cell": 8,
+    "surface": "grass",
+    "buildLevel": 6,
+    "buildLength": 8,
+    "buildWidth": 11,
+    "lakes": [],
+    "hills": [],
+    "shapes": [
+      {
+        "mode": "raise",
+        "level": 6,
+        "run": 2,
+        "ellipse": [35, 30, 14, 10]
+      },
+      {
+        "mode": "raise",
+        "level": 7,
+        "run": 1,
+        "ellipse": [42, 23, 4, 3]
+      },
+      {
+        "mode": "raise",
+        "level": 9,
+        "ellipse": [24, 28, 3, 3],
+        "run": 1
+      },
+      {
+        "mode": "raise",
+        "level": 6,
+        "rect": [30, 44, 40, 50]
+      },
+      {
+        "mode": "raise",
+        "level": 6,
+        "band": [35, 50, 35, 70, 1]
+      },
+      {
+        "mode": "raise",
+        "level": 6,
+        "run": 2,
+        "ellipse": [60, 12, 4, 3]
+      }
+    ]
+  },
+  "land": {
+    "parcels": [
+      {
+        "kind": "rights",
+        "band": [12, 36, 28, 52, 5]
+      },
+      {
+        "kind": "rights",
+        "band": [42, 52, 58, 36, 5]
+      },
+      {
+        "kind": "land",
+        "ellipse": [60, 12, 6, 5]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [35, 30, 21, 16]
+      },
+      {
+        "kind": "owned",
+        "rect": [30, 44, 40, 50]
+      },
+      {
+        "kind": "none",
+        "ellipse": [42, 23, 5, 4]
+      }
+    ]
+  },
+  "trees": {
+    "count": 60,
+    "groves": 4,
+    "species": ["oak", "conifer", "birch", "autumn"],
+    "stands": [
+      {
+        "density": 85,
+        "rocks": 4,
+        "ellipse": [35, 30, 21, 16]
+      },
+      {
+        "density": 60,
+        "ellipse": [60, 12, 6, 5]
+      }
+    ],
+    "clearings": [
+      {
+        "ellipse": [25, 36, 6, 4]
+      },
+      {
+        "ellipse": [47, 37, 5, 4]
+      },
+      {
+        "ellipse": [28, 20, 5, 4]
+      },
+      {
+        "ellipse": [50, 26, 4, 3]
+      },
+      {
+        "band": [35, 44, 25, 36, 1]
+      },
+      {
+        "band": [35, 44, 47, 37, 1]
+      },
+      {
+        "band": [25, 36, 28, 20, 1]
+      },
+      {
+        "band": [47, 37, 50, 26, 1]
+      }
+    ]
+  },
+  "objective": {
+    "kind": "monthlyRideIncome",
+    "target": 90000,
+    "byYear": 3
+  },
+  "restrictions": {
+    "forbidTreeRemoval": true
+  }
+}

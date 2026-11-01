@@ -4,6 +4,8 @@
   "category": "expert",
   "climate": "hotAndDry",
   "description": "A scorched mesa and a hard-to-please crowd. Hold 460 guests and a park rating of 700 through the end of year four.",
+  "landscape": "A scorched mesa top dotted with buttes, dropping to lower shelves across a dry canyon.",
+  "challenge": "Nothing may stand more than 6 levels above the ground, and marketing is banned. Build low and let coasters dive off the cliffs to the shelves below.",
   "seed": 3101,
   "map": {
     "width": 96,
@@ -125,54 +127,174 @@
   },
   "terrain": {
     "seaLevel": 2,
-    "baseLevel": 8,
+    "baseLevel": 10,
     "relief": 6,
     "cell": 12,
-    "surface": "sand",
-    "buildLevel": 9,
-    "buildLength": 60,
-    "buildWidth": 25,
+    "surface": "dirt",
+    "buildLevel": 16,
+    "buildLength": 8,
+    "buildWidth": 15,
+    "apronOffset": 6,
     "lakes": [
       {
-        "x": 80,
-        "y": 75,
-        "rx": 7,
-        "ry": 6,
+        "x": 84,
+        "y": 80,
+        "rx": 6,
+        "ry": 5,
         "depth": 2
       }
     ],
-    "hills": [
+    "hills": [],
+    "highland": {
+      "surface": "sand",
+      "level": 15
+    },
+    "shapes": [
       {
-        "x": 20,
-        "y": 25,
-        "radius": 14,
-        "height": 6
+        "mode": "raise",
+        "level": 16,
+        "ellipse": [40, 18, 14, 7]
       },
       {
-        "x": 75,
-        "y": 22,
-        "radius": 10,
-        "height": 4
+        "mode": "raise",
+        "level": 16,
+        "ellipse": [62, 24, 9, 5]
+      },
+      {
+        "mode": "raise",
+        "level": 16,
+        "band": [44, 20, 60, 24, 1]
+      },
+      {
+        "mode": "raise",
+        "level": 16,
+        "rect": [39, 9, 53, 16]
+      },
+      {
+        "mode": "raise",
+        "level": 19,
+        "ellipse": [32, 20, 2, 2]
+      },
+      {
+        "mode": "raise",
+        "level": 18,
+        "ellipse": [50, 22, 1, 2]
+      },
+      {
+        "mode": "raise",
+        "level": 19,
+        "ellipse": [66, 26, 2, 1]
+      },
+      {
+        "mode": "raise",
+        "level": 22,
+        "ellipse": [82, 14, 7, 6]
+      },
+      {
+        "mode": "raise",
+        "level": 21,
+        "ellipse": [12, 24, 6, 8]
+      },
+      {
+        "mode": "lower",
+        "level": 4,
+        "band": [8, 44, 88, 42, 1]
+      },
+      {
+        "mode": "raise",
+        "level": 11,
+        "ellipse": [22, 56, 12, 7]
+      },
+      {
+        "mode": "lower",
+        "level": 11,
+        "ellipse": [22, 56, 12, 7]
+      },
+      {
+        "mode": "raise",
+        "level": 13,
+        "ellipse": [72, 58, 12, 7]
+      },
+      {
+        "mode": "lower",
+        "level": 13,
+        "ellipse": [72, 58, 12, 7]
+      },
+      {
+        "mode": "lower",
+        "level": 7,
+        "ellipse": [46, 80, 17, 5]
       }
-    ],
-    "highland": {
-      "surface": "rock",
-      "level": 10
-    }
+    ]
   },
   "land": {
-    "ownedMarginPercent": 16,
-    "saleMarginPercent": 0
+    "parcels": [
+      {
+        "kind": "rights",
+        "band": [8, 46, 88, 42, 4]
+      },
+      {
+        "kind": "land",
+        "ellipse": [72, 58, 13, 8]
+      },
+      {
+        "kind": "land",
+        "band": [60, 30, 70, 52, 2]
+      },
+      {
+        "kind": "land",
+        "ellipse": [46, 80, 18, 6]
+      },
+      {
+        "kind": "land",
+        "band": [30, 58, 40, 76, 2]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [40, 18, 15, 8]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [62, 24, 10, 6]
+      },
+      {
+        "kind": "owned",
+        "band": [44, 20, 60, 24, 3]
+      },
+      {
+        "kind": "owned",
+        "rect": [39, 9, 53, 16]
+      },
+      {
+        "kind": "owned",
+        "band": [34, 24, 24, 50, 2]
+      },
+      {
+        "kind": "owned",
+        "ellipse": [22, 56, 13, 8]
+      }
+    ]
   },
   "trees": {
-    "count": 60,
+    "count": 30,
     "groves": 3,
-    "species": ["cactus"]
+    "species": ["cactus"],
+    "stands": [
+      {
+        "density": 7,
+        "rocks": 80,
+        "rect": [6, 6, 90, 90]
+      }
+    ]
   },
   "objective": {
     "kind": "guestsAndRating",
     "target": 460,
     "rating": 700,
     "byYear": 4
+  },
+  "restrictions": {
+    "maxConstructionHeight": 6,
+    "forbidMarketing": true
   }
 }

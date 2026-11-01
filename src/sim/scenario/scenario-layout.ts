@@ -3,7 +3,7 @@ import { placePath } from '../map/paths';
 import type { TileMap } from '../map/tile-map';
 import { applyScenario } from './scenario';
 import { materializeAmbientTrees } from '../map/ambient-trees';
-import { buildApron, DEFAULT_LAND, generateScenarioMap, ownedBounds } from './scenario-map';
+import { DEFAULT_LAND, generateScenarioMap, ownedBounds, treeClearAreas } from './scenario-map';
 import type { TileRect } from './scenario-map';
 import { placePrebuilt } from './scenario-prebuilt';
 import type { ScenarioDef, ScenarioEntrance } from './scenario';
@@ -20,6 +20,7 @@ export function layOutEntrance(
   world: World,
   entrance: ScenarioEntrance,
   owned: TileRect = ownedBounds(world.map.width, world.map.height, DEFAULT_LAND),
+  start?: number,
 ): number {
   const m = world.map;
   const x0 = owned.x0;
@@ -28,7 +29,7 @@ export function layOutEntrance(
   const y1 = owned.y1 + 1;
   const horizontal = entrance.side === 'north' || entrance.side === 'south';
   const [lo, hi] = horizontal ? [x0, x1 - 1] : [y0, y1 - 1];
-  const mid = (lo + hi) >> 1;
+  const mid = start ?? (lo + hi) >> 1;
   const gate = (along: number): [number, number] => {
     switch (entrance.side) {
       case 'north':
@@ -87,7 +88,10 @@ export function prepareScenario(world: World, def: ScenarioDef): void {
   const economy = world.economy;
   economy.cash = Number.MAX_SAFE_INTEGER;
   if (def.entrance) {
-    layOutEntrance(world, def.entrance, ownedBounds(world.map.width, world.map.height, def.land));
+    const owned = ownedBounds(world.map.width, world.map.height, def.land);
+    const horizontal = def.entrance.side === 'north' || def.entrance.side === 'south';
+    const mid = horizontal ? (owned.x0 + owned.x1) >> 1 : (owned.y0 + owned.y1) >> 1;
+    layOutEntrance(world, def.entrance, owned, mid + (def.terrain?.apronOffset ?? 0));
     if (def.prebuilt) placePrebuilt(world, def.entrance.side, def.prebuilt);
   }
   applyScenario(world, def);
@@ -102,12 +106,5 @@ export function prepareScenarioPark(world: World, def: ScenarioDef): void {
   prepareScenario(world, def);
   if (def.entrance && world.park.entranceX >= 0)
     layOutApproach(world, def.entrance.side, world.park.entranceX, world.park.entranceY);
-  const apron = buildApron(
-    world.map.width,
-    world.map.height,
-    def.entrance?.side ?? 'south',
-    def.terrain ?? { buildLength: 10, buildWidth: 18 },
-    def.land,
-  );
-  materializeAmbientTrees(world, [apron]);
+  materializeAmbientTrees(world, treeClearAreas(def, world.map.width, world.map.height));
 }
