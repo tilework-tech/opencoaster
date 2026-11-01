@@ -1,10 +1,13 @@
 import type { StrategyFactory } from './run';
 import { growthStrategy } from './growth';
+import { SceneryItem } from '../../src/sim/map/scenery';
 import { sitePlanStrategy } from './site-plan';
 import type { SiteStep } from './site-plan';
 import thunderheadPlan from './plans/thunderhead-mesa.json';
 import tidewaterPlan from './plans/tidewater-docks.json';
 import mossgrovePlan from './plans/mossgrove-isle.json';
+import glacierPlan from './plans/glacier-point.json';
+import copperPlan from './plans/copper-ridge.json';
 
 /** Build orders are written as space-separated names. */
 const list = (names: string): string[] => names.split(/\s+/).filter(Boolean);
@@ -68,22 +71,18 @@ STRATEGIES['mossgrove-isle'] = sitePlanStrategy({
   attractionsPerMechanic: 3,
 });
 
-STRATEGIES['copper-ridge'] = growthStrategy({
-  ...BASE,
+STRATEGIES['copper-ridge'] = sitePlanStrategy({
+  steps: copperPlan as SiteStep[],
   reserveCents: 150_000,
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 15, startDelayMonths: 1 },
-  opening: list('foodStall drinkStall toilets merryGoRound'),
-  growth: [
-    'coaster:compact:1',
-    ...list('ferrisWheel drinkStall'),
-    'coaster:compact:-1',
-    ...list('foodStall swingingShip'),
-    'coaster:riverRun:1',
-    ...list('twist toilets'),
-    'coaster:riverRun:-1',
-    ...list('merryGoRound informationKiosk'),
-    'coaster:compact:1',
+  itemsPerHandyman: 2,
+  attractionsPerMechanic: 2,
+  borrow: true,
+  decorate: { item: SceneryItem.Conifer, count: 30 },
+  patrols: [
+    [26, 72, 66, 88],
+    [14, 34, 46, 50],
+    [30, 44, 62, 76],
   ],
 });
 
@@ -119,23 +118,18 @@ STRATEGIES['thunderhead-mesa'] = sitePlanStrategy({
   attractionsPerMechanic: 3,
 });
 
-STRATEGIES['glacier-point'] = growthStrategy({
-  ...BASE,
+STRATEGIES['glacier-point'] = sitePlanStrategy({
+  steps: glacierPlan as SiteStep[],
   reserveCents: 150_000,
   prices: RIDE_PRICES,
-  jitter: { skipPercent: 20, startDelayMonths: 3 },
-  opening: list('foodStall drinkStall toilets merryGoRound'),
-  growth: [
-    'coaster:riverRun:1',
-    ...list('ferrisWheel drinkStall'),
-    'coaster:switchback:-1',
-    ...list('foodStall twist'),
-    'coaster:riverRun:1',
-    ...list('toilets swingingShip'),
-    'coaster:switchback:-1',
-    ...list('merryGoRound informationKiosk'),
-    'coaster:riverRun:1',
-    'coaster:switchback:-1',
+  itemsPerHandyman: 2,
+  attractionsPerMechanic: 2,
+  borrow: true,
+  decorate: { item: SceneryItem.Conifer, count: 30 },
+  patrols: [
+    [70, 42, 92, 60],
+    [50, 42, 74, 60],
+    [54, 56, 82, 78],
   ],
 });
 

@@ -7,6 +7,8 @@ import {
 } from '../../src/sim/map/tile-map';
 import { RIDE_CATALOG } from '../../src/sim/rides/ride-types';
 import { PathAddition } from '../../src/sim/map/paths';
+import { SCENERY_CATALOG } from '../../src/sim/map/scenery';
+import type { SceneryItem } from '../../src/sim/map/scenery';
 import { ParkGrid } from '../../src/sim/scenario/park-grid';
 import { PREBUILT_TYPES } from '../../src/sim/scenario/scenario-prebuilt';
 import type { EntranceSide } from '../../src/sim/scenario/scenario';
@@ -15,6 +17,7 @@ import { StaffKind } from './builder';
 import type { Strategy, StrategyFactory } from './run';
 import { TICKS_PER_MONTH } from './run';
 import {
+  circuitTiles,
   clearScenery,
   flatGroundPath,
   layRoute,
@@ -37,7 +40,7 @@ export type SiteStep =
    * the end of the gate spine, clearing scenery on the way when the park allows it.
    */
   | { kind: 'route'; points: Array<[number, number]>; clear: boolean; from?: [number, number] }
-  /** A coaster at a fixed site, buying the land and rights under it first. */
+  /** A coaster at a fixed site, buying the land and rights under it and clearing its track tiles first. */
   | { kind: 'coaster'; site: CoasterSite }
   /**
    * A flat ride or stall beside a spine path laid along `grid` (gate x, gate y, side) for rows
@@ -64,6 +67,8 @@ export interface SitePlan {
   itemsPerHandyman: number;
   /** One mechanic per this many attractions. */
   attractionsPerMechanic: number;
+  /** Scenery planted round each coaster station before its test run. */
+  decorate?: { item: SceneryItem; count: number };
   /** Repay the loan once cash exceeds it by this much. */
   repayAboveCents?: number;
   /** Borrow up to the limit when a step is short of cash. */
@@ -98,7 +103,7 @@ export function sitePlanStrategy(plan: SitePlan): StrategyFactory {
         nextDecision = tick + TICKS_PER_MONTH / 8;
         while (next < plan.steps.length) {
           const step = plan.steps[next];
-          const cost = costOf(b, step);
+          const cost = costOf(b, step, plan);
           const l = b.sim.world.economy;
           if (plan.borrow && l.cash < cost + plan.reserveCents && l.loan < l.maxLoan) {
             const short = cost + plan.reserveCents - l.cash;
@@ -108,7 +113,7 @@ export function sitePlanStrategy(plan: SitePlan): StrategyFactory {
             b.sim.step();
           }
           if (l.cash < cost + plan.reserveCents) break;
-          perform(b, step);
+          perform(b, step, plan);
           next++;
         }
         const items = b.sim.world.rides.count;
@@ -160,14 +165,19 @@ function saleCost(
   return cents;
 }
 
-function costOf(b: ParkBuilder, step: SiteStep): number {
+function costOf(b: ParkBuilder, step: SiteStep, plan: SitePlan): number {
   switch (step.kind) {
     case 'item':
       return b.costOf(step.name);
     case 'route':
       return waypoints(step.points).length * PATH_COST_CENTS * 3;
-    case 'coaster':
-      return 350_000 + saleCost(b, siteBounds(step.site));
+    case 'coaster': {
+      const area = siteBounds(step.site);
+      const decor = plan.decorate
+        ? plan.decorate.count * SCENERY_CATALOG[plan.decorate.item].priceCents
+        : 0;
+      return 350_000 + saleCost(b, area) + area.width * area.height * 1_000 + decor;
+    }
     case 'flat':
       return RIDE_CATALOG[PREBUILT_TYPES[step.name]].cost + (step.row + 12) * PATH_COST_CENTS;
     case 'buy':
@@ -184,7 +194,7 @@ function spineEnd(b: ParkBuilder): [number, number] {
   return b.grid.tile(row, 0);
 }
 
-function perform(b: ParkBuilder, step: SiteStep): void {
+function perform(b: ParkBuilder, step: SiteStep, plan: SitePlan): void {
   const sim = b.sim;
   const m = sim.world.map;
   switch (step.kind) {
@@ -203,7 +213,14 @@ function perform(b: ParkBuilder, step: SiteStep): void {
       sim.enqueue({ type: 'buyLand', ...area, rights: false });
       sim.enqueue({ type: 'buyLand', ...area, rights: true });
       sim.step();
-      const rideId = startCoaster(sim, step.site, (t) => flatGroundPath(sim, t));
+      clearScenery(sim, circuitTiles(sim, step.site));
+      const rideId = startCoaster(
+        sim,
+        step.site,
+        (t) => flatGroundPath(sim, t),
+        true,
+        plan.decorate,
+      );
       if (rideId === null) return;
       if (b.prices.coaster !== undefined)
         sim.enqueue({ type: 'setRidePrice', rideId, priceCents: b.prices.coaster });

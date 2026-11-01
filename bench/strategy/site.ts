@@ -1,9 +1,19 @@
 import { TRACK_STEPS_PER_LEVEL } from '../../src/sim/core/constants';
-import type { Simulation } from '../../src/sim/core/simulation';
-import { pieceByName } from '../../src/sim/track/catalog';
+import { Simulation } from '../../src/sim/core/simulation';
+import { PIECES, pieceByName } from '../../src/sim/track/catalog';
+import type { SceneryItem } from '../../src/sim/map/scenery';
+import { SCENERY_RADIUS_TILES } from '../../src/sim/vehicles/vehicle-ratings';
+import { deserialize, serialize } from '../../src/save/save';
 import { getConstructionCursor, rotateTile } from '../../src/sim/track/construction';
 import { RIDE_CATALOG, RideType } from '../../src/sim/rides/ride-types';
-import { DIR_DX, DIR_DY, ElementType, PathFlag, SLOPE_DIR_SHIFT } from '../../src/sim/map/tile-map';
+import {
+  DIR_DX,
+  DIR_DY,
+  ElementType,
+  PATH_BOARDING_MARKS,
+  PathFlag,
+  SLOPE_DIR_SHIFT,
+} from '../../src/sim/map/tile-map';
 import { PathAddition, PathResult, planPathPlacement } from '../../src/sim/map/paths';
 import { COASTER_TEMPLATES, mirrored } from './coasters';
 import { RideState } from '../../src/sim/rides/ride-store';
@@ -232,11 +242,19 @@ export function clearScenery(
   sim.step();
 }
 
-/** True when tile `i` holds a flat footpath piece lying on its ground, which paths can join from any side. */
+/**
+ * True when tile `i` holds a flat footpath piece lying on its ground that is not a ride's entrance
+ * or exit tile, so a new path or queue can join it from any side.
+ */
 export function flatGroundPath(sim: Simulation, i: number): boolean {
   const map = sim.world.map;
   const e = map.pathElement(i, map.heights[i]);
-  return e >= 0 && !(map.elFlags[e] & PathFlag.Sloped) && !map.isQueue(i);
+  return (
+    e >= 0 &&
+    !(map.elFlags[e] & PathFlag.Sloped) &&
+    !map.isQueue(i) &&
+    !(map.elData[e] & PATH_BOARDING_MARKS)
+  );
 }
 
 export interface OpenedRide {
@@ -257,22 +275,58 @@ export function startCoaster(
   site: CoasterSite,
   joins: (tile: number) => boolean,
   clear = true,
+  decorate?: { item: SceneryItem; count: number },
 ): number | null {
   const world = sim.world;
   const c = buildCircuit(sim, site);
-  if (!c.closed) return null;
+  const abandon = (): null => {
+    sim.enqueue({ type: 'demolishRide', rideId: c.rideId });
+    sim.step();
+    return null;
+  };
+  if (!c.closed) return abandon();
+  const taken = (t: readonly [number, number]) =>
+    world.map.pathElement(world.map.index(t[0], t[1]), -1) >= 0;
+  if ([c.entrance, c.exit, c.entranceFront, c.exitFront].some(taken)) return abandon();
   if (clear) clearScenery(sim, [c.entrance, c.exit, c.entranceFront, c.exitFront]);
   sim.enqueue({ type: 'placePath', x: c.entrance[0], y: c.entrance[1], queue: true });
   sim.enqueue({ type: 'placePath', x: c.exit[0], y: c.exit[1] });
   sim.step();
   const exitTile = world.map.index(c.exit[0], c.exit[1]);
-  if (!connectOnGround(sim, c.entranceFront, (t) => t !== exitTile && joins(t), true)) return null;
-  if (!connectOnGround(sim, c.exitFront, joins)) return null;
+  if (!connectOnGround(sim, c.entranceFront, (t) => t !== exitTile && joins(t), true))
+    return abandon();
+  if (!connectOnGround(sim, c.exitFront, joins)) return abandon();
   sim.enqueue({ type: 'placeRideEntrance', rideId: c.rideId, x: c.entrance[0], y: c.entrance[1] });
   sim.enqueue({ type: 'placeRideExit', rideId: c.rideId, x: c.exit[0], y: c.exit[1] });
+  sim.step();
+  if (decorate) plantAround(sim, site, decorate.item, decorate.count);
   sim.enqueue({ type: 'setRideStatus', rideId: c.rideId, status: 'test' });
   sim.step();
   return c.rideId;
+}
+
+/**
+ * Plants up to `count` scenery items on free tiles near the station, nearest first, the way a
+ * player decorates a coaster: scenery near the station lifts its excitement.
+ */
+export function plantAround(
+  sim: Simulation,
+  site: CoasterSite,
+  item: SceneryItem,
+  count: number,
+): void {
+  const map = sim.world.map;
+  const spots: Array<[number, number, number]> = [];
+  for (let dy = -SCENERY_RADIUS_TILES; dy <= SCENERY_RADIUS_TILES; dy++)
+    for (let dx = -SCENERY_RADIUS_TILES; dx <= SCENERY_RADIUS_TILES; dx++) {
+      const x = site.x + dx;
+      const y = site.y + dy;
+      if (!map.inBounds(x, y) || map.firstElement(map.index(x, y)) >= 0) continue;
+      spots.push([dx * dx + dy * dy, x, y]);
+    }
+  spots.sort((a, b) => a[0] - b[0]);
+  for (const [, x, y] of spots.slice(0, count)) sim.enqueue({ type: 'placeScenery', x, y, item });
+  sim.step();
 }
 
 /** `startCoaster`, then waits for the test run and opens the coaster. */
@@ -376,4 +430,39 @@ export function openFlatRide(
     state: world.rides.cols.state[slot],
     excitement: world.rides.cols.excitement[slot],
   };
+}
+
+/**
+ * Tiles a coaster at `site` needs free of scenery: its track footprint and the tiles beside the
+ * station for the entrance and exit. Found by building it on a copy of the park with the
+ * surrounding scenery cleared, so the real park only loses the trees the track actually needs.
+ */
+export function circuitTiles(sim: Simulation, site: CoasterSite): Array<[number, number]> {
+  const copy = new Simulation(deserialize(serialize(sim.world)));
+  const map = copy.world.map;
+  const area = siteBounds(site);
+  for (let y = area.y; y < area.y + area.height; y++)
+    for (let x = area.x; x < area.x + area.width; x++) {
+      if (!map.inBounds(x, y)) continue;
+      const i = map.index(x, y);
+      for (let e = map.firstElement(i); e >= 0;) {
+        const next = map.nextElement(e);
+        if (map.elType[e] === ElementType.SmallScenery) map.removeElement(i, e);
+        e = next;
+      }
+    }
+  const c = buildCircuit(copy, site);
+  const tiles = new Map<number, [number, number]>();
+  const add = (x: number, y: number) => tiles.set(map.index(x, y), [x, y]);
+  const t = copy.world.track;
+  const cols = t.pieces.cols;
+  for (let slot = 0; slot < t.pieces.count; slot++) {
+    if (cols.rideId[slot] !== c.rideId) continue;
+    for (const cell of PIECES[cols.pieceType[slot]].footprint) {
+      const [rx, ry] = rotateTile(cell.i, cell.j, cols.dir[slot] as 0 | 1 | 2 | 3);
+      add(cols.x[slot] + rx, cols.y[slot] + ry);
+    }
+  }
+  for (const tile of [c.entrance, c.exit, c.entranceFront, c.exitFront]) add(...tile);
+  return [...tiles.values()];
 }
