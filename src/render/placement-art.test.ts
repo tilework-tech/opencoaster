@@ -19,6 +19,22 @@ function placementSnapshot(width: number, height: number): Snapshot {
   return snapshot;
 }
 
+describe('ride placement preview under a scenario height cap', () => {
+  it('rejects an Observation Tower taller than the cap and accepts a shorter one', () => {
+    const snapshot = placementSnapshot(8, 8);
+    snapshot.scenario.restrictions = { maxConstructionHeight: 10 };
+    const map = {
+      width: 8,
+      height: 8,
+      heights: new Uint8Array(64).fill(3),
+      surface: new Uint8Array(64),
+      slope: new Uint8Array(64),
+    };
+    expect(ridePlacementValid(RideType.ObservationTower, 3, 3, 0, map, snapshot, 11)).toBe(false);
+    expect(ridePlacementValid(RideType.ObservationTower, 3, 3, 0, map, snapshot, 9)).toBe(true);
+  });
+});
+
 describe('ride placement preview validity', () => {
   it('accepts a buildable, empty footprint that the park can afford', () => {
     const snapshot = placementSnapshot(8, 8);

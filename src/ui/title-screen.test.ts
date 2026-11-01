@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LedgerCategory } from '../sim/economy/ledger';
 import { ObjectiveKind } from '../sim/scenario/scenario';
 import type { ScenarioDef } from '../sim/scenario/scenario';
-import { objectiveText } from './title-screen';
+import { objectiveText, scenarioRulesText } from './title-screen';
 
 function scenario(
   kind: ObjectiveKind,
@@ -70,5 +70,23 @@ describe('title screen objective descriptions', () => {
         ),
       ),
     ).toContain('monthly food and drink profit');
+  });
+});
+
+describe('title screen park rules', () => {
+  it('lists the scenario restrictions before the game starts', () => {
+    const def = {
+      ...scenario(ObjectiveKind.HaveFun, 0, 0),
+      restrictions: { forbidTreeRemoval: true, maxConstructionHeight: 8 },
+    };
+    expect(scenarioRulesText(def)).toBe(
+      'Park rules: Trees may not be removed. Nothing may be built more than 8 height levels above the ground.',
+    );
+  });
+
+  it('says so when a scenario has no restrictions', () => {
+    expect(scenarioRulesText(scenario(ObjectiveKind.HaveFun, 0, 0))).toBe(
+      'Park rules: no restrictions.',
+    );
   });
 });

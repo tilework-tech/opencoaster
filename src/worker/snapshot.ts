@@ -1,4 +1,5 @@
 import { writeCarPoses } from './car-poses';
+import type { ScenarioRestrictions } from '../sim/scenario/restrictions';
 import { MAX_CARS } from '../sim/vehicles/ride-trains';
 import type { World } from '../sim/core/world';
 import type { EntityStore, Schema } from '../sim/core/entity-store';
@@ -332,6 +333,8 @@ export interface SnapshotScenario {
   /** Live figure the objective compares with its target. */
   metric: number;
   parkRating: number;
+  /** The rules the park started with; empty when unrestricted. */
+  restrictions: ScenarioRestrictions;
 }
 
 export interface SnapshotCapacities {
@@ -379,7 +382,13 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     patrolWordsPerArea: caps.patrolWordsPerArea ?? 0,
     patrolAreaIds: new Uint16Array(caps.staff),
     park: { cash: 0, loan: 0, rides: 0, entranceX: -1, entranceY: -1, orphanQueueTiles: 0 },
-    scenario: { status: ScenarioStatus.Active, objective: null, metric: 0, parkRating: 0 },
+    scenario: {
+      status: ScenarioStatus.Active,
+      objective: null,
+      metric: 0,
+      parkRating: 0,
+      restrictions: {},
+    },
     activeAwards: [],
     parkNews: [],
     economy: {
@@ -733,6 +742,7 @@ export function writeSnapshot(world: World, out: Snapshot): void {
   out.scenario.objective = scenario.objective ? { ...scenario.objective } : null;
   out.scenario.metric = scenario.objective ? objectiveMetric(world, scenario.objective) : 0;
   out.scenario.parkRating = world.economy.parkRating;
+  out.scenario.restrictions = scenario.restrictions;
   const ledger = world.economy;
   const economy = out.economy;
   economy.priceMode = ledger.priceMode;

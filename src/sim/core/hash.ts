@@ -87,6 +87,13 @@ export function hashWorld(world: World): number {
   mix(s.status);
   mix(s.averageGuestCashCents);
   if (s.objective) for (const v of Object.values(s.objective)) mix(v);
+  const rules = s.restrictions;
+  // Unrestricted parks mix nothing, so their hashes match worlds from before restrictions.
+  if (rules.forbidTreeRemoval) mix(1);
+  if (rules.forbidLandscaping) mix(2);
+  if (rules.forbidMarketing) mix(3);
+  if (rules.maxConstructionHeight !== undefined) mix(0x100 | rules.maxConstructionHeight);
+  for (const id of rules.forbiddenRideTypeIds ?? []) mix(0x10000 | id);
   for (const table of world.track.rideTables()) {
     const t = table as Int32Array;
     for (let i = 0; i < t.length; i++) mix(t[i]);

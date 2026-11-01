@@ -11,6 +11,7 @@ import {
 import { MAX_HEIGHT } from '../map/tile-map';
 import { buildApron, DEFAULT_LAND, ownedBounds } from './scenario-map';
 import { PREBUILT_TYPES } from './scenario-prebuilt';
+import { parseRestrictions } from './restrictions';
 import type {
   EntranceSide,
   PrebuiltRide,
@@ -203,7 +204,28 @@ export function parseScenarioFile(raw: unknown): ScenarioDef {
   if (root.terrain !== undefined) def.terrain = check(() => terrain(root.terrain, def));
   if (root.trees !== undefined) def.trees = check(() => trees(root.trees));
   if (root.prebuilt !== undefined) def.prebuilt = check(() => prebuilt(root.prebuilt, def));
+  if (root.restrictions !== undefined) {
+    def.restrictions = check(() => parseRestrictions(root.restrictions));
+    check(() => checkForbiddenRides(def));
+  }
   return def;
+}
+
+/** A forbidden ride type must not be available, researchable or standing at the start. */
+function checkForbiddenRides(def: ScenarioDef): void {
+  for (const id of def.restrictions?.forbiddenRideTypeIds ?? []) {
+    const clash = def.availableItemIds.includes(id)
+      ? 'research.availableItemIds'
+      : def.inventions.some((inv) => inv.itemId === id)
+        ? 'research.inventions'
+        : def.prebuilt?.some((ride) => PREBUILT_TYPES[ride.type] === id)
+          ? 'prebuilt'
+          : undefined;
+    if (clash)
+      throw new Error(
+        `restrictions.forbiddenRideTypeIds: ride type ${id} is forbidden but listed in ${clash}`,
+      );
+  }
 }
 
 function objective(v: unknown): ScenarioDef['objective'] {

@@ -398,6 +398,7 @@ export class CoasterPanel {
       level,
       snap.occupancies,
       ride.type,
+      snap.scenario.restrictions.maxConstructionHeight,
     );
     return { rideType: ride.type, piece, placement, level, status };
   }

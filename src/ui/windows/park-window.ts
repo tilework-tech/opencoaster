@@ -1,4 +1,5 @@
 import { PriceMode } from '../../sim/economy/ledger';
+import { restrictionLines } from '../../sim/scenario/restrictions';
 import { gameDate, TICKS_PER_MONTH } from '../../sim/economy/calendar';
 import { AWARDS } from '../../sim/economy/awards';
 import type { Stats } from '../../worker/protocol';
@@ -127,7 +128,14 @@ export function openParkWindow(ctx: UiContext): WindowController {
       setText(stats.staff.value, String(snapshot.staff.count));
       setText(stats.litter.value, String(snapshot.litter.count));
       const lines = objectiveLines(snapshot.scenario, snapshot.park.loan, snapshot.tick);
-      setText(objective, lines.length ? lines.join('\n') : 'Sandbox: no objective.');
+      const rules = restrictionLines(snapshot.scenario.restrictions);
+      setText(
+        objective,
+        [
+          lines.length ? lines.join('\n') : 'Sandbox: no objective.',
+          ...(rules.length ? ['', 'Park rules:', ...rules.map((rule) => `• ${rule}`)] : []),
+        ].join('\n'),
+      );
       const currentAwards = snapshot.activeAwards
         .filter((award) => award.expiresTick > snapshot.tick)
         .map((award) => {

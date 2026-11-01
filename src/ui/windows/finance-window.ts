@@ -1,4 +1,5 @@
 import { FeedbackDomain } from '../../sim/core/feedback';
+import { RESTRICTION_REFUSALS } from '../../sim/scenario/restrictions';
 import type { EconomyAction } from '../../sim/economy/actions';
 import { CAMPAIGNS, MAX_CAMPAIGN_WEEKS, MIN_CAMPAIGN_WEEKS } from '../../sim/economy/marketing';
 import { HISTORY_MONTHS, LedgerCategory } from '../../sim/economy/ledger';
@@ -255,8 +256,9 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
       const weeks = Number(durationSelect.value);
       CAMPAIGNS.forEach((campaign, id) => {
         const b = campaignButtons[id];
-        const unavailableReason =
-          campaign.target === 'ride' && rideOptions.length === 0
+        const unavailableReason = snapshot.scenario.restrictions.forbidMarketing
+          ? RESTRICTION_REFUSALS.marketing
+          : campaign.target === 'ride' && rideOptions.length === 0
             ? 'Build a promotable ride to run this campaign.'
             : campaign.target === 'item' && stallOptions.length === 0
               ? 'Build a food or drink stall to run this campaign.'
@@ -279,6 +281,8 @@ export function openFinanceWindow(ctx: UiContext): WindowController {
         for (const line of feedbackLines) setText(line, economyFeedbackMessage(feedback.code));
       }
       lastFeedbackSeq = feedback.seq;
+      if (snapshot.scenario.restrictions.forbidMarketing)
+        for (const line of feedbackLines) setText(line, RESTRICTION_REFUSALS.marketing);
 
       setText(
         campaignInfo,

@@ -1,4 +1,5 @@
 import { LandResult } from '../../sim/map/land-tool';
+import { RESTRICTION_REFUSALS } from '../../sim/scenario/restrictions';
 import { formatMoney } from '../../ui/format';
 import type { LandMode } from '../../ui/ui-types';
 
@@ -16,6 +17,8 @@ const REFUSAL_TEXT: Record<Exclude<LandResult, LandResult.Ok>, string> = {
   [LandResult.InvalidEdit]: 'That land change is not valid.',
   [LandResult.WaterSpills]: 'Water would spill over the bank: dig a basin or raise the edge.',
   [LandResult.WaterLevelClash]: 'Water would meet a lake at a higher level.',
+  [LandResult.LandscapingForbidden]: RESTRICTION_REFUSALS.landscaping,
+  [LandResult.TreesProtected]: RESTRICTION_REFUSALS.trees,
 };
 
 export function landRefusalText(result: Exclude<LandResult, LandResult.Ok>): string {

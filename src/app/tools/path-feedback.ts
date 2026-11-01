@@ -1,4 +1,5 @@
 import { FeedbackDomain } from '../../sim/core/feedback';
+import { heightLimitRefusal } from '../../sim/scenario/restrictions';
 import type { CommandFeedback } from '../../sim/core/feedback';
 import { PathResult } from '../../sim/map/paths';
 
@@ -11,12 +12,14 @@ const REJECTION_TEXT: Record<Exclude<PathResult, PathResult.Ok>, string> = {
   [PathResult.UnevenGround]: 'The ground is too uneven for a footpath. Level it first.',
   [PathResult.Blocked]: 'Something is in the way.',
   [PathResult.InsufficientFunds]: 'Not enough cash for a footpath.',
+  [PathResult.HeightLimit]: heightLimitRefusal(),
 };
 
 /** Player-facing reason a footpath placement is refused. */
 export function pathRefusalText(code: PathResult, detail = ''): string {
   if (code === PathResult.Ok) return '';
   if (code === PathResult.Blocked && detail) return `Blocked by ${detail}.`;
+  if (code === PathResult.HeightLimit) return heightLimitRefusal(detail);
   return (
     REJECTION_TEXT[code as Exclude<PathResult, PathResult.Ok>] ?? 'A footpath cannot be built here.'
   );

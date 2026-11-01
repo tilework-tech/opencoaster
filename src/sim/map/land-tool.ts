@@ -1,4 +1,5 @@
 import type { World } from '../core/world';
+import { landscapingForbidden, treesProtected } from '../scenario/restrictions';
 import { TRACK_Z_STEP, Z_STEP } from '../core/constants';
 import { rideFootprintTiles } from '../rides/ride-footprint';
 import { RIDE_CATALOG } from '../rides/ride-types';
@@ -10,7 +11,7 @@ import type { TileMap } from './tile-map';
 import { editTerrain, LAND_HEIGHT_STEP_COST_CENTS, MAX_EDIT_SIZE, rampMask } from './land';
 import type { TerrainEdit, VertexMover } from './land';
 import { recomputePathEdges, PATH_CLEARANCE } from './paths';
-import { SCENERY_CATALOG } from './scenery';
+import { isTreeScenery, SCENERY_CATALOG } from './scenery';
 import type { SceneryItem } from './scenery';
 import { firstOccupancyBlocker, worldOccupancies } from './occupancy';
 
@@ -39,6 +40,10 @@ export const enum LandResult {
   WaterSpills = 12,
   /** Water would meet a lake whose surface is higher. */
   WaterLevelClash = 13,
+  /** The scenario forbids changing land and water. */
+  LandscapingForbidden = 14,
+  /** The scenario forbids removing trees, and the edit would remove one. */
+  TreesProtected = 15,
 }
 
 export interface LandEdit {
@@ -277,6 +282,7 @@ function elementEffects(
   m: TileMap,
   tiles: Int32Array,
   oldBase: Map<number, number>,
+  keepTrees: boolean,
 ): {
   block: LandPlan | null;
   scenery: Array<[number, number]>;
@@ -299,6 +305,8 @@ function elementEffects(
     for (let e = m.firstElement(tile); e >= 0; e = m.nextElement(e)) {
       const type = m.elType[e];
       if (type === ElementType.SmallScenery) {
+        if (keepTrees && isTreeScenery(m.elData[e] as SceneryItem))
+          return { block: refuse(LandResult.TreesProtected, tile), scenery, paths, sceneryCents };
         scenery.push([tile, e]);
         sceneryCents += SCENERY_CATALOG[m.elData[e] as SceneryItem]?.removalPriceCents ?? 0;
       } else if (type === ElementType.Path) {
@@ -331,6 +339,7 @@ function seatPath(m: TileMap, fix: PathFix): void {
 
 function evaluate(w: World, e: LandEdit, commit: boolean): LandPlan {
   const m = w.map;
+  if (landscapingForbidden(w)) return refuse(LandResult.LandscapingForbidden);
   const selected = ownedSelection(m, e);
   if (typeof selected === 'number') return refuse(selected);
   const edited: TerrainEdit = editTerrain(m, (move) => applyAction(m, e, selected, move));
@@ -401,7 +410,7 @@ function evaluate(w: World, e: LandEdit, commit: boolean): LandPlan {
       return fail(refuse(result, tile));
     }
   }
-  const effects = elementEffects(m, tiles, oldBase);
+  const effects = elementEffects(m, tiles, oldBase, treesProtected(w));
   if (effects.block) return fail(effects.block);
   let units = 0;
   edited.changed.forEach((v, k) => {

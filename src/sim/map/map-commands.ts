@@ -17,6 +17,7 @@ import {
   type PathPlacement,
 } from './paths';
 import {
+  isTreeScenery,
   placeScenery,
   removeScenery,
   SCENERY_CATALOG,
@@ -36,7 +37,13 @@ import {
   SALE_LAND,
   SALE_RIGHTS,
 } from './tile-map';
-import { PathFlag, PathStyle } from './tile-map';
+import { ElementType, PathFlag, PathStyle } from './tile-map';
+import {
+  exceedsHeightCap,
+  heightCapDetail,
+  landscapingForbidden,
+  treesProtected,
+} from '../scenario/restrictions';
 import type { TileMap } from './tile-map';
 import { TILE_UNITS, Z_STEP } from '../core/constants';
 import { firstOccupancyBlocker, worldOccupancies } from './occupancy';
@@ -99,9 +106,11 @@ function applyPathPlacement(w: World, c: PathPlacement): void {
     ? PathResult.InsufficientFunds
     : plan.result !== PathResult.Ok
       ? plan.result
-      : blocker
-        ? PathResult.Blocked
-        : placePathOutcome(m, c);
+      : pathAboveCap(w, c, plan)
+        ? PathResult.HeightLimit
+        : blocker
+          ? PathResult.Blocked
+          : placePathOutcome(m, c);
   if (result === PathResult.Ok) charge(w, LedgerCategory.Landscaping, PATH_COST_CENTS);
   else
     reportFeedback(
@@ -109,8 +118,18 @@ function applyPathPlacement(w: World, c: PathPlacement): void {
       FeedbackDomain.Path,
       result,
       m.inBounds(c.x, c.y) ? m.index(c.x, c.y) : -1,
-      blocker?.name,
+      result === PathResult.HeightLimit ? heightCapDetail(w) : blocker?.name,
     );
+}
+
+/** Whether the path surface, at the high end of a ramp, rises above the scenario's height cap. */
+function pathAboveCap(
+  w: World,
+  placement: PathPlacement,
+  plan: ReturnType<typeof planPathPlacement>,
+): boolean {
+  const top = (plan.z + (plan.dir >= 0 ? 1 : 0)) * Z_STEP;
+  return exceedsHeightCap(w, w.map.index(placement.x, placement.y), top);
 }
 
 function pathOccupancyBlocker(
@@ -188,9 +207,28 @@ function removeLitterOnTerrainTiles(w: World, affected: Uint8Array): void {
   }
 }
 
+/** Commands that reshape land or water; a scenario may forbid all of them. */
+const LANDSCAPING_COMMANDS: ReadonlySet<MapCommand['type']> = new Set([
+  'setTileHeight',
+  'raiseLand',
+  'lowerLand',
+  'smoothLand',
+  'flattenLand',
+  'setWater',
+  'raiseWater',
+  'lowerWater',
+  'paintLand',
+]);
+
 /** Applies one map command to the world; invalid or unaffordable commands are ignored. */
 export function applyMapCommand(w: World, c: MapCommand): void {
   const m = w.map;
+  if (landscapingForbidden(w) && LANDSCAPING_COMMANDS.has(c.type)) {
+    const water = c.type === 'setWater' || c.type === 'raiseWater' || c.type === 'lowerWater';
+    const domain = water ? FeedbackDomain.Water : FeedbackDomain.Land;
+    reportFeedback(w.feedback, domain, LandResult.LandscapingForbidden);
+    return;
+  }
   switch (c.type) {
     case 'setTileHeight': {
       const x = c.x | 0;
@@ -333,9 +371,17 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     }
     case 'removeScenery': {
-      const item = removeScenery(m, c.x, c.y, c.edge);
+      const keepTrees = treesProtected(w);
+      const item = removeScenery(m, c.x, c.y, c.edge, keepTrees);
       if (item !== null)
         charge(w, LedgerCategory.Landscaping, SCENERY_CATALOG[item].removalPriceCents);
+      else if (keepTrees && c.edge === undefined && hasTree(m, c.x, c.y))
+        reportFeedback(
+          w.feedback,
+          FeedbackDomain.Clear,
+          LandResult.TreesProtected,
+          m.index(c.x, c.y),
+        );
       break;
     }
     case 'buyLand': {
@@ -351,6 +397,14 @@ export function applyMapCommand(w: World, c: MapCommand): void {
       break;
     }
   }
+}
+
+function hasTree(m: TileMap, x: number, y: number): boolean {
+  if (!m.inBounds(x, y)) return false;
+  for (let e = m.firstElement(m.index(x, y)); e >= 0; e = m.nextElement(e))
+    if (m.elType[e] === ElementType.SmallScenery && isTreeScenery(m.elData[e] as SceneryItem))
+      return true;
+  return false;
 }
 
 function raisedTerrainBlocker(
@@ -401,6 +455,8 @@ export function previewScenery(w: World, spot: ScenerySpot): SceneryResult {
   if (result !== SceneryResult.Ok) return result;
   const tile = w.map.index(spot.x, spot.y);
   const base = (w.map.heights[tile] + (w.map.slope[tile] ? 1 : 0)) * Z_STEP;
+  const top = base + Math.max(1, item.height) * Z_STEP;
+  if (!isTreeScenery(spot.item) && exceedsHeightCap(w, tile, top)) return SceneryResult.HeightLimit;
   const edge = item.category === 'fences';
   const candidate: OccupancyVolume = {
     tileX: spot.x,
@@ -440,6 +496,7 @@ export function previewPathRun(w: World, placements: readonly PathPlacement[]): 
   const plans = withDragLinks(placements).map((p) => {
     const plan = planPathPlacement(m, p);
     if (plan.result !== PathResult.Ok) return plan;
+    if (pathAboveCap(w, p, plan)) return { ...plan, result: PathResult.HeightLimit };
     if (pathOccupancyBlocker(w, m, p, plan)) return { ...plan, result: PathResult.Blocked };
     if (cash < PATH_COST_CENTS) return { ...plan, result: PathResult.InsufficientFunds };
     placePathOutcome(m, p);

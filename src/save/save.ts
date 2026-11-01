@@ -1,4 +1,5 @@
 import { flattenWaterBodies } from '../sim/map/area-tools';
+import { parseRestrictions } from '../sim/scenario/restrictions';
 import { World } from '../sim/core/world';
 import { EntityStore } from '../sim/core/entity-store';
 import type { Schema } from '../sim/core/entity-store';
@@ -770,6 +771,10 @@ export function deserialize(bytes: Uint8Array): World {
       : header.research;
   restoreResearch(world.research, research);
   Object.assign(world.scenario, header.scenario);
+  world.scenario.restrictions =
+    header.scenario.restrictions === undefined
+      ? {}
+      : parseRestrictions(header.scenario.restrictions);
   if (header.park) Object.assign(world.park, header.park);
   if (header.version < AMBIENT_TREES_SAVE_VERSION) migrateLegacyAmbientTrees(world);
   purgeExteriorMess(world);

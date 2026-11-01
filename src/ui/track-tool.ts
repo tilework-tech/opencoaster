@@ -1,4 +1,10 @@
 import { TRACK_STEPS_PER_LEVEL } from '../sim/core/constants';
+import {
+  aboveHeightCap,
+  heightLimitRefusal,
+  RESTRICTION_REFUSALS,
+} from '../sim/scenario/restrictions';
+import type { GroundLevels } from '../sim/scenario/restrictions';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RideResult } from '../sim/rides/ride-results';
 import { RIDE_CATALOG } from '../sim/rides/ride-types';
@@ -161,12 +167,21 @@ export function previewStatus(
   level = 0,
   occupancies: readonly OccupancyVolume[] = [],
   rideType?: RideType,
+  heightCap?: number,
 ): TrackResult {
   for (const [x, y] of footprintTiles(piece, placement.x, placement.y, placement.dir)) {
     if (x < 0 || y < 0 || x >= map.width || y >= map.height) return TrackResult.OutOfBounds;
     if (!buildable?.[y * map.width + x]) return TrackResult.NotOwned;
   }
   if (cash < piece.cost) return TrackResult.InsufficientFunds;
+  if (heightCap !== undefined && 'heights' in map) {
+    for (const cell of piece.footprint) {
+      const [dx, dy] = rotateTile(cell.i, cell.j, placement.dir);
+      const tile = (placement.y + dy) * map.width + placement.x + dx;
+      const top = level * Z_STEP + cell.zMax;
+      if (aboveHeightCap(heightCap, map as GroundLevels, tile, top)) return TrackResult.HeightLimit;
+    }
+  }
   const trackClearance =
     (rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackClearanceWorld) ??
     TRACK_CLEARANCE_WORLD;
@@ -231,6 +246,7 @@ const TRACK_MESSAGES: Record<TrackResult, string> = {
   [TrackResult.TunnelEntry]:
     'Tunnels must enter through the side of the land, not a corner, and run straight until they are under cover.',
   [TrackResult.OverWater]: 'Track cannot be built over open water for this ride type.',
+  [TrackResult.HeightLimit]: heightLimitRefusal(),
 };
 
 const TRACK_WARNING_MESSAGES: Record<TrackWarning, string> = {
@@ -273,6 +289,8 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
     'The footpath ramp runs across the service window. A ramp must climb toward or away from the stall.',
   [RideResult.StallGate]:
     'The service window faces a ride exit. Guests only buy from an ordinary footpath.',
+  [RideResult.HeightLimit]: heightLimitRefusal(),
+  [RideResult.RideTypeForbidden]: RESTRICTION_REFUSALS.rideType,
 };
 
 /** Player-facing text for a command outcome from the simulation. */
@@ -280,12 +298,14 @@ export function feedbackMessage(domain: FeedbackDomain, code: number, detail = '
   const ok = code === 0 || code === RideResult.TestPassed;
   if (domain === FeedbackDomain.Track) {
     if (code === TrackResult.Blocked && detail) return { text: `Blocked by ${detail}.`, ok: false };
+    if (code === TrackResult.HeightLimit) return { text: heightLimitRefusal(detail), ok: false };
     if (code === TrackWarning.LiftIntoInversion) {
       return { text: TRACK_WARNING_MESSAGES[code], ok: false };
     }
     return { text: TRACK_MESSAGES[code as TrackResult] ?? `Track result ${code}`, ok: code === 0 };
   }
   if (domain === FeedbackDomain.Ride) {
+    if (code === RideResult.HeightLimit) return { text: heightLimitRefusal(detail), ok: false };
     return { text: RIDE_MESSAGES[code as RideResult] ?? `Ride result ${code}`, ok };
   }
   return { text: '', ok: true };

@@ -1,6 +1,7 @@
 import { gameDate, RATING_REFRESH_TICKS, TICKS_PER_MONTH } from '../sim/economy/calendar';
 import { ObjectiveKind, ScenarioStatus } from '../sim/scenario/scenario';
 import type { SnapshotScenario } from '../worker/snapshot';
+import type { ScenarioRestrictions } from '../sim/scenario/restrictions';
 import { formatCents } from './hud';
 
 /** Lines for the objective strip: outcome, progress against the target, and the deadline. */
@@ -62,4 +63,19 @@ function deadlineText(byTick: number, tick: number): string {
   if (left <= 0) return when;
   if (left < TICKS_PER_MONTH) return `${when} (this month)`;
   return `${when} (${Math.ceil(left / TICKS_PER_MONTH)} months left)`;
+}
+
+/** One short line naming the park's active rules for the objective strip, or '' when none apply. */
+export function parkRulesSummary(r: ScenarioRestrictions): string {
+  const banned = r.forbiddenRideTypeIds?.length ?? 0;
+  const rules = [
+    r.forbidTreeRemoval ? 'no tree removal' : '',
+    r.forbidLandscaping ? 'no landscaping' : '',
+    r.maxConstructionHeight === undefined
+      ? ''
+      : `build up to ${r.maxConstructionHeight} levels above ground`,
+    banned === 0 ? '' : `${banned} banned attraction${banned === 1 ? '' : 's'}`,
+    r.forbidMarketing ? 'no marketing' : '',
+  ].filter((rule) => rule !== '');
+  return rules.length === 0 ? '' : `Park rules: ${rules.join(' · ')}`;
 }
