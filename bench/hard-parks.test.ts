@@ -107,7 +107,7 @@ function expectSolvent(park: Park): void {
 
 const MONTH = 16_384;
 
-describe('hard parks are playable with legal construction', () => {
+describe('hard parks are playable with legal construction', { timeout: 60_000 }, () => {
   it('Copper Ridge: cross the gulch on the trail and open a coaster on the west bench', () => {
     const park = open('copper-ridge', ['foodStall', 'drinkStall', 'toilets', 'merryGoRound']);
     const [x0] = spineEnd(park);

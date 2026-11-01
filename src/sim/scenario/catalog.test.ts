@@ -116,18 +116,19 @@ describe('scenario catalog', () => {
 });
 
 describe('ride unlocks per scenario', () => {
-  it('lets every scenario build every ride type, from its starting rides or by research', () => {
+  it('lets every scenario build every ride type it allows, from its starting rides or by research', () => {
     for (const def of SCENARIOS) {
       const reachable = new Set([
         ...def.availableItemIds,
         ...def.inventions.map((invention) => invention.itemId),
+        ...(def.restrictions?.forbiddenRideTypeIds ?? []),
       ]);
       const missing = Object.keys(RIDE_CATALOG).filter((id) => !reachable.has(Number(id)));
       expect(missing, def.id).toEqual([]);
     }
   });
 
-  it('starts every scenario with at least nine buildable types, including needs and an exciting ride', () => {
+  it('starts every scenario with at least nine buildable types, including needs, gentle rides where allowed and an exciting ride', () => {
     for (const def of SCENARIOS) {
       const world = new World({ seed: def.seed, width: 8, height: 8 });
       applyScenario(world, def);
@@ -137,10 +138,14 @@ describe('ride unlocks per scenario', () => {
         def.availableItemIds.length,
       );
       expect(unlocked.size, def.id).toBeGreaterThanOrEqual(9);
+      const forbidden = new Set(def.restrictions?.forbiddenRideTypeIds ?? []);
+      const gentleAllowed = Object.entries(RIDE_CATALOG).some(
+        ([id, ride]) => ride.category === 'gentle' && !forbidden.has(Number(id)),
+      );
       expect(
         starting.filter((ride) => ride?.category === 'gentle').length,
         def.id,
-      ).toBeGreaterThanOrEqual(3);
+      ).toBeGreaterThanOrEqual(gentleAllowed ? 3 : 0);
       expect(
         starting.some((ride) => ride?.category === 'coaster' || ride?.category === 'thrill'),
         def.id,

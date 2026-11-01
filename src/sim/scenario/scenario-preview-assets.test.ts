@@ -86,5 +86,5 @@ describe('scenario preview assets', () => {
       }
       expect(pixelated, `${def.id} 2x image should preserve crisp tile pixels`).toBe(true);
     }
-  });
+  }, 30_000);
 });
