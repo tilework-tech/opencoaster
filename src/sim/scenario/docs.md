@@ -6,7 +6,7 @@ Path: @/src/sim/scenario
 
 - Defines scenario starting finances, pricing, ride and shop availability, research, entrance placement and objective state, plus each scenario's generated map and pre-built rides.
 - Validates scenario JSON and evaluates dated or open-ended objectives against the simulation.
-- Keeps the active objective and win/loss status in `World` for deterministic saves and continuation.
+- Keeps the active objective, win/loss status and the park rules (optional scenario restrictions) in `World` for deterministic saves and continuation.
 
 ### How it fits into the larger codebase
 
@@ -30,6 +30,7 @@ Path: @/src/sim/scenario
 
 - [scenario.ts](scenario.ts) defines objective kinds and the numeric objective record, and applies starting finance, price policy, research availability and objective state. Each scenario's `availableItemIds` selects its starting attractions and services, while its invention list supplies later research; the scenario set is authored to give parks several gentle rides, essential services and at least one coaster or thrill ride from the start. Open Grounds makes the entire ride catalog available and has no research queue. Scenario-specific maps, objectives and starting cash remain defined in the scenario documents. [scenario-layout.ts](scenario-layout.ts) also places and registers an optional gate path.
 - [scenario-file.ts](scenario-file.ts) validates bounded numeric fields, enums (including optional climate), income category masks, optional coaster thresholds and deadlines. It converts `byYear` to simulation ticks; a `byTick` deadline is used as supplied. Scenario JSON does not need to match an embedded interface shape beyond the fields the parser accepts.
+- [restrictions.ts](restrictions.ts) owns `ScenarioRestrictions` (no tree removal, no landscaping, a construction height cap, banned ride types, no marketing), its parser, the predicates the enforcing modules call, and the player-facing rule and refusal strings. `parseScenarioFile` also rejects a banned ride type that appears in `research.availableItemIds`, `research.inventions` or `prebuilt`. `applyScenario` copies the rules into `world.scenario.restrictions` after standing rides are placed, so prebuilt rides are never subject to them; sandbox and imported parks keep an empty object. Enforcement lives in the owning command modules ([map](../map/docs.md), [track](../track/docs.md), [rides](../rides/docs.md), [economy](../economy/docs.md)), each returning its own refusal code. The contract is [docs/scenario-restrictions.md](../../../docs/scenario-restrictions.md).
 - Scenario climate is applied to the world weather state, hashed and saved; scenarios that omit it use the warm default. The starter scenario declares that default explicitly.
 - [scenario-system.ts](scenario-system.ts) judges dated objectives once, on the first tick at or after their deadline; the result is terminal. Families include guest count/rating, park value, loan repayment plus park value, monthly income, ride counts, qualifying or complete coasters, best-ride excitement and `HaveFun`. Aliases include `guestsByDate`, `parkValueByDate`, `monthlyRideIncome` and `monthlyFoodProfit`.
 - `monthlyFoodProfit` uses net food/drink sales and stock costs. Kiosk and toilet revenue is recorded as general shop sales and does not satisfy that objective.
@@ -41,6 +42,8 @@ Path: @/src/sim/scenario
 
 - Park value includes the economy's valuation of closed non-shop rides and current guest count, but its ride inputs refresh periodically; an objective can therefore observe the most recently published value at its evaluation tick.
 - Coaster length uses the track system's stored centre-line tile length. Objective field semantics and thresholds remain compatibility assumptions where checked-in mechanics sources do not establish original RCT2 behavior; see [docs/DECISIONS.md](../../../docs/DECISIONS.md).
+- The height cap is measured per tile from local ground (lowest land corner, or the water surface when higher), not from the map base. `aboveHeightCap` takes plain height arrays so client previews can run the same check against snapshot map data.
+- Restrictions only gate new actions; nothing already standing is removed when they apply. `hashWorld` mixes them only when a rule is set, so unrestricted worlds keep their old hashes.
 - Entrance search starts at the owned-land edge midpoint and takes the first straight inward run of the requested length that is buildable, flat, dry and empty. If no run qualifies, no path or gate is placed.
 
 Created and maintained by Nori.

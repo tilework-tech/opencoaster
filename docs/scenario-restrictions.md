@@ -63,12 +63,36 @@ scenery), so a ghost the preview shows as valid is accepted.
 
 The restrictions are copied into the park state when the scenario starts and saved with the
 park. Loading a save always uses its saved rules, so later edits to the scenario file do not
-change an existing park. Saves written before restrictions existed have none and load
-unrestricted. Structures that already stand are never removed or changed by a restriction;
+change an existing park. Loading revalidates the saved object with the same parser. Saves
+without it load unrestricted, so the save version did not change, and an unrestricted park
+hashes exactly as it did before restrictions existed. Structures that already stand are never removed or changed by a restriction;
 prebuilt rides in a scenario file are placed before the rules take effect.
 
 ## Player-facing text
 
-The scenario preview on the title screen and the park objective view list the active rules,
-for example "Construction is limited to 6 height levels above the ground". A refused action
-names the rule, for example "Tree removal is forbidden in this park."
+The scenario preview on the title screen and the Park window's Objectives tab list the active
+rules; the HUD strip does not. The preview reads, for example, "Park rules: Trees may not be
+removed. Land and water may not be reshaped. Nothing may be built more than 6 height levels
+above the ground. ..." (or "Park rules: no restrictions."). A refused action names the rule:
+
+| Rule                    | Refusal                                                                           |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `forbidTreeRemoval`     | "Trees are protected in this park and cannot be removed."                         |
+| `forbidLandscaping`     | "Landscaping is not allowed in this park."                                        |
+| `maxConstructionHeight` | "Too high: this park allows construction up to 6 height levels above the ground." |
+| `forbiddenRideTypeIds`  | "This attraction is banned in this park."                                         |
+| `forbidMarketing`       | "Marketing campaigns are not allowed in this park."                               |
+
+With `forbidMarketing`, the Finances window's Marketing tab disables every campaign and shows the
+same message. The strings live in `RESTRICTION_REFUSALS`, `heightLimitRefusal` and
+`restrictionLines` in `src/sim/scenario/restrictions.ts`.
+
+## Sources
+
+RCT2's scenario editor offered park prohibitions of the same kind (tree removal, landscape
+changes, high construction, marketing). OpenCoaster's height cap is its own tunable,
+per-scenario cap measured above local ground, not a fixed tree-height limit.
+
+- RollerCoaster Tycoon 2 manual, scenario editor options (pp. 61-62):
+  https://cdn.akamai.steamstatic.com/steam/apps/285330/manuals/manual.pdf
+- RollerCoaster Tycoon wiki, "Scenario prohibitions": https://rct.fandom.com/wiki/Scenario_prohibitions
