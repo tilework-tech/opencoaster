@@ -299,17 +299,24 @@ export function startCoaster(
     return null;
   };
   if (!c.closed) return abandon();
-  const taken = (t: readonly [number, number]) =>
-    world.map.pathElement(world.map.index(t[0], t[1]), -1) >= 0;
-  if ([c.entrance, c.exit, c.entranceFront, c.exitFront].some(taken)) return abandon();
+  const map = world.map;
+  const tile = (t: readonly [number, number]) => map.index(t[0], t[1]);
+  const taken = (t: readonly [number, number]) => map.pathElement(tile(t), -1) >= 0;
+  const joinsAlready = (t: readonly [number, number]) => flatGroundPath(sim, tile(t));
+  if (taken(c.entrance) || taken(c.exit)) return abandon();
+  for (const front of [c.entranceFront, c.exitFront])
+    if (taken(front) && !joinsAlready(front)) return abandon();
   if (clear) clearScenery(sim, [c.entrance, c.exit, c.entranceFront, c.exitFront]);
   sim.enqueue({ type: 'placePath', x: c.entrance[0], y: c.entrance[1], queue: true });
   sim.enqueue({ type: 'placePath', x: c.exit[0], y: c.exit[1] });
   sim.step();
-  const exitTile = world.map.index(c.exit[0], c.exit[1]);
-  if (!connectOnGround(sim, c.entranceFront, (t) => t !== exitTile && joins(t), true))
+  const exitTile = tile(c.exit);
+  if (
+    !joinsAlready(c.entranceFront) &&
+    !connectOnGround(sim, c.entranceFront, (t) => t !== exitTile && joins(t), true)
+  )
     return abandon();
-  if (!connectOnGround(sim, c.exitFront, joins)) return abandon();
+  if (!joinsAlready(c.exitFront) && !connectOnGround(sim, c.exitFront, joins)) return abandon();
   sim.enqueue({ type: 'placeRideEntrance', rideId: c.rideId, x: c.entrance[0], y: c.entrance[1] });
   sim.enqueue({ type: 'placeRideExit', rideId: c.rideId, x: c.exit[0], y: c.exit[1] });
   sim.step();
