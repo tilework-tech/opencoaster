@@ -147,6 +147,22 @@ Testing -> Closed if train crashes, stalls > N s, or exceeds time budget -> show
 Open: continue refining max values from real runs with slow decay of stale test data; recompute ratings every ~N ticks
 ```
 
+### 2.8 Editing from a selected piece
+
+What public sources describe:
+- The construction window has next/previous track segment arrows that step the highlighted (selected) piece through the placed track, and right-clicking a placed segment selects it. The bulldozer removes the piece just built at the end, or the highlighted piece when one in the middle is selected. [S] (RCT2 manual p.38, https://archive.org/details/rct_2_manual)
+- A ride must be closed before its track can be worked on. [S] (RCT2 manual pp.38-39)
+- Deleting pieces from the middle leaves separate track sections that have to be joined up again before the ride can open; an incomplete circuit cannot be opened. [S, S] (https://forums.openrct2.org/topic/582-starting-a-new-track-section, https://forums.openrct2.org/topic/3504-forcing-a-ride-open-non-complete-circuit)
+- After deleting pieces the construction arrow moves to a remaining open end rather than staying at the deleted spot. [S] (https://www.openrct2.io/download/changelog)
+- Deleting a station in the middle of a platform can leave one platform that behaves as two stations. [S] (https://forums.openrct2.org/topic/5355-guests-never-leave-rollercoastersingle-station-seen-as-two-stations)
+
+What OpenCoaster does (our own design inspired by the above; **[I]**):
+- A ride's track is one or more open sections or a single closed ring. Any piece can be demolished; removing a middle piece splits its section, or opens a closed circuit at that point. A placement may continue any section's last piece and lead into any section's first piece, joining sections. The ride only counts as a complete circuit when all of its track forms one ring with a station.
+- The construction window keeps a selected piece (editor state only, never saved). Previous piece / Next piece step along the track, clicking rails in the build tool selects that piece, and the ride window offers Edit from this piece when it was opened from a rail. Build piece continues from the selection's open end; Build before this piece extends a section backward from its first piece. Demolish removes the selected piece, and the selection moves to its neighbour, preferring the previous one.
+- Track can only change on a ride that is closed with its trains home and empty: not while open or testing, while a train is loading, running or unloading, or while riders are aboard. The edit is refused rather than force-closing the ride.
+- After a demolition, an entrance or exit with no station tile beside it any more is detached from the ride; the ride needs a new one before it can open.
+- Difference from the original: removing a piece gives no per-piece refund. Demolishing the whole ride refunds the pieces that remain.
+
 ---
 
 ## 3. Data model proposal
@@ -262,6 +278,11 @@ Sources:
 - https://rctv1.rctspace.com/test/info/tips2.html
 - https://tid.rctspace.com/TD4viewer.html
 - https://rct.fandom.com/wiki/Inverted_Hairpin_Coaster
+- https://archive.org/details/rct_2_manual (pp.38-39, track editing)
+- https://forums.openrct2.org/topic/582-starting-a-new-track-section
+- https://forums.openrct2.org/topic/3504-forcing-a-ride-open-non-complete-circuit
+- https://www.openrct2.io/download/changelog
+- https://forums.openrct2.org/topic/5355-guests-never-leave-rollercoastersingle-station-seen-as-two-stations
 
 ### Tunnel portals: what the original game does and what we do
 
