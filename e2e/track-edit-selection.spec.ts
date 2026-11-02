@@ -217,6 +217,11 @@ async function editClosedCircuit(page: Page, mobile: boolean, testInfo: TestInfo
   await expect(rideInfo(page)).toContainText('Circuit complete');
   await expect(selectionLine(page)).toContainText('Building from the end of the track');
   await shot(page, testInfo, 'circuit-rebuilt', point);
+  // With nothing selected, Previous picks the last piece built: here the one that closed the gap.
+  await page.getByRole('button', { name: 'Previous piece' }).click();
+  await expect(selectionLine(page)).toContainText('Selected piece 7 of 14');
+  await page.getByRole('button', { name: 'Track end' }).click();
+  await expect(selectionLine(page)).toContainText('Building from the end of the track');
 
   await toolbarAction(page, 'Resume');
   await fastForward(page);

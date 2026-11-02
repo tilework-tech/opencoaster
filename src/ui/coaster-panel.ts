@@ -462,7 +462,7 @@ export class CoasterPanel {
     if (!snapshot || !decodeCursor(info[RideInfo.Cursor]).hasTrack) return -1;
     for (let row = 0; row < snapshot.tracks.count; row++) {
       const piece = snapshotPiece(snapshot, snapshot.trackLinks[row * TRACK_LINK_STRIDE]);
-      if (!piece || piece.rideId !== ride.id || piece.next >= 0) continue;
+      if (!piece || piece.rideId !== ride.id) continue;
       const exit = pieceExit(piece.pieceType, piece.x, piece.y, piece.z, piece.dir);
       if (
         exit.x === info[RideInfo.CursorX] &&
