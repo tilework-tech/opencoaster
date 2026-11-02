@@ -2,7 +2,7 @@ import type { Camera, Renderer } from '../../render/renderer';
 import { pickTile } from '../../render/projection';
 import type { GameUI, GuestSelection, ToolMode } from '../../ui/game-ui';
 import type { SimClient } from '../../worker/sim-client';
-import { findRideIdAtTile } from '../../input/object-picking';
+import { findRideIdAtTile, pickTrackPiece } from '../../input/object-picking';
 import type { CoasterPanel } from '../../ui/coaster-panel';
 import type { SceneryItem } from '../../sim/map/scenery';
 import { isWallScenery } from '../../sim/map/scenery';
@@ -77,6 +77,8 @@ export interface ToolControllerDependencies {
   patrolStaffId: () => number | null;
   clearRideSetupNotice: () => void;
   rideTileClick: (x: number, y: number) => void;
+  /** Whether a viewport point lies on the track tool's build preview. */
+  trackGhostAt: (x: number, y: number) => boolean;
 }
 
 export function createToolController(deps: ToolControllerDependencies) {
@@ -572,13 +574,16 @@ export function createToolController(deps: ToolControllerDependencies) {
       else if (selectedTool === 'flowerbed') handleFlowerbedTool(handlerDeps, x, y, shiftKey);
       else if (selectedTool === 'patrol') handlePatrolTool(handlerDeps, x, y, shiftKey);
       else if (selectedTool === 'ride') deps.rideTileClick(x, y);
-      else deps.gameUi.setToolStatus(deps.coasterPanel.handleTileClick(x, y));
+      else trackToolClick(localX, localY, x, y, rect);
       return;
     }
     if (object) {
       deps.setSelectedGuest(null);
       if (object.kind === 'ride' && object.rideId !== undefined) {
-        deps.gameUi.openRide(object.rideId);
+        deps.gameUi.openRide(
+          object.rideId,
+          object.coasterPart === 'track' ? object.pieceId : undefined,
+        );
         deps.gameUi.setToolStatus(`${object.name} information opened.`);
       } else if (object.kind === 'guest' && object.personId !== undefined) {
         const guest = findGuestAt(
@@ -659,6 +664,38 @@ export function createToolController(deps: ToolControllerDependencies) {
       deps.gameUi.openWindow('park');
     deps.gameUi.setToolStatus(selectionStatus);
     deps.gameUi.update(deps.sim.latest, deps.sim.stats, deps.selectedGuest());
+  }
+
+  /**
+   * Track tool: a click on the rails of a coaster selects that piece to edit from; a click on the
+   * build preview or open ground builds as before.
+   */
+  function trackToolClick(
+    localX: number,
+    localY: number,
+    x: number,
+    y: number,
+    rect: DOMRect,
+  ): void {
+    const snapshot = deps.sim.latest;
+    if (snapshot && deps.coasterPanel.buildsTrack() && !deps.trackGhostAt(localX, localY)) {
+      const targets = deps.renderer.objectTargets(snapshot, deps.camera, {
+        width: rect.width,
+        height: rect.height,
+      });
+      const hit = pickTrackPiece(targets, localX, localY);
+      if (hit && 'pieceId' in hit) {
+        deps.gameUi.setToolStatus(deps.coasterPanel.selectPiece(hit.rideId, hit.pieceId));
+        return;
+      }
+      if (hit) {
+        deps.gameUi.setToolStatus(
+          `That is the ride's ${hit.part === 'support' ? 'support' : 'train'}. Click the rails to select a piece of track.`,
+        );
+        return;
+      }
+    }
+    deps.gameUi.setToolStatus(deps.coasterPanel.handleTileClick(x, y));
   }
 
   function personDragStart(clientX: number, clientY: number): boolean {

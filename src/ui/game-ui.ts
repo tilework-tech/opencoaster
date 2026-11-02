@@ -136,6 +136,8 @@ export class GameUI {
   private tool: ToolMode = 'select';
   private alternate = false;
   private patrolStaffId: number | null = null;
+  /** Track piece the player clicked to open each ride window, by ride id. */
+  private readonly clickedPieces = new Map<number, number>();
   private selectedGuest: GuestSelection | null = null;
   /** The speed the player chose. The sim runs at `speed`, which building can cap lower. */
   private requestedSpeed: GameSpeed = 1;
@@ -166,7 +168,8 @@ export class GameUI {
       alternate: () => this.alternate,
       selectedGuest: () => this.selectedGuest,
       series: this.series,
-      openRide: (id) => this.openRide(id),
+      openRide: (id, pieceId) => this.openRide(id, pieceId),
+      clickedTrackPiece: (id) => this.clickedPieces.get(id),
       openGuest: (id) => this.openWindow(`guest-${id}`),
       openWorker: (id) => this.openWindow(`worker-${id}`),
       openWindow: (id) => this.openWindow(id),
@@ -445,7 +448,9 @@ export class GameUI {
     }
   }
 
-  openRide(rideId: number): void {
+  openRide(rideId: number, pieceId?: number): void {
+    if (pieceId === undefined) this.clickedPieces.delete(rideId);
+    else this.clickedPieces.set(rideId, pieceId);
     const id = `ride-${rideId}`;
     if (this.windows.get(id)) {
       this.windows.focus(this.windows.get(id)!);

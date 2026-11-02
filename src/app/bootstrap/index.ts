@@ -18,6 +18,7 @@ import { DEFAULT_MAP_SIZE, TRACK_STEPS_PER_LEVEL } from '../../sim/core/constant
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprites, TrackPreviewOverlay } from '../../ui/track-preview';
+import { TrackSelectionOutline } from '../tools/track-selection-outline';
 import { displayOptionEnabled } from '../../ui/display-options';
 import { TerrainAidOverlay } from '../terrain-aids';
 import type { ConstructionTarget } from '../terrain-aids';
@@ -115,6 +116,7 @@ export async function bootstrap(): Promise<void> {
     status: (text) => gameUi.setToolStatus(text),
   });
   const trackPreview = new TrackPreviewOverlay(root);
+  const trackSelectionOutline = new TrackSelectionOutline(root);
   const terrainAids = new TerrainAidOverlay(root);
   const heightReadout = new HeightReadoutTip(root);
   const scenerySpot = new ScenerySpotPreview(root, sim);
@@ -207,9 +209,10 @@ export async function bootstrap(): Promise<void> {
     chooseRideType(type) {
       rideSetupState.current.chooseRideType(type);
     },
-    editTrack(rideId) {
+    editTrack(rideId, pieceId) {
       coasterPanel.setActiveRide(rideId);
       gameUi.selectTool('track');
+      if (pieceId !== undefined) gameUi.setToolStatus(coasterPanel.selectPiece(rideId, pieceId));
     },
     map: () => sim.map,
     camera: () => camera,
@@ -413,6 +416,7 @@ export async function bootstrap(): Promise<void> {
     patrolStaffId: () => patrolStaffId,
     clearRideSetupNotice: rideSetupState.current.clearNotice,
     rideTileClick: rideSetupState.current.rideTileClick,
+    trackGhostAt: (x, y) => trackPreview.hits(x, y),
   });
 
   const resolution = new AdaptiveResolution();
@@ -704,6 +708,13 @@ export async function bootstrap(): Promise<void> {
       capDevicePixelRatio(window.devicePixelRatio || 1) * appliedScale,
       pathGhost ?? hoverGhost,
     );
+    trackSelectionOutline.update(
+      coasterPanel.selectedPiece(),
+      renderer,
+      latest,
+      camera,
+      canvas.getBoundingClientRect(),
+    );
     let construction: ConstructionTarget | null = null;
     if (displayOptionEnabled('construction-marker')) {
       if (selectedTool === 'path') construction = pathTool.buildTarget;
@@ -748,6 +759,7 @@ export async function bootstrap(): Promise<void> {
     audio.dispose();
     coasterPanel.dispose();
     trackPreview.dispose();
+    trackSelectionOutline.dispose();
     terrainAids.dispose();
     heightReadout.dispose();
     scenerySpot.dispose();

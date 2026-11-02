@@ -2032,3 +2032,26 @@
 .height-readout[hidden] {
   display: none;
 }
+
+.track-selection-outline {
+  position: fixed;
+  z-index: 3;
+  image-rendering: pixelated;
+  pointer-events: none;
+  animation: track-selection-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes track-selection-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track-selection-outline {
+    animation: none;
+  }
+}

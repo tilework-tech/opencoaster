@@ -8,15 +8,23 @@ import { LedgerCategory } from '../economy/ledger';
 import { ElementType, Surface } from '../map/tile-map';
 import { rideCoversTile } from '../rides/ride-footprint';
 import { badTunnelEntry, undergroundTiles } from './clearance';
-import { invalidateRideTest } from '../rides/coaster';
+import { invalidateRideTest, isTrackRide, loadedTrips } from '../rides/coaster';
+import { detachStrandedGates } from '../rides/ride-boarding';
+import { isBusy } from '../rides/ride-commands';
 import { enableBlockSections } from '../rides/ride-operations';
 import { RIDE_CATALOG } from '../rides/ride-types';
 import type { RideType } from '../rides/ride-types';
 import { PIECES } from './catalog';
-import { placeTrack, removeTrack, rotateTile, validatePlacement } from './construction';
+import {
+  attachPoint,
+  placeTrack,
+  removeTrack,
+  rotateTile,
+  validatePlacement,
+} from './construction';
 import type { PlaceRequest } from './construction';
 import { MAX_TRACK_RIDES } from './track-store';
-import { PieceFlag, PieceMode, Slope, TrackResult, TrackWarning } from './track-types';
+import { PieceFlag, PieceMode, Slope, TrackNotice, TrackResult, TrackWarning } from './track-types';
 import type { Direction } from './track-types';
 
 export type TrackCommand = Extract<Command, { type: 'placeTrack' | 'removeTrack' }>;
@@ -124,11 +132,13 @@ function placementWarning(
   c: Extract<TrackCommand, { type: 'placeTrack' }>,
 ): TrackWarning | null {
   const t = world.track;
-  const tail = t.tail[c.rideId];
-  if (tail < 0 || !(PIECES[c.pieceType].flags & PieceFlag.Inverted)) return null;
-  const cols = t.pieces.cols;
-  const previous = t.pieces.idToSlot[tail];
-  return cols.mode[previous] === PieceMode.ChainLift ? TrackWarning.LiftIntoInversion : null;
+  if (!(PIECES[c.pieceType].flags & PieceFlag.Inverted)) return null;
+  const attach = attachPoint(world, { ...c, dir: c.dir as Direction, mode: c.mode as PieceMode });
+  if (typeof attach === 'number' || attach.after < 0) return null;
+  const previous = t.pieces.idToSlot[attach.after];
+  return t.pieces.cols.mode[previous] === PieceMode.ChainLift
+    ? TrackWarning.LiftIntoInversion
+    : null;
 }
 
 function applyPlace(world: World, c: Extract<TrackCommand, { type: 'placeTrack' }>): TrackResult {
@@ -155,18 +165,34 @@ function applyPlace(world: World, c: Extract<TrackCommand, { type: 'placeTrack' 
   return TrackResult.Ok;
 }
 
+/**
+ * Track can only change under a ride that is closed with its trains home and empty: not while it
+ * is open or testing, while a train is out, or while riders are aboard.
+ */
+function rideInUse(world: World, rideId: number): boolean {
+  if (!isTrackRide(world, rideId)) return false;
+  return isBusy(world, world.rides.idToSlot[rideId]) || loadedTrips(world, rideId) > 0;
+}
+
 /** Applies a track command; the outcome is recorded in `world.track.lastResult` and feedback. */
 export function applyTrackCommand(world: World, c: TrackCommand): TrackResult {
   let result: TrackResult;
   let code: number;
-  if (c.type === 'placeTrack') {
+  if (rideInUse(world, c.rideId)) {
+    world.track.lastResult = TrackResult.RideBusy;
+    world.track.lastPiece = -1;
+    result = code = TrackResult.RideBusy;
+  } else if (c.type === 'placeTrack') {
     const warning = placementWarning(world, c);
     result = applyPlace(world, c);
     code = result === TrackResult.Ok && warning !== null ? warning : result;
   } else {
     result = removeTrack(world, c.rideId, c.pieceId);
-    if (result === TrackResult.Ok) invalidateRideTest(world, c.rideId);
-    code = result;
+    if (result === TrackResult.Ok) {
+      invalidateRideTest(world, c.rideId);
+      detachStrandedGates(world, world.rides.idToSlot[c.rideId]);
+    }
+    code = result === TrackResult.Ok ? TrackNotice.Removed : result;
   }
   reportFeedback(world.feedback, FeedbackDomain.Track, code, c.rideId, world.track.lastBlockerName);
   return result;

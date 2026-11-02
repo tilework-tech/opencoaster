@@ -7,7 +7,7 @@ import { deserialize, serialize } from '../../save/save';
 import { PieceId, pieceByName } from '../track/catalog';
 import { circuitStatus } from '../track/construction';
 import { GuestState } from '../guests/guest-store';
-import { PieceMode, TrackResult } from '../track/track-types';
+import { PieceMode, TrackNotice, TrackResult } from '../track/track-types';
 import { VehicleState } from '../vehicles/vehicle-store';
 import { StaffKind, spawnStaff } from '../staff/staff-store';
 import { rideTrainSlots } from '../vehicles/ride-trains';
@@ -280,16 +280,20 @@ describe('opening a coaster', () => {
     expect(dispatched).toBeGreaterThan(0);
   });
 
-  it('invalidates the test and closes the ride when the track is edited', () => {
+  it('invalidates the test and removes the trains when the track of a closed ride is edited', () => {
     const { sim, rideId } = testedCoaster();
     connectStation(sim, rideId);
     sim.enqueue({ type: 'setRideStatus', rideId, status: 'open' });
     sim.step();
+    sim.enqueue({ type: 'setRideStatus', rideId, status: 'close' });
+    run(sim, 3000);
     sim.enqueue({ type: 'removeTrack', rideId, pieceId: -1 });
     sim.step();
     const slot = sim.world.rides.idToSlot[rideId];
+    expect(sim.world.feedback.code).toBe(TrackNotice.Removed);
     expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
     expect(isRideTested(sim.world, rideId)).toBe(false);
+    expect(sim.world.vehicles.count).toBe(0);
   });
 
   it('round-trips a running coaster through save and load without diverging', () => {
@@ -325,7 +329,7 @@ describe('coaster failure handling', () => {
     expect(sim.world.vehicles.cols.state[0]).toBe(VehicleState.Running);
   }
 
-  it('lets riders off and closes the ride when its track is edited mid-ride', () => {
+  it('keeps riders aboard and the ride running when its track is edited mid-ride', () => {
     const { sim, rideId, slot } = openWithRiders();
     runUntilTrainIsOut(sim);
     run(sim, 5);
@@ -339,10 +343,11 @@ describe('coaster failure handling', () => {
     expect(riding()).toBe(12);
     sim.enqueue({ type: 'removeTrack', rideId, pieceId: -1 });
     run(sim, 10);
-    expect(riding()).toBe(0);
-    expect(sim.world.vehicles.count).toBe(0);
-    expect(sim.world.rides.cols.phase[slot]).toBe(RidePhase.Closed);
-    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Closed);
+    expect(sim.world.feedback.code).toBe(TrackResult.RideBusy);
+    expect(riding()).toBe(12);
+    expect(sim.world.vehicles.count).toBe(1);
+    expect(sim.world.rides.cols.phase[slot]).toBe(RidePhase.Running);
+    expect(sim.world.rides.cols.state[slot]).toBe(RideState.Open);
   });
 
   it('keeps a ride that is closed right after dispatch consistent and reopenable', () => {

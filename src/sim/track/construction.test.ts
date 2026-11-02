@@ -281,7 +281,7 @@ describe('construction', () => {
     expect(getConstructionCursor(w, ride)).toMatchObject({ x: 12, y: 10 });
   });
 
-  it('removes from the ends, reopens a closed circuit, and rejects mid-chain removal', () => {
+  it('removes from the ends and reopens a closed circuit', () => {
     buildRing(w, ride);
     expect(removeTrack(w, ride, -1)).toBe(TrackResult.Ok);
     expect(circuitStatus(w, ride)).toMatchObject({ closed: false, pieces: 13 });
@@ -294,7 +294,6 @@ describe('construction', () => {
     app(w, r2, 'flat');
     app(w, r2, 'flat');
     const mid = w.track.pieces.slotToId[w.track.pieces.count - 2];
-    expect(removeTrack(w, r2, mid)).toBe(TrackResult.NotAtEnd);
     expect(removeTrack(w, r2, w.track.head[r2])).toBe(TrackResult.Ok);
     expect(getConstructionCursor(w, r2)).toMatchObject({ x: 33, y: 30 });
     expect(removeTrack(w, r2, mid + 9999)).toBe(TrackResult.NoSuchPiece);

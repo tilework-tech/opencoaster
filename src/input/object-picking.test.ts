@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { findRideIdAtTile, pickTopmostObject, pickTopmostSprite } from './object-picking';
+import {
+  findRideIdAtTile,
+  pickTopmostObject,
+  pickTopmostSprite,
+  pickTrackPiece,
+} from './object-picking';
+import type { ObjectPickTarget } from './object-picking';
 import { RideType } from '../sim/rides/ride-types';
 import { RideInfo, SNAPSHOT_STRIDE, createSnapshot } from '../worker/snapshot';
 
@@ -100,5 +106,49 @@ describe('sprite picking', () => {
     expect(pickTopmostObject([scenery, person], 10.5, 10.5)).toBe(scenery);
     expect(pickTopmostObject([scenery, person], 11.5, 10.5)).toBe(person);
     expect(pickTopmostObject([scenery, person], 12, 10.5)).toBeNull();
+  });
+});
+
+describe('track piece picking', () => {
+  const sprite = (over: Partial<ObjectPickTarget>): ObjectPickTarget => ({
+    id: 'ride:3',
+    kind: 'ride',
+    name: 'Wooden coaster',
+    tileX: 0,
+    tileY: 0,
+    sortDepth: 0,
+    x: 10,
+    y: 10,
+    width: 2,
+    height: 2,
+    alphaWidth: 2,
+    alphaHeight: 2,
+    alpha: Uint8Array.of(255, 255, 255, 255),
+    rideId: 3,
+    ...over,
+  });
+
+  it('returns the rail piece drawn on top, ignoring scenery and guests in front of it', () => {
+    const lower = sprite({ coasterPart: 'track', pieceId: 4, sortDepth: 1 });
+    const upper = sprite({
+      coasterPart: 'track',
+      pieceId: 9,
+      sortDepth: 1,
+      alpha: Uint8Array.of(0, 255, 0, 0),
+    });
+    const tree = sprite({ id: 'scenery:1', kind: 'scenery', rideId: undefined, sortDepth: 5 });
+
+    expect(pickTrackPiece([lower, upper, tree], 11.5, 10.5)).toEqual({ rideId: 3, pieceId: 9 });
+    expect(pickTrackPiece([lower, upper, tree], 10.5, 10.5)).toEqual({ rideId: 3, pieceId: 4 });
+    expect(pickTrackPiece([tree], 10.5, 10.5)).toBeNull();
+  });
+
+  it('does not turn a click on a train or a support into a track piece', () => {
+    const rail = sprite({ coasterPart: 'track', pieceId: 4 });
+    const car = sprite({ coasterPart: 'car', sortDepth: 2 });
+    const support = sprite({ coasterPart: 'support', pieceId: 4, sortDepth: 2 });
+
+    expect(pickTrackPiece([rail, car], 10.5, 10.5)).toEqual({ rideId: 3, part: 'car' });
+    expect(pickTrackPiece([rail, support], 10.5, 10.5)).toEqual({ rideId: 3, part: 'support' });
   });
 });

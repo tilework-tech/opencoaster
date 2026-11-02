@@ -53,7 +53,6 @@ export const enum TrackResult {
   BadMode = 8,
   TooManyPieces = 9,
   CircuitClosed = 10,
-  NotAtEnd = 11,
   StoreFull = 12,
   NotOwned = 13,
   InsufficientFunds = 14,
@@ -65,6 +64,8 @@ export const enum TrackResult {
   TunnelEntry = 18,
   /** The piece would rise above the scenario's construction height cap. */
   HeightLimit = 19,
+  /** The ride is open, testing, or still has a train out or riders aboard. */
+  RideBusy = 20,
 }
 
 /**
@@ -74,6 +75,12 @@ export const enum TrackResult {
 export const enum TrackWarning {
   /** An inversion placed straight after a chain lift: the train can roll back if the lift is slow. */
   LiftIntoInversion = 100,
+}
+
+/** Successful track edits that are reported with their own wording, in the same code range. */
+export const enum TrackNotice {
+  /** A piece was demolished. */
+  Removed = 101,
 }
 
 /** The horizontal shape of a piece in the vocabulary of the build controls. */

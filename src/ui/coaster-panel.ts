@@ -4,7 +4,6 @@ import { MAX_TRACK_LEVEL } from '../sim/track/track-store';
 import { FeedbackDomain } from '../sim/core/feedback';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import type { RideTypeDef } from '../sim/rides/ride-types';
-import type { RideState } from '../sim/rides/ride-store';
 import { RidePhase } from '../sim/rides/ride-store';
 import { Bank, PieceMode, Slope } from '../sim/track/track-types';
 import { TrackResult } from '../sim/track/track-types';
@@ -27,6 +26,18 @@ import {
   resolvePiece,
 } from './track-tool';
 import type { PieceChoice, Placement, TurnKind } from './track-tool';
+import { PIECES } from '../sim/track/catalog';
+import { pieceExit } from '../sim/track/construction';
+import { RideState } from '../sim/rides/ride-store';
+import {
+  buildPointAt,
+  neighbourPiece,
+  openEnds,
+  resolveBuild,
+  sectionPosition,
+  snapshotPiece,
+} from './track-selection';
+import type { BuildEnd, BuildPoint, SnapshotPiece } from './track-selection';
 
 export interface CoasterPanelActions {
   command(command: Command): void;
@@ -49,6 +60,29 @@ export interface TrackGhost {
 }
 
 type BuildMode = 'track' | 'entrance' | 'exit';
+
+/** The piece picked in the construction window; `signature` catches a reused id. */
+interface Selection {
+  rideId: number;
+  pieceId: number;
+  signature: string;
+}
+
+function signatureOf(piece: SnapshotPiece): string {
+  return `${piece.pieceType}:${piece.x}:${piece.y}:${piece.z}:${piece.dir}`;
+}
+
+/** Short player-facing name of a placed piece: its shape, slope and drive mode. */
+export function pieceLabel(piece: SnapshotPiece): string {
+  const def = PIECES[piece.pieceType];
+  const shape = TURN_LABELS.find(([turn]) => turn === def?.shape)?.[1] ?? def?.name ?? 'Track';
+  const slope =
+    def && (def.entrySlope !== Slope.Flat || def.exitSlope !== Slope.Flat)
+      ? SLOPE_LABELS.find(([value]) => value === (def.exitSlope || def.entrySlope))?.[1]
+      : undefined;
+  const mode = piece.mode !== PieceMode.Normal ? MODE_LABELS[piece.mode as PieceMode] : undefined;
+  return [shape, slope, mode].filter(Boolean).join(' · ');
+}
 
 /** The parts of the map data the panel reads. */
 export interface PanelMap {
@@ -140,6 +174,12 @@ export class CoasterPanel {
   private readonly costLine: HTMLElement;
   private readonly rideInfo: HTMLElement;
   private readonly feedbackLine: HTMLElement;
+  private readonly selectionLine: HTMLElement;
+  private readonly previousButton: HTMLButtonElement;
+  private readonly nextButton: HTMLButtonElement;
+  private readonly trackEndButton: HTMLButtonElement;
+  private readonly buildBeforeButton: HTMLButtonElement;
+  private readonly removeButton: HTMLButtonElement;
 
   private tool: ToolMode = 'select';
   private buildMode: BuildMode = 'track';
@@ -155,6 +195,12 @@ export class CoasterPanel {
   private lastFeedbackSeq = 0;
   private awaitingCreate = false;
   private rideCount = 0;
+  private selection: Selection | null = null;
+  private buildEnd: BuildEnd = 'after';
+  /** A placement sent from the selection: select the new piece once it appears beside `from`. */
+  private pendingFollow: { from: number; end: BuildEnd } | null = null;
+  /** A removal of the selected piece: select a neighbour once it is gone. */
+  private pendingRemoval: { pieceId: number; prev: number; next: number } | null = null;
 
   constructor(
     private readonly windows: WindowManager,
@@ -216,7 +262,19 @@ export class CoasterPanel {
     this.heightLine.className = 'coaster-height';
     this.placeButton = this.button('Build piece', () => this.placeAtCursor());
     this.placeButton.classList.add('primary');
-    const removeButton = this.button('Demolish last piece', () => this.removeLast());
+    this.removeButton = this.button('Demolish last piece', () => this.removeLast());
+    this.selectionLine = el('div', 'coaster-selection-line');
+    this.previousButton = this.button('Previous piece', () => this.step('previous'));
+    this.nextButton = this.button('Next piece', () => this.step('next'));
+    this.trackEndButton = this.button('Track end', () => this.clearSelection());
+    this.trackEndButton.title = 'Build and demolish at the end of the track again';
+    this.buildBeforeButton = this.button('Build before this piece', () => {
+      this.buildEnd = this.buildEnd === 'before' ? 'after' : 'before';
+    });
+    const selectionRow = el('div', 'coaster-row');
+    selectionRow.append(this.previousButton, this.nextButton, this.trackEndButton);
+    const selection = el('div', 'coaster-selection');
+    selection.append(this.selectionLine, selectionRow, this.buildBeforeButton);
     this.costLine = document.createElement('div');
     this.costLine.className = 'coaster-cost';
 
@@ -246,8 +304,9 @@ export class CoasterPanel {
     this.trackControls.className = 'coaster-section';
     const buildRow = document.createElement('div');
     buildRow.className = 'coaster-row';
-    buildRow.append(this.placeButton, removeButton);
+    buildRow.append(this.placeButton, this.removeButton);
     this.trackControls.append(
+      selection,
       turns,
       this.specialSelect,
       slopes,
@@ -310,7 +369,142 @@ export class CoasterPanel {
 
   /** Makes a track ride the one the construction controls act on. */
   setActiveRide(rideId: number): void {
+    if (rideId !== this.activeRideId) this.clearSelection();
     this.activeRideId = rideId;
+  }
+
+  /**
+   * Selects a placed piece to edit from. Selecting never changes the track: it only picks where
+   * Build piece and Demolish act. Returns the status line.
+   */
+  selectPiece(rideId: number, pieceId: number): string {
+    const snapshot = this.actions.snapshot();
+    if (snapshot) this.refreshRides(snapshot);
+    const piece = snapshot ? snapshotPiece(snapshot, pieceId) : null;
+    if (!snapshot || !piece || piece.rideId !== rideId) return 'That track piece no longer exists.';
+    if (!this.rides.some((ride) => ride.id === rideId))
+      return 'Only ride track can be edited here.';
+    this.activeRideId = rideId;
+    this.rideSelect.value = String(rideId);
+    this.buildMode = 'track';
+    this.focusPiece(piece);
+    const position = sectionPosition(snapshot, pieceId);
+    return `Selected ${pieceLabel(piece)}, piece ${position.index + 1} of ${position.count}.`;
+  }
+
+  /** True while the construction controls build track (not an entrance or exit). */
+  buildsTrack(): boolean {
+    return this.buildMode === 'track';
+  }
+
+  /** The selected piece, for highlighting, while the construction window is open. */
+  selectedPiece(): { rideId: number; pieceId: number } | null {
+    return this.window && this.tool === 'track' && this.selection
+      ? { rideId: this.selection.rideId, pieceId: this.selection.pieceId }
+      : null;
+  }
+
+  /** Goes back to building and demolishing at the end of the track. */
+  clearSelection(): void {
+    this.selection = null;
+    this.buildEnd = 'after';
+    this.pendingFollow = null;
+    this.pendingRemoval = null;
+  }
+
+  private focusPiece(piece: SnapshotPiece): void {
+    this.selection = { rideId: piece.rideId, pieceId: piece.id, signature: signatureOf(piece) };
+    this.pendingFollow = null;
+    this.pendingRemoval = null;
+    if (!openEnds(piece).includes(this.buildEnd)) this.buildEnd = 'after';
+  }
+
+  private selected(): SnapshotPiece | null {
+    const snapshot = this.actions.snapshot();
+    if (!this.selection || !snapshot) return null;
+    const piece = snapshotPiece(snapshot, this.selection.pieceId);
+    return piece && piece.rideId === this.selection.rideId ? piece : null;
+  }
+
+  /** Moves the selection one piece along the track; with nothing selected, picks the last piece. */
+  private step(direction: 'previous' | 'next'): void {
+    const snapshot = this.actions.snapshot();
+    const ride = this.activeRide();
+    if (!snapshot || !ride) return;
+    const current = this.selected();
+    const id = current
+      ? neighbourPiece(snapshot, current.id, direction)
+      : direction === 'previous'
+        ? this.lastPieceId(ride)
+        : -1;
+    const piece = id >= 0 ? snapshotPiece(snapshot, id) : null;
+    if (piece) this.actions.status(this.selectPiece(ride.id, piece.id));
+  }
+
+  /** The piece whose exit is the construction cursor: the end of the section being built. */
+  private lastPieceId(ride: RideSummary): number {
+    const snapshot = this.actions.snapshot();
+    const info = this.infoAt(ride);
+    if (!snapshot || !decodeCursor(info[RideInfo.Cursor]).hasTrack) return -1;
+    for (let row = 0; row < snapshot.tracks.count; row++) {
+      const piece = snapshotPiece(snapshot, snapshot.trackLinks[row * 3]);
+      if (!piece || piece.rideId !== ride.id) continue;
+      const exit = pieceExit(piece.pieceType, piece.x, piece.y, piece.z, piece.dir);
+      if (
+        exit.x === info[RideInfo.CursorX] &&
+        exit.y === info[RideInfo.CursorY] &&
+        exit.z === info[RideInfo.CursorZ]
+      )
+        return piece.id;
+    }
+    return -1;
+  }
+
+  /** Where the selection builds: its chosen open end, or null when that end is already joined. */
+  private selectionBuildPoint(): BuildPoint | null {
+    const piece = this.selected();
+    if (!piece || !openEnds(piece).includes(this.buildEnd)) return null;
+    return buildPointAt(piece, this.buildEnd);
+  }
+
+  /** Follows a placement or removal made from the selection, and drops a stale selection. */
+  private reconcileSelection(snapshot: Snapshot): void {
+    const selection = this.selection;
+    if (!selection) return;
+    const piece = snapshotPiece(snapshot, selection.pieceId);
+    const alive =
+      piece && piece.rideId === selection.rideId && signatureOf(piece) === selection.signature;
+    const removal = this.pendingRemoval;
+    if (removal && !alive) {
+      const neighbour = [removal.prev, removal.next]
+        .map((id) => (id >= 0 ? snapshotPiece(snapshot, id) : null))
+        .find((p) => p && p.rideId === selection.rideId);
+      if (neighbour) this.focusPiece(neighbour);
+      else this.clearSelection();
+      return;
+    }
+    const follow = this.pendingFollow;
+    if (follow && piece && alive) {
+      const id = follow.end === 'after' ? piece.next : piece.prev;
+      const added = id >= 0 ? snapshotPiece(snapshot, id) : null;
+      if (added) {
+        const ride = this.activeRide();
+        if (ride && this.infoAt(ride)[RideInfo.Flags] & RideFlag.CircuitClosed) {
+          this.clearSelection();
+          return;
+        }
+        const end = follow.end;
+        this.focusPiece(added);
+        if (openEnds(added).includes(end)) this.buildEnd = end;
+        return;
+      }
+    }
+    if (!alive) {
+      this.clearSelection();
+      this.feedbackLine.textContent =
+        'The selected piece is gone; building from the end of the track.';
+      this.feedbackLine.dataset.ok = 'false';
+    }
   }
 
   setHover(tile: [number, number] | null): void {
@@ -362,9 +556,13 @@ export class CoasterPanel {
     if (ride && this.buildMode === 'track') this.place(ride);
   }
 
+  /** Demolishes the selected piece, or the last piece of the track when nothing is selected. */
   removeLast(): void {
     const ride = this.activeRide();
-    if (ride) this.actions.command({ type: 'removeTrack', rideId: ride.id, pieceId: -1 });
+    if (!ride) return;
+    const piece = this.selected();
+    if (piece) this.pendingRemoval = { pieceId: piece.id, prev: piece.prev, next: piece.next };
+    this.actions.command({ type: 'removeTrack', rideId: ride.id, pieceId: piece ? piece.id : -1 });
   }
 
   /** The piece the controls resolve to for the active ride, with its target placement. */
@@ -374,13 +572,22 @@ export class CoasterPanel {
     const map = this.actions.map();
     if (!ride || !snap || !map || this.tool !== 'track' || this.buildMode !== 'track') return null;
     const info = this.infoAt(ride);
-    if (info[RideInfo.Flags] & RideFlag.CircuitClosed) return null;
-    const cursor = decodeCursor(info[RideInfo.Cursor]);
-    const piece = resolvePiece(cursor, this.choice, ride.type);
-    if (!piece) return null;
     let placement: Placement;
     let level: number;
-    if (cursor.hasTrack) {
+    let piece: TrackPieceDef | undefined;
+    const cursor = decodeCursor(info[RideInfo.Cursor]);
+    if (this.selection) {
+      const point = this.selectionBuildPoint();
+      const build = point && resolveBuild(point, this.choice, ride.type);
+      if (!build) return null;
+      piece = build.piece;
+      placement = { x: build.placement.x, y: build.placement.y, dir: build.placement.dir };
+      level = build.placement.z / TRACK_STEPS_PER_LEVEL;
+    } else if (info[RideInfo.Flags] & RideFlag.CircuitClosed) {
+      return null;
+    } else if (!(piece = resolvePiece(cursor, this.choice, ride.type))) {
+      return null;
+    } else if (cursor.hasTrack) {
       placement = { x: info[RideInfo.CursorX], y: info[RideInfo.CursorY], dir: cursor.dir };
       level = info[RideInfo.CursorZ] / TRACK_STEPS_PER_LEVEL;
     } else if (this.hover) {
@@ -392,7 +599,7 @@ export class CoasterPanel {
     const status = previewStatus(
       map,
       snap.buildable,
-      piece,
+      piece!,
       placement,
       snap.park.cash,
       level,
@@ -400,7 +607,7 @@ export class CoasterPanel {
       ride.type,
       snap.scenario.restrictions.maxConstructionHeight,
     );
-    return { rideType: ride.type, piece, placement, level, status };
+    return { rideType: ride.type, piece: piece!, placement, level, status };
   }
 
   update(): void {
@@ -408,6 +615,7 @@ export class CoasterPanel {
     if (!snapshot) return;
     this.refreshRides(snapshot);
     this.consumeFeedback(snapshot);
+    this.reconcileSelection(snapshot);
     if (!this.window) return;
     const ride = this.activeRide();
     this.refreshControls(ride, snapshot);
@@ -429,6 +637,7 @@ export class CoasterPanel {
   }
 
   private place(ride: RideSummary): string {
+    if (this.selection) return this.placeAtSelection(ride);
     const map = this.actions.map();
     const info = this.infoAt(ride);
     const cursor = decodeCursor(info[RideInfo.Cursor]);
@@ -462,6 +671,24 @@ export class CoasterPanel {
     }
     this.actions.command(command);
     return `Placing ${piece.name} (${dollars(piece.cost)})…`;
+  }
+
+  private placeAtSelection(ride: RideSummary): string {
+    const piece = this.selected();
+    const point = this.selectionBuildPoint();
+    if (!piece || !point)
+      return 'The selected piece is joined on both sides. Demolish it, or pick an open end with Previous piece or Next piece.';
+    const build = resolveBuild(point, this.choice, ride.type);
+    if (!build) return 'No track piece matches those controls.';
+    this.pendingFollow = { from: piece.id, end: point.end };
+    this.actions.command({
+      type: 'placeTrack',
+      rideId: ride.id,
+      pieceType: build.piece.id,
+      ...build.placement,
+      mode: this.mode,
+    });
+    return `Placing ${build.piece.name} (${dollars(build.piece.cost)})…`;
   }
 
   private setStatus(status: 'open' | 'close' | 'test'): void {
@@ -524,7 +751,11 @@ export class CoasterPanel {
     this.feedbackLine.textContent = line.text;
     this.feedbackLine.dataset.ok = String(line.ok);
     this.actions.status(line.text);
-    if (!line.ok) this.awaitingCreate = false;
+    if (!line.ok) {
+      this.awaitingCreate = false;
+      this.pendingFollow = null;
+      this.pendingRemoval = null;
+    }
   }
 
   private refreshControls(ride: RideSummary | undefined, snapshot: Snapshot): void {
@@ -539,6 +770,7 @@ export class CoasterPanel {
       button.setAttribute('aria-pressed', String(bank === this.choice.bank));
     this.specialSelect.value = MAIN_TURNS.includes(this.choice.turn) ? '' : this.choice.turn;
     this.directionButton.textContent = `Start direction: ${['+x', '+y', '-x', '-y'][this.startDir]}`;
+    this.refreshSelectionControls(ride, snapshot);
     if (!ride) {
       this.costLine.textContent = '';
       this.placeButton.disabled = true;
@@ -576,11 +808,17 @@ export class CoasterPanel {
     }
     this.startHeightLabel.textContent =
       this.startRaise === 0 ? 'Start on the ground' : `Start ${this.startRaise} above ground`;
-    this.heightLine.textContent = cursor.hasTrack
-      ? `Track end at height ${info[RideInfo.CursorZ] / TRACK_STEPS_PER_LEVEL}`
-      : '';
-    const piece = resolvePiece(cursor, this.choice, ride.type);
-    this.placeButton.disabled = !piece || closed;
+    const point = this.selection ? this.selectionBuildPoint() : null;
+    const build = point ? resolveBuild(point, this.choice, ride.type) : undefined;
+    this.heightLine.textContent = point
+      ? `Building ${point.end} the selected piece at height ${point.z / TRACK_STEPS_PER_LEVEL}`
+      : this.selection
+        ? ''
+        : cursor.hasTrack
+          ? `Track end at height ${info[RideInfo.CursorZ] / TRACK_STEPS_PER_LEVEL}`
+          : '';
+    const piece = this.selection ? build?.piece : resolvePiece(cursor, this.choice, ride.type);
+    this.placeButton.disabled = !piece || (closed && !this.selection);
     const modes = piece ? allowedModes(piece, ride.type) : [PieceMode.Normal];
     const current = this.modeSelect.dataset.options;
     if (current !== modes.join(',')) {
@@ -591,17 +829,50 @@ export class CoasterPanel {
     }
     if (!modes.includes(this.mode)) this.mode = PieceMode.Normal;
     this.modeSelect.value = String(this.mode);
-    this.costLine.textContent = closed
-      ? !hasEntrance
-        ? 'Circuit complete. Place an entrance next to the station.'
-        : !hasExit
-          ? 'Place an exit next to the station.'
-          : !tested
-            ? 'Test the ride before opening it.'
-            : 'Circuit complete. Remove a piece to change the layout.'
-      : piece
-        ? `${circuitLabel(flags)}. ${piece.name}: ${dollars(piece.cost)} of ${dollars(snapshot.park.cash)} cash`
-        : 'No piece fits those controls here.';
+    const busy =
+      info[RideInfo.State] === RideState.Open ||
+      info[RideInfo.State] === RideState.Testing ||
+      info[RideInfo.Phase] === RidePhase.Loading ||
+      info[RideInfo.Phase] === RidePhase.Running ||
+      info[RideInfo.Phase] === RidePhase.Unloading;
+    const selected = this.selected();
+    this.costLine.textContent = busy
+      ? 'Close the ride and wait for its train to return before changing the track.'
+      : selected && !point
+        ? openEnds(selected).length === 0
+          ? 'This piece is joined on both sides: demolish it to rebuild this section.'
+          : 'Press Build before this piece to extend the track backward from here.'
+        : closed && !this.selection
+          ? !hasEntrance
+            ? 'Circuit complete. Place an entrance next to the station.'
+            : !hasExit
+              ? 'Place an exit next to the station.'
+              : !tested
+                ? 'Test the ride before opening it.'
+                : 'Circuit complete. Remove a piece to change the layout.'
+          : piece
+            ? `${circuitLabel(flags)}. ${piece.name}: ${dollars(piece.cost)} of ${dollars(snapshot.park.cash)} cash`
+            : 'No piece fits those controls here.';
+  }
+
+  private refreshSelectionControls(ride: RideSummary | undefined, snapshot: Snapshot): void {
+    const piece = this.selected();
+    const hasTrack =
+      ride !== undefined && decodeCursor(this.infoAt(ride)[RideInfo.Cursor]).hasTrack;
+    if (piece) {
+      const position = sectionPosition(snapshot, piece.id);
+      this.selectionLine.textContent = `Selected piece ${position.index + 1} of ${position.count} · ${pieceLabel(piece)}`;
+    } else {
+      this.selectionLine.textContent = hasTrack
+        ? 'Building from the end of the track. Click a piece of track to edit from it.'
+        : 'Building from the end of the track.';
+    }
+    this.previousButton.disabled = piece ? piece.prev < 0 : !hasTrack;
+    this.nextButton.disabled = !piece || piece.next < 0;
+    this.trackEndButton.disabled = !piece;
+    this.buildBeforeButton.hidden = !piece || !openEnds(piece).includes('before');
+    this.buildBeforeButton.setAttribute('aria-pressed', String(this.buildEnd === 'before'));
+    this.removeButton.textContent = piece ? 'Demolish selected piece' : 'Demolish last piece';
   }
 
   private describeRide(ride: RideSummary): string {
