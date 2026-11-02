@@ -54,6 +54,8 @@ export interface CoasterPanelActions {
   map(): PanelMap | null;
   /** Shows a line in the tool status area. */
   status(text: string): void;
+  /** Brings a newly selected piece into view when windows or the screen edge hide it. */
+  reveal?(pieceId: number): void;
 }
 
 /** What the track tool would place right now, for the hover preview. */
@@ -310,7 +312,7 @@ export class CoasterPanel {
     this.trackControls = document.createElement('div');
     this.trackControls.className = 'coaster-section';
     const buildRow = document.createElement('div');
-    buildRow.className = 'coaster-row';
+    buildRow.className = 'coaster-row coaster-build-row';
     buildRow.append(this.placeButton, this.removeButton);
     this.trackControls.append(
       selection,
@@ -431,6 +433,7 @@ export class CoasterPanel {
     this.pendingFollow = null;
     this.pendingRemoval = null;
     if (!openEnds(piece).includes(this.buildEnd)) this.buildEnd = 'after';
+    this.actions.reveal?.(piece.id);
   }
 
   private selected(): SnapshotPiece | null {
