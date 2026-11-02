@@ -7,6 +7,7 @@ import { Hud } from '../../ui/hud';
 import { GameUI } from '../../ui/game-ui';
 import type { GuestSelection, ToolMode } from '../../ui/game-ui';
 import { WindowManager } from '../../ui/window-manager';
+import { COMPACT_QUERY } from '../../ui/window-layout';
 import { DEFAULT_ZOOM, stepZoom } from '../../ui/zoom';
 import '../../ui/ui.css';
 import { TitleScreen } from '../../ui/title-screen';
@@ -18,6 +19,7 @@ import { DEFAULT_MAP_SIZE, TRACK_STEPS_PER_LEVEL } from '../../sim/core/constant
 import { SceneryItem } from '../../sim/map/scenery';
 import { CoasterPanel } from '../../ui/coaster-panel';
 import { rideGhostSprites, TrackPreviewOverlay } from '../../ui/track-preview';
+import { SelectionReveal } from '../tools/selection-reveal';
 import { TrackSelectionOutline } from '../tools/track-selection-outline';
 import { displayOptionEnabled } from '../../ui/display-options';
 import { TerrainAidOverlay } from '../terrain-aids';
@@ -108,12 +110,14 @@ export async function bootstrap(): Promise<void> {
   const landHolder: { controller?: LandController } = {};
   const areaHolder: { clear?: AreaController; water?: AreaController } = {};
   const windows = new WindowManager(root);
+  const selectionReveal = new SelectionReveal();
   const coasterPanel = new CoasterPanel(windows, {
     command: (command) => sim.command(command),
     selectTool: (tool) => gameUi.selectTool(tool),
     snapshot: () => sim.latest,
     map: () => sim.map,
     status: (text) => gameUi.setToolStatus(text),
+    reveal: (pieceId) => selectionReveal.request(pieceId),
   });
   const trackPreview = new TrackPreviewOverlay(root);
   const trackSelectionOutline = new TrackSelectionOutline(root);
@@ -210,6 +214,8 @@ export async function bootstrap(): Promise<void> {
       rideSetupState.current.chooseRideType(type);
     },
     editTrack(rideId, pieceId) {
+      // On a phone the construction window replaces the ride window rather than stacking on it.
+      if (window.matchMedia(COMPACT_QUERY).matches) windows.close(`ride-${rideId}`);
       coasterPanel.setActiveRide(rideId);
       gameUi.selectTool('track');
       if (pieceId !== undefined) gameUi.setToolStatus(coasterPanel.selectPiece(rideId, pieceId));
@@ -539,6 +545,14 @@ export async function bootstrap(): Promise<void> {
       }
     }
     syncPause();
+    selectionReveal.update(
+      coasterPanel.selectedPiece(),
+      renderer,
+      latest,
+      sim.map,
+      camera,
+      canvas.getBoundingClientRect(),
+    );
     const viewKey = `${camera.x}:${camera.y}:${camera.zoom}:${camera.rotation}`;
     if (viewKey !== hoverViewKey || sim.map !== hoverMap) {
       hoverViewKey = viewKey;

@@ -5,6 +5,7 @@ import { openPage, toolbarAction } from './support/park';
 import { UNFINISHED_PIECES, trackEditPark } from './support/track-edit-park';
 
 type Backend = 'WebGL2' | 'Canvas2D';
+type Device = 'desktop' | 'Pixel 8' | 'Pixel 8 landscape';
 
 interface Piece {
   id: number;
@@ -51,32 +52,32 @@ async function loadPark(page: Page, testInfo: TestInfo): Promise<void> {
 
 /** The ride's pieces, in track order from the first piece of its first section (or its station). */
 async function ridePieces(page: Page, rideId: number): Promise<Piece[]> {
-  // A snapshot handed back to the worker for reuse has detached buffers; wait for a live one.
-  await page.waitForFunction(() => {
-    const snapshot = (
-      window as unknown as { __snapshot?: { tracks: { data: Int32Array }; trackLinks: Int32Array } }
-    ).__snapshot;
-    return !!snapshot && snapshot.tracks.data.length > 0 && snapshot.trackLinks.length > 0;
-  });
-  const rows = await page.evaluate((rideId) => {
-    const snapshot = (
-      window as unknown as {
-        __snapshot: { tracks: { count: number; data: Int32Array }; trackLinks: Int32Array };
+  // A snapshot handed back to the worker for reuse has detached buffers; read a live one.
+  const read = () =>
+    page.evaluate((rideId) => {
+      const snapshot = (
+        window as unknown as {
+          __snapshot?: { tracks: { count: number; data: Int32Array }; trackLinks: Int32Array };
+        }
+      ).__snapshot;
+      if (!snapshot || snapshot.tracks.data.length === 0 || snapshot.trackLinks.length === 0)
+        return null;
+      const out: Array<{ id: number; prev: number; next: number; type: number }> = [];
+      for (let i = 0; i < snapshot.tracks.count; i++) {
+        const word = snapshot.tracks.data[i * 4 + 3];
+        if (word >>> 16 !== rideId) continue;
+        out.push({
+          id: snapshot.trackLinks[i * 3],
+          prev: snapshot.trackLinks[i * 3 + 1],
+          next: snapshot.trackLinks[i * 3 + 2],
+          type: word & 0xff,
+        });
       }
-    ).__snapshot;
-    const out: Array<{ id: number; prev: number; next: number; type: number }> = [];
-    for (let i = 0; i < snapshot.tracks.count; i++) {
-      const word = snapshot.tracks.data[i * 4 + 3];
-      if (word >>> 16 !== rideId) continue;
-      out.push({
-        id: snapshot.trackLinks[i * 3],
-        prev: snapshot.trackLinks[i * 3 + 1],
-        next: snapshot.trackLinks[i * 3 + 2],
-        type: word & 0xff,
-      });
-    }
-    return out;
-  }, rideId);
+      return out;
+    }, rideId);
+  let rows = await read();
+  await expect.poll(async () => (rows = await read()) !== null).toBe(true);
+  if (!rows) throw new Error('No live snapshot');
   const byId = new Map(rows.map((row) => [row.id, row]));
   const first = rows.find((row) => row.prev < 0) ?? rows.find((row) => row.type === 0) ?? rows[0];
   const ordered: Piece[] = [];
@@ -162,8 +163,89 @@ async function expectHighlightAt(page: Page, point: { x: number; y: number }): P
   expect(point.y).toBeLessThanOrEqual(box.y + box.height + 2);
 }
 
-async function shot(page: Page, testInfo: TestInfo, name: string, point: { x: number; y: number }) {
+/**
+ * Expects the piece to be on screen with its rails uncovered by any window, sheet or bar, and the
+ * selection outline drawn over it.
+ */
+async function expectPieceUncovered(page: Page, pieceId: number): Promise<void> {
+  const check = () =>
+    page.locator('#game').evaluate(async (canvas, pieceId) => {
+      const [{ buildObjectPickTargets }, { spritePages }] = await Promise.all([
+        import('/src/input/object-picking.ts'),
+        import('/src/render/sprite-pages.ts'),
+      ]);
+      const state = window as unknown as {
+        __camera: Parameters<typeof buildObjectPickTargets>[2];
+        __map: Parameters<typeof buildObjectPickTargets>[1];
+        __snapshot: Parameters<typeof buildObjectPickTargets>[0];
+      };
+      const rect = canvas.getBoundingClientRect();
+      const targets = buildObjectPickTargets(
+        state.__snapshot,
+        state.__map,
+        state.__camera,
+        { width: rect.width, height: rect.height },
+        spritePages,
+      ).filter((t) => t.coasterPart === 'track' && t.pieceId === pieceId);
+      if (!targets.length) return 'not on screen';
+      let rails = 0;
+      let uncovered = 0;
+      for (const target of targets) {
+        for (let i = 0; i < target.alpha.length; i += 2) {
+          if (target.alpha[i] === 0) continue;
+          rails++;
+          const x =
+            rect.left +
+            target.x +
+            (((i % target.alphaWidth) + 0.5) / target.alphaWidth) * target.width;
+          const y =
+            rect.top +
+            target.y +
+            ((Math.floor(i / target.alphaWidth) + 0.5) / target.alphaHeight) * target.height;
+          if (document.elementFromPoint(x, y) === canvas) uncovered++;
+        }
+      }
+      if (rails === 0 || uncovered / rails < 0.99)
+        return `${rails - uncovered} of ${rails} rail pixels covered`;
+      const outline = document.querySelector<HTMLElement>('.track-selection-outline');
+      if (!outline || outline.hidden) return 'no outline';
+      const box = outline.getBoundingClientRect();
+      const left = rect.left + Math.min(...targets.map((t) => t.x));
+      const top = rect.top + Math.min(...targets.map((t) => t.y));
+      const right = rect.left + Math.max(...targets.map((t) => t.x + t.width));
+      const bottom = rect.top + Math.max(...targets.map((t) => t.y + t.height));
+      const near = (a: number, b: number) => Math.abs(a - b) <= 8;
+      if (
+        !near(box.left, left) ||
+        !near(box.top, top) ||
+        !near(box.right, right) ||
+        !near(box.bottom, bottom)
+      )
+        return 'outline elsewhere';
+      return 'ok';
+    }, pieceId);
+  await expect.poll(check, { timeout: 20_000 }).toBe('ok');
+}
+
+/** The selection, Build and Demolish controls are on screen without scrolling the window. */
+async function expectEditControlsInView(page: Page): Promise<void> {
+  const panel = construction(page);
+  for (const name of [/^Previous piece$/, /^Next piece$/, /^Demolish/, /^Build piece$/])
+    await expect(panel.getByRole('button', { name })).toBeInViewport({ ratio: 1 });
+}
+
+async function cameraPosition(page: Page): Promise<{ x: number; y: number }> {
+  return page.evaluate(() => {
+    const { x, y } = (window as unknown as { __camera: { x: number; y: number } }).__camera;
+    return { x, y };
+  });
+}
+
+async function shot(page: Page, testInfo: TestInfo, name: string, at: { x: number; y: number }) {
   const viewport = page.viewportSize()!;
+  const outline = page.locator('.track-selection-outline');
+  const box = (await outline.isVisible()) ? await outline.boundingBox() : null;
+  const point = box ? { x: box.x + box.width / 2, y: box.y + box.height / 2 } : at;
   const width = Math.min(560, viewport.width);
   const height = Math.min(380, viewport.height);
   const left = Math.max(0, Math.min(viewport.width - width, point.x - width / 2));
@@ -180,7 +262,8 @@ async function fastForward(page: Page): Promise<void> {
   for (let i = 0; i < 3; i++) await page.keyboard.press('+');
 }
 
-async function editClosedCircuit(page: Page, mobile: boolean, testInfo: TestInfo): Promise<void> {
+async function editClosedCircuit(page: Page, device: Device, testInfo: TestInfo): Promise<void> {
+  const mobile = device !== 'desktop';
   await toolbarAction(page, 'Pause');
   const circuit = await ridePieces(page, 0);
   expect(circuit).toHaveLength(14);
@@ -190,14 +273,40 @@ async function editClosedCircuit(page: Page, mobile: boolean, testInfo: TestInfo
   await tapOrClick(page, mobile, point);
   const rideWindow = page.locator('[data-panel^="ride-"]:visible');
   await expect(rideWindow).toHaveCount(1);
+  const before = await cameraPosition(page);
   await page.getByRole('button', { name: 'Edit from this piece' }).click();
   await expect(selectionLine(page)).toContainText('Selected piece 7 of 14');
   await expect(rideInfo(page)).toContainText('Track 14 pieces');
-  await expectHighlightAt(page, point);
+  // The desktop camera stays put; a phone frames the piece above its construction sheet.
+  await expectPieceUncovered(page, middle.id);
+  if (!mobile) {
+    await expectHighlightAt(page, point);
+    expect(await cameraPosition(page)).toEqual(before);
+  }
+  if (mobile) await expectEditControlsInView(page);
   await shot(page, testInfo, 'circuit-selected', point);
 
   await page.getByRole('button', { name: 'Next piece' }).click();
   await expect(selectionLine(page)).toContainText('Selected piece 8 of 14');
+  await expectPieceUncovered(page, circuit[7].id);
+  await page.getByRole('button', { name: 'Previous piece' }).click();
+  await expect(selectionLine(page)).toContainText('Selected piece 7 of 14');
+  await expectPieceUncovered(page, middle.id);
+
+  // The camera follows the selection, not the clock: a pan away holds until the next selection.
+  const panned = await page.evaluate(() => {
+    const camera = (window as unknown as { __camera: { x: number; y: number } }).__camera;
+    camera.x += 300;
+    camera.y += 200;
+    return { x: camera.x, y: camera.y };
+  });
+  await toolbarAction(page, 'Resume');
+  await page.waitForTimeout(1_500);
+  await toolbarAction(page, 'Pause');
+  expect(await cameraPosition(page)).toEqual(panned);
+  await page.getByRole('button', { name: 'Next piece' }).click();
+  await expect(selectionLine(page)).toContainText('Selected piece 8 of 14');
+  await expectPieceUncovered(page, circuit[7].id);
   await page.getByRole('button', { name: 'Previous piece' }).click();
   await expect(selectionLine(page)).toContainText('Selected piece 7 of 14');
 
@@ -207,6 +316,8 @@ async function editClosedCircuit(page: Page, mobile: boolean, testInfo: TestInfo
   expect(after).not.toContain(middle.id);
   for (const piece of circuit) if (piece !== middle) expect(after).toContain(piece.id);
   await expect(selectionLine(page)).toContainText('of 13');
+  await expectPieceUncovered(page, circuit[5].id);
+  if (mobile) await expectEditControlsInView(page);
   await shot(page, testInfo, 'circuit-gap', point);
 
   await page.getByRole('button', { name: 'Right small' }).click();
@@ -216,10 +327,11 @@ async function editClosedCircuit(page: Page, mobile: boolean, testInfo: TestInfo
   await expect(rideInfo(page)).toContainText('Track 14 pieces');
   await expect(rideInfo(page)).toContainText('Circuit complete');
   await expect(selectionLine(page)).toContainText('Building from the end of the track');
-  await shot(page, testInfo, 'circuit-rebuilt', point);
   // With nothing selected, Previous picks the last piece built: here the one that closed the gap.
   await page.getByRole('button', { name: 'Previous piece' }).click();
   await expect(selectionLine(page)).toContainText('Selected piece 7 of 14');
+  await expectPieceUncovered(page, (await ridePieces(page, 0))[6].id);
+  await shot(page, testInfo, 'circuit-rebuilt', point);
   await page.getByRole('button', { name: 'Track end' }).click();
   await expect(selectionLine(page)).toContainText('Building from the end of the track');
 
@@ -241,7 +353,8 @@ async function editClosedCircuit(page: Page, mobile: boolean, testInfo: TestInfo
   await expect(rideInfo(page)).toContainText('Track 14 pieces');
 }
 
-async function editUnfinished(page: Page, mobile: boolean, testInfo: TestInfo): Promise<void> {
+async function editUnfinished(page: Page, device: Device, testInfo: TestInfo): Promise<void> {
+  const mobile = device !== 'desktop';
   await toolbarAction(page, 'Pause');
   const unfinished = await ridePieces(page, 1);
   const overpass = await ridePieces(page, 2);
@@ -251,7 +364,8 @@ async function editUnfinished(page: Page, mobile: boolean, testInfo: TestInfo): 
   await tapOrClick(page, mobile, upper);
   await page.getByRole('button', { name: 'Edit from this piece' }).click();
   await expect(selectionLine(page)).toContainText('Selected piece 4 of 6');
-  await expectHighlightAt(page, upper);
+  if (!mobile) await expectHighlightAt(page, upper);
+  await expectPieceUncovered(page, overpass[3].id);
 
   const lower = await pointOnPiece(page, unfinished[3].id);
   await tapOrClick(page, mobile, lower);
@@ -298,23 +412,33 @@ async function editUnfinished(page: Page, mobile: boolean, testInfo: TestInfo): 
   expect(last.map((piece) => piece.id)).not.toContain(unfinished[6].id);
 }
 
+const FLOWS = [
+  ['rebuilds a removed piece of a closed circuit, retests and reopens it', editClosedCircuit],
+  ['edits unfinished and stacked track from the clicked piece', editUnfinished],
+] as const;
+
 for (const backend of ['WebGL2', 'Canvas2D'] as const satisfies readonly Backend[]) {
-  for (const mobile of [false, true]) {
-    const where = `${backend} on ${mobile ? 'Pixel 8' : 'desktop'}`;
-    test.describe(`editing track from a chosen piece in ${where}`, () => {
-      for (const [name, run] of [
-        ['rebuilds a removed piece of a closed circuit, retests and reopens it', editClosedCircuit],
-        ['edits unfinished and stacked track from the clicked piece', editUnfinished],
-      ] as const) {
+  for (const device of [
+    'desktop',
+    'Pixel 8',
+    'Pixel 8 landscape',
+  ] as const satisfies readonly Device[]) {
+    test.describe(`editing track from a chosen piece in ${backend} on ${device}`, () => {
+      // The short landscape phone covers the circuit flow: select, step, rebuild, retest, reopen.
+      for (const [name, run] of device === 'Pixel 8 landscape'
+        ? FLOWS.filter(([, run]) => run === editClosedCircuit)
+        : FLOWS) {
         test(name, async ({ browser }, testInfo) => {
           test.setTimeout(480_000);
-          const page = await openPage(browser, mobile);
+          const page = await openPage(browser, device !== 'desktop');
           try {
-            if (!mobile) await page.setViewportSize({ width: 1280, height: 800 });
+            if (device === 'desktop') await page.setViewportSize({ width: 1280, height: 800 });
+            if (device === 'Pixel 8 landscape')
+              await page.setViewportSize({ width: 915, height: 412 });
             if (backend === 'Canvas2D') await forceCanvas2D(page);
             await loadPark(page, testInfo);
             await expect(page.locator('.hud')).toContainText(backend);
-            await run(page, mobile, testInfo);
+            await run(page, device, testInfo);
           } finally {
             await page.context().close();
           }

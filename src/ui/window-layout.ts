@@ -2,6 +2,8 @@
 
 export const MOBILE_MAX_WIDTH = 699;
 export const MOBILE_QUERY = `(max-width: ${MOBILE_MAX_WIDTH}px)`;
+/** Phones in either orientation: narrow screens, and short touch screens (landscape phones). */
+export const COMPACT_QUERY = `${MOBILE_QUERY}, (max-height: 500px) and (pointer: coarse)`;
 
 /** Space reserved above (toolbar) and below (status bar) the windows on desktop. */
 export const TOP_INSET = 40;

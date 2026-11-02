@@ -2055,3 +2055,26 @@
     animation: none;
   }
 }
+
+/* Ride construction on phones: keep the selected piece's map visible above or beside the window,
+   and put the selection, Build and Demolish controls first. */
+@media (max-width: 699px), (max-height: 500px) and (pointer: coarse) {
+  .coaster-section > .coaster-selection {
+    order: -2;
+  }
+  .coaster-section > .coaster-cost,
+  .coaster-section > .coaster-build-row {
+    order: -1;
+  }
+}
+@media (max-width: 699px) {
+  .ui-window[data-panel='construction'] {
+    max-height: 44dvh;
+  }
+}
+@media (max-height: 500px) and (pointer: coarse) {
+  .coaster-panel button,
+  .coaster-panel select {
+    min-height: 40px;
+  }
+}
