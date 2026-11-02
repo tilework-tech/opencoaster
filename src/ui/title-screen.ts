@@ -11,6 +11,8 @@ import { formatMoney } from './format';
 import { slotRow } from './slot-list';
 
 export const SOURCE_REPOSITORY_URL = 'https://github.com/tilework-tech/opencoaster';
+export const NORI_URL = 'https://noriagentic.com/';
+export const BUILD_STORY_URL = 'https://12gramsofcarbon.com/p/agentics-its-never-been-easier-to';
 
 const SCENARIO_CATEGORIES: ReadonlyArray<{ id: ScenarioCategory; label: string }> = [
   { id: 'beginner', label: 'Beginner Parks' },
@@ -340,15 +342,34 @@ export function scenarioRulesText(def: ScenarioDef): string {
   return lines.length === 0 ? 'Park rules: no restrictions.' : `Park rules: ${lines.join(' ')}`;
 }
 
-function sourceFooter(): HTMLElement {
-  const link = element('a', 'title-source-link', 'Source on GitHub');
-  link.href = SOURCE_REPOSITORY_URL;
+function newTabLink(text: string, href: string, className: string): HTMLAnchorElement {
+  const link = element('a', `title-footer-link ${className}`, text);
+  link.href = href;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.append(element('span', 'title-source-hint', ' (opens in a new tab)'));
+  link.append(element('span', 'title-footer-hint', ' (opens in a new tab)'));
+  return link;
+}
+
+function sourceFooter(): HTMLElement {
+  const promo = element('p', 'title-footer-row');
+  promo.append(
+    newTabLink(
+      'Built with Nori. Use it to build your own coaster game.',
+      NORI_URL,
+      'title-nori-link',
+    ),
+  );
+  const story = element('p', 'title-footer-row');
+  story.append(newTabLink('Why and how we built OpenCoaster', BUILD_STORY_URL, 'title-story-link'));
   const separator = element('span', undefined, ' · ');
   separator.setAttribute('aria-hidden', 'true');
-  const footer = element('p', 'title-footer', 'Open source, MIT licensed');
-  footer.append(separator, link);
+  const license = element('p', 'title-footer-row', 'Open source, MIT licensed');
+  license.append(
+    separator,
+    newTabLink('Source on GitHub', SOURCE_REPOSITORY_URL, 'title-source-link'),
+  );
+  const footer = element('div', 'title-footer');
+  footer.append(promo, story, license);
   return footer;
 }
