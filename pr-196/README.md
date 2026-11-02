@@ -14,3 +14,10 @@
 Reproduce:
 - Serve the app on port 4173 (`pnpm dev --port 4173`).
 - From the repo root, run `PROOF_URL=http://127.0.0.1:4173 PROOF_OUT=out npx playwright test --config=<path>/scripts/playwright.proof.config.ts`. The script imports `e2e/support`, so copy `scripts/` to `.local/proof/` in a checkout first.
+
+`live/`: https://opencoaster.noriagentic.com after #196 deployed (merge 152523b0, Pages run 41459867533), captured with `scripts/live.proof.ts`.
+
+- The production build has no dev hooks. The script finds a circuit rail low on screen on a local dev server, then replays that tap on the live site at the same camera (portrait zooms out once on both, so the coaster is on screen).
+- **Portrait:** the tap lands at y=401, which the construction sheet now covers. After Edit from this piece (piece 7 of 14) the ride window is closed and the camera puts the outline at y=216, above the sheet (top at y=370).
+- **Landscape:** the outline sits clear of the floating construction window.
+- Both orientations: Previous, Next and Build are fully on screen.
