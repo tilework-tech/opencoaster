@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { PIECES, PieceId } from '../sim/track/catalog';
-import { Bank, PieceMode, Slope, TrackResult } from '../sim/track/track-types';
+import {
+  Bank,
+  PieceMode,
+  Slope,
+  TrackNotice,
+  TrackResult,
+  TrackWarning,
+} from '../sim/track/track-types';
 import { RIDE_CATALOG, RideType } from '../sim/rides/ride-types';
 import {
   TURN_LABELS,
   allowedModes,
   classifyPiece,
+  editRefused,
   feedbackMessage,
   footprintTiles,
   MODE_LABELS,
@@ -299,5 +307,15 @@ describe('previewStatus under a scenario height cap', () => {
     expect(at(16, 6)).toBe(TrackResult.Ok);
     expect(at(17, 6)).toBe(TrackResult.HeightLimit);
     expect(at(17)).toBe(TrackResult.Ok);
+  });
+});
+
+describe('track edit refusals', () => {
+  it('treats a placement that came with a warning as built, and refusals as not built', () => {
+    expect(editRefused(FeedbackDomain.Track, TrackWarning.LiftIntoInversion)).toBe(false);
+    expect(editRefused(FeedbackDomain.Track, TrackNotice.Removed)).toBe(false);
+    expect(editRefused(FeedbackDomain.Track, TrackResult.Ok)).toBe(false);
+    expect(editRefused(FeedbackDomain.Track, TrackResult.RideBusy)).toBe(true);
+    expect(editRefused(FeedbackDomain.Track, TrackResult.Blocked)).toBe(true);
   });
 });

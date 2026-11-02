@@ -322,6 +322,17 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.RideTypeForbidden]: RESTRICTION_REFUSALS.rideType,
 };
 
+/** Whether a command outcome means the edit did not happen (warnings and notices did happen). */
+export function editRefused(domain: FeedbackDomain, code: number): boolean {
+  if (domain === FeedbackDomain.Track)
+    return (
+      code !== TrackResult.Ok &&
+      code !== TrackWarning.LiftIntoInversion &&
+      code !== TrackNotice.Removed
+    );
+  return !feedbackMessage(domain, code).ok;
+}
+
 /** Player-facing text for a command outcome from the simulation. */
 export function feedbackMessage(domain: FeedbackDomain, code: number, detail = ''): FeedbackLine {
   const ok = code === 0 || code === RideResult.TestPassed;

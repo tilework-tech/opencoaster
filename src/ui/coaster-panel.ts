@@ -8,7 +8,13 @@ import { RidePhase } from '../sim/rides/ride-store';
 import { Bank, PieceMode, Slope } from '../sim/track/track-types';
 import { TrackResult } from '../sim/track/track-types';
 import type { TrackPieceDef } from '../sim/track/track-types';
-import { RideFlag, RideInfo, RIDE_INFO_STRIDE, decodeCursor } from '../worker/snapshot';
+import {
+  RideFlag,
+  RideInfo,
+  RIDE_INFO_STRIDE,
+  TRACK_LINK_STRIDE,
+  decodeCursor,
+} from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import type { ToolMode } from './ui-types';
 import { element as el } from './dom';
@@ -21,6 +27,7 @@ import {
   SLOPE_LABELS,
   TURN_LABELS,
   allowedModes,
+  editRefused,
   feedbackMessage,
   previewStatus,
   resolvePiece,
@@ -392,9 +399,16 @@ export class CoasterPanel {
     return `Selected ${pieceLabel(piece)}, piece ${position.index + 1} of ${position.count}.`;
   }
 
-  /** True while the construction controls build track (not an entrance or exit). */
-  buildsTrack(): boolean {
-    return this.buildMode === 'track';
+  /**
+   * Whether a click on placed track should select a piece: while building track (not an entrance
+   * or exit), except for a coaster with no track yet, whose first piece may go beside other rides.
+   */
+  picksPieces(): boolean {
+    const ride = this.activeRide();
+    return (
+      this.buildMode === 'track' &&
+      (!ride || decodeCursor(this.infoAt(ride)[RideInfo.Cursor]).hasTrack)
+    );
   }
 
   /** The selected piece, for highlighting, while the construction window is open. */
@@ -447,13 +461,14 @@ export class CoasterPanel {
     const info = this.infoAt(ride);
     if (!snapshot || !decodeCursor(info[RideInfo.Cursor]).hasTrack) return -1;
     for (let row = 0; row < snapshot.tracks.count; row++) {
-      const piece = snapshotPiece(snapshot, snapshot.trackLinks[row * 3]);
-      if (!piece || piece.rideId !== ride.id) continue;
+      const piece = snapshotPiece(snapshot, snapshot.trackLinks[row * TRACK_LINK_STRIDE]);
+      if (!piece || piece.rideId !== ride.id || piece.next >= 0) continue;
       const exit = pieceExit(piece.pieceType, piece.x, piece.y, piece.z, piece.dir);
       if (
         exit.x === info[RideInfo.CursorX] &&
         exit.y === info[RideInfo.CursorY] &&
-        exit.z === info[RideInfo.CursorZ]
+        exit.z === info[RideInfo.CursorZ] &&
+        exit.dir === decodeCursor(info[RideInfo.Cursor]).dir
       )
         return piece.id;
     }
@@ -751,8 +766,8 @@ export class CoasterPanel {
     this.feedbackLine.textContent = line.text;
     this.feedbackLine.dataset.ok = String(line.ok);
     this.actions.status(line.text);
-    if (!line.ok) {
-      this.awaitingCreate = false;
+    if (!line.ok) this.awaitingCreate = false;
+    if (editRefused(feedback.domain, feedback.code)) {
       this.pendingFollow = null;
       this.pendingRemoval = null;
     }

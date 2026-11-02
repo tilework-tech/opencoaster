@@ -678,7 +678,7 @@ export function createToolController(deps: ToolControllerDependencies) {
     rect: DOMRect,
   ): void {
     const snapshot = deps.sim.latest;
-    if (snapshot && deps.coasterPanel.buildsTrack() && !deps.trackGhostAt(localX, localY)) {
+    if (snapshot && deps.coasterPanel.picksPieces() && !deps.trackGhostAt(localX, localY)) {
       const targets = deps.renderer.objectTargets(snapshot, deps.camera, {
         width: rect.width,
         height: rect.height,

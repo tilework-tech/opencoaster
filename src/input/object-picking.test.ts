@@ -133,12 +133,18 @@ describe('track piece picking', () => {
     const upper = sprite({
       coasterPart: 'track',
       pieceId: 9,
-      sortDepth: 1,
+      sortDepth: 2,
       alpha: Uint8Array.of(0, 255, 0, 0),
     });
     const tree = sprite({ id: 'scenery:1', kind: 'scenery', rideId: undefined, sortDepth: 5 });
 
-    expect(pickTrackPiece([lower, upper, tree], 11.5, 10.5)).toEqual({ rideId: 3, pieceId: 9 });
+    expect(
+      pickTrackPiece(
+        [upper, lower, tree].sort((a, b) => a.sortDepth - b.sortDepth),
+        11.5,
+        10.5,
+      ),
+    ).toEqual({ rideId: 3, pieceId: 9 });
     expect(pickTrackPiece([lower, upper, tree], 10.5, 10.5)).toEqual({ rideId: 3, pieceId: 4 });
     expect(pickTrackPiece([tree], 10.5, 10.5)).toBeNull();
   });

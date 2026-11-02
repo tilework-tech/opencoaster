@@ -12,6 +12,8 @@ export class TrackSelectionOutline {
   private readonly canvas: HTMLCanvasElement;
   private key = '';
   private origin = { x: 0, y: 0 };
+  /** Whether the selected piece had any rail sprite in view when the outline was last drawn. */
+  private visible = false;
 
   constructor(parent: HTMLElement) {
     this.canvas = document.createElement('canvas');
@@ -53,12 +55,13 @@ export class TrackSelectionOutline {
       const targets = renderer
         .objectTargets(snapshot, camera, viewport)
         .filter((target) => target.coasterPart === 'track' && target.pieceId === piece.id);
-      if (targets.length === 0) {
-        this.canvas.hidden = true;
-        return;
-      }
-      this.origin = drawSpriteOutline(this.canvas, targets);
       this.key = key;
+      this.visible = targets.length > 0;
+      if (this.visible) this.origin = drawSpriteOutline(this.canvas, targets);
+    }
+    if (!this.visible) {
+      this.canvas.hidden = true;
+      return;
     }
     this.canvas.style.left = `${rect.left + this.origin.x}px`;
     this.canvas.style.top = `${rect.top + this.origin.y}px`;

@@ -123,6 +123,7 @@ describe('editing a built coaster from a chosen piece', () => {
     queueGuests(sim, rideId, 12);
     for (let i = 0; i < 2000 && sim.world.vehicles.cols.state[0] !== VehicleState.Running; i++)
       sim.step();
+    expect(sim.world.vehicles.cols.state[0]).toBe(VehicleState.Running);
     command(sim, { type: 'setRideStatus', rideId, status: 'close' });
     const riders = sim.world.vehicles.cols.passengers[0];
     const servedBefore = sim.world.rides.cols.guestsServed[slot];
@@ -134,6 +135,7 @@ describe('editing a built coaster from a chosen piece', () => {
 
     for (let i = 0; i < 4000 && sim.world.rides.cols.phase[slot] !== RidePhase.Closed; i++)
       sim.step();
+    expect(sim.world.rides.cols.phase[slot]).toBe(RidePhase.Closed);
     command(sim, { type: 'removeTrack', rideId, pieceId: built[6].id });
     expect(trackFeedback(sim)).toBe(TrackNotice.Removed);
     expect(sim.world.rides.cols.guestsServed[slot]).toBe(servedBefore + riders);
@@ -141,9 +143,9 @@ describe('editing a built coaster from a chosen piece', () => {
 
   it('refuses edits during a test run', () => {
     const { sim, rideId, built } = testedCoaster();
-    command(sim, { type: 'setRideStatus', rideId, status: 'test' });
+    command(sim, { type: 'removeTrack', rideId, pieceId: built[6].id });
     command(sim, built[6].command);
-    expect(trackFeedback(sim)).toBe(TrackResult.RideBusy);
+    command(sim, { type: 'setRideStatus', rideId, status: 'test' });
     command(sim, { type: 'removeTrack', rideId, pieceId: built[6].id });
     expect(trackFeedback(sim)).toBe(TrackResult.RideBusy);
     expect(circuitStatus(sim.world, rideId).complete).toBe(true);

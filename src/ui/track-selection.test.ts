@@ -116,6 +116,18 @@ describe('construction from a selected piece', () => {
     expect(openEnds(snapshotPiece(s, order[3])!)).toEqual([]);
   });
 
+  it('numbers the pieces of a ring without a station from a fixed piece', () => {
+    const { w, ride } = world();
+    chain(w, ride, ['flat', 'smallRight', 'smallRight', 'flat', 'smallRight', 'smallRight']);
+    const order = ids(w);
+    const s = snap(w);
+    const positions = order.map((id) => sectionPosition(s, id).index);
+    expect(new Set(positions).size).toBe(order.length);
+    expect(sectionPosition(s, order[2]).index).toBe(
+      (sectionPosition(s, order[1]).index + 1) % order.length,
+    );
+  });
+
   it('offers the open ends of the pieces either side of a gap', () => {
     const { w, ride } = world();
     chain(w, ride, ['station', 'flat', 'flat', 'flat', 'flat']);

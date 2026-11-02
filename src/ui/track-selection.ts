@@ -43,12 +43,20 @@ export interface BuildChoice {
   placement: { x: number; y: number; z: number; dir: number };
 }
 
+/** Track row of each piece id, rebuilt once per published snapshot revision. */
+const rowIndex = new WeakMap<Snapshot, { revision: number; rows: Map<number, number> }>();
+
 function rowOf(snapshot: Snapshot, pieceId: number): number {
   if (pieceId < 0) return -1;
-  const links = snapshot.trackLinks;
-  for (let row = 0; row < snapshot.tracks.count; row++)
-    if (links[row * TRACK_LINK_STRIDE] === pieceId) return row;
-  return -1;
+  let index = rowIndex.get(snapshot);
+  if (!index || index.revision !== snapshot.revision) {
+    const rows = new Map<number, number>();
+    for (let row = 0; row < snapshot.tracks.count; row++)
+      rows.set(snapshot.trackLinks[row * TRACK_LINK_STRIDE], row);
+    index = { revision: snapshot.revision, rows };
+    rowIndex.set(snapshot, index);
+  }
+  return index.rows.get(pieceId) ?? -1;
 }
 
 /** The piece with this stable id in the snapshot, or null when it no longer exists. */
@@ -98,10 +106,11 @@ export function sectionPosition(
     const loop = [pieceId, ...ahead];
     const isStation = (id: number): boolean =>
       PIECES[snapshotPiece(snapshot, id)!.pieceType]?.shape === 'station';
-    const start = loop.findIndex(
+    let start = loop.findIndex(
       (id, k) => isStation(id) && !isStation(loop[(k + loop.length - 1) % loop.length]),
     );
-    return { index: (loop.length - Math.max(0, start)) % loop.length, count: loop.length, ring };
+    if (start < 0) start = loop.indexOf(Math.min(...loop));
+    return { index: (loop.length - start) % loop.length, count: loop.length, ring };
   }
   let index = 0;
   for (let id = neighbourPiece(snapshot, pieceId, 'previous'); id >= 0; index++)

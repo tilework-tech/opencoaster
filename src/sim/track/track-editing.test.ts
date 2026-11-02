@@ -52,6 +52,11 @@ function append(w: World, ride: number, name: string): Built {
   });
 }
 
+/** Removes a piece, expecting the removal to succeed. */
+function remove(w: World, ride: number, id: number): void {
+  expect(removeTrack(w, ride, id)).toBe(TrackResult.Ok);
+}
+
 function chain(w: World, ride: number, names: readonly string[]): Built[] {
   return names.map((name) => append(w, ride, name));
 }
@@ -113,9 +118,9 @@ describe('editing track from a chosen piece', () => {
 
   it('accepts a different shape in a gap but closes the circuit only where it meets the far side', () => {
     const built = chain(w, ride, RING);
-    removeTrack(w, ride, built[9].id);
-    removeTrack(w, ride, built[4].id);
-    removeTrack(w, ride, built[5].id);
+    remove(w, ride, built[9].id);
+    remove(w, ride, built[4].id);
+    remove(w, ride, built[5].id);
     const rise = place(w, { ...built[4].req, pieceType: pieceByName('flatToUp25')!.id });
     const level = place(w, {
       ...built[5].req,
@@ -125,8 +130,8 @@ describe('editing track from a chosen piece', () => {
     place(w, built[9].req);
     expect(circuitStatus(w, ride)).toMatchObject({ closed: false, pieces: 14 });
 
-    removeTrack(w, ride, level.id);
-    removeTrack(w, ride, rise.id);
+    remove(w, ride, level.id);
+    remove(w, ride, rise.id);
     place(w, built[4].req);
     expect(circuitStatus(w, ride).closed).toBe(false);
     place(w, built[5].req);
@@ -136,8 +141,8 @@ describe('editing track from a chosen piece', () => {
   it('joins separate sections when the gaps between them are filled in any order', () => {
     const built = chain(w, ride, ['station', 'flat', 'flat', 'flat', 'flat', 'flat', 'flat']);
     const end = getConstructionCursor(w, ride);
-    removeTrack(w, ride, built[2].id);
-    removeTrack(w, ride, built[5].id);
+    remove(w, ride, built[2].id);
+    remove(w, ride, built[5].id);
     expect(circuitStatus(w, ride).pieces).toBe(5);
 
     place(w, built[2].req);
@@ -151,8 +156,8 @@ describe('editing track from a chosen piece', () => {
 
   it('builds backward onto the start of the section after a gap', () => {
     const built = chain(w, ride, ['station', 'flat', 'flat', 'flat', 'flat', 'flat']);
-    removeTrack(w, ride, built[2].id);
-    removeTrack(w, ride, built[3].id);
+    remove(w, ride, built[2].id);
+    remove(w, ride, built[3].id);
 
     place(w, built[3].req);
     expect(circuitStatus(w, ride).pieces).toBe(5);
@@ -164,7 +169,7 @@ describe('editing track from a chosen piece', () => {
 
   it('only accepts new pieces that meet an open end', () => {
     const built = chain(w, ride, ['station', 'flat', 'flat', 'flat']);
-    removeTrack(w, ride, built[1].id);
+    remove(w, ride, built[1].id);
     expect(validatePlacement(w, { ...built[1].req, y: 30 })).toBe(TrackResult.NotConnected);
     expect(validatePlacement(w, { ...built[1].req, dir: 1 })).toBe(TrackResult.NotConnected);
     expect(validatePlacement(w, built[1].req)).toBe(TrackResult.Ok);
@@ -172,7 +177,7 @@ describe('editing track from a chosen piece', () => {
 
   it('keeps demolishing backward from the gap with the default end removal', () => {
     const built = chain(w, ride, ['station', 'flat', 'flat', 'flat', 'flat']);
-    removeTrack(w, ride, built[3].id);
+    remove(w, ride, built[3].id);
     expect(removeTrack(w, ride, -1)).toBe(TrackResult.Ok);
     expect(w.track.pieces.isAlive(built[2].id)).toBe(false);
     expect(w.track.pieces.isAlive(built[4].id)).toBe(true);
@@ -181,7 +186,7 @@ describe('editing track from a chosen piece', () => {
 
   it('removes the first and the last piece of a section', () => {
     const built = chain(w, ride, ['station', 'flat', 'flat', 'flat', 'flat']);
-    removeTrack(w, ride, built[2].id);
+    remove(w, ride, built[2].id);
     expect(removeTrack(w, ride, built[3].id)).toBe(TrackResult.Ok);
     expect(removeTrack(w, ride, built[4].id)).toBe(TrackResult.Ok);
     expect(removeTrack(w, ride, built[0].id)).toBe(TrackResult.Ok);
@@ -193,7 +198,7 @@ describe('editing track from a chosen piece', () => {
 
   it('refuses a piece that was already removed', () => {
     const built = chain(w, ride, ['station', 'flat', 'flat']);
-    removeTrack(w, ride, built[1].id);
+    remove(w, ride, built[1].id);
     expect(removeTrack(w, ride, built[1].id)).toBe(TrackResult.NoSuchPiece);
     expect(circuitStatus(w, ride).pieces).toBe(2);
   });
@@ -215,8 +220,8 @@ describe('editing track from a chosen piece', () => {
 
   it('saves and restores a track split into sections', () => {
     const built = chain(w, ride, RING);
-    removeTrack(w, ride, built[3].id);
-    removeTrack(w, ride, built[9].id);
+    remove(w, ride, built[3].id);
+    remove(w, ride, built[9].id);
     const copy = deserialize(serialize(w));
     expect(hashWorld(copy)).toBe(hashWorld(w));
     expect(placeTrack(copy, built[3].req)).toBe(TrackResult.Ok);
