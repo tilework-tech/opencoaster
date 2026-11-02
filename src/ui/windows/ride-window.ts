@@ -127,6 +127,12 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
     button('Place exit', () => ctx.actions.placeRidePart(rideId, 'exit'), 'ui-button'),
   );
   const buildTrack = button('Edit track', () => ctx.actions.editTrack(rideId), 'ui-button');
+  const editFromPiece = button(
+    'Edit from this piece',
+    () => ctx.actions.editTrack(rideId, ctx.clickedTrackPiece(rideId)),
+    'ui-button',
+  );
+  editFromPiece.title = 'Open construction with the track piece you clicked selected';
   const locate = button(
     'Locate',
     () => {
@@ -297,6 +303,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       partButtons,
       turnStall,
       buildTrack,
+      editFromPiece,
       locate,
     );
     p('vehicle').append(
@@ -493,6 +500,7 @@ export function openRideWindow(ctx: UiContext, rideId: number): WindowController
       const missing = blockers.map((blocker) => blocker.label);
       setText(mainFacts.setup.value, missing.length ? missing.join(' · ') : 'Ride setup complete');
       buildTrack.hidden = !def?.usesTrack;
+      editFromPiece.hidden = !def?.usesTrack || ctx.clickedTrackPiece(rideId) === undefined;
       trainsRow.hidden = !def?.usesTrack;
       partButtons.hidden = serviceRide;
       turnStall.hidden = !serviceRide;

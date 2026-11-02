@@ -53,7 +53,8 @@ function rideFootprintAt(world: World, x: number, y: number): boolean {
   return false;
 }
 
-function isBusy(world: World, slot: number): boolean {
+/** Open, testing, or mid-cycle (loading, running or unloading). */
+export function isBusy(world: World, slot: number): boolean {
   const ride = world.rides.cols;
   return (
     ride.state[slot] === RideState.Open ||

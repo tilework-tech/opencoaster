@@ -15,6 +15,7 @@ import {
 } from '../worker/snapshot';
 import { peopleSpriteKey } from '../render/people-art';
 import { CoasterScene } from '../render/coaster-scene';
+import type { CoasterPart } from '../render/coaster-scene';
 import { RideCellScene, isSlicedRide } from '../render/ride-scene';
 import {
   sceneryBox,
@@ -61,6 +62,9 @@ export interface ObjectPickTarget extends SpritePickTarget {
   tileX: number;
   tileY: number;
   rideId?: number;
+  /** Which part of a coaster the sprite shows, and the track piece of a rail or support sprite. */
+  coasterPart?: CoasterPart;
+  pieceId?: number;
   personId?: number;
   sceneryIndex?: number;
   pathIndex?: number;
@@ -104,7 +108,17 @@ export function buildObjectPickTargets(
     tileY: number,
     sortDepth: number,
     meta: Partial<
-      Pick<ObjectPickTarget, 'id' | 'rideId' | 'personId' | 'sceneryIndex' | 'pathIndex' | 'state'>
+      Pick<
+        ObjectPickTarget,
+        | 'id'
+        | 'rideId'
+        | 'coasterPart'
+        | 'pieceId'
+        | 'personId'
+        | 'sceneryIndex'
+        | 'pathIndex'
+        | 'state'
+      >
     > = {},
     boxed?: { width: number; height: number },
   ) => {
@@ -262,6 +276,8 @@ export function buildObjectPickTargets(
       if (!name || x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
       add(item.key, item.x, item.y, item.z, 'ride', name, x, y, item.depth, {
         rideId: item.rideId,
+        coasterPart: item.part,
+        ...(item.pieceId >= 0 ? { pieceId: item.pieceId } : {}),
       });
     }
     const gateX = snapshot.park.entranceX;
@@ -450,6 +466,31 @@ export function pickTopmostObject(
     if (target.alpha[sourceY * target.alphaWidth + sourceX]! > 0) return target;
   }
   return null;
+}
+
+/** What a construction click on a coaster hit: a rail piece, or another part of the ride. */
+export type TrackPick =
+  { rideId: number; pieceId: number } | { rideId: number; part: Exclude<CoasterPart, 'track'> };
+
+/**
+ * The coaster sprite on top at this screen position, looking only at coaster sprites so scenery and
+ * guests in front of the track do not get in the way. Rails name their piece; trains, riders and
+ * supports report the part instead of standing in for a piece.
+ */
+export function pickTrackPiece(
+  targets: readonly ObjectPickTarget[],
+  screenX: number,
+  screenY: number,
+): TrackPick | null {
+  const hit = pickTopmostObject(
+    targets.filter((target) => target.coasterPart !== undefined),
+    screenX,
+    screenY,
+  );
+  if (!hit || hit.rideId === undefined || !hit.coasterPart) return null;
+  if (hit.coasterPart === 'track' && hit.pieceId !== undefined)
+    return { rideId: hit.rideId, pieceId: hit.pieceId };
+  return { rideId: hit.rideId, part: hit.coasterPart === 'track' ? 'support' : hit.coasterPart };
 }
 
 export function findRideIdAtTile(snapshot: Snapshot, tileX: number, tileY: number): number | null {

@@ -132,39 +132,65 @@ export function connectablePieces(cursor: ConstructionCursor): number[] {
   return out;
 }
 
-type Attach = 'first' | 'tail' | 'head';
+/** The open ends a new piece joins: the piece it follows and the piece it leads into (-1 = none). */
+export interface Attach {
+  after: number;
+  before: number;
+}
 
-function attachPoint(world: World, req: PlaceRequest): Attach | TrackResult {
+/** Whether the piece in `slot` ends exactly where `req` begins, in position, heading, slope and bank. */
+function endsAt(world: World, slot: number, req: PlaceRequest): boolean {
+  const c = world.track.pieces.cols;
+  const def = PIECES[c.pieceType[slot]];
+  const next = PIECES[req.pieceType];
+  const exit = pieceExit(def.id, c.x[slot], c.y[slot], c.z[slot], c.dir[slot]);
+  return (
+    exit.x === req.x &&
+    exit.y === req.y &&
+    exit.z === req.z &&
+    exit.dir === req.dir &&
+    def.exitSlope === next.entrySlope &&
+    def.exitBank === next.entryBank
+  );
+}
+
+/** Whether the piece in `slot` begins exactly where `req` ends. */
+function beginsAt(world: World, slot: number, req: PlaceRequest): boolean {
+  const c = world.track.pieces.cols;
+  const def = PIECES[c.pieceType[slot]];
+  const prev = PIECES[req.pieceType];
+  const exit = pieceExit(prev.id, req.x, req.y, req.z, req.dir);
+  return (
+    exit.x === c.x[slot] &&
+    exit.y === c.y[slot] &&
+    exit.z === c.z[slot] &&
+    exit.dir === c.dir[slot] &&
+    prev.exitSlope === def.entrySlope &&
+    prev.exitBank === def.entryBank
+  );
+}
+
+/**
+ * The open ends of the ride's track that a placement meets. A ride's track is one or more
+ * sections; a new piece may continue any section's last piece and lead into any section's first
+ * piece, preferring the end of the section being built.
+ */
+export function attachPoint(world: World, req: PlaceRequest): Attach | TrackResult {
   const t = world.track;
   const r = req.rideId;
-  if (t.tail[r] < 0) return 'first';
-  const def = PIECES[req.pieceType];
-  const cur = getConstructionCursor(world, r);
-  if (
-    cur.x === req.x &&
-    cur.y === req.y &&
-    cur.z === req.z &&
-    cur.dir === req.dir &&
-    cur.slope === def.entrySlope &&
-    cur.bank === def.entryBank
-  ) {
-    return 'tail';
+  if (t.tail[r] < 0) return { after: -1, before: -1 };
+  const p = t.pieces;
+  const c = p.cols;
+  const activeTail = p.idToSlot[t.tail[r]];
+  let after = c.next[activeTail] < 0 && endsAt(world, activeTail, req) ? t.tail[r] : -1;
+  let before = -1;
+  for (let slot = 0; slot < p.count; slot++) {
+    if (c.rideId[slot] !== r) continue;
+    if (after < 0 && c.next[slot] < 0 && endsAt(world, slot, req)) after = p.slotToId[slot];
+    if (before < 0 && c.prev[slot] < 0 && beginsAt(world, slot, req)) before = p.slotToId[slot];
   }
-  const hs = t.pieces.idToSlot[t.head[r]];
-  const hdef = PIECES[t.pieces.cols.pieceType[hs]];
-  const exit = pieceExit(def.id, req.x, req.y, req.z, req.dir);
-  const c = t.pieces.cols;
-  if (
-    exit.x === c.x[hs] &&
-    exit.y === c.y[hs] &&
-    exit.z === c.z[hs] &&
-    exit.dir === c.dir[hs] &&
-    def.exitSlope === hdef.entrySlope &&
-    def.exitBank === hdef.entryBank
-  ) {
-    return 'head';
-  }
-  return TrackResult.NotConnected;
+  if (after < 0 && before < 0) return TrackResult.NotConnected;
+  return { after, before };
 }
 
 /** Checks terrain, height and bounds, then clearance against all placed track. */
@@ -251,10 +277,56 @@ export function validatePlacement(world: World, req: PlaceRequest): TrackResult 
   return checkSpace(world, req);
 }
 
-/** Recomputes a ride's piece count, start arclengths and length, and invalidates its path. */
+/**
+ * Makes the section holding `id` the one the construction cursor builds on: `head` and `tail` become
+ * its first and last piece. In a ring, `id` becomes the tail.
+ */
+function focusSection(world: World, rideId: number, id: number): void {
+  const t = world.track;
+  const p = t.pieces;
+  const c = p.cols;
+  let last = id;
+  for (let next = c.next[p.idToSlot[last]]; next >= 0 && next !== id;) {
+    last = next;
+    next = c.next[p.idToSlot[last]];
+  }
+  if (c.next[p.idToSlot[last]] === id) {
+    t.head[rideId] = c.next[p.idToSlot[id]];
+    t.tail[rideId] = id;
+    return;
+  }
+  let first = id;
+  for (let prev = c.prev[p.idToSlot[first]]; prev >= 0; prev = c.prev[p.idToSlot[first]])
+    first = prev;
+  t.head[rideId] = first;
+  t.tail[rideId] = last;
+}
+
+/** Walks a section from `id`, numbering arclengths from 0. Returns its piece count and length. */
+function measureSection(world: World, id: number): [number, number] {
+  const p = world.track.pieces;
+  const c = p.cols;
+  let s = 0;
+  let n = 0;
+  let at = id;
+  do {
+    const slot = p.idToSlot[at];
+    c.startS[slot] = s;
+    s += PIECES[c.pieceType[slot]].length;
+    n++;
+    at = c.next[slot];
+  } while (at >= 0 && at !== id);
+  return [n, s];
+}
+
+/**
+ * Recomputes a ride's piece count, length, start arclengths (from the first piece of each section)
+ * and whether its track is one closed circuit, and invalidates its path.
+ */
 export function relinkRide(world: World, rideId: number): void {
   const t = world.track;
-  const c = t.pieces.cols;
+  const p = t.pieces;
+  const c = p.cols;
   t.version[rideId]++;
   t.paths[rideId] = null;
   if (t.head[rideId] < 0) {
@@ -263,36 +335,23 @@ export function relinkRide(world: World, rideId: number): void {
     t.length[rideId] = 0;
     return;
   }
-  let id = t.head[rideId];
-  let s = 0;
-  let n = 0;
-  do {
-    const slot = t.pieces.idToSlot[id];
-    c.startS[slot] = s;
-    s += PIECES[c.pieceType[slot]].length;
-    n++;
-    id = c.next[slot];
-  } while (id >= 0 && id !== t.head[rideId]);
-  t.count[rideId] = n;
-  t.length[rideId] = s;
-}
-
-function closesCircuit(world: World, rideId: number): boolean {
-  const t = world.track;
-  const c = t.pieces.cols;
-  const ts = t.pieces.idToSlot[t.tail[rideId]];
-  const hs = t.pieces.idToSlot[t.head[rideId]];
-  const tdef = PIECES[c.pieceType[ts]];
-  const hdef = PIECES[c.pieceType[hs]];
-  const e = pieceExit(tdef.id, c.x[ts], c.y[ts], c.z[ts], c.dir[ts]);
-  return (
-    e.x === c.x[hs] &&
-    e.y === c.y[hs] &&
-    e.z === c.z[hs] &&
-    e.dir === c.dir[hs] &&
-    tdef.exitSlope === hdef.entrySlope &&
-    tdef.exitBank === hdef.entryBank
-  );
+  for (let slot = 0; slot < p.count; slot++) if (c.rideId[slot] === rideId) c.startS[slot] = -1;
+  const [activeCount, activeLength] = measureSection(world, t.head[rideId]);
+  const ring = c.prev[p.idToSlot[t.head[rideId]]] === t.tail[rideId];
+  let count = activeCount;
+  let length = activeLength;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let slot = 0; slot < p.count; slot++) {
+      if (c.rideId[slot] !== rideId || c.startS[slot] >= 0) continue;
+      if (pass === 0 && c.prev[slot] >= 0) continue;
+      const [n, s] = measureSection(world, p.slotToId[slot]);
+      count += n;
+      length += s;
+    }
+  }
+  t.count[rideId] = count;
+  t.length[rideId] = length;
+  t.closed[rideId] = ring && activeCount === count ? 1 : 0;
 }
 
 /** Validates and applies a placement. Returns the result; the new piece id is `lastPiece`. */
@@ -314,36 +373,20 @@ export function placeTrack(world: World, req: PlaceRequest): TrackResult {
   c.z[slot] = req.z;
   c.dir[slot] = req.dir;
   c.mode[slot] = req.mode;
-  c.prev[slot] = -1;
-  c.next[slot] = -1;
-  const r = req.rideId;
-  if (attach === 'first') {
-    t.head[r] = id;
-    t.tail[r] = id;
-  } else if (attach === 'tail') {
-    const ts = t.pieces.idToSlot[t.tail[r]];
-    c.next[ts] = id;
-    c.prev[slot] = t.tail[r];
-    t.tail[r] = id;
-  } else {
-    const hs = t.pieces.idToSlot[t.head[r]];
-    c.prev[hs] = id;
-    c.next[slot] = t.head[r];
-    t.head[r] = id;
-  }
-  if (t.head[r] !== t.tail[r] && closesCircuit(world, r)) {
-    c.next[t.pieces.idToSlot[t.tail[r]]] = t.head[r];
-    c.prev[t.pieces.idToSlot[t.head[r]]] = t.tail[r];
-    t.closed[r] = 1;
-  }
-  relinkRide(world, r);
+  c.prev[slot] = attach.after;
+  c.next[slot] = attach.before;
+  if (attach.after >= 0) c.next[t.pieces.idToSlot[attach.after]] = id;
+  if (attach.before >= 0) c.prev[t.pieces.idToSlot[attach.before]] = id;
+  focusSection(world, req.rideId, id);
+  relinkRide(world, req.rideId);
   t.lastPiece = id;
   return TrackResult.Ok;
 }
 
 /**
- * Removes a piece of the ride. `pieceId` -1 means the last-placed end. Open chains can only lose
- * an end piece; any piece of a closed circuit can go, which reopens it.
+ * Removes a piece of the ride. `pieceId` -1 means the last piece of the section being built. The
+ * rest of the track stays: removing a middle piece splits its section in two (or opens a closed
+ * circuit there), and building continues from the piece before the gap.
  */
 export function removeTrack(world: World, rideId: number, pieceId: number): TrackResult {
   const t = world.track;
@@ -359,61 +402,40 @@ function removeInner(world: World, rideId: number, pieceId: number): TrackResult
   if (t.tail[rideId] < 0) return TrackResult.NoSuchPiece;
   const id = pieceId === -1 ? t.tail[rideId] : pieceId;
   if (!Number.isInteger(id) || id < 0 || !t.pieces.isAlive(id)) return TrackResult.NoSuchPiece;
-  const c = t.pieces.cols;
-  const slot = t.pieces.idToSlot[id];
+  const p = t.pieces;
+  const c = p.cols;
+  const slot = p.idToSlot[id];
   if (c.rideId[slot] !== rideId) return TrackResult.NoSuchPiece;
-  const closed = t.closed[rideId] === 1;
-  const isHead = id === t.head[rideId];
-  const isTail = id === t.tail[rideId];
-  if (!closed && !isHead && !isTail) return TrackResult.NotAtEnd;
 
-  if (t.count[rideId] === 1) {
-    t.pieces.despawnSlot(slot);
-    t.head[rideId] = -1;
-    t.tail[rideId] = -1;
-    relinkRide(world, rideId);
-    return TrackResult.Ok;
-  }
   const prevId = c.prev[slot];
   const nextId = c.next[slot];
-  if (closed) {
-    t.head[rideId] = nextId;
-    t.tail[rideId] = prevId;
-    t.closed[rideId] = 0;
-    c.next[t.pieces.idToSlot[prevId]] = -1;
-    c.prev[t.pieces.idToSlot[nextId]] = -1;
-  } else if (isTail) {
-    t.tail[rideId] = prevId;
-    c.next[t.pieces.idToSlot[prevId]] = -1;
-  } else {
-    t.head[rideId] = nextId;
-    c.prev[t.pieces.idToSlot[nextId]] = -1;
-  }
-  t.pieces.despawnSlot(slot);
+  if (prevId >= 0) c.next[p.idToSlot[prevId]] = -1;
+  if (nextId >= 0) c.prev[p.idToSlot[nextId]] = -1;
+  p.despawnSlot(slot);
+  t.head[rideId] = -1;
+  t.tail[rideId] = -1;
+  const focus = prevId >= 0 ? prevId : nextId >= 0 ? nextId : firstPieceOf(world, rideId);
+  if (focus >= 0) focusSection(world, rideId, focus);
   relinkRide(world, rideId);
   return TrackResult.Ok;
+}
+
+function firstPieceOf(world: World, rideId: number): number {
+  const p = world.track.pieces;
+  for (let slot = 0; slot < p.count; slot++)
+    if (p.cols.rideId[slot] === rideId) return p.slotToId[slot];
+  return -1;
 }
 
 /** Deletes every piece of a ride (called when the ride itself is demolished). */
 export function removeRideTrack(world: World, rideId: number): void {
   const t = world.track;
   if (rideId < 0 || rideId >= MAX_TRACK_RIDES) return;
-  if (t.closed[rideId] === 1) {
-    t.pieces.cols.prev[t.pieces.idToSlot[t.head[rideId]]] = -1;
-    t.closed[rideId] = 0;
-  }
-  while (t.tail[rideId] >= 0) {
-    const slot = t.pieces.idToSlot[t.tail[rideId]];
-    const prev = t.pieces.cols.prev[slot];
-    t.pieces.despawnSlot(slot);
-    if (prev >= 0 && prev !== t.tail[rideId]) {
-      t.pieces.cols.next[t.pieces.idToSlot[prev]] = -1;
-      t.tail[rideId] = prev;
-    } else {
-      t.head[rideId] = -1;
-      t.tail[rideId] = -1;
-    }
-  }
+  const p = t.pieces;
+  for (let slot = p.count - 1; slot >= 0; slot--)
+    if (p.cols.rideId[slot] === rideId) p.despawnSlot(slot);
+  t.head[rideId] = -1;
+  t.tail[rideId] = -1;
   relinkRide(world, rideId);
 }
 
@@ -421,14 +443,12 @@ export function circuitStatus(world: World, rideId: number): CircuitStatus {
   const t = world.track;
   const none = { pieces: 0, closed: false, stations: 0, complete: false, length: 0 };
   if (rideId < 0 || rideId >= MAX_TRACK_RIDES || t.head[rideId] < 0) return none;
-  const c = t.pieces.cols;
+  const p = t.pieces;
   let stations = 0;
-  let id = t.head[rideId];
-  do {
-    const slot = t.pieces.idToSlot[id];
-    if (PIECES[c.pieceType[slot]].flags & PieceFlag.Station) stations++;
-    id = c.next[slot];
-  } while (id >= 0 && id !== t.head[rideId]);
+  for (let slot = 0; slot < p.count; slot++) {
+    if (p.cols.rideId[slot] === rideId && PIECES[p.cols.pieceType[slot]].flags & PieceFlag.Station)
+      stations++;
+  }
   const closed = t.closed[rideId] === 1;
   return {
     pieces: t.count[rideId],

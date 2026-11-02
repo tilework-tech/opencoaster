@@ -1,7 +1,7 @@
 import { TILE_UNITS, TRACK_Z_STEP, Z_STEP } from '../sim/core/constants';
 import { decodeCarPose } from '../worker/car-poses';
 import type { CarPose } from '../worker/car-poses';
-import { RideInfo, RIDE_INFO_STRIDE, SNAPSHOT_STRIDE } from '../worker/snapshot';
+import { RideInfo, RIDE_INFO_STRIDE, SNAPSHOT_STRIDE, TRACK_LINK_STRIDE } from '../worker/snapshot';
 import type { Snapshot } from '../worker/snapshot';
 import {
   carSpriteKey,
@@ -22,10 +22,16 @@ const NO_TRENCHES: ReadonlyMap<number, TrenchTile> = new Map();
 import type { Rotation } from './projection';
 import { rotateDirection, viewDepth } from './projection';
 
+/** What a coaster sprite shows: a piece's rails, a support under it, a car, or a seated rider. */
+export type CoasterPart = 'track' | 'support' | 'car' | 'rider';
+
 /** One sprite to draw: the atlas key with its anchor at world (x, y, z), sorted by `depth`. */
 export interface CoasterDrawItem {
   key: string;
   rideId: number;
+  part: CoasterPart;
+  /** Stable id of the track piece a rail or support sprite belongs to; -1 for cars and riders. */
+  pieceId: number;
   x: number;
   y: number;
   z: number;
@@ -64,6 +70,8 @@ export class CoasterScene {
   private push(
     key: string,
     rideId: number,
+    part: CoasterPart,
+    pieceId: number,
     x: number,
     y: number,
     z: number,
@@ -72,11 +80,13 @@ export class CoasterScene {
   ): void {
     let item = this.items[this.count];
     if (!item) {
-      item = { key, rideId, x, y, z, depth, xray };
+      item = { key, rideId, part, pieceId, x, y, z, depth, xray };
       this.items.push(item);
     } else {
       item.key = key;
       item.rideId = rideId;
+      item.part = part;
+      item.pieceId = pieceId;
       item.x = x;
       item.y = y;
       item.z = z;
@@ -133,6 +143,7 @@ export class CoasterScene {
       const family = this.families.get(rideId);
       const transport = this.transports.get(rideId);
       if (!family && !transport) continue;
+      const pieceId = snapshot.trackLinks[i * TRACK_LINK_STRIDE];
       const pieceType = word & 0xff;
       const dir = (word >> 8) & 3;
       const mode = (word >> 10) & 7;
@@ -152,19 +163,20 @@ export class CoasterScene {
         const x = tileX * TILE_UNITS + TILE_UNITS / 2;
         const y = tileY * TILE_UNITS + TILE_UNITS / 2;
         const depth = tileDepth(x, y, map, rotation);
-        this.push(cells[c].key, rideId, x, y, z, depth + TRACK_OFFSET);
+        this.push(cells[c].key, rideId, 'track', pieceId, x, y, z, depth + TRACK_OFFSET);
         if (
           hidden &&
           hidden.includes(tileY * map.width + tileX) &&
           !trenches.has(tileY * map.width + tileX)
         )
-          this.push(cells[c].key, rideId, x, y, z, depth + TRACK_OFFSET, true);
+          this.push(cells[c].key, rideId, 'track', pieceId, x, y, z, depth + TRACK_OFFSET, true);
         if (family && family !== 'log-flume' && family !== 'river-rapids')
           this.addSupports(
             pieceType,
             c,
             family,
             rideId,
+            pieceId,
             dir,
             rotation,
             map,
@@ -182,6 +194,7 @@ export class CoasterScene {
     cell: number,
     family: CoasterFamily,
     rideId: number,
+    pieceId: number,
     dir: number,
     rotation: Rotation,
     map: MapData,
@@ -201,6 +214,8 @@ export class CoasterScene {
       this.push(
         `${prefix}-column/view-${view}`,
         rideId,
+        'support',
+        pieceId,
         x,
         y,
         (ground + level) * Z_STEP,
@@ -210,6 +225,8 @@ export class CoasterScene {
       this.push(
         `${prefix}-cap${stack.quarters}/view-${view}`,
         rideId,
+        'support',
+        pieceId,
         x,
         y,
         (ground + stack.full) * Z_STEP,
@@ -219,6 +236,8 @@ export class CoasterScene {
       this.push(
         `${prefix}-base/view-${view}`,
         rideId,
+        'support',
+        pieceId,
         x,
         y,
         ground * Z_STEP,
@@ -240,6 +259,8 @@ export class CoasterScene {
           ? carSpriteKey(family, pose.heading, pose.pitch, pose.bank, rotation, pose.passengers)
           : transportCarSpriteKey(transport!, pose.heading, pose.pitch, rotation),
         pose.rideId,
+        'car',
+        -1,
         x,
         y,
         cars.data[o + 2],
@@ -274,6 +295,8 @@ export class CoasterScene {
       this.push(
         `people/rider-seated#${((car + k) & 7) * 4 + facing}`,
         pose.rideId,
+        'rider',
+        -1,
         riderX,
         riderY,
         z + SEAT_HEIGHT,

@@ -49,6 +49,8 @@ import {
 export const SNAPSHOT_STRIDE = 4;
 export const SNAPSHOT_RIDE_CAPACITY = 256;
 export const SNAPSHOT_TRACK_CAPACITY = MAX_TRACK_PIECES;
+/** Ints per track row in `Snapshot.trackLinks`: piece id, previous piece id, next piece id (-1 = none). */
+export const TRACK_LINK_STRIDE = 3;
 
 /** Ints per ride in `Snapshot.rideInfo`; index with `RideInfo`. */
 export const RIDE_INFO_STRIDE = 51;
@@ -255,6 +257,8 @@ export interface Snapshot {
   litter: SnapshotLayer;
   rides: SnapshotLayer;
   tracks: SnapshotLayer;
+  /** `TRACK_LINK_STRIDE` ints per `tracks` row: the piece's stable id and its neighbours' ids. */
+  trackLinks: Int32Array;
   /** Derived occupied intervals for track preview. */
   occupancies: OccupancyVolume[];
   /** `RIDE_INFO_STRIDE` ints per ride, in the same order as `rides`. */
@@ -370,6 +374,7 @@ export function createSnapshot(caps: SnapshotCapacities): Snapshot {
     litter: layer(caps.litter),
     rides: layer(caps.rides ?? SNAPSHOT_RIDE_CAPACITY),
     tracks: layer(caps.tracks ?? SNAPSHOT_TRACK_CAPACITY),
+    trackLinks: new Int32Array((caps.tracks ?? SNAPSHOT_TRACK_CAPACITY) * TRACK_LINK_STRIDE),
     occupancies: [],
     rideInfo: new Int32Array((caps.rides ?? SNAPSHOT_RIDE_CAPACITY) * RIDE_INFO_STRIDE),
     guestDetails: new Int32Array(caps.guests * GUEST_DETAIL_STRIDE),
@@ -428,6 +433,7 @@ export function snapshotBuffers(s: Snapshot): ArrayBuffer[] {
     .map((l) => l.data.buffer as ArrayBuffer)
     .concat(
       s.rideInfo.buffer as ArrayBuffer,
+      s.trackLinks.buffer as ArrayBuffer,
       s.buildable.buffer as ArrayBuffer,
       s.grounds.buffer as ArrayBuffer,
       s.patrolAreas.buffer as ArrayBuffer,
@@ -723,6 +729,10 @@ export function writeSnapshot(world: World, out: Snapshot): void {
       (trackPieces.cols.mode[i] << 10) |
       (trackPieces.cols.dir[i] << 8) |
       (trackPieces.cols.pieceType[i] & 0xff);
+    const link = i * TRACK_LINK_STRIDE;
+    out.trackLinks[link] = trackPieces.slotToId[i];
+    out.trackLinks[link + 1] = trackPieces.cols.prev[i];
+    out.trackLinks[link + 2] = trackPieces.cols.next[i];
   }
   out.tracks.count = trackCount;
   const feedback = world.feedback;

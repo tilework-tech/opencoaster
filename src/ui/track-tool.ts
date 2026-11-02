@@ -18,6 +18,7 @@ import {
   PieceFlag,
   PieceMode,
   Slope,
+  TrackNotice,
   TrackResult,
   TrackWarning,
 } from '../sim/track/track-types';
@@ -56,27 +57,54 @@ export function classifyPiece(piece: TrackPieceDef): TurnKind {
 
 const PIECE_TURNS: readonly TurnKind[] = PIECES.map(classifyPiece);
 
+/** Whether the ride type's track rules let it use the piece. */
+function rideTypeAllows(piece: TrackPieceDef, rideType?: RideType): boolean {
+  const rules = rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackRules;
+  if (!rules) return true;
+  if (rules.allowedPieces && !rules.allowedPieces.includes(piece.id)) return false;
+  if (
+    !rules.steepSlopes &&
+    (Math.abs(piece.entrySlope) === Math.abs(Slope.Up60) ||
+      Math.abs(piece.exitSlope) === Math.abs(Slope.Up60))
+  )
+    return false;
+  return rules.inversions || !(piece.flags & PieceFlag.Inverted);
+}
+
 /** The piece that matches the controls and attaches to the cursor, if the catalog has one. */
 export function resolvePiece(
   cursor: CursorShape,
   choice: PieceChoice,
   rideType?: RideType,
 ): TrackPieceDef | undefined {
-  const allowedPieces =
-    rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackRules?.allowedPieces;
-  const rules = rideType === undefined ? undefined : RIDE_CATALOG[rideType]?.trackRules;
   return PIECES.find(
     (piece, index) =>
-      (!allowedPieces || allowedPieces.includes(piece.id)) &&
-      (!rules ||
-        rules.steepSlopes ||
-        (Math.abs(piece.entrySlope) !== Math.abs(Slope.Up60) &&
-          Math.abs(piece.exitSlope) !== Math.abs(Slope.Up60))) &&
-      (!rules || rules.inversions || !(piece.flags & PieceFlag.Inverted)) &&
+      rideTypeAllows(piece, rideType) &&
       PIECE_TURNS[index] === choice.turn &&
       piece.exitSlope === choice.slope &&
       piece.exitBank === choice.bank &&
       (!cursor.hasTrack || (piece.entrySlope === cursor.slope && piece.entryBank === cursor.bank)),
+  );
+}
+
+/**
+ * The piece that matches the controls and leads into the start of a section whose first piece
+ * begins with `start`'s slope and bank. Building backward, the slope and bank controls set the
+ * new piece's far end: the slope and bank it starts with.
+ */
+export function resolvePieceBefore(
+  start: CursorShape,
+  choice: PieceChoice,
+  rideType?: RideType,
+): TrackPieceDef | undefined {
+  return PIECES.find(
+    (piece, index) =>
+      rideTypeAllows(piece, rideType) &&
+      PIECE_TURNS[index] === choice.turn &&
+      piece.entrySlope === choice.slope &&
+      piece.entryBank === choice.bank &&
+      piece.exitSlope === start.slope &&
+      piece.exitBank === start.bank,
   );
 }
 
@@ -230,14 +258,13 @@ const TRACK_MESSAGES: Record<TrackResult, string> = {
   [TrackResult.NoSuchRide]: 'That ride no longer exists.',
   [TrackResult.NoSuchPiece]: 'There is no track piece to remove there.',
   [TrackResult.OutOfBounds]: 'The piece would leave the map.',
-  [TrackResult.NotConnected]: 'The piece does not connect to the end of the track.',
+  [TrackResult.NotConnected]: 'The piece does not connect to an open end of the track.',
   [TrackResult.Blocked]: 'Blocked by other track.',
   [TrackResult.BelowGround]: 'The piece would go below the ground.',
   [TrackResult.TooHigh]: 'The piece is too high for this ride.',
   [TrackResult.BadMode]: 'This piece cannot use that drive mode.',
   [TrackResult.TooManyPieces]: 'This ride has too many track pieces.',
   [TrackResult.CircuitClosed]: 'The circuit is complete; remove a piece to extend it.',
-  [TrackResult.NotAtEnd]: 'Only the end of an unfinished track can be removed.',
   [TrackResult.StoreFull]: 'The park cannot hold any more track.',
   [TrackResult.NotOwned]: 'You need to own the land or its construction rights.',
   [TrackResult.InsufficientFunds]: 'Not enough cash for that piece.',
@@ -247,6 +274,8 @@ const TRACK_MESSAGES: Record<TrackResult, string> = {
     'Tunnels must enter through the side of the land, not a corner, and run straight until they are under cover.',
   [TrackResult.OverWater]: 'Track cannot be built over open water for this ride type.',
   [TrackResult.HeightLimit]: heightLimitRefusal(),
+  [TrackResult.RideBusy]:
+    'Close the ride and wait for its train to return empty before changing the track.',
 };
 
 const TRACK_WARNING_MESSAGES: Record<TrackWarning, string> = {
@@ -293,6 +322,17 @@ const RIDE_MESSAGES: Record<RideResult, string> = {
   [RideResult.RideTypeForbidden]: RESTRICTION_REFUSALS.rideType,
 };
 
+/** Whether a command outcome means the edit did not happen (warnings and notices did happen). */
+export function editRefused(domain: FeedbackDomain, code: number): boolean {
+  if (domain === FeedbackDomain.Track)
+    return (
+      code !== TrackResult.Ok &&
+      code !== TrackWarning.LiftIntoInversion &&
+      code !== TrackNotice.Removed
+    );
+  return !feedbackMessage(domain, code).ok;
+}
+
 /** Player-facing text for a command outcome from the simulation. */
 export function feedbackMessage(domain: FeedbackDomain, code: number, detail = ''): FeedbackLine {
   const ok = code === 0 || code === RideResult.TestPassed;
@@ -302,6 +342,7 @@ export function feedbackMessage(domain: FeedbackDomain, code: number, detail = '
     if (code === TrackWarning.LiftIntoInversion) {
       return { text: TRACK_WARNING_MESSAGES[code], ok: false };
     }
+    if (code === TrackNotice.Removed) return { text: 'Track piece removed.', ok: true };
     return { text: TRACK_MESSAGES[code as TrackResult] ?? `Track result ${code}`, ok: code === 0 };
   }
   if (domain === FeedbackDomain.Ride) {

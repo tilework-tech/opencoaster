@@ -104,8 +104,8 @@ export interface GameUIActions {
   chooseRideType(type: RideType): void;
   /** Opens Footpaths with Queue line on and points at the ride's entrance, to build its queue. */
   buildRideQueue(rideId: number): void;
-  /** Reopens a track ride in the construction window. */
-  editTrack(rideId: number): void;
+  /** Reopens a track ride in the construction window, with `pieceId` selected when given. */
+  editTrack(rideId: number, pieceId?: number): void;
   map(): MapData | null;
   camera(): Camera;
   audioSettings(): Pick<PlayerSettings, 'soundVolume' | 'musicVolume' | 'musicOn' | 'muted'>;
@@ -142,7 +142,10 @@ export interface UiContext {
   alternate(): boolean;
   selectedGuest(): GuestSelection | null;
   series: { cash: SampleSeries; value: SampleSeries; profit: SampleSeries; guests: SampleSeries };
-  openRide(rideId: number): void;
+  /** Opens the ride's window; `pieceId` is the track piece the player clicked to open it. */
+  openRide(rideId: number, pieceId?: number): void;
+  /** The track piece clicked to open the ride's window, if it was opened from one. */
+  clickedTrackPiece(rideId: number): number | undefined;
   openGuest(guestId: number): void;
   openWorker(staffId: number): void;
   openWindow(id: string): void;

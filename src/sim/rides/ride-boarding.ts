@@ -78,3 +78,26 @@ export function faceBoardingAwayFromRide(world: World, slot: number): void {
     setBoardingFront(world, x, y, frontAwayFrom(tiles, x, y));
   }
 }
+
+/**
+ * Takes an entrance or exit off a track ride once no station tile is beside it any more (after its
+ * station was removed). The path tile stays; the ride needs a new entrance or exit before it opens.
+ */
+export function detachStrandedGates(world: World, slot: number): void {
+  const ride = world.rides.cols;
+  const def = RIDE_CATALOG[ride.typeId[slot] as RideType];
+  if (!def?.usesTrack) return;
+  const tiles = rideBoardingTiles(world, slot);
+  const beside = (x: number, y: number): boolean =>
+    tiles.some(([bx, by]) => Math.abs(bx - x) + Math.abs(by - y) === 1);
+  if (ride.entrancePlaced[slot] && !beside(ride.entranceX[slot], ride.entranceY[slot])) {
+    setBoardingFront(world, ride.entranceX[slot], ride.entranceY[slot], -1);
+    ride.entrancePlaced[slot] = 0;
+    ride.queueConnected[slot] = 0;
+    ride.queueLineTiles[slot] = 0;
+  }
+  if (ride.exitPlaced[slot] && !beside(ride.exitX[slot], ride.exitY[slot])) {
+    setBoardingFront(world, ride.exitX[slot], ride.exitY[slot], -1);
+    ride.exitPlaced[slot] = 0;
+  }
+}

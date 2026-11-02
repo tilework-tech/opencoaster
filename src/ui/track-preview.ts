@@ -121,6 +121,8 @@ export class TrackPreviewOverlay {
   private readonly corner = new Float64Array(2);
   private atlas: CanvasAtlas | null = null;
   private hasContent = false;
+  /** Viewport corners of each footprint tile of the drawn track preview, four (x, y) pairs each. */
+  private ghostTiles: number[][] = [];
 
   constructor(parent: HTMLElement) {
     this.canvas = document.createElement('canvas');
@@ -157,6 +159,7 @@ export class TrackPreviewOverlay {
     this.hasContent = active;
     canvas.hidden = !active;
     if (tileGhost) this.drawTileGhost(tileGhost, map, camera, viewport);
+    this.ghostTiles = [];
     if (!ghost) return;
 
     const fill = ghost.status === TrackResult.Ok ? VALID_FILL : INVALID_FILL;
@@ -171,10 +174,14 @@ export class TrackPreviewOverlay {
     ctx.strokeStyle = ENTRY_MARK;
     ctx.lineWidth = 1.5;
     for (const [tx, ty] of tiles) {
+      const quad: number[] = [];
+      this.ghostTiles.push(quad);
       ctx.beginPath();
-      this.corners(tx, ty, z, map, camera, viewport, (x, y, first) =>
-        first ? ctx.moveTo(x, y) : ctx.lineTo(x, y),
-      );
+      this.corners(tx, ty, z, map, camera, viewport, (x, y, first) => {
+        quad.push(x, y);
+        if (first) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -223,6 +230,18 @@ export class TrackPreviewOverlay {
     ctxPath(this.ctx, INVALID_FILL, ENTRY_MARK, (visit) =>
       this.corners(x, y, z, map, camera, viewport, visit),
     );
+  }
+
+  /** Whether a viewport point lies on a tile of the track preview drawn last. */
+  hits(x: number, y: number): boolean {
+    return this.ghostTiles.some((quad) => {
+      let inside = false;
+      for (let i = 0, j = quad.length - 2; i < quad.length; j = i, i += 2) {
+        const [xi, yi, xj, yj] = [quad[i], quad[i + 1], quad[j], quad[j + 1]];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    });
   }
 
   dispose(): void {
