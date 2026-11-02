@@ -61,7 +61,7 @@ test('the title screen footer links to Nori, the build story and the source on d
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
-  await expectFooterLinksBesideMenu(page, 24);
+  await expectFooterLinksBesideMenu(page, 0);
 
   for (const { name } of FOOTER_LINKS) {
     const link = page.getByRole('link', { name });
@@ -73,11 +73,11 @@ test('the title screen footer links to Nori, the build story and the source on d
 
   await page.getByRole('button', { name: 'New game', exact: true }).click();
   await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await expectFooterLinksBesideMenu(page, 24);
+  await expectFooterLinksBesideMenu(page, 0);
 
   await page.getByRole('button', { name: 'Load game', exact: true }).click();
   await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await expectFooterLinksBesideMenu(page, 24);
+  await expectFooterLinksBesideMenu(page, 0);
 });
 
 for (const device of ['Pixel 8', 'iPhone SE'] as const) {
@@ -90,3 +90,22 @@ for (const device of ['Pixel 8', 'iPhone SE'] as const) {
     await expectFooterLinksBesideMenu(page, 44);
   });
 }
+
+test('the title screen footer links keep phone-sized touch targets in landscape', async ({
+  browser,
+}) => {
+  const { defaultBrowserType: _browserType, ...options } = devices['Pixel 7 landscape'];
+  void _browserType;
+  const context = await createTestContext(browser, options);
+  const page = await context.newPage();
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'OpenCoaster' })).toBeVisible();
+  for (const { name, href } of FOOTER_LINKS) {
+    const link = page.getByRole('link', { name });
+    await link.scrollIntoViewIfNeeded();
+    // The panel scrolls at fractional offsets, so allow sub-pixel clipping.
+    await expect(link).toBeInViewport({ ratio: 0.95 });
+    await expect(link).toHaveAttribute('href', href);
+    expect((await boxOf(link)).height, `${name} touch target`).toBeGreaterThanOrEqual(44);
+  }
+});

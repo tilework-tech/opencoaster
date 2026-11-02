@@ -347,7 +347,7 @@ function newTabLink(text: string, href: string, className: string): HTMLAnchorEl
   link.href = href;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.append(element('span', 'title-source-hint', ' (opens in a new tab)'));
+  link.append(element('span', 'title-footer-hint', ' (opens in a new tab)'));
   return link;
 }
 
@@ -369,7 +369,7 @@ function sourceFooter(): HTMLElement {
     separator,
     newTabLink('Source on GitHub', SOURCE_REPOSITORY_URL, 'title-source-link'),
   );
-  const footer = element('footer', 'title-footer');
+  const footer = element('div', 'title-footer');
   footer.append(promo, story, license);
   return footer;
 }
