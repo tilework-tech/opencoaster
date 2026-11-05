@@ -1,15 +1,39 @@
 const CACHE_NAME = 'opencoaster-static-' + self.__CACHE_VERSION__;
 const PRECACHE_URLS = self.__PRECACHE_URLS__;
+const PRECACHE_CONCURRENCY = 6;
+
+/**
+ * Downloads the precache list a few files at a time into this build's cache, skipping files a
+ * failed earlier attempt already stored, so a retried install fetches only what is missing.
+ * The first failed download stops the queue, so a throttled server is not sent the rest.
+ */
+async function precache() {
+  const cache = await caches.open(CACHE_NAME);
+  const pending = [];
+  for (const url of PRECACHE_URLS) {
+    const request = new Request(url, { cache: 'reload' });
+    if (!(await cache.match(request))) pending.push(request);
+  }
+  const store = async (request) => {
+    const response = await fetch(request);
+    if (!response.ok) throw new Error(`Precache of ${request.url} failed: ${response.status}`);
+    await cache.put(request, response);
+  };
+  const download = async () => {
+    for (let request = pending.shift(); request; request = pending.shift()) {
+      await store(request).catch((error) => {
+        pending.length = 0;
+        throw error;
+      });
+    }
+  };
+  const results = await Promise.allSettled(Array.from({ length: PRECACHE_CONCURRENCY }, download));
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure) throw failure.reason;
+}
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) =>
-        cache.addAll(PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' }))),
-      )
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {

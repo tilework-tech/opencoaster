@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vitest/config';
+import { precacheUrls } from './tools/pwa/precache-urls';
 
 // COOP/COEP make the page cross-origin isolated, which unlocks SharedArrayBuffer and
 // high-resolution timers. The current transport (transferable snapshots) does not require
@@ -12,16 +13,6 @@ const isolationHeaders = {
 };
 
 const workerSource = readFileSync(resolve('src/pwa/service-worker.js'), 'utf8');
-
-function publicFiles(directory: string, prefix = ''): string[] {
-  return readdirSync(directory).flatMap((name) => {
-    const absolutePath = resolve(directory, name);
-    const relativePath = `${prefix}${name}`;
-    return statSync(absolutePath).isDirectory()
-      ? publicFiles(absolutePath, `${relativePath}/`)
-      : [relativePath];
-  });
-}
 
 /** Fills in the worker's precache list and the cache name that ties its caches to one build. */
 function buildWorker(urls: string[], version: string): string {
@@ -41,9 +32,10 @@ function pwaPlugin(): Plugin {
       });
     },
     generateBundle(_options, bundle) {
-      // Relative to the worker script, so the precache works at any deploy base (e.g. /opencoaster/).
-      const urls = Object.keys(bundle).filter((fileName) => fileName !== 'service-worker.js');
-      urls.push('index.html', './', ...publicFiles(resolve('public')));
+      const urls = precacheUrls(
+        Object.keys(bundle).filter((fileName) => fileName !== 'service-worker.js'),
+        resolve('public'),
+      );
       this.emitFile({
         type: 'asset',
         fileName: 'service-worker.js',
@@ -95,6 +87,7 @@ export default defineConfig(({ command }) => ({
       'bench/**/*.test.ts',
       'tools/art/**/*.test.ts',
       'tools/sprites/**/*.test.ts',
+      'tools/pwa/**/*.test.ts',
     ],
   },
 }));

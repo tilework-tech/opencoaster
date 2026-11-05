@@ -14,4 +14,8 @@ The game is served at https://opencoaster.noriagentic.com/ over HTTPS. `public/C
 - Production builds use a relative Vite base (`./`) by default, so `dist/` works at the domain root and under a subpath such as `/opencoaster/`. Set `OC_BASE` (e.g. `OC_BASE=/opencoaster/ pnpm build`) to pin an absolute base instead.
 - `pnpm smoke:subpath` builds `dist/`, serves it under `/opencoaster/` with no cross-origin isolation headers (`tools/serve-subpath.mjs`), and runs the smoke suite against it. GitHub Pages sends no COOP/COEP headers, so this matches production.
 
+## Service worker precache
+
+The production service worker precaches only what the game requests at runtime, a few files at a time, and resumes a failed install instead of restarting it ([src/pwa](../../src/pwa/docs.md)). `dist/` still contains the per-sprite atlas inputs copied from `public/sprites/`; precaching them all once caused GitHub Pages to answer with 503s and every reload to re-flood the site, so keep the precache list small.
+
 Dev and preview builds keep the root base and the COOP/COEP headers the Vite dev server sends.
