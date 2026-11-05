@@ -1,0 +1,131 @@
+[
+  {
+    "label": "old-build",
+    "downloads": 24919,
+    "network": {
+      "page:200": 54,
+      "sw:200": 24918
+    },
+    "controlled": true,
+    "active": "activated",
+    "installing": null,
+    "caches": {
+      "opencoaster-static-mw2ocwow": "keys() failed: Failed to execute 'keys' on 'Cache': Operation too large."
+    },
+    "save": [
+      9,
+      8,
+      7
+    ],
+    "settings": "{\"upgrade\":true}"
+  },
+  {
+    "label": "new-build-reload-1",
+    "downloads": 280,
+    "network": {
+      "sw:200": 280,
+      "page:200:fromSW": 54
+    },
+    "controlled": true,
+    "active": "activated",
+    "installing": null,
+    "caches": {
+      "opencoaster-static-mw2rj2j3": 278
+    },
+    "save": [
+      9,
+      8,
+      7
+    ],
+    "settings": "{\"upgrade\":true}",
+    "nav": "page.reload: Timeout 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"load\"\u001b[22m\n\u001b[2m    - navigated to \"http://127.0.0.1:4179/opencoaster/\"\u001b[22m\n",
+    "titleShownMs": 175416,
+    "text": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build y"
+  },
+  {
+    "label": "new-build-reload-2",
+    "downloads": 1,
+    "network": {
+      "sw:200": 1,
+      "page:200:fromSW": 54
+    },
+    "controlled": true,
+    "active": "activated",
+    "installing": null,
+    "caches": {
+      "opencoaster-static-mw2rj2j3": 278
+    },
+    "save": [
+      9,
+      8,
+      7
+    ],
+    "settings": "{\"upgrade\":true}",
+    "nav": 200,
+    "titleShownMs": "not shown: locator.waitFor: Timeout 120000ms exceeded.",
+    "text": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build y"
+  },
+  {
+    "label": "new-build-reload-3",
+    "downloads": 1,
+    "network": {
+      "sw:200": 1,
+      "page:200:fromSW": 54
+    },
+    "controlled": true,
+    "active": "activated",
+    "installing": null,
+    "caches": {
+      "opencoaster-static-mw2rj2j3": 278
+    },
+    "save": [
+      9,
+      8,
+      7
+    ],
+    "settings": "{\"upgrade\":true}",
+    "nav": 200,
+    "titleShownMs": 21021,
+    "text": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build y"
+  },
+  {
+    "label": "new-build-reload-4",
+    "downloads": 1,
+    "network": {
+      "sw:200": 1,
+      "page:200:fromSW": 54
+    },
+    "controlled": true,
+    "active": "activated",
+    "installing": null,
+    "caches": {
+      "opencoaster-static-mw2rj2j3": 278
+    },
+    "save": [
+      9,
+      8,
+      7
+    ],
+    "settings": "{\"upgrade\":true}",
+    "nav": 200,
+    "titleShownMs": 22449,
+    "text": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build y"
+  },
+  {
+    "label": "load-game-lists-save",
+    "downloads": 0,
+    "network": {},
+    "controlled": true,
+    "active": "activated",
+    "installing": null,
+    "caches": {
+      "opencoaster-static-mw2rj2j3": 278
+    },
+    "save": [
+      9,
+      8,
+      7
+    ],
+    "settings": "{\"upgrade\":true}"
+  }
+]

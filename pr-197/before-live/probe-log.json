@@ -1,0 +1,218 @@
+{
+  "url": "https://opencoaster.noriagentic.com/",
+  "log": [
+    {
+      "t": "2026-11-04T22:17:35.320Z",
+      "label": "cleared",
+      "origin": "https://opencoaster.noriagentic.com"
+    },
+    {
+      "t": "2026-11-04T22:18:36.349Z",
+      "label": "first-visit",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": false,
+        "active": null,
+        "waiting": null,
+        "installing": "installing",
+        "caches": {
+          "opencoaster-static-mvzcdq84": 0
+        },
+        "saves": 0
+      },
+      "consoleErrors": [],
+      "requests": {
+        "page:200": 56,
+        "sw:200": 2895
+      }
+    },
+    {
+      "t": "2026-11-04T22:19:37.217Z",
+      "label": "reload-1",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": false,
+        "active": null,
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mvzcdq84": 0
+        },
+        "saves": 0
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 945,
+        "page:200": 56,
+        "sw:503": 1,
+        "sw:failed:net::ERR_ABORTED": 21081
+      }
+    },
+    {
+      "t": "2026-11-04T22:20:37.998Z",
+      "label": "reload-2",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": false,
+        "active": null,
+        "waiting": null,
+        "installing": "installing",
+        "caches": {
+          "opencoaster-static-mvzcdq84": 0
+        },
+        "saves": 0
+      },
+      "consoleErrors": [],
+      "requests": {
+        "page:200": 56,
+        "sw:200": 3004
+      }
+    },
+    {
+      "t": "2026-11-04T22:21:38.785Z",
+      "label": "reload-3",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": false,
+        "active": null,
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mvzcdq84": 0
+        },
+        "saves": 0
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 1879,
+        "page:200": 56,
+        "sw:503": 1,
+        "sw:failed:net::ERR_ABORTED": 20037
+      }
+    },
+    {
+      "t": "2026-11-04T22:22:39.766Z",
+      "label": "hard-reload",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": false,
+        "active": null,
+        "waiting": null,
+        "installing": "installing",
+        "caches": {
+          "opencoaster-static-mvzcdq84": 0
+        },
+        "saves": 0
+      },
+      "consoleErrors": [],
+      "requests": {
+        "page:200": 56,
+        "sw:200": 5321
+      }
+    },
+    {
+      "t": "2026-11-04T22:23:41.202Z",
+      "label": "reopen-tab",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": false,
+        "active": null,
+        "waiting": null,
+        "installing": "installing",
+        "caches": {
+          "opencoaster-static-mvzcdq84": 0
+        },
+        "saves": 0
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 3314,
+        "page:200": 56
+      }
+    }
+  ],
+  "stats": {
+    "first-visit": {
+      "page:200": 56,
+      "sw:200": 2895
+    },
+    "reload-1": {
+      "sw:200": 945,
+      "page:200": 56,
+      "sw:503": 1,
+      "sw:failed:net::ERR_ABORTED": 21081
+    },
+    "reload-2": {
+      "page:200": 56,
+      "sw:200": 3004
+    },
+    "reload-3": {
+      "sw:200": 1879,
+      "page:200": 56,
+      "sw:503": 1,
+      "sw:failed:net::ERR_ABORTED": 20037
+    },
+    "hard-reload": {
+      "page:200": 56,
+      "sw:200": 5321
+    },
+    "reopen-tab": {
+      "sw:200": 3314,
+      "page:200": 56
+    }
+  },
+  "blocked": [
+    {
+      "phase": "reload-1",
+      "status": 503,
+      "url": "https://opencoaster.noriagentic.com/sprites/rides/coaster/steel/track/largeHelixRightDown/view-1/cell-6.png",
+      "sw": true,
+      "headers": {
+        "x-fastly-request-id": "d854e5746daee345155521cbfddefe806f090041",
+        "retry-after": "0",
+        "x-timer": "S1793830735.126489,VS0,VE29",
+        "via": "1.1 varnish",
+        "accept-ranges": "bytes",
+        "x-cache": "MISS",
+        "content-length": "54887",
+        "date": "Wed, 04 Nov 2026 22:18:55 GMT",
+        "content-type": "text/html; charset=utf-8",
+        "x-served-by": "cache-chi-klot8100054-CHI",
+        "server": "Varnish",
+        "x-cache-hits": "0"
+      }
+    },
+    {
+      "phase": "reload-3",
+      "status": 503,
+      "url": "https://opencoaster.noriagentic.com/sprites/rides/coaster/steel/track/largeRightDown25/view-1/cell-5.json",
+      "sw": true,
+      "headers": {
+        "x-fastly-request-id": "1b6e830b15c3ecd6ce1e9a3f8c25d2402812a919",
+        "retry-after": "0",
+        "x-timer": "S1793830870.683789,VS0,VE110",
+        "via": "1.1 varnish",
+        "accept-ranges": "bytes",
+        "x-cache": "MISS",
+        "content-length": "54887",
+        "date": "Wed, 04 Nov 2026 22:21:09 GMT",
+        "content-type": "text/html; charset=utf-8",
+        "x-served-by": "cache-chi-klot8100054-CHI",
+        "server": "Varnish",
+        "x-cache-hits": "0"
+      }
+    }
+  ]
+}

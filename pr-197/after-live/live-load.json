@@ -1,0 +1,15 @@
+{
+  "mode": "load",
+  "loaded": "Live reload check",
+  "state": {
+    "controlled": true,
+    "active": "activated",
+    "caches": {
+      "opencoaster-static-mw2ujeq1": 278
+    }
+  },
+  "statuses": {
+    "sw:200": 1,
+    "page:200": 57
+  }
+}

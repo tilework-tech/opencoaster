@@ -1,0 +1,18 @@
+{
+  "mode": "save",
+  "navigation": 200,
+  "controlledAfterMs": 7110,
+  "installRequests": 278,
+  "saved": "Live reload check",
+  "state": {
+    "controlled": true,
+    "active": "activated",
+    "caches": {
+      "opencoaster-static-mw2ujeq1": 278
+    }
+  },
+  "statuses": {
+    "page:200": 68,
+    "sw:200": 278
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "url": "https://opencoaster.noriagentic.com/",
+  "log": [
+    {
+      "t": "2026-11-05T01:09:47.757Z",
+      "label": "first-visit",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": true,
+        "active": "activated",
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mw2ujeq1": 278
+        },
+        "saves": 1
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 1,
+        "page:200:fromSW": 56
+      }
+    },
+    {
+      "t": "2026-11-05T01:10:03.655Z",
+      "label": "reload-1",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": true,
+        "active": "activated",
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mw2ujeq1": 278
+        },
+        "saves": 1
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 1,
+        "page:200:fromSW": 56
+      }
+    },
+    {
+      "t": "2026-11-05T01:10:19.428Z",
+      "label": "reload-2",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": true,
+        "active": "activated",
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mw2ujeq1": 278
+        },
+        "saves": 1
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 1,
+        "page:200:fromSW": 56
+      }
+    },
+    {
+      "t": "2026-11-05T01:10:35.250Z",
+      "label": "reload-3",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": true,
+        "active": "activated",
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mw2ujeq1": 278
+        },
+        "saves": 1
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 1,
+        "page:200:fromSW": 56
+      }
+    },
+    {
+      "t": "2026-11-05T01:10:51.046Z",
+      "label": "hard-reload",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": true,
+        "active": "activated",
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mw2ujeq1": 278
+        },
+        "saves": 1
+      },
+      "consoleErrors": [],
+      "requests": {
+        "sw:200": 1,
+        "page:200:fromSW": 56
+      }
+    },
+    {
+      "t": "2026-11-05T01:11:07.347Z",
+      "label": "reopen-tab",
+      "status": 200,
+      "title": "OpenCoaster",
+      "body": "OpenCoaster\n\nBuild the park, keep the guests happy, balance the books.\n\nNew game\nSandbox\nContinue\nLoad game\nImport save file\n\nBuilt with Nori. Use it to build your own coaster game.\n(opens in a new ta",
+      "sw": {
+        "controlled": true,
+        "active": "activated",
+        "waiting": null,
+        "installing": null,
+        "caches": {
+          "opencoaster-static-mw2ujeq1": 278
+        },
+        "saves": 1
+      },
+      "consoleErrors": [],
+      "requests": {
+        "page:200:fromSW": 56,
+        "sw:200": 1
+      }
+    }
+  ],
+  "stats": {
+    "first-visit": {
+      "sw:200": 1,
+      "page:200:fromSW": 56
+    },
+    "reload-1": {
+      "sw:200": 1,
+      "page:200:fromSW": 56
+    },
+    "reload-2": {
+      "sw:200": 1,
+      "page:200:fromSW": 56
+    },
+    "reload-3": {
+      "sw:200": 1,
+      "page:200:fromSW": 56
+    },
+    "hard-reload": {
+      "sw:200": 1,
+      "page:200:fromSW": 56
+    },
+    "reopen-tab": {
+      "page:200:fromSW": 56,
+      "sw:200": 1
+    }
+  },
+  "blocked": []
+}
